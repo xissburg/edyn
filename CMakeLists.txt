@@ -26,6 +26,7 @@ endif()
 
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" FALSE)
 
+set(EDYN_SET_DOUBLE 0)
 if (EDYN_CONFIG_DOUBLE)
     set(EDYN_SET_DOUBLE 1)
 endif()
