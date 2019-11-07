@@ -5,4 +5,6 @@ add_executable(vector3 edyn/math/vector3.cpp)
 
 target_link_libraries(vector3 PRIVATE EDyn GTest::Main)
 
-add_test(NAME vector3 COMMAND vector3)
+#add_test(NAME vector3 COMMAND vector3)
+
+gtest_discover_tests(vector3)
