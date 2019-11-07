@@ -48,7 +48,7 @@ set(EDyn_SOURCES
 
 add_library(EDyn STATIC ${EDyn_SOURCES})
 
-configure_file(${EDyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${EDyn_BINARY_DIR}/include/build_settings.h @ONLY)
+configure_file(${EDyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${EDyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
 install(FILES ${EDyn_BINARY_DIR}/include/build_settings.h DESTINATION include/edyn)
 
 target_include_directories(EDyn 

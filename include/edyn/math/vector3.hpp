@@ -1,6 +1,7 @@
 #ifndef EDYN_MATH_VECTOR3_HPP
 #define EDYN_MATH_VECTOR3_HPP
 
+#include <cmath>
 #include "scalar.hpp"
 #include "../config/config.h"
 
@@ -8,65 +9,44 @@ namespace edyn {
 
 struct vector3 {
     scalar x, y, z;
-
-    // Add another vector to this.
-    inline vector3& operator+=(const vector3 &v) {
-        x += v.x;
-        y += v.y;
-        z += v.z;
-        return *this;
-    }
-
-    // Subtract a vector from this.
-    inline vector3& operator-=(const vector3 &v) {
-        x -= v.x;
-        y -= v.y;
-        z -= v.z;
-        return *this;
-    }
-
-    // Scale this vector.
-    inline vector3& operator*=(scalar s) {
-        x *= s;
-        y *= s;
-        z *= s;
-        return *this;
-    }
-
-    // Inverse-scale this vector.
-    inline vector3& operator/=(scalar s) {
-        x /= s;
-        y /= s;
-        z /= s;
-        return *this;
-    }
-
-    // Zero vector.
-    static const vector3 zero;
-
-    // Unit vector pointing in the x direction.
-    static const vector3 unit_x;
-
-    // Unit vector pointing in the y direction.
-    static const vector3 unit_y;
-
-    // Unit vector pointing in the z direction.
-    static const vector3 unit_z;
 };
 
-inline constexpr const vector3 vector3::zero {0, 0, 0};
-inline constexpr const vector3 vector3::unit_x {1, 0, 0};
-inline constexpr const vector3 vector3::unit_y {0, 1, 0};
-inline constexpr const vector3 vector3::unit_z {0, 0, 1};
+// Zero vector.
+inline constexpr vector3 vector3_zero {0, 0, 0};
+
+// Unit vector pointing in the x direction.
+inline constexpr vector3 vector3_x {1, 0, 0};
+
+// Unit vector pointing in the y direction.
+inline constexpr vector3 vector3_y {0, 1, 0};
+
+// Unit vector pointing in the z direction.
+inline constexpr vector3 vector3_z {0, 0, 1};
 
 // Add two vectors.
 inline vector3 operator+(const vector3 &v, const vector3 &w) {
     return {v.x + w.x, v.y + w.y, v.z + w.z};
 }
 
+// Add a vector into another vector.
+inline vector3& operator+=(vector3 &v, const vector3 &w) {
+    v.x += w.x;
+    v.y += w.y;
+    v.z += w.z;
+    return v;
+}
+
 // Subtract two vectors.
 inline vector3 operator-(const vector3 &v, const vector3 &w) {
     return {v.x - w.x, v.y - w.y, v.z - w.z};
+}
+
+// Subtract a vector from another vector.
+inline vector3& operator-=(vector3 &v, const vector3 &w) {
+    v.x -= w.x;
+    v.y -= w.y;
+    v.z -= w.z;
+    return v;
 }
 
 // Negation of a vector.
@@ -94,6 +74,22 @@ inline vector3 operator/(scalar s, const vector3 &v) {
     return {s / v.x, s / v.y, s / v.z};
 }
 
+// Scale a vector.
+inline vector3& operator*=(vector3 &v, scalar s) {
+    v.x *= s;
+    v.y *= s;
+    v.z *= s;
+    return v;
+}
+
+// Inverse-scale a vector.
+inline vector3& operator/=(vector3 &v, scalar s) {
+    v.x /= s;
+    v.y /= s;
+    v.z /= s;
+    return v;
+}
+
 // Check if two vectors are equal.
 inline bool operator==(const vector3 &v, const vector3 &w) {
     return v.x == w.x && v.y == w.y && v.z == w.z;
@@ -107,6 +103,13 @@ inline bool operator!=(const vector3 &v, const vector3 &w) {
 // Dot product between vectors.
 inline scalar dot(const vector3 &v, const vector3 &w) {
     return v.x * w.x + v.y * w.y + v.z * w.z;
+}
+
+// Cross product between two vectors.
+inline vector3 cross(const vector3 &v, const vector3 &w) {
+    return {v.y * w.z - v.z * w.y,
+            v.z * w.x - v.x * w.z,
+            v.x * w.y - v.y * w.x};
 }
 
 // Square length of a vector.

@@ -1,10 +1,13 @@
 include_directories($<TARGET_PROPERTY:EDyn,INCLUDE_DIRECTORIES>)
 add_compile_options($<TARGET_PROPERTY:EDyn,COMPILE_OPTIONS>)
 
-add_executable(vector3 edyn/math/vector3.cpp)
+macro(SETUP_AND_ADD_TEST TEST_NAME TEST_SOURCE)
+    add_executable(${TEST_NAME} ${TEST_SOURCE})
+    target_link_libraries(${TEST_NAME} PRIVATE EDyn GTest::Main)
+    gtest_discover_tests(${TEST_NAME})
+endmacro()
 
-target_link_libraries(vector3 PRIVATE EDyn GTest::Main)
-
-#add_test(NAME vector3 COMMAND vector3)
-
-gtest_discover_tests(vector3)
+SETUP_AND_ADD_TEST(vector3 edyn/math/vector3.cpp)
+SETUP_AND_ADD_TEST(position edyn/comp/position.cpp)
+SETUP_AND_ADD_TEST(integrate_linvel edyn/sys/integrate_linvel.cpp)
+SETUP_AND_ADD_TEST(integrate_linacc edyn/sys/integrate_linacc.cpp)
