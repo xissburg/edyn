@@ -16,7 +16,7 @@ TEST(integrate_linacc, test) {
     }
 
     auto& linvel = registry.get<edyn::linvel>(ent);
-    ASSERT_SCALAR_EQ(linvel.v.x, (edyn::gravity_earth * dt * n).x);
-    ASSERT_SCALAR_EQ(linvel.v.y, (edyn::gravity_earth * dt * n).y);
-    ASSERT_SCALAR_EQ(linvel.v.z, (edyn::gravity_earth * dt * n).z);
+    ASSERT_SCALAR_EQ(linvel.x, (edyn::gravity_earth * dt * n).x);
+    ASSERT_SCALAR_EQ(linvel.y, (edyn::gravity_earth * dt * n).y);
+    ASSERT_SCALAR_EQ(linvel.z, (edyn::gravity_earth * dt * n).z);
 }

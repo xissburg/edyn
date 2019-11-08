@@ -5,20 +5,8 @@
 
 namespace edyn {
 
-struct position {
-    vector3 v;
+struct position : public vector3 {
 
-    operator vector3&() {
-        return v;
-    }
-
-    operator const vector3&() const {
-        return v;
-    }
-
-    operator vector3() const {
-        return v;
-    }
 };
 
 }

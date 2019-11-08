@@ -8,6 +8,5 @@ macro(SETUP_AND_ADD_TEST TEST_NAME TEST_SOURCE)
 endmacro()
 
 SETUP_AND_ADD_TEST(vector3 edyn/math/vector3.cpp)
-SETUP_AND_ADD_TEST(position edyn/comp/position.cpp)
 SETUP_AND_ADD_TEST(integrate_linvel edyn/sys/integrate_linvel.cpp)
 SETUP_AND_ADD_TEST(integrate_linacc edyn/sys/integrate_linacc.cpp)
