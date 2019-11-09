@@ -24,12 +24,16 @@ endif()
 # Options
 #
 
-option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" FALSE)
+option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats." OFF)
 
 set(EDYN_SET_DOUBLE 0)
 if (EDYN_CONFIG_DOUBLE)
-    set(EDYN_SET_DOUBLE 1)
+set(EDYN_SET_DOUBLE 1)
 endif()
+
+option(EDYN_BUILD_EXAMPLES "Build examples." OFF)
+
+option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
 
 #
 # Conan dependencies
@@ -63,12 +67,19 @@ target_include_directories(EDyn SYSTEM
 target_compile_features(EDyn PUBLIC cxx_std_17)
 
 #
+# Examples
+#
+
+if(EDYN_BUILD_EXAMPLES)
+    add_subdirectory(extras)
+    add_subdirectory(examples)
+endif()
+
+#
 # Tests
 #
 
-option(BUILD_TESTS "Build tests with gtest" OFF)
-
-if(BUILD_TESTS)
+if(EDYN_BUILD_TESTS)
     find_package(GTest REQUIRED)
     find_library(GMock_LIBRARY gmock)
     find_library(GMockMain_LIBRARY gmock_main)

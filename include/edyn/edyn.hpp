@@ -1,6 +1,9 @@
-#ifndef EDYN_EDYN_HPP
-#define EDYN_EDYN_HPP
-
 #include "build_settings.h"
-
-#endif // EDYN_EDYN_HPP
+#include "comp/linacc.hpp"
+#include "comp/linvel.hpp"
+#include "comp/mass.hpp"
+#include "comp/position.hpp"
+#include "math/constants.hpp"
+#include "math/scalar.hpp"
+#include "math/vector3.hpp"
+#include "sys/physics.hpp"
