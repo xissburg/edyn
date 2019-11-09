@@ -1,11 +1,12 @@
 #include <edyn/edyn.hpp>
-#include <edyn/time.hpp>
+#include <edyn/time/time.hpp>
 #include <entt/entt.hpp>
 #include <cstdio>
 
 /**
  * Demonstration of the importance of interpolation for smooth real-time
- * presentation on screen using `edyn::current_position`.
+ * presentation on screen using `edyn::current_position`. Using the raw
+ * `edyn::position` will generally cause jitter.
  */
 int main(int argc, char** argv) {
     entt::registry registry;
@@ -40,7 +41,7 @@ int main(int argc, char** argv) {
         view.each([] (auto ent, const auto& pos, const auto& curpos) {
             // Compare the physics position to the presentation positon and notice how
             // the physics position `pos` does not change uniformly after each update due the 
-            // different number steps taken each time. The presentation position `curpos`
+            // different number of steps taken each time. The presentation position `curpos`
             // should change 1 unit per update (it also grows a thousandth every once in while
             // since dt is not exactly the same every time).
             printf("pos    (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), pos.x, pos.y, pos.z);

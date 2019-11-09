@@ -51,6 +51,13 @@ set(EDyn_SOURCES
     src/edyn/edyn.cpp
 )
 
+if (UNIX)
+    set(EDyn_SOURCES
+        ${EDyn_SOURCES}
+        src/edyn/time/unix/time.cpp
+    )
+endif()
+
 add_library(EDyn STATIC ${EDyn_SOURCES})
 
 configure_file(${EDyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${EDyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
@@ -72,7 +79,6 @@ target_compile_features(EDyn PUBLIC cxx_std_17)
 #
 
 if(EDYN_BUILD_EXAMPLES)
-    add_subdirectory(extras)
     add_subdirectory(examples)
 endif()
 

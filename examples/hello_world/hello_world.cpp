@@ -1,5 +1,5 @@
 #include <edyn/edyn.hpp>
-#include <edyn/time.hpp>
+#include <edyn/time/time.hpp>
 #include <entt/entt.hpp>
 #include <cstdio>
 
