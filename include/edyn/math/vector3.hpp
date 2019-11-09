@@ -3,7 +3,7 @@
 
 #include <cmath>
 #include "scalar.hpp"
-#include "../config/config.h"
+#include "edyn/config/config.h"
 
 namespace edyn {
 

@@ -2,8 +2,8 @@
 #define EDYN_SYS_INTEGRATE_LINACC_HPP
 
 #include <entt/entt.hpp>
-#include "../comp/linvel.hpp"
-#include "../comp/linacc.hpp"
+#include "edyn/comp/linvel.hpp"
+#include "edyn/comp/linacc.hpp"
 
 namespace edyn {
 

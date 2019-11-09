@@ -1,7 +1,7 @@
 #ifndef EDYN_COMP_VELOCITY_HPP
 #define EDYN_COMP_VELOCITY_HPP
 
-#include "../math/vector3.hpp"
+#include "edyn/math/vector3.hpp"
 
 namespace edyn {
 

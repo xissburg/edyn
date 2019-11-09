@@ -23,8 +23,8 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
-#include <edyn/time.hpp>
-#include "../../../include/edyn/config/config.h"
+#include "edyn/time.hpp"
+#include "edyn/config/config.h"
 #include <sys/time.h>
 #include <cerrno>
 

@@ -1,7 +1,7 @@
 #ifndef EDYN_COMP_MASS_HPP
 #define EDYN_COMP_MASS_HPP
 
-#include "../math/scalar.hpp"
+#include "edyn/math/scalar.hpp"
 
 namespace edyn {
 

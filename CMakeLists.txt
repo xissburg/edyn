@@ -47,6 +47,7 @@ conan_basic_setup()
 #
 
 set(EDyn_SOURCES
+    src/edyn/dynamics/world.cpp
     src/edyn/edyn.cpp
 )
 

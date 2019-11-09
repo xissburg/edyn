@@ -5,6 +5,7 @@
 
 int main(int argc, char** argv) {
     entt::registry registry;
+    edyn::world world(registry);
 
     auto ent = registry.create();
     registry.assign<edyn::position>(ent, 0, 3, 0);
@@ -19,13 +20,18 @@ int main(int argc, char** argv) {
     while (ti < t0 + 10 * freq) {
         const auto t = edyn::performance_counter();
         const auto dt = (t - ti) * timescale;
-        edyn::update(registry, dt);
+        world.update(dt);
         ti = t;
+
+        printf("===============================\n");
+        printf("step %lu, dt %.3f\n", world.current_step(), dt);
 
         auto view = registry.view<const edyn::position>();
         view.each([] (auto ent, const auto& pos) {
             printf("pos (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), pos.x, pos.y, pos.z);
         });
+
+        edyn::delay(300);
     }
 
     return 0;

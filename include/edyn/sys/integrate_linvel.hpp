@@ -2,8 +2,8 @@
 #define EDYN_SYS_INTEGRATE_LINVEL_HPP
 
 #include <entt/entt.hpp>
-#include "../comp/position.hpp"
-#include "../comp/linvel.hpp"
+#include "edyn/comp/position.hpp"
+#include "edyn/comp/linvel.hpp"
 
 namespace edyn {
 
