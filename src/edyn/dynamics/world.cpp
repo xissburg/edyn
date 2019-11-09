@@ -1,6 +1,7 @@
 #include "edyn/dynamics/world.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
+#include "edyn/sys/update_current_position.hpp"
 
 namespace edyn {
 
@@ -15,6 +16,8 @@ void world::update(scalar dt) {
     for (int i = 0; i < n; ++i) {
         step(fixed_dt);
     }
+
+    update_current_position(*registry, fixed_dt, residual_dt);
 }
 
 void world::step(scalar dt) {
