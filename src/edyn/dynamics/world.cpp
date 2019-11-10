@@ -2,6 +2,7 @@
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/update_current_position.hpp"
+#include "edyn/time/time.hpp"
 
 namespace edyn {
 
@@ -18,12 +19,38 @@ void world::update(scalar dt) {
     }
 
     update_current_position(*registry, fixed_dt, residual_dt);
+
+    update_signal.publish(dt);
 }
 
 void world::step(scalar dt) {
     integrate_linacc(*registry, dt);
     integrate_linvel(*registry, dt);
     ++step_;
+}
+
+void world::run() {
+    running = true;
+
+    const auto freq = edyn::performance_frequency();
+    const auto timescale = 1.0 / freq;
+    const auto t0 = edyn::performance_counter();
+    auto ti = t0;
+
+    while (running) {
+        const auto t = edyn::performance_counter();
+        const auto dt = (t - ti) * timescale;
+        update(dt);
+        ti = t;
+
+        if (dt < fixed_dt) {
+            edyn::delay(1000*(fixed_dt - dt));
+        }
+    }
+}
+
+void world::quit() {
+    running = false;
 }
 
 }

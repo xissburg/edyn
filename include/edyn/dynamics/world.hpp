@@ -20,12 +20,24 @@ public:
         return step_;
     }
 
+    void run();
+
+    void quit();
+
     scalar fixed_dt {1.0/60};
+
+    using update_signal_func_t = void(scalar);
+
+    entt::sink<update_signal_func_t> update_sink() {
+        return {update_signal};
+    }
 
 private:
     entt::registry* registry;
     scalar residual_dt {0};
     uint64_t step_ {0};
+    bool running {false};
+    entt::sigh<update_signal_func_t> update_signal;
 };
 
 }
