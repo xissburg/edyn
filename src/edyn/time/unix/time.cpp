@@ -176,15 +176,15 @@ void delay(uint32_t ms) {
         was_error = nanosleep(&tv, &elapsed);
 #else
         /* Calculate the time interval left (in case of interrupt) */
-        now = SDL_GetTicks();
+        now = ticks();
         elapsed = (now - then);
         then = now;
         if (elapsed >= ms) {
             break;
         }
         ms -= elapsed;
-        tv.tv_sec = ms / 1e3;
-        tv.tv_usec = (ms % 1e3) * 1e3;
+        tv.tv_sec = ms / 1000;
+        tv.tv_usec = (ms % 1000) * 1000;
 
         was_error = select(0, NULL, NULL, NULL, &tv);
 #endif /* HAVE_NANOSLEEP */

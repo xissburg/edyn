@@ -5,17 +5,19 @@
 
 void print_entities(entt::registry& registry, edyn::scalar dt) {
     auto& world = registry.ctx<edyn::world>();
-    auto step = world.current_step();
-    
-    printf("===============================\n");
-    printf("step %lu, dt %.6f\n", step, dt);
+    auto step = world.current_step();   
+    auto time = step * world.fixed_dt;
 
-    auto view = registry.view<const edyn::current_position>();
-    view.each([] (auto ent, const auto& pos) {
+    printf("===============================\n");
+    printf("step %lu, dt %.6f, time %.2f\n", step, dt, time);
+
+    auto view = registry.view<const edyn::current_position, const edyn::linvel>();
+    view.each([] (auto ent, const auto &pos, const auto &vel) {
         printf("pos (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), pos.x, pos.y, pos.z);
+        printf("vel (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), vel.x, vel.y, vel.z);
     });
 
-    if (step * world.fixed_dt > 10) {
+    if (time >= 10) {
         world.quit();
     }
 }
@@ -24,9 +26,13 @@ int main(int argc, char** argv) {
     entt::registry registry;
 
     const auto ent = registry.create();
+    // This entity has aposition in space.
     registry.assign<edyn::position>(ent, 0, 3, 0);
+    // Current position used for presentation. See `current_pos.cpp` for details.
     registry.assign<edyn::current_position>(ent);
-    registry.assign<edyn::linvel>(ent);
+    // Linear velocity.
+    registry.assign<edyn::linvel>(ent, 0, 10, 0);
+    // Gravity linear acceleration.
     registry.assign<edyn::linacc>(ent, edyn::gravity_earth);
 
     // Create an `edyn::world` into the registry's context.
