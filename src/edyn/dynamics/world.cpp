@@ -37,10 +37,10 @@ void world::run() {
     const auto t0 = edyn::performance_counter();
     auto ti = t0;
 
-    // Use a Proportional Controller to calculate the right amount of delay to
+    // Use an Integral Controller to calculate the right amount of delay to
     // keep `dt` as close as possible to `fixed_dt`.
     scalar delay_dt = 0;
-    const scalar P = 0.5;
+    const scalar I = 0.5;
 
     while (running) {
         const auto t = edyn::performance_counter();
@@ -49,7 +49,7 @@ void world::run() {
         ti = t;
 
         auto err_dt = fixed_dt - dt;
-        delay_dt += err_dt * P;
+        delay_dt += err_dt * I;
 
         edyn::delay(delay_dt * 1000);
     }
