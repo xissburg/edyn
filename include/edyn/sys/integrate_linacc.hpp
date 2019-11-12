@@ -7,9 +7,16 @@
 
 namespace edyn {
 
-void integrate_linacc(entt::registry& registry, scalar dt) {
-    auto view = registry.view<edyn::linvel, const edyn::linacc>();
-    view.each([&] (auto, linvel& vel, const linacc& acc) {
+void integrate_linacc(entt::registry &registry, scalar dt) {
+    auto view = registry.view<linvel, const linacc>();
+    view.each([&] (auto, linvel &vel, const linacc &acc) {
+        vel += acc * dt;
+    });
+}
+
+void integrate_linacc_priv(entt::registry &registry, scalar dt) {
+    auto view = registry.view<linvel_priv, const linacc>();
+    view.each([&] (auto, linvel_priv &vel, const linacc &acc) {
         vel += acc * dt;
     });
 }

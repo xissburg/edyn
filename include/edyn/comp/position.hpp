@@ -9,6 +9,10 @@ struct position : public vector3 {
 
 };
 
+struct position_priv : public position {
+
+};
+
 }
 
 #endif // EDYN_COMP_POSITION_HPP

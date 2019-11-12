@@ -49,7 +49,7 @@ namespace edyn {
 #endif
 #endif
 
-struct __time_info {
+struct time_start_info {
     #if defined(__APPLE__)
     uint64_t start_mach;
     mach_timebase_info_data_t mach_base_info;
@@ -59,7 +59,7 @@ struct __time_info {
     bool has_monotonic_time {false};
     timeval start_tv;
 
-    __time_info() {
+    time_start_info() {
         /* Set first ticks value */
     #if HAVE_CLOCK_GETTIME
         if (clock_gettime(EDYN_MONOTONIC_CLOCK, &start_ts) == 0) {
@@ -78,7 +78,7 @@ struct __time_info {
     }
 };
 
-static const __time_info info;
+static const time_start_info info;
 
 uint32_t ticks()
 {
@@ -100,7 +100,7 @@ uint32_t ticks()
     } else {
         struct timeval now;
 
-        gettimeofday(&now, NULL);
+        gettimeofday(&now, nullptr);
         ticks = (uint32_t)((now.tv_sec - info.start_tv.tv_sec) * 1e3 + (now.tv_usec - info.start_tv.tv_usec) / 1e3);
     }
     return (ticks);

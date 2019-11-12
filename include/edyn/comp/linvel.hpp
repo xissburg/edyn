@@ -9,6 +9,10 @@ struct linvel : public vector3 {
     
 };
 
+struct linvel_priv : public linvel {
+
+};
+
 }
 
 #endif // EDYN_COMP_VELOCITY_HPP

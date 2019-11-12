@@ -19,7 +19,7 @@ void print_entities(entt::registry& registry, edyn::scalar dt) {
 
     if (time >= 10) {
         world.quit();
-    }
+    }                                                                                                                                
 }
 
 int main(int argc, char** argv) {

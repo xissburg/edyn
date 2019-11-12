@@ -18,6 +18,9 @@ void print_entities(entt::registry& registry, edyn::scalar dt) {
     printf("===============================\n");
     printf("step %lu, dt %.6f, time %.2f\n", world.current_step(), dt, time);
 
+    auto pos = edyn::position{2.0,2.0,2.0};
+    pos.x = 2;
+
     auto view = registry.view<const edyn::position, const edyn::current_position>();
     view.each([] (auto ent, const auto& pos, const auto& curpos) {
         // Compare the physics position to the presentation positon and notice how

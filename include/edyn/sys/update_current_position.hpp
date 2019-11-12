@@ -8,8 +8,7 @@
 
 namespace edyn {
 
-void update_current_position(entt::registry &registry, scalar fixed_dt, scalar residual_dt) {
-    const auto dt = residual_dt - fixed_dt;
+void update_current_position(entt::registry &registry, scalar dt) {
     auto view = registry.view<current_position, const position, const linvel>();
     view.each([&] (auto, current_position &currpos, const position &pos, const linvel &vel) {
         currpos = pos + vel * dt;
