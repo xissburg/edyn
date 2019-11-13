@@ -8,7 +8,7 @@ void print_entities(entt::registry& registry, edyn::scalar dt) {
     auto step = world.current_step();   
     auto time = step * world.fixed_dt;
 
-    printf("===============================\n");
+    printf("================================\n");
     printf("step %lu, dt %.6f, time %.2f\n", step, dt, time);
 
     auto view = registry.view<const edyn::current_position, const edyn::linvel>();

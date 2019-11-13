@@ -16,5 +16,4 @@ macro(SETUP_AND_ADD_EXAMPLE EXAMPLE_NAME EXAMPLE_SOURCES)
 endmacro()
 
 SETUP_AND_ADD_EXAMPLE(hello_world hello_world/hello_world.cpp)
-SETUP_AND_ADD_EXAMPLE(hello_world_mt hello_world_mt/hello_world_mt.cpp)
 SETUP_AND_ADD_EXAMPLE(current_pos current_pos/current_pos.cpp)

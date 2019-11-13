@@ -10,7 +10,7 @@ namespace edyn {
 
 void update_current_position(entt::registry &registry, scalar dt) {
     auto view = registry.view<current_position, const position, const linvel>();
-    view.each([&] (auto, current_position &currpos, const position &pos, const linvel &vel) {
+    view.each([dt] (auto, current_position &currpos, const position &pos, const linvel &vel) {
         currpos = pos + vel * dt;
     });
 }

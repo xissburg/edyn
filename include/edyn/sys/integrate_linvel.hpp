@@ -14,13 +14,6 @@ void integrate_linvel(entt::registry &registry, scalar dt) {
     });
 }
 
-void integrate_linvel_priv(entt::registry &registry, scalar dt) {
-    auto view = registry.view<position_priv, const linvel_priv>();
-    view.each([&] (auto, position_priv &pos, const linvel_priv &vel) {
-        pos += vel * dt;
-    });
-}
-
 }
 
 
