@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
     entt::registry registry;
 
     const auto ent = registry.create();
-    // This entity has aposition in space.
+    // This entity has a position in space.
     registry.assign<edyn::position>(ent, 0, 3, 0);
     // Current position used for presentation. See `current_pos.cpp` for details.
     registry.assign<edyn::current_position>(ent);

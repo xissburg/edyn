@@ -1,4 +1,5 @@
 #include "edyn/dynamics/world.hpp"
+#include "edyn/sys/integrate_gravity.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/update_current_position.hpp"
@@ -34,6 +35,7 @@ void world::update(scalar dt) {
 }
 
 void world::step(scalar dt) {
+    integrate_gravity(*registry, dt);
     integrate_linacc(*registry, dt);
     integrate_linvel(*registry, dt);
     ++step_;

@@ -12,10 +12,6 @@ struct mass {
         return s;
     }
 
-    operator const scalar&() const {
-        return s;
-    }
-
     operator scalar() const {
         return s;
     }
