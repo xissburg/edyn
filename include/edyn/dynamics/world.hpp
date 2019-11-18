@@ -6,12 +6,13 @@
 #include <vector>
 #include <entt/entt.hpp>
 #include "edyn/math/scalar.hpp"
+#include "edyn/comp/constraint.hpp"
 
 namespace edyn {
 
 class world final {
 public:
-    world(entt::registry& reg);
+    world(entt::registry &);
     ~world();
 
     void update(scalar dt);
@@ -37,6 +38,9 @@ public:
     }
 
     scalar fixed_dt {1.0/60};
+
+    void on_construct_constraint(entt::entity, entt::registry &, constraint &);
+    void on_destroy_constraint(entt::entity, entt::registry &);
 
 private:
     entt::registry* registry;

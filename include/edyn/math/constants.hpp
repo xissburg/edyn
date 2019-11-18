@@ -11,6 +11,8 @@ inline constexpr scalar pi = 3.1415926535897932384626433832795029;
 
 inline constexpr scalar gravitational_constant = 6.674e-11;
 
+inline constexpr scalar large_scalar = 1e10;
+
 inline constexpr vector3 gravity_sun     {0, -274,   0};
 inline constexpr vector3 gravity_mercury {0, -3.7,   0};
 inline constexpr vector3 gravity_venus   {0, -8.87,  0};

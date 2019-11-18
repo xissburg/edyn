@@ -1,16 +1,19 @@
+#include <type_traits>
 #include "edyn/dynamics/world.hpp"
 #include "edyn/sys/integrate_gravity.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/update_current_position.hpp"
 #include "edyn/time/time.hpp"
+#include "edyn/comp/constraint_row.hpp"
 
 namespace edyn {
 
-world::world(entt::registry& reg) 
+world::world(entt::registry &reg) 
     : registry(&reg)
 {
-
+    connections.push_back(reg.on_construct<constraint>().connect<world::on_construct_constraint>(*this));
+    connections.push_back(reg.on_destroy<constraint>().connect<world::on_destroy_constraint>(*this));
 }
 
 world::~world() {
@@ -70,6 +73,25 @@ void world::run() {
 
 void world::quit() {
     running = false;
+}
+
+void world::on_construct_constraint(entt::entity, entt::registry &registry, constraint &con) {
+    std::visit([&] (auto&& value) {
+        for (size_t i = 0; i < std::decay_t<decltype(value)>::num_rows; ++i) {
+            auto e = registry.create();
+            con.row[i] = e;
+            registry.assign<constraint_row>(e);
+        }
+    }, con.var);
+}
+
+void world::on_destroy_constraint(entt::entity entity, entt::registry &registry) {
+    auto& con = registry.get<constraint>(entity);
+    for (auto e : con.row) {
+        if (e != entt::null) {
+            registry.destroy(e);
+        }
+    }
 }
 
 }
