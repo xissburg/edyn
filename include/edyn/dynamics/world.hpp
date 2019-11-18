@@ -5,6 +5,8 @@
 #include <mutex>
 #include <vector>
 #include <entt/entt.hpp>
+
+#include "solver.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/comp/constraint.hpp"
 
@@ -44,6 +46,7 @@ public:
 
 private:
     entt::registry* registry;
+    solver sol;
     std::vector<entt::scoped_connection> connections;
     scalar residual_dt {0};
     std::atomic<uint64_t> step_ {0};

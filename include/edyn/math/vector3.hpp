@@ -9,6 +9,14 @@ namespace edyn {
 
 struct vector3 {
     scalar x, y, z;
+
+    scalar& operator[](size_t i) {
+        return (&x)[i];
+    }
+
+    scalar operator[](size_t i) const {
+        return (&x)[i];
+    }
 };
 
 // Zero vector.

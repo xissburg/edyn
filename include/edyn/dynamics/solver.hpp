@@ -13,8 +13,11 @@ public:
     void update(scalar dt);
     void solve(constraint_row &);
 
+    uint32_t iterations {10};
+
 private:
     entt::registry *registry;
+    std::vector<entt::scoped_connection> connections;
 };
 
 }

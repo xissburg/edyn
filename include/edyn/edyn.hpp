@@ -4,7 +4,7 @@
 #include "comp/mass.hpp"
 #include "comp/position.hpp"
 #include "comp/current_position.hpp"
-#include "comp/gravity.hpp"
+#include "comp/constraint.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
 #include "math/vector3.hpp"

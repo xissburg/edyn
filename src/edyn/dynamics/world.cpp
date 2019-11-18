@@ -1,19 +1,20 @@
 #include <type_traits>
 #include "edyn/dynamics/world.hpp"
-#include "edyn/sys/integrate_gravity.hpp"
-#include "edyn/sys/integrate_linvel.hpp"
-#include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/update_current_position.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/angvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
+#include "edyn/comp/delta_linvel.hpp"
 
 namespace edyn {
 
 world::world(entt::registry &reg) 
     : registry(&reg)
+    , sol(reg)
 {
-    connections.push_back(reg.on_construct<constraint>().connect<world::on_construct_constraint>(*this));
-    connections.push_back(reg.on_destroy<constraint>().connect<world::on_destroy_constraint>(*this));
+    //connections.push_back(reg.on_construct<constraint>().connect<&world::on_construct_constraint>(*this));
+    //connections.push_back(reg.on_destroy<constraint>().connect<&world::on_destroy_constraint>(*this));
 }
 
 world::~world() {
@@ -38,9 +39,7 @@ void world::update(scalar dt) {
 }
 
 void world::step(scalar dt) {
-    integrate_gravity(*registry, dt);
-    integrate_linacc(*registry, dt);
-    integrate_linvel(*registry, dt);
+    sol.update(dt);
     ++step_;
 }
 
@@ -80,7 +79,8 @@ void world::on_construct_constraint(entt::entity, entt::registry &registry, cons
         for (size_t i = 0; i < std::decay_t<decltype(value)>::num_rows; ++i) {
             auto e = registry.create();
             con.row[i] = e;
-            registry.assign<constraint_row>(e);
+            auto &row = registry.assign<constraint_row>(e);
+            row.entity = con.entity;
         }
     }, con.var);
 }
