@@ -5,9 +5,9 @@
 
 /**
  * Demonstration of the importance of interpolation for smooth real-time
- * presentation on screen using `edyn::current_position`. Using the raw
+ * presentation on screen using `edyn::present_position`. Using the raw
  * `edyn::position` will generally cause jitter. The value in 
- * `edyn::current_position` is delayed by `world.fixed_dt` with respect
+ * `edyn::present_position` is delayed by `world.fixed_dt` with respect
  * to the current global time. It's calculated by translating the physics
  * position backwards using `linvel`.
  */
@@ -19,7 +19,7 @@ void print_entities(entt::registry& registry, edyn::scalar dt) {
     printf("================================\n");
     printf("step %lu, dt %.6f, time %.2f\n", world.current_step(), dt, time);
 
-    auto view = registry.view<const edyn::position, const edyn::current_position>();
+    auto view = registry.view<const edyn::position, const edyn::present_position>();
     view.each([] (auto ent, const auto& pos, const auto& curpos) {
         // Compare the physics position to the presentation position and notice how
         // the physics position `pos` does not change uniformly after each update 
@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
 
     const auto ent = registry.create();
     registry.assign<edyn::position>(ent, 0, 0, 0);
-    registry.assign<edyn::current_position>(ent);
+    registry.assign<edyn::present_position>(ent);
     // Set a constant speed that will move the entity 1 unit per step.
     registry.assign<edyn::linvel>(ent, 0, 1/0.041, 0);
 

@@ -17,8 +17,20 @@ struct matrix3x3 {
 // Identity matrix.
 inline constexpr matrix3x3 matrix3x3_identity {{vector3_x, vector3_y, vector3_z}};
 
+// Multiply vector by matrix.
+inline vector3 operator*(const matrix3x3& m, const vector3& v) {
+    return {dot(m.row[0], v), dot(m.row[1], v), dot(m.row[2], v)};
+}
+
+// Matrix with given vector as diagonal.
+inline matrix3x3 diagonal(const vector3& v) {
+    return {vector3 {v.x, 0, 0},
+            vector3 {0, v.y, 0},
+            vector3 {0, 0, v.z}}; 
+}
+
 // Skew anti-symmetric matrix of a vector.
-matrix3x3 skew(const vector3& v) {
+inline matrix3x3 skew(const vector3& v) {
     return {vector3 {0, -v.z, v.y},
             vector3 {v.z, 0, -v.x},
             vector3 {-v.y, v.x, 0}};

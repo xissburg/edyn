@@ -17,6 +17,18 @@ struct mass {
     }
 };
 
+struct mass_inv {
+    scalar s;
+
+    operator scalar&() {
+        return s;
+    }
+
+    operator scalar() const {
+        return s;
+    }
+};
+
 }
 
 #endif // EDYN_COMP_MASS_HPP

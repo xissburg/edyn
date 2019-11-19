@@ -13,8 +13,8 @@ struct constraint_row {
     scalar error;
     scalar lower_limit;
     scalar upper_limit;
-    // Inverse effective mass (J M^-1 J^T)^-1
-    scalar eff_mass_inv;
+    // Effective mass (J M^-1 J^T)^-1
+    scalar eff_mass;
     // Right hand side Jv + b
     scalar rhs;
     scalar impulse;

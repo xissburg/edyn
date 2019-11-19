@@ -11,7 +11,7 @@ void print_entities(entt::registry& registry, edyn::scalar dt) {
     printf("================================\n");
     printf("step %lu, dt %.6f, time %.2f\n", step, dt, time);
 
-    auto view = registry.view<const edyn::current_position, const edyn::linvel>();
+    auto view = registry.view<const edyn::present_position, const edyn::linvel>();
     view.each([] (auto ent, const auto &pos, const auto &vel) {
         printf("pos (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), pos.x, pos.y, pos.z);
         printf("vel (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), vel.x, vel.y, vel.z);
@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     // This entity has a position in space.
     registry.assign<edyn::position>(ent, 0, 3, 0);
     // Current position used for presentation. See `current_pos.cpp` for details.
-    registry.assign<edyn::current_position>(ent);
+    registry.assign<edyn::present_position>(ent);
     // Linear velocity.
     registry.assign<edyn::linvel>(ent, 0, 10, 0);
     // Gravity linear acceleration.

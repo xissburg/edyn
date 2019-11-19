@@ -1,20 +1,61 @@
 #include <type_traits>
 #include "edyn/dynamics/world.hpp"
-#include "edyn/sys/update_current_position.hpp"
+#include "edyn/sys/update_present_position.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/mass.hpp"
+#include "edyn/comp/inertia.hpp"
 
 namespace edyn {
+
+void on_construct_constraint(entt::entity, entt::registry &registry, constraint &con) {
+    std::visit([&] (auto&& value) {
+        for (size_t i = 0; i < std::decay_t<decltype(value)>::num_rows; ++i) {
+            auto e = registry.create();
+            con.row[i] = e;
+            auto &row = registry.assign<constraint_row>(e);
+            row.entity = con.entity;
+        }
+    }, con.var);
+}
+
+void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
+    auto& con = registry.get<constraint>(entity);
+    for (auto e : con.row) {
+        if (e != entt::null) {
+            registry.destroy(e);
+        }
+    }
+}
+
+void on_construct_mass(entt::entity entity, entt::registry &registry, mass &m) {
+    EDYN_ASSERT(m > 0);
+    registry.assign<mass_inv>(entity, m < EDYN_SCALAR_MAX ? 1 / m : 0);
+}
+
+void on_construct_inertia(entt::entity entity, entt::registry &registry, inertia &i) {
+    auto &invI = registry.assign<inertia_inv>(entity, i.x < EDYN_SCALAR_MAX ? 1 / i.x : 0, 
+                                                      i.y < EDYN_SCALAR_MAX ? 1 / i.y : 0, 
+                                                      i.z < EDYN_SCALAR_MAX ? 1 / i.z : 0);
+    registry.assign<inertia_world_inv>(entity, diagonal(invI));
+}
 
 world::world(entt::registry &reg) 
     : registry(&reg)
     , sol(reg)
 {
-    //connections.push_back(reg.on_construct<constraint>().connect<&world::on_construct_constraint>(*this));
-    //connections.push_back(reg.on_destroy<constraint>().connect<&world::on_destroy_constraint>(*this));
+    connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
+    connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
+
+    connections.push_back(reg.on_construct<mass>().connect<&on_construct_mass>());
+    connections.push_back(reg.on_destroy<mass>().connect<&entt::registry::remove<mass_inv>>(reg));
+
+    connections.push_back(reg.on_construct<inertia>().connect<&on_construct_inertia>());
+    connections.push_back(reg.on_destroy<inertia>().connect<&entt::registry::remove<inertia_inv>>(reg));
+    connections.push_back(reg.on_destroy<inertia>().connect<&entt::registry::remove<inertia_world_inv>>(reg));
 }
 
 world::~world() {
@@ -33,7 +74,7 @@ void world::update(scalar dt) {
         step(fixed_dt);
     }
 
-    update_current_position(*registry, residual_dt - fixed_dt);
+    update_present_position(*registry, residual_dt - fixed_dt);
 
     update_signal.publish(dt);
 }
@@ -74,24 +115,6 @@ void world::quit() {
     running = false;
 }
 
-void world::on_construct_constraint(entt::entity, entt::registry &registry, constraint &con) {
-    std::visit([&] (auto&& value) {
-        for (size_t i = 0; i < std::decay_t<decltype(value)>::num_rows; ++i) {
-            auto e = registry.create();
-            con.row[i] = e;
-            auto &row = registry.assign<constraint_row>(e);
-            row.entity = con.entity;
-        }
-    }, con.var);
-}
 
-void world::on_destroy_constraint(entt::entity entity, entt::registry &registry) {
-    auto& con = registry.get<constraint>(entity);
-    for (auto e : con.row) {
-        if (e != entt::null) {
-            registry.destroy(e);
-        }
-    }
-}
 
 }

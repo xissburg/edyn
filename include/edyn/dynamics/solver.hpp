@@ -2,7 +2,7 @@
 #define EDYN_DYNAMICS_SOLVER_HPP
 
 #include <entt/entt.hpp>
-#include "edyn/comp/constraint_row.hpp"
+#include "edyn/math/scalar.hpp"
 
 namespace edyn {
 
@@ -11,7 +11,6 @@ public:
     solver(entt::registry &);
 
     void update(scalar dt);
-    void solve(constraint_row &);
 
     uint32_t iterations {10};
 

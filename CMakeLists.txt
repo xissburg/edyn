@@ -51,6 +51,7 @@ set(EDyn_SOURCES
     src/edyn/constraints/point_constraint.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
+    src/edyn/util/rigidbody.cpp
     src/edyn/edyn.cpp
 )
 
