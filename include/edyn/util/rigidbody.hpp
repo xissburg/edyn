@@ -17,7 +17,8 @@ struct rigidbody_def {
     bool presentation {false};
 };
 
-void rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
+void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
+entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
 
 }
 

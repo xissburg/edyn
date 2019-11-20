@@ -16,3 +16,4 @@
 #include "math/vector3.hpp"
 #include "dynamics/world.hpp"
 #include "util/rigidbody.hpp"
+#include "util/constraint.hpp"

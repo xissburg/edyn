@@ -10,7 +10,7 @@
 
 namespace edyn {
 
-void rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {
+void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {
     registry.assign<edyn::position>(entity, def.position);
     registry.assign<edyn::linvel>(entity, def.linvel);
     registry.assign<edyn::angvel>(entity, def.angvel);
@@ -21,6 +21,12 @@ void rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_de
         registry.assign<edyn::present_position>(entity);
         //registry.assign<edyn::present_orientation>(entity);
     }
+}
+
+entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) {
+    auto ent = registry.create();
+    make_rigidbody(ent, registry, def);
+    return ent;
 }
 
 }
