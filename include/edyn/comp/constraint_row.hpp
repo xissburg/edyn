@@ -8,7 +8,7 @@
 namespace edyn {
 
 struct constraint_row {
-    std::array<entt::entity, 2> entity;
+    entt::entity parent;
     std::array<vector3, 4> J;
     scalar error;
     scalar lower_limit;

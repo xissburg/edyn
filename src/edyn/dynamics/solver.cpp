@@ -2,7 +2,9 @@
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
+#include "edyn/sys/apply_gravity.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/mass.hpp"
@@ -55,12 +57,14 @@ void prepare(constraint_row &row,
     row.impulse = 0;
 }
 
-template<typename MassInvView, typename DeltaView>
-void solve(constraint_row &row, 
+template<typename ConstraintView, typename MassInvView, typename DeltaView>
+void solve(constraint_row &row,
+           ConstraintView &con_view,
            MassInvView &mass_inv_view,
            DeltaView &delta_view) {
-    auto [dvA, dwA] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[0]);
-    auto [dvB, dwB] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[1]);
+    auto &rel = con_view.template get<const relation>(row.parent);
+    auto [dvA, dwA] = delta_view.template get<delta_linvel, delta_angvel>(rel.entity[0]);
+    auto [dvB, dwB] = delta_view.template get<delta_linvel, delta_angvel>(rel.entity[1]);
 
     auto deltaA = dot(row.J[0], dvA) + dot(row.J[2], dwA);
     auto deltaB = dot(row.J[1], dvB) + dot(row.J[3], dwB);
@@ -77,8 +81,8 @@ void solve(constraint_row &row,
         row.impulse = impulse;
     }
 
-    auto [inv_mA, inv_IA] = mass_inv_view.template get<mass_inv, inertia_world_inv>(row.entity[0]);
-    auto [inv_mB, inv_IB] = mass_inv_view.template get<mass_inv, inertia_world_inv>(row.entity[1]);
+    auto [inv_mA, inv_IA] = mass_inv_view.template get<mass_inv, inertia_world_inv>(rel.entity[0]);
+    auto [inv_mB, inv_IB] = mass_inv_view.template get<mass_inv, inertia_world_inv>(rel.entity[1]);
 
     dvA += inv_mA * row.J[0] * delta_impulse;
     dwA += inv_IA * row.J[1] * delta_impulse;
@@ -95,19 +99,21 @@ void update_inertia(entt::registry& registry) {
 
 void solver::update(scalar dt) {
     integrate_linacc(*registry, dt);
+    apply_gravity(*registry, dt);
 
     auto mass_inv_view = registry->view<mass_inv, inertia_world_inv>();
     auto vel_view = registry->view<linvel, angvel>();
     auto delta_view = registry->view<delta_linvel, delta_angvel>();
 
-    registry->view<constraint>().each([&] (auto, auto &con) {
-        auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(con.entity[0]);
-        auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(con.entity[1]);
-        auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(con.entity[0]);
-        auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(con.entity[1]);
+    auto con_view = registry->view<const relation, constraint>();
+    con_view.each([&] (auto, const relation &rel, constraint &con) {
+        auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(rel.entity[0]);
+        auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(rel.entity[1]);
+        auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(rel.entity[0]);
+        auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(rel.entity[1]);
 
         std::visit([&] (auto &&c) {
-            c.prepare(&con, *registry, dt);
+            c.prepare(&con, &rel, *registry, dt);
 
             for (size_t i = 0; i < std::decay_t<decltype(c)>::num_rows; ++i) {
                 auto &row = registry->get<constraint_row>(con.row[i]);
@@ -120,7 +126,7 @@ void solver::update(scalar dt) {
 
     for (uint32_t i = 0; i < iterations; ++i) {
         row_view.each([&] (auto, auto &row) {
-            solve(row, mass_inv_view, delta_view);
+            solve(row, con_view, mass_inv_view, delta_view);
         });
     }
 

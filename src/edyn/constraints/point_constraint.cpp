@@ -1,5 +1,6 @@
 #include <entt/entt.hpp>
 #include "edyn/constraints/point_constraint.hpp"
+#include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
@@ -8,9 +9,9 @@
 
 namespace edyn {
 
-void point_constraint::prepare(constraint *con, entt::registry &registry, scalar dt) {
-    auto &posA = registry.get<const position>(con->entity[0]);
-    auto &posB = registry.get<const position>(con->entity[1]);
+void point_constraint::prepare(constraint *con, const relation *rel, entt::registry &registry, scalar dt) {
+    auto &posA = registry.get<const position>(rel->entity[0]);
+    auto &posB = registry.get<const position>(rel->entity[1]);
 
     auto rA = pivot[0];
     auto rB = pivot[1];

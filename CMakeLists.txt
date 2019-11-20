@@ -47,8 +47,8 @@ conan_basic_setup()
 #
 
 set(EDyn_SOURCES
-    src/edyn/constraints/gravity_constraint.cpp
     src/edyn/constraints/point_constraint.cpp
+    src/edyn/sys/apply_gravity.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
     src/edyn/util/rigidbody.cpp

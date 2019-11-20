@@ -11,13 +11,13 @@
 
 namespace edyn {
 
-void on_construct_constraint(entt::entity, entt::registry &registry, constraint &con) {
+void on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
     std::visit([&] (auto&& value) {
         for (size_t i = 0; i < std::decay_t<decltype(value)>::num_rows; ++i) {
             auto e = registry.create();
             con.row[i] = e;
             auto &row = registry.assign<constraint_row>(e);
-            row.entity = con.entity;
+            row.parent = entity;
         }
     }, con.var);
 }
