@@ -26,9 +26,9 @@ void point_constraint::prepare(constraint *con, entt::registry &registry, scalar
     for (size_t i = 0; i < 3; ++i) {
         auto &row = registry.get<constraint_row>(con->row[i]);
         row.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
-        row.error = (posA[i] + rA[i] - posB[i] - rB[i]) / dt;
-        row.lower_limit = -large_scalar;
-        row.upper_limit = large_scalar;
+        row.error = (posB[i] + rB[i] - posA[i] - rA[i]) / dt;
+        row.lower_limit = -EDYN_SCALAR_MAX;
+        row.upper_limit = EDYN_SCALAR_MAX;
     }
 }
 

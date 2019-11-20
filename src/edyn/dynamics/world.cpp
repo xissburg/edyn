@@ -36,11 +36,27 @@ void on_construct_mass(entt::entity entity, entt::registry &registry, mass &m) {
     registry.assign<mass_inv>(entity, m < EDYN_SCALAR_MAX ? 1 / m : 0);
 }
 
+void on_destroy_mass(entt::entity entity, entt::registry &registry) {
+    if (registry.has<mass_inv>(entity)) {
+        registry.remove<mass_inv>(entity);
+    }
+}
+
 void on_construct_inertia(entt::entity entity, entt::registry &registry, inertia &i) {
     auto &invI = registry.assign<inertia_inv>(entity, i.x < EDYN_SCALAR_MAX ? 1 / i.x : 0, 
                                                       i.y < EDYN_SCALAR_MAX ? 1 / i.y : 0, 
                                                       i.z < EDYN_SCALAR_MAX ? 1 / i.z : 0);
     registry.assign<inertia_world_inv>(entity, diagonal(invI));
+}
+
+void on_destroy_inertia(entt::entity entity, entt::registry &registry) {
+    if (registry.has<inertia_inv>(entity)) {
+        registry.remove<inertia_inv>(entity);
+    }
+
+    if (registry.has<inertia_world_inv>(entity)) {
+        registry.remove<inertia_world_inv>(entity);
+    }
 }
 
 world::world(entt::registry &reg) 
@@ -51,11 +67,10 @@ world::world(entt::registry &reg)
     connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
 
     connections.push_back(reg.on_construct<mass>().connect<&on_construct_mass>());
-    connections.push_back(reg.on_destroy<mass>().connect<&entt::registry::remove<mass_inv>>(reg));
+    connections.push_back(reg.on_destroy<mass>().connect<&on_destroy_mass>());
 
     connections.push_back(reg.on_construct<inertia>().connect<&on_construct_inertia>());
-    connections.push_back(reg.on_destroy<inertia>().connect<&entt::registry::remove<inertia_inv>>(reg));
-    connections.push_back(reg.on_destroy<inertia>().connect<&entt::registry::remove<inertia_world_inv>>(reg));
+    connections.push_back(reg.on_destroy<inertia>().connect<&on_destroy_inertia>());
 }
 
 world::~world() {

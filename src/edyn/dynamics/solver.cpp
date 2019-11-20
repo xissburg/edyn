@@ -14,14 +14,26 @@
 
 namespace edyn {
 
+void on_destroy_linvel(entt::entity entity, entt::registry &registry) {
+    if (registry.has<delta_linvel>(entity)) {
+        registry.remove<delta_linvel>(entity);
+    }
+}
+
+void on_destroy_angvel(entt::entity entity, entt::registry &registry) {
+    if (registry.has<delta_angvel>(entity)) {
+        registry.remove<delta_angvel>(entity);
+    }
+}
+
 solver::solver(entt::registry &reg) 
     : registry(&reg)
 {
     connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
-    connections.push_back(reg.on_destroy<linvel>().connect<&entt::registry::remove<delta_linvel>>(reg));
+    connections.push_back(reg.on_destroy<linvel>().connect<&on_destroy_linvel>());
 
     connections.push_back(reg.on_construct<angvel>().connect<&entt::registry::assign<delta_angvel>>(reg));
-    connections.push_back(reg.on_destroy<angvel>().connect<&entt::registry::remove<delta_angvel>>(reg));
+    connections.push_back(reg.on_destroy<angvel>().connect<&on_destroy_angvel>());
 }
 
 void prepare(constraint_row &row, 
