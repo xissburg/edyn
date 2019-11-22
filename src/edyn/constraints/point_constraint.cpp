@@ -4,6 +4,7 @@
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/comp/orientation.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
 
@@ -16,9 +17,11 @@ void point_constraint::prepare(constraint *con, const relation *rel, entt::regis
     auto rA = pivot[0];
     auto rB = pivot[1];
 
-    /* if (auto q = registry.try_get<orientation>(con->entity[0])) {
-        rA = rotate(*q, rA);
-    } */
+    auto &qA = registry.get<const orientation>(rel->entity[0]);
+    rA = rotate(qA, rA);
+
+    auto &qB = registry.get<const orientation>(rel->entity[1]);
+    rB = rotate(qB, rB);
 
     auto rA_skew = skew(rA);
     auto rB_skew = skew(rB);

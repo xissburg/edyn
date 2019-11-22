@@ -6,7 +6,10 @@
 namespace edyn {
 
 struct present_orientation : public quaternion {
-
+    present_orientation & operator=(const quaternion &q) {
+        quaternion::operator=(q);
+        return *this;
+    }
 };
 
 }

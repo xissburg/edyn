@@ -6,7 +6,10 @@
 namespace edyn {
 
 struct orientation : public quaternion {
-
+    orientation & operator=(const quaternion &q) {
+        quaternion::operator=(q);
+        return *this;
+    }
 };
 
 }

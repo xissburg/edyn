@@ -1,7 +1,8 @@
 #include <entt/entity/view.hpp>
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
+#include "edyn/sys/integrate_linvel.hpp"
+#include "edyn/sys/integrate_angvel.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/relation.hpp"
@@ -64,8 +65,8 @@ void solve(constraint_row &row,
     auto [dvA, dwA] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[0]);
     auto [dvB, dwB] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[1]);
 
-    auto deltaA = dot(row.J[0], dvA) + dot(row.J[2], dwA);
-    auto deltaB = dot(row.J[1], dvB) + dot(row.J[3], dwB);
+    auto deltaA = dot(row.J[0], dvA) + dot(row.J[1], dwA);
+    auto deltaB = dot(row.J[2], dvB) + dot(row.J[3], dwB);
     auto delta_impulse = (row.rhs - deltaA - deltaB) * row.eff_mass;
     auto impulse = row.impulse + delta_impulse;
 
@@ -82,23 +83,27 @@ void solve(constraint_row &row,
     auto [inv_mA, inv_IA] = mass_inv_view.template get<mass_inv, inertia_world_inv>(row.entity[0]);
     auto [inv_mB, inv_IB] = mass_inv_view.template get<mass_inv, inertia_world_inv>(row.entity[1]);
 
+    // Apply impulse.
     dvA += inv_mA * row.J[0] * delta_impulse;
     dwA += inv_IA * row.J[1] * delta_impulse;
     dvB += inv_mB * row.J[2] * delta_impulse;
     dwB += inv_IB * row.J[3] * delta_impulse;
 }
 
-void update_inertia(entt::registry& registry) {
+void update_inertia(entt::registry &registry) {
     auto view = registry.view<const orientation, const inertia_inv, inertia_world_inv>();
     view.each([] (auto, const orientation& orn, const inertia_inv &inv_I, inertia_world_inv &inv_IW) {
-        //inv_IW = orn * inv_I * inverse(orn);
+        auto basis = to_matrix3x3(orn);
+        inv_IW = scale(basis, inv_I) * transpose(basis);
     });
 }
 
 void solver::update(scalar dt) {
+    // Apply forces and acceleration.
     integrate_linacc(*registry, dt);
     apply_gravity(*registry, dt);
 
+    // Setup constraints.
     auto mass_inv_view = registry->view<mass_inv, inertia_world_inv>();
     auto vel_view = registry->view<linvel, angvel>();
 
@@ -119,6 +124,7 @@ void solver::update(scalar dt) {
         }, con.var);
     });
 
+    // Solve constraints.
     auto row_view = registry->view<constraint_row>();
     auto delta_view = registry->view<delta_linvel, delta_angvel>();
 
@@ -128,6 +134,7 @@ void solver::update(scalar dt) {
         });
     }
 
+    // Apply constraint velocity correction.
     registry->view<linvel, delta_linvel>().each([] (auto, auto &vel, auto &delta) {
         vel += delta;
         delta = vector3_zero;
@@ -138,8 +145,11 @@ void solver::update(scalar dt) {
         delta = vector3_zero;
     });
 
+    // Integrate velocities to obtain new transforms.
     integrate_linvel(*registry, dt);
+    integrate_angvel(*registry, dt);
 
+    // Update world-space moment of inertia.
     update_inertia(*registry);
 }
 

@@ -1,6 +1,7 @@
 #include <type_traits>
 #include "edyn/dynamics/world.hpp"
 #include "edyn/sys/update_present_position.hpp"
+#include "edyn/sys/update_present_orientation.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/angvel.hpp"
@@ -92,7 +93,9 @@ void world::update(scalar dt) {
         step(fixed_dt);
     }
 
-    update_present_position(*registry, residual_dt - fixed_dt);
+    const auto present_dt = residual_dt - fixed_dt;
+    update_present_position(*registry, present_dt);
+    update_present_orientation(*registry, present_dt);
 
     update_signal.publish(dt);
 }

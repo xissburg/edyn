@@ -8,7 +8,7 @@ namespace edyn {
 struct mass {
     scalar s;
 
-    operator scalar&() {
+    operator scalar &() {
         return s;
     }
 
@@ -20,7 +20,7 @@ struct mass {
 struct mass_inv {
     scalar s;
 
-    operator scalar&() {
+    operator scalar &() {
         return s;
     }
 

@@ -6,7 +6,7 @@
 namespace edyn {
 
 struct present_position : public vector3 {
-    present_position& operator=(const vector3& v) {
+    present_position & operator=(const vector3 &v) {
         vector3::operator=(v);
         return *this;
     }
