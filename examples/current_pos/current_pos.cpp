@@ -40,6 +40,7 @@ int main(int argc, char** argv) {
     entt::registry registry;
 
     const auto ent = registry.create();
+    registry.assign<edyn::dynamic_tag>(ent);
     registry.assign<edyn::position>(ent, 0, 0, 0);
     registry.assign<edyn::present_position>(ent);
     // Set a constant speed that will move the entity 1 unit per step.

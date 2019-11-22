@@ -12,12 +12,14 @@
 namespace edyn {
 
 void on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
+    auto &rel = registry.get<relation>(entity);
+
     std::visit([&] (auto&& value) {
         for (size_t i = 0; i < std::decay_t<decltype(value)>::num_rows; ++i) {
             auto e = registry.create();
             con.row[i] = e;
             auto &row = registry.assign<constraint_row>(e);
-            row.parent = entity;
+            row.entity = rel.entity;
         }
     }, con.var);
 }
@@ -43,6 +45,7 @@ void on_destroy_mass(entt::entity entity, entt::registry &registry) {
 }
 
 void on_construct_inertia(entt::entity entity, entt::registry &registry, inertia &i) {
+    EDYN_ASSERT(i > vector3_zero);
     auto &invI = registry.assign<inertia_inv>(entity, i.x < EDYN_SCALAR_MAX ? 1 / i.x : 0, 
                                                       i.y < EDYN_SCALAR_MAX ? 1 / i.y : 0, 
                                                       i.z < EDYN_SCALAR_MAX ? 1 / i.z : 0);

@@ -17,6 +17,9 @@ struct matrix3x3 {
 // Identity matrix.
 inline constexpr matrix3x3 matrix3x3_identity {{vector3_x, vector3_y, vector3_z}};
 
+// Zero matrix.
+inline constexpr matrix3x3 matrix3x3_zero {{vector3_zero, vector3_zero, vector3_zero}};
+
 // Multiply vector by matrix.
 inline vector3 operator*(const matrix3x3& m, const vector3& v) {
     return {dot(m.row[0], v), dot(m.row[1], v), dot(m.row[2], v)};

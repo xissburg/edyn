@@ -130,4 +130,10 @@ TEST_F(vector3_test, comparison) {
     ASSERT_FALSE(v == w);
     ASSERT_FALSE(v != v);
     ASSERT_TRUE(v != w);
+
+    auto r = edyn::vector3{1, 2, 3};
+    ASSERT_GT(r, edyn::vector3_zero);
+    
+    auto s = edyn::vector3{0, -1, 2.99};
+    ASSERT_LT(s, r);
 }

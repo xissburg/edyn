@@ -27,7 +27,7 @@ endif()
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats." OFF)
 
 set(EDYN_SET_DOUBLE 0)
-if (EDYN_CONFIG_DOUBLE)
+if(EDYN_CONFIG_DOUBLE)
 set(EDYN_SET_DOUBLE 1)
 endif()
 
@@ -55,7 +55,7 @@ set(EDyn_SOURCES
     src/edyn/edyn.cpp
 )
 
-if (UNIX)
+if(UNIX)
     set(EDyn_SOURCES
         ${EDyn_SOURCES}
         src/edyn/time/unix/time.cpp

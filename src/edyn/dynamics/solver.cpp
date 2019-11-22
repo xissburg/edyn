@@ -57,14 +57,12 @@ void prepare(constraint_row &row,
     row.impulse = 0;
 }
 
-template<typename ConstraintView, typename MassInvView, typename DeltaView>
+template<typename MassInvView, typename DeltaView>
 void solve(constraint_row &row,
-           ConstraintView &con_view,
            MassInvView &mass_inv_view,
            DeltaView &delta_view) {
-    auto &rel = con_view.template get<const relation>(row.parent);
-    auto [dvA, dwA] = delta_view.template get<delta_linvel, delta_angvel>(rel.entity[0]);
-    auto [dvB, dwB] = delta_view.template get<delta_linvel, delta_angvel>(rel.entity[1]);
+    auto [dvA, dwA] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[0]);
+    auto [dvB, dwB] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[1]);
 
     auto deltaA = dot(row.J[0], dvA) + dot(row.J[2], dwA);
     auto deltaB = dot(row.J[1], dvB) + dot(row.J[3], dwB);
@@ -81,8 +79,8 @@ void solve(constraint_row &row,
         row.impulse = impulse;
     }
 
-    auto [inv_mA, inv_IA] = mass_inv_view.template get<mass_inv, inertia_world_inv>(rel.entity[0]);
-    auto [inv_mB, inv_IB] = mass_inv_view.template get<mass_inv, inertia_world_inv>(rel.entity[1]);
+    auto [inv_mA, inv_IA] = mass_inv_view.template get<mass_inv, inertia_world_inv>(row.entity[0]);
+    auto [inv_mB, inv_IB] = mass_inv_view.template get<mass_inv, inertia_world_inv>(row.entity[1]);
 
     dvA += inv_mA * row.J[0] * delta_impulse;
     dwA += inv_IA * row.J[1] * delta_impulse;
@@ -103,7 +101,6 @@ void solver::update(scalar dt) {
 
     auto mass_inv_view = registry->view<mass_inv, inertia_world_inv>();
     auto vel_view = registry->view<linvel, angvel>();
-    auto delta_view = registry->view<delta_linvel, delta_angvel>();
 
     auto con_view = registry->view<const relation, constraint>();
     con_view.each([&] (auto, const relation &rel, constraint &con) {
@@ -123,10 +120,11 @@ void solver::update(scalar dt) {
     });
 
     auto row_view = registry->view<constraint_row>();
+    auto delta_view = registry->view<delta_linvel, delta_angvel>();
 
     for (uint32_t i = 0; i < iterations; ++i) {
         row_view.each([&] (auto, auto &row) {
-            solve(row, con_view, mass_inv_view, delta_view);
+            solve(row, mass_inv_view, delta_view);
         });
     }
 

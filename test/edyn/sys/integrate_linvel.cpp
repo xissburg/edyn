@@ -16,6 +16,11 @@ TEST(integrate_linvel, test) {
     registry.assign<edyn::linvel>(e1, -0.33, -0.5, -0.1);
     registry.assign<edyn::linvel>(e2, -0.12, -0.99, 0.12);
 
+    // Only dynamic entities have their position updated.
+    registry.assign<edyn::dynamic_tag>(e0);
+    registry.assign<edyn::dynamic_tag>(e1);
+    registry.assign<edyn::dynamic_tag>(e2);
+
     const edyn::scalar dt = 0.1666;
     const size_t n = 3;
 

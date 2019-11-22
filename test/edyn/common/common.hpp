@@ -2,7 +2,7 @@
 #define TEST_EDYN_COMMON_COMMON_HPP
 
 #include <gtest/gtest.h>
-#include <edyn/build_settings.h>
+#include <edyn/edyn.hpp>
 
 #if EDYN_DOUBLE_PRECISION
 #define ASSERT_SCALAR_EQ ASSERT_DOUBLE_EQ

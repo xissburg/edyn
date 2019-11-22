@@ -6,7 +6,10 @@
 namespace edyn {
 
 struct linvel : public vector3 {
-    
+    linvel &operator=(const vector3 &v) {
+        vector3::operator=(v);
+        return *this;
+    }
 };
 
 }

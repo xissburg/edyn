@@ -7,18 +7,44 @@
 
 namespace edyn {
 
+enum class rigidbody_kind : uint8_t {
+    // A rigid body with non-zero and finite mass that reacts to forces and
+    // impulses and can be affected by constraints.
+    rb_dynamic,
+
+    // A rigid body that is not affected by others and can be moved directly.
+    rb_kinematic,
+
+    // A rigid body that is not affected by others and never changes.
+    rb_static
+};
+
 struct rigidbody_def {
-    scalar mass;
-    vector3 inertia;
+    // The entity kind will determine which components are added to it
+    // in the `make_rigidbody` call.
+    rigidbody_kind kind {rigidbody_kind::rb_dynamic};
+
+    // Initial position and orientation.
     vector3 position {vector3_zero};
     quaternion orientation {quaternion_identity};
+
+    // Mass properties for dynamic entities.
+    scalar mass {1};
+    vector3 inertia {1, 1, 1};
+
+    // Initial linear and angular velocity.
     vector3 linvel {vector3_zero};
     vector3 angvel {vector3_zero};
+
+    // Whether this entity will be used for presentation and needs 
+    // position/orientation interpolation.
     bool presentation {false};
 };
 
 void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
 entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
+
+void update_kinematic_position(entt::registry &, entt::entity, const vector3 & pos, scalar dt);
 
 }
 

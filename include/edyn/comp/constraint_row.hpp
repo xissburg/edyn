@@ -3,12 +3,13 @@
 
 #include <array>
 #include <entt/fwd.hpp>
+#include "relation.hpp"
 #include "edyn/math/vector3.hpp"
 
 namespace edyn {
 
 struct constraint_row {
-    entt::entity parent;
+    std::array<entt::entity, max_relations> entity;
     std::array<vector3, 4> J;
     scalar error;
     scalar lower_limit;
