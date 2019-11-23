@@ -1,4 +1,3 @@
-#include <entt/entt.hpp>
 #include "edyn/constraints/point_constraint.hpp"
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
@@ -7,6 +6,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include <entt/entt.hpp>
 
 namespace edyn {
 

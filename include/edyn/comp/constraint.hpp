@@ -5,6 +5,7 @@
 #include <entt/entt.hpp>
 #include "edyn/constraints/distance_constraint.hpp"
 #include "edyn/constraints/point_constraint.hpp"
+#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
@@ -12,7 +13,7 @@ namespace edyn {
 inline constexpr size_t max_constraint_rows = 8;
 
 struct constraint {
-    std::variant<point_constraint> var;
+    std::variant<contact_constraint, point_constraint> var;
     std::array<entt::entity, max_constraint_rows> row = 
         make_array<max_constraint_rows, entt::entity>(entt::null);
 };
