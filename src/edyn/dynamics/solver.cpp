@@ -45,16 +45,16 @@ void prepare(constraint_row &row,
              const vector3 &linvelA, const vector3 &linvelB,
              const vector3 &angvelA, const vector3 &angvelB) {
     auto J_invM_JT = dot(row.J[0], row.J[0]) * inv_mA +
-                    dot(inv_IA * row.J[1], row.J[1]) +
-                    dot(row.J[2], row.J[2]) * inv_mB +
-                    dot(inv_IB * row.J[3], row.J[3]);
+                     dot(inv_IA * row.J[1], row.J[1]) +
+                     dot(row.J[2], row.J[2]) * inv_mB +
+                     dot(inv_IB * row.J[3], row.J[3]);
     row.eff_mass = 1 / J_invM_JT;
 
     auto rel_vel = dot(row.J[0], linvelA) + 
                    dot(row.J[1], angvelA) +
                    dot(row.J[2], linvelB) +
                    dot(row.J[3], angvelB);
-    row.rhs = row.error -rel_vel;
+    row.rhs = row.error - rel_vel;
     row.impulse = 0;
 }
 
@@ -131,11 +131,6 @@ void solver::update(scalar dt) {
     for (uint32_t i = 0; i < iterations; ++i) {
         auto con_view = registry->view<const relation, constraint>();
         con_view.each([&] (auto, const relation &rel, constraint &con) {
-            auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(rel.entity[0]);
-            auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(rel.entity[1]);
-            auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(rel.entity[0]);
-            auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(rel.entity[1]);
-
             std::visit([&] (auto &&c) {
                 c.before_solve(&con, &rel, *registry, dt);
             }, con.var);

@@ -10,6 +10,8 @@ struct contact_point {
     vector3 pivotA;
     vector3 pivotB;
     vector3 normalB;
+    scalar restitution;
+    scalar friction;
     entt::entity normal_row_entity {entt::null};
     entt::entity friction_row_entity {entt::null};
 };

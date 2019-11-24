@@ -8,6 +8,7 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/matter.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/array.hpp"
@@ -24,9 +25,11 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
     auto &posA   = registry.get<const position   >(rel->entity[0]);
     auto &ornA   = registry.get<const orientation>(rel->entity[0]);
     auto &shapeA = registry.get<const shape      >(rel->entity[0]);
+    auto &matterA = registry.get<const matter    >(rel->entity[0]);
     auto &posB   = registry.get<const position   >(rel->entity[1]);
     auto &ornB   = registry.get<const orientation>(rel->entity[1]);
     auto &shapeB = registry.get<const shape      >(rel->entity[1]);
+    auto &matterB = registry.get<const matter    >(rel->entity[1]);
     auto cm = contact_manifold {};
 
     // Perform narrow-phase collision detection.
@@ -81,6 +84,10 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
             // Contact point can now refer to constraint rows.
             cp1.normal_row_entity = normal_row_entity;
             cp1.friction_row_entity = friction_row_entity;
+
+            // Combine matter/surface parameters.
+            cp1.restitution = matterA.restitution * matterB.restitution;
+            cp1.friction = matterA.friction * matterB.friction;
 
             // Insert into array of points.
             auto insert_idx = manifold.num_points % max_contacts;
@@ -142,6 +149,7 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
         auto rA = rotate(ornA, cp.pivotA);
         auto rB = rotate(ornB, cp.pivotB);
         auto normal = rotate(ornB, cp.normalB);
+        auto penetration = dot(posA + rA - posB - rB, normal);
 
         auto vA = linvelA + cross(angvelA, rA);
         auto vB = linvelB + cross(angvelB, rB);
@@ -150,15 +158,9 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
 
         auto &normal_row = registry.get<constraint_row>(cp.normal_row_entity);
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        normal_row.error = -normal_relvel;
+        normal_row.error = -cp.restitution * normal_relvel;// -std::max(penetration / dt, scalar(0));
         normal_row.lower_limit = 0;
-        normal_row.upper_limit = EDYN_SCALAR_MAX;
-
-        /* auto penetration = -dot(posA + rA - posB - rB, normal);
-
-        if (penetration > 0) {
-            normal_row.error -= penetration / dt;
-        } */
+        normal_row.upper_limit = 1e10;//EDYN_SCALAR_MAX;
 
         auto tangent_relvel = relvel - normal * normal_relvel;
         auto tangent_relspd = length(tangent_relvel);
@@ -166,45 +168,21 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
 
         auto &friction_row = registry.get<constraint_row>(cp.friction_row_entity);
         friction_row.J = {tangent, cross(rA, tangent), -tangent, -cross(rB, tangent)};
-        friction_row.error = -tangent_relspd;
+        friction_row.error = 0;
         // friction_row limits are calculated in `before_solve` using the normal impulse.
+        friction_row.lower_limit = -0;
+        friction_row.upper_limit = 0;
     }
 }
 
 void contact_constraint::before_solve(constraint *con, const relation *rel, entt::registry &registry, scalar dt) {
-    auto &ornA = registry.get<const orientation>(rel->entity[0]);
-    auto &ornB = registry.get<const orientation>(rel->entity[1]);
-
-    auto &linvelA = registry.get<const linvel>(rel->entity[0]);
-    auto &angvelA = registry.get<const angvel>(rel->entity[0]);
-    auto &linvelB = registry.get<const linvel>(rel->entity[1]);
-    auto &angvelB = registry.get<const angvel>(rel->entity[1]);
-
     for (size_t i = 0; i < manifold.num_points; ++i) {
         auto &cp = manifold.point[i];
 
-        auto rA = rotate(ornA, cp.pivotA);
-        auto rB = rotate(ornB, cp.pivotB);
-        auto normal = rotate(ornB, cp.normalB);
-
-        auto vA = linvelA + cross(angvelA, rA);
-        auto vB = linvelB + cross(angvelB, rB);
-        auto relvel = vA - vB;
-        auto normal_relvel = dot(relvel, normal);
-
-        constexpr scalar friction_coefficient = 0.8;
-
         auto &normal_row = registry.get<constraint_row>(cp.normal_row_entity);
-        auto normal_impulse = normal_row.impulse;
-        auto friction_impulse = normal_impulse * friction_coefficient;
-
-        auto tangent_relvel = relvel - normal * normal_relvel;
-        auto tangent_relspd = length(tangent_relvel);
-        auto tangent = tangent_relspd > EDYN_EPSILON ? tangent_relvel / tangent_relspd : vector3_x;
+        auto friction_impulse = normal_row.impulse * cp.friction;
 
         auto &friction_row = registry.get<constraint_row>(cp.friction_row_entity);
-        friction_row.J = {tangent, cross(rA, tangent), -tangent, -cross(rB, tangent)};
-        friction_row.error = -tangent_relspd;
         friction_row.lower_limit = -friction_impulse;
         friction_row.upper_limit = friction_impulse;
     }

@@ -7,6 +7,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
+#include "edyn/comp/matter.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 
@@ -25,32 +26,36 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         break;
     }
     
-    registry.assign<edyn::position>(entity, def.position);
-    registry.assign<edyn::orientation>(entity, def.orientation);
+    registry.assign<position>(entity, def.position);
+    registry.assign<orientation>(entity, def.orientation);
 
     if (def.kind == rigidbody_kind::rb_dynamic) {
-        registry.assign<edyn::mass>(entity, def.mass);
-        registry.assign<edyn::inertia>(entity, def.inertia);
+        registry.assign<mass>(entity, def.mass);
+        registry.assign<inertia>(entity, def.inertia);
     } else {
-        registry.assign<edyn::mass>(entity, EDYN_SCALAR_MAX);
-        registry.assign<edyn::inertia>(entity, vector3_max);
+        registry.assign<mass>(entity, EDYN_SCALAR_MAX);
+        registry.assign<inertia>(entity, vector3_max);
     }
 
     if (def.kind == rigidbody_kind::rb_static) {
-        registry.assign<edyn::linvel>(entity, vector3_zero);
-        registry.assign<edyn::angvel>(entity, vector3_zero);
+        registry.assign<linvel>(entity, vector3_zero);
+        registry.assign<angvel>(entity, vector3_zero);
     } else {
-        registry.assign<edyn::linvel>(entity, def.linvel);
-        registry.assign<edyn::angvel>(entity, def.angvel);
+        registry.assign<linvel>(entity, def.linvel);
+        registry.assign<angvel>(entity, def.angvel);
+    }
+
+    if (!def.sensor) {
+        registry.assign<matter>(entity, def.restitution, def.friction);
     }
 
     if (def.presentation) {
-        registry.assign<edyn::present_position>(entity);
-        registry.assign<edyn::present_orientation>(entity);
+        registry.assign<present_position>(entity);
+        registry.assign<present_orientation>(entity);
     }
 
     if (auto opt = def.shape_opt) {
-        registry.assign<edyn::shape>(entity, *opt);
+        registry.assign<shape>(entity, *opt);
     }
 }
 

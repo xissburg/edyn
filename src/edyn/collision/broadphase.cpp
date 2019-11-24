@@ -4,6 +4,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/relation.hpp"
+#include "edyn/comp/matter.hpp"
 #include "edyn/util/constraint.hpp"
 #include <entt/entt.hpp>
 #include <vector>
@@ -39,14 +40,21 @@ void broadphase::update() {
     // Destroy relations that are not intersecting anymore.
     std::vector<entt::entity> destroy_rel;
     rel_view.each([&] (auto ent, auto &rel) {
+        auto p = std::make_pair(rel.entity[0], rel.entity[1]);
+
+        // Only delete relations created by broadphase.
+        if (relations.count(p) == 0 || relations[p] != ent) {
+            return;
+        }
+
         auto b0 = registry->try_get<AABB>(rel.entity[0]);
         auto b1 = registry->try_get<AABB>(rel.entity[1]);
 
         if (b0 && b1 && !intersect(*b0, *b1)) {
             destroy_rel.push_back(ent);
-            auto p = std::make_pair(rel.entity[0], rel.entity[1]);
-            auto q = std::make_pair(rel.entity[1], rel.entity[0]);
             relations.erase(p);
+            // Don't forget the reversed pair.
+            auto q = std::make_pair(rel.entity[1], rel.entity[0]);
             relations.erase(q);
         }
     });
@@ -70,7 +78,13 @@ void broadphase::update() {
             if (intersect(b0, b1)) {
                 auto p = std::make_pair(e0, e1);
                 if (!relations.count(p)) {
-                    auto ent = make_constraint(*registry, contact_constraint(), e0, e1);
+                    auto ent = registry->create();
+                    registry->assign<relation>(ent, e0, e1);
+
+                    if (registry->has<matter>(e0) && registry->has<matter>(e1)) {
+                        registry->assign<constraint>(ent, contact_constraint());
+                    }
+
                     relations[p] = ent;
                     // Also store the reverse pair.
                     auto q = std::make_pair(e1, e0);

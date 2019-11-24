@@ -6,8 +6,9 @@ contact_manifold collide(const sphere_shape &shA, const vector3 &posA, const qua
                          const sphere_shape &shB, const vector3 &posB, const quaternion &ornB) {
     auto d = posA - posB;
     auto l2 = length2(d);
+    auto r = shA.radius + shB.radius;
 
-    if (l2 < shA.radius * shA.radius + shB.radius * shB.radius) {
+    if (l2 < r * r) {
         auto l = std::sqrt(l2);
         auto dn = d / l;
         auto rA = -dn * shA.radius;
