@@ -14,8 +14,9 @@ inline constexpr size_t max_constraint_rows = 8;
 
 struct constraint {
     std::variant<contact_constraint, point_constraint> var;
+    size_t num_rows {0};
     std::array<entt::entity, max_constraint_rows> row = 
-        make_array<max_constraint_rows, entt::entity>(entt::null);
+        make_array<max_constraint_rows>(entt::entity{entt::null});
 };
 
 }

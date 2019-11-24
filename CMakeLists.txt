@@ -53,6 +53,7 @@ set(EDyn_SOURCES
     src/edyn/collision/broadphase.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
+    src/edyn/shapes/sphere_shape.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/edyn.cpp
 )

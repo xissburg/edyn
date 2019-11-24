@@ -39,10 +39,10 @@ void broadphase::update() {
     // Destroy relations that are not intersecting anymore.
     std::vector<entt::entity> destroy_rel;
     rel_view.each([&] (auto ent, auto &rel) {
-        auto &b0 = aabb_view.get(rel.entity[0]);
-        auto &b1 = aabb_view.get(rel.entity[1]);
+        auto b0 = registry->try_get<AABB>(rel.entity[0]);
+        auto b1 = registry->try_get<AABB>(rel.entity[1]);
 
-        if (!intersect(b0, b1)) {
+        if (b0 && b1 && !intersect(*b0, *b1)) {
             destroy_rel.push_back(ent);
             auto p = std::make_pair(rel.entity[0], rel.entity[1]);
             auto q = std::make_pair(rel.entity[1], rel.entity[0]);
@@ -63,7 +63,7 @@ void broadphase::update() {
         auto e0 = *it;
         auto &b0 = aabb_view.get(e0);
 
-        for (auto it1 = it + 1; it != it_end; ++it1) {
+        for (auto it1 = it + 1; it1 != it_end; ++it1) {
             auto e1 = *it1;
             auto &b1 = aabb_view.get(e1);
 

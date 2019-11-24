@@ -10,6 +10,17 @@
 
 namespace edyn {
 
+void point_constraint::init(constraint *con, const relation *rel, entt::registry &registry) {
+    con->num_rows = 3;
+
+    for (size_t i = 0; i < 3; ++i) {
+        auto e = registry.create();
+        con->row[i] = e;
+        auto &row = registry.assign<constraint_row>(e);
+        row.entity = rel->entity;
+    }
+}
+
 void point_constraint::prepare(constraint *con, const relation *rel, entt::registry &registry, scalar dt) {
     auto &posA = registry.get<const position>(rel->entity[0]);
     auto &posB = registry.get<const position>(rel->entity[1]);
@@ -34,6 +45,10 @@ void point_constraint::prepare(constraint *con, const relation *rel, entt::regis
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
     }
+}
+
+void point_constraint::before_solve(constraint *con, const relation *rel, entt::registry &registry, scalar dt) {
+
 }
 
 }

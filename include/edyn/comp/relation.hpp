@@ -10,7 +10,7 @@ inline constexpr size_t max_relations = 3;
 
 struct relation {
     std::array<entt::entity, max_relations> entity =
-        make_array<max_relations, entt::entity>(entt::null);
+        make_array<max_relations>(entt::entity{entt::null});
 };
 
 }

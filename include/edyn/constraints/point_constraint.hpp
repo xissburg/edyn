@@ -11,11 +11,11 @@ struct constraint;
 struct relation;
 
 struct point_constraint {
-    static constexpr size_t num_rows = 3;
-
     std::array<vector3, 2> pivot;
 
+    void init(constraint *, const relation *, entt::registry &);
     void prepare(constraint *, const relation *, entt::registry &, scalar dt);
+    void before_solve(constraint *, const relation *, entt::registry &, scalar dt);
 };
 
 }

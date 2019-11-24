@@ -4,6 +4,7 @@
 #include <array>
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 
 namespace edyn {
 
@@ -11,9 +12,11 @@ struct constraint;
 struct relation;
 
 struct contact_constraint {
-    static constexpr size_t num_rows = 4;
+    contact_manifold manifold {};
 
+    void init(constraint *, const relation *, entt::registry &);
     void prepare(constraint *, const relation *, entt::registry &, scalar dt);
+    void before_solve(constraint *, const relation *, entt::registry &, scalar dt);
 };
 
 }

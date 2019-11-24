@@ -117,7 +117,7 @@ void solver::update(scalar dt) {
         std::visit([&] (auto &&c) {
             c.prepare(&con, &rel, *registry, dt);
 
-            for (size_t i = 0; i < std::decay_t<decltype(c)>::num_rows; ++i) {
+            for (size_t i = 0; i < con.num_rows; ++i) {
                 auto &row = registry->get<constraint_row>(con.row[i]);
                 prepare(row, inv_mA, inv_mB, inv_IA, inv_IB, linvelA, linvelB, angvelA, angvelB);
             }
@@ -129,6 +129,18 @@ void solver::update(scalar dt) {
     auto delta_view = registry->view<delta_linvel, delta_angvel>();
 
     for (uint32_t i = 0; i < iterations; ++i) {
+        auto con_view = registry->view<const relation, constraint>();
+        con_view.each([&] (auto, const relation &rel, constraint &con) {
+            auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(rel.entity[0]);
+            auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(rel.entity[1]);
+            auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(rel.entity[0]);
+            auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(rel.entity[1]);
+
+            std::visit([&] (auto &&c) {
+                c.before_solve(&con, &rel, *registry, dt);
+            }, con.var);
+        });
+
         row_view.each([&] (auto, auto &row) {
             solve(row, mass_inv_view, delta_view);
         });

@@ -4,6 +4,7 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 
 namespace edyn {
 
@@ -17,6 +18,9 @@ struct sphere_shape {
         };
     }
 };
+
+contact_manifold collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const sphere_shape &shB, const vector3 &posB, const quaternion &ornB);
 
 }
 

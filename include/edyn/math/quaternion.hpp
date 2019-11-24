@@ -94,7 +94,7 @@ inline quaternion integrate(const quaternion &q, const vector3 &w, scalar dt) {
     // "Practical Parameterization of Rotations Using the Exponential Map", F. Sebastian Grassia
     const auto ws = length(w);
     const auto min_ws = scalar {0.001};
-    scalar half = 0.5;
+    constexpr scalar half = 0.5;
     scalar t;
 
     if (ws < min_ws) {

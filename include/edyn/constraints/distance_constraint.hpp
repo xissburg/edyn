@@ -7,8 +7,6 @@
 namespace edyn {
 
 struct distance_constraint {
-    static constexpr size_t num_rows = 1;
-
     std::array<vector3, 2> pivot;
     scalar distance {0};
 

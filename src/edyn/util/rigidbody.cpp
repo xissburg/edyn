@@ -48,6 +48,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.assign<edyn::present_position>(entity);
         registry.assign<edyn::present_orientation>(entity);
     }
+
+    if (auto opt = def.shape_opt) {
+        registry.assign<edyn::shape>(entity, *opt);
+    }
 }
 
 entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) {

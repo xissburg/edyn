@@ -1,9 +1,11 @@
 #ifndef EDYN_UTIL_RIGIDBODY_HPP
 #define EDYN_UTIL_RIGIDBODY_HPP
 
+#include <optional>
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/comp/shape.hpp"
 
 namespace edyn {
 
@@ -35,6 +37,9 @@ struct rigidbody_def {
     // Initial linear and angular velocity.
     vector3 linvel {vector3_zero};
     vector3 angvel {vector3_zero};
+
+    // Optional shape for collidable entities.
+    std::optional<decltype(shape::var)> shape_opt; 
 
     // Whether this entity will be used for presentation and needs 
     // position/orientation interpolation.

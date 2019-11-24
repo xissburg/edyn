@@ -9,19 +9,16 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
+#include "edyn/comp/shape.hpp"
+#include "edyn/comp/aabb.hpp"
 
 namespace edyn {
 
 void on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
     auto &rel = registry.get<relation>(entity);
 
-    std::visit([&] (auto&& value) {
-        for (size_t i = 0; i < std::decay_t<decltype(value)>::num_rows; ++i) {
-            auto e = registry.create();
-            con.row[i] = e;
-            auto &row = registry.assign<constraint_row>(e);
-            row.entity = rel.entity;
-        }
+    std::visit([&] (auto &&c) {
+        c.init(&con, &rel, registry);
     }, con.var);
 }
 
@@ -63,9 +60,20 @@ void on_destroy_inertia(entt::entity entity, entt::registry &registry) {
     }
 }
 
+void on_construct_shape(entt::entity entity, entt::registry &registry, shape &) {
+    registry.assign<AABB>(entity);
+}
+
+void on_destroy_shape(entt::entity entity, entt::registry &registry) {
+    if (registry.has<AABB>(entity)) {
+        registry.remove<AABB>(entity);
+    }    
+}
+
 world::world(entt::registry &reg) 
     : registry(&reg)
     , sol(reg)
+    , bphase(reg)
 {
     connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
     connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
@@ -75,6 +83,9 @@ world::world(entt::registry &reg)
 
     connections.push_back(reg.on_construct<inertia>().connect<&on_construct_inertia>());
     connections.push_back(reg.on_destroy<inertia>().connect<&on_destroy_inertia>());
+
+    connections.push_back(reg.on_construct<shape>().connect<&on_construct_shape>());
+    connections.push_back(reg.on_destroy<shape>().connect<&on_destroy_shape>());
 }
 
 world::~world() {
@@ -101,6 +112,7 @@ void world::update(scalar dt) {
 }
 
 void world::step(scalar dt) {
+    bphase.update();
     sol.update(dt);
     ++step_;
 }
