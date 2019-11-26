@@ -8,10 +8,9 @@
 namespace edyn {
 
 inline constexpr scalar pi = 3.1415926535897932384626433832795029;
+inline constexpr scalar large_scalar = 1e10;
 
 inline constexpr scalar gravitational_constant = 6.674e-11;
-
-inline constexpr scalar large_scalar = 1e10;
 
 inline constexpr vector3 gravity_sun     {0, -274,   0};
 inline constexpr vector3 gravity_mercury {0, -3.7,   0};
@@ -24,6 +23,11 @@ inline constexpr vector3 gravity_uranus  {0, -8.69,  0};
 inline constexpr vector3 gravity_neptune {0, -11.15, 0};
 inline constexpr vector3 gravity_pluto   {0, -0.62,  0};
 inline constexpr vector3 gravity_moon    {0, -1.625, 0};
+
+inline constexpr size_t max_contacts = 4;
+
+inline constexpr scalar contact_breaking_threshold = 0.02;
+inline constexpr scalar contact_caching_threshold = 0.04;
 
 }
 

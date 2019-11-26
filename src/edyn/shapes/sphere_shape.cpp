@@ -2,7 +2,7 @@
 
 namespace edyn {
 
-contact_manifold collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
+collision_result collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
     auto d = posA - posB;
@@ -17,12 +17,12 @@ contact_manifold collide(const sphere_shape &shA, const vector3 &posA, const qua
         auto rB = dn * shB.radius;
         rB = rotate(inverse(ornB), rB);
 
-        auto manifold = contact_manifold {};
-        manifold.num_points = 1;
-        manifold.point[0].pivotA = rA;
-        manifold.point[0].pivotB = rB;
-        manifold.point[0].normalB = rotate(inverse(ornB), dn);
-        return manifold;
+        auto result = collision_result {};
+        result.num_points = 1;
+        result.point[0].pivotA = rA;
+        result.point[0].pivotB = rB;
+        result.point[0].normalB = rotate(inverse(ornB), dn);
+        return result;
     }
 
     return {};

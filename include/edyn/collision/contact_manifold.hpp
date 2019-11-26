@@ -3,10 +3,9 @@
 
 #include <array>
 #include "contact_point.hpp"
+#include "edyn/math/constants.hpp"
 
 namespace edyn {
-
-inline constexpr size_t max_contacts = 4;
 
 struct contact_manifold {
     size_t num_points {0};

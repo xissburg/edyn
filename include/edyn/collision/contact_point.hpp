@@ -12,7 +12,7 @@ struct contact_point {
     vector3 normalB;
     scalar friction;
     scalar restitution;
-    scalar restitution_multiplier {1};
+    uint32_t lifetime {0};
     entt::entity normal_row_entity {entt::null};
     entt::entity friction_row_entity {entt::null};
 };

@@ -18,7 +18,7 @@ void on_construct_constraint(entt::entity entity, entt::registry &registry, cons
     auto &rel = registry.get<relation>(entity);
 
     std::visit([&] (auto &&c) {
-        c.init(&con, &rel, registry);
+        c.init(con, rel, registry);
     }, con.var);
 }
 

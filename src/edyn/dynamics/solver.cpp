@@ -117,7 +117,7 @@ void solver::update(scalar dt) {
         auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(rel.entity[1]);
 
         std::visit([&] (auto &&c) {
-            c.prepare(&con, &rel, *registry, dt);
+            c.prepare(con, rel, *registry, dt);
 
             for (size_t i = 0; i < con.num_rows; ++i) {
                 auto &row = registry->get<constraint_row>(con.row[i]);
@@ -133,7 +133,7 @@ void solver::update(scalar dt) {
     for (uint32_t i = 0; i < iterations; ++i) {
         con_view.each([&] (auto, const relation &rel, constraint &con) {
             std::visit([&] (auto &&c) {
-                c.before_solve(&con, &rel, *registry, dt);
+                c.before_solve(con, rel, *registry, dt);
             }, con.var);
         });
 
@@ -159,12 +159,6 @@ void solver::update(scalar dt) {
 
     // Update world-space moment of inertia.
     update_inertia(*registry);
-
-    con_view.each([&] (auto, const relation &rel, constraint &con) {
-        std::visit([&] (auto &&c) {
-            c.finish(&con, &rel, *registry);
-        }, con.var);
-    });
 }
 
 }

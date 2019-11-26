@@ -6,6 +6,7 @@
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/matter.hpp"
 #include "edyn/util/constraint.hpp"
+#include "edyn/math/constants.hpp"
 #include <entt/entt.hpp>
 #include <vector>
 
@@ -18,6 +19,10 @@ bool intersect(const AABB &b0, const AABB &b1) {
 		   (b0.max.y >= b1.min.y) &&
 		   (b0.min.z <= b1.max.z) &&
 		   (b0.max.z >= b1.min.z);
+}
+
+AABB inset(const AABB &b, const vector3 &v) {
+    return {b.min + v, b.max - v};
 }
 
 broadphase::broadphase(entt::registry &reg)
@@ -50,7 +55,13 @@ void broadphase::update() {
         auto b0 = registry->try_get<AABB>(rel.entity[0]);
         auto b1 = registry->try_get<AABB>(rel.entity[1]);
 
-        if (b0 && b1 && !intersect(*b0, *b1)) {
+        constexpr auto offset = vector3 {
+            -contact_breaking_threshold, 
+            -contact_breaking_threshold, 
+            -contact_breaking_threshold
+        };
+
+        if (b0 && b1 && !intersect(inset(*b0, offset), inset(*b1, offset))) {
             destroy_rel.push_back(ent);
             relations.erase(p);
             // Don't forget the reversed pair.
