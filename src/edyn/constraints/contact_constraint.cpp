@@ -22,20 +22,22 @@ void contact_constraint::init(constraint *con, const relation *rel, entt::regist
 }
 
 void contact_constraint::prepare(constraint *con, const relation *rel, entt::registry &registry, scalar dt) {
-    auto &posA   = registry.get<const position   >(rel->entity[0]);
-    auto &ornA   = registry.get<const orientation>(rel->entity[0]);
-    auto &shapeA = registry.get<const shape      >(rel->entity[0]);
-    auto &matterA = registry.get<const matter    >(rel->entity[0]);
-    auto &posB   = registry.get<const position   >(rel->entity[1]);
-    auto &ornB   = registry.get<const orientation>(rel->entity[1]);
-    auto &shapeB = registry.get<const shape      >(rel->entity[1]);
-    auto &matterB = registry.get<const matter    >(rel->entity[1]);
+    prev_dt = dt;
+
+    auto &posA    = registry.get<const position   >(rel->entity[0]);
+    auto &ornA    = registry.get<const orientation>(rel->entity[0]);
+    auto &shapeA  = registry.get<const shape      >(rel->entity[0]);
+    auto &posB    = registry.get<const position   >(rel->entity[1]);
+    auto &ornB    = registry.get<const orientation>(rel->entity[1]);
+    auto &shapeB  = registry.get<const shape      >(rel->entity[1]);
     auto cm = contact_manifold {};
+    
+    constexpr scalar contact_breaking_threshold = 1;
 
     // Perform narrow-phase collision detection.
     std::visit([&] (auto &&sA) {
         std::visit([&] (auto &&sB) {
-            cm = collide(sA, posA, ornA, sB, posB, ornB);
+            cm = collide(sA, posA, ornA, sB, posB, ornB, contact_breaking_threshold);
         }, shapeB.var);
     }, shapeA.var);
 
@@ -43,14 +45,16 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
     constexpr scalar contact_caching_threshold = 0.04;
 
     for (size_t i = 0; i < cm.num_points; ++i) {
-        auto &cp1 = cm.point[i];
+        auto &cp = cm.point[i];
+
+        // Find closest existing point.
         scalar shortest_dist = contact_caching_threshold * contact_caching_threshold;
         size_t nearest_idx = max_contacts;
 
         for (size_t k = 0; k < manifold.num_points; ++k) {
             auto &cp0 = manifold.point[k];
-            auto dA = length2(cp1.pivotA - cp0.pivotA);
-            auto dB = length2(cp1.pivotB - cp0.pivotB);
+            auto dA = length2(cp.pivotA - cp0.pivotA);
+            auto dB = length2(cp.pivotB - cp0.pivotB);
 
             if (dA < shortest_dist) {
                 shortest_dist = dA;
@@ -65,33 +69,38 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
 
         if (nearest_idx < max_contacts) {
             auto &near_cp = manifold.point[nearest_idx];
-            cp1.normal_row_entity = near_cp.normal_row_entity;
-            cp1.friction_row_entity = near_cp.friction_row_entity;
-            manifold.point[nearest_idx] = cp1;
+            cp.normal_row_entity = near_cp.normal_row_entity;
+            //cp.friction_row_entity = near_cp.friction_row_entity;
+            cp.friction = near_cp.friction;
+            cp.restitution = near_cp.restitution;
+            cp.restitution_multiplier = near_cp.restitution_multiplier;
+            manifold.point[nearest_idx] = cp;
         } else {
             // Create new constraint rows for this contact point.
             auto normal_row_entity = registry.create();
             con->row[con->num_rows++] = normal_row_entity;
-            auto friction_row_entity = registry.create();
-            con->row[con->num_rows++] = friction_row_entity;
+            //auto friction_row_entity = registry.create();
+            //con->row[con->num_rows++] = friction_row_entity;
 
             // Assign row component and associate entities.
             auto &normal_row = registry.assign<constraint_row>(normal_row_entity);
             normal_row.entity = rel->entity;
-            auto &friction_row = registry.assign<constraint_row>(friction_row_entity);
-            friction_row.entity = rel->entity;
+            //auto &friction_row = registry.assign<constraint_row>(friction_row_entity);
+            //friction_row.entity = rel->entity;
 
             // Contact point can now refer to constraint rows.
-            cp1.normal_row_entity = normal_row_entity;
-            cp1.friction_row_entity = friction_row_entity;
+            cp.normal_row_entity = normal_row_entity;
+            //cp.friction_row_entity = friction_row_entity;
 
             // Combine matter/surface parameters.
-            cp1.restitution = matterA.restitution * matterB.restitution;
-            cp1.friction = matterA.friction * matterB.friction;
+            auto &matterA = registry.get<const matter>(rel->entity[0]);
+            auto &matterB = registry.get<const matter>(rel->entity[1]);
+            cp.restitution = matterA.restitution * matterB.restitution;
+            cp.friction = matterA.friction * matterB.friction;
 
             // Insert into array of points.
             auto insert_idx = manifold.num_points % max_contacts;
-            manifold.point[insert_idx] = cp1;
+            manifold.point[insert_idx] = cp;
 
             if (manifold.num_points < max_contacts) {
                 ++manifold.num_points;
@@ -100,8 +109,6 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
     }
 
     // Remove separating contact points.
-    constexpr scalar contact_breaking_threshold = 0.04;
-
     for (size_t i = manifold.num_points; i > 0; --i) {
         size_t k = i - 1;
         auto &cp = manifold.point[k];
@@ -114,7 +121,7 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
             // Destroy constraint rows.
             for (int r = con->num_rows; r > 0; --r) {
                 size_t s = r - 1;
-                if (con->row[s] == cp.normal_row_entity || con->row[s] == cp.friction_row_entity) {
+                if (con->row[s] == cp.normal_row_entity) {// || con->row[s] == cp.friction_row_entity) {
                     registry.destroy(con->row[s]);
                     // Swap with last element.
                     size_t t = con->num_rows - 1;
@@ -149,7 +156,6 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
         auto rA = rotate(ornA, cp.pivotA);
         auto rB = rotate(ornB, cp.pivotB);
         auto normal = rotate(ornB, cp.normalB);
-        auto penetration = dot(posA + rA - posB - rB, normal);
 
         auto vA = linvelA + cross(angvelA, rA);
         auto vB = linvelB + cross(angvelB, rB);
@@ -158,11 +164,27 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
 
         auto &normal_row = registry.get<constraint_row>(cp.normal_row_entity);
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        normal_row.error = -cp.restitution * normal_relvel;// -std::max(penetration / dt, scalar(0));
         normal_row.lower_limit = 0;
-        normal_row.upper_limit = 1e10;//EDYN_SCALAR_MAX;
+        normal_row.upper_limit = EDYN_SCALAR_MAX;
 
-        auto tangent_relvel = relvel - normal * normal_relvel;
+        if (normal_relvel < -0.5) {
+            cp.restitution_multiplier = 1;
+        }
+
+        auto restitution = cp.restitution * cp.restitution_multiplier;
+
+        // `penetration / dt` is the maximum relative velocity at the contact point
+        // that will prevent penetration from happening in the next velocity
+        // integration.
+        auto penetration = dot(posA + rA - posB - rB, normal);
+        auto pvel = penetration / dt;
+        if (pvel > -restitution * normal_relvel) {
+            normal_row.error = std::max(pvel, scalar(0));
+        } else {
+            normal_row.error = restitution * normal_relvel;
+        }
+
+        /* auto tangent_relvel = relvel - normal * normal_relvel;
         auto tangent_relspd = length(tangent_relvel);
         auto tangent = tangent_relspd > EDYN_EPSILON ? tangent_relvel / tangent_relspd : vector3_x;
 
@@ -171,12 +193,12 @@ void contact_constraint::prepare(constraint *con, const relation *rel, entt::reg
         friction_row.error = 0;
         // friction_row limits are calculated in `before_solve` using the normal impulse.
         friction_row.lower_limit = -0;
-        friction_row.upper_limit = 0;
+        friction_row.upper_limit = 0; */
     }
 }
 
 void contact_constraint::before_solve(constraint *con, const relation *rel, entt::registry &registry, scalar dt) {
-    for (size_t i = 0; i < manifold.num_points; ++i) {
+    /* for (size_t i = 0; i < manifold.num_points; ++i) {
         auto &cp = manifold.point[i];
 
         auto &normal_row = registry.get<constraint_row>(cp.normal_row_entity);
@@ -185,6 +207,36 @@ void contact_constraint::before_solve(constraint *con, const relation *rel, entt
         auto &friction_row = registry.get<constraint_row>(cp.friction_row_entity);
         friction_row.lower_limit = -friction_impulse;
         friction_row.upper_limit = friction_impulse;
+    } */
+}
+
+void contact_constraint::finish(constraint *con, const relation *rel, entt::registry &registry) {
+    auto &posA    = registry.get<const position   >(rel->entity[0]);
+    auto &ornA    = registry.get<const orientation>(rel->entity[0]);
+    auto &posB    = registry.get<const position   >(rel->entity[1]);
+    auto &ornB    = registry.get<const orientation>(rel->entity[1]);
+
+    auto &linvelA = registry.get<const linvel>(rel->entity[0]);
+    auto &angvelA = registry.get<const angvel>(rel->entity[0]);
+    auto &linvelB = registry.get<const linvel>(rel->entity[1]);
+    auto &angvelB = registry.get<const angvel>(rel->entity[1]);
+
+    for (size_t i = 0; i < manifold.num_points; ++i) {
+        auto &cp = manifold.point[i];
+
+        auto rA = rotate(ornA, cp.pivotA);
+        auto rB = rotate(ornB, cp.pivotB);
+        auto normal = rotate(ornB, cp.normalB);
+
+        auto vA = linvelA + cross(angvelA, rA);
+        auto vB = linvelB + cross(angvelB, rB);
+        auto relvel = vA - vB;
+        auto normal_relvel = dot(relvel, normal);
+        auto penetration = dot(posA + rA - posB - rB, normal);
+
+        if (std::abs(normal_relvel / prev_dt) < 1 && std::abs(penetration) < 0.01) {
+            cp.restitution_multiplier = 0;
+        }
     }
 }
 

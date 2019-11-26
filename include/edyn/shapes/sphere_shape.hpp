@@ -17,10 +17,16 @@ struct sphere_shape {
             {pos.x + radius, pos.y + radius, pos.z + radius}
         };
     }
+
+    vector3 inertia(scalar mass) const {
+        scalar s = 0.4 * mass * radius * radius;
+        return {s, s, s};
+    }
 };
 
 contact_manifold collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const sphere_shape &shB, const vector3 &posB, const quaternion &ornB);
+                         const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
 
 }
 

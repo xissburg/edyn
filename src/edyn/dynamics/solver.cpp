@@ -50,11 +50,11 @@ void prepare(constraint_row &row,
                      dot(inv_IB * row.J[3], row.J[3]);
     row.eff_mass = 1 / J_invM_JT;
 
-    auto rel_vel = dot(row.J[0], linvelA) + 
-                   dot(row.J[1], angvelA) +
-                   dot(row.J[2], linvelB) +
-                   dot(row.J[3], angvelB);
-    row.rhs = row.error - rel_vel;
+    auto relvel = dot(row.J[0], linvelA) + 
+                  dot(row.J[1], angvelA) +
+                  dot(row.J[2], linvelB) +
+                  dot(row.J[3], angvelB);
+    row.rhs = -(row.error + relvel);
     row.impulse = 0;
 }
 
@@ -65,9 +65,11 @@ void solve(constraint_row &row,
     auto [dvA, dwA] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[0]);
     auto [dvB, dwB] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[1]);
 
-    auto deltaA = dot(row.J[0], dvA) + dot(row.J[1], dwA);
-    auto deltaB = dot(row.J[2], dvB) + dot(row.J[3], dwB);
-    auto delta_impulse = (row.rhs - deltaA - deltaB) * row.eff_mass;
+    auto delta_relvel = dot(row.J[0], dvA) + 
+                        dot(row.J[1], dwA) +
+                        dot(row.J[2], dvB) +
+                        dot(row.J[3], dwB);
+    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
     auto impulse = row.impulse + delta_impulse;
 
     if (impulse < row.lower_limit) {
@@ -129,7 +131,6 @@ void solver::update(scalar dt) {
     auto delta_view = registry->view<delta_linvel, delta_angvel>();
 
     for (uint32_t i = 0; i < iterations; ++i) {
-        auto con_view = registry->view<const relation, constraint>();
         con_view.each([&] (auto, const relation &rel, constraint &con) {
             std::visit([&] (auto &&c) {
                 c.before_solve(&con, &rel, *registry, dt);
@@ -158,6 +159,12 @@ void solver::update(scalar dt) {
 
     // Update world-space moment of inertia.
     update_inertia(*registry);
+
+    con_view.each([&] (auto, const relation &rel, constraint &con) {
+        std::visit([&] (auto &&c) {
+            c.finish(&con, &rel, *registry);
+        }, con.var);
+    });
 }
 
 }

@@ -25,7 +25,7 @@ void on_construct_constraint(entt::entity entity, entt::registry &registry, cons
 void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
     auto& con = registry.get<constraint>(entity);
     for (auto e : con.row) {
-        if (e != entt::null) {
+        if (e != entt::null && registry.valid(e)) {
             registry.destroy(e);
         }
     }

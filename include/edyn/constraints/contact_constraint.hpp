@@ -13,10 +13,12 @@ struct relation;
 
 struct contact_constraint {
     contact_manifold manifold {};
+    scalar prev_dt;
 
     void init(constraint *, const relation *, entt::registry &);
     void prepare(constraint *, const relation *, entt::registry &, scalar dt);
     void before_solve(constraint *, const relation *, entt::registry &, scalar dt);
+    void finish(constraint *, const relation *, entt::registry &);
 };
 
 }

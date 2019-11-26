@@ -49,6 +49,8 @@ struct rigidbody_def {
     // Whether this entity will be used for presentation and needs 
     // position/orientation interpolation.
     bool presentation {false};
+
+    void update_inertia();
 };
 
 void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);

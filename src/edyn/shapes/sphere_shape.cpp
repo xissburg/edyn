@@ -3,10 +3,11 @@
 namespace edyn {
 
 contact_manifold collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const sphere_shape &shB, const vector3 &posB, const quaternion &ornB) {
+                         const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
     auto d = posA - posB;
     auto l2 = length2(d);
-    auto r = shA.radius + shB.radius;
+    auto r = shA.radius + shB.radius + threshold;
 
     if (l2 < r * r) {
         auto l = std::sqrt(l2);

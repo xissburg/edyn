@@ -13,6 +13,12 @@
 
 namespace edyn {
 
+void rigidbody_def::update_inertia() {
+    std::visit([&] (auto &&s) {
+        inertia = s.inertia(mass);
+    }, *shape_opt);
+}
+
 void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {
     switch (def.kind) {
     case rigidbody_kind::rb_dynamic:

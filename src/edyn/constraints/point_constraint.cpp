@@ -41,13 +41,17 @@ void point_constraint::prepare(constraint *con, const relation *rel, entt::regis
     for (size_t i = 0; i < 3; ++i) {
         auto &row = registry.get<constraint_row>(con->row[i]);
         row.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
-        row.error = (posB[i] + rB[i] - posA[i] - rA[i]) / dt;
+        row.error = (posA[i] + rA[i] - posB[i] - rB[i]) / dt;
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
     }
 }
 
 void point_constraint::before_solve(constraint *con, const relation *rel, entt::registry &registry, scalar dt) {
+
+}
+
+void point_constraint::finish(constraint *con, const relation *rel, entt::registry &registry) {
 
 }
 
