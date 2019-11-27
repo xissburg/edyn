@@ -18,7 +18,7 @@ struct constraint_row {
     scalar eff_mass;
     // Right hand side Jv + b
     scalar rhs;
-    scalar impulse;
+    scalar impulse {0};
 };
 
 }

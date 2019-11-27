@@ -76,9 +76,17 @@ void prepare(constraint_row &row,
                   dot(row.J[2], linvelB) +
                   dot(row.J[3], angvelB);
     row.rhs = -(row.error + relvel);
+}
 
-    // TODO: warm starting
-    row.impulse = 0;
+void warm_start(constraint_row &row, 
+                scalar inv_mA, scalar inv_mB, 
+                const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
+                vector3 &dvA, vector3 &dvB,
+                vector3 &dwA, vector3 &dwB) {
+    dvA += inv_mA * row.J[0] * row.impulse;
+    dwA += inv_IA * row.J[1] * row.impulse;
+    dvB += inv_mB * row.J[2] * row.impulse;
+    dwB += inv_IB * row.J[3] * row.impulse;
 }
 
 template<typename MassInvView, typename DeltaView>
@@ -131,6 +139,7 @@ void solver::update(scalar dt) {
     // Setup constraints.
     auto mass_inv_view = registry->view<mass_inv, inertia_world_inv>();
     auto vel_view = registry->view<linvel, angvel>();
+    auto delta_view = registry->view<delta_linvel, delta_angvel>();
 
     auto con_view = registry->view<const relation, constraint>();
     con_view.each([&] (auto, const relation &rel, constraint &con) {
@@ -138,6 +147,8 @@ void solver::update(scalar dt) {
         auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(rel.entity[1]);
         auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(rel.entity[0]);
         auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(rel.entity[1]);
+        auto [dvA, dwA] = delta_view.template get<delta_linvel, delta_angvel>(rel.entity[0]);
+        auto [dvB, dwB] = delta_view.template get<delta_linvel, delta_angvel>(rel.entity[1]);
 
         std::visit([&] (auto &&c) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, con, rel, *registry, dt);
@@ -145,13 +156,13 @@ void solver::update(scalar dt) {
             for (size_t i = 0; i < con.num_rows; ++i) {
                 auto &row = registry->get<constraint_row>(con.row[i]);
                 prepare(row, inv_mA, inv_mB, inv_IA, inv_IB, linvelA, linvelB, angvelA, angvelB);
+                warm_start(row, inv_mA, inv_mB, inv_IA, inv_IB, dvA, dvB, dwA, dwB);
             }
         }, con.var);
     });
 
     // Solve constraints.
     auto row_view = registry->view<constraint_row>();
-    auto delta_view = registry->view<delta_linvel, delta_angvel>();
 
     for (uint32_t i = 0; i < iterations; ++i) {
         con_view.each([&] (auto, const relation &rel, constraint &con) {
