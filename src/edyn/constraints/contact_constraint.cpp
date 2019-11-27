@@ -19,7 +19,8 @@ namespace edyn {
 
 scalar calc_restitution(const contact_point &cp, scalar dt) {
     // Higher restitution values decay faster.
-    auto r = 1 + cp.restitution;
+    auto r1 = cp.restitution - 1;
+    auto r = 2 - r1 * r1;
     // Higher delta times decay faster.
     auto s = dt * 120;
     // Exponential decay over lifetime of contact point.
@@ -118,7 +119,6 @@ void contact_constraint::prune(const vector3 &posA, const quaternion &ornA, cons
                     if (t != s) {
                         con.row[s] = con.row[t];
                     }
-                    con.row[t] = entt::null;
                     --con.num_rows;
                 }
             }
@@ -173,7 +173,7 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         } else {
             normal_row.error = restitution * normal_relvel;
 
-            // If this is a resting contact and it is penetrating, apply a impulses to push it out.
+            // If this is a resting contact and it is penetrating, apply impulse to push it out.
             if (cp.lifetime > 0) {
                 constexpr scalar contact_erp = 0.2;
                 normal_row.error += std::min(pvel, scalar(0)) * contact_erp;

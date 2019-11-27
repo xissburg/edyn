@@ -76,6 +76,8 @@ void prepare(constraint_row &row,
                   dot(row.J[2], linvelB) +
                   dot(row.J[3], angvelB);
     row.rhs = -(row.error + relvel);
+
+    // TODO: warm starting
     row.impulse = 0;
 }
 

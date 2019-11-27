@@ -12,19 +12,6 @@
 
 namespace edyn {
 
-bool intersect(const AABB &b0, const AABB &b1) {
-    return (b0.min.x <= b1.max.x) &&
-		   (b0.max.x >= b1.min.x) &&
-		   (b0.min.y <= b1.max.y) &&
-		   (b0.max.y >= b1.min.y) &&
-		   (b0.min.z <= b1.max.z) &&
-		   (b0.max.z >= b1.min.z);
-}
-
-AABB inset(const AABB &b, const vector3 &v) {
-    return {b.min + v, b.max - v};
-}
-
 broadphase::broadphase(entt::registry &reg)
     : registry(&reg)
 {
@@ -55,13 +42,16 @@ void broadphase::update() {
         auto b0 = registry->try_get<AABB>(rel.entity[0]);
         auto b1 = registry->try_get<AABB>(rel.entity[1]);
 
+        // Use slightly higher offset when looking for separation to avoid high
+        // frequency creation and destruction of pairs with slight movement.
+        constexpr scalar offset_scale = 1.5;
         constexpr auto offset = vector3 {
-            -contact_breaking_threshold, 
-            -contact_breaking_threshold, 
-            -contact_breaking_threshold
+            -contact_breaking_threshold * offset_scale, 
+            -contact_breaking_threshold * offset_scale, 
+            -contact_breaking_threshold * offset_scale
         };
 
-        if (b0 && b1 && !intersect(inset(*b0, offset), inset(*b1, offset))) {
+        if (b0 && b1 && !intersect(b0->inset(offset), b1->inset(offset))) {
             destroy_rel.push_back(ent);
             relations.erase(p);
             // Don't forget the reversed pair.
@@ -78,6 +68,12 @@ void broadphase::update() {
     auto it = aabb_view.begin();
     const auto it_end = aabb_view.end();
 
+    constexpr auto offset = vector3 {
+        -contact_breaking_threshold, 
+        -contact_breaking_threshold, 
+        -contact_breaking_threshold
+    };
+
     for (; it != it_end; ++it) {
         auto e0 = *it;
         auto &b0 = aabb_view.get(e0);
@@ -86,7 +82,7 @@ void broadphase::update() {
             auto e1 = *it1;
             auto &b1 = aabb_view.get(e1);
 
-            if (intersect(b0, b1)) {
+            if (intersect(b0.inset(offset), b1.inset(offset))) {
                 auto p = std::make_pair(e0, e1);
                 if (!relations.count(p)) {
                     auto ent = registry->create();
