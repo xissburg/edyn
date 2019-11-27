@@ -60,8 +60,8 @@ void contact_constraint::process_collision(const collision_result &result, const
 
         if (nearest_idx < max_contacts) {
             auto &cp = manifold.point[nearest_idx];
-            merge_point(rp, cp);
             ++cp.lifetime;
+            merge_point(rp, cp);
         } else {
             // Create new constraint rows for this contact point.
             auto normal_row_entity = registry.create();
@@ -78,7 +78,7 @@ void contact_constraint::process_collision(const collision_result &result, const
             // Append to array of points and set it up.
             auto insert_idx = manifold.num_points % max_contacts;
             auto &cp = manifold.point[insert_idx];
-
+            cp.lifetime = 0;
             merge_point(rp, cp);
 
             // Contact point can now refer to constraint rows.
@@ -216,7 +216,7 @@ void contact_constraint::prepare(constraint &con, const relation &rel, entt::reg
     setup_rows(posA, ornA, posB, ornB, rel, registry, dt);
 }
 
-void contact_constraint::before_solve(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
+void contact_constraint::iteration(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
     /* for (size_t i = 0; i < manifold.num_points; ++i) {
         auto &cp = manifold.point[i];
 

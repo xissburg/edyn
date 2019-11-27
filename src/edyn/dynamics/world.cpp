@@ -14,23 +14,6 @@
 
 namespace edyn {
 
-void on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
-    auto &rel = registry.get<relation>(entity);
-
-    std::visit([&] (auto &&c) {
-        c.init(con, rel, registry);
-    }, con.var);
-}
-
-void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
-    auto& con = registry.get<constraint>(entity);
-    for (auto e : con.row) {
-        if (e != entt::null && registry.valid(e)) {
-            registry.destroy(e);
-        }
-    }
-}
-
 void on_construct_mass(entt::entity entity, entt::registry &registry, mass &m) {
     EDYN_ASSERT(m > 0);
     registry.assign<mass_inv>(entity, m < EDYN_SCALAR_MAX ? 1 / m : 0);
@@ -75,9 +58,6 @@ world::world(entt::registry &reg)
     , sol(reg)
     , bphase(reg)
 {
-    connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
-    connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
-
     connections.push_back(reg.on_construct<mass>().connect<&on_construct_mass>());
     connections.push_back(reg.on_destroy<mass>().connect<&on_destroy_mass>());
 

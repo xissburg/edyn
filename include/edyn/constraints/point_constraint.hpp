@@ -3,19 +3,16 @@
 
 #include <array>
 #include <entt/fwd.hpp>
+#include "constraint_base.hpp"
 #include "edyn/math/vector3.hpp"
 
 namespace edyn {
 
-struct constraint;
-struct relation;
-
-struct point_constraint {
+struct point_constraint : public constraint_base<point_constraint> {
     std::array<vector3, 2> pivot;
 
     void init(constraint &, const relation &, entt::registry &);
     void prepare(constraint &, const relation &, entt::registry &, scalar dt);
-    void before_solve(constraint &, const relation &, entt::registry &, scalar dt);
 };
 
 }

@@ -47,8 +47,4 @@ void point_constraint::prepare(constraint &con, const relation &rel, entt::regis
     }
 }
 
-void point_constraint::before_solve(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-
-}
-
 }

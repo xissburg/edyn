@@ -14,8 +14,26 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/dynamics/solver_stage.hpp"
 
 namespace edyn {
+
+void on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
+    auto &rel = registry.get<relation>(entity);
+
+    std::visit([&] (auto &&c) {
+        c.update(solver_stage_value_t<solver_stage::init>{}, con, rel, registry, 0);
+    }, con.var);
+}
+
+void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
+    auto& con = registry.get<constraint>(entity);
+    for (auto e : con.row) {
+        if (e != entt::null && registry.valid(e)) {
+            registry.destroy(e);
+        }
+    }
+}
 
 void on_destroy_linvel(entt::entity entity, entt::registry &registry) {
     if (registry.has<delta_linvel>(entity)) {
@@ -32,6 +50,9 @@ void on_destroy_angvel(entt::entity entity, entt::registry &registry) {
 solver::solver(entt::registry &reg) 
     : registry(&reg)
 {
+    connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
+    connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
+
     connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
     connections.push_back(reg.on_destroy<linvel>().connect<&on_destroy_linvel>());
 
@@ -117,7 +138,7 @@ void solver::update(scalar dt) {
         auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(rel.entity[1]);
 
         std::visit([&] (auto &&c) {
-            c.prepare(con, rel, *registry, dt);
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, con, rel, *registry, dt);
 
             for (size_t i = 0; i < con.num_rows; ++i) {
                 auto &row = registry->get<constraint_row>(con.row[i]);
@@ -133,7 +154,7 @@ void solver::update(scalar dt) {
     for (uint32_t i = 0; i < iterations; ++i) {
         con_view.each([&] (auto, const relation &rel, constraint &con) {
             std::visit([&] (auto &&c) {
-                c.before_solve(con, rel, *registry, dt);
+                c.update(solver_stage_value_t<solver_stage::iteration>{}, con, rel, *registry, dt);
             }, con.var);
         });
 
