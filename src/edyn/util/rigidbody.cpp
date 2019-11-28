@@ -5,6 +5,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/linacc.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/matter.hpp"
@@ -49,6 +50,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     } else {
         registry.assign<linvel>(entity, def.linvel);
         registry.assign<angvel>(entity, def.angvel);
+    }
+
+    if (def.kind == rigidbody_kind::rb_dynamic) {
+        registry.assign<linacc>(entity, def.gravity);
     }
 
     if (!def.sensor) {

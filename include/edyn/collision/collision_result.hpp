@@ -2,6 +2,7 @@
 #define EDYN_COLLISION_COLLISION_RESULT_HPP
 
 #include <array>
+#include <utility>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/constants.hpp"
 
@@ -16,6 +17,15 @@ struct collision_result {
 
     size_t num_points {0};
     std::array<collision_point, max_contacts> point;
+
+    collision_result & swap() {
+        for (size_t i = 0; i < num_points; ++i) {
+            auto &cp = point[i];
+            std::swap(cp.pivotA, cp.pivotB);
+            cp.normalB = -cp.normalB;
+        }
+        return *this;
+    }
 };
 
 }

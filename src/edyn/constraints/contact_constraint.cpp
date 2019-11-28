@@ -1,5 +1,5 @@
 #include "edyn/constraints/contact_constraint.hpp"
-
+#include "edyn/collision/collision_algorithm.hpp"
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"

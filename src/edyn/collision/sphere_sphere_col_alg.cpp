@@ -1,4 +1,4 @@
-#include "edyn/shapes/sphere_shape.hpp"
+#include "edyn/collision/collision_algorithm.hpp"
 
 namespace edyn {
 
@@ -13,15 +13,15 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
         auto l = std::sqrt(l2);
         auto dn = d / l;
         auto rA = -dn * shA.radius;
-        rA = rotate(inverse(ornA), rA);
+        rA = rotate(conjugate(ornA), rA);
         auto rB = dn * shB.radius;
-        rB = rotate(inverse(ornB), rB);
+        rB = rotate(conjugate(ornB), rB);
 
         auto result = collision_result {};
         result.num_points = 1;
         result.point[0].pivotA = rA;
         result.point[0].pivotB = rB;
-        result.point[0].normalB = rotate(inverse(ornB), dn);
+        result.point[0].normalB = rotate(conjugate(ornB), dn);
         return result;
     }
 

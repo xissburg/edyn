@@ -24,10 +24,6 @@ struct sphere_shape {
     }
 };
 
-collision_result collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold);
-
 }
 
 #endif // EDYN_COLLISION_SHAPE_SPHERE_SHAPE_HPP

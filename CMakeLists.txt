@@ -47,14 +47,15 @@ conan_basic_setup()
 #
 
 set(EDyn_SOURCES
-    src/edyn/constraints/contact_constraint.cpp
-    src/edyn/constraints/point_constraint.cpp
-    src/edyn/constraints/distance_constraint.cpp
-    src/edyn/sys/apply_gravity.cpp
     src/edyn/collision/broadphase.cpp
+    src/edyn/collision/sphere_plane_col_alg.cpp
+    src/edyn/collision/sphere_sphere_col_alg.cpp
+    src/edyn/constraints/contact_constraint.cpp
+    src/edyn/constraints/distance_constraint.cpp
+    src/edyn/constraints/point_constraint.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
-    src/edyn/shapes/sphere_shape.cpp
+    src/edyn/sys/apply_gravity.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/edyn.cpp
 )

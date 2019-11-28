@@ -78,14 +78,14 @@ inline quaternion normalize(const quaternion &q) {
     return q / l;
 }
 
-// Inverse of a quaternion.
-inline quaternion inverse(const quaternion &q) {
+// Conjugate of a quaternion.
+inline quaternion conjugate(const quaternion &q) {
     return {-q.x, -q.y, -q.z, q.w};
 }
 
 // Rotate a vector by a quaternion.
 inline vector3 rotate(const quaternion &q, const vector3 &v) {
-    auto r = q * v * inverse(q);
+    auto r = q * v * conjugate(q);
     return {r.x, r.y, r.z};
 }
 

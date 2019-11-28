@@ -38,6 +38,9 @@ struct rigidbody_def {
     vector3 linvel {vector3_zero};
     vector3 angvel {vector3_zero};
 
+    // Gravity acceleration.
+    vector3 gravity {gravity_earth};
+
     // Optional shape for collidable entities.
     std::optional<decltype(shape::var)> shape_opt; 
 
