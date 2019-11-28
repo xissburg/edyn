@@ -52,7 +52,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.assign<angvel>(entity, def.angvel);
     }
 
-    if (def.kind == rigidbody_kind::rb_dynamic) {
+    if (def.kind == rigidbody_kind::rb_dynamic && def.gravity != vector3_zero) {
         registry.assign<linacc>(entity, def.gravity);
     }
 
