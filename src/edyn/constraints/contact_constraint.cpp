@@ -67,14 +67,14 @@ void contact_constraint::process_collision(const collision_result &result, const
             // Create new constraint rows for this contact point.
             auto normal_row_entity = registry.create();
             con.row[con.num_rows++] = normal_row_entity;
-            //auto friction_row_entity = registry.create();
-            //con.row[con.num_rows++] = friction_row_entity;
+            auto friction_row_entity = registry.create();
+            con.row[con.num_rows++] = friction_row_entity;
 
             // Assign row component and associate entities.
             auto &normal_row = registry.assign<constraint_row>(normal_row_entity);
             normal_row.entity = rel.entity;
-            //auto &friction_row = registry.assign<constraint_row>(friction_row_entity);
-            //friction_row.entity = rel.entity;
+            auto &friction_row = registry.assign<constraint_row>(friction_row_entity);
+            friction_row.entity = rel.entity;
 
             // Append to array of points and set it up.
             auto insert_idx = manifold.num_points % max_contacts;
@@ -84,7 +84,7 @@ void contact_constraint::process_collision(const collision_result &result, const
 
             // Contact point can now refer to constraint rows.
             cp.normal_row_entity = normal_row_entity;
-            //cp.friction_row_entity = friction_row_entity;
+            cp.friction_row_entity = friction_row_entity;
 
             // Combine matter/surface parameters.
             auto &matterA = registry.get<const matter>(rel.entity[0]);
@@ -112,7 +112,7 @@ void contact_constraint::prune(const vector3 &posA, const quaternion &ornA, cons
             // Destroy constraint rows.
             for (int r = con.num_rows; r > 0; --r) {
                 size_t s = r - 1;
-                if (con.row[s] == cp.normal_row_entity) {// || con.row[s] == cp.friction_row_entity) {
+                if (con.row[s] == cp.normal_row_entity || con.row[s] == cp.friction_row_entity) {
                     registry.destroy(con.row[s]);
                     // Swap with last element.
                     size_t t = con.num_rows - 1;
@@ -180,7 +180,7 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
             }
         }
         
-        /* auto tangent_relvel = relvel - normal * normal_relvel;
+        auto tangent_relvel = relvel - normal * normal_relvel;
         auto tangent_relspd = length(tangent_relvel);
         auto tangent = tangent_relspd > EDYN_EPSILON ? tangent_relvel / tangent_relspd : vector3_x;
 
@@ -189,7 +189,7 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         friction_row.error = 0;
         // friction_row limits are calculated in `before_solve` using the normal impulse.
         friction_row.lower_limit = -0;
-        friction_row.upper_limit = 0; */
+        friction_row.upper_limit = 0;
     }
 }
 
@@ -217,16 +217,16 @@ void contact_constraint::prepare(constraint &con, const relation &rel, entt::reg
 }
 
 void contact_constraint::iteration(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-    /* for (size_t i = 0; i < manifold.num_points; ++i) {
+    for (size_t i = 0; i < manifold.num_points; ++i) {
         auto &cp = manifold.point[i];
 
         auto &normal_row = registry.get<constraint_row>(cp.normal_row_entity);
-        auto friction_impulse = normal_row.impulse * cp.friction;
+        auto friction_impulse = std::abs(normal_row.impulse * cp.friction);
 
         auto &friction_row = registry.get<constraint_row>(cp.friction_row_entity);
         friction_row.lower_limit = -friction_impulse;
         friction_row.upper_limit = friction_impulse;
-    } */
+    }
 }
 
 }

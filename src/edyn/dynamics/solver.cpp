@@ -47,19 +47,6 @@ void on_destroy_angvel(entt::entity entity, entt::registry &registry) {
     }
 }
 
-solver::solver(entt::registry &reg) 
-    : registry(&reg)
-{
-    connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
-    connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
-
-    connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
-    connections.push_back(reg.on_destroy<linvel>().connect<&on_destroy_linvel>());
-
-    connections.push_back(reg.on_construct<angvel>().connect<&entt::registry::assign<delta_angvel>>(reg));
-    connections.push_back(reg.on_destroy<angvel>().connect<&on_destroy_angvel>());
-}
-
 void prepare(constraint_row &row, 
              scalar inv_mA, scalar inv_mB, 
              const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
@@ -81,8 +68,8 @@ void prepare(constraint_row &row,
 void warm_start(constraint_row &row, 
                 scalar inv_mA, scalar inv_mB, 
                 const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
-                vector3 &dvA, vector3 &dvB,
-                vector3 &dwA, vector3 &dwB) {
+                delta_linvel &dvA, delta_linvel &dvB,
+                delta_angvel &dwA, delta_angvel &dwB) {
     dvA += inv_mA * row.J[0] * row.impulse;
     dwA += inv_IA * row.J[1] * row.impulse;
     dvB += inv_mB * row.J[2] * row.impulse;
@@ -129,6 +116,19 @@ void update_inertia(entt::registry &registry) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
     });
+}
+
+solver::solver(entt::registry &reg) 
+    : registry(&reg)
+{
+    connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
+    connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
+
+    connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
+    connections.push_back(reg.on_destroy<linvel>().connect<&on_destroy_linvel>());
+
+    connections.push_back(reg.on_construct<angvel>().connect<&entt::registry::assign<delta_angvel>>(reg));
+    connections.push_back(reg.on_destroy<angvel>().connect<&on_destroy_angvel>());
 }
 
 void solver::update(scalar dt) {
