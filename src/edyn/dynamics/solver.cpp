@@ -62,7 +62,7 @@ void prepare(constraint_row &row,
                   dot(row.J[1], angvelA) +
                   dot(row.J[2], linvelB) +
                   dot(row.J[3], angvelB);
-    row.rhs = -(row.error + relvel);
+    row.rhs = -(row.error + relvel * (1 + row.restitution));
 }
 
 void warm_start(constraint_row &row, 

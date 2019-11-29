@@ -165,18 +165,22 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         auto penetration = dot(rel, normal);
         auto pvel = penetration / dt;
 
+        normal_row.error = 0;
+
         // If not penetrating and the velocity necessary to touch in `dt` seconds
         // is smaller than the bounce velocity, it should apply an impulse that
         // will prevent penetration after the following physics update.
         if (penetration > 0 && pvel > -restitution * normal_relvel) {
             normal_row.error = std::max(pvel, scalar(0));
+            // Set restitution to zero to prevent extra impulses from being applied.
+            normal_row.restitution = 0;
         } else {
-            normal_row.error = restitution * normal_relvel;
+            normal_row.restitution = restitution;
 
             // If this is a resting contact and it is penetrating, apply impulse to push it out.
             if (cp.lifetime > 0) {
                 constexpr scalar contact_erp = 0.2;
-                normal_row.error += std::min(pvel, scalar(0)) * contact_erp;
+                normal_row.error = std::min(pvel, scalar(0)) * contact_erp;
             }
         }
         
