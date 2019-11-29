@@ -17,14 +17,8 @@
 
 namespace edyn {
 
-scalar calc_restitution(const contact_point &cp, scalar dt) {
-    // Higher restitution values decay faster.
-    auto r1 = cp.restitution - 1;
-    auto r = 2 - r1 * r1;
-    // Higher delta times decay faster.
-    auto s = dt * 120;
-    // Exponential decay over lifetime of contact point.
-    auto decay = std::exp(-scalar(cp.lifetime) * dt * r * s);
+scalar calc_restitution(const contact_point &cp, scalar relvel, scalar dt) {
+    scalar decay = std::clamp(-relvel * 0.5 - scalar(0.12), scalar(0), scalar(1));
     return cp.restitution * decay;
 }
 
@@ -159,7 +153,7 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         normal_row.lower_limit = 0;
         normal_row.upper_limit = EDYN_SCALAR_MAX;
 
-        auto restitution = calc_restitution(cp, dt);
+        auto restitution = calc_restitution(cp, normal_relvel, dt);
 
         auto rel = posA + rA - posB - rB;
         auto penetration = dot(rel, normal);
@@ -191,9 +185,7 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         auto &friction_row = registry.get<constraint_row>(cp.friction_row_entity);
         friction_row.J = {tangent, cross(rA, tangent), -tangent, -cross(rB, tangent)};
         friction_row.error = 0;
-        // friction_row limits are calculated in `before_solve` using the normal impulse.
-        friction_row.lower_limit = -0;
-        friction_row.upper_limit = 0;
+        // friction_row limits are calculated in `iteration(...)` using the normal impulse.
     }
 }
 
