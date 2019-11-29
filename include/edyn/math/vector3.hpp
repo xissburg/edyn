@@ -111,7 +111,7 @@ inline bool operator==(const vector3 &v, const vector3 &w) {
 
 // Check if two vectors are different.
 inline bool operator!=(const vector3 &v, const vector3 &w) {
-    return v.x != w.x && v.y != w.y && v.z != w.z;
+    return v.x != w.x || v.y != w.y || v.z != w.z;
 }
 
 // Check if a vector is bigger than another component-wise.
