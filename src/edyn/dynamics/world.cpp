@@ -11,6 +11,8 @@
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/island.hpp"
+#include "edyn/comp/tag.hpp"
 
 namespace edyn {
 
@@ -53,6 +55,29 @@ void on_destroy_shape(entt::entity entity, entt::registry &registry) {
     }    
 }
 
+void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dynamic_tag) {
+    auto island_ent = registry.create();
+    auto &isle = registry.assign<island>(island_ent);
+    isle.entities.push_back(entity);
+
+    auto &node = registry.assign<island_node>(entity);
+    node.island_entity = island_ent;
+}
+
+void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
+    auto &node = registry.get<island_node>(entity);
+    auto &isle = registry.get<island>(node.island_entity);
+    auto it = std::find(isle.entities.begin(), isle.entities.end(), entity);
+    std::swap(*it, *(isle.entities.end() - 1));
+    isle.entities.pop_back();
+
+    if (isle.entities.empty()) {
+        registry.destroy(node.island_entity);
+    }
+
+    registry.remove<island_node>(entity);
+}
+
 world::world(entt::registry &reg) 
     : registry(&reg)
     , sol(reg)
@@ -66,6 +91,9 @@ world::world(entt::registry &reg)
 
     connections.push_back(reg.on_construct<shape>().connect<&on_construct_shape>());
     connections.push_back(reg.on_destroy<shape>().connect<&on_destroy_shape>());
+
+    connections.push_back(reg.on_construct<dynamic_tag>().connect<&on_construct_dynamic_tag>());
+    connections.push_back(reg.on_destroy<dynamic_tag>().connect<&on_destroy_dynamic_tag>());
 }
 
 world::~world() {

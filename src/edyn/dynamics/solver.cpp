@@ -14,7 +14,9 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/dynamics/solver_stage.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
@@ -33,6 +35,57 @@ void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
             registry.destroy(e);
         }
     }
+}
+
+void on_construct_relation(entt::entity entity, entt::registry &registry, relation &rel) {
+    // Find all islands involved in this new relation.
+    std::vector<entt::entity> island_ents;
+
+    for (auto ent : rel.entity) {
+        auto node = registry.try_get<island_node>(ent);
+        if (node) {
+            island_ents.push_back(node->island_entity);
+        }
+    }
+
+    // All entities are in the same island nothing needs to be done.
+    if (island_ents.size() < 2) {
+        return;
+    }
+
+    // Merge all into one island.
+    auto island_ent = island_ents[0];
+
+    for (size_t i = 1; i < island_ents.size(); ++i) {
+        auto other_ent = island_ents[i];
+
+        if (other_ent != island_ent) {
+            auto &isle = registry.get<island>(other_ent);
+            for (auto ent : isle.entities) {
+                auto &node = registry.get<island_node>(ent);
+                node.island_entity = island_ent;
+
+                // Wake up if sleeping.
+                if (registry.has<sleeping_tag>(ent)) {
+                    registry.remove<sleeping_tag>(ent);
+                }
+            }
+
+            // Destroy island entity.
+            registry.destroy(other_ent);
+        }
+    }
+}
+
+void on_destroy_relation(entt::entity entity, entt::registry &registry) {
+    auto &rel = registry.get<relation>(entity);
+
+    // Perform graph-walks using the entities in the destroyed relation as the
+    // starting point (ignoring this destroyed relation, of course). Store the 
+    // entities visited in each case in a set. If all sets are equal, it means
+    // the island has not been broken and nothing needs to be done. If the sets
+    // are different, destroy this island and create news islands for each set.
+    // Update `island_node`s to point the new islands.
 }
 
 void on_destroy_linvel(entt::entity entity, entt::registry &registry) {
@@ -123,6 +176,9 @@ solver::solver(entt::registry &reg)
 {
     connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
     connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
+
+    connections.push_back(reg.on_construct<relation>().connect<&on_construct_relation>());
+    connections.push_back(reg.on_destroy<relation>().connect<&on_destroy_relation>());
 
     connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
     connections.push_back(reg.on_destroy<linvel>().connect<&on_destroy_linvel>());
