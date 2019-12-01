@@ -218,6 +218,12 @@ void on_destroy_angvel(entt::entity entity, entt::registry &registry) {
     }
 }
 
+scalar restitution_curve(scalar restitution, scalar relvel) {
+    // TODO: figure out how to adjust the restitution when resting.
+    scalar decay = 1;//std::clamp(-relvel * 1.52 - scalar(0.12), scalar(0), scalar(1));
+    return restitution * decay;
+}
+
 void prepare(constraint_row &row, 
              scalar inv_mA, scalar inv_mB, 
              const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
@@ -233,32 +239,47 @@ void prepare(constraint_row &row,
                   dot(row.J[1], angvelA) +
                   dot(row.J[2], linvelB) +
                   dot(row.J[3], angvelB);
-    row.rhs = -(row.error + relvel * (1 + row.restitution));
+    row.relvel = relvel;
+    
+    auto restitution = restitution_curve(row.restitution, row.relvel);
+    row.rhs = -(row.error + relvel * (1 + restitution));
 }
 
 void warm_start(constraint_row &row, 
                 scalar inv_mA, scalar inv_mB, 
                 const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
                 delta_linvel &dvA, delta_linvel &dvB,
-                delta_angvel &dwA, delta_angvel &dwB) {
+                delta_angvel &dwA, delta_angvel &dwB) {    
+    // Do not warm start when there's restitution since this constraint isn't 
+    // going to rest and also to prevent adding energy to the system.
+    if (restitution_curve(row.restitution, row.relvel) > 0) {
+        return;
+    }
+
     dvA += inv_mA * row.J[0] * row.impulse;
     dwA += inv_IA * row.J[1] * row.impulse;
     dvB += inv_mB * row.J[2] * row.impulse;
     dwB += inv_IB * row.J[3] * row.impulse;
 }
 
-template<typename MassInvView, typename DeltaView>
 void solve(constraint_row &row,
-           MassInvView &mass_inv_view,
-           DeltaView &delta_view) {
-    auto [dvA, dwA] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[0]);
-    auto [dvB, dwB] = delta_view.template get<delta_linvel, delta_angvel>(row.entity[1]);
-
+           scalar inv_mA, scalar inv_mB, 
+           const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
+           delta_linvel &dvA, delta_linvel &dvB,
+           delta_angvel &dwA, delta_angvel &dwB) {
     auto delta_relvel = dot(row.J[0], dvA) + 
                         dot(row.J[1], dwA) +
                         dot(row.J[2], dvB) +
                         dot(row.J[3], dwB);
-    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
+    auto restitution = restitution_curve(row.restitution, row.relvel + delta_relvel);
+    auto delta_impulse = (row.rhs - delta_relvel * (1 + restitution)) * row.eff_mass;
+
+    // Clamp `delta_impulse` for proper shock propagation when there's restitution.
+    // This prevents contact contraints from 'sucking', for example.
+    if (row.restitution > 0) {
+        delta_impulse = std::clamp(delta_impulse, row.lower_limit, row.upper_limit);
+    }
+
     auto impulse = row.impulse + delta_impulse;
 
     if (impulse < row.lower_limit) {
@@ -271,9 +292,6 @@ void solve(constraint_row &row,
         row.impulse = impulse;
     }
 
-    auto [inv_mA, inv_IA] = mass_inv_view.template get<mass_inv, inertia_world_inv>(row.entity[0]);
-    auto [inv_mB, inv_IB] = mass_inv_view.template get<mass_inv, inertia_world_inv>(row.entity[1]);
-
     // Apply impulse.
     dvA += inv_mA * row.J[0] * delta_impulse;
     dwA += inv_IA * row.J[1] * delta_impulse;
@@ -282,8 +300,8 @@ void solve(constraint_row &row,
 }
 
 void update_inertia(entt::registry &registry) {
-    auto view = registry.view<const orientation, const inertia_inv, inertia_world_inv>();
-    view.each([] (auto, const orientation& orn, const inertia_inv &inv_I, inertia_world_inv &inv_IW) {
+    auto view = registry.view<dynamic_tag, const orientation, const inertia_inv, inertia_world_inv>();
+    view.each([] (auto, auto, const orientation& orn, const inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
     });
@@ -311,18 +329,18 @@ void solver::update(scalar dt) {
     apply_gravity(*registry, dt);
 
     // Setup constraints.
-    auto mass_inv_view = registry->view<mass_inv, inertia_world_inv>();
-    auto vel_view = registry->view<linvel, angvel>();
+    auto mass_inv_view = registry->view<const mass_inv, const inertia_world_inv>();
+    auto vel_view = registry->view<const linvel, const angvel>();
     auto delta_view = registry->view<delta_linvel, delta_angvel>();
 
     auto con_view = registry->view<const relation, constraint>();
     con_view.each([&] (auto, const relation &rel, constraint &con) {
-        auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(rel.entity[0]);
-        auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(rel.entity[1]);
-        auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(rel.entity[0]);
-        auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(rel.entity[1]);
-        auto [dvA, dwA] = delta_view.template get<delta_linvel, delta_angvel>(rel.entity[0]);
-        auto [dvB, dwB] = delta_view.template get<delta_linvel, delta_angvel>(rel.entity[1]);
+        auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[0]);
+        auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[1]);
+        auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(rel.entity[0]);
+        auto [linvelB, angvelB] = vel_view.get<const linvel, const angvel>(rel.entity[1]);
+        auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[0]);
+        auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[1]);
 
         std::visit([&] (auto &&c) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, con, rel, *registry, dt);
@@ -346,17 +364,21 @@ void solver::update(scalar dt) {
         });
 
         row_view.each([&] (auto, auto &row) {
-            solve(row, mass_inv_view, delta_view);
+            auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(row.entity[0]);
+            auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(row.entity[1]);
+            auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(row.entity[0]);
+            auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(row.entity[1]);
+            solve(row, inv_mA, inv_mB, inv_IA, inv_IB, dvA, dvB, dwA, dwB);
         });
     }
 
     // Apply constraint velocity correction.
-    registry->view<linvel, delta_linvel>().each([] (auto, auto &vel, auto &delta) {
+    registry->view<dynamic_tag, linvel, delta_linvel>().each([] (auto, auto, auto &vel, auto &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
-    registry->view<angvel, delta_angvel>().each([] (auto, auto &vel, auto &delta) {
+    registry->view<dynamic_tag, angvel, delta_angvel>().each([] (auto, auto, auto &vel, auto &delta) {
         vel += delta;
         delta = vector3_zero;
     });

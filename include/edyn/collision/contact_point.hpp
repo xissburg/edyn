@@ -14,7 +14,6 @@ struct contact_point {
     scalar restitution;
     uint32_t lifetime {0};
     entt::entity normal_row_entity {entt::null};
-    entt::entity restitution_row_entity {entt::null};
     entt::entity friction_row_entity {entt::null};
 };
 

@@ -17,11 +17,6 @@
 
 namespace edyn {
 
-scalar restitution_curve(scalar restitution, scalar relvel) {
-    scalar decay = std::clamp(-relvel * 0.5 - scalar(0.12), scalar(0), scalar(1));
-    return restitution * decay;
-}
-
 void merge_point(const collision_result::collision_point &rp, contact_point &cp) {
     cp.pivotA = rp.pivotA;
     cp.pivotB = rp.pivotB;
@@ -153,23 +148,19 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         normal_row.lower_limit = 0;
         normal_row.upper_limit = EDYN_SCALAR_MAX;
 
-        auto restitution = restitution_curve(cp.restitution, normal_relvel);
-
         auto rel = posA + rA - posB - rB;
         auto penetration = dot(rel, normal);
         auto pvel = penetration / dt;
 
         normal_row.error = 0;
+        normal_row.restitution = cp.restitution;
 
         // If not penetrating and the velocity necessary to touch in `dt` seconds
         // is smaller than the bounce velocity, it should apply an impulse that
         // will prevent penetration after the following physics update.
-        if (penetration > 0 && pvel > -restitution * normal_relvel) {
+        if (penetration > 0 && pvel > -cp.restitution * normal_relvel) {
             normal_row.error = std::max(pvel, scalar(0));
-            // Set restitution to zero to prevent extra impulses from being applied.
-            normal_row.restitution = 0;
         } else {
-            normal_row.restitution = restitution;
 
             // If this is a resting contact and it is penetrating, apply impulse to push it out.
             if (cp.lifetime > 0) {
@@ -186,6 +177,7 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         friction_row.J = {tangent, cross(rA, tangent), -tangent, -cross(rB, tangent)};
         friction_row.error = 0;
         // friction_row limits are calculated in `iteration(...)` using the normal impulse.
+        friction_row.lower_limit = friction_row.upper_limit = 0;
     }
 }
 
