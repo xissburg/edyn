@@ -17,9 +17,9 @@
 
 namespace edyn {
 
-scalar calc_restitution(const contact_point &cp, scalar relvel, scalar dt) {
+scalar restitution_curve(scalar restitution, scalar relvel) {
     scalar decay = std::clamp(-relvel * 0.5 - scalar(0.12), scalar(0), scalar(1));
-    return cp.restitution * decay;
+    return restitution * decay;
 }
 
 void merge_point(const collision_result::collision_point &rp, contact_point &cp) {
@@ -153,7 +153,7 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         normal_row.lower_limit = 0;
         normal_row.upper_limit = EDYN_SCALAR_MAX;
 
-        auto restitution = calc_restitution(cp, normal_relvel, dt);
+        auto restitution = restitution_curve(cp.restitution, normal_relvel);
 
         auto rel = posA + rA - posB - rB;
         auto penetration = dot(rel, normal);

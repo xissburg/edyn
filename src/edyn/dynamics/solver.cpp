@@ -38,6 +38,10 @@ void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
 }
 
 void on_construct_relation(entt::entity entity, entt::registry &registry, relation &rel) {
+    // Allow the related entities to refer to their relations.
+    registry.get_or_assign<relation_container>(rel.entity[0]).entities.push_back(entity);
+    registry.get_or_assign<relation_container>(rel.entity[1]).entities.push_back(entity);
+
     // Find all islands involved in this new relation.
     std::vector<entt::entity> island_ents;
 
@@ -54,14 +58,19 @@ void on_construct_relation(entt::entity entity, entt::registry &registry, relati
     }
 
     // Merge all into one island.
+    // TODO: choose island with most nodes.
     auto island_ent = island_ents[0];
 
     for (size_t i = 1; i < island_ents.size(); ++i) {
         auto other_ent = island_ents[i];
 
         if (other_ent != island_ent) {
-            auto &isle = registry.get<island>(other_ent);
-            for (auto ent : isle.entities) {
+            auto &isle = registry.get<island>(island_ent);
+            auto &other_isle = registry.get<island>(other_ent);
+
+            for (auto ent : other_isle.entities) {
+                isle.entities.push_back(ent);
+
                 auto &node = registry.get<island_node>(ent);
                 node.island_entity = island_ent;
 
@@ -78,14 +87,123 @@ void on_construct_relation(entt::entity entity, entt::registry &registry, relati
 }
 
 void on_destroy_relation(entt::entity entity, entt::registry &registry) {
-    auto &rel = registry.get<relation>(entity);
-
     // Perform graph-walks using the entities in the destroyed relation as the
     // starting point (ignoring this destroyed relation, of course). Store the 
     // entities visited in each case in a set. If all sets are equal, it means
     // the island has not been broken and nothing needs to be done. If the sets
     // are different, destroy this island and create news islands for each set.
     // Update `island_node`s to point the new islands.
+
+    auto &rel = registry.get<relation>(entity);
+
+    // Remove the destroyed relation from the `relation_container` of the
+    // related entities. Empty containers are removed at the end.
+    for (size_t i = 0; i < max_relations; ++i) {
+        auto &container = registry.get<relation_container>(rel.entity[i]);
+        auto it = std::find(container.entities.begin(), container.entities.end(), entity);
+        std::swap(*it, *(container.entities.end() - 1));
+        container.entities.pop_back();
+    }
+
+    // Store all entities found while walking the graph from each starting
+    // point.
+    std::array<std::vector<entt::entity>, max_relations> connected_entities;
+
+    // Walk the graph starting from each entity in the destroyed relation.
+    for (size_t i = 0; i < max_relations; ++i) {
+        if (!registry.has<dynamic_tag>(rel.entity[i])) {
+            continue;
+        }
+
+        std::vector<entt::entity> visit_me;
+        visit_me.push_back(rel.entity[i]);
+
+        while (!visit_me.empty()) {
+            auto ent = visit_me.back();
+            visit_me.pop_back();
+
+            if (std::find(connected_entities[i].begin(), connected_entities[i].end(), ent) == connected_entities[i].end()) {
+                connected_entities[i].push_back(ent);
+            } else {
+                continue; // Already visited.
+            }
+
+            // Grab neighboring entities to visit.
+            auto &container = registry.get<relation_container>(ent);
+
+            for (auto rel_ent : container.entities) {
+                // Skip the destroyed relation.
+                if (rel_ent == entity) {
+                    continue;
+                }
+
+                auto &rel = registry.get<relation>(rel_ent);
+                
+                if (rel.entity[0] != ent && registry.has<dynamic_tag>(rel.entity[0])) {
+                    visit_me.push_back(rel.entity[0]);
+                }
+
+                if (rel.entity[1] != ent && registry.has<dynamic_tag>(rel.entity[1])) {
+                    visit_me.push_back(rel.entity[1]);
+                }
+            }
+        }
+    }
+
+    // If the sets are different, split island.
+    for (size_t i = 0; i < max_relations; ++i) {
+        std::sort(connected_entities[i].begin(), connected_entities[i].end());
+    }
+
+    if (connected_entities[0] != connected_entities[1]) {
+        // Destroy original island containing both entities in this relation.
+        auto &node = registry.get<island_node>(rel.entity[0]);
+        registry.destroy(node.island_entity);
+
+        // Create one new island for the first set.
+        auto [island_ent, isle] = registry.create<island>();
+        isle.entities = std::move(connected_entities[0]);
+
+        // Update all nodes in the first set to point to the new island.
+        for (auto ent : isle.entities) {
+            auto &node = registry.get<island_node>(ent);
+            node.island_entity = island_ent;
+            
+            if (registry.has<sleeping_tag>(ent)) {
+                registry.remove<sleeping_tag>(ent);
+            }
+        }
+
+        // Create another island for the second set.
+        auto [other_island_ent, other_isle] = registry.create<island>();    
+        other_isle.entities = std::move(connected_entities[1]);
+
+        // Update all nodes in the second set.
+        for (auto ent : other_isle.entities) {
+            auto &node = registry.get<island_node>(ent);
+            node.island_entity = other_island_ent;
+            
+            if (registry.has<sleeping_tag>(ent)) {
+                registry.remove<sleeping_tag>(ent);
+            }
+        }
+    } else {
+        // Island survives. Wake everyone up though. They might have work to do
+        // now.
+        for (auto ent : connected_entities[0]) {            
+            if (registry.has<sleeping_tag>(ent)) {
+                registry.remove<sleeping_tag>(ent);
+            }
+        }
+    }
+
+    // Remove empty `relation_container`s.
+    for (size_t i = 0; i < max_relations; ++i) {
+        auto &container = registry.get<relation_container>(rel.entity[i]);
+        if (container.entities.empty()) {
+            registry.remove<relation_container>(rel.entity[i]);
+        }
+    }
 }
 
 void on_destroy_linvel(entt::entity entity, entt::registry &registry) {
