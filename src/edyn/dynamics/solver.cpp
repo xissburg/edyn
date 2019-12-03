@@ -17,6 +17,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/dynamics/solver_stage.hpp"
 #include "edyn/util/array.hpp"
+#include "edyn/dynamics/island_util.hpp"
 
 namespace edyn {
 
@@ -24,197 +25,17 @@ void on_construct_constraint(entt::entity entity, entt::registry &registry, cons
     auto &rel = registry.get<relation>(entity);
 
     std::visit([&] (auto &&c) {
+        // Initialize actual constraint.
         c.update(solver_stage_value_t<solver_stage::init>{}, con, rel, registry, 0);
     }, con.var);
 }
 
 void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
-    auto& con = registry.get<constraint>(entity);
-    for (auto e : con.row) {
-        if (e != entt::null && registry.valid(e)) {
-            registry.destroy(e);
-        }
-    }
-}
+    auto &con = registry.get<constraint>(entity);
 
-void on_construct_relation(entt::entity entity, entt::registry &registry, relation &rel) {
-    // Allow the related entities to refer to their relations.
-    registry.get_or_assign<relation_container>(rel.entity[0]).entities.push_back(entity);
-    registry.get_or_assign<relation_container>(rel.entity[1]).entities.push_back(entity);
-
-    // Find all islands involved in this new relation.
-    std::vector<entt::entity> island_ents;
-
-    for (auto ent : rel.entity) {
-        auto node = registry.try_get<island_node>(ent);
-        if (node) {
-            island_ents.push_back(node->island_entity);
-        }
-    }
-
-    // All entities are in the same island nothing needs to be done.
-    if (island_ents.size() < 2) {
-        return;
-    }
-
-    // Merge all into one island.
-    // TODO: choose island with most nodes.
-    auto island_ent = island_ents[0];
-
-    for (size_t i = 1; i < island_ents.size(); ++i) {
-        auto other_ent = island_ents[i];
-
-        if (other_ent != island_ent) {
-            auto &isle = registry.get<island>(island_ent);
-            auto &other_isle = registry.get<island>(other_ent);
-
-            for (auto ent : other_isle.entities) {
-                isle.entities.push_back(ent);
-
-                auto &node = registry.get<island_node>(ent);
-                node.island_entity = island_ent;
-
-                // Wake up if sleeping.
-                if (registry.has<sleeping_tag>(ent)) {
-                    registry.remove<sleeping_tag>(ent);
-                }
-            }
-
-            // Destroy island entity.
-            registry.destroy(other_ent);
-        }
-    }
-}
-
-void on_destroy_relation(entt::entity entity, entt::registry &registry) {
-    // Perform graph-walks using the entities in the destroyed relation as the
-    // starting point (ignoring this destroyed relation, of course). Store the 
-    // entities visited in each case in a set. If all sets are equal, it means
-    // the island has not been broken and nothing needs to be done. If the sets
-    // are different, destroy this island and create news islands for each set.
-    // Update `island_node`s to point the new islands.
-
-    auto &rel = registry.get<relation>(entity);
-
-    // Remove the destroyed relation from the `relation_container` of the
-    // related entities. Empty containers are removed at the end.
-    for (size_t i = 0; i < max_relations; ++i) {
-        auto &container = registry.get<relation_container>(rel.entity[i]);
-        auto it = std::find(container.entities.begin(), container.entities.end(), entity);
-        std::swap(*it, *(container.entities.end() - 1));
-        container.entities.pop_back();
-    }
-
-    // Store all entities found while walking the graph from each starting
-    // point.
-    std::array<std::vector<entt::entity>, max_relations> connected_entities;
-
-    // Walk the graph starting from each entity in the destroyed relation.
-    for (size_t i = 0; i < max_relations; ++i) {
-        if (!registry.has<dynamic_tag>(rel.entity[i])) {
-            continue;
-        }
-
-        std::vector<entt::entity> visit_me;
-        visit_me.push_back(rel.entity[i]);
-
-        while (!visit_me.empty()) {
-            auto ent = visit_me.back();
-            visit_me.pop_back();
-
-            if (std::find(connected_entities[i].begin(), connected_entities[i].end(), ent) == connected_entities[i].end()) {
-                connected_entities[i].push_back(ent);
-            } else {
-                continue; // Already visited.
-            }
-
-            // Grab neighboring entities to visit.
-            auto &container = registry.get<relation_container>(ent);
-
-            for (auto rel_ent : container.entities) {
-                // Skip the destroyed relation.
-                if (rel_ent == entity) {
-                    continue;
-                }
-
-                auto &rel = registry.get<relation>(rel_ent);
-                
-                if (rel.entity[0] != ent && registry.has<dynamic_tag>(rel.entity[0])) {
-                    visit_me.push_back(rel.entity[0]);
-                }
-
-                if (rel.entity[1] != ent && registry.has<dynamic_tag>(rel.entity[1])) {
-                    visit_me.push_back(rel.entity[1]);
-                }
-            }
-        }
-    }
-
-    // If the sets are different, split island.
-    for (size_t i = 0; i < max_relations; ++i) {
-        std::sort(connected_entities[i].begin(), connected_entities[i].end());
-    }
-
-    if (connected_entities[0] != connected_entities[1]) {
-        // Destroy original island containing both entities in this relation.
-        auto &node = registry.get<island_node>(rel.entity[0]);
-        registry.destroy(node.island_entity);
-
-        // Create one new island for the first set.
-        auto [island_ent, isle] = registry.create<island>();
-        isle.entities = std::move(connected_entities[0]);
-
-        // Update all nodes in the first set to point to the new island.
-        for (auto ent : isle.entities) {
-            auto &node = registry.get<island_node>(ent);
-            node.island_entity = island_ent;
-            
-            if (registry.has<sleeping_tag>(ent)) {
-                registry.remove<sleeping_tag>(ent);
-            }
-        }
-
-        // Create another island for the second set.
-        auto [other_island_ent, other_isle] = registry.create<island>();    
-        other_isle.entities = std::move(connected_entities[1]);
-
-        // Update all nodes in the second set.
-        for (auto ent : other_isle.entities) {
-            auto &node = registry.get<island_node>(ent);
-            node.island_entity = other_island_ent;
-            
-            if (registry.has<sleeping_tag>(ent)) {
-                registry.remove<sleeping_tag>(ent);
-            }
-        }
-    } else {
-        // Island survives. Wake everyone up though. They might have work to do
-        // now.
-        for (auto ent : connected_entities[0]) {            
-            if (registry.has<sleeping_tag>(ent)) {
-                registry.remove<sleeping_tag>(ent);
-            }
-        }
-    }
-
-    // Remove empty `relation_container`s.
-    for (size_t i = 0; i < max_relations; ++i) {
-        auto &container = registry.get<relation_container>(rel.entity[i]);
-        if (container.entities.empty()) {
-            registry.remove<relation_container>(rel.entity[i]);
-        }
-    }
-}
-
-void on_destroy_linvel(entt::entity entity, entt::registry &registry) {
-    if (registry.has<delta_linvel>(entity)) {
-        registry.remove<delta_linvel>(entity);
-    }
-}
-
-void on_destroy_angvel(entt::entity entity, entt::registry &registry) {
-    if (registry.has<delta_angvel>(entity)) {
-        registry.remove<delta_angvel>(entity);
+    // Destroy all constraint rows.
+    for (size_t i = 0; i < con.num_rows; ++i) {
+        registry.destroy(con.row[i]);
     }
 }
 
@@ -275,7 +96,8 @@ void solve(constraint_row &row,
     auto delta_impulse = (row.rhs - delta_relvel * (1 + restitution)) * row.eff_mass;
 
     // Clamp `delta_impulse` for proper shock propagation when there's restitution.
-    // This prevents contact contraints from 'sucking', for example.
+    // This prevents contact constraints from 'sucking' and consequently 
+    // eliminating the restitution effect.
     if (row.restitution > 0) {
         delta_impulse = std::clamp(delta_impulse, row.lower_limit, row.upper_limit);
     }
@@ -300,7 +122,7 @@ void solve(constraint_row &row,
 }
 
 void update_inertia(entt::registry &registry) {
-    auto view = registry.view<dynamic_tag, const orientation, const inertia_inv, inertia_world_inv>();
+    auto view = registry.view<dynamic_tag, const orientation, const inertia_inv, inertia_world_inv>(exclude_sleeping);
     view.each([] (auto, auto, const orientation& orn, const inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
@@ -313,27 +135,29 @@ solver::solver(entt::registry &reg)
     connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
     connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
 
-    connections.push_back(reg.on_construct<relation>().connect<&on_construct_relation>());
-    connections.push_back(reg.on_destroy<relation>().connect<&on_destroy_relation>());
+    connections.push_back(reg.on_construct<relation>().connect<&island_on_construct_relation>());
+    connections.push_back(reg.on_destroy<relation>().connect<&island_on_destroy_relation>());
 
     connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
-    connections.push_back(reg.on_destroy<linvel>().connect<&on_destroy_linvel>());
+    connections.push_back(reg.on_destroy<linvel>().
+        connect<entt::overload<void(entt::entity)>(&entt::registry::reset<delta_linvel>)>(reg));
 
     connections.push_back(reg.on_construct<angvel>().connect<&entt::registry::assign<delta_angvel>>(reg));
-    connections.push_back(reg.on_destroy<angvel>().connect<&on_destroy_angvel>());
+    connections.push_back(reg.on_destroy<angvel>().
+        connect<entt::overload<void(entt::entity)>(&entt::registry::reset<delta_angvel>)>(reg));
 }
 
-void solver::update(scalar dt) {
+void solver::update(uint64_t step, scalar dt) {
     // Apply forces and acceleration.
     integrate_linacc(*registry, dt);
     apply_gravity(*registry, dt);
 
     // Setup constraints.
-    auto mass_inv_view = registry->view<const mass_inv, const inertia_world_inv>();
-    auto vel_view = registry->view<const linvel, const angvel>();
-    auto delta_view = registry->view<delta_linvel, delta_angvel>();
+    auto mass_inv_view = registry->view<const mass_inv, const inertia_world_inv>(exclude_sleeping);
+    auto vel_view = registry->view<const linvel, const angvel>(exclude_sleeping);
+    auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_sleeping);
 
-    auto con_view = registry->view<const relation, constraint>();
+    auto con_view = registry->view<const relation, constraint>(exclude_sleeping);
     con_view.each([&] (auto, const relation &rel, constraint &con) {
         auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[0]);
         auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[1]);
@@ -354,7 +178,7 @@ void solver::update(scalar dt) {
     });
 
     // Solve constraints.
-    auto row_view = registry->view<constraint_row>();
+    auto row_view = registry->view<constraint_row>(exclude_sleeping);
 
     for (uint32_t i = 0; i < iterations; ++i) {
         con_view.each([&] (auto, const relation &rel, constraint &con) {
@@ -373,12 +197,14 @@ void solver::update(scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    registry->view<dynamic_tag, linvel, delta_linvel>().each([] (auto, auto, auto &vel, auto &delta) {
+    auto linvel_view = registry->view<dynamic_tag, linvel, delta_linvel>(exclude_sleeping);
+    linvel_view.each([] (auto, auto, auto &vel, auto &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
-    registry->view<dynamic_tag, angvel, delta_angvel>().each([] (auto, auto, auto &vel, auto &delta) {
+    auto angvel_view = registry->view<dynamic_tag, angvel, delta_angvel>(exclude_sleeping);
+    angvel_view.each([] (auto, auto, auto &vel, auto &delta) {
         vel += delta;
         delta = vector3_zero;
     });
@@ -389,6 +215,8 @@ void solver::update(scalar dt) {
 
     // Update world-space moment of inertia.
     update_inertia(*registry);
+
+    put_islands_to_sleep(*registry, step, dt);
 }
 
 }

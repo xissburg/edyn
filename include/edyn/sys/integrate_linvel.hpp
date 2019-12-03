@@ -5,6 +5,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/dynamics/island_util.hpp"
 
 namespace edyn {
 
@@ -15,8 +16,8 @@ namespace edyn {
  * @param dt The amount of time that has passed since the last invocation.
  */
 void integrate_linvel(entt::registry &registry, scalar dt) {
-    auto view = registry.view<position, const linvel, const dynamic_tag>();
-    view.each([&] (auto, position &pos, const linvel &vel, [[maybe_unused]] auto) {
+    auto view = registry.view<dynamic_tag, position, const linvel>(exclude_sleeping);
+    view.each([&] (auto, auto, position &pos, const linvel &vel) {
         pos += vel * dt;
     });
 }

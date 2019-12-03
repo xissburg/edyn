@@ -4,9 +4,14 @@
 #include "edyn/math/vector3.hpp"
 
 namespace edyn {
-
+/**
+ * @brief Angular velocity component.
+ */
 struct angvel : public vector3 {
-
+    angvel & operator=(const vector3 &v) {
+        vector3::operator=(v);
+        return *this;
+    }
 };
 
 }

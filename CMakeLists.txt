@@ -28,12 +28,18 @@ option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats." OFF)
 
 set(EDYN_SET_DOUBLE 0)
 if(EDYN_CONFIG_DOUBLE)
-set(EDYN_SET_DOUBLE 1)
+    set(EDYN_SET_DOUBLE 1)
 endif()
 
 option(EDYN_BUILD_EXAMPLES "Build examples." OFF)
 
 option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
+
+option(ENTT_DISABLE_ASSERT "Disable EnTT assertions for better performance." ON)
+
+if(ENTT_DISABLE_ASSERT)
+    add_compile_definitions(ENTT_DISABLE_ASSERT)
+endif()
 
 #
 # Conan dependencies
@@ -53,6 +59,7 @@ set(EDyn_SOURCES
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
     src/edyn/constraints/point_constraint.cpp
+    src/edyn/dynamics/island_util.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp

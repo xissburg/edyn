@@ -5,6 +5,9 @@
 
 namespace edyn {
 
+/**
+ * @brief Axis-aligned bounding box.
+ */
 struct AABB {
     vector3 min;
     vector3 max;
@@ -22,8 +25,6 @@ inline bool intersect(const AABB &b0, const AABB &b1) {
 		   (b0.min.z <= b1.max.z) &&
 		   (b0.max.z >= b1.min.z);
 }
-
-
 
 }
 

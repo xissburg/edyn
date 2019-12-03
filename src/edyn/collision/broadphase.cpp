@@ -7,6 +7,7 @@
 #include "edyn/comp/matter.hpp"
 #include "edyn/util/constraint.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/dynamics/island_util.hpp"
 #include <entt/entt.hpp>
 #include <vector>
 
@@ -19,7 +20,7 @@ broadphase::broadphase(entt::registry &reg)
 }
 
 void broadphase::update() {
-    auto view = registry->view<const position, const orientation, const shape, AABB>();
+    auto view = registry->view<const position, const orientation, const shape, AABB>(exclude_sleeping);
     view.each([] (auto, auto &pos, auto &orn, auto &sh, auto &aabb) {
         std::visit([&] (auto &&s) {
             aabb = s.aabb(pos, orn);
@@ -44,7 +45,7 @@ void broadphase::update() {
 
         // Use slightly higher offset when looking for separation to avoid high
         // frequency creation and destruction of pairs with slight movement.
-        constexpr scalar offset_scale = 1.5;
+        constexpr scalar offset_scale = 2;
         constexpr auto offset = vector3 {
             -contact_breaking_threshold * offset_scale, 
             -contact_breaking_threshold * offset_scale, 

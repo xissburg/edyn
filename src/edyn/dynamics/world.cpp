@@ -22,9 +22,7 @@ void on_construct_mass(entt::entity entity, entt::registry &registry, mass &m) {
 }
 
 void on_destroy_mass(entt::entity entity, entt::registry &registry) {
-    if (registry.has<mass_inv>(entity)) {
-        registry.remove<mass_inv>(entity);
-    }
+    registry.reset<mass_inv>(entity);
 }
 
 void on_construct_inertia(entt::entity entity, entt::registry &registry, inertia &i) {
@@ -36,13 +34,8 @@ void on_construct_inertia(entt::entity entity, entt::registry &registry, inertia
 }
 
 void on_destroy_inertia(entt::entity entity, entt::registry &registry) {
-    if (registry.has<inertia_inv>(entity)) {
-        registry.remove<inertia_inv>(entity);
-    }
-
-    if (registry.has<inertia_world_inv>(entity)) {
-        registry.remove<inertia_world_inv>(entity);
-    }
+    registry.reset<inertia_inv>(entity);
+    registry.reset<inertia_world_inv>(entity);
 }
 
 void on_construct_shape(entt::entity entity, entt::registry &registry, shape &) {
@@ -50,9 +43,7 @@ void on_construct_shape(entt::entity entity, entt::registry &registry, shape &) 
 }
 
 void on_destroy_shape(entt::entity entity, entt::registry &registry) {
-    if (registry.has<AABB>(entity)) {
-        registry.remove<AABB>(entity);
-    }    
+    registry.reset<AABB>(entity);
 }
 
 void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dynamic_tag) {
@@ -121,7 +112,7 @@ void world::update(scalar dt) {
 
 void world::step(scalar dt) {
     bphase.update();
-    sol.update(dt);
+    sol.update(step_, dt);
     ++step_;
 }
 
