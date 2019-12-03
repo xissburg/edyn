@@ -1,5 +1,5 @@
-#ifndef EDYN_EXTRAS_TIME_HPP
-#define EDYN_EXTRAS_TIME_HPP
+#ifndef EDYN_TIME_TIME_HPP
+#define EDYN_TIME_TIME_HPP
 
 #include <cstdint>
 
@@ -12,4 +12,4 @@ uint64_t performance_frequency();
 
 }
 
-#endif // EDYN_EXTRAS_TIME_HPP
+#endif // EDYN_TIME_TIME_HPP
