@@ -81,6 +81,16 @@ inline matrix3x3 skew(const vector3 &v) {
     };
 }
 
+inline matrix3x3 matrix3x3_columns(const vector3 &v0, 
+                                   const vector3 &v1, 
+                                   const vector3 &v2) {
+    return {
+        v0.x, v1.x, v2.x,
+        v0.y, v1.y, v2.y,
+        v0.z, v1.z, v2.z
+    };
+}
+
 inline matrix3x3 to_matrix3x3(const quaternion &q) {
     auto d = length2(q);
     auto s = 2 / d;

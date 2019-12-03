@@ -8,7 +8,6 @@
 
 #include "solver.hpp"
 #include "edyn/math/scalar.hpp"
-#include "edyn/comp/constraint.hpp"
 #include "edyn/collision/broadphase.hpp"
 
 namespace edyn {

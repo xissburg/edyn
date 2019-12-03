@@ -21,6 +21,7 @@
 #include "math/vector3.hpp"
 #include "math/quaternion.hpp"
 #include "math/matrix3x3.hpp"
+#include "math/math.hpp"
 #include "dynamics/world.hpp"
 #include "time/time.hpp"
 #include "util/rigidbody.hpp"
