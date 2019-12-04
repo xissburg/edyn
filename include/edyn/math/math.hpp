@@ -5,11 +5,11 @@
 
 namespace edyn {
 
-scalar to_degrees(scalar radians) {
+inline scalar to_degrees(scalar radians) {
     return radians / pi * 180;
 }
 
-scalar to_radians(scalar degrees) {
+inline scalar to_radians(scalar degrees) {
     return degrees / 180 * pi;
 }
 

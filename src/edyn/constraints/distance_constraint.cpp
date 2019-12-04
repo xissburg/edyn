@@ -41,7 +41,8 @@ void distance_constraint::prepare(constraint &con, const relation &rel, entt::re
     auto &angvelB = registry.get<const angvel>(rel.entity[1]);
     auto relvel = dot(linvelA + cross(angvelA, rA) - linvelB - cross(angvelB, rB), dn);
 
-    auto force = stiffness * l + damping * std::abs(relvel);
+    auto error = l - distance;
+    auto force = std::abs(stiffness * error) + std::abs(damping * relvel);
     auto impulse = force * dt;
 
     auto &row = registry.get<constraint_row>(con.row[0]);

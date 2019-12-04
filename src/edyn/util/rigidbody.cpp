@@ -61,8 +61,8 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     }
 
     if (def.presentation) {
-        registry.assign<present_position>(entity);
-        registry.assign<present_orientation>(entity);
+        registry.assign<present_position>(entity, def.position);
+        registry.assign<present_orientation>(entity, def.orientation);
     }
 
     if (auto opt = def.shape_opt) {

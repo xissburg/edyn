@@ -14,9 +14,8 @@ void doublewishbone_constraint::init(constraint &con, const relation &rel, entt:
     con.num_rows = steerable ? 6 : 7;
 
     for (size_t i = 0; i < con.num_rows; ++i) {
-        auto e = registry.create();
-        con.row[i] = e;
-        auto &row = registry.assign<constraint_row>(e);
+        con.row[i] = registry.create();
+        auto &row = registry.assign<constraint_row>(con.row[i]);
         row.entity = rel.entity;
     }
 }
@@ -37,6 +36,7 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
     auto uposB = pB + urB;
 
     auto ud = uposA - uposB;
+    auto ul2 = length2(ud);
     auto udistance = std::max(length(ud), EDYN_EPSILON);
     auto udn = ud / udistance;
 
@@ -48,6 +48,7 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
     auto lposB = pB + lrB;
 
     auto ld = lposA - lposB;
+    auto ll2 = length2(ld);
     auto ldistance = std::max(length(ld), EDYN_EPSILON);
     auto ldn = ld / ldistance;
 
@@ -62,8 +63,8 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
     // Upper control arm distance constraint.
     {
         auto &row = registry.get<constraint_row>(con.row[row_idx++]);
-        row.J = {-udn, -cross(urA, udn), udn, cross(urB, udn)};
-        row.error = (udistance - upper_length) / dt;
+        row.J = {ud, cross(urA, ud), -ud, -cross(urB, ud)};
+        row.error = 0.5 * (ul2 - upper_length * upper_length) / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
     }
@@ -71,21 +72,21 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
     // Lower control arm distance constraint
     {
         auto &row = registry.get<constraint_row>(con.row[row_idx++]);
-        row.J = {-ldn, -cross(lrA, ldn), ldn, cross(lrB, ldn)};
-        row.error = (ldistance - lower_length) / dt;
+        row.J = {ld, cross(lrA, ld), -ld, -cross(lrB, ld)};
+        row.error = 0.5 * (ll2 - lower_length * lower_length) / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
     }
-
+    
     // Constrain upper pivot on wheel to a plane that passes through upper pivot
     // on chassis with normal equals chassis' z axis
     {
-        auto p = cross(urA, chassis_z) + cross(chassis_z, udn);
+        auto p = cross(urA, chassis_z) + cross(chassis_z, ud);
         auto q = cross(urB, chassis_z);
 
         auto &row = registry.get<constraint_row>(con.row[row_idx++]);
-        row.J = {-chassis_z, -p, chassis_z, q};
-        row.error = dot(udn, chassis_z) / dt;
+        row.J = {chassis_z, p, -chassis_z, -q};
+        row.error = dot(ud, chassis_z) / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
     }
@@ -93,16 +94,16 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
     // Constrain lower pivot on wheel to a plane that passes through lower pivot
     // on chassis with normal equals chassis' z axis
     {
-        auto p = cross(lrA, chassis_z) + cross(chassis_z, ldn);
+        auto p = cross(lrA, chassis_z) + cross(chassis_z, ld);
         auto q = cross(lrB, chassis_z);
 
         auto &row = registry.get<constraint_row>(con.row[row_idx++]);
-        row.J = {-chassis_z, -p, chassis_z, q};
-        row.error = dot(ldn, chassis_z) / dt;
+        row.J = {chassis_z, p, -chassis_z, -q};
+        row.error = dot(ld, chassis_z) / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
     }
-
+    
     auto mrA = (urA + lrA) / 2;
     auto mrB = (urB + lrB) / 2;
     auto mposA = (uposA + lposA) / 2;
@@ -119,10 +120,10 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
         auto q = cross(mrB, chassis_x);
 
         auto &row = registry.get<constraint_row>(con.row[row_idx++]);
-        row.J = {-chassis_x, -p, chassis_x, q};
+        row.J = {chassis_x, p, -chassis_x, -q};
         row.error = (dot(mdn, chassis_x) + 0.4) / dt;
-        row.lower_limit = 0;
-        row.upper_limit = large_scalar;
+        row.lower_limit = -large_scalar;
+        row.upper_limit = 0;
     }
 
     // Constrain the middle of the axis on the chassis to always stay in front of 
@@ -133,20 +134,20 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
         auto q = cross(mrB, wheel_x);
 
         auto &row = registry.get<constraint_row>(con.row[row_idx++]);
-        row.J = {-wheel_x, -p, wheel_x, q};
+        row.J = {wheel_x, p, -wheel_x, -q};
         row.error = (dot(mdn, wheel_x) + 0.4) / dt;
-        row.lower_limit = 0;
-        row.upper_limit = large_scalar;
+        row.lower_limit = -large_scalar;
+        row.upper_limit = 0;
     }
 
     if (!steerable) {
         // Constrain wheel rotation axis to a plane that passes through upper pivot
         // on chassis with normal equals chassis' z axis
-        auto q = cross(wheel_x, chassis_z);
+        auto q = cross(chassis_z, wheel_x);
 
         auto &row = registry.get<constraint_row>(con.row[row_idx++]);
         row.J = {vector3_zero, q, vector3_zero, -q};
-        row.error = dot(wheel_x, chassis_z) / dt;
+        row.error = dot(chassis_z, wheel_x) / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
     }

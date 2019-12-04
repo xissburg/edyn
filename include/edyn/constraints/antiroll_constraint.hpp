@@ -8,7 +8,7 @@
 namespace edyn {
 
 struct antiroll_constraint : public constraint_base<antiroll_constraint> {
-    // Which side this antiroll constraint connects to: -1 left, 1 right.
+    // Which side this antiroll constraint connects to: 1 left, -1 right.
     scalar side;
 
     scalar stiffness; // torsional stiffness in N/m/deg (netwon-meters per degrees)
