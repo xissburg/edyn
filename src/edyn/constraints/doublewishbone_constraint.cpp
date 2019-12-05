@@ -11,7 +11,7 @@
 namespace edyn {
 
 void doublewishbone_constraint::init(constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = steerable ? 6 : 7;
+    con.num_rows = steerable ? 5 : 6;
 
     for (size_t i = 0; i < con.num_rows; ++i) {
         con.row[i] = registry.create();
@@ -100,6 +100,7 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
         auto &row = registry.get<constraint_row>(con.row[row_idx++]);
         row.J = {chassis_z, p, -chassis_z, -q};
         row.error = dot(ld, chassis_z) / dt;
+        
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
     }
@@ -109,33 +110,18 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
     auto mposA = (uposA + lposA) / 2;
     auto mposB = (uposB + lposB) / 2;
     auto md = mposA - mposB;
-    auto mdn = normalize(md);
 
     // Constrain the middle of the axis on the wheel to always stay in front of 
     // a plane passing through the middle of the axis on the chassis with normal
     // pointing outside the vehicle.
     {
         auto chassis_x = rotate(qA, vector3_x * side);
-        auto p = cross(mrA, chassis_x) + cross(chassis_x, mdn);
+        auto p = cross(mrA, chassis_x) + cross(chassis_x, md);
         auto q = cross(mrB, chassis_x);
 
         auto &row = registry.get<constraint_row>(con.row[row_idx++]);
         row.J = {chassis_x, p, -chassis_x, -q};
-        row.error = (dot(mdn, chassis_x) + 0.4) / dt;
-        row.lower_limit = -large_scalar;
-        row.upper_limit = 0;
-    }
-
-    // Constrain the middle of the axis on the chassis to always stay in front of 
-    // a plane passing through the middle of the axis on the wheel with normal
-    // pointing inside the wheel.
-    {
-        auto p = cross(mrA, wheel_x) + cross(wheel_x, mdn);
-        auto q = cross(mrB, wheel_x);
-
-        auto &row = registry.get<constraint_row>(con.row[row_idx++]);
-        row.J = {wheel_x, p, -wheel_x, -q};
-        row.error = (dot(mdn, wheel_x) + 0.4) / dt;
+        row.error = 0.2 * (dot(md, chassis_x) + 0.2) / dt; // be gentle
         row.lower_limit = -large_scalar;
         row.upper_limit = 0;
     }
