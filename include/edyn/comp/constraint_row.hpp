@@ -5,6 +5,7 @@
 #include <entt/fwd.hpp>
 #include "relation.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 

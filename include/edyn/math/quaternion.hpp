@@ -41,6 +41,10 @@ inline quaternion operator*(const quaternion &q, const quaternion &r) {
     };
 }
 
+inline quaternion & operator*=(quaternion &q, const quaternion &r) {
+    return q = q * r;
+}
+
 // Product of a quaternion and vector, i.e. product of a quaternion with another
 // quaternion with a zero w component.
 inline quaternion operator*(const quaternion &q, const vector3 &v) {
@@ -106,6 +110,12 @@ inline quaternion integrate(const quaternion &q, const vector3 &w, scalar dt) {
 
     auto r = quaternion {w.x * t, w.y * t, w.z * t, std::cos(half * ws * dt)};
     return normalize(r * q);
+}
+
+inline quaternion quaternion_axis_angle(const vector3 &v, scalar a) {
+    auto l = length(v);
+    auto s = std::sin(a * scalar(0.5)) / l;
+    return {v.x * s, v.y * s, v.z * s, std::cos(a * scalar(0.5))};
 }
 
 }

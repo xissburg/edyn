@@ -1,33 +1,13 @@
 #ifndef EDYN_COMP_MASS_HPP
 #define EDYN_COMP_MASS_HPP
 
-#include "edyn/math/scalar.hpp"
+#include "scalar_comp.hpp"
 
 namespace edyn {
 
-struct mass {
-    scalar s;
+struct mass : public scalar_comp {};
 
-    operator scalar &() {
-        return s;
-    }
-
-    operator scalar() const {
-        return s;
-    }
-};
-
-struct mass_inv {
-    scalar s;
-
-    operator scalar &() {
-        return s;
-    }
-
-    operator scalar() const {
-        return s;
-    }
-};
+struct mass_inv : public scalar_comp {};
 
 }
 

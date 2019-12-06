@@ -13,7 +13,7 @@ namespace edyn {
 void point_constraint::init(constraint &con, const relation &rel, entt::registry &registry) {
     con.num_rows = 3;
 
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < con.num_rows; ++i) {
         auto e = registry.create();
         con.row[i] = e;
         auto &row = registry.assign<constraint_row>(e);

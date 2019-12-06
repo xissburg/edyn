@@ -53,36 +53,48 @@ void contact_constraint::process_collision(const collision_result &result, const
             ++cp.lifetime;
             merge_point(rp, cp);
         } else {
-            // Create new constraint rows for this contact point.
-            auto normal_row_entity = registry.create();
-            con.row[con.num_rows++] = normal_row_entity;
-            auto friction_row_entity = registry.create();
-            con.row[con.num_rows++] = friction_row_entity;
-
-            // Assign row component and associate entities.
-            auto &normal_row = registry.assign<constraint_row>(normal_row_entity);
-            normal_row.entity = rel.entity;
-            auto &friction_row = registry.assign<constraint_row>(friction_row_entity);
-            friction_row.entity = rel.entity;
-
             // Append to array of points and set it up.
             auto insert_idx = manifold.num_points % max_contacts;
             auto &cp = manifold.point[insert_idx];
-            cp.lifetime = 0;
             merge_point(rp, cp);
-
-            // Contact point can now refer to constraint rows.
-            cp.normal_row_entity = normal_row_entity;
-            cp.friction_row_entity = friction_row_entity;
 
             // Combine matter/surface parameters.
             auto &matterA = registry.get<const matter>(rel.entity[0]);
             auto &matterB = registry.get<const matter>(rel.entity[1]);
             cp.restitution = matterA.restitution * matterB.restitution;
             cp.friction = matterA.friction * matterB.friction;
+            cp.lifetime = 0;
 
             if (manifold.num_points < max_contacts) {
+                // Create new constraint rows for this contact point.
+                auto normal_row_entity = registry.create();
+                con.row[con.num_rows++] = normal_row_entity;
+                auto friction_row_entity = registry.create();
+                con.row[con.num_rows++] = friction_row_entity;
+
+                // Assign row component and associate entities.
+                auto &normal_row = registry.assign<constraint_row>(normal_row_entity);
+                normal_row.entity = rel.entity;
+                auto &friction_row = registry.assign<constraint_row>(friction_row_entity);
+                friction_row.entity = rel.entity;
+
+                // Contact point can now refer to constraint rows.
+                cp.normal_row_entity = normal_row_entity;
+                cp.friction_row_entity = friction_row_entity;
+
+                normal_row.restitution = cp.restitution;
+
                 ++manifold.num_points;
+            } else {
+                // One of the existing contacts has been replaced by the new. 
+                // Update its rows.
+                auto &normal_row = registry.assign<constraint_row>(cp.normal_row_entity);
+                auto &friction_row = registry.assign<constraint_row>(cp.friction_row_entity);
+                normal_row.restitution = cp.restitution;
+                
+                // Zero out warm-starting impulses.
+                normal_row.impulse = 0;
+                friction_row.impulse = 0;
             }
         }
     }
@@ -96,8 +108,12 @@ void contact_constraint::prune(const vector3 &posA, const quaternion &ornA, cons
         auto pA = posA + rotate(ornA, cp.pivotA);
         auto pB = posB + rotate(ornB, cp.pivotB);
         auto n = rotate(ornB, cp.normalB);
+        auto d = pA - pB;
+        auto dn = dot(d, n); // separation along normal
+        auto dp = d - dn * n; // tangential separation on contact plane
 
-        if (dot(pA - pB, n) > contact_breaking_threshold) {
+        if (dn > contact_breaking_threshold ||
+            length2(dp) > contact_breaking_threshold * contact_breaking_threshold) {
             // Destroy constraint rows.
             for (int r = con.num_rows; r > 0; --r) {
                 size_t s = r - 1;
@@ -153,7 +169,6 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         auto pvel = penetration / dt;
 
         normal_row.error = 0;
-        normal_row.restitution = cp.restitution;
 
         // If not penetrating and the velocity necessary to touch in `dt` seconds
         // is smaller than the bounce velocity, it should apply an impulse that
