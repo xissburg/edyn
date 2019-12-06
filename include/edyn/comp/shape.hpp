@@ -4,11 +4,12 @@
 #include <variant>
 #include "edyn/shapes/plane_shape.hpp"
 #include "edyn/shapes/sphere_shape.hpp"
+#include "edyn/shapes/cylinder_shape.hpp"
 
 namespace edyn {
 
 struct shape {
-    std::variant<plane_shape, sphere_shape> var;
+    std::variant<plane_shape, sphere_shape, cylinder_shape> var;
 };
 
 }

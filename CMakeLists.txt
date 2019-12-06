@@ -58,8 +58,11 @@ conan_basic_setup()
 
 set(EDyn_SOURCES
     src/edyn/collision/broadphase.cpp
-    src/edyn/collision/sphere_plane_col_alg.cpp
     src/edyn/collision/sphere_sphere_col_alg.cpp
+    src/edyn/collision/sphere_plane_col_alg.cpp
+    src/edyn/collision/cylinder_cylinder_col_alg.cpp
+    src/edyn/collision/cylinder_plane_col_alg.cpp
+    src/edyn/collision/cylinder_sphere_col_alg.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
     src/edyn/constraints/point_constraint.cpp
