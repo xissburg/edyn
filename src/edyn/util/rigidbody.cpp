@@ -5,6 +5,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/spin.hpp"
 #include "edyn/comp/linacc.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
@@ -39,6 +40,11 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     if (def.kind == rigidbody_kind::rb_dynamic) {
         registry.assign<mass>(entity, def.mass);
         registry.assign<inertia>(entity, def.inertia);
+
+        if (def.spins) {
+            registry.assign<spin_angle>(entity, 0);
+            registry.assign<spin>(entity, 0);
+        }
     } else {
         registry.assign<mass>(entity, EDYN_SCALAR_MAX);
         registry.assign<inertia>(entity, vector3_max);

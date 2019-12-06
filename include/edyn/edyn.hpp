@@ -2,6 +2,7 @@
 #include "comp/linacc.hpp"
 #include "comp/linvel.hpp"
 #include "comp/angvel.hpp"
+#include "comp/spin.hpp"
 #include "comp/mass.hpp"
 #include "comp/inertia.hpp"
 #include "comp/position.hpp"

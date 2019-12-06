@@ -5,8 +5,6 @@
 #include "edyn/time/time.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/angvel.hpp"
-#include "edyn/comp/delta_angvel.hpp"
-#include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/shape.hpp"

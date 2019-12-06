@@ -5,11 +5,13 @@
 #include <entt/fwd.hpp>
 #include "relation.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
 struct constraint_row {
     std::array<entt::entity, max_relations> entity;
+    std::array<bool, max_relations> use_spin {make_array<max_relations>(false)};
     std::array<vector3, 4> J;
     scalar error;
     scalar lower_limit;

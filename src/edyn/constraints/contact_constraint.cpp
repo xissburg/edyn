@@ -8,6 +8,7 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/spin.hpp"
 #include "edyn/comp/matter.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
@@ -77,6 +78,8 @@ void contact_constraint::process_collision(const collision_result &result, const
                 normal_row.entity = rel.entity;
                 auto &friction_row = registry.assign<constraint_row>(friction_row_entity);
                 friction_row.entity = rel.entity;
+                friction_row.use_spin[0] = true;
+                friction_row.use_spin[1] = true;
 
                 // Contact point can now refer to constraint rows.
                 cp.normal_row_entity = normal_row_entity;
@@ -147,6 +150,19 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
     auto &linvelB = registry.get<const linvel>(rel.entity[1]);
     auto &angvelB = registry.get<const angvel>(rel.entity[1]);
 
+    auto spinvelA = vector3_zero;
+    auto spinvelB = vector3_zero;
+
+    if (auto s = registry.try_get<const spin>(rel.entity[0])) {
+        auto axis = rotate(ornA, vector3_x);
+        spinvelA = axis * *s;
+    }
+
+    if (auto s = registry.try_get<const spin>(rel.entity[1])) {
+        auto axis = rotate(ornB, vector3_x);
+        spinvelB = axis * *s;
+    }
+
     for (size_t i = 0; i < manifold.num_points; ++i) {
         auto &cp = manifold.point[i];
 
@@ -154,8 +170,8 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         auto rB = rotate(ornB, cp.pivotB);
         auto normal = rotate(ornB, cp.normalB);
 
-        auto vA = linvelA + cross(angvelA, rA);
-        auto vB = linvelB + cross(angvelB, rB);
+        auto vA = linvelA + cross(angvelA + spinvelA, rA);
+        auto vB = linvelB + cross(angvelB + spinvelB, rB);
         auto relvel = vA - vB;
         auto normal_relvel = dot(relvel, normal);
 

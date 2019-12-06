@@ -9,7 +9,7 @@
 
 namespace edyn {
 
-void update_present_orientation(entt::registry &registry, scalar dt) {
+inline void update_present_orientation(entt::registry &registry, scalar dt) {
     auto view = registry.view<present_orientation, const orientation, const angvel>(exclude_sleeping);
     view.each([dt] (auto, present_orientation &p_orn, const orientation &orn, const angvel &vel) {
         p_orn = integrate(orn, vel, dt);

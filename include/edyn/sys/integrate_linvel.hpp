@@ -15,7 +15,7 @@ namespace edyn {
  * @param registry The registry to be updated.
  * @param dt The amount of time that has passed since the last invocation.
  */
-void integrate_linvel(entt::registry &registry, scalar dt) {
+inline void integrate_linvel(entt::registry &registry, scalar dt) {
     auto view = registry.view<dynamic_tag, position, const linvel>(exclude_sleeping);
     view.each([&] (auto, auto, position &pos, const linvel &vel) {
         pos += vel * dt;
