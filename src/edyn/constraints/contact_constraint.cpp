@@ -91,8 +91,8 @@ void contact_constraint::process_collision(const collision_result &result, const
             } else {
                 // One of the existing contacts has been replaced by the new. 
                 // Update its rows.
-                auto &normal_row = registry.assign<constraint_row>(cp.normal_row_entity);
-                auto &friction_row = registry.assign<constraint_row>(cp.friction_row_entity);
+                auto &normal_row = registry.get<constraint_row>(cp.normal_row_entity);
+                auto &friction_row = registry.get<constraint_row>(cp.friction_row_entity);
                 normal_row.restitution = cp.restitution;
                 
                 // Zero out warm-starting impulses.

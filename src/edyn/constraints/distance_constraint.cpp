@@ -11,45 +11,59 @@
 namespace edyn {
 
 void distance_constraint::init(constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = 1;
-    con.row[0] = registry.create();
-    auto &row = registry.assign<constraint_row>(con.row[0]);
-    row.entity = rel.entity;
+    con.num_rows = 2;
+
+    for (size_t i = 0; i < con.num_rows; ++i) {
+        con.row[i] = registry.create();
+        auto &row = registry.assign<constraint_row>(con.row[i]);
+        row.entity = rel.entity;
+    }
 }
 
 void distance_constraint::prepare(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
     auto &posA = registry.get<const position>(rel.entity[0]);
     auto &posB = registry.get<const position>(rel.entity[1]);
 
-    auto rA = pivot[0];
-    auto rB = pivot[1];
-
     auto &qA = registry.get<const orientation>(rel.entity[0]);
-    rA = rotate(qA, rA);
+    auto rA = rotate(qA, pivot[0]);
 
     auto &qB = registry.get<const orientation>(rel.entity[1]);
-    rB = rotate(qB, rB);
+    auto rB = rotate(qB, pivot[1]);
 
     auto d = posA + rA - posB - rB;
     auto l2 = std::max(length2(d), EDYN_EPSILON);
     auto l = std::max(std::sqrt(l2), EDYN_EPSILON);
     auto dn = d / l;
 
-    auto &linvelA = registry.get<const linvel>(rel.entity[0]);
-    auto &angvelA = registry.get<const angvel>(rel.entity[0]);
-    auto &linvelB = registry.get<const linvel>(rel.entity[1]);
-    auto &angvelB = registry.get<const angvel>(rel.entity[1]);
-    auto relvel = dot(linvelA + cross(angvelA, rA) - linvelB - cross(angvelB, rB), dn);
+    {
+        auto error = l - distance;
+        auto force = std::abs(stiffness * error);
+        auto impulse = force * dt;
 
-    auto error = l - distance;
-    auto force = std::abs(stiffness * error) + std::abs(damping * relvel);
-    auto impulse = force * dt;
+        auto &row = registry.get<constraint_row>(con.row[0]);
+        row.J = {d, cross(rA, d), -d, -cross(rB, d)};
+        row.error = scalar(0.5) * (l2 - distance * distance) / dt;
+        row.lower_limit = -impulse;
+        row.upper_limit = impulse;
+    }
 
-    auto &row = registry.get<constraint_row>(con.row[0]);
-    row.J = {d, cross(rA, d), -d, -cross(rB, d)};
-    row.error = scalar(0.5) * (l2 - distance * distance) / dt;
-    row.lower_limit = -impulse;
-    row.upper_limit = impulse;
+    {
+        auto &linvelA = registry.get<const linvel>(rel.entity[0]);
+        auto &angvelA = registry.get<const angvel>(rel.entity[0]);
+        auto &linvelB = registry.get<const linvel>(rel.entity[1]);
+        auto &angvelB = registry.get<const angvel>(rel.entity[1]);
+
+        auto relvel = dot(linvelA + cross(angvelA, rA) - linvelB - cross(angvelB, rB), dn);
+        auto force = std::abs(damping * relvel);
+        auto impulse = force * dt;
+
+        auto &row = registry.get<constraint_row>(con.row[1]);
+        row.J = {d, cross(rA, d), -d, -cross(rB, d)};
+        row.error = 0;
+        row.lower_limit = -impulse;
+        row.upper_limit = impulse;
+    }
+
 }
 
 }
