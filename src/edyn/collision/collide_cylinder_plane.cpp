@@ -1,4 +1,4 @@
-#include "edyn/collision/collision_algorithm.hpp"
+#include "edyn/collision/collide.hpp"
 
 namespace edyn {
 

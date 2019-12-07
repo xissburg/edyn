@@ -1,5 +1,5 @@
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/collision/collision_algorithm.hpp"
+#include "edyn/collision/collide.hpp"
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
@@ -178,10 +178,10 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         } else {
 
             // If this is a resting contact and it is penetrating, apply impulse to push it out.
-            if (cp.lifetime > 0) {
+            //if (cp.lifetime > 0) {
                 constexpr scalar contact_erp = 0.2;
                 normal_row.error = std::min(pvel, scalar(0)) * contact_erp;
-            }
+            //}
         }
         
         auto tangent_relvel = relvel - normal * normal_relvel;
