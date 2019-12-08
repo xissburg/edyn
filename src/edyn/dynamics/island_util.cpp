@@ -100,12 +100,14 @@ void island_on_construct_relation(entt::entity entity, entt::registry &registry,
 
     for (auto ent : rel.entity) {
         auto node = registry.try_get<island_node>(ent);
-        if (node) {
+        if (node && 
+            std::find(island_ents.begin(), island_ents.end(), 
+                      node->island_entity) == island_ents.end()) {
             island_ents.push_back(node->island_entity);
         }
     }
 
-    // All entities are in the same island nothing needs to be done.
+    // All entities are in the same island. Nothing needs to be done.
     if (island_ents.size() < 2) {
         if (!island_ents.empty()) {
             wakeup_island(island_ents[0], registry);
@@ -114,29 +116,43 @@ void island_on_construct_relation(entt::entity entity, entt::registry &registry,
     }
 
     // Merge all into one island.
-    // TODO: choose island with most nodes.
-    auto island_ent = island_ents[0];
+    size_t biggest_idx = 0;
+    size_t biggest_size = 0;
 
-    for (size_t i = 1; i < island_ents.size(); ++i) {
-        auto other_ent = island_ents[i];
-
-        if (other_ent != island_ent) {
-            auto &isle = registry.get<island>(island_ent);
-            auto &other_isle = registry.get<island>(other_ent);
-
-            for (auto ent : other_isle.entities) {
-                isle.entities.push_back(ent);
-
-                auto &node = registry.get<island_node>(ent);
-                node.island_entity = island_ent;
-            }
-
-            // Destroy island entity.
-            registry.destroy(other_ent);
+    for (size_t i = 0; i < island_ents.size(); ++i) {
+        auto &isle = registry.get<island>(island_ents[i]);
+        if (isle.entities.size() > biggest_size) {
+            biggest_size = isle.entities.size();
+            biggest_idx = i;
         }
     }
 
-    wakeup_island(island_ent, registry);
+    auto biggest_ent = island_ents[biggest_idx];
+    auto &biggest_isle = registry.get<island>(biggest_ent);
+
+    for (size_t i = 0; i < island_ents.size(); ++i) {
+        if (i != biggest_idx) {
+            auto other_ent = island_ents[i];
+            auto &other_isle = registry.get<island>(other_ent);
+
+            for (auto ent : other_isle.entities) {
+                biggest_isle.entities.push_back(ent);
+
+                auto &node = registry.get<island_node>(ent);
+                node.island_entity = biggest_ent;
+            }
+        }
+    }
+
+    // Destroy other islands after to ensure the `biggest_isle` reference won't
+    // be invalidated during the previous loop.
+    for (size_t i = 0; i < island_ents.size(); ++i) {
+        if (i != biggest_idx) {
+            registry.destroy(island_ents[i]);
+        }
+    }
+
+    wakeup_island(biggest_ent, registry);
 }
 
 void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
@@ -209,25 +225,23 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
     }
 
     if (connected_entities[0] != connected_entities[1]) {
-        // Destroy original island containing both entities in this relation.
-        auto &node = registry.get<island_node>(rel.entity[0]);
-        registry.destroy(node.island_entity);
+        // Remove entities from the biggest island and move them to a new
+        // island.
+        size_t bigger_idx = connected_entities[0].size() > connected_entities[1].size() ? 0 : 1;
+        size_t smaller_idx = (bigger_idx + 1) % 2;
+        auto &node = registry.get<island_node>(rel.entity[bigger_idx]);
+        auto &isle = registry.get<island>(node.island_entity);
+        // TODO: minor optimization: swap with last then pop.
+        auto erase_it = std::remove_if(isle.entities.begin(), isle.entities.end(), [&] (auto &ent) {
+            return std::find(connected_entities[smaller_idx].begin(), 
+                             connected_entities[smaller_idx].end(), ent) 
+                   != connected_entities[smaller_idx].end();
+        });
+        isle.entities.erase(erase_it, isle.entities.end());
 
-        // Create one new island for the first set.
-        auto [island_ent, isle] = registry.create<island>();
-        isle.entities = std::move(connected_entities[0]);
-
-        // Update all nodes in the first set to point to the new island.
-        for (auto ent : isle.entities) {
-            auto &node = registry.get<island_node>(ent);
-            node.island_entity = island_ent;
-        }
-
-        wakeup_island(island_ent, registry);
-
-        // Create another island for the second set.
+        // Create new island for the second half.
         auto [other_island_ent, other_isle] = registry.create<island>();    
-        other_isle.entities = std::move(connected_entities[1]);
+        other_isle.entities = std::move(connected_entities[smaller_idx]);
 
         // Update all nodes in the second set.
         for (auto ent : other_isle.entities) {
@@ -235,6 +249,8 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
             node.island_entity = other_island_ent;
         }
 
+        // Wake up both.
+        wakeup_island(node.island_entity, registry);
         wakeup_island(other_island_ent, registry);
     } else {
         // Island survives. Wake everyone up though. They might have work to do
