@@ -9,23 +9,24 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
     auto l2 = length2(d);
     auto r = shA.radius + shB.radius + threshold;
 
-    if (l2 < r * r) {
-        auto l = std::sqrt(l2);
-        auto dn = d / l;
-        auto rA = -dn * shA.radius;
-        rA = rotate(conjugate(ornA), rA);
-        auto rB = dn * shB.radius;
-        rB = rotate(conjugate(ornB), rB);
-
-        auto result = collision_result {};
-        result.num_points = 1;
-        result.point[0].pivotA = rA;
-        result.point[0].pivotB = rB;
-        result.point[0].normalB = rotate(conjugate(ornB), dn);
-        return result;
+    if (l2 > r * r) {
+        return {};
     }
 
-    return {};
+    auto l = std::sqrt(l2);
+    auto dn = d / l;
+    auto rA = -dn * shA.radius;
+    rA = rotate(conjugate(ornA), rA);
+    auto rB = dn * shB.radius;
+    rB = rotate(conjugate(ornB), rB);
+
+    auto result = collision_result {};
+    result.num_points = 1;
+    result.point[0].pivotA = rA;
+    result.point[0].pivotB = rB;
+    result.point[0].normalB = rotate(conjugate(ornB), dn);
+    result.point[0].distance = l - shA.radius - shB.radius;
+    return result;
 }
 
 }

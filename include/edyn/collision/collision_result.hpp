@@ -13,6 +13,7 @@ struct collision_result {
         vector3 pivotA;
         vector3 pivotB;
         vector3 normalB;
+        scalar distance;
     };
 
     size_t num_points {0};
