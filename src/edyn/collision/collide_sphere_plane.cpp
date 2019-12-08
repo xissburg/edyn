@@ -1,4 +1,4 @@
-#include "edyn/collision/collision_algorithm.hpp"
+#include "edyn/collision/collide.hpp"
 
 namespace edyn {
 
@@ -19,6 +19,7 @@ collision_result collide(const sphere_shape &sphere, const vector3 &posA, const 
     result.point[0].pivotA = rotate(conjugate(ornA), -normal * sphere.radius);
     result.point[0].pivotB = d - normal * l;
     result.point[0].normalB = plane.normal;
+    result.point[0].distance = l - sphere.radius;
     return result;
 }
 

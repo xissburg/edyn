@@ -1,5 +1,5 @@
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/collision/collision_algorithm.hpp"
+#include "edyn/collision/collide.hpp"
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
@@ -22,6 +22,49 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
     cp.pivotA = rp.pivotA;
     cp.pivotB = rp.pivotB;
     cp.normalB = rp.normalB;
+    cp.distance = rp.distance;
+}
+
+size_t insert_index(const contact_manifold &manifold, const collision_result::collision_point &rp) {
+    if (manifold.num_points < max_contacts) {
+        return manifold.num_points;
+    }
+
+    // Keep the deepest contact point.
+    auto min_dist_idx = max_contacts;
+    auto min_dist = rp.distance;
+
+    for (size_t i = 0; i < max_contacts; ++i) {
+        if (manifold.point[i].distance < min_dist) {
+            min_dist = manifold.point[i].distance;
+            min_dist_idx = i;
+        }
+    }
+
+    // Find which combination maximizes the contact manifold area.
+    auto areas = make_array<max_contacts>(scalar(0));
+    size_t largest_idx = 0;
+    scalar largest_area = 0;
+
+    for (size_t i = 0; i < max_contacts; ++i) {
+        if (i == min_dist_idx) {
+            continue;
+        }
+        // Not exactly the area, could be incorrect in certain 
+        // configurations but it's good enough.
+        auto v = cross(rp.pivotA - manifold.point[(i + 1) % max_contacts].pivotA,
+                       rp.pivotA - manifold.point[(i + 2) % max_contacts].pivotA);
+        auto w = cross(manifold.point[(i + 3) % max_contacts].pivotA - manifold.point[(i + 1) % max_contacts].pivotA,
+                        manifold.point[(i + 3) % max_contacts].pivotA - manifold.point[(i + 2) % max_contacts].pivotA);
+        areas[i] = length2(v) + length2(w);
+    
+        if (areas[i] > largest_area) {
+            largest_area = areas[i];
+            largest_idx = i;
+        }
+    }
+
+    return largest_idx;
 }
 
 void contact_constraint::process_collision(const collision_result &result, constraint &con, const relation &rel, entt::registry &registry) {
@@ -55,8 +98,8 @@ void contact_constraint::process_collision(const collision_result &result, const
             merge_point(rp, cp);
         } else {
             // Append to array of points and set it up.
-            auto insert_idx = manifold.num_points % max_contacts;
-            auto &cp = manifold.point[insert_idx];
+            auto idx = insert_index(manifold, rp);
+            auto &cp = manifold.point[idx];
             merge_point(rp, cp);
 
             // Combine matter/surface parameters.
@@ -194,10 +237,10 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         } else {
 
             // If this is a resting contact and it is penetrating, apply impulse to push it out.
-            if (cp.lifetime > 0) {
+            //if (cp.lifetime > 0) {
                 constexpr scalar contact_erp = 0.2;
                 normal_row.error = std::min(pvel, scalar(0)) * contact_erp;
-            }
+            //}
         }
         
         auto tangent_relvel = relvel - normal * normal_relvel;

@@ -1,5 +1,5 @@
-#ifndef EDYN_COLLISION_COLLISION_ALGORITHM_HPP
-#define EDYN_COLLISION_COLLISION_ALGORITHM_HPP
+#ifndef EDYN_COLLISION_COLLIDE_HPP
+#define EDYN_COLLISION_COLLIDE_HPP
 
 #include "edyn/comp/shape.hpp"
 
@@ -64,4 +64,4 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
 
 }
 
-#endif // EDYN_COLLISION_COLLISION_ALGORITHM_HPP
+#endif // EDYN_COLLISION_COLLIDE_HPP
