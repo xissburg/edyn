@@ -11,6 +11,7 @@
 namespace edyn {
 
 void antiroll_constraint::init(constraint &con, const relation &rel, entt::registry &registry) {
+    con.num_rows = 1;
     con.row[0] = registry.create();
     auto &row = registry.assign<constraint_row>(con.row[0]);
     row.entity = rel.entity;

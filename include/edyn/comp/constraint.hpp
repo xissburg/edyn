@@ -8,6 +8,7 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/antiroll_constraint.hpp"
 #include "edyn/constraints/doublewishbone_constraint.hpp"
+#include "edyn/constraints/differential_constraint.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
@@ -19,7 +20,8 @@ struct constraint {
                  point_constraint, 
                  distance_constraint,
                  antiroll_constraint,
-                 doublewishbone_constraint> var;
+                 doublewishbone_constraint,
+                 differential_constraint> var;
     size_t num_rows {0};
     std::array<entt::entity, max_constraint_rows> row = 
         make_array<max_constraint_rows>(entt::entity{entt::null});

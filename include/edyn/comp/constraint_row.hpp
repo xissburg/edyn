@@ -12,7 +12,7 @@ namespace edyn {
 struct constraint_row {
     std::array<entt::entity, max_relations> entity;
     std::array<bool, max_relations> use_spin {make_array<max_relations>(false)};
-    std::array<vector3, 4> J;
+    std::array<vector3, max_relations * 2> J;
     scalar error;
     scalar lower_limit;
     scalar upper_limit;
