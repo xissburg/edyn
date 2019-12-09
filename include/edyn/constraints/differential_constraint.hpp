@@ -1,0 +1,12 @@
+#ifndef EDYN_CONSTRAINTS_DIFFERENTIAL_CONSTRAINT_HPP
+#define EDYN_CONSTRAINTS_DIFFERENTIAL_CONSTRAINT_HPP
+
+namespace edyn {
+
+struct differential_constraint {
+
+};
+
+}
+
+#endif // EDYN_CONSTRAINTS_DIFFERENTIAL_CONSTRAINT_HPP
