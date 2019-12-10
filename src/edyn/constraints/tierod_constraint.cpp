@@ -16,6 +16,9 @@ void tierod_constraint::init(constraint &con, const relation &rel, entt::registr
     con.row[0] = registry.create();
     auto &row = registry.assign<constraint_row>(con.row[0]);
     row.entity = rel.entity;
+
+    update_steering_axis();
+    update_steering_arm();
 }
 
 void tierod_constraint::prepare(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
@@ -76,13 +79,15 @@ void tierod_constraint::prepare(constraint &con, const relation &rel, entt::regi
     auto dist_plane = dot(posA - origin, axis_z);
     auto posA_proj = posA - axis_z * dist_plane;
 
+    // x-axis for the steering basis. 
+    auto axis_x = posA_proj - origin;
+    auto dist_origin = length(axis_x);
+    axis_x /= dist_origin;
+
     // The length of the tie rod projected on the plane space on the steering
     // arm circle.
     auto proj_len_sq = std::max(scalar(0), rod_length * rod_length - dist_plane * dist_plane);
     auto proj_len = std::sqrt(proj_len_sq);
-    auto axis_x = posA_proj - origin;
-    auto dist_origin = length(axis_x);
-    axis_x /= dist_origin;
 
     // Find solution to the circle-circle intersection on the 2D plane. Our 
     // projection puts `posA` on the x-axis which simplifies the formulas. 
@@ -119,17 +124,17 @@ void tierod_constraint::prepare(constraint &con, const relation &rel, entt::regi
     n = normalize(basis * n);
 
     auto wheel_x = rotate(qB, vector3_x);
-    auto q = cross(wheel_x, n);
+    auto q = cross(n, wheel_x);
 
     auto &row = registry.get<constraint_row>(con.row[0]);
     row.J = {vector3_zero, q, vector3_zero, -q};
-    row.error = -dot(wheel_x, n) / dt;
+    row.error = dot(n, wheel_x) / dt;
     row.lower_limit = -large_scalar;
     row.upper_limit = large_scalar;
 }
 
 void tierod_constraint::update_steering_axis() {
-    steering_axis = normalize(upper_pivotB - upper_pivotA);
+    steering_axis = normalize(upper_pivotB - lower_pivotB);
 }
 
 void tierod_constraint::update_steering_arm() {
