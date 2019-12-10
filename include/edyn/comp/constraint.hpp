@@ -9,6 +9,7 @@
 #include "edyn/constraints/antiroll_constraint.hpp"
 #include "edyn/constraints/doublewishbone_constraint.hpp"
 #include "edyn/constraints/differential_constraint.hpp"
+#include "edyn/constraints/tierod_constraint.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
@@ -21,7 +22,8 @@ struct constraint {
                  distance_constraint,
                  antiroll_constraint,
                  doublewishbone_constraint,
-                 differential_constraint> var;
+                 differential_constraint,
+                 tierod_constraint> var;
     size_t num_rows {0};
     std::array<entt::entity, max_constraint_rows> row = 
         make_array<max_constraint_rows>(entt::entity{entt::null});

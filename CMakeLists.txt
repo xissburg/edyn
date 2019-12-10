@@ -69,6 +69,7 @@ set(EDyn_SOURCES
     src/edyn/constraints/antiroll_constraint.cpp
     src/edyn/constraints/doublewishbone_constraint.cpp
     src/edyn/constraints/differential_constraint.cpp
+    src/edyn/constraints/tierod_constraint.cpp
     src/edyn/dynamics/island_util.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp

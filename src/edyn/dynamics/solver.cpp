@@ -450,8 +450,8 @@ void solver::update(uint64_t step, scalar dt) {
                 }
 
                 auto delta_impulse = solve3(row, 
-                                           dvA, dvB, dvC,
-                                           dwA + vdsA, dwB + vdsB, dwC + vdsC);
+                                            dvA, dvB, dvC,
+                                            dwA + vdsA, dwB + vdsB, dwC + vdsC);
                 apply_impulse3(delta_impulse, *registry, row, 
                                inv_mA, inv_mB, inv_mC,
                                inv_IA, inv_IB, inv_IC,
