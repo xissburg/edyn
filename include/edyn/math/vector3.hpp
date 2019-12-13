@@ -153,6 +153,14 @@ inline vector3 normalize(const vector3 &v) {
     return v / l;
 }
 
+inline vector3 min(const vector3 &v, const vector3 &w) {
+    return {std::min(v.x, w.x), std::min(v.y, w.y), std::min(v.z, w.z)};
+}
+
+inline vector3 max(const vector3 &v, const vector3 &w) {
+    return {std::max(v.x, w.x), std::max(v.y, w.y), std::max(v.z, w.z)};
+}
+
 }
 
 #endif // EDYN_MATH_VECTOR3_HPP

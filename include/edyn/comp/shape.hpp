@@ -5,11 +5,15 @@
 #include "edyn/shapes/plane_shape.hpp"
 #include "edyn/shapes/sphere_shape.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
+#include "edyn/shapes/capsule_shape.hpp"
 
 namespace edyn {
 
 struct shape {
-    std::variant<plane_shape, sphere_shape, cylinder_shape> var;
+    std::variant<plane_shape, 
+                 sphere_shape, 
+                 cylinder_shape,
+                 capsule_shape> var;
 };
 
 }

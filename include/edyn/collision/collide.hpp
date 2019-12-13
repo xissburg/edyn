@@ -62,6 +62,50 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
     return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap();
 }
 
+// Capsule-Capsule
+collision_result collide(const capsule_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Capsule-Plane
+collision_result collide(const capsule_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const plane_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Plane-Capsule
+inline
+collision_result collide(const plane_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap();
+}
+
+// Capsule-Sphere
+collision_result collide(const capsule_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Sphere-Capsule
+inline
+collision_result collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap();
+}
+
+// Capsule-Cylinder
+collision_result collide(const capsule_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const cylinder_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Cylinder-Capsule
+inline
+collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap();
+}
+
 }
 
 #endif // EDYN_COLLISION_COLLIDE_HPP
