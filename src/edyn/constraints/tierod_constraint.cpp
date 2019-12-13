@@ -118,9 +118,7 @@ void tierod_constraint::prepare(constraint &con, const relation &rel, entt::regi
     n = rotate(quaternion_axis_angle(vector3_z, steering_arm_angle), n);
 
     auto axis_y = cross(axis_x, axis_z) * side;
-    auto basis = matrix3x3 {axis_x.x, axis_y.x, axis_z.x,
-                            axis_x.y, axis_y.y, axis_z.y,
-                            axis_x.z, axis_y.z, axis_z.z};
+    auto basis = matrix3x3_columns(axis_x, axis_y, axis_z);
     n = normalize(basis * n);
 
     auto wheel_x = rotate(qB, vector3_x);

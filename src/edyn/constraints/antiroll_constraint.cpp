@@ -15,6 +15,8 @@ void antiroll_constraint::init(constraint &con, const relation &rel, entt::regis
     con.row[0] = registry.create();
     auto &row = registry.assign<constraint_row>(con.row[0]);
     row.entity = rel.entity;
+
+    EDYN_ASSERT(third_entity != entt::null);
 }
 
 void antiroll_constraint::prepare(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
@@ -72,16 +74,15 @@ void antiroll_constraint::prepare(constraint &con, const relation &rel, entt::re
     auto lever = std::max(length(d_projB), EDYN_EPSILON);
     d_projB /= lever;
     
-    normalize(d_projC);
+    d_projC = normalize(d_projC);
     
     // Apply impulses in the direction of deformation.
     auto n = d_projC - d_projB;
     
     if (length2(n) <= EDYN_EPSILON) {
         n = cross(d_projC, chassis_x);
+        n = normalize(n);
     }
-    
-    normalize(n);
     
     auto p = cross(rA, n);
     auto q = cross(rB, n);
@@ -90,7 +91,7 @@ void antiroll_constraint::prepare(constraint &con, const relation &rel, entt::re
     auto impulse = std::abs(stiffness * angle / lever) * dt;
 
     auto &row = registry.get<constraint_row>(con.row[0]);
-    row.J = {-n, -p, n, q};
+    row.J = {n, p, -n, -q};
     row.error = angle / dt;
     row.lower_limit = -impulse;
     row.upper_limit = impulse;

@@ -8,6 +8,8 @@
 namespace edyn {
 
 struct antiroll_constraint : public constraint_base<antiroll_constraint> {
+    entt::entity third_entity;
+
     // Which side this antiroll constraint connects to: 1 left, -1 right.
     scalar side;
 
@@ -24,8 +26,6 @@ struct antiroll_constraint : public constraint_base<antiroll_constraint> {
     vector3 other_ctrl_arm_pivot;
 
     scalar angle;
-
-    entt::entity third_entity;
 
     void init(constraint &, const relation &, entt::registry &);
     void prepare(constraint &, const relation &, entt::registry &, scalar dt);
