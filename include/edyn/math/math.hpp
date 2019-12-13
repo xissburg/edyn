@@ -2,6 +2,7 @@
 #define EDYN_MATH_MATH_HPP
 
 #include "constants.hpp"
+#include <algorithm>
 
 namespace edyn {
 
@@ -17,6 +18,10 @@ inline scalar to_degrees(scalar radians) {
  */
 inline scalar to_radians(scalar degrees) {
     return degrees / 180 * pi;
+}
+
+inline scalar clamp_unit(scalar s) {
+    return std::clamp(s, scalar(0), scalar(1));
 }
 
 /**
@@ -46,12 +51,27 @@ scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
  * @param t Outputs the parameter where `s2(t)` gives the closest point to `s1`.
  * @param c1 Outputs the point in `s1` closest to `s2`.
  * @param c2 Outputs the point in `s2` closest to `s1`.
+ * @param num_points Optional pointer to store the number of closest points. If
+ *        not `nullptr` and the segments are parallel, two closest points will 
+ *        be generated if the projection of one segment onto the other is a range
+ *        of points.
+ * @param sp Outputs the parameter where `s1(s)` gives the closest point to `s2`
+ *        if segments are parallel.
+ * @param tp Outputs the parameter where `s2(t)` gives the closest point to `s1`
+ *        if segments are parallel.
+ * @param c1p Outputs the second point in `s1` closest to `s2` if segments are
+ *        parallel.
+ * @param c2p Outputs the second point in `s2` closest to `s1` if segments are
+ *        parallel.
  * @return The squared distance between `s1(s)` and `s2(t)`.
  */
 scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1, 
                                      const vector3 &p2, const vector3 &q2, 
                                      scalar &s, scalar &t, 
-                                     vector3 &c1, vector3 &c2);
+                                     vector3 &c1, vector3 &c2,
+                                     size_t *num_points = nullptr,
+                                     scalar *sp = nullptr, scalar *tp = nullptr, 
+                                     vector3 *c1p = nullptr, vector3 *c2p = nullptr);
 
 }
 

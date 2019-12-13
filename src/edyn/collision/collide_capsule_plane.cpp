@@ -23,7 +23,7 @@ collision_result collide(const capsule_shape &shA, const vector3 &posA, const qu
     auto normal = rotate(ornB, shB.normal);
     auto center = posB + rotate(ornB, shB.normal * shB.constant);
 
-     // Half-length vector in world-space.
+    // Half-length vector in world-space.
     auto hl = rotate(ornA, vector3_x * shA.half_length);
 
     // Center of hemispheres on capsule's ends.
