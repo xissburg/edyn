@@ -11,10 +11,12 @@ struct vector3 {
     scalar x, y, z;
 
     scalar& operator[](size_t i) {
+        EDYN_ASSERT(i < 3);
         return (&x)[i];
     }
 
     scalar operator[](size_t i) const {
+        EDYN_ASSERT(i < 3);
         return (&x)[i];
     }
 };

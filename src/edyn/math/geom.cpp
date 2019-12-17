@@ -1,3 +1,4 @@
+#include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include <algorithm>
 
@@ -115,7 +116,33 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
     return length2(c1 - c2);
 }
 
-scalar closest_point_disc_segment(const vector3 &cpos, const quaternion &corn,  scalar radius,
+size_t intersect_line_circle(scalar px, scalar py, 
+                             scalar qx, scalar qy, 
+                             scalar radius, 
+                             scalar &s0, scalar &s1) {
+    auto dx = qx - px, dy = qy - py;
+    auto dl2 = dx * dx + dy * dy;
+    auto dl = std::sqrt(dl2);
+    auto dp = dx * px + dy * py;
+    auto delta = dp * dp - dl2 * (px * px + py * py - radius * radius);
+
+    if (delta < 0) {
+        return 0;
+    }
+
+    if (delta > EDYN_EPSILON) {
+        auto delta_sqrt = std::sqrt(delta);
+        auto dl2_inv = 1 / dl2;
+        s0 = -(dp + delta_sqrt) * dl2_inv;
+        s1 = -(dp - delta_sqrt) * dl2_inv;
+        return 2;
+    }
+
+    s0 = -dp * dl2;
+    return 1;
+}
+
+scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  scalar radius,
                                   const vector3 &p0, const vector3 &p1, size_t &num_points, 
                                   scalar &s0, vector3 &cc0, vector3 &cs0,
                                   scalar &s1, vector3 &cc1, vector3 &cs1, 
@@ -126,7 +153,51 @@ scalar closest_point_disc_segment(const vector3 &cpos, const quaternion &corn,  
     auto q1 = rotate(corn_conj, p1 - cpos);
 
     constexpr scalar dl = 0.01;
-    auto len = length(p0 - p1);
+    auto d = q1 - q0;
+
+    if (std::abs(d.x) < 1e-4) {
+        // Line is parallel to disc. Calculate line-circle intersection in the
+        // yz plane.
+        normal = rotate(corn, vector3_x);
+        num_points = intersect_line_circle(q0.y, q0.z, q1.y, q1.z, radius, s0, s1);
+
+        if (num_points > 0) {
+            s0 = clamp_unit(s0);
+            cs0 = q0 + d * s0;
+            cc0 = {0, cs0.y, cs0.z};
+            auto dist2 = cs0.x * cs0.x;
+
+            cs0 = cpos + rotate(corn, cs0);
+            cc0 = cpos + rotate(corn, cc0);
+
+            if (num_points > 1) {
+                s1 = clamp_unit(s1);
+                cs1 = q0 + d * s1;
+                cc1 = {0, cs1.y, cs1.z};
+                cs1 = cpos + rotate(corn, cs1);
+                cc1 = cpos + rotate(corn, cc1);
+            }
+
+            return dist2;
+        } else {
+            // If the projection of line in the yz plane does not intersect disc 
+            // (despite being parallel), the closest point calculation falls 
+            // into a point-segment problem, with a projection for the circle.
+            // Calculations done in world-space this time.
+            closest_point_segment(p0, p1, cpos, s0, cs0);
+            auto proj = cs0 - normal * dot(cs0 - cpos, normal);
+            cc0 = cpos + normalize(proj - cpos) * radius;
+            auto d = cs0 - cc0;
+            auto dl2 = length2(d);
+            if (dl2 > EDYN_EPSILON) {
+                normal = d / std::sqrt(dl2);
+            }
+            num_points = 1;
+            return dl2;
+        }
+    }
+
+    auto len = length(d);
     auto ds = dl / len;
     scalar s = 0;
     auto dq = q1 - q0;
@@ -137,7 +208,7 @@ scalar closest_point_disc_segment(const vector3 &cpos, const quaternion &corn,  
         auto r = q;
         r.x = 0;
         r = normalize(r) * radius;
-        auto d = r - q;
+        auto d = q - r;
         auto l2 = length2(d);
 
         if (l2 < dist2) {
@@ -188,6 +259,7 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
             closest[0].first = posA + rotate(ornA, r);
             closest[0].second = posA + rotate(ornA, q);
             normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
+            if (normal.x < 0) normal = -normal;
             normal = rotate(ornA, normal);
         }
 

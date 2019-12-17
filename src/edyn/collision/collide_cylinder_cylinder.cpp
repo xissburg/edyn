@@ -1,5 +1,5 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/math/math.hpp"
+#include "edyn/math/geom.hpp"
 #include <array>
 
 namespace edyn {
@@ -41,6 +41,10 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     auto d0 = p0A - p0B;
     auto d1 = p1A - p1B;
     auto d = cA0 - cB0;
+
+    // Check whether the closest points between segments are on the vertices
+    // using the angle between the segment connecting the closest points and
+    // the A and B segments.
     auto ddA = dot(d, dA);
     auto ddB = dot(-d, dB);
     auto is_vertexA = std::abs(ddA) > EDYN_EPSILON;
@@ -71,26 +75,40 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         scalar sideB = ddB > EDYN_EPSILON ? 1 : -1;
 
         if (is_vertexA) {
-            dist2A = closest_point_disc_segment(posA + hlA * sideA, ornA, shA.radius,
-                                                p0B, p1B, num_pointsA, 
-                                                sA0, cA0A, cB0A,
-                                                sA1, cA1A, cB1A, normalA);
+            // Closest point might be on one of A's disc and on B's segment.
+            auto orn = ornA;
+            if (sideA < 0) {
+                orn *= quaternion_axis_angle(vector3_y, pi);
+            }
+            dist2A = closest_point_disc_line(posA + hlA * sideA, orn, shA.radius,
+                                             p0B, p1B, num_pointsA, 
+                                             sA0, cA0A, cB0A,
+                                             sA1, cA1A, cB1A, normalA);
         }
 
         if (is_vertexB) {
-            dist2B = closest_point_disc_segment(posB + hlB * sideB, ornB, shB.radius,
-                                                p0A, p1A, num_pointsB,
-                                                sB0, cB0B, cA0B,
-                                                sB1, cB1B, cA1B, normalB);
+            // Closest point might be on one of B's disc and on A's segment.
+            auto orn = ornB;
+            if (sideB < 0) {
+                orn *= quaternion_axis_angle(vector3_y, pi);
+            }
+            dist2B = closest_point_disc_line(posB + hlB * sideB, orn, shB.radius,
+                                             p0A, p1A, num_pointsB,
+                                             sB0, cB0B, cA0B,
+                                             sB1, cB1B, cA1B, normalB);
         }
 
+        // If A's disc is closer to B's segment than B's disc is to A's segment,
+        // and the parameters `sA0` or `sA1` are within the segment's range 
+        // [0,1], then this should be the closest features. 
+        // The same is done the other way around in the other if-statement.
         if (dist2A < dist2B && ((sA0 > 0 && sA0 < 1) || (num_pointsA > 1 && sA1 > 0 && sA1 < 1))) {
             if (dist2A > (threshold + shB.radius) * (threshold + shB.radius)) {
                 return {};
             }
 
             num_points = num_pointsA;
-            normal = normalA;
+            normal = -normalA;
             closest[0].first = cA0A;
             closest[0].second = cB0A + normal * shB.radius;
 

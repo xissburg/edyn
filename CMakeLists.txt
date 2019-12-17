@@ -57,7 +57,7 @@ conan_basic_setup()
 #
 
 set(EDyn_SOURCES
-    src/edyn/math/math.cpp
+    src/edyn/math/geom.cpp
     src/edyn/collision/broadphase.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
     src/edyn/collision/collide_sphere_plane.cpp
