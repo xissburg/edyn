@@ -8,7 +8,7 @@ namespace edyn {
 
 struct cylinder_shape {
     scalar radius;
-    scalar length;
+    scalar half_length;
 
     vector3 support_point(const vector3 &dir) const {
         // Squared length in yz plane.
@@ -16,10 +16,10 @@ struct cylinder_shape {
 
         if (lyz2 > EDYN_EPSILON) {
             auto d = radius / std::sqrt(lyz2);
-            return {dir.x < 0 ? -length/2 : length/2, dir.y * d, dir.z * d};
+            return {dir.x < 0 ? -half_length : half_length, dir.y * d, dir.z * d};
         } 
         
-        return {dir.x < 0 ? -length/2 : length/2, radius, 0};
+        return {dir.x < 0 ? -half_length : half_length, radius, 0};
     }
 
     vector3 support_point(const quaternion &orn, const vector3 &dir) const {
@@ -42,8 +42,9 @@ struct cylinder_shape {
     }
 
     vector3 inertia(scalar mass) const {
+        auto len = half_length * 2;
         scalar xx = scalar(0.5) * mass * radius * radius;
-        scalar yy_zz =  scalar(1) / scalar(12) * mass * (scalar(3) * radius * radius + length * length);
+        scalar yy_zz =  scalar(1) / scalar(12) * mass * (scalar(3) * radius * radius + len * len);
         return {xx, yy_zz, yy_zz};
     }
 };

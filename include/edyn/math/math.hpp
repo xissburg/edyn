@@ -2,7 +2,9 @@
 #define EDYN_MATH_MATH_HPP
 
 #include "constants.hpp"
+#include "quaternion.hpp"
 #include <algorithm>
+#include <array>
 
 namespace edyn {
 
@@ -72,6 +74,19 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                                      size_t *num_points = nullptr,
                                      scalar *sp = nullptr, scalar *tp = nullptr, 
                                      vector3 *c1p = nullptr, vector3 *c2p = nullptr);
+
+scalar closest_point_disc_segment(const vector3 &cpos, const quaternion &corn,  scalar radius,
+                                  const vector3 &p0, const vector3 &p1, size_t &num_points, 
+                                  scalar &s0, vector3 &cc0, vector3 &cs0,
+                                  scalar &s1, vector3 &cc1, vector3 &cs1, 
+                                  vector3 &normal);
+
+using closest_points_array = std::array<std::pair<vector3, vector3>, max_contacts>;
+
+scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scalar radiusA,
+                               const vector3 &posB, const quaternion &ornB, scalar radiusB,
+                               size_t &num_points, closest_points_array &, 
+                               vector3 &normal);
 
 }
 

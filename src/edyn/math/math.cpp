@@ -115,4 +115,89 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
     return length2(c1 - c2);
 }
 
+scalar closest_point_disc_segment(const vector3 &cpos, const quaternion &corn,  scalar radius,
+                                  const vector3 &p0, const vector3 &p1, size_t &num_points, 
+                                  scalar &s0, vector3 &cc0, vector3 &cs0,
+                                  scalar &s1, vector3 &cc1, vector3 &cs1, 
+                                  vector3 &normal) {
+    // Segment vertices in local disc space.
+    auto corn_conj = conjugate(corn);
+    auto q0 = rotate(corn_conj, p0 - cpos);
+    auto q1 = rotate(corn_conj, p1 - cpos);
+
+    constexpr scalar dl = 0.01;
+    auto len = length(p0 - p1);
+    auto ds = dl / len;
+    scalar s = 0;
+    auto dq = q1 - q0;
+    auto dist2 = EDYN_SCALAR_MAX;
+
+    for (;;) {
+        auto q = q0 + dq * s;
+        auto r = q;
+        r.x = 0;
+        r = normalize(r) * radius;
+        auto d = r - q;
+        auto l2 = length2(d);
+
+        if (l2 < dist2) {
+            dist2 = l2;
+            s0 = s;
+            cc0 = cpos + rotate(corn, r);
+            cs0 = cpos + rotate(corn, q);
+            normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
+            normal = rotate(corn, normal); 
+        }
+
+        if (s >= 1) { break; }
+        s = std::min(s + ds, scalar(1));
+    }
+
+    num_points = 1;
+
+    return dist2;
+}
+
+scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scalar radiusA,
+                               const vector3 &posB, const quaternion &ornB, scalar radiusB,
+                               size_t &num_points, closest_points_array &closest, 
+                               vector3 &normal) {
+    // Transform disc B onto disc A's space.
+    auto ornA_conj = conjugate(ornA);
+    auto ornBA = ornA_conj * ornB;
+    auto posBA = rotate(ornA_conj, posB - posA);
+
+    // Build ortho basis on B (in A's space).
+    auto u = rotate(ornBA, vector3_y) * radiusB;
+    auto v = rotate(ornBA, vector3_z) * radiusB;
+
+    scalar s = 0;
+    scalar ds = pi / 18;
+    auto dist2 = EDYN_SCALAR_MAX;
+
+    for (;;) {
+        auto q = posBA + u * std::cos(s) + v * std::sin(s);
+        auto r = q;
+        r.x = 0;
+        r = normalize(r) * radiusA;
+        auto d = r - q;
+        auto l2 = length2(d);
+
+        if (l2 < dist2) {
+            dist2 = l2;
+            closest[0].first = posA + rotate(ornA, r);
+            closest[0].second = posA + rotate(ornA, q);
+            normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
+            normal = rotate(ornA, normal);
+        }
+
+        if (s >= 2 * pi) { break; }
+        s = std::min(s + ds, 2 * pi);
+    }
+
+    num_points = 1;
+
+    return dist2;
+}
+
 }

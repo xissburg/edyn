@@ -6,7 +6,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                          const plane_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
     auto cyl_axis = rotate(ornA, vector3_x);
-    vector3 disc_pos[] = {posA - cyl_axis * shA.length / 2, posA + cyl_axis * shA.length / 2};
+    vector3 disc_pos[] = {posA - cyl_axis * shA.half_length, posA + cyl_axis * shA.half_length};
     auto normal = rotate(ornB, shB.normal);
     auto center = posB + rotate(ornB, shB.normal * shB.constant);
     auto result = collision_result{};
@@ -91,10 +91,10 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
         result.num_points = 4;
 
-        result.point[0].pivotA = {side * shA.length / 2, shA.radius, 0};
-        result.point[1].pivotA = {side * shA.length / 2, -shA.radius, 0};
-        result.point[2].pivotA = {side * shA.length / 2, 0, shA.radius};
-        result.point[3].pivotA = {side * shA.length / 2, 0, -shA.radius};
+        result.point[0].pivotA = {side * shA.half_length, shA.radius, 0};
+        result.point[1].pivotA = {side * shA.half_length, -shA.radius, 0};
+        result.point[2].pivotA = {side * shA.half_length, 0, shA.radius};
+        result.point[3].pivotA = {side * shA.half_length, 0, -shA.radius};
 
         for (int k = 0; k < 4; ++k) {
             auto p_world = posA + rotate(ornA, result.point[k].pivotA);
