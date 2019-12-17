@@ -206,10 +206,19 @@ scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  sca
     for (;;) {
         auto q = q0 + dq * s;
         auto r = q;
-        r.x = 0;
-        r = normalize(r) * radius;
-        auto d = q - r;
-        auto l2 = length2(d);
+        vector3 d;
+        scalar l2;
+
+        if (q.y * q.y + q.z * q.z > radius * radius) {
+            r.x = 0;
+            r = normalize(r) * radius;
+            d = q - r;
+            l2 = length2(d);
+        } else {
+            r = {0, q.y, q.z};
+            d = {q.x, 0, 0};
+            l2 = q.x * q.x;
+        }
 
         if (l2 < dist2) {
             dist2 = l2;
