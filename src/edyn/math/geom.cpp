@@ -203,34 +203,40 @@ scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  sca
     auto dq = q1 - q0;
     auto dist2 = EDYN_SCALAR_MAX;
 
-    for (;;) {
-        auto q = q0 + dq * s;
-        auto r = q;
-        vector3 d;
-        scalar l2;
+    // Initial point in line.
+    vector3 q;
+    closest_point_segment(q0, q1, vector3_z, s, q);
 
-        if (q.y * q.y + q.z * q.z > radius * radius) {
-            r.x = 0;
-            r = normalize(r) * radius;
-            d = q - r;
-            l2 = length2(d);
-        } else {
-            r = {0, q.y, q.z};
-            d = {q.x, 0, 0};
-            l2 = q.x * q.x;
+    for (int i = 0;; ++i) {
+        for (int j = -1; j <= 1; j += 2) {
+            auto si = s + ds * i * j;
+            auto q = q0 + dq * si;
+            auto r = q;
+            vector3 d;
+            scalar l2;
+
+            if (q.y * q.y + q.z * q.z > radius * radius) {
+                r.x = 0;
+                r = normalize(r) * radius;
+                d = q - r;
+                l2 = length2(d);
+            } else {
+                r = {0, q.y, q.z};
+                d = {q.x, 0, 0};
+                l2 = q.x * q.x;
+            }
+
+            if (l2 < dist2) {
+                dist2 = l2;
+                s0 = si;
+                cc0 = cpos + rotate(corn, r);
+                cs0 = cpos + rotate(corn, q);
+                normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
+                normal = rotate(corn, normal); 
+            }
         }
-
-        if (l2 < dist2) {
-            dist2 = l2;
-            s0 = s;
-            cc0 = cpos + rotate(corn, r);
-            cs0 = cpos + rotate(corn, q);
-            normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
-            normal = rotate(corn, normal); 
-        }
-
-        if (s >= 1) { break; }
-        s = std::min(s + ds, scalar(1));
+    
+        if (ds * i * len > radius) { break; }
     }
 
     num_points = 1;
@@ -242,34 +248,43 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
                                const vector3 &posB, const quaternion &ornB, scalar radiusB,
                                size_t &num_points, closest_points_array &closest, 
                                vector3 &normal) {
-    // Transform disc B onto disc A's space.
-    auto ornA_conj = conjugate(ornA);
-    auto ornBA = ornA_conj * ornB;
-    auto posBA = rotate(ornA_conj, posB - posA);
+    // Transform disc A onto disc B's space.
+    auto ornB_conj = conjugate(ornB);
+    auto posAB = rotate(ornB_conj, posA - posB);
 
     // Build ortho basis on B (in A's space).
-    auto u = rotate(ornBA, vector3_y) * radiusB;
-    auto v = rotate(ornBA, vector3_z) * radiusB;
+    auto ornAB = ornB_conj * ornA;
+    auto u = rotate(ornAB, vector3_y) * radiusA;
+    auto v = rotate(ornAB, vector3_z) * radiusA;
 
     scalar s = 0;
     scalar ds = pi / 18;
     auto dist2 = EDYN_SCALAR_MAX;
 
     for (;;) {
-        auto q = posBA + u * std::cos(s) + v * std::sin(s);
+        auto q = posAB + u * std::cos(s) + v * std::sin(s);
         auto r = q;
-        r.x = 0;
-        r = normalize(r) * radiusA;
-        auto d = r - q;
-        auto l2 = length2(d);
+        vector3 d;
+        scalar l2;
+
+        if (q.y * q.y + q.z * q.z > radiusB * radiusB) {
+            r.x = 0;
+            r = normalize(r) * radiusB;
+            d = q - r;
+            l2 = length2(d);
+        } else {
+            r = {0, q.y, q.z};
+            d = {q.x, 0, 0};
+            l2 = q.x * q.x;
+        }
 
         if (l2 < dist2) {
             dist2 = l2;
-            closest[0].first = posA + rotate(ornA, r);
-            closest[0].second = posA + rotate(ornA, q);
+            closest[0].first = posB + rotate(ornB, q);
+            closest[0].second = posB + rotate(ornB, r);
             normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
-            if (normal.x < 0) normal = -normal;
-            normal = rotate(ornA, normal);
+            //if (normal.x < 0) normal = -normal;
+            normal = rotate(ornB, normal);
         }
 
         if (s >= 2 * pi) { break; }

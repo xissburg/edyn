@@ -84,6 +84,11 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                              p0B, p1B, num_pointsA, 
                                              sA0, cA0A, cB0A,
                                              sA1, cA1A, cB1A, normalA);
+            if (sA0 > 1) {
+                sideB = 1;
+            } else if (sA0 < 0) {
+                sideB = -1;
+            }
         }
 
         if (is_vertexB) {
@@ -96,13 +101,18 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                              p0A, p1A, num_pointsB,
                                              sB0, cB0B, cA0B,
                                              sB1, cB1B, cA1B, normalB);
+            if (sB0 > 1) {
+                sideA = 1;
+            } else if (sB0 < 0) {
+                sideA = -1;
+            }
         }
 
         // If A's disc is closer to B's segment than B's disc is to A's segment,
         // and the parameters `sA0` or `sA1` are within the segment's range 
         // [0,1], then this should be the closest features. 
         // The same is done the other way around in the other if-statement.
-        if (dist2A < dist2B && ((sA0 > 0 && sA0 < 1) || (num_pointsA > 1 && sA1 > 0 && sA1 < 1))) {
+        if (dist2A < dist2B && ((sA0 >= 0 && sA0 <= 1) || (num_pointsA > 1 && sA1 >= 0 && sA1 <= 1))) {
             if (dist2A > (threshold + shB.radius) * (threshold + shB.radius)) {
                 return {};
             }
@@ -116,7 +126,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 closest[1].first = cA1A;
                 closest[1].second = cB1A + normal * shB.radius;
             }
-        } else if (dist2A >= dist2B && ((sB0 > 0 && sB0 < 1) || (num_pointsB > 1 && sB1 > 0 && sB1 < 1))) {
+        } else if (dist2A >= dist2B && ((sB0 >= 0 && sB0 <= 1) || (num_pointsB >=1 && sB1 >= 0 && sB1 <= 1))) {
             if (dist2B > (threshold + shA.radius) * (threshold + shA.radius)) {
                 return {};
             }
