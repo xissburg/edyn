@@ -153,9 +153,9 @@ scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  sca
     auto q1 = rotate(corn_conj, p1 - cpos);
 
     constexpr scalar dl = 0.01;
-    auto d = q1 - q0;
+    auto dq = q1 - q0;
 
-    if (std::abs(d.x) < 1e-4) {
+    if (std::abs(dq.x) < 1e-4) {
         // Line is parallel to disc. Calculate line-circle intersection in the
         // yz plane.
         normal = rotate(corn, vector3_x);
@@ -163,7 +163,7 @@ scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  sca
 
         if (num_points > 0) {
             s0 = clamp_unit(s0);
-            cs0 = q0 + d * s0;
+            cs0 = q0 + dq * s0;
             cc0 = {0, cs0.y, cs0.z};
             auto dist2 = cs0.x * cs0.x;
 
@@ -172,7 +172,7 @@ scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  sca
 
             if (num_points > 1) {
                 s1 = clamp_unit(s1);
-                cs1 = q0 + d * s1;
+                cs1 = q0 + dq * s1;
                 cc1 = {0, cs1.y, cs1.z};
                 cs1 = cpos + rotate(corn, cs1);
                 cc1 = cpos + rotate(corn, cc1);
@@ -197,51 +197,63 @@ scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  sca
         }
     }
 
-    auto len = length(d);
-    auto ds = dl / len;
-    scalar s = 0;
-    auto dq = q1 - q0;
-    auto dist2 = EDYN_SCALAR_MAX;
 
     // Initial point in line.
+    scalar s = 0;
     vector3 q;
-    closest_point_segment(q0, q1, vector3_z, s, q);
+    closest_point_segment(q0, q1, vector3_zero, s, q);
 
-    for (int i = 0;; ++i) {
-        for (int j = -1; j <= 1; j += 2) {
-            auto si = s + ds * i * j;
-            auto q = q0 + dq * si;
-            auto r = q;
-            vector3 d;
-            scalar l2;
+    auto df = [&q0, &dq, &radius] (scalar t) {
+        auto qt = q0 + dq * t;
+        auto rt = vector3{0, qt.y, qt.z};
+        rt = normalize(rt) * radius;
+        auto d = qt - rt;
+        
+        auto theta = std::atan2(qt.z, qt.y);
+        auto qs = (dq.z * qt.y - dq.y * qt.z) / (qt.y * qt.y + qt.z * qt.z);
+        auto qd = vector3{0, -std::sin(theta), std::cos(theta)} * radius * qs;
+        auto dd = dq - qd;
 
-            if (q.y * q.y + q.z * q.z > radius * radius) {
-                r.x = 0;
-                r = normalize(r) * radius;
-                d = q - r;
-                l2 = length2(d);
-            } else {
-                r = {0, q.y, q.z};
-                d = {q.x, 0, 0};
-                l2 = q.x * q.x;
-            }
+        return dot(d, dd);
+    };
 
-            if (l2 < dist2) {
-                dist2 = l2;
-                s0 = si;
-                cc0 = cpos + rotate(corn, r);
-                cs0 = cpos + rotate(corn, q);
-                normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
-                normal = rotate(corn, normal); 
-            }
+    constexpr size_t max_iterations = 100;
+
+    for (int i = 0; i < max_iterations; ++i) {
+        auto curr_s = s;
+        s = curr_s - 0.08 * df(curr_s);
+        auto step = s - curr_s;
+        if (std::abs(step) < 0.0001) {
+            break;
         }
-    
-        if (ds * i * len > radius) { break; }
     }
+
+    s0 = s;
+
+    q = q0 + dq * s;
+    auto r = q;
+    vector3 d;
+    scalar l2;
+
+    if (q.y * q.y + q.z * q.z > radius * radius) {
+        r.x = 0;
+        r = normalize(r) * radius;
+        d = q - r;
+        l2 = length2(d);
+    } else {
+        r = {0, q.y, q.z};
+        d = {q.x, 0, 0};
+        l2 = q.x * q.x;
+    }
+
+    cc0 = cpos + rotate(corn, r);
+    cs0 = cpos + rotate(corn, q);
+    normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
+    normal = rotate(corn, normal);
 
     num_points = 1;
 
-    return dist2;
+    return l2;
 }
 
 scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scalar radiusA,
