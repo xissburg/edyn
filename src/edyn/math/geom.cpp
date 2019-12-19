@@ -199,31 +199,41 @@ scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  sca
 
 
     // Initial point in line.
-    scalar s = 0;
+    scalar s = dq.x > 0 ? 0 : 1; // Start from the end closer to the plane to avoid the central area.
     vector3 q;
-    closest_point_segment(q0, q1, vector3_zero, s, q);
+    //closest_point_segment(q0, q1, vector3_zero, s, q);
 
     auto df = [&q0, &dq, &radius] (scalar t) {
         auto qt = q0 + dq * t;
-        auto rt = vector3{0, qt.y, qt.z};
-        rt = normalize(rt) * radius;
-        auto d = qt - rt;
-        
         auto theta = std::atan2(qt.z, qt.y);
-        auto qs = (dq.z * qt.y - dq.y * qt.z) / (qt.y * qt.y + qt.z * qt.z);
-        auto qd = vector3{0, -std::sin(theta), std::cos(theta)} * radius * qs;
+        auto theta_sin = std::sin(theta);
+        auto theta_cos = std::cos(theta);
+        
+        auto rt = vector3{0, radius * theta_cos, radius * theta_sin};
+        auto d = qt - rt;
+        auto dtheta_denom_inv = scalar(1) / (qt.y * qt.y + qt.z * qt.z);
+        auto dtheta_num = dq.z * qt.y - dq.y * qt.z;
+        auto qs = dtheta_num * dtheta_denom_inv;
+        auto qd = vector3{0, -theta_sin, theta_cos} * radius * qs;
         auto dd = dq - qd;
 
-        return dot(d, dd);
+        auto qdd = radius * dtheta_num * dtheta_denom_inv * dtheta_denom_inv * 
+                   (vector3{0, -theta_cos, -theta_sin} * dtheta_num +
+                   vector3{0, -theta_sin, theta_cos} * (qt.z * dq.z + qt.y * dq.y) * 2);
+        auto ddd = -qdd;
+
+        auto f = dot(d, dd);
+        auto ff = dot(dd, dd) + dot(d, ddd);
+        return f / ff;
     };
 
     constexpr size_t max_iterations = 100;
 
     for (int i = 0; i < max_iterations; ++i) {
         auto curr_s = s;
-        s = curr_s - 0.08 * df(curr_s);
+        s = curr_s - df(curr_s);
         auto step = s - curr_s;
-        if (std::abs(step) < 0.0001) {
+        if (std::abs(step) < 0.00001) {
             break;
         }
     }
