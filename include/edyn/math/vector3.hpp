@@ -100,9 +100,10 @@ inline vector3& operator*=(vector3 &v, scalar s) {
 
 // Inverse-scale a vector.
 inline vector3& operator/=(vector3 &v, scalar s) {
-    v.x /= s;
-    v.y /= s;
-    v.z /= s;
+    auto z = scalar(1) / s;
+    v.x *= z;
+    v.y *= z;
+    v.z *= z;
     return v;
 }
 

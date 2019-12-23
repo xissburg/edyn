@@ -47,13 +47,13 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     // the A and B segments.
     auto ddA = dot(d, dA);
     auto ddB = dot(-d, dB);
-    auto is_vertexA = std::abs(ddA) > EDYN_EPSILON;
-    auto is_vertexB = std::abs(ddB) > EDYN_EPSILON;
+    auto is_discA = std::abs(ddA) > EDYN_EPSILON;
+    auto is_discB = std::abs(ddB) > EDYN_EPSILON;
 
     closest_points_array closest;
     vector3 normal;
 
-    if (!is_vertexA && !is_vertexB) {
+    if (!is_discA && !is_discB) {
         // Closest points are on both cylindrical surfaces.
         normal = l2 > EDYN_EPSILON ? normal = d / std::sqrt(l2) : vector3_y;
 
@@ -74,12 +74,14 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         scalar sideA = ddA > EDYN_EPSILON ? 1 : -1;
         scalar sideB = ddB > EDYN_EPSILON ? 1 : -1;
 
-        if (is_vertexA) {
+        if (is_discA) {
             // Closest point might be on one of A's disc and on B's segment.
             auto orn = ornA;
             if (sideA < 0) {
                 orn *= quaternion_axis_angle(vector3_y, pi);
             }
+            // Find point in line closest to disc and later check if they're in
+            // the segment's [0,1] range.
             dist2A = closest_point_disc_line(posA + hlA * sideA, orn, shA.radius,
                                              p0B, p1B, num_pointsA, 
                                              sA0, cA0A, cB0A,
@@ -91,7 +93,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             }
         }
 
-        if (is_vertexB) {
+        if (is_discB) {
             // Closest point might be on one of B's disc and on A's segment.
             auto orn = ornB;
             if (sideB < 0) {
@@ -111,8 +113,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         // If A's disc is closer to B's segment than B's disc is to A's segment,
         // and the parameters `sA0` or `sA1` are within the segment's range 
         // [0,1], then this should be the closest features. 
-        // The same is done the other way around in the other if-statement.
-        if (dist2A < dist2B && ((sA0 >= 0 && sA0 <= 1) || (num_pointsA > 1 && sA1 >= 0 && sA1 <= 1))) {
+        // The same is done the other way around in the next if-statement.
+        if (dist2A < dist2B && ((sA0 > 0 && sA0 < 1) || (num_pointsA > 1 && sA1 > 0 && sA1 < 1))) {
             if (dist2A > (threshold + shB.radius) * (threshold + shB.radius)) {
                 return {};
             }
@@ -126,7 +128,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 closest[1].first = cA1A;
                 closest[1].second = cB1A + normal * shB.radius;
             }
-        } else if (dist2A >= dist2B && ((sB0 >= 0 && sB0 <= 1) || (num_pointsB >=1 && sB1 >= 0 && sB1 <= 1))) {
+        } else if (dist2A >= dist2B && ((sB0 > 0 && sB0 < 1) || (num_pointsB > 1 && sB1 > 0 && sB1 < 1))) {
             if (dist2B > (threshold + shA.radius) * (threshold + shA.radius)) {
                 return {};
             }
@@ -141,6 +143,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 closest[1].second = cB1B;
             }
         } else {
+            // Closest points are on the discs.
             auto ccl2 = closest_point_disc_disc(posA + hlA * sideA, ornA, shA.radius,
                                                 posB + hlB * sideB, ornB, shB.radius,
                                                 num_points, closest, normal);
