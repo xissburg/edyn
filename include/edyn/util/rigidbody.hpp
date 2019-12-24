@@ -44,8 +44,10 @@ struct rigidbody_def {
     // Optional shape for collidable entities.
     std::optional<decltype(shape::var)> shape_opt; 
 
-    scalar restitution {0.8};
+    scalar restitution {0};
     scalar friction {0.5};
+    scalar stiffness {large_scalar};
+    scalar damping {small_scalar};
 
     bool sensor {false};
 
