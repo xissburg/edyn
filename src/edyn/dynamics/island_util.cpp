@@ -45,6 +45,12 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
         // the sleep threshold.
         bool sleep = true;
         for (auto e : isle.entities) {
+            // Check if this island has any entities with a `sleeping_disabled_tag`.
+            if (registry.has<sleeping_disabled_tag>(e)) {
+                sleep = false;
+                break;
+            }
+
             auto [v, w] = vel_view.get<linvel, angvel>(e);
             if (length2(v) > island_linear_sleep_threshold * island_linear_sleep_threshold || 
                 length2(w) > island_angular_sleep_threshold * island_angular_sleep_threshold) {
@@ -57,7 +63,7 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
             return;
         }
 
-        // Put to sleep if the velocity of all entities in this island have
+        // Put to sleep if the velocities of all entities in this island have
         // been under the threshold for some time.
         if (isle.sleep_step == UINT64_MAX) {
             isle.sleep_step = step;

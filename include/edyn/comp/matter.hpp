@@ -10,7 +10,7 @@ struct matter {
     scalar restitution {0};
     scalar friction {0.5};
     scalar stiffness {large_scalar};
-    scalar damping {small_scalar};
+    scalar damping {large_scalar};
 };
 
 }
