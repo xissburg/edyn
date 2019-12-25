@@ -37,7 +37,6 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
 
     auto ud = uposA - uposB;
     auto ul2 = length2(ud);
-    auto udistance = std::max(length(ud), EDYN_EPSILON);
 
     // Lower control arm locations.
     auto lrA = rotate(qA, lower_pivotA);
@@ -48,7 +47,6 @@ void doublewishbone_constraint::prepare(constraint &con, const relation &rel, en
 
     auto ld = lposA - lposB;
     auto ll2 = length2(ld);
-    auto ldistance = std::max(length(ld), EDYN_EPSILON);
 
     // Z axis points forward.
     auto chassis_z = rotate(qA, vector3_z);
