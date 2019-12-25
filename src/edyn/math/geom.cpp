@@ -351,7 +351,6 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
         auto p0B = posB + bitangentB * radiusB;
         auto p1B = posB - bitangentB * radiusB;
 
-        num_points;
         scalar s0, s1, t0, t1;
         vector3 c0, c1, c2, c3;
         auto dist2 = closest_point_segment_segment(p0A, p1A, p0B, p1B, 
