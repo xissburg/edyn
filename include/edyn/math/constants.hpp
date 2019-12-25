@@ -8,7 +8,10 @@
 namespace edyn {
 
 inline constexpr scalar pi = 3.1415926535897932384626433832795029;
-inline constexpr scalar large_scalar = 1e10;
+// `large_scalar * large_scalar` < EDYN_SCALAR_MAX`
+inline constexpr scalar large_scalar = 1e18;
+// `small_scalar * small_scalar` > EDYN_SCALAR_MIN`
+inline constexpr scalar small_scalar = 1e-18;
 
 inline constexpr scalar gravitational_constant = 6.674e-11;
 

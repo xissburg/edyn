@@ -11,10 +11,12 @@ struct vector3 {
     scalar x, y, z;
 
     scalar& operator[](size_t i) {
+        EDYN_ASSERT(i < 3);
         return (&x)[i];
     }
 
     scalar operator[](size_t i) const {
+        EDYN_ASSERT(i < 3);
         return (&x)[i];
     }
 };
@@ -98,9 +100,10 @@ inline vector3& operator*=(vector3 &v, scalar s) {
 
 // Inverse-scale a vector.
 inline vector3& operator/=(vector3 &v, scalar s) {
-    v.x /= s;
-    v.y /= s;
-    v.z /= s;
+    auto z = scalar(1) / s;
+    v.x *= z;
+    v.y *= z;
+    v.z *= z;
     return v;
 }
 
@@ -151,6 +154,14 @@ inline vector3 normalize(const vector3 &v) {
     auto l = length(v);
     EDYN_ASSERT(l > EDYN_EPSILON);
     return v / l;
+}
+
+inline vector3 min(const vector3 &v, const vector3 &w) {
+    return {std::min(v.x, w.x), std::min(v.y, w.y), std::min(v.z, w.z)};
+}
+
+inline vector3 max(const vector3 &v, const vector3 &w) {
+    return {std::max(v.x, w.x), std::max(v.y, w.y), std::max(v.z, w.z)};
 }
 
 }

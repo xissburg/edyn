@@ -57,12 +57,17 @@ conan_basic_setup()
 #
 
 set(EDyn_SOURCES
+    src/edyn/math/geom.cpp
     src/edyn/collision/broadphase.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
     src/edyn/collision/collide_sphere_plane.cpp
     src/edyn/collision/collide_cylinder_cylinder.cpp
     src/edyn/collision/collide_cylinder_plane.cpp
     src/edyn/collision/collide_cylinder_sphere.cpp
+    src/edyn/collision/collide_capsule_capsule.cpp
+    src/edyn/collision/collide_capsule_cylinder.cpp
+    src/edyn/collision/collide_capsule_plane.cpp
+    src/edyn/collision/collide_capsule_sphere.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
     src/edyn/constraints/point_constraint.cpp

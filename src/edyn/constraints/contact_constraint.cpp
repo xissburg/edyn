@@ -221,7 +221,14 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         auto &normal_row = registry.get<constraint_row>(cp.normal_row_entity);
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
         normal_row.lower_limit = 0;
-        normal_row.upper_limit = EDYN_SCALAR_MAX;
+
+        if (stiffness < large_scalar) {
+            auto spring_force = cp.distance * stiffness;
+            auto damper_force = normal_relvel * damping;
+            normal_row.upper_limit = std::abs(spring_force + damper_force) * dt;
+        } else {
+            normal_row.upper_limit = large_scalar;
+        }
 
         auto rel = posA + rA - posB - rB;
         auto penetration = dot(rel, normal);
@@ -235,7 +242,6 @@ void contact_constraint::setup_rows(const vector3 &posA, const quaternion &ornA,
         if (penetration > 0 && pvel > -cp.restitution * normal_relvel) {
             normal_row.error = std::max(pvel, scalar(0));
         } else {
-
             // If this is a resting contact and it is penetrating, apply impulse to push it out.
             //if (cp.lifetime > 0) {
                 constexpr scalar contact_erp = 0.2;

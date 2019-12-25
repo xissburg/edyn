@@ -7,6 +7,7 @@ struct dynamic_tag {};
 struct kinematic_tag {};
 struct static_tag {};
 struct sleeping_tag {};
+struct sleeping_disabled_tag {};
 
 }
 

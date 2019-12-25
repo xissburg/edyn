@@ -89,8 +89,17 @@ void broadphase::update() {
                     auto ent = registry->create();
                     registry->assign<relation>(ent, e0, e1);
 
-                    if (registry->has<matter>(e0) && registry->has<matter>(e1)) {
-                        registry->assign<constraint>(ent, contact_constraint());
+                    auto m0 = registry->try_get<matter>(e0);
+                    auto m1 = registry->try_get<matter>(e1);
+                    if (m0 && m1) {
+                        auto contact = contact_constraint();
+
+                        if (m0->stiffness < large_scalar || m1->stiffness < large_scalar) {
+                            contact.stiffness = 1 / (1 / m0->stiffness + 1 / m1->stiffness);
+                            contact.damping = 1 / (1 / m0->damping + 1 / m1->damping);
+                        }
+
+                        registry->assign<constraint>(ent, contact);
                     }
 
                     relations[p] = ent;

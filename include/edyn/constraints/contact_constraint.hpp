@@ -14,6 +14,8 @@ struct collision_result;
 
 struct contact_constraint : public constraint_base<contact_constraint> {
     contact_manifold manifold {};
+    scalar stiffness {large_scalar};
+    scalar damping {large_scalar};
 
     void prepare(constraint &, const relation &, entt::registry &, scalar dt);
     void iteration(constraint &, const relation &, entt::registry &, scalar dt);
