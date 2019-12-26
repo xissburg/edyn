@@ -10,7 +10,7 @@
 
 namespace edyn {
 
-void doublewishbone_constraint::init(constraint &con, const relation &rel, entt::registry &registry) {
+void doublewishbone_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
     con.num_rows = steerable ? 5 : 6;
 
     for (size_t i = 0; i < con.num_rows; ++i) {
@@ -20,7 +20,7 @@ void doublewishbone_constraint::init(constraint &con, const relation &rel, entt:
     }
 }
 
-void doublewishbone_constraint::prepare(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
+void doublewishbone_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
     EDYN_ASSERT(side == 1 || side == -1);
 
     auto &pA = registry.get<const position>(rel.entity[0]);

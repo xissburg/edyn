@@ -35,8 +35,8 @@ struct tierod_constraint : public constraint_base<tierod_constraint> {
     scalar steering_arm_length;
     scalar steering_arm_angle;
 
-    void init(constraint &, const relation &, entt::registry &);
-    void prepare(constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, const relation &, entt::registry &);
+    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
 
     void update_steering_axis();
     void update_steering_arm();

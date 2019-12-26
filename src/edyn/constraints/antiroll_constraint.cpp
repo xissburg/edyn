@@ -10,7 +10,7 @@
 
 namespace edyn {
 
-void antiroll_constraint::init(constraint &con, const relation &rel, entt::registry &registry) {
+void antiroll_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
     con.num_rows = 1;
     con.row[0] = registry.create();
     auto &row = registry.assign<constraint_row>(con.row[0]);
@@ -19,7 +19,7 @@ void antiroll_constraint::init(constraint &con, const relation &rel, entt::regis
     EDYN_ASSERT(third_entity != entt::null);
 }
 
-void antiroll_constraint::prepare(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
+void antiroll_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
     auto &pA = registry.get<const position>(rel.entity[0]);
     auto &qA = registry.get<const orientation>(rel.entity[0]);
     auto rA = rotate(qA, pivotA);

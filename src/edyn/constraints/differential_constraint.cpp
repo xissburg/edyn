@@ -11,7 +11,7 @@
 
 namespace edyn {
 
-void differential_constraint::init(constraint &con, const relation &rel, entt::registry &registry) {
+void differential_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
     EDYN_ASSERT(rel.entity[2] != entt::null);
 
     con.num_rows = 1;
@@ -24,7 +24,7 @@ void differential_constraint::init(constraint &con, const relation &rel, entt::r
     }
 }
 
-void differential_constraint::prepare(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
+void differential_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
     auto &ornA = registry.get<const orientation>(rel.entity[0]);
     auto &ornB = registry.get<const orientation>(rel.entity[1]);
 

@@ -13,8 +13,8 @@ struct distance_constraint : public constraint_base<distance_constraint> {
     scalar stiffness {1e10};
     scalar damping {1e10};
 
-    void init(constraint &, const relation &, entt::registry &);
-    void prepare(constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, const relation &, entt::registry &);
+    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
 };
 
 }

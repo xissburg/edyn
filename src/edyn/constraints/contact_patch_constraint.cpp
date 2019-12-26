@@ -1,0 +1,1 @@
+#include "edyn/constraints/contact_patch_constraint.hpp"

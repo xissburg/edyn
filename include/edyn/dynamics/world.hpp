@@ -9,6 +9,7 @@
 #include "solver.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/collision/broadphase.hpp"
+#include "edyn/collision/narrowphase.hpp"
 
 namespace edyn {
 
@@ -44,6 +45,7 @@ public:
 private:
     entt::registry* registry;
     broadphase bphase;
+    narrowphase nphase;
     solver sol;
     std::vector<entt::scoped_connection> connections;
     scalar residual_dt {0};

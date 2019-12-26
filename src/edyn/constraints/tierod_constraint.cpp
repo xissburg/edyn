@@ -11,7 +11,7 @@
 
 namespace edyn {
 
-void tierod_constraint::init(constraint &con, const relation &rel, entt::registry &registry) {
+void tierod_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
     con.num_rows = 1;
     con.row[0] = registry.create();
     auto &row = registry.assign<constraint_row>(con.row[0]);
@@ -21,7 +21,7 @@ void tierod_constraint::init(constraint &con, const relation &rel, entt::registr
     update_steering_arm();
 }
 
-void tierod_constraint::prepare(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
+void tierod_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
     auto &pA = registry.get<const position>(rel.entity[0]);
     auto &qA = registry.get<const orientation>(rel.entity[0]);
     auto &pB = registry.get<const position>(rel.entity[1]);

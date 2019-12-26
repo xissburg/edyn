@@ -17,6 +17,7 @@
 #include "comp/shape.hpp"
 #include "comp/matter.hpp"
 #include "comp/island.hpp"
+#include "comp/contact_manifold.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
 #include "math/vector3.hpp"

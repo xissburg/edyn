@@ -27,8 +27,8 @@ struct antiroll_constraint : public constraint_base<antiroll_constraint> {
 
     scalar angle;
 
-    void init(constraint &, const relation &, entt::registry &);
-    void prepare(constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, const relation &, entt::registry &);
+    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
 };
 
 }

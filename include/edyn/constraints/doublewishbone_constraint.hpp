@@ -17,8 +17,8 @@ struct doublewishbone_constraint : public constraint_base<doublewishbone_constra
     scalar lower_length;
     bool steerable;
 
-    void init(constraint &, const relation &, entt::registry &);
-    void prepare(constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, const relation &, entt::registry &);
+    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
 };
 
 }

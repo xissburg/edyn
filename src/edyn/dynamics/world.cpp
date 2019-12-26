@@ -71,6 +71,7 @@ world::world(entt::registry &reg)
     : registry(&reg)
     , sol(reg)
     , bphase(reg)
+    , nphase(reg)
 {
     connections.push_back(reg.on_construct<mass>().connect<&on_construct_mass>());
     connections.push_back(reg.on_destroy<mass>().connect<&on_destroy_mass>());
@@ -83,6 +84,8 @@ world::world(entt::registry &reg)
 
     connections.push_back(reg.on_construct<dynamic_tag>().connect<&on_construct_dynamic_tag>());
     connections.push_back(reg.on_destroy<dynamic_tag>().connect<&on_destroy_dynamic_tag>());
+
+    connections.push_back(bphase.construct_relation_sink().connect<&narrowphase::on_construct_broadphase_relation>(nphase));
 }
 
 world::~world() {
@@ -110,6 +113,7 @@ void world::update(scalar dt) {
 
 void world::step(scalar dt) {
     bphase.update();
+    nphase.update();
     sol.update(step_, dt);
     ++step_;
 }
