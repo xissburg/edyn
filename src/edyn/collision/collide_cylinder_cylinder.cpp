@@ -38,8 +38,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
     auto dA = p0A - p1A;
     auto dB = p0B - p1B;
-    auto d0 = p0A - p0B;
-    auto d1 = p1A - p1B;
     auto d = cA0 - cB0;
 
     // Check whether the closest points between segments are on the vertices
@@ -55,7 +53,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
     if (!is_discA && !is_discB) {
         // Closest points are on both cylindrical surfaces.
-        normal = l2 > EDYN_EPSILON ? normal = d / std::sqrt(l2) : vector3_y;
+        normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_y;
 
         closest[0].first = cA0 - normal * shA.radius;
         closest[0].second = cB0 + normal * shB.radius;

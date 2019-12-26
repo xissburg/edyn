@@ -26,7 +26,7 @@ void on_construct_constraint(entt::entity entity, entt::registry &registry, cons
 
     std::visit([&] (auto &&c) {
         // Initialize actual constraint.
-        c.update(solver_stage_value_t<solver_stage::init>{}, con, rel, registry, 0);
+        c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, rel, registry, 0);
     }, con.var);
 }
 
@@ -158,7 +158,7 @@ void solver::update(uint64_t step, scalar dt) {
     auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_sleeping);
 
     auto con_view = registry->view<const relation, constraint>(exclude_sleeping);
-    con_view.each([&] (auto, const relation &rel, constraint &con) {
+    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
         auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[0]);
         auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[1]);
         auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(rel.entity[0]);
@@ -167,7 +167,7 @@ void solver::update(uint64_t step, scalar dt) {
         auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[1]);
 
         std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, con, rel, *registry, dt);
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
 
             for (size_t i = 0; i < con.num_rows; ++i) {
                 auto &row = registry->get<constraint_row>(con.row[i]);
@@ -181,9 +181,10 @@ void solver::update(uint64_t step, scalar dt) {
     auto row_view = registry->view<constraint_row>(exclude_sleeping);
 
     for (uint32_t i = 0; i < iterations; ++i) {
-        con_view.each([&] (auto, const relation &rel, constraint &con) {
+        // Prepare constraints for iteration.
+        con_view.each([&] (auto entity, const relation &rel, constraint &con) {
             std::visit([&] (auto &&c) {
-                c.update(solver_stage_value_t<solver_stage::iteration>{}, con, rel, *registry, dt);
+                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, rel, *registry, dt);
             }, con.var);
         });
 
