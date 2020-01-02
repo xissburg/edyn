@@ -19,10 +19,10 @@
 namespace edyn {
 
 void contact_constraint::prepare(entt::entity entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-    auto &posA   = registry.get<const position   >(rel.entity[0]);
-    auto &ornA   = registry.get<const orientation>(rel.entity[0]);
-    auto &posB   = registry.get<const position   >(rel.entity[1]);
-    auto &ornB   = registry.get<const orientation>(rel.entity[1]);
+    auto &posA = registry.get<const position   >(rel.entity[0]);
+    auto &ornA = registry.get<const orientation>(rel.entity[0]);
+    auto &posB = registry.get<const position   >(rel.entity[1]);
+    auto &ornB = registry.get<const orientation>(rel.entity[1]);
     
     auto &linvelA = registry.get<const linvel>(rel.entity[0]);
     auto &angvelA = registry.get<const angvel>(rel.entity[0]);

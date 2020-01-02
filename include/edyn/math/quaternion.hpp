@@ -7,6 +7,16 @@ namespace edyn {
 
 struct quaternion {
     scalar x, y, z, w;
+
+    scalar& operator[](size_t i) {
+        EDYN_ASSERT(i < 4);
+        return (&x)[i];
+    }
+
+    scalar operator[](size_t i) const {
+        EDYN_ASSERT(i < 4);
+        return (&x)[i];
+    }
 };
 
 inline constexpr quaternion quaternion_identity {0, 0, 0, 1};

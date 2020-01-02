@@ -10,6 +10,16 @@ namespace edyn {
 struct matrix3x3 {
     std::array<vector3, 3> row;
 
+    vector3 & operator[](size_t i) {
+        EDYN_ASSERT(i < 3);
+        return row[i];
+    }
+
+    const vector3 & operator[](size_t i) const {
+        EDYN_ASSERT(i < 3);
+        return row[i];
+    }
+
     inline vector3 column(size_t i) const {
         return {row[0][i], row[1][i], row[2][i]};
     }
@@ -104,6 +114,32 @@ inline matrix3x3 to_matrix3x3(const quaternion &q) {
         xy + wz, 1 - (xx + zz), yz - wx,
         xz - wy, yz + wx, 1 - (xx + yy)
     };
+}
+
+inline quaternion to_quaternion(const matrix3x3 &m) {
+    auto trace = m[0][0] + m[1][1] + m[2][2];
+
+    if (trace > 0) {
+        auto s = std::sqrt(trace + scalar(1));
+        auto t = scalar(0.5) / s;
+        return {t * (m[2][1] - m[1][2]),
+                t * (m[0][2] - m[2][0]),
+                t * (m[1][0] - m[0][1]),
+                scalar(0.5) * s};
+    }
+
+    size_t i = m[0][0] < m[1][1] ? (m[1][1] < m[2][2] ? 2 : 1) : (m[0][0] < m[2][2] ? 2 : 0);
+    size_t j = (i + 1) % 3;
+    size_t k = (i + 2) % 3;
+    auto s = std::sqrt(m[i][i] - m[j][j] - m[k][k] + scalar(1));
+    auto t = scalar(0.5) / s;
+    scalar temp[4];
+    temp[i] = scalar(0.5) * s;
+    temp[j] = t * (m[j][i] - m[i][j]);
+    temp[k] = t * (m[k][i] - m[i][k]);
+    temp[3] = t * (m[k][j] - m[j][k]);
+    
+    return {temp[0], temp[1], temp[2], temp[3]};
 }
 
 }
