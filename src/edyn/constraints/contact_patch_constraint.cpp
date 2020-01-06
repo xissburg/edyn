@@ -33,6 +33,8 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto &manifold = registry.get<contact_manifold>(entity);
     
     if (manifold.num_points == 0) {
+        registry.destroy(normal_row_entity);
+
         for (size_t i = 0; i < con.num_rows; ++i) {
             registry.destroy(con.row[i]);
         }
@@ -45,11 +47,17 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const auto &posB = registry.get<position>(rel.entity[1]);
     const auto &ornB = registry.get<orientation>(rel.entity[1]);
     const auto &normal = manifold.point[0].normalB;
+
+    // Create non-penetration constraint.
+
+
     const auto &shapeA = registry.get<shape>(rel.entity[0]);
     const auto &cyl = std::get<cylinder_shape>(shapeA.var);
     
     const auto &linvelA = registry.get<linvel>(rel.entity[0]);
     const auto &angvelA = registry.get<angvel>(rel.entity[0]);
+    const auto &linvelB = registry.get<linvel>(rel.entity[1]);
+    const auto &angvelB = registry.get<angvel>(rel.entity[1]);
 
     const auto axis = rotate(ornA, vector3_x);
     const auto axis_hl = axis * cyl.half_length;
@@ -90,7 +98,8 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const auto ornB_conj = conjugate(ornB);
         
     const scalar desired_spacing = 0.01;
-    const scalar perimeter = pi * cyl.radius * 2;
+    const scalar half_perimeter = pi * cyl.radius;
+    const scalar perimeter = half_perimeter * 2;
     const size_t num_bristles = std::floor(perimeter / desired_spacing);
     const scalar bristle_spacing = perimeter / num_bristles;
     auto center_bristle_origin = angle * cyl.radius;
@@ -100,6 +109,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto normal_force = normal_row.impulse / dt;
     
     for (size_t i = 0; i < num_rows; ++i) {
+        auto &tread_row = tread_rows[i];
         auto row_x = tread_width * (i + 0.5);
         auto row_center_cyl = p0 - axis * row_x;
         auto defl = dot(row_center_cyl - pB, -up);
@@ -108,28 +118,48 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         auto row_start = row_center + forward * row_half_length;
         auto tread_length = row_half_length * 2 / num_bristles;
 
-        auto normal_pressure = normal_force / (contact_width * 2 * row_half_length * (1 - 0.25/2 - 0.25/3));
+        auto normal_pressure = normal_force / (tread_width * 2 * row_half_length * (1 - 0.25/2 - 0.25/3));
 
-        auto patch_start = std::fmod(center_bristle_origin - row_half_length, perimeter);
+        auto row_half_arc = 2 * cyl.radius * std::acos(row_half_length / cyl.radius);
+        auto patch_start = center_bristle_origin - row_half_arc;
+        auto patch_end = center_bristle_origin + row_half_arc;
+
+        auto wraps_around = patch_start < -half_perimeter || patch_end > half_perimeter;
+
+        patch_start = std::fmod(patch_start, half_perimeter);
+        patch_end = std::fmod(patch_end, half_perimeter);
+
         size_t start_idx = size_t(std::ceil(patch_start / bristle_spacing)) % num_bristles;
-
-        auto patch_end = std::fmod(center_bristle_origin + row_half_length, perimeter);
         size_t end_idx = size_t(std::ceil(patch_end / bristle_spacing)) % num_bristles;
 
+        tread_row.tread_width = tread_width;
+        tread_row.patch_half_length = row_half_length;
+
+        // Remove existing bristles that are outside the contact patch.
+        for (auto iter = tread_row.bristles.begin(); iter != tread_row.bristles.end();) {
+            if (iter->first == i &&
+               ((wraps_around &&  iter->first < start_idx && iter->first > end_idx) ||
+               (!wraps_around && (iter->first < start_idx || iter->first > end_idx)))) {
+                iter = tread_row.bristles.erase(iter);
+            } else {
+                ++iter;
+            }
+        }
+
+        // Introduce new bristles into the contact patch.
         for (size_t j = start_idx; j != end_idx; j = (j+1) % num_bristles) {
-            auto pair = std::make_pair(i, j);
             brush_bristle *bristle;
 
-            if (bristles.count(pair)) {
-                bristle = &bristles[pair];
+            if (tread_row.bristles.count(j)) {
+                bristle = &tread_row.bristles[j];
             } else {
                 auto bristle_origin = j * bristle_spacing;
                 scalar s;
 
-                if (prev_patch_start[i] < bristle_origin) {
-                    s = (bristle_origin - prev_patch_start[i]) / (patch_start - prev_patch_start[i]);
+                if (tread_row.prev_patch_start < bristle_origin) {
+                    s = (bristle_origin - tread_row.prev_patch_start) / (patch_start - tread_row.prev_patch_start);
                 } else { // if (prev_patch_end[i] > bristle_origin) {
-                    s = (bristle_origin - prev_patch_end[i]) / (patch_end - prev_patch_end[i]);
+                    s = (bristle_origin - tread_row.prev_patch_end) / (patch_end - tread_row.prev_patch_end);
                 }
 
                 auto entry_dt = -s * dt;
@@ -146,19 +176,26 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 auto ent = registry.create();
                 con.row[con.num_rows++] = ent;
 
-                bristles[pair] = brush_bristle {ent, rA, rB};
-                bristle = &bristles[pair];
+                tread_row.bristles[j] = brush_bristle {ent, rA, rB};
+                bristle = &tread_row.bristles[j];
             }
 
             auto bristle_root = posA + rotate(ornA, bristle->pivotA);
             auto bristle_tip = posB + rotate(ornB, bristle->pivotB);
             auto d = bristle_root - bristle_tip;
-            d -= normal * dot(d, normal);
+            d -= normal * dot(d, normal); // project on contact plane
             auto dl2 = length2(d);
+            
+            auto velA = linvelA + cross(angvelA, bristle->pivotA);
+            auto velB = linvelB + cross(angvelB, bristle->pivotB);
+            auto relvel = velA - velB;
+            auto tanrelvel = relvel - normal * dot(relvel, normal);
+            auto tanrelspd = length(tanrelvel);
+            bristle->friction = friction_coefficient / (1 + speed_sensitivity * tanrelspd);
 
             auto tread_area = tread_length * tread_width;
             auto tread_normal_pressure = normal_pressure / tread_area;
-            auto friction_force = friction_coefficient * tread_normal_pressure * tread_area;
+            auto friction_force = bristle->friction * tread_normal_pressure * tread_area;
             auto error = std::sqrt(dl2);
             auto force = std::abs(tread_stiffness * tread_area * error);
 
@@ -175,6 +212,9 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 error = std::sqrt(dl2);
             }
 
+            bristle->force = force;
+            bristle->tread_area = tread_area;
+
             auto impulse = force * dt;
 
             auto &row = registry.get_or_assign<constraint_row>(bristle->entity);
@@ -184,8 +224,8 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             row.upper_limit = impulse;
         }
 
-        prev_patch_start[i] = patch_start;
-        prev_patch_end[i] = patch_end;
+        tread_row.prev_patch_start = patch_start;
+        tread_row.prev_patch_end = patch_end;
     }
     
 }
@@ -193,7 +233,25 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 void contact_patch_constraint::iteration(entt::entity entity, constraint &con, 
                                          const relation &rel, entt::registry &registry, 
                                          scalar dt) {
+    auto &normal_row = registry.get<constraint_row>(normal_row_entity);
+    auto normal_force = normal_row.impulse / dt;
 
+    for (auto &tread_row : tread_rows) {
+        for (auto &kv : tread_row.bristles) {
+            auto tread_idx = kv.first;
+            auto &bristle = kv.second;
+
+            auto normal_pressure = normal_force / (tread_row.tread_width * 2 * tread_row.patch_half_length * scalar(1 - 0.25/2 - 0.25/3));
+            auto tread_normal_pressure = normal_pressure / bristle.tread_area;
+            auto friction_force = bristle.friction * tread_normal_pressure * bristle.tread_area;
+            auto force = std::min(friction_force, bristle.force);
+            auto impulse = force * dt;
+
+            auto &row = registry.get_or_assign<constraint_row>(bristle.entity);
+            row.lower_limit = -impulse;
+            row.upper_limit = impulse;
+        }
+    }
 }
 
 }
