@@ -4,7 +4,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/relation.hpp"
-#include "edyn/comp/matter.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/util/constraint.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/dynamics/island_util.hpp"

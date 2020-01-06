@@ -1,7 +1,7 @@
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/relation.hpp"
-#include "edyn/comp/matter.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/shape.hpp"
@@ -21,8 +21,8 @@ narrowphase::narrowphase(entt::registry &reg)
 void narrowphase::on_construct_broadphase_relation(entt::entity entity, entt::registry &registry, relation &rel) {
     registry.assign<contact_manifold>(entity);
 
-    auto m0 = registry.try_get<matter>(rel.entity[0]);
-    auto m1 = registry.try_get<matter>(rel.entity[1]);
+    auto m0 = registry.try_get<material>(rel.entity[0]);
+    auto m1 = registry.try_get<material>(rel.entity[1]);
 
     if (m0 && m1) {
         auto contact = contact_constraint();
@@ -148,11 +148,11 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
             merge_point(rp, cp);
 
             if (auto con = registry->try_get<constraint>(entity)) {
-                // Combine matter/surface parameters.
-                auto &matterA = registry->get<const matter>(rel.entity[0]);
-                auto &matterB = registry->get<const matter>(rel.entity[1]);
-                cp.restitution = matterA.restitution * matterB.restitution;
-                cp.friction = matterA.friction * matterB.friction;
+                // Combine material/surface parameters.
+                auto &materialA = registry->get<const material>(rel.entity[0]);
+                auto &materialB = registry->get<const material>(rel.entity[1]);
+                cp.restitution = materialA.restitution * materialB.restitution;
+                cp.friction = materialA.friction * materialB.friction;
 
                 if (manifold.num_points < max_contacts) {
                     // Create new constraint rows for this contact point.
