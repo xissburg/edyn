@@ -8,7 +8,7 @@
 #include "edyn/comp/linacc.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
-#include "edyn/comp/matter.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 
@@ -57,7 +57,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     }
 
     if (!def.sensor) {
-        registry.assign<matter>(entity, def.restitution, def.friction,
+        registry.assign<material>(entity, def.restitution, def.friction,
                                 def.stiffness, def.damping);
     }
 

@@ -4,7 +4,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/relation.hpp"
-#include "edyn/comp/matter.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/util/constraint.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/dynamics/island_util.hpp"
@@ -89,8 +89,8 @@ void broadphase::update() {
                     auto ent = registry->create();
                     registry->assign<relation>(ent, e0, e1);
 
-                    auto m0 = registry->try_get<matter>(e0);
-                    auto m1 = registry->try_get<matter>(e1);
+                    auto m0 = registry->try_get<material>(e0);
+                    auto m1 = registry->try_get<material>(e1);
                     if (m0 && m1) {
                         auto contact = contact_constraint();
 

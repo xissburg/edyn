@@ -8,7 +8,7 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
-#include "edyn/comp/matter.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/array.hpp"
@@ -101,11 +101,11 @@ void contact_constraint::process_collision(const collision_result &result, const
             auto &cp = manifold.point[idx];
             merge_point(rp, cp);
 
-            // Combine matter/surface parameters.
-            auto &matterA = registry.get<const matter>(rel.entity[0]);
-            auto &matterB = registry.get<const matter>(rel.entity[1]);
-            cp.restitution = matterA.restitution * matterB.restitution;
-            cp.friction = matterA.friction * matterB.friction;
+            // Combine material/surface parameters.
+            auto &materialA = registry.get<const material>(rel.entity[0]);
+            auto &materialB = registry.get<const material>(rel.entity[1]);
+            cp.restitution = materialA.restitution * materialB.restitution;
+            cp.friction = materialA.friction * materialB.friction;
             cp.lifetime = 0;
 
             if (manifold.num_points < max_contacts) {

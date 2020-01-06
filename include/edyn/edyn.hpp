@@ -14,7 +14,7 @@
 #include "comp/gravity.hpp"
 #include "comp/tag.hpp"
 #include "comp/shape.hpp"
-#include "comp/matter.hpp"
+#include "comp/material.hpp"
 #include "comp/island.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
