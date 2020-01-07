@@ -7,6 +7,7 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/contact_manifold.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/collision/collide.hpp"
 #include <entt/entt.hpp>
 
@@ -25,14 +26,32 @@ void narrowphase::on_construct_broadphase_relation(entt::entity entity, entt::re
     auto m1 = registry.try_get<material>(rel.entity[1]);
 
     if (m0 && m1) {
-        auto contact = contact_constraint();
-
-        if (m0->stiffness < large_scalar || m1->stiffness < large_scalar) {
+        if (m0->use_contact_patch || m1->use_contact_patch) {
+            auto contact = contact_patch_constraint();
+            // Contact patch is always a soft contact since it needs deflection.
+            EDYN_ASSERT(m0->stiffness < large_scalar || m1->stiffness < large_scalar);
             contact.stiffness = 1 / (1 / m0->stiffness + 1 / m1->stiffness);
             contact.damping = 1 / (1 / m0->damping + 1 / m1->damping);
-        }
+            contact.friction_coefficient = m0->friction * m1->friction;
+            contact.speed_sensitivity = std::max(m0->speed_sensitivity, m1->speed_sensitivity);
+            contact.tread_stiffness = std::max(m0->tread_stiffness, m1->tread_stiffness);
+            registry.assign<constraint>(entity, contact);
 
-        registry.assign<constraint>(entity, contact);
+            // Swap relation to ensure the cylinder is in the first entity.
+            auto &shapeB = registry.get<shape>(rel.entity[1]);
+            if (std::holds_alternative<cylinder_shape>(shapeB.var)) {
+                std::swap(rel.entity[0], rel.entity[1]);
+            } 
+        } else {
+            auto contact = contact_constraint();
+
+            if (m0->stiffness < large_scalar || m1->stiffness < large_scalar) {
+                contact.stiffness = 1 / (1 / m0->stiffness + 1 / m1->stiffness);
+                contact.damping = 1 / (1 / m0->damping + 1 / m1->damping);
+            }
+
+            registry.assign<constraint>(entity, contact);
+        }
     }
 }
 
@@ -154,38 +173,45 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
                 cp.restitution = materialA.restitution * materialB.restitution;
                 cp.friction = materialA.friction * materialB.friction;
 
+                // Only add normal and friction constraint rows if this is a
+                // regular contact. Contact patches do their own thing.
+                if (std::holds_alternative<contact_constraint>(con->var)) {
+                    if (manifold.num_points < max_contacts) {
+                        // Create new constraint rows for this contact point.
+                        auto normal_row_entity = registry->create();
+                        con->row[con->num_rows++] = normal_row_entity;
+                        auto friction_row_entity = registry->create();
+                        con->row[con->num_rows++] = friction_row_entity;
+
+                        // Assign row component and associate entities.
+                        auto &normal_row = registry->assign<constraint_row>(normal_row_entity);
+                        normal_row.entity = rel.entity;
+                        auto &friction_row = registry->assign<constraint_row>(friction_row_entity);
+                        friction_row.entity = rel.entity;
+                        friction_row.use_spin[0] = true;
+                        friction_row.use_spin[1] = true;
+
+                        // Contact point can now refer to constraint rows.
+                        cp.normal_row_entity = normal_row_entity;
+                        cp.friction_row_entity = friction_row_entity;
+
+                        normal_row.restitution = cp.restitution;
+
+                    } else {
+                        // One of the existing contacts has been replaced by the new. 
+                        // Update its rows.
+                        auto &normal_row = registry->get<constraint_row>(cp.normal_row_entity);
+                        auto &friction_row = registry->get<constraint_row>(cp.friction_row_entity);
+                        normal_row.restitution = cp.restitution;
+                        
+                        // Zero out warm-starting impulses.
+                        normal_row.impulse = 0;
+                        friction_row.impulse = 0;
+                    }
+                }
+
                 if (manifold.num_points < max_contacts) {
-                    // Create new constraint rows for this contact point.
-                    auto normal_row_entity = registry->create();
-                    con->row[con->num_rows++] = normal_row_entity;
-                    auto friction_row_entity = registry->create();
-                    con->row[con->num_rows++] = friction_row_entity;
-
-                    // Assign row component and associate entities.
-                    auto &normal_row = registry->assign<constraint_row>(normal_row_entity);
-                    normal_row.entity = rel.entity;
-                    auto &friction_row = registry->assign<constraint_row>(friction_row_entity);
-                    friction_row.entity = rel.entity;
-                    friction_row.use_spin[0] = true;
-                    friction_row.use_spin[1] = true;
-
-                    // Contact point can now refer to constraint rows.
-                    cp.normal_row_entity = normal_row_entity;
-                    cp.friction_row_entity = friction_row_entity;
-
-                    normal_row.restitution = cp.restitution;
-
                     ++manifold.num_points;
-                } else {
-                    // One of the existing contacts has been replaced by the new. 
-                    // Update its rows.
-                    auto &normal_row = registry->get<constraint_row>(cp.normal_row_entity);
-                    auto &friction_row = registry->get<constraint_row>(cp.friction_row_entity);
-                    normal_row.restitution = cp.restitution;
-                    
-                    // Zero out warm-starting impulses.
-                    normal_row.impulse = 0;
-                    friction_row.impulse = 0;
                 }
             }
         }
@@ -208,7 +234,7 @@ void narrowphase::prune(entt::entity entity, contact_manifold &manifold,
 
         if (dn > contact_breaking_threshold ||
             length2(dp) > contact_breaking_threshold * contact_breaking_threshold) {
-            
+
             if (auto con = registry->try_get<constraint>(entity)) {
                 // Destroy constraint rows.
                 for (int r = con->num_rows; r > 0; --r) {

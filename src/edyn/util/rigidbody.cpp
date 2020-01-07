@@ -64,7 +64,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (!def.sensor) {
         registry.assign<material>(entity, def.restitution, def.friction,
-                                def.stiffness, def.damping);
+                                  def.stiffness, def.damping, def.use_contact_patch);
     }
 
     if (def.presentation) {

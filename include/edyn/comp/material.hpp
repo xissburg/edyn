@@ -11,6 +11,10 @@ struct material {
     scalar friction {0.5};
     scalar stiffness {large_scalar};
     scalar damping {large_scalar};
+
+    bool use_contact_patch {false};
+    scalar speed_sensitivity {0.03};
+    scalar tread_stiffness {2000000};
 };
 
 }

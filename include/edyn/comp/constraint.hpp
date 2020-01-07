@@ -10,11 +10,12 @@
 #include "edyn/constraints/doublewishbone_constraint.hpp"
 #include "edyn/constraints/differential_constraint.hpp"
 #include "edyn/constraints/tierod_constraint.hpp"
+#include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
 
-inline constexpr size_t max_constraint_rows = 8;
+inline constexpr size_t max_constraint_rows = 256;
 
 struct constraint {
     std::variant<contact_constraint, 
@@ -23,7 +24,8 @@ struct constraint {
                  antiroll_constraint,
                  doublewishbone_constraint,
                  differential_constraint,
-                 tierod_constraint> var;
+                 tierod_constraint,
+                 contact_patch_constraint> var;
     size_t num_rows {0};
     std::array<entt::entity, max_constraint_rows> row = 
         make_array<max_constraint_rows>(entt::entity{entt::null});
