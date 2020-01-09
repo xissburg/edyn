@@ -38,7 +38,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
                 // If the center of the disc is also close to the plane, add 
                 // points to the sides.
-                if (disc_center_dist < threshold) {
+                /* if (disc_center_dist < threshold) {
                     // Rotate `r` by 90 degrees along the cylinder axis.
                     {
                         auto idx = result.num_points % max_contacts;
@@ -79,7 +79,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                         result.point[idx].normalB = shB.normal;
                         result.point[idx].distance = dist1;
                     }
-                }
+                } */
             }
         }
     } else {

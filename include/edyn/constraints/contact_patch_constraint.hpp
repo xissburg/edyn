@@ -22,8 +22,8 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     };
 
     struct tread_row {
-        scalar prev_patch_start {0};
-        scalar prev_patch_end {0};
+        scalar prev_patch_start_angle {0};
+        scalar prev_patch_end_angle {0};
         scalar tread_width;
         scalar patch_half_length;
         std::map<size_t, brush_bristle> bristles;
@@ -39,6 +39,8 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
 
     entt::entity normal_row_entity {entt::null};
     std::array<tread_row, num_rows> tread_rows{};
+
+    void clear(entt::registry &, constraint &);
 
     void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
     void iteration(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
