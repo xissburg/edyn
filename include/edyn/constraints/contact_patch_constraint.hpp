@@ -35,10 +35,10 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     scalar speed_sensitivity {0.03};
     scalar tread_stiffness {2000000};
 
-    static constexpr size_t num_rows = 3;
+    static constexpr size_t num_tread_rows = 3;
 
     entt::entity normal_row_entity {entt::null};
-    std::array<tread_row, num_rows> tread_rows{};
+    std::array<tread_row, num_tread_rows> tread_rows{};
 
     void clear(entt::registry &, constraint &);
 

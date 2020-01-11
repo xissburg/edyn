@@ -344,6 +344,7 @@ void solver::update(uint64_t step, scalar dt) {
 
                 for (size_t i = 0; i < con.num_rows; ++i) {
                     auto &row = registry->get<constraint_row>(con.row[i]);
+                    EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
                     prepare(row, 
                             inv_mA, inv_mB, 
                             inv_IA, inv_IB, 
@@ -376,6 +377,7 @@ void solver::update(uint64_t step, scalar dt) {
 
                 for (size_t i = 0; i < con.num_rows; ++i) {
                     auto &row = registry->get<constraint_row>(con.row[i]);
+                    EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
                     prepare3(row, 
                              inv_mA, inv_mB, inv_mC, 
                              inv_IA, inv_IB, inv_IC, 

@@ -31,10 +31,16 @@ void distance_constraint::prepare(entt::entity, constraint &con, const relation 
     auto rB = rotate(qB, pivot[1]);
 
     auto d = posA + rA - posB - rB;
-    auto l2 = std::max(length2(d), EDYN_EPSILON);
-    auto l = std::max(std::sqrt(l2), EDYN_EPSILON);
-    auto dn = d / l;
-
+    auto l2 = length2(d);
+    auto l = std::sqrt(l2);
+    vector3 dn;
+    
+    if (l2 <= EDYN_EPSILON) {
+        d = dn = vector3_x;
+    } else {
+        dn = d / l;
+    }
+    
     {
         auto error = l - distance;
         auto force = std::abs(stiffness * error);
