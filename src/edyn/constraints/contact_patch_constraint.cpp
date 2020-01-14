@@ -168,7 +168,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     const scalar half_perimeter = pi * cyl.radius;
     const scalar perimeter = half_perimeter * 2;
-    const scalar desired_spacing = 0.03;
+    const scalar desired_spacing = 0.02;
     const size_t num_bristles = std::floor(perimeter / desired_spacing);
     const scalar bristle_spacing = perimeter / num_bristles;
     const scalar bristle_angle = bristle_spacing * r0_inv;
@@ -188,8 +188,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         auto row_center_cyl = p0 - axis_hl + axis * row_x;
         auto defl = std::max(dot(row_center_cyl - pB, -up), scalar(0));
         auto row_half_length = 0.4 * cyl.radius * (defl * r0_inv + 2.25 * std::sqrt(defl * r0_inv));
-
-        auto normal_pressure = row_half_length > 0 ? normal_force / (tread_width * 2 * row_half_length * (1 - 0.25/2 - 0.25/3)) : scalar(0);
 
         auto row_half_angle = std::asin(row_half_length / cyl.radius);
         auto patch_start_angle = angle - row_half_angle;
@@ -296,20 +294,21 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             bristle->friction = friction_coefficient / (1 + speed_sensitivity * tanrelspd);
 
             auto tread_area = bristle_spacing * tread_width;
-            auto tread_normal_pressure = normal_pressure / tread_area;
-            auto friction_force = bristle->friction * tread_normal_pressure * tread_area;
-            scalar force = 0;
+            auto row_area = scalar(2) * row_half_length * tread_width;
+            auto normal_pressure = row_half_length > 0 ? (normal_force / num_tread_rows)  / (tread_width * 2 * row_half_length * (1 - 0.25/2 - 0.25/3)) : scalar(0);
+            auto friction_force = bristle->friction * normal_pressure * tread_area;
+            auto spring_force = vector3_zero;
 
             if (dl2 > EDYN_EPSILON) {
                 auto error = std::sqrt(dl2);
-                scalar tread_damping = 500000;
-                force = length(tread_stiffness * tread_area * d + tread_damping * tread_area * tanrelvel);
+                spring_force = tread_stiffness * tread_area * d;
 
-                if (force > friction_force) {
-                    force = friction_force;
+                if (length2(spring_force) > friction_force * friction_force) {
                     auto dir = d / error;
-                    d = dir * friction_force / (tread_stiffness * tread_area);
+                    auto max_tread_defl = bristle->friction * normal_pressure / tread_stiffness;
+                    d = dir * max_tread_defl;
                     dl2 = length2(d);
+                    spring_force = tread_stiffness * tread_area * d;
                     bristle_tip = bristle_root - d;
 
                     bristle->pivotB = rotate(ornB_conj, bristle_tip - posB);
@@ -322,6 +321,9 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 d = vector3_x;
             }
 
+            scalar tread_damping = 500000;
+            auto damping_force = tanrelvel * tread_damping * tread_area;
+            auto force = length(spring_force + damping_force);
             bristle->force = force;
             bristle->tread_area = tread_area;
 
@@ -358,9 +360,10 @@ void contact_patch_constraint::iteration(entt::entity entity, constraint &con,
             auto tread_idx = kv.first;
             auto &bristle = kv.second;
 
-            auto normal_pressure = normal_force / (tread_row.tread_width * 2 * tread_row.patch_half_length * scalar(1 - 0.25/2 - 0.25/3));
-            auto tread_normal_pressure = normal_pressure / bristle.tread_area;
-            auto friction_force = bristle.friction * tread_normal_pressure * bristle.tread_area;
+            auto normal_pressure = tread_row.patch_half_length > 0 ? 
+                                  (normal_force / num_tread_rows)  / (tread_row.tread_width * tread_row.patch_half_length * scalar(2 * (1 - 0.25/2 - 0.25/3))) : 
+                                  scalar(0);
+            auto friction_force = bristle.friction * normal_pressure * bristle.tread_area;
             auto force = std::min(friction_force, bristle.force);
             auto impulse = force * dt;
 
