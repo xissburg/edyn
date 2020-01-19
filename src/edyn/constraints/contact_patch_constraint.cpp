@@ -51,23 +51,25 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     }
 
     const auto &posA = registry.get<position>(rel.entity[0]);
-    quaternion ornA = registry.get<orientation>(rel.entity[0]);
-    const auto &spinAngleA = registry.get<spin_angle>(rel.entity[0]);
-    ornA *= quaternion_axis_angle(vector3_x, spinAngleA);
-    const auto ornA_conj = conjugate(ornA);
+    const auto &ornA = registry.get<orientation>(rel.entity[0]);
+    
+    const auto &spin_angleA = registry.get<spin_angle>(rel.entity[0]);
+    const auto spin_ornA = ornA * quaternion_axis_angle(vector3_x, spin_angleA);
 
     const auto &posB = registry.get<position>(rel.entity[1]);
     const auto &ornB = registry.get<orientation>(rel.entity[1]);
     const auto ornB_conj = conjugate(ornB);
+
     const auto &normal = manifold.point[0].normalB;
 
     const auto &shapeA = registry.get<shape>(rel.entity[0]);
     const auto &cyl = std::get<cylinder_shape>(shapeA.var);
     
     const auto &linvelA = registry.get<linvel>(rel.entity[0]);
-    vector3 angvelA = registry.get<angvel>(rel.entity[0]);
+    const auto &angvelA = registry.get<angvel>(rel.entity[0]);
+    
     const auto &spinA = registry.get<spin>(rel.entity[0]);
-    angvelA += vector3_x * spinA;
+    const auto spin_angvelA = angvelA + vector3_x * spinA;
 
     const auto &linvelB = registry.get<linvel>(rel.entity[1]);
     const auto &angvelB = registry.get<angvel>(rel.entity[1]);
@@ -82,7 +84,8 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto pB = posB + rotate(ornB, manifold.point[0].pivotB);
 
     // Support point in object space.
-    auto p0_obj = rotate(ornA_conj, p0 - posA);
+    const auto spin_ornA_conj = conjugate(spin_ornA);
+    auto p0_obj = rotate(spin_ornA_conj, p0 - posA);
 
     // Support point angle in circle space where z points forward and y is up.
     auto angle = std::atan2(p0_obj.y, p0_obj.z);
@@ -264,7 +267,9 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 
                 auto entry_pos = posA + linvelA * entry_dt;
                 auto entry_orn = integrate(ornA, angvelA, entry_dt);
-                auto entry_bristle_pos = entry_pos + rotate(entry_orn, bristle_pivot);
+                auto entry_spin_angle = spin_angleA + spinA * entry_dt;
+                auto entry_spin_orn = entry_orn * quaternion_axis_angle(vector3_x, entry_spin_angle);
+                auto entry_bristle_pos = entry_pos + rotate(entry_spin_orn, bristle_pivot);
                 entry_bristle_pos -= normal * dot(entry_bristle_pos, normal);
                 auto rB = rotate(ornB_conj, entry_bristle_pos - posB);
 
@@ -275,7 +280,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 bristle = &tread_row.bristles[j];
             }
 
-            auto bristle_root = posA + rotate(ornA, bristle->pivotA);
+            auto bristle_root = posA + rotate(spin_ornA, bristle->pivotA);
             bristle_root -= normal * dot(bristle_root - pB, normal);
             auto pivotA = bristle_root - posA;
 
@@ -286,7 +291,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             auto d = bristle_root - bristle_tip;
             auto dl2 = length2(d);
             
-            auto velA = linvelA + cross(angvelA, pivotA);
+            auto velA = linvelA + cross(spin_angvelA, pivotA);
             auto velB = linvelB + cross(angvelB, pivotB);
             auto relvel = velA - velB;
             auto tanrelvel = relvel - normal * dot(relvel, normal);

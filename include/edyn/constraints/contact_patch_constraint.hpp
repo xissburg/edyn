@@ -33,7 +33,7 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     scalar damping {large_scalar};
     scalar friction_coefficient {1};
     scalar speed_sensitivity {0.03};
-    scalar tread_stiffness {2000000};
+    scalar tread_stiffness {7000000};
 
     static constexpr size_t num_tread_rows = 3;
 
