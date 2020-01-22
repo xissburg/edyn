@@ -38,6 +38,11 @@ void contact_patch_constraint::clear(entt::registry &registry, constraint &con) 
         registry.destroy(con.row[i]);
     }
     con.num_rows = 0;
+
+    for (size_t i = 0; i < num_tread_rows; ++i) {
+        auto &tread_row = tread_rows[i];
+        tread_row.bristles.clear();
+    }
 }
 
 void contact_patch_constraint::prepare(entt::entity entity, constraint &con, 
@@ -52,6 +57,8 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     const auto &posA = registry.get<position>(rel.entity[0]);
     const auto &ornA = registry.get<orientation>(rel.entity[0]);
+    
+    const auto axis = rotate(ornA, vector3_x);
     
     const auto &spin_angleA = registry.get<spin_angle>(rel.entity[0]);
     const auto spin_ornA = ornA * quaternion_axis_angle(vector3_x, spin_angleA);
@@ -69,13 +76,12 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const auto &angvelA = registry.get<angvel>(rel.entity[0]);
     
     const auto &spinA = registry.get<spin>(rel.entity[0]);
-    const auto spin_angvelA = angvelA + vector3_x * spinA;
+    const auto spin_angvelA = angvelA + axis * spinA;
 
     const auto &linvelB = registry.get<linvel>(rel.entity[1]);
     const auto &angvelB = registry.get<angvel>(rel.entity[1]);
 
     // Determine contact patch extremities.
-    const auto axis = rotate(ornA, vector3_x);
     const auto axis_hl = axis * cyl.half_length;
     auto p0 = support_point_circle(posA + axis_hl, ornA, cyl.radius, -normal);
     auto p1 = p0 - axis_hl * 2; // because circles are parallel
@@ -189,8 +195,8 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         auto &tread_row = tread_rows[i];
         auto row_x = row_start + tread_width * (i + 0.5);
         auto row_center_cyl = p0 - axis_hl + axis * row_x;
-        auto defl = std::max(dot(row_center_cyl - pB, -up), scalar(0));
-        auto row_half_length = 0.4 * cyl.radius * (defl * r0_inv + 2.25 * std::sqrt(defl * r0_inv));
+        auto defl = std::clamp(dot(row_center_cyl - pB, -up), scalar(0), cyl.radius / 2);
+        auto row_half_length = scalar(0.4) * cyl.radius * (defl * r0_inv + scalar(2.25) * std::sqrt(defl * r0_inv));
 
         auto row_half_angle = std::asin(row_half_length / cyl.radius);
         auto patch_start_angle = angle - row_half_angle;
@@ -218,8 +224,10 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 ( wraps_around && (patch_start_angle < ang || ang < patch_end_angle))) {
                 ++iter;
             } else {
-                auto row_iter = std::find(con.row.begin(), con.row.end(), iter->second.entity);
-                EDYN_ASSERT(row_iter != con.row.end());
+                auto row_end_iter = con.row.begin() + con.num_rows;
+                auto row_iter = std::find(con.row.begin(), row_end_iter, iter->second.entity);
+                EDYN_ASSERT(row_iter != row_end_iter);
+                EDYN_ASSERT(con.num_rows > 0);
                 --con.num_rows;
                 *row_iter = con.row[con.num_rows]; // swap with last
                 registry.destroy(iter->second.entity);
@@ -252,11 +260,11 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 auto dist_end = std::min(std::abs(tread_row.prev_patch_end_angle - ang), 
                                          std::abs(tread_row.prev_patch_end_angle - (ang + 2 * pi)));
 
-                if (dist_start < dist_end) {
+                if (dist_start < dist_end) { // entered through the front
                     auto dist_patch_start = std::min(std::abs(tread_row.prev_patch_start_angle - patch_start_angle), 
                                                      std::abs(tread_row.prev_patch_start_angle - (patch_start_angle + 2 * pi)));
                     entry_dt = -dt * dist_start / dist_patch_start;
-                } else {
+                } else { // entered through the back
                     auto dist_patch_end = std::min(std::abs(tread_row.prev_patch_end_angle - patch_end_angle), 
                                                    std::abs(tread_row.prev_patch_end_angle - (patch_end_angle + 2 * pi)));
                     entry_dt = -dt * dist_end / dist_patch_end;
@@ -264,13 +272,13 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
                 auto bristle_pivot = vector3{row_x, std::sin(ang) * cyl.radius, std::cos(ang) * cyl.radius};
                 auto rA = bristle_pivot;
-                
+
                 auto entry_pos = posA + linvelA * entry_dt;
                 auto entry_orn = integrate(ornA, angvelA, entry_dt);
                 auto entry_spin_angle = spin_angleA + spinA * entry_dt;
                 auto entry_spin_orn = entry_orn * quaternion_axis_angle(vector3_x, entry_spin_angle);
                 auto entry_bristle_pos = entry_pos + rotate(entry_spin_orn, bristle_pivot);
-                entry_bristle_pos -= normal * dot(entry_bristle_pos, normal);
+                entry_bristle_pos -= normal * dot(entry_bristle_pos - pB, normal);
                 auto rB = rotate(ornB_conj, entry_bristle_pos - posB);
 
                 auto ent = registry.create();
@@ -290,7 +298,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
             auto d = bristle_root - bristle_tip;
             auto dl2 = length2(d);
-            
+
             auto velA = linvelA + cross(spin_angvelA, pivotA);
             auto velB = linvelB + cross(angvelB, pivotB);
             auto relvel = velA - velB;
