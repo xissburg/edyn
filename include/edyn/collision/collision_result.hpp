@@ -19,11 +19,11 @@ struct collision_result {
     size_t num_points {0};
     std::array<collision_point, max_contacts> point;
 
-    collision_result & swap() {
+    collision_result & swap(const quaternion &ornA, const quaternion &ornB) {
         for (size_t i = 0; i < num_points; ++i) {
             auto &cp = point[i];
             std::swap(cp.pivotA, cp.pivotB);
-            cp.normalB = -cp.normalB;
+            cp.normalB = rotate(conjugate(ornA), -rotate(ornB, cp.normalB));
         }
         return *this;
     }

@@ -116,6 +116,27 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
     return length2(c1 - c2);
 }
 
+scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius, 
+                          const vector3 &p, vector3 &q) {
+    // Project point onto disc's plane.
+    const auto normal = rotate(dorn, vector3_x);
+    const auto ln = dot(p - dpos, normal);
+    const auto p_proj = p - normal * ln;
+    const auto d = p_proj - dpos;
+    const auto l2 = length2(d);
+
+    // Projection is inside disc.
+    if (l2 < radius * radius) {
+        q = p_proj;
+        return ln * ln;
+    }
+
+    const auto l = std::sqrt(l2);
+    const auto dn = d / l;
+    q = dpos + dn * radius;
+    return length2(p - q);
+}
+
 size_t intersect_line_circle(scalar px, scalar py, 
                              scalar qx, scalar qy, 
                              scalar radius, 
@@ -521,6 +542,32 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
     num_points = 1;
 
     return dist2;
+}
+
+void plane_space(const vector3 &n, vector3 &p, vector3 &q) {
+    if (std::abs(n.z) > half_sqrt2) {
+        // Choose p in yz plane.
+        auto a = n.y * n.y + n.z * n.z;
+        auto k = scalar(1) / std::sqrt(a);
+        p.x = 0;
+        p.y = -n.z * k;
+        p.z = n.y * k;
+        // q = n X p
+        q.x = a * k;
+        q.y = -n.x * p.z;
+        q.z = n.x * p.y;
+    } else {
+        // Choose p in xy plane.
+        auto a = n.x * n.x + n.y * n.y;
+        auto k = scalar(1) / std::sqrt(a);
+        p.x = -n.y * k;
+        p.y = n.x * k;
+        p.z = 0;
+        // q = n X p
+        q.x = -n.z * p.y;
+        q.y = n.z * p.x;
+        q.z = a * k;
+    }
 }
 
 }
