@@ -58,6 +58,7 @@ conan_basic_setup()
 
 set(EDyn_SOURCES
     src/edyn/math/geom.cpp
+    src/edyn/math/quaternion.cpp
     src/edyn/collision/broadphase.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
     src/edyn/collision/collide_sphere_plane.cpp
@@ -71,6 +72,7 @@ set(EDyn_SOURCES
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
     src/edyn/constraints/point_constraint.cpp
+    src/edyn/constraints/hinge_constraint.cpp
     src/edyn/dynamics/island_util.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
