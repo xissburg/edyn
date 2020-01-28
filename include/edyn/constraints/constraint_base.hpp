@@ -19,7 +19,7 @@ struct relation;
  * The supported functions are:
  * 
  * * @code{.cpp}
- *   void init(constraint &, relation &, entt::registry &)
+ *   void init(entt::entity, constraint &, relation &, entt::registry &)
  *   @endcode 
  * 
  *   Called once after a constraint is initially setup. This is usually the 
@@ -27,7 +27,7 @@ struct relation;
  *   rows is dynamic.
  * 
  * * @code{.cpp}
- *   void prepare(constraint &, relation &, entt::registry &, scalar dt)
+ *   void prepare(entt::entity, constraint &, relation &, entt::registry &, scalar dt)
  *   @endcode
  * 
  *   Called before the solver iterations start. Here each `edyn::constraint_row`
@@ -35,7 +35,7 @@ struct relation;
  *   rigid body.
  * 
  * * @code{.cpp}
- *   void iteration(constraint &, relation &, entt::registry &, scalar dt)
+ *   void iteration(entt::entity, constraint &, relation &, entt::registry &, scalar dt)
  *   @endcode
  * 
  *   Called before each iteration. It gives the constraint the opportunity to
@@ -52,37 +52,41 @@ struct constraint_base {
     // Called once after a constraint is initially setup.
     template<typename Target = Derived>
     auto update(solver_stage_value_t<solver_stage::init>, 
+                entt::entity ent,
                 constraint &con, 
                 const relation &rel, 
                 entt::registry &reg, 
-                scalar dt) -> decltype(std::declval<Target>().init(con, rel, reg)) {
-        static_cast<Target *>(this)->init(con, rel, reg);
+                scalar dt) -> decltype(std::declval<Target>().init(ent, con, rel, reg)) {
+        static_cast<Target *>(this)->init(ent, con, rel, reg);
     }
     
     // Called before the solver iterations start.
     template<typename Target = Derived>
     auto update(solver_stage_value_t<solver_stage::prepare>, 
+                entt::entity ent,
                 constraint &con, 
                 const relation &rel, 
                 entt::registry &reg, 
-                scalar dt) -> decltype(std::declval<Target>().prepare(con, rel, reg, dt)) {
-        static_cast<Target *>(this)->prepare(con, rel, reg, dt);
+                scalar dt) -> decltype(std::declval<Target>().prepare(ent, con, rel, reg, dt)) {
+        static_cast<Target *>(this)->prepare(ent, con, rel, reg, dt);
     }
 
     // Called before solving each iteration.
     template<typename Target = Derived>
     auto update(solver_stage_value_t<solver_stage::iteration>, 
+                entt::entity ent,
                 constraint &con, 
                 const relation &rel, 
                 entt::registry &reg, 
-                scalar dt) -> decltype(std::declval<Target>().iteration(con, rel, reg, dt)) {
-        static_cast<Target *>(this)->iteration(con, rel, reg, dt);
+                scalar dt) -> decltype(std::declval<Target>().iteration(ent, con, rel, reg, dt)) {
+        static_cast<Target *>(this)->iteration(ent, con, rel, reg, dt);
     }
 
     // Base case which should be resolved to in case the specific function is 
     // not defined. It does nothing.
     template<solver_stage stage, typename... Args>
     void update(solver_stage_value_t<stage>, 
+                entt::entity ent,
                 constraint &con, 
                 const relation &rel, 
                 entt::registry &reg, 

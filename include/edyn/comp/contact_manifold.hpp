@@ -2,7 +2,7 @@
 #define EDYN_COLLISION_CONTACT_MANIFOLD_HPP
 
 #include <array>
-#include "contact_point.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/math/constants.hpp"
 
 namespace edyn {

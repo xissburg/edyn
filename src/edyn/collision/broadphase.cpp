@@ -87,25 +87,14 @@ void broadphase::update() {
                 auto p = std::make_pair(e0, e1);
                 if (!relations.count(p)) {
                     auto ent = registry->create();
-                    registry->assign<relation>(ent, e0, e1);
-
-                    auto m0 = registry->try_get<material>(e0);
-                    auto m1 = registry->try_get<material>(e1);
-                    if (m0 && m1) {
-                        auto contact = contact_constraint();
-
-                        if (m0->stiffness < large_scalar || m1->stiffness < large_scalar) {
-                            contact.stiffness = 1 / (1 / m0->stiffness + 1 / m1->stiffness);
-                            contact.damping = 1 / (1 / m0->damping + 1 / m1->damping);
-                        }
-
-                        registry->assign<constraint>(ent, contact);
-                    }
+                    auto &rel = registry->assign<relation>(ent, e0, e1);
 
                     relations[p] = ent;
                     // Also store the reverse pair.
                     auto q = std::make_pair(e1, e0);
                     relations[q] = ent;
+
+                    construct_relation_signal.publish(ent, *registry, rel);
                 }
             }
         }
