@@ -114,14 +114,18 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     
     // Intersect segment between `p0` and `p1` with contact plane to find
     // the extreme points along the width of the contact patch.
-    if (proj0 > 0) {
-        // `p0` is above the plane.
-        p0 -= axis_hl * proj0 / dot(axis_hl, normal);
-    } else if (proj1 > 0) {
-        // `p1` is above the plane.
-        auto s = proj1 / dot(axis_hl, normal);
-        p1 += axis_hl * s;
-        row_start += cyl.half_length * s;
+    auto d = dot(axis_hl, normal);
+
+    if (std::abs(d) > EDYN_EPSILON) {
+        if (proj0 > 0) {
+            // `p0` is above the plane.
+            p0 -= axis_hl * proj0 / d;
+        } else if (proj1 > 0) {
+            // `p1` is above the plane.
+            auto s = proj1 / d;
+            p1 += axis_hl * s;
+            row_start += cyl.half_length * s;
+        }
     }
 
     // Create non-penetration constraint.
