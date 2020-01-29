@@ -60,6 +60,9 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                                      scalar *sp = nullptr, scalar *tp = nullptr, 
                                      vector3 *c1p = nullptr, vector3 *c2p = nullptr);
 
+scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius, 
+                          const vector3 &p, vector3 &q);
+
 /**
  * Computes the closest points between a line `p(s) = p0 + s*(p1 - p0)` and a disc.
  * @param cpos Center of disc.
@@ -83,7 +86,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
  * @param threshold Value used to determine whether the line is parallel to disc.
  * @return The squared distance.
  */
-scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  scalar radius,
+scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn, scalar radius,
                                const vector3 &p0, const vector3 &p1, size_t &num_points, 
                                scalar &s0, vector3 &cc0, vector3 &cl0,
                                scalar &s1, vector3 &cc1, vector3 &cl1, 
@@ -95,6 +98,16 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
                                const vector3 &posB, const quaternion &ornB, scalar radiusB,
                                size_t &num_points, closest_points_array &, 
                                vector3 &normal);
+
+/**
+ * Constructs an orthonomal basis given one vector. In other words, given a
+ * plane normal, it finds two orthogonal vectors `p` and `q` which lie in
+ * the plane.
+ * @param n First basis vector, plane normal.
+ * @param p Outputs the first vector on the plane.
+ * @param q Outputs the second vector on the plane, orthogonal to `p`.
+ */
+void plane_space(const vector3 &n, vector3 &p, vector3 &q);
 
 }
 

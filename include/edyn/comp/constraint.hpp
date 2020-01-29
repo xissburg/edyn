@@ -11,6 +11,8 @@
 #include "edyn/constraints/differential_constraint.hpp"
 #include "edyn/constraints/tierod_constraint.hpp"
 #include "edyn/constraints/contact_patch_constraint.hpp"
+#include "edyn/constraints/hinge_constraint.hpp"
+#include "edyn/constraints/generic_constraint.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
@@ -25,7 +27,9 @@ struct constraint {
                  doublewishbone_constraint,
                  differential_constraint,
                  tierod_constraint,
-                 contact_patch_constraint> var;
+                 contact_patch_constraint,
+                 hinge_constraint,
+                 generic_constraint> var;
     size_t num_rows {0};
     std::array<entt::entity, max_constraint_rows> row = 
         make_array<max_constraint_rows>(entt::entity{entt::null});

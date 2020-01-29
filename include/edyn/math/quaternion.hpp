@@ -86,6 +86,7 @@ inline scalar length(const quaternion &q) {
     return std::sqrt(length2(q));
 }
 
+// Returns a unit-length version of the given quaternion.
 inline quaternion normalize(const quaternion &q) {
     auto l = length(q);
     EDYN_ASSERT(l > EDYN_EPSILON);
@@ -103,30 +104,17 @@ inline vector3 rotate(const quaternion &q, const vector3 &v) {
     return {r.x, r.y, r.z};
 }
 
-// Integrate angular velocity over time.
-inline quaternion integrate(const quaternion &q, const vector3 &w, scalar dt) {
-    // "Practical Parameterization of Rotations Using the Exponential Map", F. Sebastian Grassia
-    const auto ws = length(w);
-    const auto min_ws = scalar {0.001};
-    constexpr scalar half = 0.5;
-    scalar t;
-
-    if (ws < min_ws) {
-        constexpr auto k = scalar(1) / scalar(48);
-        t = half * dt - dt * dt * dt * k * ws * ws;
-    } else {
-        t = std::sin(half * ws * dt) / ws;
-    }
-
-    auto r = quaternion {w.x * t, w.y * t, w.z * t, std::cos(half * ws * dt)};
-    return normalize(r * q);
-}
-
 inline quaternion quaternion_axis_angle(const vector3 &v, scalar a) {
     auto l = length(v);
     auto s = std::sin(a * scalar(0.5)) / l;
     return {v.x * s, v.y * s, v.z * s, std::cos(a * scalar(0.5))};
 }
+
+// Integrate angular velocity over time.
+quaternion integrate(const quaternion &q, const vector3 &w, scalar dt);
+
+// Returns the shortest rotation that takes `v0` to `v1`.
+quaternion shortest_arc(const vector3 &v0, const vector3 &v1);
 
 }
 
