@@ -36,7 +36,7 @@ void hinge_constraint::set_axis(const quaternion &ornA,
     frame[1] = matrix3x3_columns(frameB_x, frameB_y, axisB);
 }
 
-void hinge_constraint::init(constraint &con, const relation &rel, entt::registry &registry) {
+void hinge_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
     con.num_rows = 5;
 
     for (size_t i = 0; i < con.num_rows; ++i) {
@@ -47,7 +47,7 @@ void hinge_constraint::init(constraint &con, const relation &rel, entt::registry
     }
 }
 
-void hinge_constraint::prepare(constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
+void hinge_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
     auto &posA = registry.get<const position>(rel.entity[0]);
     auto &posB = registry.get<const position>(rel.entity[1]);
 
