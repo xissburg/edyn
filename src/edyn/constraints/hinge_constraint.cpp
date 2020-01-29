@@ -51,17 +51,14 @@ void hinge_constraint::prepare(constraint &con, const relation &rel, entt::regis
     auto &posA = registry.get<const position>(rel.entity[0]);
     auto &posB = registry.get<const position>(rel.entity[1]);
 
-    auto rA = pivot[0];
-    auto rB = pivot[1];
-
     auto &ornA = registry.get<const orientation>(rel.entity[0]);
-    rA = rotate(ornA, rA);
+    const auto rA = rotate(ornA, pivot[0]);
 
     auto &ornB = registry.get<const orientation>(rel.entity[1]);
-    rB = rotate(ornB, rB);
+    const auto rB = rotate(ornB, pivot[1]);
 
-    auto rA_skew = skew(rA);
-    auto rB_skew = skew(rB);
+    const auto rA_skew = skew(rA);
+    const auto rB_skew = skew(rB);
     constexpr auto I = matrix3x3_identity;
 
     for (size_t i = 0; i < 3; ++i) {
@@ -72,12 +69,12 @@ void hinge_constraint::prepare(constraint &con, const relation &rel, entt::regis
         row.upper_limit = EDYN_SCALAR_MAX;
     }
 
-    auto n = rotate(ornA, frame[0].column(2));
-    auto p = rotate(ornA, frame[0].column(0));
-    auto q = rotate(ornA, frame[0].column(1));
+    const auto n = rotate(ornA, frame[0].column(2));
+    const auto p = rotate(ornA, frame[0].column(0));
+    const auto q = rotate(ornA, frame[0].column(1));
 
-    auto m = rotate(ornB, frame[1].column(2));
-    auto u = cross(n, m);
+    const auto m = rotate(ornB, frame[1].column(2));
+    const auto u = cross(n, m);
 
     {
         auto &row = registry.get<constraint_row>(con.row[3]);
