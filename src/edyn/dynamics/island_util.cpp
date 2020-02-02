@@ -5,9 +5,16 @@
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/spin.hpp"
+#include "edyn/comp/orientation.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
+
+void wakeup(entt::entity entity, entt::registry &registry) {
+    auto &node = registry.get<island_node>(entity);
+    wakeup_island(node.island_entity, registry);
+}
 
 void wakeup_island(entt::entity island_ent, entt::registry &registry) {
     // Remove the `sleeping_tag` from all the entities associated with the
@@ -51,7 +58,15 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
                 break;
             }
 
-            auto [v, w] = vel_view.get<linvel, angvel>(e);
+            auto &v = vel_view.get<linvel>(e);
+            vector3 w = vel_view.get<angvel>(e);
+
+            auto s = registry.try_get<spin>(e);
+            if (s) {
+                auto &orn = registry.get<orientation>(e);
+                w += rotate(orn, vector3_x) * *s;
+            }
+
             if (length2(v) > island_linear_sleep_threshold * island_linear_sleep_threshold || 
                 length2(w) > island_angular_sleep_threshold * island_angular_sleep_threshold) {
                 sleep = false;
@@ -76,6 +91,12 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
                 auto [v, w] = vel_view.get<linvel, angvel>(e);
                 v = vector3_zero;
                 w = vector3_zero;
+
+                auto s = registry.try_get<spin>(e);
+                if (s) {
+                    s = 0;
+                }
+
                 registry.assign<sleeping_tag>(e);
 
                 auto rel_con = registry.get<relation_container>(e);
