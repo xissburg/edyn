@@ -110,6 +110,21 @@ inline quaternion quaternion_axis_angle(const vector3 &v, scalar a) {
     return {v.x * s, v.y * s, v.z * s, std::cos(a * scalar(0.5))};
 }
 
+inline scalar quaternion_angle(const quaternion &q) {
+    return std::acos(q.w) * scalar(2);
+}
+
+inline vector3 quaternion_axis(const quaternion &q) {
+    auto s2 = scalar(1) - q.w * q.w;
+
+    if (s2 > EDYN_EPSILON) {
+        auto s = scalar(1) / std::sqrt(s2);
+        return {q.x * s, q.y * s, q.z * s};
+    }
+
+    return vector3_x;
+}
+
 // Integrate angular velocity over time.
 quaternion integrate(const quaternion &q, const vector3 &w, scalar dt);
 

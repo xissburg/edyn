@@ -65,7 +65,9 @@ struct rigidbody_def {
 void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
 entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
 
-void update_kinematic_position(entt::registry &, entt::entity, const vector3 & pos, scalar dt);
+void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);
+void update_kinematic_orientation(entt::registry &, entt::entity, const quaternion &, scalar dt);
+void clear_kinematic_velocities(entt::registry &);
 
 }
 

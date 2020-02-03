@@ -18,8 +18,9 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/dynamics/solver_stage.hpp"
-#include "edyn/util/array.hpp"
 #include "edyn/dynamics/island_util.hpp"
+#include "edyn/util/array.hpp"
+#include "edyn/util/rigidbody.hpp"
 
 namespace edyn {
 
@@ -349,7 +350,8 @@ void solver::update(uint64_t step, scalar dt) {
                             inv_mA, inv_mB, 
                             inv_IA, inv_IB, 
                             linvelA, linvelB, 
-                            angvelA + spinvelA, angvelB + spinvelB);
+                            row.use_spin[0] ? angvelA + spinvelA : static_cast<vector3>(angvelA), 
+                            row.use_spin[1] ? angvelB + spinvelB : static_cast<vector3>(angvelB));
                     warm_start(*registry, row, 
                                inv_mA, inv_mB, 
                                inv_IA, inv_IB, 
@@ -494,6 +496,8 @@ void solver::update(uint64_t step, scalar dt) {
     update_inertia(*registry);
 
     put_islands_to_sleep(*registry, step, dt);
+
+    clear_kinematic_velocities(*registry);
 }
 
 }

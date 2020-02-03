@@ -47,7 +47,7 @@ void generic_constraint::prepare(entt::entity, constraint &con, const relation &
         auto p = rotate(ornA, I.row[i]);
         auto q = rotate(ornB, I.row[i]);
         auto &row = registry.get<constraint_row>(con.row[i + 3]);
-        row.J = {vector3_zero, p, vector3_zero, -p};
+        row.J = {vector3_zero, I.row[i], vector3_zero, -I.row[i]};
         row.error = (dot(q, p) - 1) / dt;
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
