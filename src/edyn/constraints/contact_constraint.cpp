@@ -97,6 +97,8 @@ void contact_constraint::prepare(entt::entity entity, constraint &con, const rel
         friction_row.error = 0;
         // friction_row limits are calculated in `iteration(...)` using the normal impulse.
         friction_row.lower_limit = friction_row.upper_limit = 0;
+        friction_row.use_spin[0] = true;
+        friction_row.use_spin[1] = true;
     }
 }
 
