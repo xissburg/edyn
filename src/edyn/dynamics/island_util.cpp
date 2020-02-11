@@ -27,16 +27,17 @@ void wakeup_island(entt::entity island_ent, entt::registry &registry) {
     for (auto e : isle.entities) {
         registry.reset<sleeping_tag>(e);
 
-        auto rel_con = registry.get<relation_container>(e);
-        for (auto rel_ent : rel_con.entities) {
-            registry.reset<sleeping_tag>(rel_ent);
+        if (auto rel_con = registry.try_get<relation_container>(e)) {
+            for (auto rel_ent : rel_con->entities) {
+                registry.reset<sleeping_tag>(rel_ent);
 
-            // If this relation has an associated constraint, also wake up all
-            // its rows.
-            auto con = registry.try_get<constraint>(rel_ent);
-            if (con) {
-                for (size_t i = 0; i < con->num_rows; ++i) {
-                    registry.reset<sleeping_tag>(con->row[i]);
+                // If this relation has an associated constraint, also wake up all
+                // its rows.
+                auto con = registry.try_get<constraint>(rel_ent);
+                if (con) {
+                    for (size_t i = 0; i < con->num_rows; ++i) {
+                        registry.reset<sleeping_tag>(con->row[i]);
+                    }
                 }
             }
         }
