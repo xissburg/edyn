@@ -18,6 +18,7 @@ void generic_constraint::init(entt::entity, constraint &con, const relation &rel
         con.row[i] = e;
         auto &row = registry.assign<constraint_row>(e);
         row.entity = rel.entity;
+        row.priority = 100;
     }
 }
 
@@ -48,7 +49,7 @@ void generic_constraint::prepare(entt::entity, constraint &con, const relation &
         auto q = rotate(ornB, I.row[i]);
         auto &row = registry.get<constraint_row>(con.row[i + 3]);
         row.J = {vector3_zero, p, vector3_zero, -p};
-        row.error = (dot(q, p) - 1) / dt;
+        row.error = 0;//(dot(q, p) - 1) / dt;
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
     }

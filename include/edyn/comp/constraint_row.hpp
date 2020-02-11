@@ -10,8 +10,8 @@
 namespace edyn {
 
 struct constraint_row {
-    std::array<entt::entity, max_relations> entity;
-    std::array<vector3, 4> J;
+    std::array<entt::entity, max_relations> entity {make_array<max_relations>(entt::entity{entt::null})};
+    std::array<vector3, max_relations * 2> J;
     scalar error;
     scalar lower_limit;
     scalar upper_limit;
@@ -22,6 +22,7 @@ struct constraint_row {
     scalar relvel;
     scalar restitution {0};
     scalar impulse {0};
+    int priority {0};
 };
 
 }

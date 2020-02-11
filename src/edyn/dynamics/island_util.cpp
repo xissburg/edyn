@@ -5,9 +5,16 @@
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/orientation.hpp"
+#include "edyn/util/array.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
+
+void wakeup(entt::entity entity, entt::registry &registry) {
+    auto &node = registry.get<island_node>(entity);
+    wakeup_island(node.island_entity, registry);
+}
 
 void wakeup_island(entt::entity island_ent, entt::registry &registry) {
     // Remove the `sleeping_tag` from all the entities associated with the
@@ -20,16 +27,17 @@ void wakeup_island(entt::entity island_ent, entt::registry &registry) {
     for (auto e : isle.entities) {
         registry.reset<sleeping_tag>(e);
 
-        auto rel_con = registry.get<relation_container>(e);
-        for (auto rel_ent : rel_con.entities) {
-            registry.reset<sleeping_tag>(rel_ent);
+        if (auto rel_con = registry.try_get<relation_container>(e)) {
+            for (auto rel_ent : rel_con->entities) {
+                registry.reset<sleeping_tag>(rel_ent);
 
-            // If this relation has an associated constraint, also wake up all
-            // its rows.
-            auto con = registry.try_get<constraint>(rel_ent);
-            if (con) {
-                for (size_t i = 0; i < con->num_rows; ++i) {
-                    registry.reset<sleeping_tag>(con->row[i]);
+                // If this relation has an associated constraint, also wake up all
+                // its rows.
+                auto con = registry.try_get<constraint>(rel_ent);
+                if (con) {
+                    for (size_t i = 0; i < con->num_rows; ++i) {
+                        registry.reset<sleeping_tag>(con->row[i]);
+                    }
                 }
             }
         }
@@ -97,6 +105,9 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
 }
 
 void island_on_construct_relation(entt::entity entity, entt::registry &registry, relation &rel) {
+    EDYN_ASSERT(rel.entity[0] != entt::null);
+    EDYN_ASSERT(rel.entity[1] != entt::null);
+
     // Allow the related entities to refer to their relations.
     registry.get_or_assign<relation_container>(rel.entity[0]).entities.push_back(entity);
     registry.get_or_assign<relation_container>(rel.entity[1]).entities.push_back(entity);
@@ -105,6 +116,8 @@ void island_on_construct_relation(entt::entity entity, entt::registry &registry,
     std::vector<entt::entity> island_ents;
 
     for (auto ent : rel.entity) {
+        if (ent == entt::null) { continue; }
+
         auto node = registry.try_get<island_node>(ent);
         if (node && 
             std::find(island_ents.begin(), island_ents.end(), 
@@ -174,8 +187,9 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
     // Remove the destroyed relation from the `relation_container` of the
     // related entities. Empty containers are removed at the end. This makes
     // it unecessary to check for existence in the next step.
-    for (size_t i = 0; i < max_relations; ++i) {
-        auto &container = registry.get<relation_container>(rel.entity[i]);
+    for (auto ent : rel.entity) {
+        if (ent == entt::null) { continue; }
+        auto &container = registry.get<relation_container>(ent);
         auto it = std::find(container.entities.begin(), container.entities.end(), entity);
         std::swap(*it, *(container.entities.end() - 1));
         container.entities.pop_back();
@@ -189,37 +203,37 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
     for (size_t i = 0; i < max_relations; ++i) {
         // Only dynamic entities matter since constraints do not affect static
         // and kinematic entities.
-        if (!registry.has<dynamic_tag>(rel.entity[i])) {
+        auto rel_ent = rel.entity[i];
+        if (rel_ent == entt::null || 
+            !registry.has<dynamic_tag>(rel_ent)) {
             continue;
         }
 
         std::vector<entt::entity> visit_me;
-        visit_me.push_back(rel.entity[i]);
+        visit_me.push_back(rel_ent);
 
         while (!visit_me.empty()) {
-            auto ent = visit_me.back();
+            auto visit_ent = visit_me.back();
             visit_me.pop_back();
             auto found_it = std::find(connected_entities[i].begin(), 
-                                      connected_entities[i].end(), ent);
+                                      connected_entities[i].end(), visit_ent);
 
             if (found_it == connected_entities[i].end()) {
-                connected_entities[i].push_back(ent);
+                connected_entities[i].push_back(visit_ent);
             } else {
                 continue; // Already visited.
             }
 
             // Grab neighboring entities to visit.
-            auto &container = registry.get<relation_container>(ent);
+            auto &container = registry.get<relation_container>(visit_ent);
 
-            for (auto rel_ent : container.entities) {
-                auto &rel = registry.get<relation>(rel_ent);
+            for (auto cont_ent : container.entities) {
+                auto &cont_rel = registry.get<relation>(cont_ent);
                 
-                if (rel.entity[0] != ent && registry.has<dynamic_tag>(rel.entity[0])) {
-                    visit_me.push_back(rel.entity[0]);
-                }
-
-                if (rel.entity[1] != ent && registry.has<dynamic_tag>(rel.entity[1])) {
-                    visit_me.push_back(rel.entity[1]);
+                for (auto ent : cont_rel.entity) {
+                    if (ent != entt::null && ent != visit_ent && registry.has<dynamic_tag>(ent)) {
+                        visit_me.push_back(ent);
+                    }
                 }
             }
         }
@@ -230,46 +244,58 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
         std::sort(connected_entities[i].begin(), connected_entities[i].end());
     }
 
-    if (connected_entities[0] != connected_entities[1]) {
+    size_t biggest_idx = 0;
+    size_t biggest_size = 0;
+
+    for (size_t i = 0; i < max_relations; ++i) {
+        if (connected_entities[i].size() > biggest_size) {
+            biggest_size = connected_entities[i].size();
+            biggest_idx = i;
+        }
+    }
+
+    auto &node = registry.get<island_node>(rel.entity[biggest_idx]);
+    auto biggest_ent = node.island_entity;
+
+    for (size_t i = 0; i < max_relations; ++i) {
+        if (i == biggest_idx) { continue; }
+        if (rel.entity[i] == entt::null) { continue; }
+        if (connected_entities[biggest_idx] == connected_entities[i]) { continue; }
+
         // Remove entities from the biggest island and move them to a new
         // island.
-        size_t bigger_idx = connected_entities[0].size() > connected_entities[1].size() ? 0 : 1;
-        size_t smaller_idx = (bigger_idx + 1) % 2;
-        auto &node = registry.get<island_node>(rel.entity[bigger_idx]);
-        auto &isle = registry.get<island>(node.island_entity);
+        auto &isle = registry.get<island>(biggest_ent);
         // TODO: minor optimization: swap with last then pop.
         auto erase_it = std::remove_if(isle.entities.begin(), isle.entities.end(), [&] (auto &ent) {
-            return std::find(connected_entities[smaller_idx].begin(), 
-                             connected_entities[smaller_idx].end(), ent) 
-                   != connected_entities[smaller_idx].end();
+            return std::find(connected_entities[i].begin(), 
+                             connected_entities[i].end(), ent) 
+                != connected_entities[i].end();
         });
         isle.entities.erase(erase_it, isle.entities.end());
 
-        // Create new island for the second half.
+        // Create new island.
         auto [other_island_ent, other_isle] = registry.create<island>();    
-        other_isle.entities = std::move(connected_entities[smaller_idx]);
+        other_isle.entities = std::move(connected_entities[i]);
 
-        // Update all nodes in the second set.
+        // Update all nodes in the other set.
         for (auto ent : other_isle.entities) {
             auto &node = registry.get<island_node>(ent);
             node.island_entity = other_island_ent;
         }
 
-        // Wake up both.
-        wakeup_island(node.island_entity, registry);
+        // Wake up all entities in the new island.
         wakeup_island(other_island_ent, registry);
-    } else {
-        // Island survives. Wake everyone up though. They might have work to do
-        // now.
-        auto &node = registry.get<island_node>(rel.entity[0]);
-        wakeup_island(node.island_entity, registry);
     }
 
+    // Wake up the biggest island either way since something has changed in it.
+    wakeup_island(biggest_ent, registry);
+
     // Remove empty `relation_container`s.
-    for (size_t i = 0; i < max_relations; ++i) {
-        auto &container = registry.get<relation_container>(rel.entity[i]);
+    for (auto ent : rel.entity) {
+        if (ent == entt::null) { continue; }
+        auto &container = registry.get<relation_container>(ent);
         if (container.entities.empty()) {
-            registry.remove<relation_container>(rel.entity[i]);
+            registry.remove<relation_container>(ent);
         }
     }
 }

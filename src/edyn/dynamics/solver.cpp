@@ -16,11 +16,13 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/dynamics/solver_stage.hpp"
-#include "edyn/util/array.hpp"
 #include "edyn/dynamics/island_util.hpp"
+#include "edyn/util/array.hpp"
+#include "edyn/util/rigidbody.hpp"
 
 namespace edyn {
 
+static 
 void on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
     auto &rel = registry.get<relation>(entity);
 
@@ -30,6 +32,7 @@ void on_construct_constraint(entt::entity entity, entt::registry &registry, cons
     }, con.var);
 }
 
+static 
 void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
     auto &con = registry.get<constraint>(entity);
 
@@ -39,12 +42,14 @@ void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
     }
 }
 
+static
 scalar restitution_curve(scalar restitution, scalar relvel) {
     // TODO: figure out how to adjust the restitution when resting.
     scalar decay = 1;//std::clamp(-relvel * 1.52 - scalar(0.12), scalar(0), scalar(1));
     return restitution * decay;
 }
 
+static
 void prepare(constraint_row &row, 
              scalar inv_mA, scalar inv_mB, 
              const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
@@ -66,8 +71,37 @@ void prepare(constraint_row &row,
     row.rhs = -(row.error + relvel * (1 + restitution));
 }
 
-void warm_start(constraint_row &row, 
-                scalar inv_mA, scalar inv_mB, 
+static
+void apply_angular_impulse(scalar impulse,
+                           entt::registry &registry,
+                           constraint_row &row,
+                           size_t ent_idx,
+                           const matrix3x3 &inv_I,
+                           delta_angvel &dw) {
+    auto idx_J = ent_idx * 2 + 1;
+    dw += inv_I * row.J[idx_J] * impulse;
+}
+
+static
+void apply_impulse(scalar impulse,
+                   entt::registry &registry,
+                   constraint_row &row,
+                   scalar inv_mA, scalar inv_mB,
+                   const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
+                   delta_linvel &dvA, delta_linvel &dvB,
+                   delta_angvel &dwA, delta_angvel &dwB) {
+    // Apply linear impulse.
+    dvA += inv_mA * row.J[0] * impulse;
+    dvB += inv_mB * row.J[2] * impulse;
+
+    // Apply angular impulse.
+    apply_angular_impulse(impulse, registry, row, 0, inv_IA, dwA);
+    apply_angular_impulse(impulse, registry, row, 1, inv_IB, dwB);
+}
+
+static
+void warm_start(entt::registry &registry, constraint_row &row, 
+                scalar inv_mA, scalar inv_mB,
                 const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
                 delta_linvel &dvA, delta_linvel &dvB,
                 delta_angvel &dwA, delta_angvel &dwB) {    
@@ -77,17 +111,17 @@ void warm_start(constraint_row &row,
         return;
     }
 
-    dvA += inv_mA * row.J[0] * row.impulse;
-    dwA += inv_IA * row.J[1] * row.impulse;
-    dvB += inv_mB * row.J[2] * row.impulse;
-    dwB += inv_IB * row.J[3] * row.impulse;
+    apply_impulse(row.impulse, registry, row, 
+                  inv_mA, inv_mB, 
+                  inv_IA, inv_IB, 
+                  dvA, dvB, 
+                  dwA, dwB);
 }
 
-void solve(constraint_row &row,
-           scalar inv_mA, scalar inv_mB, 
-           const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
-           delta_linvel &dvA, delta_linvel &dvB,
-           delta_angvel &dwA, delta_angvel &dwB) {
+static
+scalar solve(constraint_row &row,
+             const vector3 &dvA, const vector3 &dvB,
+             const vector3 &dwA, const vector3 &dwB) {
     auto delta_relvel = dot(row.J[0], dvA) + 
                         dot(row.J[1], dwA) +
                         dot(row.J[2], dvB) +
@@ -114,11 +148,7 @@ void solve(constraint_row &row,
         row.impulse = impulse;
     }
 
-    // Apply impulse.
-    dvA += inv_mA * row.J[0] * delta_impulse;
-    dwA += inv_IA * row.J[1] * delta_impulse;
-    dvB += inv_mB * row.J[2] * delta_impulse;
-    dwB += inv_IB * row.J[3] * delta_impulse;
+    return delta_impulse;
 }
 
 void update_inertia(entt::registry &registry) {
@@ -159,22 +189,37 @@ void solver::update(uint64_t step, scalar dt) {
 
     auto con_view = registry->view<const relation, constraint>(exclude_sleeping);
     con_view.each([&] (auto entity, const relation &rel, constraint &con) {
-        auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[0]);
-        auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[1]);
-        auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(rel.entity[0]);
-        auto [linvelB, angvelB] = vel_view.get<const linvel, const angvel>(rel.entity[1]);
-        auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[0]);
-        auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[1]);
-
         std::visit([&] (auto &&c) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
-
-            for (size_t i = 0; i < con.num_rows; ++i) {
-                auto &row = registry->get<constraint_row>(con.row[i]);
-                prepare(row, inv_mA, inv_mB, inv_IA, inv_IB, linvelA, linvelB, angvelA, angvelB);
-                warm_start(row, inv_mA, inv_mB, inv_IA, inv_IB, dvA, dvB, dwA, dwB);
-            }
         }, con.var);
+    });
+
+    registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
+        return lhs.priority > rhs.priority;
+    });
+
+    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
+        auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[0]);
+        auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(rel.entity[0]);
+        auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[0]);
+
+        auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[1]);
+        auto [linvelB, angvelB] = vel_view.get<const linvel, const angvel>(rel.entity[1]);
+        auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[1]);
+
+        for (size_t i = 0; i < con.num_rows; ++i) {
+            auto &row = registry->get<constraint_row>(con.row[i]);
+            EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
+            prepare(row, 
+                    inv_mA, inv_mB, 
+                    inv_IA, inv_IB, 
+                    linvelA, linvelB, 
+                    angvelA, angvelB);
+            warm_start(*registry, row, 
+                        inv_mA, inv_mB, 
+                        inv_IA, inv_IB, 
+                        dvA, dvB, dwA, dwB);
+        }
     });
 
     // Solve constraints.
@@ -188,24 +233,30 @@ void solver::update(uint64_t step, scalar dt) {
             }, con.var);
         });
 
+        // Solve rows.
         row_view.each([&] (auto, auto &row) {
             auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(row.entity[0]);
-            auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(row.entity[1]);
             auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(row.entity[0]);
+
+            auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(row.entity[1]);
             auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(row.entity[1]);
-            solve(row, inv_mA, inv_mB, inv_IA, inv_IB, dvA, dvB, dwA, dwB);
+
+            auto delta_impulse = solve(row, dvA, dvB, dwA, dwB);
+            apply_impulse(delta_impulse, *registry, row, 
+                            inv_mA, inv_mB, inv_IA, inv_IB, 
+                            dvA, dvB, dwA, dwB);
         });
     }
 
     // Apply constraint velocity correction.
     auto linvel_view = registry->view<dynamic_tag, linvel, delta_linvel>(exclude_sleeping);
-    linvel_view.each([] (auto, auto, auto &vel, auto &delta) {
+    linvel_view.each([] (auto, auto, linvel &vel, delta_linvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
     auto angvel_view = registry->view<dynamic_tag, angvel, delta_angvel>(exclude_sleeping);
-    angvel_view.each([] (auto, auto, auto &vel, auto &delta) {
+    angvel_view.each([] (auto, auto, angvel &vel, delta_angvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
@@ -218,6 +269,8 @@ void solver::update(uint64_t step, scalar dt) {
     update_inertia(*registry);
 
     put_islands_to_sleep(*registry, step, dt);
+
+    clear_kinematic_velocities(*registry);
 }
 
 }

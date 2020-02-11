@@ -10,6 +10,14 @@ namespace edyn {
 
 constexpr auto exclude_sleeping = entt::exclude_t<sleeping_tag>{};
 
+/**
+ * Wake up one entity. It wakes up the island where the entity is in.
+ */
+void wakeup(entt::entity, entt::registry &);
+
+/**
+ * Wake up one island.
+ */
 void wakeup_island(entt::entity, entt::registry &);
 
 void put_islands_to_sleep(entt::registry &, uint64_t step, scalar dt);

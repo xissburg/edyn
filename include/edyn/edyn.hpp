@@ -27,3 +27,4 @@
 #include "time/time.hpp"
 #include "util/rigidbody.hpp"
 #include "util/constraint.hpp"
+#include "dynamics/island_util.hpp"

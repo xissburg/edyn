@@ -58,7 +58,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (!def.sensor) {
         registry.assign<material>(entity, def.restitution, def.friction,
-                                def.stiffness, def.damping);
+                                  def.stiffness, def.damping);
     }
 
     if (def.presentation) {
@@ -78,10 +78,28 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
 }
 
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
+    EDYN_ASSERT(registry.has<kinematic_tag>(entity));
     auto &curpos = registry.get<position>(entity);
     auto &vel = registry.get<linvel>(entity);
     vel = (pos - curpos) / dt;
     curpos = pos;
+}
+
+void update_kinematic_orientation(entt::registry &registry, entt::entity entity, const quaternion &orn, scalar dt) {
+    EDYN_ASSERT(registry.has<kinematic_tag>(entity));
+    auto &curorn = registry.get<orientation>(entity);
+    auto q = orn * conjugate(curorn);
+    auto &vel = registry.get<angvel>(entity);
+    vel = (quaternion_axis(q) * quaternion_angle(q)) / dt;
+    curorn = orn;
+}
+
+void clear_kinematic_velocities(entt::registry &registry) {
+    auto view = registry.view<kinematic_tag, linvel, angvel>();
+    view.each([] ([[maybe_unused]] auto, linvel &v, angvel &w) {
+        v = vector3_zero;
+        w = vector3_zero;
+    });
 }
 
 }
