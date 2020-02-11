@@ -23,6 +23,7 @@ struct constraint_row {
     scalar relvel;
     scalar restitution {0};
     scalar impulse {0};
+    int priority {0};
 };
 
 }

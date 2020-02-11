@@ -2,6 +2,7 @@
 #define EDYN_CONSTRAINTS_CONTACT_PATCH_CONSTRAINT
 
 #include <map>
+#include <array>
 #include <utility>
 #include <entt/fwd.hpp>
 #include <entt/entity/entity.hpp>

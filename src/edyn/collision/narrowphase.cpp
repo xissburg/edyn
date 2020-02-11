@@ -186,8 +186,10 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
                         // Assign row component and associate entities.
                         auto &normal_row = registry->assign<constraint_row>(normal_row_entity);
                         normal_row.entity = rel.entity;
+                        normal_row.priority = 0;
                         auto &friction_row = registry->assign<constraint_row>(friction_row_entity);
                         friction_row.entity = rel.entity;
+                        friction_row.priority = 1;
                         friction_row.use_spin[0] = true;
                         friction_row.use_spin[1] = true;
 

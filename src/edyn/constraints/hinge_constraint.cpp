@@ -44,6 +44,7 @@ void hinge_constraint::init(entt::entity, constraint &con, const relation &rel, 
         con.row[i] = e;
         auto &row = registry.assign<constraint_row>(e);
         row.entity = rel.entity;
+        row.priority = 100;
     }
 }
 

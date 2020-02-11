@@ -15,6 +15,7 @@ void antiroll_constraint::init(entt::entity, constraint &con, const relation &re
     con.row[0] = registry.create();
     auto &row = registry.assign<constraint_row>(con.row[0]);
     row.entity = rel.entity;
+    row.priority = 500;
 
     EDYN_ASSERT(third_entity != entt::null);
 }

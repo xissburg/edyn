@@ -17,6 +17,7 @@ void distance_constraint::init(entt::entity, constraint &con, const relation &re
         con.row[i] = registry.create();
         auto &row = registry.assign<constraint_row>(con.row[i]);
         row.entity = rel.entity;
+        row.priority = 400;
     }
 }
 

@@ -313,6 +313,16 @@ void solver::update(uint64_t step, scalar dt) {
 
     auto con_view = registry->view<const relation, constraint>(exclude_sleeping);
     con_view.each([&] (auto entity, const relation &rel, constraint &con) {
+        std::visit([&] (auto &&c) {
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
+        }, con.var);
+    });
+
+    registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
+        return lhs.priority > rhs.priority;
+    });
+
+    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
         auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[0]);
         auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(rel.entity[0]);
         auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[0]);
@@ -340,26 +350,22 @@ void solver::update(uint64_t step, scalar dt) {
         auto dsB = registry->try_get<const delta_spin>(rel.entity[1]);
 
         if (rel.entity[2] == entt::null) {
-            std::visit([&] (auto &&c) {
-                c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
-
-                for (size_t i = 0; i < con.num_rows; ++i) {
-                    auto &row = registry->get<constraint_row>(con.row[i]);
-                    EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
-                    prepare(row, 
-                            inv_mA, inv_mB, 
-                            inv_IA, inv_IB, 
-                            linvelA, linvelB, 
-                            row.use_spin[0] ? angvelA + spinvelA : static_cast<vector3>(angvelA), 
-                            row.use_spin[1] ? angvelB + spinvelB : static_cast<vector3>(angvelB));
-                    warm_start(*registry, row, 
-                               inv_mA, inv_mB, 
-                               inv_IA, inv_IB, 
-                               dvA, dvB, dwA, dwB, 
-                               row.use_spin[0] ? dsA : nullptr, 
-                               row.use_spin[1] ? dsB : nullptr);
-                }
-            }, con.var);
+            for (size_t i = 0; i < con.num_rows; ++i) {
+                auto &row = registry->get<constraint_row>(con.row[i]);
+                EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
+                prepare(row, 
+                        inv_mA, inv_mB, 
+                        inv_IA, inv_IB, 
+                        linvelA, linvelB, 
+                        row.use_spin[0] ? angvelA + spinvelA : static_cast<vector3>(angvelA), 
+                        row.use_spin[1] ? angvelB + spinvelB : static_cast<vector3>(angvelB));
+                warm_start(*registry, row, 
+                           inv_mA, inv_mB, 
+                           inv_IA, inv_IB, 
+                           dvA, dvB, dwA, dwB, 
+                           row.use_spin[0] ? dsA : nullptr, 
+                           row.use_spin[1] ? dsB : nullptr);
+            }
         } else {
             auto [inv_mC, inv_IC] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[2]);
             auto [linvelC, angvelC] = vel_view.get<const linvel, const angvel>(rel.entity[2]);
@@ -374,27 +380,25 @@ void solver::update(uint64_t step, scalar dt) {
 
             auto dsC = registry->try_get<const delta_spin>(rel.entity[2]);
 
-            std::visit([&] (auto &&c) {
-                c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
-
-                for (size_t i = 0; i < con.num_rows; ++i) {
-                    auto &row = registry->get<constraint_row>(con.row[i]);
-                    EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
-                    prepare3(row, 
-                             inv_mA, inv_mB, inv_mC, 
-                             inv_IA, inv_IB, inv_IC, 
-                             linvelA, linvelB, linvelC, 
-                             angvelA + spinvelA, angvelB + spinvelB, angvelC + spinvelC);
-                    warm_start3(*registry, row, 
-                                inv_mA, inv_mB, inv_mC,
-                                inv_IA, inv_IB, inv_IC,
-                                dvA, dvB, dvC,
-                                dwA, dwB, dwC, 
-                                row.use_spin[0] ? dsA : nullptr, 
-                                row.use_spin[1] ? dsB : nullptr, 
-                                row.use_spin[2] ? dsC : nullptr);
-                }
-            }, con.var);
+            for (size_t i = 0; i < con.num_rows; ++i) {
+                auto &row = registry->get<constraint_row>(con.row[i]);
+                EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
+                prepare3(row, 
+                         inv_mA, inv_mB, inv_mC, 
+                         inv_IA, inv_IB, inv_IC, 
+                         linvelA, linvelB, linvelC, 
+                         row.use_spin[0] ? angvelA + spinvelA : static_cast<vector3>(angvelA), 
+                         row.use_spin[1] ? angvelB + spinvelB : static_cast<vector3>(angvelB),
+                         row.use_spin[2] ? angvelC + spinvelC : static_cast<vector3>(angvelC));
+                warm_start3(*registry, row, 
+                            inv_mA, inv_mB, inv_mC,
+                            inv_IA, inv_IB, inv_IC,
+                            dvA, dvB, dvC,
+                            dwA, dwB, dwC, 
+                            row.use_spin[0] ? dsA : nullptr, 
+                            row.use_spin[1] ? dsB : nullptr, 
+                            row.use_spin[2] ? dsC : nullptr);
+            }
         }
     });
 

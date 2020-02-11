@@ -16,6 +16,7 @@ void tierod_constraint::init(entt::entity, constraint &con, const relation &rel,
     con.row[0] = registry.create();
     auto &row = registry.assign<constraint_row>(con.row[0]);
     row.entity = rel.entity;
+    row.priority = 200;
 
     update_steering_axis();
     update_steering_arm();
