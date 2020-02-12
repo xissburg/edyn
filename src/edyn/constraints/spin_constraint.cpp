@@ -15,7 +15,9 @@ void spin_constraint::init(entt::entity, constraint &con, const relation &rel, e
     auto &row = registry.assign<constraint_row>(con.row[0]);
     row.entity = rel.entity;
     row.priority = 400;
-
+    row.use_spin[0] = true;
+    row.use_spin[1] = true;
+    
     m_offset = get_error(rel, registry);
 }
 
@@ -38,8 +40,6 @@ void spin_constraint::prepare(entt::entity, constraint &con, const relation &rel
     row.error = error / dt;
     row.lower_limit = -impulse;
     row.upper_limit = impulse;
-    row.use_spin[0] = true;
-    row.use_spin[1] = true;
 }
 
 void spin_constraint::set_ratio(scalar ratio, const relation &rel, entt::registry &registry) {
