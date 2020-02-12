@@ -7,7 +7,10 @@ namespace edyn {
 
 struct spin : public scalar_comp {};
 
-struct spin_angle : public scalar_comp {};
+struct spin_angle : public scalar_comp {
+    long count {0};
+    scalar accum_angle;
+};
 
 struct delta_spin : public scalar_comp {};
 
