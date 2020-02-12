@@ -59,6 +59,7 @@ conan_basic_setup()
 set(EDyn_SOURCES
     src/edyn/math/geom.cpp
     src/edyn/math/quaternion.cpp
+    src/edyn/math/linear_curve.cpp
     src/edyn/collision/broadphase.cpp
     src/edyn/collision/narrowphase.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
@@ -80,11 +81,13 @@ set(EDyn_SOURCES
     src/edyn/constraints/tierod_constraint.cpp
     src/edyn/constraints/hinge_constraint.cpp
     src/edyn/constraints/generic_constraint.cpp
+    src/edyn/constraints/springdamper_constraint.cpp
     src/edyn/dynamics/island_util.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp
     src/edyn/util/rigidbody.cpp
+    src/edyn/util/spring_util.cpp
     src/edyn/edyn.cpp
 )
 
