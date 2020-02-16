@@ -7,7 +7,6 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/contact_manifold.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/collision/collide.hpp"
 #include <entt/entt.hpp>
 
@@ -41,7 +40,10 @@ void narrowphase::on_construct_broadphase_relation(entt::entity entity, entt::re
             auto &shapeB = registry.get<shape>(rel.entity[1]);
             if (std::holds_alternative<cylinder_shape>(shapeB.var)) {
                 std::swap(rel.entity[0], rel.entity[1]);
-            } 
+            }
+        } else if (m0->is_tire || m1->is_tire) {
+            auto contact = tire_contact_constraint();
+            registry.assign<constraint>(entity, contact);
         } else {
             auto contact = contact_constraint();
 
@@ -205,10 +207,33 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
                         auto &normal_row = registry->get<constraint_row>(cp.normal_row_entity);
                         auto &friction_row = registry->get<constraint_row>(cp.friction_row_entity);
                         normal_row.restitution = cp.restitution;
-                        
+
                         // Zero out warm-starting impulses.
                         normal_row.impulse = 0;
                         friction_row.impulse = 0;
+                    }
+                } else if (std::holds_alternative<tire_contact_constraint>(con->var)) {
+                    if (manifold.num_points < max_contacts) {
+                        // Create new constraint rows for this contact point.
+                        auto normal_row_entity = registry->create();
+                        con->row[con->num_rows++] = normal_row_entity;
+
+                        // Assign row component and associate entities.
+                        auto &normal_row = registry->assign<constraint_row>(normal_row_entity);
+                        normal_row.entity = rel.entity;
+                        normal_row.priority = 0;
+
+                        // Contact point can now refer to constraint rows.
+                        cp.normal_row_entity = normal_row_entity;
+                        normal_row.restitution = cp.restitution;
+                    } else {
+                        // One of the existing contacts has been replaced by the new. 
+                        // Update its rows.
+                        auto &normal_row = registry->get<constraint_row>(cp.normal_row_entity);
+                        normal_row.restitution = cp.restitution;
+
+                        // Zero out warm-starting impulses.
+                        normal_row.impulse = 0;
                     }
                 }
 

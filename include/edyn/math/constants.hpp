@@ -9,6 +9,7 @@ namespace edyn {
 
 inline constexpr scalar pi = 3.1415926535897932384626433832795029;
 inline constexpr scalar pi2 = pi * scalar(2);
+inline constexpr scalar half_pi = pi * scalar(0.5);
 inline constexpr scalar half_sqrt2 = 0.7071067811865475244008443621048490;
 // `large_scalar * large_scalar` < EDYN_SCALAR_MAX`
 inline constexpr scalar large_scalar = 1e18;

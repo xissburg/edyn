@@ -90,6 +90,7 @@ set(EDyn_SOURCES
     src/edyn/sys/apply_gravity.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/util/spring_util.cpp
+    src/edyn/util/tire.cpp
     src/edyn/edyn.cpp
 )
 

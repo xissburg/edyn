@@ -12,6 +12,7 @@ struct material {
     scalar stiffness {large_scalar};
     scalar damping {large_scalar};
 
+    bool is_tire {false};
     bool use_contact_patch {false};
     scalar speed_sensitivity {0.03};
     scalar tread_stiffness {2000000};
