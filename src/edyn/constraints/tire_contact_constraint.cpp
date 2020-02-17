@@ -52,9 +52,12 @@ void tire_contact_constraint::prepare(entt::entity entity, constraint &con, cons
     for (size_t i = 0; i < manifold.num_points; ++i) {
         auto &cp = manifold.point[i];
 
-        auto rA = rotate(ornA, cp.pivotA);
+        //auto rA = rotate(ornA, cp.pivotA);
         auto rB = rotate(ornB, cp.pivotB);
         auto normal = rotate(ornB, cp.normalB);
+
+        auto pB = posB + rB;
+        auto rA = pB - posA;
 
         auto vA = linvelA + cross(angvelA + spinvelA, rA);
         auto vB = linvelB + cross(angvelB + spinvelB, rB);
@@ -71,8 +74,7 @@ void tire_contact_constraint::prepare(entt::entity entity, constraint &con, cons
         auto damper_force = normal_relvel * spec.vertical_damping;
         normal_row.upper_limit = std::abs(spring_force + damper_force) * dt;
 
-        auto rel = posA + rA - posB - rB;
-        auto penetration = dot(rel, normal);
+        auto penetration = dot(posA + rotate(ornA, cp.pivotA) - posB - rB, normal);
         auto pvel = penetration / dt;
 
         normal_row.error = 0;
@@ -95,7 +97,9 @@ void tire_contact_constraint::prepare(entt::entity entity, constraint &con, cons
         if (contact.row_entity[0] == entt::null) {
             for (size_t j = 0; j < 3; ++j) {
                 auto ent = registry.create();
-                registry.assign<constraint_row>(ent);
+                auto &row = registry.assign<constraint_row>(ent);
+                row.entity = rel.entity;
+                row.priority = 1;
                 contact.row_entity[j] = ent;
             }
         }
@@ -125,14 +129,11 @@ void tire_contact_constraint::prepare(entt::entity entity, constraint &con, cons
         // For the impulse application point on the wheel we use the vector from
         // the center of the wheel to the contact point on B, which accounts for
         // tire deflection.
-        auto pB = posB + rB;
-        auto relA = pB - posA;
-        auto relB = rB;
 
         // Longitudinal.
         {
-            auto p = cross(relA, lon_dir);
-            auto q = cross(relB, lon_dir);
+            auto p = cross(rA, lon_dir);
+            auto q = cross(rB, lon_dir);
             auto impulse = std::abs(contact.last_impulse.x);
 
             auto &row = registry.get<constraint_row>(contact.row_entity[0]);
@@ -146,8 +147,8 @@ void tire_contact_constraint::prepare(entt::entity entity, constraint &con, cons
 
         // Lateral.
         {
-            auto p = cross(relA, lat_dir);
-            auto q = cross(relB, lat_dir);
+            auto p = cross(rA, lat_dir);
+            auto q = cross(rB, lat_dir);
             auto impulse = std::abs(contact.last_impulse.y);
 
             auto &row = registry.get<constraint_row>(contact.row_entity[1]);
@@ -268,7 +269,9 @@ void tire_contact_constraint::iteration(entt::entity entity, constraint &con, co
         auto &cp = manifold.point.at(i);
         auto &normal_row = registry.get<constraint_row>(cp.normal_row_entity);
         auto &contact = contacts[i];
-        auto impulses = calculate_tire_impulses(cp, contact, normal_row.impulse, dt);
+        auto impulses = calculate_tire_impulses(posA, ornA, linvelA, angvelA, spinvelA,
+                                                posB, ornB, linvelB, angvelB, spinvelB, 
+                                                cp, contact, normal_row.impulse, dt);
 
         for (size_t j = 0; j < 3; ++j) {
             auto &row = registry.get<constraint_row>(contact.row_entity[j]);

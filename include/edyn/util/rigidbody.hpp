@@ -54,6 +54,7 @@ struct rigidbody_def {
     bool spins {false};
 
     bool use_contact_patch {false};
+    bool is_tire {false};
 
     // Whether this entity will be used for presentation and needs 
     // position/orientation interpolation.

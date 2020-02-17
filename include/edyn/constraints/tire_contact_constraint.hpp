@@ -3,16 +3,16 @@
 
 #include "constraint_base.hpp"
 #include "edyn/util/tire.hpp"
-#include "edyn/math/vector3.hpp"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/contact_point.hpp"
-#include <array>
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
 struct tire_contact_constraint : public constraint_base<tire_contact_constraint> {
     struct tire_contact {
-        std::array<entt::entity, 3> row_entity;
+        std::array<entt::entity, 3> row_entity {make_array<3>(entt::entity{entt::null})};
         vector3 lon_dir;
         vector3 lat_dir;
         vector3 last_impulse;

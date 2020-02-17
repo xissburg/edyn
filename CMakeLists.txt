@@ -72,6 +72,7 @@ set(EDyn_SOURCES
     src/edyn/collision/collide_capsule_plane.cpp
     src/edyn/collision/collide_capsule_sphere.cpp
     src/edyn/constraints/contact_constraint.cpp
+    src/edyn/constraints/tire_contact_constraint.cpp
     src/edyn/constraints/contact_patch_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
     src/edyn/constraints/point_constraint.cpp
