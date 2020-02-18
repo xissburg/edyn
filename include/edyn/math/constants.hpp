@@ -35,8 +35,8 @@ inline constexpr size_t max_contacts = 4;
 inline constexpr scalar contact_breaking_threshold = 0.02;
 inline constexpr scalar contact_caching_threshold = 0.04;
 inline constexpr scalar island_time_to_sleep = 2;
-inline constexpr scalar island_linear_sleep_threshold = 0.01;
-inline constexpr scalar island_angular_sleep_threshold = pi / 24;
+inline constexpr scalar island_linear_sleep_threshold = 0.005;
+inline constexpr scalar island_angular_sleep_threshold = pi / 48;
 
 }
 

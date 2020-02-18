@@ -67,7 +67,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const auto &ornB = registry.get<orientation>(rel.entity[1]);
     const auto ornB_conj = conjugate(ornB);
 
-    const auto &normal = manifold.point[0].normalB;
+    const auto normal = rotate(ornB, manifold.point[0].normalB);
 
     const auto &shapeA = registry.get<shape>(rel.entity[0]);
     const auto &cyl = std::get<cylinder_shape>(shapeA.var);
@@ -182,7 +182,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     const scalar half_perimeter = pi * cyl.radius;
     const scalar perimeter = half_perimeter * 2;
-    const scalar desired_spacing = 0.02;
+    const scalar desired_spacing = 0.005;
     const size_t num_bristles = std::floor(perimeter / desired_spacing);
     const scalar bristle_spacing = perimeter / num_bristles;
     const scalar bristle_angle = bristle_spacing * r0_inv;
@@ -265,7 +265,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 // i.e. the moment it entered the contact patch.
                 scalar entry_dt = 0;
 
-                /* auto dist_start = std::min(std::abs(tread_row.prev_patch_start_angle - ang), 
+                auto dist_start = std::min(std::abs(tread_row.prev_patch_start_angle - ang), 
                                            std::abs(tread_row.prev_patch_start_angle - (ang + 2 * pi)));
                 auto dist_end = std::min(std::abs(tread_row.prev_patch_end_angle - ang), 
                                          std::abs(tread_row.prev_patch_end_angle - (ang + 2 * pi)));
@@ -273,12 +273,16 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 if (dist_start < dist_end) { // entered through the front
                     auto dist_patch_start = std::min(std::abs(tread_row.prev_patch_start_angle - patch_start_angle), 
                                                      std::abs(tread_row.prev_patch_start_angle - (patch_start_angle + 2 * pi)));
-                    entry_dt = -dt * dist_start / dist_patch_start;
+                    if (dist_patch_start > EDYN_EPSILON) {
+                        entry_dt = -dt * dist_start / dist_patch_start;
+                    }
                 } else { // entered through the back
                     auto dist_patch_end = std::min(std::abs(tread_row.prev_patch_end_angle - patch_end_angle), 
                                                    std::abs(tread_row.prev_patch_end_angle - (patch_end_angle + 2 * pi)));
-                    entry_dt = -dt * dist_end / dist_patch_end;
-                } */
+                    if (dist_patch_end > EDYN_EPSILON) {
+                        entry_dt = -dt * dist_end / dist_patch_end;
+                    }
+                }
 
                 auto bristle_pivot = vector3{row_x, std::sin(ang) * cyl.radius, std::cos(ang) * cyl.radius};
                 auto rA = bristle_pivot;
