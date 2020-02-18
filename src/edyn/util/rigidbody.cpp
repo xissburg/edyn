@@ -41,9 +41,9 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.assign<mass>(entity, def.mass);
         registry.assign<inertia>(entity, def.inertia);
 
-        if (def.spins) {
-            registry.assign<spin_angle>(entity, 0);
-            registry.assign<spin>(entity, 0);
+        if (def.spin_enabled) {
+            registry.assign<spin_angle>(entity, def.spin_angle);
+            registry.assign<spin>(entity, def.spin);
         }
     } else {
         registry.assign<mass>(entity, EDYN_SCALAR_MAX);

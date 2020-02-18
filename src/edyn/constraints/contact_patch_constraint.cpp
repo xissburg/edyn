@@ -182,7 +182,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     const scalar half_perimeter = pi * cyl.radius;
     const scalar perimeter = half_perimeter * 2;
-    const scalar desired_spacing = 0.005;
+    const scalar desired_spacing = 0.01;
     const size_t num_bristles = std::floor(perimeter / desired_spacing);
     const scalar bristle_spacing = perimeter / num_bristles;
     const scalar bristle_angle = bristle_spacing * r0_inv;
@@ -266,21 +266,21 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 scalar entry_dt = 0;
 
                 auto dist_start = std::min(std::abs(tread_row.prev_patch_start_angle - ang), 
-                                           std::abs(tread_row.prev_patch_start_angle - (ang + 2 * pi)));
+                                           std::abs(tread_row.prev_patch_start_angle - (ang + pi2)));
                 auto dist_end = std::min(std::abs(tread_row.prev_patch_end_angle - ang), 
-                                         std::abs(tread_row.prev_patch_end_angle - (ang + 2 * pi)));
+                                         std::abs(tread_row.prev_patch_end_angle - (ang + pi2)));
 
                 if (dist_start < dist_end) { // entered through the front
                     auto dist_patch_start = std::min(std::abs(tread_row.prev_patch_start_angle - patch_start_angle), 
-                                                     std::abs(tread_row.prev_patch_start_angle - (patch_start_angle + 2 * pi)));
+                                                     std::abs(tread_row.prev_patch_start_angle - (patch_start_angle + pi2)));
                     if (dist_patch_start > EDYN_EPSILON) {
-                        entry_dt = -dt * dist_start / dist_patch_start;
+                        entry_dt = -dt * (1 - dist_start / dist_patch_start);
                     }
                 } else { // entered through the back
                     auto dist_patch_end = std::min(std::abs(tread_row.prev_patch_end_angle - patch_end_angle), 
-                                                   std::abs(tread_row.prev_patch_end_angle - (patch_end_angle + 2 * pi)));
+                                                   std::abs(tread_row.prev_patch_end_angle - (patch_end_angle + pi2)));
                     if (dist_patch_end > EDYN_EPSILON) {
-                        entry_dt = -dt * dist_end / dist_patch_end;
+                        entry_dt = -dt * (1 - dist_end / dist_patch_end);
                     }
                 }
 
@@ -292,7 +292,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 auto entry_spin_angle = spin_angleA + spinA * entry_dt;
                 auto entry_spin_orn = entry_orn * quaternion_axis_angle(vector3_x, entry_spin_angle);
                 auto entry_bristle_pos = entry_pos + rotate(entry_spin_orn, bristle_pivot);
-                entry_bristle_pos -= normal * dot(entry_bristle_pos - pB, normal);
+                entry_bristle_pos -= up * dot(entry_bristle_pos - pB, up);
                 auto rB = rotate(conjugate(integrate(ornB, angvelB, entry_dt)), entry_bristle_pos - (posB + linvelB * entry_dt));
 
                 auto ent = registry.create();
@@ -326,20 +326,20 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             auto spring_force = vector3_zero;
 
             if (dl2 > EDYN_EPSILON) {
-                auto error = std::sqrt(dl2);
                 spring_force = tread_stiffness * tread_area * d;
 
                 if (length2(spring_force) > friction_force * friction_force) {
+                    auto error = std::sqrt(dl2);
                     auto dir = d / error;
                     auto max_tread_defl = bristle->friction * normal_pressure / tread_stiffness;
                     d = dir * max_tread_defl;
                     dl2 = length2(d);
+                    error = std::sqrt(dl2);
                     spring_force = tread_stiffness * tread_area * d;
                     bristle_tip = bristle_root - d;
+                    pivotB = bristle_tip - posB;
 
-                    bristle->pivotB = rotate(ornB_conj, bristle_tip - posB);
-
-                    error = std::sqrt(dl2);
+                    bristle->pivotB = rotate(ornB_conj, pivotB);
                 }
             }
 
