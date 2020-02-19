@@ -292,7 +292,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 auto entry_spin_angle = spin_angleA + spinA * entry_dt;
                 auto entry_spin_orn = entry_orn * quaternion_axis_angle(vector3_x, entry_spin_angle);
                 auto entry_bristle_pos = entry_pos + rotate(entry_spin_orn, bristle_pivot);
-                entry_bristle_pos -= up * dot(entry_bristle_pos - pB, up);
+                entry_bristle_pos -= normal * dot(entry_bristle_pos - pB, normal);
                 auto rB = rotate(conjugate(integrate(ornB, angvelB, entry_dt)), entry_bristle_pos - (posB + linvelB * entry_dt));
 
                 auto ent = registry.create();
