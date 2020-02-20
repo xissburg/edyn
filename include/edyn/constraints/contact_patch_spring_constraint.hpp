@@ -1,5 +1,5 @@
-#ifndef EDYN_CONSTRAINTS_CONTACT_PATCH_CONSTRAINT
-#define EDYN_CONSTRAINTS_CONTACT_PATCH_CONSTRAINT
+#ifndef EDYN_CONSTRAINTS_CONTACT_PATCH_SPRING_CONSTRAINT
+#define EDYN_CONSTRAINTS_CONTACT_PATCH_SPRING_CONSTRAINT
 
 #include <map>
 #include <array>
@@ -12,15 +12,13 @@
 
 namespace edyn {
 
-struct contact_patch_constraint : public constraint_base<contact_patch_constraint> {
+struct contact_patch_spring_constraint : public constraint_base<contact_patch_spring_constraint> {
     struct brush_bristle {
+        entt::entity entity;
         vector3 pivotA;
         vector3 pivotB;
-        vector3 root;
-        vector3 tip;
-        vector3 deflection;
-        vector3 damping_force;
         scalar tread_area;
+        scalar force;
         scalar friction;
     };
 
@@ -32,23 +30,16 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
         std::map<size_t, brush_bristle> bristles;
     };
 
-    scalar m_stiffness {large_scalar};
-    scalar m_damping {large_scalar};
-    scalar m_friction_coefficient {1};
-    scalar m_speed_sensitivity {0.03};
-    scalar m_tread_stiffness {7000000};
-
-    vector3 m_lon_dir;
-    vector3 m_lat_dir;
-    vector3 m_patch_center;
+    scalar stiffness {large_scalar};
+    scalar damping {large_scalar};
+    scalar friction_coefficient {1};
+    scalar speed_sensitivity {0.03};
+    scalar tread_stiffness {7000000};
 
     static constexpr size_t num_tread_rows = 3;
 
-    entt::entity m_normal_row_entity {entt::null};
-    entt::entity m_longitudinal_row_entity {entt::null};
-    entt::entity m_lateral_row_entity {entt::null};
-    entt::entity m_aligning_row_entity {entt::null};
-    std::array<tread_row, num_tread_rows> m_tread_rows{};
+    entt::entity normal_row_entity {entt::null};
+    std::array<tread_row, num_tread_rows> tread_rows{};
 
     void clear(entt::registry &, constraint &);
 
@@ -58,4 +49,4 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
 
 }
 
-#endif // EDYN_CONSTRAINTS_CONTACT_PATCH_CONSTRAINT
+#endif // EDYN_CONSTRAINTS_CONTACT_PATCH_SPRING_CONSTRAINT

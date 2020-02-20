@@ -29,11 +29,11 @@ void narrowphase::on_construct_broadphase_relation(entt::entity entity, entt::re
             auto contact = contact_patch_constraint();
             // Contact patch is always a soft contact since it needs deflection.
             EDYN_ASSERT(m0->stiffness < large_scalar || m1->stiffness < large_scalar);
-            contact.stiffness = 1 / (1 / m0->stiffness + 1 / m1->stiffness);
-            contact.damping = 1 / (1 / m0->damping + 1 / m1->damping);
-            contact.friction_coefficient = m0->friction * m1->friction;
-            contact.speed_sensitivity = std::max(m0->speed_sensitivity, m1->speed_sensitivity);
-            contact.tread_stiffness = std::max(m0->tread_stiffness, m1->tread_stiffness);
+            contact.m_stiffness = 1 / (1 / m0->stiffness + 1 / m1->stiffness);
+            contact.m_damping = 1 / (1 / m0->damping + 1 / m1->damping);
+            contact.m_friction_coefficient = m0->friction * m1->friction;
+            contact.m_speed_sensitivity = std::max(m0->speed_sensitivity, m1->speed_sensitivity);
+            contact.m_tread_stiffness = std::max(m0->tread_stiffness, m1->tread_stiffness);
             registry.assign<constraint>(entity, contact);
 
             // Swap relation to ensure the cylinder is in the first entity.
