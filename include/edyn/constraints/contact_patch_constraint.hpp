@@ -43,11 +43,6 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     vector3 m_patch_center;
 
     static constexpr size_t num_tread_rows = 3;
-
-    entt::entity m_normal_row_entity {entt::null};
-    entt::entity m_longitudinal_row_entity {entt::null};
-    entt::entity m_lateral_row_entity {entt::null};
-    entt::entity m_aligning_row_entity {entt::null};
     std::array<tread_row, num_tread_rows> m_tread_rows{};
 
     void clear(entt::registry &, constraint &);

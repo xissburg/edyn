@@ -36,6 +36,7 @@ void generic_constraint::prepare(entt::entity, constraint &con, const relation &
     auto rB_skew = skew(rB);
     constexpr auto I = matrix3x3_identity;
 
+    // Linear.
     for (size_t i = 0; i < 3; ++i) {
         auto &row = registry.get<constraint_row>(con.row[i]);
         row.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
@@ -44,6 +45,7 @@ void generic_constraint::prepare(entt::entity, constraint &con, const relation &
         row.upper_limit = EDYN_SCALAR_MAX;
     }
 
+    // Angular.
     for (size_t i = 0; i < 3; ++i) {
         auto p = rotate(ornA, I.row[i]);
         auto q = rotate(ornB, I.row[i]);
