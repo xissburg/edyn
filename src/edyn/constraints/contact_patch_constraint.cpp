@@ -51,6 +51,15 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         return;
     }
 
+    auto deepest_distance = EDYN_SCALAR_MAX;
+    auto pt_idx = size_t {0};
+    for (size_t i = 0; i < manifold.num_points; ++i) {
+        if (manifold.point[i].distance < deepest_distance) {
+            deepest_distance = manifold.point[i].distance;
+            pt_idx = i;
+        }
+    }
+
     const auto &posA = registry.get<position>(rel.entity[0]);
     const auto &ornA = registry.get<orientation>(rel.entity[0]);
     
@@ -63,7 +72,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const auto &ornB = registry.get<orientation>(rel.entity[1]);
     const auto ornB_conj = conjugate(ornB);
 
-    const auto normal = rotate(ornB, manifold.point[0].normalB);
+    const auto normal = rotate(ornB, manifold.point[pt_idx].normalB);
 
     const auto &shapeA = registry.get<shape>(rel.entity[0]);
     const auto &cyl = std::get<cylinder_shape>(shapeA.var);
@@ -83,7 +92,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto p1 = p0 - axis_hl * 2; // because circles are parallel
 
     // A point on the contact plane.
-    auto pB = posB + rotate(ornB, manifold.point[0].pivotB);
+    auto pB = posB + rotate(ornB, manifold.point[pt_idx].pivotB);
 
     // Support point in object space.
     const auto spin_ornA_conj = conjugate(spin_ornA);
