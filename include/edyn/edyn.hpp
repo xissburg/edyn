@@ -18,6 +18,7 @@
 #include "comp/material.hpp"
 #include "comp/island.hpp"
 #include "comp/contact_manifold.hpp"
+#include "comp/collision_filter.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
 #include "math/vector3.hpp"

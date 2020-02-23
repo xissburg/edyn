@@ -25,6 +25,8 @@ private:
     entt::registry *registry;
     std::map<std::pair<entt::entity, entt::entity>, entt::entity> relations;
     entt::sigh<construct_relation_func_t> construct_relation_signal;
+
+    bool should_collide(entt::entity, entt::entity) const;
 };
 
 }

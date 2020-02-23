@@ -5,6 +5,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/material.hpp"
+#include "edyn/comp/collision_filter.hpp"
 #include "edyn/util/constraint.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/dynamics/island_util.hpp"
@@ -81,6 +82,11 @@ void broadphase::update() {
 
         for (auto it1 = it + 1; it1 != it_end; ++it1) {
             auto e1 = *it1;
+
+            if (!should_collide(e0, e1)) {
+                continue;
+            }
+
             auto &b1 = aabb_view.get(e1);
 
             if (intersect(b0.inset(offset), b1.inset(offset))) {
@@ -99,6 +105,15 @@ void broadphase::update() {
             }
         }
     }
+}
+
+
+bool broadphase::should_collide(entt::entity e0, entt::entity e1) const {
+    auto view = registry->view<const collision_filter>();
+    auto &filter0 = view.get(e0);
+    auto &filter1 = view.get(e1);
+    return ((filter0.group & filter1.mask) > 0) && 
+           ((filter1.group & filter0.mask) > 0);
 }
 
 }

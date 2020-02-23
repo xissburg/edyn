@@ -51,7 +51,7 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         auto impulse = std::abs(force) * dt;
 
         auto &row = registry.get<constraint_row>(con.row[0]);
-        row.J = {-axis, vector3_zero, axis, vector3_zero};
+        row.J = {axis, vector3_zero, -axis, vector3_zero};
         row.error = error / dt;
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
@@ -63,7 +63,7 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         auto error = dot(posA - posB, axis);
 
         auto &row = registry.get<constraint_row>(con.row[1]);
-        row.J = {-axis, vector3_zero, axis, vector3_zero};
+        row.J = {axis, vector3_zero, -axis, vector3_zero};
         row.error = error / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
@@ -75,7 +75,7 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         auto error = dot(posA - posB, axis);
 
         auto &row = registry.get<constraint_row>(con.row[2]);
-        row.J = {-axis, vector3_zero, axis, vector3_zero};
+        row.J = {axis, vector3_zero, -axis, vector3_zero};
         row.error = error / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
@@ -97,7 +97,7 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         auto impulse = std::abs(force) * dt;
 
         auto &row = registry.get<constraint_row>(con.row[3]);
-        row.J = {vector3_zero, -axis, vector3_zero, axis};
+        row.J = {vector3_zero, axis, vector3_zero, -axis};
         row.error = error / dt;
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
@@ -116,7 +116,7 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         auto error = std::asin(dot(axisA_y_proj, axisB_z));
 
         auto &row = registry.get<constraint_row>(con.row[4]);
-        row.J = {vector3_zero, -axis, vector3_zero, axis};
+        row.J = {vector3_zero, axis, vector3_zero, -axis};
         row.error = error / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
@@ -130,13 +130,13 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         axisA_x_proj = normalize(axisA_x_proj);
 
         auto axisB_z = rotate(ornB, vector3_z);
-        auto error = -std::asin(dot(axisA_x_proj, axisB_z));
+        auto error = std::asin(dot(axisA_x_proj, axisB_z));
         auto vel = dot(angvelA - angvelB, axis);
         auto force = error * m_torsional_stiffness + vel * m_torsional_damping;
         auto impulse = std::abs(force) * dt;
 
         auto &row = registry.get<constraint_row>(con.row[5]);
-        row.J = {vector3_zero, -axis, vector3_zero, axis};
+        row.J = {vector3_zero, axis, vector3_zero, -axis};
         row.error = error / dt;
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
@@ -153,7 +153,7 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         auto error = std::asin(dot(axisA_x_proj, axisB_y));
 
         auto &row = registry.get<constraint_row>(con.row[6]);
-        row.J = {vector3_zero, -axis, vector3_zero, axis};
+        row.J = {vector3_zero, axis, vector3_zero, -axis};
         row.error = error / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;

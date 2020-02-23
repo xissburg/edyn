@@ -11,6 +11,7 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/collision_filter.hpp"
 
 namespace edyn {
 
@@ -38,10 +39,12 @@ void on_destroy_inertia(entt::entity entity, entt::registry &registry) {
 
 void on_construct_shape(entt::entity entity, entt::registry &registry, shape &) {
     registry.assign<AABB>(entity);
+    registry.assign<collision_filter>(entity);
 }
 
 void on_destroy_shape(entt::entity entity, entt::registry &registry) {
     registry.reset<AABB>(entity);
+    registry.reset<collision_filter>(entity);
 }
 
 void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dynamic_tag) {

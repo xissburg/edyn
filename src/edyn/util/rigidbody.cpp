@@ -12,6 +12,7 @@
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
+#include "edyn/comp/collision_filter.hpp"
 
 namespace edyn {
 
