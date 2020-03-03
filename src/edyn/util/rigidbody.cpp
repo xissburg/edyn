@@ -95,7 +95,7 @@ void update_kinematic_position(entt::registry &registry, entt::entity entity, co
 void update_kinematic_orientation(entt::registry &registry, entt::entity entity, const quaternion &orn, scalar dt) {
     EDYN_ASSERT(registry.has<kinematic_tag>(entity));
     auto &curorn = registry.get<orientation>(entity);
-    auto q = normalize(orn * conjugate(curorn));
+    auto q = normalize(conjugate(curorn) * orn);
     auto &vel = registry.get<angvel>(entity);
     vel = (quaternion_axis(q) * quaternion_angle(q)) / dt;
     curorn = orn;
