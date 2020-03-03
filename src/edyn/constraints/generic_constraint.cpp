@@ -34,15 +34,17 @@ void generic_constraint::prepare(entt::entity, constraint &con, const relation &
 
     auto rA_skew = skew(rA);
     auto rB_skew = skew(rB);
+    const auto d = posA + rA - posB - rB;
     constexpr auto I = matrix3x3_identity;
 
     // Linear.
     for (size_t i = 0; i < 3; ++i) {
         auto &row = registry.get<constraint_row>(con.row[i]);
-        row.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
-        row.error = (posA[i] + rA[i] - posB[i] - rB[i]) / dt;
-        row.lower_limit = -EDYN_SCALAR_MAX;
-        row.upper_limit = EDYN_SCALAR_MAX;
+        auto p = rotate(ornA, I.row[i]);
+        row.J = {p, rA_skew.row[i], -p, -rB_skew.row[i]};
+        row.error = dot(p, d) / dt;
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
     }
 
     // Angular.
@@ -52,8 +54,8 @@ void generic_constraint::prepare(entt::entity, constraint &con, const relation &
         auto &row = registry.get<constraint_row>(con.row[i + 3]);
         row.J = {vector3_zero, p, vector3_zero, -p};
         row.error = 0;//(dot(q, p) - 1) / dt;
-        row.lower_limit = -EDYN_SCALAR_MAX;
-        row.upper_limit = EDYN_SCALAR_MAX;
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
     }
 }
 
