@@ -8,6 +8,7 @@
 #include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/comp/spin.hpp"
 #include "constraint_base.hpp"
 
 namespace edyn {
@@ -25,8 +26,9 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     };
 
     struct tread_row {
-        scalar prev_patch_start_angle {0};
-        scalar prev_patch_end_angle {0};
+        scalar prev_center_angle {0};
+        scalar prev_range_half_angle {0};
+        scalar prev_spin_angle;
         scalar tread_width;
         scalar patch_half_length;
         std::map<size_t, brush_bristle> bristles;

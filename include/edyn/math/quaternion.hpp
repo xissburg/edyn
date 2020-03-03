@@ -86,6 +86,10 @@ inline scalar length(const quaternion &q) {
     return std::sqrt(length2(q));
 }
 
+inline scalar dot(const quaternion &q0, const quaternion &q1) {
+    return q0.x * q1.x + q0.y * q1.y + q0.z * q1.z + q0.w * q1.w;
+}
+
 // Returns a unit-length version of the given quaternion.
 inline quaternion normalize(const quaternion &q) {
     auto l = length(q);
@@ -130,6 +134,9 @@ quaternion integrate(const quaternion &q, const vector3 &w, scalar dt);
 
 // Returns the shortest rotation that takes `v0` to `v1`.
 quaternion shortest_arc(const vector3 &v0, const vector3 &v1);
+
+// Returns the angle between two quaternions along the shortest path.
+scalar angle_between(const quaternion &q0, const quaternion &q1);
 
 }
 
