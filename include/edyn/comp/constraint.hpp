@@ -15,6 +15,7 @@
 #include "edyn/constraints/generic_constraint.hpp"
 #include "edyn/constraints/tire_contact_constraint.hpp"
 #include "edyn/constraints/tirecarcass_constraint.hpp"
+#include "edyn/constraints/springdamper_constraint.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
@@ -33,7 +34,8 @@ struct constraint {
                  hinge_constraint,
                  generic_constraint,
                  tire_contact_constraint,
-                 tirecarcass_constraint> var;
+                 tirecarcass_constraint,
+                 springdamper_constraint> var;
     size_t num_rows {0};
     std::array<entt::entity, max_constraint_rows> row = 
         make_array<max_constraint_rows>(entt::entity{entt::null});
