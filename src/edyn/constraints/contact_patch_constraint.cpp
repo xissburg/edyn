@@ -12,6 +12,8 @@
 #include "edyn/math/matrix3x3.hpp"
 #include <entt/entt.hpp>
 
+#include <iostream>
+
 namespace edyn {
 
 static
@@ -93,19 +95,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     // A point on the contact plane.
     auto pB = posB + rotate(ornB, manifold.point[pt_idx].pivotB);
-
-    // Support point in object space.
-    const auto spin_ornA_conj = conjugate(spin_ornA);
-    auto p0_obj = rotate(spin_ornA_conj, p0 - posA);
-
-    // Support point angle in circle space where z points forward and y is up.
-    scalar spin_angle = spin_angleA.s + spin_angleA.count * pi2;
-    scalar angle = std::atan2(p0_obj.y, p0_obj.z);
-
-    // Transform angle from [-π, π] to [0, 2π].
-    if (angle < 0) {
-        angle += 2 * pi;
-    }
 
     auto proj0 = dot(p0 - pB, normal);
     auto proj1 = dot(p1 - pB, normal);
@@ -214,15 +203,28 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const scalar half_perimeter = pi * cyl.radius;
     const scalar perimeter = half_perimeter * 2;
     const scalar desired_spacing = 0.01;
-    const size_t num_bristles = std::floor(perimeter / desired_spacing);
+    const uint16_t num_bristles = std::floor(perimeter / desired_spacing);
     const scalar bristle_spacing = perimeter / num_bristles;
     const scalar bristle_angle_delta = bristle_spacing * r0_inv;
 
-    // Position of deepest point along the perimeter of the circle.
-    //auto center_bristle_origin = angle * cyl.radius;
+    // Support point in object space.
+    auto p0_obj = rotate(conjugate(ornA), p0 - posA);
 
-    // Index of bristle closest to deepest/central point.
-    //size_t center_idx = std::round(center_bristle_origin / bristle_spacing);
+    // Support point angle in circle space where z points forward and y is up.
+    // It allows us to observe the contact point location with respect to the
+    // current spin angle and determine which bristles lie within the contact
+    // patch range.
+    scalar contact_angle = std::atan2(p0_obj.y, p0_obj.z);
+
+    // Transform angle from [-π, π] to [0, 2π].
+    if (contact_angle < 0) {
+        contact_angle += 2 * pi;
+    }
+
+    contact_angle += spin_angleA;
+
+    std::cout << "================================================" << std::endl;
+    std::cout << "contact_angle: " << contact_angle << std::endl;
 
     auto normal_force = normal_row.impulse / dt;
     auto lon_force = scalar {0};
@@ -231,7 +233,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto lon_error = scalar {0};
     auto lat_error = scalar {0};
     auto aligning_error = scalar {0};
-    auto total_bristles = size_t {0};
+    auto total_bristles = uint16_t {0};
 
     // Update bristles for each row.
     for (size_t i = 0; i < num_tread_rows; ++i) {
@@ -241,16 +243,17 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         auto defl = std::clamp(dot(row_center_cyl - pB, -normal), scalar(0), cyl.radius / 2);
         auto row_half_length = scalar(0.4) * cyl.radius * (defl * r0_inv + scalar(2.25) * std::sqrt(defl * r0_inv));
 
-        auto row_half_angle = std::asin(row_half_length / cyl.radius);
+        const auto row_half_angle = std::asin(row_half_length / cyl.radius);
+        const auto row_num_bristles = std::floor(row_half_angle * 2 / bristle_angle_delta);
 
         tread_row.tread_width = tread_width;
         tread_row.patch_half_length = row_half_length;
 
-        auto patch_start_angle = angle - row_half_angle;
-        auto patch_end_angle = angle + row_half_angle;
+        auto patch_start_angle = spin_angleA.count * pi2 + contact_angle - row_half_angle;
+        auto patch_end_angle = spin_angleA.count * pi2 + contact_angle + row_half_angle;
 
         // Keep angle in [0, 2π].
-        if (patch_start_angle < 0) {
+        /* if (patch_start_angle < 0) {
             patch_start_angle += 2 * pi;
         } else if (patch_start_angle > 2 * pi) {
             patch_start_angle -= 2 * pi;
@@ -260,41 +263,52 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             patch_end_angle += 2 * pi;
         } else if (patch_end_angle > 2 * pi) {
             patch_end_angle -= 2 * pi;
+        } */
+
+        uint16_t start_idx;
+
+        if (patch_start_angle < 0) {
+            auto angle = pi2 + patch_start_angle + (spin_angleA.count - 1) * pi2;
+            start_idx = uint16_t(std::ceil(angle / bristle_angle_delta));
+        } else {
+            auto angle = patch_start_angle + spin_angleA.count * pi2;
+            start_idx = uint16_t(std::ceil(angle / bristle_angle_delta));
         }
 
-        const auto start_idx = size_t(std::ceil(patch_start_angle / bristle_angle_delta)) % num_bristles;
-        const auto end_idx = size_t(std::ceil(patch_end_angle / bristle_angle_delta)) % num_bristles;
-        const auto wraps_around = start_idx > end_idx;
+        uint16_t end_idx = start_idx + row_num_bristles;
+
+        std::cout << "start_idx: " << start_idx << " | end_idx:" << end_idx << std::endl;
+
+        /* if (patch_end_angle < spin_angleA) {
+            auto angle = pi2 - (spin_angleA - patch_end_angle) + (spin_angleA.count - 1) * pi2;
+            end_idx = uint16_t(std::ceil(angle / bristle_angle_delta));
+        } else {
+            auto angle = patch_end_angle - spin_angleA + spin_angleA.count * pi2;
+            end_idx = uint16_t(std::ceil(angle / bristle_angle_delta));
+        } */
 
         // Remove existing bristles that are outside the contact patch.
         for (auto iter = tread_row.bristles.begin(); iter != tread_row.bristles.end();) {
             auto idx = iter->first;
-            if ((!wraps_around && (idx < start_idx || idx >= end_idx)) ||
-                ( wraps_around && (idx < start_idx && idx >= end_idx))) {
+            if (idx < start_idx || idx >= end_idx) {
                 iter = tread_row.bristles.erase(iter);
             } else {
-                // TODO:
-                // Even though the bristle is still in the current contact patch, 
-                // there's the possibility that the tire did a full turn in one
-                // step. The bristle must be removed in that case.
                 ++iter;
             }
         }
 
-        const auto patch_num_bristles = start_idx < end_idx ?
-                                        end_idx - start_idx :
-                                        num_bristles - (start_idx - end_idx); 
         const auto row_area = scalar(2) * row_half_length * tread_width;
-        const auto tread_area = patch_num_bristles > 0 ? row_area / patch_num_bristles : scalar(0);
-        
-        auto patch_start_coord = spin_angle + angle - row_half_angle;
-        auto patch_end_coord   = spin_angle + angle + row_half_angle;
-        auto prev_patch_start_coord = tread_row.prev_spin_angle + tread_row.prev_center_angle - tread_row.prev_range_half_angle;
-        auto prev_patch_end_coord   = tread_row.prev_spin_angle + tread_row.prev_center_angle + tread_row.prev_range_half_angle;
+        const auto tread_area = row_num_bristles > 0 ? row_area / row_num_bristles : scalar(0);
+
+        //auto spin_count_angle_delta = (spin_angleA.count - tread_row.prev_spin_count) * pi2;
+        auto prev_patch_start_angle = tread_row.prev_spin_count * pi2 + tread_row.prev_contact_angle - tread_row.prev_range_half_angle;
+        auto prev_patch_end_angle   = tread_row.prev_spin_count * pi2 + tread_row.prev_contact_angle + tread_row.prev_range_half_angle;
+
+        std::cout << "range: " << patch_start_angle << ", " << patch_end_angle << std::endl;
+        std::cout << "prev: " << prev_patch_start_angle << ", " << prev_patch_end_angle << std::endl;
 
         // Introduce new bristles into the contact patch.
-        size_t k = 0;
-        for (size_t j = start_idx; j != end_idx; j = (j+1) % num_bristles, ++k) {
+        for (uint16_t j = start_idx; j != end_idx; ++j) {
             ++total_bristles;
 
             brush_bristle *bristle;
@@ -307,20 +321,18 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 // Calculate time when bristle came into contact with ground,
                 // i.e. the moment it entered the contact patch.
                 scalar entry_dt = 0;
-
-                auto bristle_coord = spin_angle + bristle_angle + (wraps_around ? pi2 : 0);
-
-                if (bristle_coord < prev_patch_start_coord) {
-                    auto denom = prev_patch_start_coord - patch_start_coord;
+/* 
+                if (bristle_angle < prev_patch_start_angle) {
+                    auto denom = prev_patch_start_angle - patch_start_angle;
                     if (std::abs(denom) > EDYN_EPSILON) {
-                        entry_dt = -dt * (bristle_coord - patch_start_coord) / denom;
+                        entry_dt = -dt * (bristle_angle - patch_start_angle) / denom;
                     }
-                } else if (bristle_coord > prev_patch_end_coord) {
-                    auto denom = prev_patch_end_coord - patch_end_coord;
+                } else if (bristle_angle > prev_patch_end_angle) {
+                    auto denom = prev_patch_end_angle - patch_end_angle;
                     if (std::abs(denom) > EDYN_EPSILON) {
-                        entry_dt = -dt * (bristle_coord - patch_end_coord) / denom;
+                        entry_dt = -dt * (bristle_angle - patch_end_angle) / denom;
                     }
-                }
+                } */
 
                 auto bristle_pivot = vector3{row_x, std::sin(bristle_angle) * cyl.radius, std::cos(bristle_angle) * cyl.radius};
                 auto rA = bristle_pivot;
@@ -397,9 +409,9 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             bristle->tread_area = tread_area;
         }
 
-        tread_row.prev_center_angle = angle;
+        tread_row.prev_contact_angle = contact_angle;
         tread_row.prev_range_half_angle = row_half_angle;
-        tread_row.prev_spin_angle = spin_angle;
+        tread_row.prev_spin_count = spin_angleA.count;
     }
 
     if (total_bristles > 0) {
