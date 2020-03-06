@@ -221,7 +221,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         contact_angle += 2 * pi;
     }
 
-    contact_angle += spin_angleA;
+    contact_angle += spin_angleA.s;
 
     std::cout << "================================================" << std::endl;
     std::cout << "contact_angle: " << contact_angle << std::endl;
@@ -265,16 +265,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             patch_end_angle -= 2 * pi;
         } */
 
-        uint16_t start_idx;
-
-        if (patch_start_angle < 0) {
-            auto angle = pi2 + patch_start_angle + (spin_angleA.count - 1) * pi2;
-            start_idx = uint16_t(std::ceil(angle / bristle_angle_delta));
-        } else {
-            auto angle = patch_start_angle + spin_angleA.count * pi2;
-            start_idx = uint16_t(std::ceil(angle / bristle_angle_delta));
-        }
-
+        auto start_idx = uint16_t(std::ceil(patch_start_angle / bristle_angle_delta));
         uint16_t end_idx = start_idx + row_num_bristles;
 
         std::cout << "start_idx: " << start_idx << " | end_idx:" << end_idx << std::endl;
