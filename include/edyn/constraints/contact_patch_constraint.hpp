@@ -44,7 +44,7 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     vector3 m_lat_dir;
     vector3 m_patch_center;
 
-    static constexpr size_t num_tread_rows = 1;
+    static constexpr size_t num_tread_rows = 3;
     std::array<tread_row, num_tread_rows> m_tread_rows{};
 
     void clear(entt::registry &, constraint &);
