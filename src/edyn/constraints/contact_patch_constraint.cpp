@@ -12,8 +12,6 @@
 #include "edyn/math/matrix3x3.hpp"
 #include <entt/entt.hpp>
 
-#include <iostream>
-
 namespace edyn {
 
 static
@@ -181,8 +179,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto forward = normalize(cross(axis, normal));
     auto up = cross(forward, axis);
 
-    // Calculate longitudinal and lateral friction directions
-    // project axis on contact plane.
+    // Calculate longitudinal and lateral friction directions.
     m_lat_dir = axis - normal * dot(axis, normal);
     auto lat_dir_len2 = length2(m_lat_dir);
 
@@ -223,9 +220,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     contact_angle += spin_angleA.s;
 
-    std::cout << "================================================" << std::endl;
-    std::cout << "contact_angle: " << contact_angle << std::endl;
-
     auto normal_force = normal_row.impulse / dt;
     auto lon_force = scalar {0};
     auto lat_force = scalar {0};
@@ -244,44 +238,31 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         auto row_half_length = scalar(0.4) * cyl.radius * (defl * r0_inv + scalar(2.25) * std::sqrt(defl * r0_inv));
 
         const auto row_half_angle = std::asin(row_half_length / cyl.radius);
-        const auto row_num_bristles = std::floor(row_half_angle * 2 / bristle_angle_delta);
+        const uint16_t row_num_bristles = std::floor(row_half_angle * 2 / bristle_angle_delta);
 
         tread_row.tread_width = tread_width;
         tread_row.patch_half_length = row_half_length;
 
+        // Contact patch extents for this row accounting for number of spins.
         auto patch_start_angle = spin_angleA.count * pi2 + contact_angle - row_half_angle;
-        auto patch_end_angle = spin_angleA.count * pi2 + contact_angle + row_half_angle;
+        auto patch_end_angle   = spin_angleA.count * pi2 + contact_angle + row_half_angle;
 
-        // Keep angle in [0, 2π].
-        /* if (patch_start_angle < 0) {
-            patch_start_angle += 2 * pi;
-        } else if (patch_start_angle > 2 * pi) {
-            patch_start_angle -= 2 * pi;
-        }
-
-        if (patch_end_angle < 0) {
-            patch_end_angle += 2 * pi;
-        } else if (patch_end_angle > 2 * pi) {
-            patch_end_angle -= 2 * pi;
-        } */
-
-        auto start_idx = uint16_t(std::ceil(patch_start_angle / bristle_angle_delta));
-        uint16_t end_idx = start_idx + row_num_bristles;
-
-        std::cout << "start_idx: " << start_idx << " | end_idx:" << end_idx << std::endl;
-
-        /* if (patch_end_angle < spin_angleA) {
-            auto angle = pi2 - (spin_angleA - patch_end_angle) + (spin_angleA.count - 1) * pi2;
-            end_idx = uint16_t(std::ceil(angle / bristle_angle_delta));
-        } else {
-            auto angle = patch_end_angle - spin_angleA + spin_angleA.count * pi2;
-            end_idx = uint16_t(std::ceil(angle / bristle_angle_delta));
-        } */
+        // Maximum number of extra spins that are handled before wrapping around
+        // to help deal with the situation where the tire spins more than once
+        // in one step and the same bristles end up in the contact patch. 
+        const uint16_t max_spins = 32;
+        const uint16_t max_bristles = max_spins * num_bristles;
+        uint16_t start_idx = patch_start_angle > 0 ?    
+                             uint16_t(std::ceil(patch_start_angle / bristle_angle_delta)) % max_bristles :
+                             uint16_t(std::ceil((max_bristles * bristle_angle_delta + patch_start_angle) / bristle_angle_delta)) % max_bristles;
+        uint16_t end_idx = (start_idx + row_num_bristles) % max_bristles;
+        auto wraps_around = start_idx > end_idx;
 
         // Remove existing bristles that are outside the contact patch.
         for (auto iter = tread_row.bristles.begin(); iter != tread_row.bristles.end();) {
             auto idx = iter->first;
-            if (idx < start_idx || idx >= end_idx) {
+            if ((!wraps_around && (idx < start_idx || idx >= end_idx)) ||
+                ( wraps_around && (idx < start_idx && idx >= end_idx))) {
                 iter = tread_row.bristles.erase(iter);
             } else {
                 ++iter;
@@ -291,15 +272,12 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         const auto row_area = scalar(2) * row_half_length * tread_width;
         const auto tread_area = row_num_bristles > 0 ? row_area / row_num_bristles : scalar(0);
 
-        //auto spin_count_angle_delta = (spin_angleA.count - tread_row.prev_spin_count) * pi2;
         auto prev_patch_start_angle = tread_row.prev_spin_count * pi2 + tread_row.prev_contact_angle - tread_row.prev_range_half_angle;
         auto prev_patch_end_angle   = tread_row.prev_spin_count * pi2 + tread_row.prev_contact_angle + tread_row.prev_range_half_angle;
 
-        std::cout << "range: " << patch_start_angle << ", " << patch_end_angle << std::endl;
-        std::cout << "prev: " << prev_patch_start_angle << ", " << prev_patch_end_angle << std::endl;
-
         // Introduce new bristles into the contact patch.
-        for (uint16_t j = start_idx; j != end_idx; ++j) {
+        size_t k = 0;
+        for (uint16_t j = start_idx; j != end_idx; j = (j+1) % max_bristles, ++k) {
             ++total_bristles;
 
             brush_bristle *bristle;
@@ -307,12 +285,12 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             if (tread_row.bristles.count(j)) {
                 bristle = &tread_row.bristles[j];
             } else {
-                const auto bristle_angle = scalar(j) * bristle_angle_delta;
+                const auto bristle_angle = (std::ceil(patch_start_angle / bristle_angle_delta) + k) * bristle_angle_delta;
 
                 // Calculate time when bristle came into contact with ground,
                 // i.e. the moment it entered the contact patch.
                 scalar entry_dt = 0;
-/* 
+
                 if (bristle_angle < prev_patch_start_angle) {
                     auto denom = prev_patch_start_angle - patch_start_angle;
                     if (std::abs(denom) > EDYN_EPSILON) {
@@ -323,9 +301,12 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                     if (std::abs(denom) > EDYN_EPSILON) {
                         entry_dt = -dt * (bristle_angle - patch_end_angle) / denom;
                     }
-                } */
+                }
 
-                auto bristle_pivot = vector3{row_x, std::sin(bristle_angle) * cyl.radius, std::cos(bristle_angle) * cyl.radius};
+                auto normalized_bristle_angle = scalar(j % num_bristles) * bristle_angle_delta;
+                auto bristle_pivot = vector3{row_x, 
+                                             std::sin(normalized_bristle_angle) * cyl.radius, 
+                                             std::cos(normalized_bristle_angle) * cyl.radius};
                 auto rA = bristle_pivot;
 
                 auto entry_pos = posA + linvelA * entry_dt;
