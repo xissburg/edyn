@@ -66,8 +66,13 @@ inline vector3& operator-=(vector3 &v, const vector3 &w) {
 }
 
 // Negation of a vector.
-inline vector3 operator-(const vector3& v) {
+inline vector3 operator-(const vector3 &v) {
     return {-v.x, -v.y, -v.z};
+}
+
+// Multiply vectors component-wise.
+inline vector3 operator*(const vector3 &v, const vector3 &w) {
+    return {v.x * w.x, v.y * w.y, v.z * w.z};
 }
 
 // Multiply vector by scalar.

@@ -2,6 +2,7 @@
 
 namespace edyn {
 
+// TODO: Include bump stop stiffness in curve. ****
 linear_curve spring_stiffness_curve(scalar primary_stiffness, scalar primary_max_defl,
                                     scalar secondary_stiffness, scalar secondary_max_defl) {
     linear_curve curve;

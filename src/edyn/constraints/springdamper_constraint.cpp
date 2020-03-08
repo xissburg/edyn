@@ -34,7 +34,7 @@ void springdamper_constraint::prepare(entt::entity, constraint &con, const relat
 
     auto ctrl_armA = posA + rotate(ornA, m_ctrl_arm_pivotA);
     auto ctrl_armB = pB;
-    auto ctrl_arm_dir = ctrl_armA - ctrl_armB;
+    auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
     auto ctrl_arm_len = length(ctrl_arm_dir);
     ctrl_arm_dir /= ctrl_arm_len;
 
@@ -58,11 +58,11 @@ void springdamper_constraint::prepare(entt::entity, constraint &con, const relat
     
     // Spring.
     {
-        auto impulse = m_stiffness_curve.get(-error) * inclination / dt;
+        auto impulse = m_stiffness_curve.get(-error) * inclination * dt;
         auto &row = registry.get<constraint_row>(con.row[0]);
         row.J = {n, p, -n, -q};
         row.error = error / dt;
-        row.lower_limit = -impulse;
+        row.lower_limit = 0;
         row.upper_limit = impulse;
     }
 
@@ -80,12 +80,12 @@ void springdamper_constraint::prepare(entt::entity, constraint &con, const relat
         auto velB = vel_ctrl_armA * (1 - ratio) + vel_ctrl_armB * ratio;
         auto v_rel = velA - velB;
         auto speed = dot(coilover_dir, v_rel);
-        auto damping_impulse = get_damping_force(speed) / dt;
-        auto impulse = std::abs(damping_impulse * inclination);
+        auto damping_force = get_damping_force(speed) * inclination;
+        auto impulse = std::abs(damping_force) * dt;
 
         auto &row = registry.get<constraint_row>(con.row[1]);
         row.J = {n, p, -n, -q};
-        row.error = error / dt;
+        row.error = 0;
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
     }
@@ -96,8 +96,8 @@ void springdamper_constraint::prepare(entt::entity, constraint &con, const relat
         auto &row = registry.get<constraint_row>(con.row[2]);
         row.J = {n, p, -n, -q};
         row.error = error / dt;
-        row.lower_limit = 0;
-        row.upper_limit = large_scalar;
+        row.lower_limit = -large_scalar;
+        row.upper_limit = 0;
     }
 }
 
@@ -206,7 +206,7 @@ scalar springdamper_constraint::get_damping_force(scalar speed) const {
             return m_slow_compression_damping * m_compression_knee_speed + 
                    m_fast_compression_damping * (-speed - m_compression_knee_speed);
         } else {
-            return m_slow_compression_damping * speed;
+            return m_slow_compression_damping * -speed;
         }
     } else {
         if (speed > m_rebound_knee_speed) {

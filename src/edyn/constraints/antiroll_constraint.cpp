@@ -82,13 +82,14 @@ void antiroll_constraint::prepare(entt::entity, constraint &con, const relation 
     
     if (length2(n) <= EDYN_EPSILON) {
         n = cross(d_projC, chassis_x);
-        n = normalize(n);
     }
     
+    n = normalize(n);
+
     auto p = cross(rA, n);
     auto q = cross(rB, n);
-
-    auto angle = to_degrees(std::acos(dot(d_projB, d_projC)));
+    auto d = std::clamp(dot(d_projB, d_projC), scalar(-1), scalar(1));
+    auto angle = to_degrees(std::acos(d));
     auto impulse = std::abs(stiffness * angle / lever) * dt;
 
     auto &row = registry.get<constraint_row>(con.row[0]);
