@@ -27,8 +27,8 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
 
     struct tread_row {
         scalar prev_contact_angle {0};
-        scalar prev_range_half_angle {0};
-        long prev_spin_count;
+        scalar prev_row_half_angle {0};
+        long prev_spin_count {0};
         scalar tread_width;
         scalar patch_half_length;
         std::map<size_t, brush_bristle> bristles;
