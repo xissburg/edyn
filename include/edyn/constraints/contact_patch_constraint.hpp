@@ -21,7 +21,6 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
         vector3 tip;
         vector3 deflection;
         vector3 damping_force;
-        scalar tread_area;
         scalar friction;
     };
 
@@ -30,6 +29,7 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
         scalar prev_row_half_angle {0};
         long prev_spin_count {0};
         scalar tread_width;
+        scalar tread_area;
         scalar patch_half_length;
         std::map<size_t, brush_bristle> bristles;
     };

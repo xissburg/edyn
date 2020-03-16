@@ -51,8 +51,10 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         return;
     }
 
+    // Use largest penetration for normal deflection force calculation.
     auto deepest_distance = EDYN_SCALAR_MAX;
     auto pt_idx = size_t {0};
+
     for (size_t i = 0; i < manifold.num_points; ++i) {
         if (manifold.point[i].distance < deepest_distance) {
             deepest_distance = manifold.point[i].distance;
@@ -60,9 +62,15 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         }
     }
 
+    if (deepest_distance > 0) {
+        clear(registry, con);
+        return;
+    }
+
     const auto &posA = registry.get<position>(rel.entity[0]);
     const auto &ornA = registry.get<orientation>(rel.entity[0]);
     
+    // Wheel spin axis in world space.
     const auto axis = rotate(ornA, vector3_x);
     
     const auto &spin_angleA = registry.get<spin_angle>(rel.entity[0]);
@@ -71,11 +79,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const auto &posB = registry.get<position>(rel.entity[1]);
     const auto &ornB = registry.get<orientation>(rel.entity[1]);
     const auto ornB_conj = conjugate(ornB);
-
-    const auto normal = rotate(ornB, manifold.point[pt_idx].normalB);
-
-    const auto &shapeA = registry.get<shape>(rel.entity[0]);
-    const auto &cyl = std::get<cylinder_shape>(shapeA.var);
     
     const auto &linvelA = registry.get<linvel>(rel.entity[0]);
     const auto &angvelA = registry.get<angvel>(rel.entity[0]);
@@ -85,6 +88,11 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     const auto &linvelB = registry.get<linvel>(rel.entity[1]);
     const auto &angvelB = registry.get<angvel>(rel.entity[1]);
+
+    const auto &shapeA = registry.get<shape>(rel.entity[0]);
+    const auto &cyl = std::get<cylinder_shape>(shapeA.var);
+    
+    const auto normal = rotate(ornB, manifold.point[pt_idx].normalB);
 
     // Determine contact patch extremities.
     const auto axis_hl = axis * cyl.half_length;
@@ -97,6 +105,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto proj0 = dot(p0 - pB, normal);
     auto proj1 = dot(p1 - pB, normal);
 
+    // Where the row starts in the x-axis in object space.
     auto row_start = -cyl.half_length;
     
     // Intersect segment between `p0` and `p1` with contact plane to find
@@ -125,7 +134,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             // Priority zero for normal constraint,
             // priority one for friction constraints.
             row.priority = i == 0 ? 0 : 1;
-            // Use spin for longitudinal constraint.
+            // Use spin only for longitudinal constraint.
             row.use_spin[0] = i == 1;
             row.use_spin[1] = i == 1;
             con.row[i] = row_entity;
@@ -147,7 +156,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     
     auto &normal_row = registry.get<constraint_row>(con.row[0]);
     normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-    normal_row.lower_limit = 0;
 
     auto linvelrel = linvelA - linvelB;
     auto speed = length(linvelrel - normal * dot(linvelrel, normal));
@@ -156,25 +164,10 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto spring_force = penetration * stiffness;
     auto normal_relvel = dot(linvelA + cross(angvelA, rA) - linvelB - cross(angvelB, rB), normal);
     auto damper_force = normal_relvel * m_damping;
-    normal_row.upper_limit = std::abs(spring_force + damper_force) * dt;
-
-    auto pvel = penetration / dt;
-
-    normal_row.error = 0;
+    normal_row.upper_limit = (std::abs(spring_force) + std::abs(damper_force)) * dt;
+    normal_row.lower_limit = 0;
+    normal_row.error = std::min(penetration / dt, scalar(0));
     normal_row.restitution = 0;
-
-    // If not penetrating and the velocity necessary to touch in `dt` seconds
-    // is smaller than the bounce velocity, it should apply an impulse that
-    // will prevent penetration after the following physics update.
-    if (penetration > 0) {
-        normal_row.error = std::max(pvel, scalar(0));
-    } else {
-        // If this is a resting contact and it is penetrating, apply impulse to push it out.
-        //if (cp.lifetime > 0) {
-            constexpr scalar contact_erp = 0.2;
-            normal_row.error = std::min(pvel, scalar(0)) * contact_erp;
-        //}
-    }
 
     auto forward = normalize(cross(axis, normal));
     auto up = cross(forward, axis);
@@ -246,7 +239,10 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         auto patch_start_angle = contact_angle - row_half_angle;
         auto patch_end_angle   = contact_angle + row_half_angle;
 
+        // Angle of the first bristle without wrapping around in the [0, 2π] range.
         const scalar start_angle = std::ceil(patch_start_angle / bristle_angle_delta) * bristle_angle_delta;
+
+        // Index of the first and last bristles.
         const uint16_t start_idx = uint16_t(std::ceil(patch_start_angle / bristle_angle_delta)) % num_bristles;
         const uint16_t end_idx = uint16_t(std::ceil(patch_end_angle / bristle_angle_delta)) % num_bristles;
         const auto wraps_around = start_idx > end_idx;
@@ -267,7 +263,15 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         const auto tread_area = row_num_bristles > 0 ? row_area / row_num_bristles : scalar(0);
         const auto spin_count_delta = spin_angleA.count - tread_row.prev_spin_count;
 
-        // Introduce new bristles into the contact patch.
+        // Previous contact patch range accounting for the number of spins
+        // since the last update so that the ranges and angles are all laid
+        // out in a segment without wrapping around.
+        auto prev_contact_angle     = tread_row.prev_contact_angle - spin_count_delta * pi2;
+        auto prev_patch_start_angle = prev_contact_angle - tread_row.prev_row_half_angle;
+        auto prev_patch_end_angle   = prev_contact_angle + tread_row.prev_row_half_angle;
+
+        // Update persisted bristles and introduce new bristles into the
+        // contact patch.
         for (uint16_t j = 0; j < row_num_bristles; ++j) {
             ++total_bristles;
             const auto bristle_idx = (start_idx + j) % num_bristles;
@@ -277,6 +281,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 bristle = &tread_row.bristles[bristle_idx];
             } else {
                 auto bristle_angle = start_angle + scalar(j) * bristle_angle_delta;
+                // Bristle coordinates in object space.
                 auto bristle_pivot = vector3{row_x, 
                                              std::sin(bristle_angle) * cyl.radius, 
                                              std::cos(bristle_angle) * cyl.radius};
@@ -285,9 +290,8 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 // i.e. the moment it entered the contact patch.
                 scalar entry_dt = 0;
 
-                auto prev_patch_start_angle = tread_row.prev_contact_angle - spin_count_delta * pi2 - tread_row.prev_row_half_angle;
-                auto prev_patch_end_angle   = tread_row.prev_contact_angle - spin_count_delta * pi2 + tread_row.prev_row_half_angle;
-
+                // Check whether it entered through the front or rear of the patch
+                // and `entry_dt` is going to be a negative proportion of `dt`.
                 if (bristle_angle < prev_patch_start_angle) {
                     auto denom = prev_patch_start_angle - patch_start_angle;
                     if (std::abs(denom) > EDYN_EPSILON) {
@@ -300,12 +304,15 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                     }
                 }
 
+                // Rollback.
                 auto entry_pos = posA + linvelA * entry_dt;
                 auto entry_orn = integrate(ornA, angvelA, entry_dt);
                 auto entry_spin_angle = spin_angleA + spinA * entry_dt;
                 auto entry_spin_orn = entry_orn * quaternion_axis_angle(vector3_x, entry_spin_angle);
                 auto entry_bristle_pos = entry_pos + rotate(entry_spin_orn, bristle_pivot);
                 entry_bristle_pos -= normal * dot(entry_bristle_pos - pB, normal);
+
+                // Calculate pivots at time of entry.
                 auto rB = rotate(conjugate(integrate(ornB, angvelB, entry_dt)), entry_bristle_pos - (posB + linvelB * entry_dt));
                 auto rA = bristle_pivot;
 
@@ -313,16 +320,17 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 bristle = &tread_row.bristles[bristle_idx];
             }
 
+            // Bristle root and tip in world space, on the contact plane.
             auto bristle_root = posA + rotate(spin_ornA, bristle->pivotA);
             bristle_root -= normal * dot(bristle_root - pB, normal);
-            auto pivotA = bristle_root - posA;
+            auto relA = bristle_root - posA; // Relative to entity A.
 
             auto bristle_tip = posB + rotate(ornB, bristle->pivotB);
             bristle_tip -= normal * dot(bristle_tip - pB, normal);
-            auto pivotB = bristle_tip - posB;
+            auto relB = bristle_tip - posB; // Relative to entity B.
 
-            auto velA = linvelA + cross(spin_angvelA, pivotA);
-            auto velB = linvelB + cross(angvelB, pivotB);
+            auto velA = linvelA + cross(spin_angvelA, relA);
+            auto velB = linvelB + cross(angvelB, relB);
             auto relvel = velA - velB;
             auto tanrelvel = relvel - normal * dot(relvel, normal);
             auto tanrelspd = length(tanrelvel);
@@ -350,12 +358,13 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                     error = std::sqrt(bristle_defl_len2);
                     spring_force = m_tread_stiffness * tread_area * bristle_defl;
                     bristle_tip = bristle_root - bristle_defl;
-                    pivotB = bristle_tip - posB;
+                    relB = bristle_tip - posB;
 
-                    bristle->pivotB = rotate(ornB_conj, pivotB);
+                    bristle->pivotB = rotate(ornB_conj, relB);
                 }
             }
 
+            // TODO: damping.
             scalar tread_damping = 500000;
             bristle->damping_force = vector3_zero;//tanrelvel * tread_damping * tread_area;
             auto force = spring_force + bristle->damping_force;
@@ -366,13 +375,15 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
             lon_error += dot(m_lon_dir, bristle_defl);
             lat_error += dot(m_lat_dir, bristle_defl);
+
+            // Angle (approx.) subtended by bristle from the patch center.
             aligning_error += dot(cross(bristle_root - m_patch_center, bristle_tip - m_patch_center), normal);
 
             bristle->root = bristle_root;
             bristle->deflection = bristle_defl;
-            bristle->tread_area = tread_area;
         }
 
+        tread_row.tread_area = tread_area;
         tread_row.prev_contact_angle = contact_angle;
         tread_row.prev_spin_count = spin_angleA.count;
         tread_row.prev_row_half_angle = row_half_angle;
@@ -451,18 +462,18 @@ void contact_patch_constraint::iteration(entt::entity entity, constraint &con,
                                   (normal_force / num_tread_rows) / 
                                   (tread_row.tread_width * tread_row.patch_half_length * scalar(2 * (1 - 0.25/2 - 0.25/3))) : 
                                   scalar(0);
-            auto max_friction_force = bristle.friction * normal_pressure * bristle.tread_area;
+            auto max_friction_force = bristle.friction * normal_pressure * tread_row.tread_area;
             auto dl2 = length2(bristle.deflection);
             auto spring_force = vector3_zero;
 
             if (dl2 > EDYN_EPSILON) {
-                spring_force = m_tread_stiffness * bristle.tread_area * bristle.deflection;
+                spring_force = m_tread_stiffness * tread_row.tread_area * bristle.deflection;
 
                 if (length2(spring_force) > max_friction_force * max_friction_force) {
                     auto dir = bristle.deflection / std::sqrt(dl2);
                     auto max_tread_defl = bristle.friction * normal_pressure / m_tread_stiffness;
                     bristle.deflection = dir * max_tread_defl;
-                    spring_force = m_tread_stiffness * bristle.tread_area * bristle.deflection;
+                    spring_force = m_tread_stiffness * tread_row.tread_area * bristle.deflection;
                 }
             }
 
