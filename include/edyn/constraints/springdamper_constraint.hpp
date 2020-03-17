@@ -3,14 +3,9 @@
 
 #include "constraint_base.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/math/linear_curve.hpp"
+#include "edyn/util/spring_util.hpp"
 
 namespace edyn {
-
-enum control_arm_location {
-    control_arm_upper = 0,
-    control_arm_lower
-};
 
 struct springdamper_constraint : public constraint_base<springdamper_constraint> {
     // Which side the coilover is located: 1 left, -1 right.

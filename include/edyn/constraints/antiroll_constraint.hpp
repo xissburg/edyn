@@ -4,6 +4,7 @@
 #include <entt/fwd.hpp>
 #include "constraint_base.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/util/spring_util.hpp"
 
 namespace edyn {
 
@@ -26,6 +27,8 @@ struct antiroll_constraint : public constraint_base<antiroll_constraint> {
     vector3 other_ctrl_arm_pivot;
 
     scalar angle;
+
+    control_arm_location ctrl_arm_loc;
 
     void init(entt::entity, constraint &, const relation &, entt::registry &);
     void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
