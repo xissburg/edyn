@@ -154,6 +154,16 @@ inline scalar length(const vector3 &v) {
     return std::sqrt(length2(v));
 }
 
+// Distance between two points.
+inline scalar distance(const vector3 &p0, const vector3 &p1) {
+    return length(p0 - p1);
+}
+
+// Squared distance between two points.
+inline scalar distance2(const vector3 &p0, const vector3 &p1) {
+    return length2(p0 - p1);
+}
+
 // Normalized vector (unit length). Asserts if the vector's length is zero.
 inline vector3 normalize(const vector3 &v) {
     auto l = length(v);
