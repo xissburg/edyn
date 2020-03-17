@@ -47,8 +47,9 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         auto axis = rotate(ornB, vector3_x);
         auto error = dot(posA - posB, axis);
         auto vel = dot(linvelA - linvelB, axis);
-        auto force = error * m_lateral_stiffness + vel * m_lateral_damping;
-        auto impulse = std::abs(force) * dt;
+        auto force = std::abs(error * m_lateral_stiffness) + 
+                     std::abs(vel * m_lateral_damping);
+        auto impulse = force * dt;
 
         auto &row = registry.get<constraint_row>(con.row[0]);
         row.J = {axis, vector3_zero, -axis, vector3_zero};
@@ -93,8 +94,9 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         auto axisA_z = rotate(ornspinA, vector3_z);
         auto error = -dot(axisB_y_proj, axisA_z);
         auto vel = dot((angvelA + spinvelA) - (angvelB + spinvelB), axis);
-        auto force = error * m_longitudinal_stiffness + vel * m_longitudinal_damping;
-        auto impulse = std::abs(force) * dt;
+        auto force = std::abs(error * m_longitudinal_stiffness) + 
+                     std::abs(vel * m_longitudinal_damping);
+        auto impulse = force * dt;
 
         auto &row = registry.get<constraint_row>(con.row[3]);
         row.J = {vector3_zero, axis, vector3_zero, -axis};
@@ -132,8 +134,9 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         auto axisB_z = rotate(ornB, vector3_z);
         auto error = -dot(axisA_x_proj, axisB_z);
         auto vel = dot(angvelA - angvelB, axis);
-        auto force = error * m_torsional_stiffness + vel * m_torsional_damping;
-        auto impulse = std::abs(force) * dt;
+        auto force = std::abs(error * m_torsional_stiffness) + 
+                     std::abs(vel * m_torsional_damping);
+        auto impulse = force * dt;
 
         auto &row = registry.get<constraint_row>(con.row[5]);
         row.J = {vector3_zero, axis, vector3_zero, -axis};
