@@ -119,8 +119,8 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         } else if (proj1 > 0) {
             // `p1` is above the plane.
             auto s = proj1 / d;
-            p1 += axis_hl * s;
-            row_start += cyl.half_length * s;
+            p1 -= axis_hl * s;
+            row_start -= cyl.half_length * s;
         }
     }
 
@@ -334,7 +334,9 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             auto relvel = velA - velB;
             auto tanrelvel = relvel - normal * dot(relvel, normal);
             auto tanrelspd = length(tanrelvel);
-            bristle->friction = m_friction_coefficient / (1 + m_speed_sensitivity * tanrelspd);
+
+            auto mu0 = m_friction_coefficient * std::exp(scalar(-0.001) * m_load_sensitivity * normal_force);
+            bristle->friction = mu0 / (1 + m_speed_sensitivity * tanrelspd);
 
             auto normal_pressure = row_half_length > 0 ? 
                                    (normal_force / num_tread_rows) / 
@@ -347,16 +349,17 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             auto bristle_defl_len2 = length2(bristle_defl);
 
             if (bristle_defl_len2 > EDYN_EPSILON) {
-                spring_force = m_tread_stiffness * tread_area * bristle_defl;
+                // TODO: handle anysotropic stiffness.
+                spring_force = m_lon_tread_stiffness * tread_area * bristle_defl;
 
                 if (length2(spring_force) > max_friction_force * max_friction_force) {
                     auto error = std::sqrt(bristle_defl_len2);
                     auto dir = bristle_defl / error;
-                    auto max_tread_defl = bristle->friction * normal_pressure / m_tread_stiffness;
+                    auto max_tread_defl = bristle->friction * normal_pressure / m_lon_tread_stiffness;
                     bristle_defl = dir * max_tread_defl;
                     bristle_defl_len2 = length2(bristle_defl);
                     error = std::sqrt(bristle_defl_len2);
-                    spring_force = m_tread_stiffness * tread_area * bristle_defl;
+                    spring_force = m_lon_tread_stiffness * tread_area * bristle_defl;
                     bristle_tip = bristle_root - bristle_defl;
                     relB = bristle_tip - posB;
 
@@ -467,13 +470,13 @@ void contact_patch_constraint::iteration(entt::entity entity, constraint &con,
             auto spring_force = vector3_zero;
 
             if (dl2 > EDYN_EPSILON) {
-                spring_force = m_tread_stiffness * tread_row.tread_area * bristle.deflection;
+                spring_force = m_lon_tread_stiffness * tread_row.tread_area * bristle.deflection;
 
                 if (length2(spring_force) > max_friction_force * max_friction_force) {
                     auto dir = bristle.deflection / std::sqrt(dl2);
-                    auto max_tread_defl = bristle.friction * normal_pressure / m_tread_stiffness;
+                    auto max_tread_defl = bristle.friction * normal_pressure / m_lon_tread_stiffness;
                     bristle.deflection = dir * max_tread_defl;
-                    spring_force = m_tread_stiffness * tread_row.tread_area * bristle.deflection;
+                    spring_force = m_lon_tread_stiffness * tread_row.tread_area * bristle.deflection;
                 }
             }
 

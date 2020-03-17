@@ -10,6 +10,7 @@
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/material.hpp"
+#include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
@@ -65,7 +66,13 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (!def.sensor) {
         registry.assign<material>(entity, def.restitution, def.friction,
-                                  def.stiffness, def.damping, def.use_contact_patch, def.is_tire);
+                                  def.stiffness, def.damping);
+
+        if (def.is_tire) {
+            registry.assign<tire_material>(entity, def.lon_tread_stiffness,
+                                           def.lat_tread_stiffness, 
+                                           def.speed_sensitivity, def.load_sensitivity);
+        }
     }
 
     if (def.presentation) {

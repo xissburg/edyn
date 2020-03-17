@@ -55,8 +55,11 @@ struct rigidbody_def {
 
     bool spin_enabled {false};
 
-    bool use_contact_patch {false};
     bool is_tire {false};
+    scalar lon_tread_stiffness {3000000};
+    scalar lat_tread_stiffness {1800000};
+    scalar speed_sensitivity {0.03};
+    scalar load_sensitivity {0.05};
 
     // Whether this entity will be used for presentation and needs 
     // position/orientation interpolation.

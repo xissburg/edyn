@@ -37,8 +37,10 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     scalar m_stiffness {large_scalar};
     scalar m_damping {large_scalar};
     scalar m_friction_coefficient {1};
-    scalar m_speed_sensitivity {0.03};
-    scalar m_tread_stiffness {7000000};
+    scalar m_speed_sensitivity {0.05};
+    scalar m_load_sensitivity {0.03};
+    scalar m_lon_tread_stiffness {3000000};
+    scalar m_lat_tread_stiffness {1800000};
 
     vector3 m_lon_dir;
     vector3 m_lat_dir;

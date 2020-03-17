@@ -16,6 +16,7 @@
 #include "comp/tag.hpp"
 #include "comp/shape.hpp"
 #include "comp/material.hpp"
+#include "comp/tire_material.hpp"
 #include "comp/island.hpp"
 #include "comp/contact_manifold.hpp"
 #include "comp/collision_filter.hpp"

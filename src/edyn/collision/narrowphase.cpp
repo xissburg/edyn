@@ -2,6 +2,7 @@
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/material.hpp"
+#include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/shape.hpp"
@@ -25,15 +26,27 @@ void narrowphase::on_construct_broadphase_relation(entt::entity entity, entt::re
     auto m1 = registry.try_get<material>(rel.entity[1]);
 
     if (m0 && m1) {
-        if (m0->use_contact_patch || m1->use_contact_patch) {
+        auto stiffness = 1 / (1 / m0->stiffness + 1 / m1->stiffness);
+        auto damping = 1 / (1 / m0->damping + 1 / m1->damping);
+
+        auto tire0 = registry.try_get<tire_material>(rel.entity[0]);
+        auto tire1 = registry.try_get<tire_material>(rel.entity[1]);
+
+        if (tire0 || tire1) {
             auto contact = contact_patch_constraint();
             // Contact patch is always a soft contact since it needs deflection.
             EDYN_ASSERT(m0->stiffness < large_scalar || m1->stiffness < large_scalar);
-            contact.m_stiffness = 1 / (1 / m0->stiffness + 1 / m1->stiffness);
-            contact.m_damping = 1 / (1 / m0->damping + 1 / m1->damping);
+            contact.m_stiffness = stiffness;
+            contact.m_damping = damping;
             contact.m_friction_coefficient = m0->friction * m1->friction;
-            contact.m_speed_sensitivity = std::max(m0->speed_sensitivity, m1->speed_sensitivity);
-            contact.m_tread_stiffness = std::max(m0->tread_stiffness, m1->tread_stiffness);
+
+            auto tire = tire0 ? tire0 : tire1;
+
+            contact.m_speed_sensitivity = tire->speed_sensitivity;
+            contact.m_load_sensitivity = tire->load_sensitivity;
+            contact.m_lat_tread_stiffness = tire->lat_tread_stiffness;
+            contact.m_lon_tread_stiffness = tire->lon_tread_stiffness;
+            
             registry.assign<constraint>(entity, contact);
 
             // Swap relation to ensure the cylinder is in the first entity.
@@ -41,15 +54,12 @@ void narrowphase::on_construct_broadphase_relation(entt::entity entity, entt::re
             if (std::holds_alternative<cylinder_shape>(shapeB.var)) {
                 std::swap(rel.entity[0], rel.entity[1]);
             }
-        } else if (m0->is_tire || m1->is_tire) {
-            auto contact = tire_contact_constraint();
-            registry.assign<constraint>(entity, contact);
         } else {
             auto contact = contact_constraint();
 
             if (m0->stiffness < large_scalar || m1->stiffness < large_scalar) {
-                contact.stiffness = 1 / (1 / m0->stiffness + 1 / m1->stiffness);
-                contact.damping = 1 / (1 / m0->damping + 1 / m1->damping);
+                contact.stiffness = stiffness;
+                contact.damping = damping;
             }
 
             registry.assign<constraint>(entity, contact);
