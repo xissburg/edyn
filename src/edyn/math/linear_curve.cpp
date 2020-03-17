@@ -37,4 +37,8 @@ scalar linear_curve::get(scalar x) const {
     return y;
 }
 
+std::pair<scalar, scalar> linear_curve::get(size_t i) const {
+    return points[i];
+}
+
 }

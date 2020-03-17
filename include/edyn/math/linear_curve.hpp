@@ -11,6 +11,7 @@ public:
     void add(scalar x, scalar y);
     void clear();
     scalar get(scalar x) const;
+    std::pair<scalar, scalar> get(size_t i) const;
     std::size_t size() const { return points.size(); }
 
     template<typename Archive>
