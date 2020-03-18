@@ -15,6 +15,12 @@ entt::entity make_constraint(entt::registry &registry, T&& c, entt::entity ent0,
     return ent;
 }
 
+template<typename T>
+T& get_constraint(entt::entity entity, entt::registry &registry) {
+    auto& con = registry.get<constraint>(entity);
+    return std::get<T>(con.var);
+}
+
 }
 
 #endif // EDYN_UTIL_CONSTRAINT_HPP
