@@ -84,6 +84,7 @@ set(EDyn_SOURCES
     src/edyn/constraints/generic_constraint.cpp
     src/edyn/constraints/springdamper_constraint.cpp
     src/edyn/constraints/spin_angle_constraint.cpp
+    src/edyn/constraints/spin_constraint.cpp
     src/edyn/constraints/tirecarcass_constraint.cpp
     src/edyn/dynamics/island_util.cpp
     src/edyn/dynamics/solver.cpp
