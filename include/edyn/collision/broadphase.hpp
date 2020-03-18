@@ -21,8 +21,22 @@ public:
         return {construct_relation_signal};
     }
 
+    /**
+     * Iterates over every broadphase relation of a certain entity. Useful to
+     * process all contacts of an entity.
+     */ 
+    template<typename Func>
+    void each_relation(entt::entity entity, Func f) {
+        for (auto& pair : relations) {
+            if (pair.first.first == entity || pair.first.second == entity) {
+                f(pair.second);
+            }
+        }
+    }
+
 private:
     entt::registry *registry;
+    // Maps pairs of entities to their relations.
     std::map<std::pair<entt::entity, entt::entity>, entt::entity> relations;
     entt::sigh<construct_relation_func_t> construct_relation_signal;
 
