@@ -1,11 +1,15 @@
-#ifndef EDYN_CONSTRAINTS_SPIN_CONSTRAINT_HPP
-#define EDYN_CONSTRAINTS_SPIN_CONSTRAINT_HPP
+#ifndef EDYN_CONSTRAINTS_SPIN_ANGLE_CONSTRAINT_HPP
+#define EDYN_CONSTRAINTS_SPIN_ANGLE_CONSTRAINT_HPP
 
 #include "constraint_base.hpp"
 
 namespace edyn {
 
-struct spin_constraint : public constraint_base<spin_constraint> {
+/**
+ * Constraints the `spin_angle` of two entities, which can be constrained
+ * to spin at different rates using a gear ratio.
+ */
+struct spin_angle_constraint : public constraint_base<spin_angle_constraint> {
     scalar m_ratio {1};
     scalar m_stiffness {1e5};
     scalar m_damping {1e2};
@@ -20,4 +24,4 @@ struct spin_constraint : public constraint_base<spin_constraint> {
 
 }
 
-#endif // EDYN_CONSTRAINTS_SPIN_CONSTRAINT_HPP
+#endif // EDYN_CONSTRAINTS_SPIN_ANGLE_CONSTRAINT_HPP
