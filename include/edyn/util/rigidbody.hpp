@@ -68,10 +68,25 @@ struct rigidbody_def {
     void update_inertia();
 };
 
+/**
+ * Assigns to `entity` all necessary components to build a rigid body according
+ * to the given definition.
+ */
 void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
 entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
 
-void rigidbody_set_mass(entt::registry &, entt::entity, scalar);
+/**
+ * Sets the mass of a rigid body and recalculates its inertia. It assumes the
+ * entity has a shape associated to it, thus it must not be used with implicit
+ * rigid bodies.
+ */
+void rigidbody_set_mass(entt::registry &, entt::entity, scalar mass);
+
+/**
+ * Recalculates the inertia of a rigid body. Must be called after the shape of
+ * a body changes. It assumes the entity has a shape associated to it, thus it
+ * must not be used with implicit rigid bodies.
+ */
 void rigidbody_update_inertia(entt::registry &, entt::entity);
 
 void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);
