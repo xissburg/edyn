@@ -91,6 +91,23 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
     return ent;
 }
 
+
+void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar mass) {
+    registry.replace<edyn::mass>(entity, mass);
+    rigidbody_update_inertia(registry, entity);
+}
+
+void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
+    auto &mass = registry.get<edyn::mass>(entity);
+
+    edyn::vector3 inertia;
+    auto& shape = registry.get<edyn::shape>(entity);
+    std::visit([&] (auto&& s) {
+        inertia = s.inertia(mass);
+    }, shape.var);
+    registry.replace<edyn::inertia>(entity, inertia);
+}
+
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
     EDYN_ASSERT(registry.has<kinematic_tag>(entity));
     auto &curpos = registry.get<position>(entity);
