@@ -21,8 +21,6 @@ void spin_constraint::init(entt::entity, constraint &con, const relation &rel, e
 void spin_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
     auto &qA = registry.get<const orientation>(rel.entity[0]);
     auto &qB = registry.get<const orientation>(rel.entity[1]);
-    auto &sA = registry.get<const spin>(rel.entity[0]);
-    auto &sB = registry.get<const spin>(rel.entity[1]);
 
     auto axisA = rotate(qA, vector3_x);
     auto axisB = rotate(qB, vector3_x);
