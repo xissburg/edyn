@@ -108,16 +108,19 @@ inline vector3 rotate(const quaternion &q, const vector3 &v) {
     return {r.x, r.y, r.z};
 }
 
+// Build a quaternion from an angle about and axis of rotation.
 inline quaternion quaternion_axis_angle(const vector3 &v, scalar a) {
     auto l = length(v);
     auto s = std::sin(a * scalar(0.5)) / l;
     return {v.x * s, v.y * s, v.z * s, std::cos(a * scalar(0.5))};
 }
 
+// Get rotation angle of a quaternion.
 inline scalar quaternion_angle(const quaternion &q) {
     return std::acos(q.w) * scalar(2);
 }
 
+// Get rotation axis of a quaternion.
 inline vector3 quaternion_axis(const quaternion &q) {
     auto s2 = scalar(1) - q.w * q.w;
 
@@ -127,6 +130,21 @@ inline vector3 quaternion_axis(const quaternion &q) {
     }
 
     return vector3_x;
+}
+
+// Get x-axis of the basis of a quaternion.
+inline vector3 quaternion_x(const quaternion &q) {
+    return rotate(q, vector3_x);
+}
+
+// Get y-axis of the basis of a quaternion.
+inline vector3 quaternion_y(const quaternion &q) {
+    return rotate(q, vector3_y);
+}
+
+// Get z-axis of the basis of a quaternion.
+inline vector3 quaternion_z(const quaternion &q) {
+    return rotate(q, vector3_z);
 }
 
 // Integrate angular velocity over time.
