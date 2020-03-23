@@ -82,6 +82,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (auto opt = def.shape_opt) {
         registry.assign<shape>(entity, *opt);
+
+        auto &filter = registry.get<edyn::collision_filter>(entity);
+        filter.group = def.collision_group;
+        filter.mask = def.collision_mask;
     }
 }
 

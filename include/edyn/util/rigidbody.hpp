@@ -61,6 +61,9 @@ struct rigidbody_def {
     scalar speed_sensitivity {0.03};
     scalar load_sensitivity {0.05};
 
+    uint64_t collision_group {1ULL};
+    uint64_t collision_mask {~0ULL};
+
     // Whether this entity will be used for presentation and needs 
     // position/orientation interpolation.
     bool presentation {false};
