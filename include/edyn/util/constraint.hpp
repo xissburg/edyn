@@ -8,10 +8,17 @@
 namespace edyn {
 
 template<typename T>
-entt::entity make_constraint(entt::registry &registry, T&& c, entt::entity ent0, entt::entity ent1, entt::entity ent2 = entt::null) {
+void make_constraint(entt::entity entity, entt::registry &registry, T&& c, 
+                     entt::entity ent0, entt::entity ent1, entt::entity ent2 = entt::null) {
+    registry.assign<relation>(entity, ent0, ent1, ent2);
+    registry.assign<constraint>(entity, std::forward<T>(c));
+}
+
+template<typename T>
+entt::entity make_constraint(entt::registry &registry, T&& c, entt::entity ent0, 
+                             entt::entity ent1, entt::entity ent2 = entt::null) {
     auto ent = registry.create();
-    registry.assign<relation>(ent, ent0, ent1, ent2);
-    registry.assign<constraint>(ent, std::forward<T>(c));
+    make_constraint<T>(ent, registry, ent0, ent1, ent2);
     return ent;
 }
 
