@@ -203,8 +203,7 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
     auto &rel = registry.get<relation>(entity);
 
     // Remove the destroyed relation from the `relation_container` of the
-    // related entities. Empty containers are removed at the end. This makes
-    // it unecessary to check for existence in the next step.
+    // related entities.
     for (auto ent : rel.entity) {
         if (ent == entt::null) { continue; }
         auto &container = registry.get<relation_container>(ent);
@@ -307,15 +306,6 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
 
     // Wake up the biggest island either way since something has changed in it.
     wakeup_island(biggest_ent, registry);
-
-    // Remove empty `relation_container`s.
-    for (auto ent : rel.entity) {
-        if (ent == entt::null) { continue; }
-        auto &container = registry.get<relation_container>(ent);
-        if (container.entities.empty()) {
-            registry.remove<relation_container>(ent);
-        }
-    }
 }
 
 }
