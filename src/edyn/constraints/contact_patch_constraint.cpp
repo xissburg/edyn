@@ -9,6 +9,7 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/spin.hpp"
+#include "edyn/util/tire.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include <entt/entt.hpp>
 
@@ -225,7 +226,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     // Update bristles for each row.
     for (size_t i = 0; i < num_tread_rows; ++i) {
         auto &tread_row = m_tread_rows[i];
-        auto row_x = row_start + tread_width * (i + 0.5);
+        auto row_x = row_start + tread_width * scalar(i + 0.5);
         auto row_center_cyl = p0 - axis_hl + axis * row_x;
         auto defl = std::clamp(dot(row_center_cyl - pB, -normal), scalar(0), cyl.radius / 2);
         auto row_half_length = scalar(0.4) * cyl.radius * (defl * r0_inv + scalar(2.25) * std::sqrt(defl * r0_inv));

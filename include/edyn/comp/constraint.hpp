@@ -13,7 +13,6 @@
 #include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/constraints/hinge_constraint.hpp"
 #include "edyn/constraints/generic_constraint.hpp"
-#include "edyn/constraints/tire_contact_constraint.hpp"
 #include "edyn/constraints/tirecarcass_constraint.hpp"
 #include "edyn/constraints/springdamper_constraint.hpp"
 #include "edyn/constraints/spin_angle_constraint.hpp"
@@ -35,7 +34,6 @@ struct constraint {
                  contact_patch_constraint,
                  hinge_constraint,
                  generic_constraint,
-                 tire_contact_constraint,
                  tirecarcass_constraint,
                  springdamper_constraint,
                  spin_angle_constraint,

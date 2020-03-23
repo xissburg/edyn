@@ -222,29 +222,6 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
                         normal_row.impulse = 0;
                         friction_row.impulse = 0;
                     }
-                } else if (std::holds_alternative<tire_contact_constraint>(con->var)) {
-                    if (manifold.num_points < max_contacts) {
-                        // Create new constraint rows for this contact point.
-                        auto normal_row_entity = registry->create();
-                        con->row[con->num_rows++] = normal_row_entity;
-
-                        // Assign row component and associate entities.
-                        auto &normal_row = registry->assign<constraint_row>(normal_row_entity);
-                        normal_row.entity = rel.entity;
-                        normal_row.priority = 0;
-
-                        // Contact point can now refer to constraint rows.
-                        cp.normal_row_entity = normal_row_entity;
-                        normal_row.restitution = cp.restitution;
-                    } else {
-                        // One of the existing contacts has been replaced by the new. 
-                        // Update its rows.
-                        auto &normal_row = registry->get<constraint_row>(cp.normal_row_entity);
-                        normal_row.restitution = cp.restitution;
-
-                        // Zero out warm-starting impulses.
-                        normal_row.impulse = 0;
-                    }
                 }
 
                 if (manifold.num_points < max_contacts) {

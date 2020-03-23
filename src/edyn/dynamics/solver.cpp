@@ -5,6 +5,7 @@
 #include "edyn/sys/integrate_angvel.hpp"
 #include "edyn/sys/integrate_spin.hpp"
 #include "edyn/sys/apply_gravity.hpp"
+#include "edyn/sys/update_tire_state.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
@@ -498,6 +499,8 @@ void solver::update(uint64_t step, scalar dt) {
 
     // Update world-space moment of inertia.
     update_inertia(*registry);
+
+    update_tire_state(*registry, dt);
 
     put_islands_to_sleep(*registry, step, dt);
 
