@@ -13,9 +13,8 @@ public:
     scalar get(scalar x) const;
     std::pair<scalar, scalar> get(size_t i) const;
     std::size_t size() const { return points.size(); }
-
-    template<typename Archive>
-    friend void Serialize(Archive&, linear_curve&);
+    void resize(size_t new_size) { points.resize(new_size); }
+    std::pair<scalar, scalar>& operator[](size_t i) { return points[i]; }
 
 protected:
     std::vector<std::pair<scalar, scalar>> points;
