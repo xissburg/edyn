@@ -2,6 +2,7 @@
 #define EDYN_MATH_QUATERNION_HPP
 
 #include "vector3.hpp"
+#include "constants.hpp"
 
 namespace edyn {
 
@@ -145,6 +146,34 @@ inline vector3 quaternion_y(const quaternion &q) {
 // Get z-axis of the basis of a quaternion.
 inline vector3 quaternion_z(const quaternion &q) {
     return rotate(q, vector3_z);
+}
+
+// Spherical linear interpolation.
+inline quaternion slerp(const quaternion &q0, const quaternion &q1, scalar s) {
+    const auto magnitude = std::sqrt(length2(q0) * length2(q1));
+    EDYN_ASSERT(magnitude > 0);
+
+    const auto prod = dot(q0, q1) / magnitude;
+    const auto abs_prod = std::abs(prod);
+
+    if (abs_prod > scalar(1) - EDYN_EPSILON) {
+        return q0;
+    }
+
+    const auto theta = std::acos(abs_prod);
+    const auto d = std::sin(theta);
+    EDYN_ASSERT(d > 0);
+
+    const auto sign = prod < 0 ? scalar(-1) : scalar(1);
+    const auto s0 = std::sin((scalar(1) - s) * theta) / d;
+    const auto s1 = std::sin(sign * s * theta) / d;
+
+    return {
+        q0.x * s0 + q1.x * s1,
+        q0.y * s0 + q1.y * s1,
+        q0.z * s0 + q1.z * s1,
+        q0.w * s0 + q1.w * s1
+    };
 }
 
 // Integrate angular velocity over time.
