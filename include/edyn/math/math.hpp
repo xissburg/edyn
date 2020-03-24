@@ -42,6 +42,14 @@ inline scalar normalize_angle(scalar s) {
     return s;
 }
 
+/**
+ * @return Linear interpolation between `a` and `b` by scalar `s`.
+ */
+template<typename T, typename Scalar>
+inline auto lerp(T a, T b, Scalar s) {
+    return a * (Scalar(1) - s) + b * s;
+}
+
 }
 
 #endif // EDYN_MATH_MATH_HPP
