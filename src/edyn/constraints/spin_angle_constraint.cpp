@@ -36,7 +36,7 @@ void spin_angle_constraint::prepare(entt::entity, constraint &con, const relatio
     auto impulse = std::abs(force) * dt;
 
     auto &row = registry.get<constraint_row>(con.row[0]);
-    row.J = {vector3_zero, -axisA, vector3_zero, axisB * m_ratio};
+    row.J = {vector3_zero, axisA, vector3_zero, -axisB * m_ratio};
     row.error = error / dt;
     row.lower_limit = -impulse;
     row.upper_limit = impulse;

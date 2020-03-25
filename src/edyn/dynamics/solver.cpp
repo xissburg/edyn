@@ -273,7 +273,7 @@ scalar solve3(constraint_row &row,
 }
 
 void update_inertia(entt::registry &registry) {
-    auto view = registry.view<dynamic_tag, const orientation, const inertia_inv, inertia_world_inv>(exclude_sleeping);
+    auto view = registry.view<dynamic_tag, const orientation, const inertia_inv, inertia_world_inv>(exclude_global);
     view.each([] (auto, auto, const orientation& orn, const inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
@@ -308,11 +308,11 @@ void solver::update(uint64_t step, scalar dt) {
     apply_gravity(*registry, dt);
 
     // Setup constraints.
-    auto mass_inv_view = registry->view<const mass_inv, const inertia_world_inv>(exclude_sleeping);
-    auto vel_view = registry->view<const linvel, const angvel>(exclude_sleeping);
-    auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_sleeping);
+    auto mass_inv_view = registry->view<const mass_inv, const inertia_world_inv>(exclude_global);
+    auto vel_view = registry->view<const linvel, const angvel>(exclude_global);
+    auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_global);
 
-    auto con_view = registry->view<const relation, constraint>(exclude_sleeping);
+    auto con_view = registry->view<const relation, constraint>(exclude_global);
     con_view.each([&] (auto entity, const relation &rel, constraint &con) {
         std::visit([&] (auto &&c) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
@@ -404,7 +404,7 @@ void solver::update(uint64_t step, scalar dt) {
     });
 
     // Solve constraints.
-    auto row_view = registry->view<constraint_row>(exclude_sleeping);
+    auto row_view = registry->view<constraint_row>(exclude_global);
 
     for (uint32_t i = 0; i < iterations; ++i) {
         // Prepare constraints for iteration.
@@ -474,19 +474,19 @@ void solver::update(uint64_t step, scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    auto linvel_view = registry->view<dynamic_tag, linvel, delta_linvel>(exclude_sleeping);
+    auto linvel_view = registry->view<dynamic_tag, linvel, delta_linvel>(exclude_global);
     linvel_view.each([] (auto, auto, linvel &vel, delta_linvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
-    auto angvel_view = registry->view<dynamic_tag, angvel, delta_angvel>(exclude_sleeping);
+    auto angvel_view = registry->view<dynamic_tag, angvel, delta_angvel>(exclude_global);
     angvel_view.each([] (auto, auto, angvel &vel, delta_angvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
-    auto spin_view = registry->view<dynamic_tag, spin, delta_spin>(exclude_sleeping);
+    auto spin_view = registry->view<dynamic_tag, spin, delta_spin>(exclude_global);
     spin_view.each([] (auto, auto, spin &s, delta_spin &delta) {
         s += delta;
         delta.s = 0;

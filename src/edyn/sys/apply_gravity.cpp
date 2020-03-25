@@ -12,8 +12,8 @@
 namespace edyn {
 
 void apply_gravity(entt::registry &registry, scalar dt) {
-    auto view = registry.view<relation, gravity>(exclude_sleeping);
-    auto inner_view = registry.view<const position, const mass, linvel>(exclude_sleeping);
+    auto view = registry.view<relation, gravity>(exclude_global);
+    auto inner_view = registry.view<const position, const mass, linvel>(exclude_global);
 
     view.each([&] (auto, relation &rel, auto g) {
         auto [posA, mA, linvelA] = inner_view.get<const position, const mass, linvel>(rel.entity[0]);

@@ -45,8 +45,8 @@ void wakeup_island(entt::entity island_ent, entt::registry &registry) {
 }
 
 void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
-    auto vel_view = registry.view<dynamic_tag, linvel, angvel>(exclude_sleeping);
-    auto island_view = registry.view<island>(exclude_sleeping);
+    auto vel_view = registry.view<dynamic_tag, linvel, angvel>(exclude_global);
+    auto island_view = registry.view<island>(exclude_global);
 
     island_view.each([&] (auto ent, auto &isle) {
         // Check if there are any entities in this island moving faster than

@@ -21,7 +21,7 @@ broadphase::broadphase(entt::registry &reg)
 }
 
 void broadphase::update() {
-    auto view = registry->view<const position, const orientation, const shape, AABB>(exclude_sleeping);
+    auto view = registry->view<const position, const orientation, const shape, AABB>(exclude_global);
     view.each([] (auto, auto &pos, auto &orn, auto &sh, auto &aabb) {
         std::visit([&] (auto &&s) {
             aabb = s.aabb(pos, orn);
