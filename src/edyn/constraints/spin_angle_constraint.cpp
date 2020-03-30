@@ -22,16 +22,16 @@ void spin_angle_constraint::init(entt::entity, constraint &con, const relation &
 }
 
 void spin_angle_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-    auto &qA = registry.get<const orientation>(rel.entity[0]);
-    auto &qB = registry.get<const orientation>(rel.entity[1]);
-    auto &sA = registry.get<const spin>(rel.entity[0]);
-    auto &sB = registry.get<const spin>(rel.entity[1]);
+    auto &ornA = registry.get<const orientation>(rel.entity[0]);
+    auto &ornB = registry.get<const orientation>(rel.entity[1]);
+    auto &spinA = registry.get<const spin>(rel.entity[0]);
+    auto &spinB = registry.get<const spin>(rel.entity[1]);
 
-    auto axisA = rotate(qA, vector3_x);
-    auto axisB = rotate(qB, vector3_x);
+    auto axisA = quaternion_x(ornA);
+    auto axisB = quaternion_x(ornB);
 
     auto error = get_error(rel, registry) - m_offset;
-    auto relvel = sA - sB * m_ratio;
+    auto relvel = spinA - spinB * m_ratio;
     auto force = error * m_stiffness + relvel * m_damping;
     auto impulse = std::abs(force) * dt;
 
@@ -50,7 +50,7 @@ void spin_angle_constraint::set_ratio(scalar ratio, const relation &rel, entt::r
 scalar spin_angle_constraint::get_error(const relation &rel, entt::registry &registry) const {
     auto &sA = registry.get<spin_angle>(rel.entity[0]);
     auto &sB = registry.get<spin_angle>(rel.entity[1]);
-    return (sA.count - sB.count * m_ratio) * pi2 + (sA + sB * m_ratio);
+    return (sA.count - sB.count * m_ratio) * pi2 + (sA - sB * m_ratio);
 }
 
 }
