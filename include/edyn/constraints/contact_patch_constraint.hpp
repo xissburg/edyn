@@ -18,10 +18,10 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
         vector3 pivotA;
         vector3 pivotB;
         vector3 root;
-        vector3 tip;
         vector3 deflection;
-        vector3 damping_force;
         scalar friction;
+        vector3 prev_tip_pos;
+        scalar prev_sliding_spd {0};
     };
 
     struct tread_row {
@@ -41,6 +41,7 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     scalar m_load_sensitivity {0.03};
     scalar m_lon_tread_stiffness {3000000};
     scalar m_lat_tread_stiffness {1800000};
+    scalar m_tread_damping {20000};
 
     vector3 m_lon_dir;
     vector3 m_lat_dir;
