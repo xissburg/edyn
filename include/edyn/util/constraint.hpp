@@ -19,7 +19,7 @@ template<typename T> inline
 entt::entity make_constraint(entt::registry &registry, T&& c, entt::entity ent0, 
                              entt::entity ent1, entt::entity ent2 = entt::null) {
     auto ent = registry.create();
-    make_constraint<T>(ent, registry, ent0, ent1, ent2);
+    make_constraint<T>(ent, registry, std::forward<T>(c), ent0, ent1, ent2);
     return ent;
 }
 
