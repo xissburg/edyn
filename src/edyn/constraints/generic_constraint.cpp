@@ -49,11 +49,14 @@ void generic_constraint::prepare(entt::entity, constraint &con, const relation &
 
     // Angular.
     for (size_t i = 0; i < 3; ++i) {
-        auto p = rotate(ornA, I.row[i]);
-        auto q = rotate(ornB, I.row[i]);
+        auto axis = rotate(ornA, I.row[i]);
+        auto n = rotate(ornA, I.row[(i+1)%3]);
+        auto m = rotate(ornB, I.row[(i+2)%3]);
+        auto error = dot(n, m);
+
         auto &row = registry.get<constraint_row>(con.row[i + 3]);
-        row.J = {vector3_zero, p, vector3_zero, -p};
-        row.error = 0;//(dot(q, p) - 1) / dt;
+        row.J = {vector3_zero, axis, vector3_zero, -axis};
+        row.error = error / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
     }
