@@ -171,6 +171,16 @@ inline vector3 normalize(const vector3 &v) {
     return v / l;
 }
 
+// Projects direction vector `v` onto plane with normal `n`.
+inline vector3 project_direction(const vector3 &v, const vector3 &n) {
+    return v - n * dot(v, n);
+}
+
+// Projects point `p` onto plane with origin `q` and normal `n`.
+inline vector3 project_plane(const vector3 &p, const vector3 &q, const vector3 &n) {
+    return p - n * dot(p - q, n);
+}
+
 inline vector3 min(const vector3 &v, const vector3 &w) {
     return {std::min(v.x, w.x), std::min(v.y, w.y), std::min(v.z, w.z)};
 }
