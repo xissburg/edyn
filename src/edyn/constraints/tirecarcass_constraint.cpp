@@ -14,7 +14,7 @@
 namespace edyn {
 
 void tirecarcass_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = 7;
+    con.num_rows = 10;
 
     for (size_t i = 0; i < con.num_rows; ++i) {
         auto e = registry.create();
@@ -32,7 +32,6 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
     auto &angvelA = registry.get<const angvel     >(rel.entity[0]);
     auto &spinA   = registry.get<const spin       >(rel.entity[0]);
     auto &angleA  = registry.get<const spin_angle >(rel.entity[0]);
-    auto spinvelA = rotate(ornA, vector3_x) * spinA;
 
     auto &posB    = registry.get<const position   >(rel.entity[1]);
     auto &ornB    = registry.get<const orientation>(rel.entity[1]);
@@ -40,66 +39,114 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
     auto &angvelB = registry.get<const angvel     >(rel.entity[1]);
     auto &spinB   = registry.get<const spin       >(rel.entity[1]);
     auto &angleB  = registry.get<const spin_angle >(rel.entity[1]);
-    auto spinvelB = rotate(ornB, vector3_x) * spinB;
+
+    const auto axisA_x = quaternion_x(ornA);
+    const auto axisA_y = quaternion_y(ornA);
+    const auto axisA_z = quaternion_z(ornA);
+
+    const auto axisB_x = quaternion_x(ornB);
+    const auto axisB_y = quaternion_y(ornB);
+    const auto axisB_z = quaternion_z(ornB);
+
+    size_t idx = 0;
 
     // Lateral movement.
     {
-        auto axis = rotate(ornB, vector3_x);
-        auto error = dot(posA - posB, axis);
-        auto vel = dot(linvelA - linvelB, axis);
-        auto force = std::abs(error * m_lateral_stiffness) + 
-                     std::abs(vel * m_lateral_damping);
+        auto error = dot(posA - posB, axisB_x);
+        auto vel = dot(linvelA - linvelB, axisB_x);
+        auto force = std::abs(error * m_lateral_stiffness);
         auto impulse = force * dt;
 
-        auto &row = registry.get<constraint_row>(con.row[0]);
-        row.J = {axis, vector3_zero, -axis, vector3_zero};
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {axisB_x, vector3_zero, -axisB_x, vector3_zero};
         row.error = error / dt;
+        row.lower_limit = -impulse;
+        row.upper_limit = impulse;
+    }
+
+    // Lateral movement damping.
+    {
+        auto vel = dot(linvelA - linvelB, axisB_x);
+        auto force = std::abs(vel * m_lateral_damping);
+        auto impulse = force * dt;
+
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {axisB_x, vector3_zero, -axisB_x, vector3_zero};
+        row.error = 0;
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
     }
 
     // Prevent vertical movement.
     {
-        auto axis = rotate(ornB, vector3_y);
-        auto error = dot(posA - posB, axis);
-
-        auto &row = registry.get<constraint_row>(con.row[1]);
-        row.J = {axis, vector3_zero, -axis, vector3_zero};
-        row.error = error / dt;
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {axisB_y, vector3_zero, -axisB_y, vector3_zero};
+        row.error = dot(posA - posB, axisB_y) / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
     }
 
     // Prevent backwards/forwards movement.
     {
-        auto axis = rotate(ornB, vector3_z);
-        auto error = dot(posA - posB, axis);
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {axisB_z, vector3_zero, -axisB_z, vector3_zero};
+        row.error = dot(posA - posB, axisB_z) / dt;
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
+    }
 
-        auto &row = registry.get<constraint_row>(con.row[2]);
-        row.J = {axis, vector3_zero, -axis, vector3_zero};
+    // Prevent rotation along spin axis.
+    {
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {vector3_zero, axisB_x, vector3_zero, -axisB_x};
+        row.error = -dot(axisB_y, axisA_z) / dt;
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
+    }
+
+    // Torsional.
+    {
+        auto error = dot(axisB_x, axisA_z);
+        auto force = std::abs(error * m_torsional_stiffness);
+        auto impulse = force * dt;
+
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {vector3_zero, axisB_y, vector3_zero, -axisB_y};
         row.error = error / dt;
+        row.lower_limit = -impulse;
+        row.upper_limit = impulse;
+    }
+
+    // Torsional damping.
+    {
+        auto vel = dot(angvelA - angvelB, axisB_y);
+        auto force = std::abs(vel * m_torsional_damping);
+        auto impulse = force * dt;
+
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {vector3_zero, axisB_y, vector3_zero, -axisB_y};
+        row.error = 0;
+        row.lower_limit = -impulse;
+        row.upper_limit = impulse;
+    }
+
+    // Prevent rolling (rotation along forward axis).
+    {
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {vector3_zero, axisB_z, vector3_zero, -axisB_z};
+        row.error = -dot(axisB_x, axisA_y) / dt;
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
     }
 
     // Longitudinal twist.
     {
-        auto ornspinA = ornA * quaternion_axis_angle(vector3_x, angleA);
-        auto ornspinB = ornB * quaternion_axis_angle(vector3_x, angleB);
-        auto axis = rotate(ornspinA, vector3_x);
-        auto axisB_y = rotate(ornspinB, vector3_y);
-        auto axisB_y_proj = axisB_y - axis * dot(axisB_y, axis);
-        axisB_y_proj = normalize(axisB_y_proj);
-
-        auto axisA_z = rotate(ornspinA, vector3_z);
-        auto error = -dot(axisB_y_proj, axisA_z);
-        auto vel = dot((angvelA + spinvelA) - (angvelB + spinvelB), axis);
-        auto force = std::abs(error * m_longitudinal_stiffness) + 
-                     std::abs(vel * m_longitudinal_damping);
+        auto error = (angleA.s - angleB.s) + (angleA.count - angleB.count) * pi2;
+        auto force = std::abs(error * m_longitudinal_stiffness);
         auto impulse = force * dt;
 
-        auto &row = registry.get<constraint_row>(con.row[3]);
-        row.J = {vector3_zero, axis, vector3_zero, -axis};
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
         row.error = error / dt;
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
@@ -107,59 +154,19 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
         row.use_spin[1] = true;
     }
 
-    // Prevent rolling (rotation along forward axis).
+    // Longitudinal twist damping.
     {
-        auto axis = rotate(ornB, vector3_x);
-        auto axisA_y = rotate(ornA, vector3_y);
-        auto axisA_y_proj = axisA_y - axis * dot(axisA_y, axis);
-        axisA_y_proj = normalize(axisA_y_proj);
-
-        auto axisB_z = rotate(ornB, vector3_z);
-        auto error = dot(axisA_y_proj, axisB_z);
-
-        auto &row = registry.get<constraint_row>(con.row[4]);
-        row.J = {vector3_zero, axis, vector3_zero, -axis};
-        row.error = error / dt;
-        row.lower_limit = -large_scalar;
-        row.upper_limit = large_scalar;
-    }
-
-    // Torsional.
-    {
-        auto axis = rotate(ornB, vector3_y);
-        auto axisA_x = rotate(ornA, vector3_x);
-        auto axisA_x_proj = axisA_x - axis * dot(axisA_x, axis);
-        axisA_x_proj = normalize(axisA_x_proj);
-
-        auto axisB_z = rotate(ornB, vector3_z);
-        auto error = -dot(axisA_x_proj, axisB_z);
-        auto vel = dot(angvelA - angvelB, axis);
-        auto force = std::abs(error * m_torsional_stiffness) + 
-                     std::abs(vel * m_torsional_damping);
+        auto vel = spinA - spinB;
+        auto force = std::abs(vel * m_longitudinal_damping);
         auto impulse = force * dt;
 
-        auto &row = registry.get<constraint_row>(con.row[5]);
-        row.J = {vector3_zero, axis, vector3_zero, -axis};
-        row.error = error / dt;
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
+        row.error = 0;
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
-    }
-
-    // Prevent rotation along spin axis.
-    {
-        auto axis = rotate(ornB, vector3_z);
-        auto axisA_x = rotate(ornA, vector3_x);
-        auto axisA_x_proj = axisA_x - axis * dot(axisA_x, axis);
-        axisA_x_proj = normalize(axisA_x_proj);
-
-        auto axisB_y = rotate(ornB, vector3_y);
-        auto error = dot(axisA_x_proj, axisB_y);
-
-        auto &row = registry.get<constraint_row>(con.row[6]);
-        row.J = {vector3_zero, axis, vector3_zero, -axis};
-        row.error = error / dt;
-        row.lower_limit = -large_scalar;
-        row.upper_limit = large_scalar;
+        row.use_spin[0] = true;
+        row.use_spin[1] = true;
     }
 }
 
