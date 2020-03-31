@@ -18,10 +18,10 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
         vector3 pivotA;
         vector3 pivotB;
         vector3 root;
+        vector3 tip;
         vector3 deflection;
         scalar friction;
-        vector3 prev_tip_pos;
-        scalar prev_sliding_spd {0};
+        scalar sliding_spd {0};
     };
 
     struct tread_row {
