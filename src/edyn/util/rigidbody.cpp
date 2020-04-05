@@ -112,6 +112,15 @@ void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
     registry.replace<edyn::inertia>(entity, inertia);
 }
 
+
+void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity, 
+                             const vector3 &impulse, const vector3 &rel_location) {
+    auto &m_inv = registry.get<const mass_inv>(entity);
+    auto &i_inv = registry.get<const inertia_world_inv>(entity);
+    registry.get<linvel>(entity) += impulse * m_inv;
+    registry.get<angvel>(entity) += i_inv * cross(rel_location, impulse);
+}
+
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
     EDYN_ASSERT(registry.has<kinematic_tag>(entity));
     auto &curpos = registry.get<position>(entity);

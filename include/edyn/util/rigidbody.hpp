@@ -92,6 +92,16 @@ void rigidbody_set_mass(entt::registry &, entt::entity, scalar mass);
  */
 void rigidbody_update_inertia(entt::registry &, entt::entity);
 
+/**
+ * Applies `impulse` to entity.
+ * @param rel_location Location where the impulse should be applied relative to
+ * the entity's center/position, in world space, i.e.
+ * `actual_world_space_location - position`.
+ */
+void rigidbody_apply_impulse(entt::registry &, entt::entity, 
+                             const vector3 &impulse, 
+                             const vector3 &rel_location);
+
 void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);
 void update_kinematic_orientation(entt::registry &, entt::entity, const quaternion &, scalar dt);
 void clear_kinematic_velocities(entt::registry &);
