@@ -83,8 +83,7 @@ void contact_constraint::prepare(entt::entity entity, constraint &con, const rel
         } else {
             // If this is a resting contact and it is penetrating, apply impulse to push it out.
             //if (cp.lifetime > 0) {
-                constexpr scalar contact_erp = 0.2;
-                normal_row.error = std::min(pvel, scalar(0)) * contact_erp;
+                normal_row.error = std::min(pvel, scalar(0));
             //}
         }
         

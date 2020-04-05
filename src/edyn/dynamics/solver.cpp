@@ -71,7 +71,7 @@ void prepare(constraint_row &row,
     row.relvel = relvel;
     
     auto restitution = restitution_curve(row.restitution, row.relvel);
-    row.rhs = -(row.error + relvel * (1 + restitution));
+    row.rhs = -(row.error * row.erp + relvel * (1 + restitution));
 }
 
 static
@@ -97,7 +97,7 @@ void prepare3(constraint_row &row,
     row.relvel = relvel;
     
     auto restitution = restitution_curve(row.restitution, row.relvel);
-    row.rhs = -(row.error + relvel * (1 + restitution));
+    row.rhs = -(row.error * row.erp + relvel * (1 + restitution));
 }
 
 static
@@ -212,16 +212,7 @@ scalar solve(constraint_row &row,
                         dot(row.J[1], dwA) +
                         dot(row.J[2], dvB) +
                         dot(row.J[3], dwB);
-    auto restitution = restitution_curve(row.restitution, row.relvel + delta_relvel);
-    auto delta_impulse = (row.rhs - delta_relvel * (1 + restitution)) * row.eff_mass;
-
-    // Clamp `delta_impulse` for proper shock propagation when there's restitution.
-    // This prevents contact constraints from 'sucking' and consequently 
-    // eliminating the restitution effect.
-    if (row.restitution > 0) {
-        delta_impulse = std::clamp(delta_impulse, row.lower_limit, row.upper_limit);
-    }
-
+    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
     auto impulse = row.impulse + delta_impulse;
 
     if (impulse < row.lower_limit) {
@@ -247,16 +238,7 @@ scalar solve3(constraint_row &row,
                         dot(row.J[3], dwB) +
                         dot(row.J[4], dvC) +
                         dot(row.J[5], dwC);
-    auto restitution = restitution_curve(row.restitution, row.relvel + delta_relvel);
-    auto delta_impulse = (row.rhs - delta_relvel * (1 + restitution)) * row.eff_mass;
-
-    // Clamp `delta_impulse` for proper shock propagation when there's restitution.
-    // This prevents contact constraints from 'sucking' and consequently 
-    // eliminating the restitution effect.
-    if (row.restitution > 0) {
-        delta_impulse = std::clamp(delta_impulse, row.lower_limit, row.upper_limit);
-    }
-
+    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
     auto impulse = row.impulse + delta_impulse;
 
     if (impulse < row.lower_limit) {
@@ -504,7 +486,7 @@ void solver::update(uint64_t step, scalar dt) {
 
     put_islands_to_sleep(*registry, step, dt);
 
-    clear_kinematic_velocities(*registry);
+    //clear_kinematic_velocities(*registry);
 }
 
 }
