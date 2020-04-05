@@ -4,7 +4,10 @@
 #include <entt/entt.hpp>
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
+#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/mass.hpp"
+#include "edyn/comp/inertia.hpp"
 
 namespace edyn {
 
@@ -33,6 +36,10 @@ T& get_constraint(entt::entity entity, entt::registry &registry) {
  * Enables/disables a constraint and its rows.
  */
 void set_constraint_enabled(entt::entity, entt::registry &, bool enabled);
+
+scalar get_effective_mass(const constraint_row &, 
+                          const mass_inv &inv_mA, const inertia_world_inv &inv_IA,
+                          const mass_inv &inv_mB, const inertia_world_inv &inv_IB);
 
 }
 

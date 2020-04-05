@@ -4,6 +4,7 @@
 #include <variant>
 #include <entt/entt.hpp>
 #include "edyn/constraints/distance_constraint.hpp"
+#include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/constraints/point_constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/antiroll_constraint.hpp"
@@ -27,6 +28,7 @@ struct constraint {
     std::variant<contact_constraint, 
                  point_constraint, 
                  distance_constraint,
+                 soft_distance_constraint,
                  antiroll_constraint,
                  doublewishbone_constraint,
                  differential_constraint,

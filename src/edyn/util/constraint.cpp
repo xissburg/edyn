@@ -20,4 +20,15 @@ void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool 
     }
 }
 
+scalar get_effective_mass(const constraint_row &row, 
+                          const mass_inv &inv_mA, const inertia_world_inv &inv_IA,
+                          const mass_inv &inv_mB, const inertia_world_inv &inv_IB) {
+    auto J_invM_JT = dot(row.J[0], row.J[0]) * inv_mA +
+                     dot(inv_IA * row.J[1], row.J[1]) +
+                     dot(row.J[2], row.J[2]) * inv_mB +
+                     dot(inv_IB * row.J[3], row.J[3]);
+    auto eff_mass = scalar(1) / J_invM_JT;
+    return eff_mass;
+}
+
 }

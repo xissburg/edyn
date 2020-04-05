@@ -74,6 +74,7 @@ set(EDyn_SOURCES
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/contact_patch_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
+    src/edyn/constraints/soft_distance_constraint.cpp
     src/edyn/constraints/point_constraint.cpp
     src/edyn/constraints/antiroll_constraint.cpp
     src/edyn/constraints/doublewishbone_constraint.cpp
