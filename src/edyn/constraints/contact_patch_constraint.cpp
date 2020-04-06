@@ -287,6 +287,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         auto prev_contact_angle     = tread_row.prev_contact_angle - spin_count_delta * pi2;
         auto prev_patch_start_angle = prev_contact_angle - tread_row.prev_row_half_angle;
         auto prev_patch_end_angle   = prev_contact_angle + tread_row.prev_row_half_angle;
+
         auto prev_bristle_defl = vector3_zero;
 
         // Update persisted bristles and introduce new bristles into the
@@ -351,7 +352,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
             auto normal_pressure = row_half_length > 0 ? 
                                    (normal_force / num_tread_rows) / 
-                                   (tread_width * 2 * row_half_length * (1 - 0.25/2 - 0.25/3)) : 
+                                   (tread_width * 2 * row_half_length) : 
                                    scalar(0);
             auto mu0 = m_friction_coefficient * std::exp(scalar(-0.001) * m_load_sensitivity * normal_force);
             bristle->friction = mu0 / (1 + m_speed_sensitivity * bristle->sliding_spd);
@@ -362,39 +363,40 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
             if (bristle_defl_len2 > EDYN_EPSILON) {
                 // TODO: handle anysotropic stiffness.
+                // Calculate tread length. Generally that would be `bristle_angle_delta * cyl.radius`
+                // but for the first tread the length is gonna be smaller, i.e. from the 
+                // `patch_start_angle` until the bristle angle.
                 auto a0 = j > 0 ? start_angle + scalar(j - 1) * bristle_angle_delta : patch_start_angle;
                 auto a1 = start_angle + scalar(j) * bristle_angle_delta;
                 auto x0 = a0 * cyl.radius;
                 auto x1 = a1 * cyl.radius;
-                auto denom = 2 * (x1 - x0);
+                auto dx = x1 - x0;
 
-                if (std::abs(denom) > EDYN_EPSILON) {
+                // The force is calculated as an integral from the previous deflection until the
+                // current along the row.
+                spring_force = m_lon_tread_stiffness * tread_width * 
+                                (prev_bristle_defl * dx + (bristle_defl - prev_bristle_defl) * dx * scalar(0.5));
+
+                // The area of the first tread is a proportion of the total.
+                auto local_area = j > 0 ? tread_area :
+                                  scalar(0.5) * tread_area * (a1 - a0) / bristle_angle_delta;
+                auto max_friction_force = bristle->friction * normal_pressure * local_area;
+
+                // Bristle deflection force is greater than maximum friction force
+                // for the current normal load, which mean the bristle must slide.
+                // Thus, move the bristle tip closer to its root so that the 
+                // tangential deflection force is equals to the friction force.
+                if (length2(spring_force) > max_friction_force * max_friction_force) {
+                    auto error = std::sqrt(bristle_defl_len2);
+                    auto dir = bristle_defl / error;
+                    auto max_tread_defl = bristle->friction * normal_pressure / m_lon_tread_stiffness;
+                    bristle_defl = dir * max_tread_defl;
                     spring_force = m_lon_tread_stiffness * tread_width * 
-                                (prev_bristle_defl * (x1 - x0) + 
-                                 (bristle_defl - prev_bristle_defl) * 
-                                 (x1 - x0) * (x1 - x0) / denom);
-
-                    auto local_area = tread_area * (a1 - a0) / bristle_angle_delta;
-                    auto max_friction_force = bristle->friction * normal_pressure * local_area;
-
-                    // Bristle deflection force is greater than maximum friction force
-                    // for the current normal load, which mean the bristle must slide.
-                    // Thus, move the bristle tip closer to its root so that the 
-                    // tangential deflection force is equals to the friction force.
-                    if (length2(spring_force) > max_friction_force * max_friction_force) {
-                        auto error = std::sqrt(bristle_defl_len2);
-                        auto dir = bristle_defl / error;
-                        auto max_tread_defl = bristle->friction * normal_pressure / m_lon_tread_stiffness;
-                        bristle_defl = dir * max_tread_defl;
-                        spring_force = m_lon_tread_stiffness * tread_width * 
-                                        (prev_bristle_defl * (x1 - x0) + 
-                                        (bristle_defl - prev_bristle_defl) * 
-                                        (x1 - x0) * (x1 - x0) / denom);
-                        bristle_tip = bristle_root - bristle_defl;
-                        
-                        // Move pivot in B to match new tip location.
-                        bristle->pivotB = rotate(ornB_conj, bristle_tip - posB);
-                    }
+                                   (prev_bristle_defl * dx + (bristle_defl - prev_bristle_defl) * dx * scalar(0.5));
+                    bristle_tip = bristle_root - bristle_defl;
+                    
+                    // Move pivot in B to match new tip location.
+                    bristle->pivotB = rotate(ornB_conj, bristle_tip - posB);
                 }
             }
 
@@ -432,17 +434,13 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             if (j == row_num_bristles - 1) {
                 auto x0 = (start_angle + scalar(j) * bristle_angle_delta) * cyl.radius;
                 auto x1 = patch_end_angle * cyl.radius;
-                auto denom = 2 * (x1 - x0);
+                auto dx = x1 - x0;
 
-                if (std::abs(denom) > EDYN_EPSILON) {
-                    spring_force = m_lon_tread_stiffness * tread_width * 
-                                    (bristle_defl * (x1 - x0) + 
-                                    (vector3_zero - bristle_defl) * 
-                                    (x1 - x0) * (x1 - x0) / denom);
-                    lon_force += dot(m_lon_dir, -spring_force);
-                    lat_force += dot(m_lat_dir, -spring_force);
-                    aligning_torque += dot(cross(bristle_root - m_patch_center, -spring_force), normal);
-                }
+                spring_force = m_lon_tread_stiffness * tread_width * 
+                                (prev_bristle_defl * dx + (bristle_defl - prev_bristle_defl) * dx * scalar(0.5));
+                lon_force += dot(m_lon_dir, -spring_force);
+                lat_force += dot(m_lat_dir, -spring_force);
+                aligning_torque += dot(cross(bristle_root - m_patch_center, -spring_force), normal);
             }
         }
 
