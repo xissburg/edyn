@@ -6,22 +6,26 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
 #include "edyn/util/constraint.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void soft_distance_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = 1;
-    con.row[0] = registry.create();
-    auto &row = registry.assign<constraint_row>(con.row[0]);
-    row.entity = rel.entity;
-    row.priority = 400;
+void soft_distance_constraint::init(entt::entity, constraint &con, 
+                                    const relation &rel, entt::registry &registry) {
+    con.num_rows = 2;
+    for (size_t i = 0; i < con.num_rows; ++i) {
+        con.row[i] = registry.create();
+        auto &row = registry.assign<constraint_row>(con.row[i]);
+        row.entity = rel.entity;
+        row.priority = 400;
+    }
 }
 
-void soft_distance_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
+void soft_distance_constraint::prepare(entt::entity, constraint &con, 
+                                       const relation &rel, entt::registry &registry, scalar dt) {
     auto &posA = registry.get<const position>(rel.entity[0]);
     auto &ornA = registry.get<const orientation>(rel.entity[0]);
     auto &posB = registry.get<const position>(rel.entity[1]);
@@ -35,63 +39,75 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con, const rela
     auto l = std::sqrt(l2);
     vector3 dn;
     
-    if (l2 <= EDYN_EPSILON) {
-        d = dn = vector3_x;
-    } else {
+    if (l2 > EDYN_EPSILON) {
         dn = d / l;
+    } else {
+        d = dn = vector3_x;
     }
 
-    auto &row = registry.get<constraint_row>(con.row[0]);
-    row.J = {dn, cross(rA, dn), -dn, -cross(rB, dn)};
-    row.error = 0;
-    row.lower_limit = -large_scalar;
-    row.upper_limit =  large_scalar;
+    {
+        // Spring row. By setting the error to +/- `large_scalar`, it will
+        // always apply the impulse set in the limits.
+        auto error = distance - l;
+        auto spring_force = stiffness * error;
+        auto spring_impulse = spring_force * dt;
 
-    // Spring force is applied as an impulse directly to the entities, immediately
-    // affecting their velocities below. Damping is later applied as a constraint,
-    // which acts to slow the entities down.
-    auto &linvelA = registry.get<linvel>(rel.entity[0]);
-    auto &angvelA = registry.get<angvel>(rel.entity[0]);
-    auto &linvelB = registry.get<linvel>(rel.entity[1]);
-    auto &angvelB = registry.get<angvel>(rel.entity[1]);
+        auto &row = registry.get<constraint_row>(con.row[0]);
+        row.J = {dn, cross(rA, dn), -dn, -cross(rB, dn)};
+        row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
+    }
 
-    auto &inv_mA = registry.get<mass_inv>(rel.entity[0]);
-    auto &inv_IA = registry.get<inertia_world_inv>(rel.entity[0]);
-    auto &inv_mB = registry.get<mass_inv>(rel.entity[1]);
-    auto &inv_IB = registry.get<inertia_world_inv>(rel.entity[1]);
+    {
+        // Damping row. It functions like friction where the force is
+        // proportional to the relative speed.
+        auto &row = registry.get<constraint_row>(con.row[1]);
+        row.J = {dn, cross(rA, dn), -dn, -cross(rB, dn)};
+        row.error = 0;
 
-    auto error = distance - l;
-    auto spring_impulse = stiffness * error * dt * dn;
+        auto &linvelA = registry.get<linvel>(rel.entity[0]);
+        auto &angvelA = registry.get<angvel>(rel.entity[0]);
+        auto &linvelB = registry.get<linvel>(rel.entity[1]);
+        auto &angvelB = registry.get<angvel>(rel.entity[1]);
 
-    linvelA += spring_impulse * inv_mA;
-    angvelA += inv_IA * cross(rA, spring_impulse);
-    linvelB -= spring_impulse * inv_mB;
-    angvelB -= inv_IB * cross(rB, spring_impulse);
+        auto relspd = dot(row.J[0], linvelA) + 
+                      dot(row.J[1], angvelA) +
+                      dot(row.J[2], linvelB) +
+                      dot(row.J[3], angvelB);
+        auto damping_force = damping * relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
 
-    // Damping is applied using a negative restitution. The restitution scales
-    // the relative velocity thus increasing (if greater than zero) or 
-    // decreasing (if smaller than zero) the total applied impulse in the solver.
-    // The maximum damping rate `k_d` that would have an effect (i.e. it would
-    // bring the relative velocity to zero after solving) is the damping rate
-    // that would generate an impulse `P` high enough to zero out the current
-    // relative velocity `v`.
-    // k_d * v * h = P
-    // k_d = P / (v * h)
-    // The impulse to solve this constraint if it was rigid (i.e. the impulse
-    // necessary to zero out the relative velocity) is `K * v` where `K` is the 
-    // effective mass. Thus:
-    // k_d = K / h
-    // The restitution will then be the ratio between this constraint's damping
-    // rate and the maximum damping, capped to 1, flipped by subtracting it from
-    // one, and negated.
-    auto relvel = dot(linvelA + cross(angvelA, rA) - linvelB - cross(angvelB, rB), dn);
-    auto damping_force = damping * relvel;
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+
+        m_relspd = relspd;
+    }
+}
+
+void soft_distance_constraint::iteration(entt::entity entity, constraint &con, 
+                                         const relation &rel, entt::registry &registry, scalar dt) {
+    // Adjust damping row limits to account for velocity changes during iterations.
+    auto &dvA = registry.get<delta_linvel>(rel.entity[0]);
+    auto &dwA = registry.get<delta_angvel>(rel.entity[0]);
+    auto &dvB = registry.get<delta_linvel>(rel.entity[1]);
+    auto &dwB = registry.get<delta_angvel>(rel.entity[1]);
+
+    auto &row = registry.get<constraint_row>(con.row[1]);
+    auto delta_relspd = dot(row.J[0], dvA) + 
+                        dot(row.J[1], dwA) +
+                        dot(row.J[2], dvB) +
+                        dot(row.J[3], dwB);
+
+    auto relspd = m_relspd + delta_relspd;
+
+    auto damping_force = damping * relspd;
     auto damping_impulse = damping_force * dt;
+    auto impulse = std::abs(damping_impulse);
 
-    auto eff_mass = get_effective_mass(row, inv_mA, inv_IA, inv_mB, inv_IB);
-    auto max_damping = eff_mass / dt;
-    auto damping_ratio = std::min(damping / max_damping, scalar(1));
-    row.restitution = -(1 - damping_ratio);
+    row.lower_limit = -impulse;
+    row.upper_limit =  impulse;
 }
 
 }
