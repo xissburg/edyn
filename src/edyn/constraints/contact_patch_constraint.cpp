@@ -287,6 +287,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         auto prev_contact_angle     = tread_row.prev_contact_angle - spin_count_delta * pi2;
         auto prev_patch_start_angle = prev_contact_angle - tread_row.prev_row_half_angle;
         auto prev_patch_end_angle   = prev_contact_angle + tread_row.prev_row_half_angle;
+        auto prev_bristle_defl = vector3_zero;
 
         // Update persisted bristles and introduce new bristles into the
         // contact patch.
@@ -354,7 +355,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                                    scalar(0);
             auto mu0 = m_friction_coefficient * std::exp(scalar(-0.001) * m_load_sensitivity * normal_force);
             bristle->friction = mu0 / (1 + m_speed_sensitivity * bristle->sliding_spd);
-            auto max_friction_force = bristle->friction * normal_pressure * tread_area;
 
             auto spring_force = vector3_zero;
             auto bristle_defl = bristle_root - bristle_tip;
@@ -362,22 +362,39 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
             if (bristle_defl_len2 > EDYN_EPSILON) {
                 // TODO: handle anysotropic stiffness.
-                spring_force = m_lon_tread_stiffness * tread_area * bristle_defl;
+                auto a0 = j > 0 ? start_angle + scalar(j - 1) * bristle_angle_delta : patch_start_angle;
+                auto a1 = start_angle + scalar(j) * bristle_angle_delta;
+                auto x0 = a0 * cyl.radius;
+                auto x1 = a1 * cyl.radius;
+                auto denom = 2 * (x1 - x0);
 
-                // Bristle deflection force is greater than maximum friction force
-                // for the current normal load, which mean the bristle must slide.
-                // Thus, move the bristle tip closer to its root so that the 
-                // tangential deflection force is equals to the friction force.
-                if (length2(spring_force) > max_friction_force * max_friction_force) {
-                    auto error = std::sqrt(bristle_defl_len2);
-                    auto dir = bristle_defl / error;
-                    auto max_tread_defl = bristle->friction * normal_pressure / m_lon_tread_stiffness;
-                    bristle_defl = dir * max_tread_defl;
-                    spring_force = m_lon_tread_stiffness * tread_area * bristle_defl;
-                    bristle_tip = bristle_root - bristle_defl;
-                    
-                    // Move pivot in B to match new tip location.
-                    bristle->pivotB = rotate(ornB_conj, bristle_tip - posB);
+                if (std::abs(denom) > EDYN_EPSILON) {
+                    spring_force = m_lon_tread_stiffness * tread_width * 
+                                (prev_bristle_defl * (x1 - x0) + 
+                                 (bristle_defl - prev_bristle_defl) * 
+                                 (x1 - x0) * (x1 - x0) / denom);
+
+                    auto local_area = tread_area * (a1 - a0) / bristle_angle_delta;
+                    auto max_friction_force = bristle->friction * normal_pressure * local_area;
+
+                    // Bristle deflection force is greater than maximum friction force
+                    // for the current normal load, which mean the bristle must slide.
+                    // Thus, move the bristle tip closer to its root so that the 
+                    // tangential deflection force is equals to the friction force.
+                    if (length2(spring_force) > max_friction_force * max_friction_force) {
+                        auto error = std::sqrt(bristle_defl_len2);
+                        auto dir = bristle_defl / error;
+                        auto max_tread_defl = bristle->friction * normal_pressure / m_lon_tread_stiffness;
+                        bristle_defl = dir * max_tread_defl;
+                        spring_force = m_lon_tread_stiffness * tread_width * 
+                                        (prev_bristle_defl * (x1 - x0) + 
+                                        (bristle_defl - prev_bristle_defl) * 
+                                        (x1 - x0) * (x1 - x0) / denom);
+                        bristle_tip = bristle_root - bristle_defl;
+                        
+                        // Move pivot in B to match new tip location.
+                        bristle->pivotB = rotate(ornB_conj, bristle_tip - posB);
+                    }
                 }
             }
 
@@ -395,9 +412,9 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             lat_damping += dot(m_lat_dir, damping_force);
             aligning_damping += dot(cross(bristle_root - m_patch_center, damping_force), normal);
 
-            lon_force += dot(m_lon_dir, spring_force);
-            lat_force += dot(m_lat_dir, spring_force);
-            aligning_torque += dot(cross(bristle_root - m_patch_center, spring_force), normal);
+            lon_force += dot(m_lon_dir, -spring_force);
+            lat_force += dot(m_lat_dir, -spring_force);
+            aligning_torque += dot(cross(bristle_root - m_patch_center, -spring_force), normal);
 
             lon_error += dot(m_lon_dir, bristle_defl);
             lat_error += dot(m_lat_dir, bristle_defl);
@@ -408,6 +425,25 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             bristle->deflection = bristle_defl;
             bristle->tip = bristle_tip;
             bristle->root = bristle_root;
+
+            prev_bristle_defl = bristle_defl;
+        
+            // Add force from last bristle until end of patch.
+            if (j == row_num_bristles - 1) {
+                auto x0 = (start_angle + scalar(j) * bristle_angle_delta) * cyl.radius;
+                auto x1 = patch_end_angle * cyl.radius;
+                auto denom = 2 * (x1 - x0);
+
+                if (std::abs(denom) > EDYN_EPSILON) {
+                    spring_force = m_lon_tread_stiffness * tread_width * 
+                                    (bristle_defl * (x1 - x0) + 
+                                    (vector3_zero - bristle_defl) * 
+                                    (x1 - x0) * (x1 - x0) / denom);
+                    lon_force += dot(m_lon_dir, -spring_force);
+                    lat_force += dot(m_lat_dir, -spring_force);
+                    aligning_torque += dot(cross(bristle_root - m_patch_center, -spring_force), normal);
+                }
+            }
         }
 
         tread_row.tread_area = tread_area;
@@ -426,46 +462,63 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     {
         auto p = cross(rA, m_lon_dir);
         auto q = cross(rB, m_lon_dir);
-        auto impulse = std::abs(lon_force * dt);
+
+        auto spring_impulse = lon_force * dt;
+        auto damping_impulse = lon_damping * dt;
+
+        auto impulse = spring_impulse + damping_impulse;
+        auto min_impulse = std::min(scalar(0), std::min(impulse, damping_impulse));
+        auto max_impulse = std::max(scalar(0), std::max(impulse, damping_impulse));
 
         auto &row = registry.get<constraint_row>(con.row[1]);
         row.J = {m_lon_dir, p, -m_lon_dir, -q};
-        row.error = lon_error / dt;
-        row.lower_limit = -impulse;
-        row.upper_limit = impulse;
+        row.error = impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = min_impulse;
+        row.upper_limit = max_impulse;
     }
 
     // Lateral.
     {
         auto p = cross(rA, m_lat_dir);
         auto q = cross(rB, m_lat_dir);
-        auto impulse = std::abs(lat_force * dt);
+        
+        auto spring_impulse = lat_force * dt;
+        auto damping_impulse = lat_damping * dt;
+
+        auto impulse = spring_impulse + damping_impulse;
+        auto min_impulse = std::min(scalar(0), std::min(impulse, damping_impulse));
+        auto max_impulse = std::max(scalar(0), std::max(impulse, damping_impulse));
 
         auto &row = registry.get<constraint_row>(con.row[2]);
         row.J = {m_lat_dir, p, -m_lat_dir, -q};
-        row.error = lat_error / dt;
-        row.lower_limit = -impulse;
-        row.upper_limit = impulse;
+        row.error = impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = min_impulse;
+        row.upper_limit = max_impulse;
     }
 
     // Aligning moment.
     {
         // TODO: Also apply force on center of mass due to torque not necessarily
         // being aligned with the center of mass (e.g. when there's non-zero camber).
-        auto impulse = std::abs(aligning_torque * dt);
+        auto spring_impulse = aligning_torque * dt;
+        auto damping_impulse = aligning_damping * dt;
+
+        auto impulse = spring_impulse + damping_impulse;
+        auto min_impulse = std::min(scalar(0), std::min(impulse, damping_impulse));
+        auto max_impulse = std::max(scalar(0), std::max(impulse, damping_impulse));
         
         auto &row = registry.get<constraint_row>(con.row[3]);
         row.J = {vector3_zero, -normal, vector3_zero, normal};
-        row.error = aligning_error / dt;
-        row.lower_limit = -impulse;
-        row.upper_limit = impulse;
+        row.error = impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = min_impulse;
+        row.upper_limit = max_impulse;
     }
 }
 
 void contact_patch_constraint::iteration(entt::entity entity, constraint &con, 
                                          const relation &rel, entt::registry &registry, 
                                          scalar dt) {
-    if (con.num_rows == 0) {
+    /* if (con.num_rows == 0) {
         return;
     }
 
@@ -532,7 +585,7 @@ void contact_patch_constraint::iteration(entt::entity entity, constraint &con,
         auto &row = registry.get<constraint_row>(con.row[3]);
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
-    }
+    } */
 }
 
 }
