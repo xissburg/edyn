@@ -6,6 +6,8 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
@@ -14,7 +16,7 @@
 namespace edyn {
 
 void tirecarcass_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = 7;
+    con.num_rows = 10;
 
     for (size_t i = 0; i < con.num_rows; ++i) {
         auto e = registry.create();
@@ -52,23 +54,31 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
 
     // Lateral movement.
     {
-        auto error = dot(posA - posB, axisB_x);
-        auto spring_force = -error * m_lateral_stiffness;
+        auto error = -dot(posA - posB, axisB_x);
+        auto spring_force = error * m_lateral_stiffness;
         auto spring_impulse = spring_force * dt;
-
-        auto vel = dot(linvelA - linvelB, axisB_x);
-        auto damping_force = -m_lateral_damping * vel;
-        auto damping_impulse = damping_force * dt;
-
-        auto impulse = spring_impulse + damping_impulse;
-        auto min_impulse = std::min(scalar(0), std::min(impulse, damping_impulse));
-        auto max_impulse = std::max(scalar(0), std::max(impulse, damping_impulse));
 
         auto &row = registry.get<constraint_row>(con.row[idx++]);
         row.J = {axisB_x, vector3_zero, -axisB_x, vector3_zero};
-        row.error = impulse > 0 ? -large_scalar : large_scalar;
-        row.lower_limit = min_impulse;
-        row.upper_limit = max_impulse;
+        row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
+    }
+
+    // Lateral damping.
+    {
+        auto relspd = dot(linvelA - linvelB, axisB_x);
+        auto damping_force = m_lateral_damping * relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
+
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {axisB_x, vector3_zero, -axisB_x, vector3_zero};
+        row.error = 0;
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+
+        m_lateral_relspd = relspd;
     }
 
     // Prevent vertical movement.
@@ -100,23 +110,31 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
 
     // Torsional.
     {
-        auto error = dot(axisB_x, axisA_z);
-        auto spring_force = -error * m_torsional_stiffness;
+        auto error = -dot(axisB_x, axisA_z);
+        auto spring_force = error * m_torsional_stiffness;
         auto spring_impulse = spring_force * dt;
-
-        auto vel = dot(angvelA - angvelB, axisB_y);
-        auto damping_force = -m_torsional_damping * vel;
-        auto damping_impulse = damping_force * dt;
-
-        auto impulse = spring_impulse + damping_impulse;
-        auto min_impulse = std::min(scalar(0), std::min(impulse, damping_impulse));
-        auto max_impulse = std::max(scalar(0), std::max(impulse, damping_impulse));
 
         auto &row = registry.get<constraint_row>(con.row[idx++]);
         row.J = {vector3_zero, axisB_y, vector3_zero, -axisB_y};
-        row.error = impulse > 0 ? -large_scalar : large_scalar;
-        row.lower_limit = min_impulse;
-        row.upper_limit = max_impulse;
+        row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
+    }
+
+    // Torsional damping.
+    {
+        auto relspd = dot(angvelA - angvelB, axisB_y);
+        auto damping_force = m_torsional_damping * relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
+
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {vector3_zero, axisB_y, vector3_zero, -axisB_y};
+        row.error = 0;
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+
+        m_torsional_relspd = relspd;
     }
 
     // Prevent rolling (rotation along forward axis).
@@ -131,16 +149,88 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
     // Longitudinal twist.
     {
         auto error = (angleA.s - angleB.s) + (angleA.count - angleB.count) * pi2;
-        auto force = std::abs(error * m_longitudinal_stiffness);
-        auto impulse = force * dt;
+        auto spring_force = -error * m_longitudinal_stiffness;
+        auto spring_impulse = spring_force * dt;
 
         auto &row = registry.get<constraint_row>(con.row[idx++]);
         row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
-        row.error = error / dt;
-        row.lower_limit = -impulse;
-        row.upper_limit = impulse;
+        row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
         row.use_spin[0] = true;
         row.use_spin[1] = true;
+    }
+
+    // Longitudinal damping.
+    {
+        auto relspd = spinA - spinB;
+        auto damping_force = m_longitudinal_damping * relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
+
+        auto &row = registry.get<constraint_row>(con.row[idx++]);
+        row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
+        row.error = 0;
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+        row.use_spin[0] = true;
+        row.use_spin[1] = true;
+
+        m_longitudinal_relspd = relspd;
+    }
+}
+
+void tirecarcass_constraint::iteration(entt::entity entity, constraint &con, 
+                                         const relation &rel, entt::registry &registry, scalar dt) {
+    // Adjust damping row limits to account for velocity changes during iterations.
+    auto &dvA = registry.get<delta_linvel>(rel.entity[0]);
+    auto &dwA = registry.get<delta_angvel>(rel.entity[0]);
+    auto &dvB = registry.get<delta_linvel>(rel.entity[1]);
+    auto &dwB = registry.get<delta_angvel>(rel.entity[1]);
+
+    // Lateral damping.
+    {
+        auto &row = registry.get<constraint_row>(con.row[1]);
+        auto delta_relspd = dot(row.J[0], dvA) + 
+                            dot(row.J[1], dwA) +
+                            dot(row.J[2], dvB) +
+                            dot(row.J[3], dwB);
+        auto relspd = m_lateral_relspd + delta_relspd;
+        auto damping_force = m_lateral_damping * relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+    }
+
+    // Torsional damping.
+    {
+        auto &row = registry.get<constraint_row>(con.row[6]);
+        auto delta_relspd = dot(row.J[0], dvA) + 
+                            dot(row.J[1], dwA) +
+                            dot(row.J[2], dvB) +
+                            dot(row.J[3], dwB);
+        auto relspd = m_torsional_relspd + delta_relspd;
+        auto damping_force = m_torsional_damping * relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+    }
+
+    // Longitudinal damping.
+    {
+        auto &row = registry.get<constraint_row>(con.row[9]);
+        auto delta_relspd = dot(row.J[0], dvA) + 
+                            dot(row.J[1], dwA) +
+                            dot(row.J[2], dvB) +
+                            dot(row.J[3], dwB);
+        auto relspd = m_longitudinal_relspd + delta_relspd;
+        auto damping_force = m_longitudinal_damping * relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
     }
 }
 

@@ -13,8 +13,13 @@ struct tirecarcass_constraint : public constraint_base<tirecarcass_constraint> {
     scalar m_torsional_stiffness {1000};
     scalar m_torsional_damping {20};
 
+    scalar m_lateral_relspd;
+    scalar m_longitudinal_relspd;
+    scalar m_torsional_relspd;
+
     void init(entt::entity, constraint &, const relation &, entt::registry &);
     void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
+    void iteration(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
 };
 
 }
