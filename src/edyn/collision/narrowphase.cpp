@@ -36,8 +36,8 @@ void narrowphase::on_construct_broadphase_relation(entt::entity entity, entt::re
             auto contact = contact_patch_constraint();
             // Contact patch is always a soft contact since it needs deflection.
             EDYN_ASSERT(m0->stiffness < large_scalar || m1->stiffness < large_scalar);
-            contact.m_stiffness = stiffness;
-            contact.m_damping = damping;
+            contact.m_normal_stiffness = stiffness;
+            contact.m_normal_damping = damping;
             contact.m_friction_coefficient = m0->friction * m1->friction;
 
             auto tire = tire0 ? tire0 : tire1;

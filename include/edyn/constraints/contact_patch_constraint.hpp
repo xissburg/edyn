@@ -34,8 +34,8 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
         std::map<size_t, brush_bristle> bristles;
     };
 
-    scalar m_stiffness {large_scalar};
-    scalar m_damping {large_scalar};
+    scalar m_normal_stiffness {100000};
+    scalar m_normal_damping {400};
     scalar m_friction_coefficient {1};
     scalar m_speed_sensitivity {0.05};
     scalar m_load_sensitivity {0.03};
@@ -46,6 +46,11 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     vector3 m_lon_dir;
     vector3 m_lat_dir;
     vector3 m_patch_center;
+
+    scalar m_normal_relspd;
+    scalar m_lon_damping;
+    scalar m_lat_damping;
+    scalar m_aligning_damping;
 
     static constexpr size_t num_tread_rows = 3;
     std::array<tread_row, num_tread_rows> m_tread_rows{};

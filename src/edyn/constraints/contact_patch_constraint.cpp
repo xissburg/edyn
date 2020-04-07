@@ -8,6 +8,8 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/util/tire.hpp"
 #include "edyn/math/matrix3x3.hpp"
@@ -128,17 +130,19 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     // Create constraint rows if needed.
     if (con.num_rows == 0) {
-        con.num_rows = 4;
+        // A spring row and a damper row for normal, longitudinal, lateral and 
+        // torsional directions.
+        con.num_rows = 8;
 
         for (size_t i = 0; i < con.num_rows; ++i) {
             auto [row_entity, row] = registry.create<constraint_row>();
             row.entity = rel.entity;
             // Priority zero for normal constraint,
             // priority one for friction constraints.
-            row.priority = i == 0 ? 0 : 1;
+            row.priority = i == 0 || i == 1 ? 0 : 1;
             // Use spin only for longitudinal constraint.
-            row.use_spin[0] = i == 1;
-            row.use_spin[1] = i == 1;
+            row.use_spin[0] = i == 2 || i == 3;
+            row.use_spin[1] = i == 2 || i == 3;
             con.row[i] = row_entity;
         }
     }
@@ -156,29 +160,40 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     auto tire_rA = tire_patch_center - posA;
     
-    auto &normal_row = registry.get<constraint_row>(con.row[0]);
-    normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
+    auto &normal_spring_row = registry.get<constraint_row>(con.row[0]);
+    normal_spring_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
+    
+    auto &normal_damping_row = registry.get<constraint_row>(con.row[1]);
+    normal_damping_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
 
-    // Setup normal row impulse.
+    // Normal spring.
     {
         auto linvelrel = linvelA - linvelB;
         auto speed = length(linvelrel - normal * dot(linvelrel, normal));
-        auto stiffness = velocity_dependent_vertical_stiffness(m_stiffness, speed);
+        auto stiffness = velocity_dependent_vertical_stiffness(m_normal_stiffness, speed);
         auto penetration = dot(posA + tire_rA - posB - rB, normal);
+
         auto normal_spring_force = -penetration * stiffness;
         auto normal_spring_impulse = normal_spring_force * dt;
-        
-        auto normal_relvel = dot(linvelA + cross(angvelA, rA) - linvelB - cross(angvelB, rB), normal);
-        auto normal_damper_force = -normal_relvel * m_damping;
-        auto normal_damper_impulse = normal_damper_force * dt;
+        normal_spring_row.error = normal_spring_impulse > 0 ? -large_scalar : large_scalar;
+        normal_spring_row.lower_limit = 0;
+        normal_spring_row.upper_limit = std::max(scalar(0), normal_spring_impulse);
+    }
 
-        auto normal_impulse = normal_spring_impulse + normal_damper_impulse;
-        auto max_impulse = std::max(scalar(0), std::max(normal_impulse, normal_damper_impulse));
-        
-        normal_row.lower_limit = 0;
-        normal_row.upper_limit = max_impulse;
-        normal_row.error = normal_impulse > 0 ? -large_scalar : large_scalar;
-        normal_row.restitution = 0;
+    // Normal damping.
+    {
+        auto normal_relspd = dot(normal_damping_row.J[0], linvelA) + 
+                             dot(normal_damping_row.J[1], angvelA) +
+                             dot(normal_damping_row.J[2], linvelB) +
+                             dot(normal_damping_row.J[3], angvelB);
+        auto normal_damper_force = m_normal_damping * normal_relspd;
+        auto normal_damper_impulse = std::abs(normal_damper_force * dt);
+
+        normal_damping_row.lower_limit = 0;
+        normal_damping_row.upper_limit = normal_damper_impulse;
+        normal_damping_row.error = 0;
+
+        m_normal_relspd = normal_relspd;
     }
 
     auto forward = normalize(cross(axis, normal));
@@ -225,7 +240,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     contact_angle += spin_angleA.s;
 
-    auto normal_force = normal_row.impulse / dt;
+    auto normal_force = (normal_spring_row.impulse + normal_damping_row.impulse) / dt;
 
     // Accumulate forces and errors along all bristles.
     auto lon_force = scalar {0};
@@ -456,42 +471,62 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         aligning_error /= total_bristles;
     }
 
-    // Longitudinal.
+    // Longitudinal stiffness.
     {
         auto p = cross(rA, m_lon_dir);
         auto q = cross(rB, m_lon_dir);
-
         auto spring_impulse = lon_force * dt;
-        auto damping_impulse = lon_damping * dt;
 
-        auto impulse = spring_impulse + damping_impulse;
-        auto min_impulse = std::min(scalar(0), std::min(impulse, damping_impulse));
-        auto max_impulse = std::max(scalar(0), std::max(impulse, damping_impulse));
-
-        auto &row = registry.get<constraint_row>(con.row[1]);
+        auto &row = registry.get<constraint_row>(con.row[2]);
         row.J = {m_lon_dir, p, -m_lon_dir, -q};
-        row.error = impulse > 0 ? -large_scalar : large_scalar;
-        row.lower_limit = min_impulse;
-        row.upper_limit = max_impulse;
+        row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
     }
 
-    // Lateral.
+    // Longitudinal damping.
+    {
+        auto p = cross(rA, m_lon_dir);
+        auto q = cross(rB, m_lon_dir);
+        auto damping_impulse = lon_damping * dt;
+        auto impulse = std::abs(damping_impulse);
+
+        auto &row = registry.get<constraint_row>(con.row[3]);
+        row.J = {m_lon_dir, p, -m_lon_dir, -q};
+        row.error = 0;
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+
+        m_lon_damping = lat_damping;
+    }
+
+    // Lateral stiffness.
     {
         auto p = cross(rA, m_lat_dir);
         auto q = cross(rB, m_lat_dir);
-        
         auto spring_impulse = lat_force * dt;
-        auto damping_impulse = lat_damping * dt;
 
-        auto impulse = spring_impulse + damping_impulse;
-        auto min_impulse = std::min(scalar(0), std::min(impulse, damping_impulse));
-        auto max_impulse = std::max(scalar(0), std::max(impulse, damping_impulse));
-
-        auto &row = registry.get<constraint_row>(con.row[2]);
+        auto &row = registry.get<constraint_row>(con.row[4]);
         row.J = {m_lat_dir, p, -m_lat_dir, -q};
-        row.error = impulse > 0 ? -large_scalar : large_scalar;
-        row.lower_limit = min_impulse;
-        row.upper_limit = max_impulse;
+        row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
+    }
+
+    // Lateral damping.
+    {
+        auto p = cross(rA, m_lat_dir);
+        auto q = cross(rB, m_lat_dir);
+        auto damping_impulse = lat_damping * dt;
+        auto impulse = std::abs(damping_impulse);
+
+        auto &row = registry.get<constraint_row>(con.row[5]);
+        row.J = {m_lat_dir, p, -m_lat_dir, -q};
+        row.error = 0;
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+
+        m_lat_damping = lat_damping;
     }
 
     // Aligning moment.
@@ -499,27 +534,99 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         // TODO: Also apply force on center of mass due to torque not necessarily
         // being aligned with the center of mass (e.g. when there's non-zero camber).
         auto spring_impulse = aligning_torque * dt;
-        auto damping_impulse = aligning_damping * dt;
 
-        auto impulse = spring_impulse + damping_impulse;
-        auto min_impulse = std::min(scalar(0), std::min(impulse, damping_impulse));
-        auto max_impulse = std::max(scalar(0), std::max(impulse, damping_impulse));
-        
-        auto &row = registry.get<constraint_row>(con.row[3]);
-        row.J = {vector3_zero, -normal, vector3_zero, normal};
-        row.error = impulse > 0 ? -large_scalar : large_scalar;
-        row.lower_limit = min_impulse;
-        row.upper_limit = max_impulse;
+        auto &row = registry.get<constraint_row>(con.row[6]);
+        row.J = {vector3_zero, normal, vector3_zero, -normal};
+        row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
+    }
+
+    // Aligning damping.
+    {
+        auto damping_impulse = aligning_damping * dt;
+        auto impulse = std::abs(damping_impulse);
+
+        auto &row = registry.get<constraint_row>(con.row[7]);
+        row.J = {vector3_zero, normal, vector3_zero, -normal};
+        row.error = 0;
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+
+        m_aligning_damping = aligning_damping;
     }
 }
 
 void contact_patch_constraint::iteration(entt::entity entity, constraint &con, 
                                          const relation &rel, entt::registry &registry, 
                                          scalar dt) {
-    /* if (con.num_rows == 0) {
+    if (con.num_rows == 0) {
         return;
     }
 
+    // Adjust damping row limits to account for velocity changes during iterations.
+    auto &dvA = registry.get<delta_linvel>(rel.entity[0]);
+    auto &dwA = registry.get<delta_angvel>(rel.entity[0]);
+    auto &dvB = registry.get<delta_linvel>(rel.entity[1]);
+    auto &dwB = registry.get<delta_angvel>(rel.entity[1]);
+
+    // Normal damping.
+    {
+        auto &row = registry.get<constraint_row>(con.row[1]);
+        auto delta_relspd = dot(row.J[0], dvA) + 
+                            dot(row.J[1], dwA) +
+                            dot(row.J[2], dvB) +
+                            dot(row.J[3], dwB);
+        auto relspd = m_normal_relspd + delta_relspd;
+        auto damping_force = m_normal_damping * relspd;
+        auto damping_impulse = std::abs(damping_force * dt);
+        row.lower_limit = 0;
+        row.upper_limit = damping_impulse;
+    }
+
+    // Longitudinal damping.
+    /* {
+        auto &row = registry.get<constraint_row>(con.row[3]);
+        auto delta_relspd = dot(row.J[0], dvA) + 
+                            dot(row.J[1], dwA) +
+                            dot(row.J[2], dvB) +
+                            dot(row.J[3], dwB);
+        auto damping_force = m_lon_damping + m_tread_damping * delta_relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+    }
+
+    // Lateral damping.
+    {
+        auto &row = registry.get<constraint_row>(con.row[5]);
+        auto delta_relspd = dot(row.J[0], dvA) + 
+                            dot(row.J[1], dwA) +
+                            dot(row.J[2], dvB) +
+                            dot(row.J[3], dwB);
+        auto damping_force = m_lat_damping + m_tread_damping * delta_relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+    }
+
+    // Aligning damping.
+    {
+        auto &row = registry.get<constraint_row>(con.row[7]);
+        auto delta_relspd = dot(row.J[0], dvA) + 
+                            dot(row.J[1], dwA) +
+                            dot(row.J[2], dvB) +
+                            dot(row.J[3], dwB);
+        auto damping_force = m_torsional_damping * relspd;
+        auto damping_impulse = damping_force * dt;
+        auto impulse = std::abs(damping_impulse);
+        row.lower_limit = -impulse;
+        row.upper_limit =  impulse;
+    } */
+
+    /* 
     const auto &ornB = registry.get<orientation>(rel.entity[1]);
     auto &manifold = registry.get<contact_manifold>(entity);
     const auto normal = rotate(ornB, manifold.point[0].normalB);
