@@ -185,8 +185,10 @@ void tirecarcass_constraint::iteration(entt::entity entity, constraint &con,
     // Adjust damping row limits to account for velocity changes during iterations.
     auto &dvA = registry.get<delta_linvel>(rel.entity[0]);
     auto &dwA = registry.get<delta_angvel>(rel.entity[0]);
+    auto &dsA = registry.get<delta_spin>(rel.entity[0]);
     auto &dvB = registry.get<delta_linvel>(rel.entity[1]);
     auto &dwB = registry.get<delta_angvel>(rel.entity[1]);
+    auto &dsB = registry.get<delta_spin>(rel.entity[1]);
 
     // Lateral damping.
     {
@@ -221,17 +223,14 @@ void tirecarcass_constraint::iteration(entt::entity entity, constraint &con,
     // Longitudinal damping.
     {
         auto &row = registry.get<constraint_row>(con.row[9]);
-        auto delta_relspd = dot(row.J[0], dvA) + 
-                            dot(row.J[1], dwA) +
-                            dot(row.J[2], dvB) +
-                            dot(row.J[3], dwB);
+        auto delta_relspd = dsA.s - dsB.s;
         auto relspd = m_longitudinal_relspd + delta_relspd;
         auto damping_force = m_longitudinal_damping * relspd;
         auto damping_impulse = damping_force * dt;
         auto impulse = std::abs(damping_impulse);
         row.lower_limit = -impulse;
         row.upper_limit =  impulse;
-    }
+    } 
 }
 
 }
