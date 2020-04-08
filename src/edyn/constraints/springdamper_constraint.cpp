@@ -22,13 +22,13 @@ void springdamper_constraint::init(entt::entity, constraint &con, const relation
 }
 
 void springdamper_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-    auto &posA = registry.get<const position>(rel.entity[0]);
-    auto &ornA = registry.get<const orientation>(rel.entity[0]);
+    auto &posA = registry.get<position>(rel.entity[0]);
+    auto &ornA = registry.get<orientation>(rel.entity[0]);
     auto rA = rotate(ornA, m_pivotA);
     auto pA = posA + rA;
 
-    auto &posB = registry.get<const position>(rel.entity[1]);
-    auto &ornB = registry.get<const orientation>(rel.entity[1]);
+    auto &posB = registry.get<position>(rel.entity[1]);
+    auto &ornB = registry.get<orientation>(rel.entity[1]);
     auto rB = rotate(ornB, m_ctrl_arm_pivotB);
     auto pB = posB + rB;
 
@@ -58,20 +58,20 @@ void springdamper_constraint::prepare(entt::entity, constraint &con, const relat
     
     // Spring.
     {
-        auto impulse = m_stiffness_curve.get(-error) * inclination * dt;
+        auto spring_impulse = m_stiffness_curve.get(-error) * inclination * dt;
         auto &row = registry.get<constraint_row>(con.row[0]);
         row.J = {n, p, -n, -q};
-        row.error = error / dt;
+        row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
         row.lower_limit = 0;
-        row.upper_limit = impulse;
+        row.upper_limit = std::max(scalar(0), spring_impulse);
     }
 
     // Damper.
     {
-        auto &linvelA = registry.get<const linvel>(rel.entity[0]);
-        auto &angvelA = registry.get<const angvel>(rel.entity[0]);
-        auto &linvelB = registry.get<const linvel>(rel.entity[1]);
-        auto &angvelB = registry.get<const angvel>(rel.entity[1]);
+        auto &linvelA = registry.get<linvel>(rel.entity[0]);
+        auto &angvelA = registry.get<angvel>(rel.entity[0]);
+        auto &linvelB = registry.get<linvel>(rel.entity[1]);
+        auto &angvelB = registry.get<angvel>(rel.entity[1]);
 
         auto velA = linvelA + cross(angvelA, rA);
         auto vel_ctrl_armA = linvelA + cross(angvelA, rotate(ornA, m_ctrl_arm_pivotA));
@@ -87,7 +87,9 @@ void springdamper_constraint::prepare(entt::entity, constraint &con, const relat
         row.J = {n, p, -n, -q};
         row.error = 0;
         row.lower_limit = -impulse;
-        row.upper_limit = impulse;
+        row.upper_limit =  impulse;
+
+       // m_relspd = relspd;
     }
 
     // Damper piston limit when it fully extends.
