@@ -45,6 +45,9 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
         d = dn = vector3_x;
     }
 
+    auto p = cross(rA, dn);
+    auto q = cross(rB, dn);
+
     {
         // Spring row. By setting the error to +/- `large_scalar`, it will
         // always apply the impulse set in the limits.
@@ -53,7 +56,7 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
         auto spring_impulse = spring_force * dt;
 
         auto &row = registry.get<constraint_row>(con.row[0]);
-        row.J = {dn, cross(rA, dn), -dn, -cross(rB, dn)};
+        row.J = {dn, p, -dn, -q};
         row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
         row.lower_limit = std::min(spring_impulse, scalar(0));
         row.upper_limit = std::max(scalar(0), spring_impulse);
@@ -63,7 +66,7 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
         // Damping row. It functions like friction where the force is
         // proportional to the relative speed.
         auto &row = registry.get<constraint_row>(con.row[1]);
-        row.J = {dn, cross(rA, dn), -dn, -cross(rB, dn)};
+        row.J = {dn, p, -dn, -q};
         row.error = 0;
 
         auto &linvelA = registry.get<linvel>(rel.entity[0]);
