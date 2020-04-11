@@ -249,10 +249,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto lon_damping = scalar {0};
     auto lat_damping = scalar {0};
     auto aligning_damping = scalar {0};
-    auto lon_error = scalar {0};
-    auto lat_error = scalar {0};
-    auto aligning_error = scalar {0};
-    auto total_bristles = uint16_t {0};
 
     // Update bristles for each row.
     for (size_t i = 0; i < num_tread_rows; ++i) {
@@ -308,7 +304,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         // Update persisted bristles and introduce new bristles into the
         // contact patch.
         for (uint16_t j = 0; j < row_num_bristles; ++j) {
-            ++total_bristles;
             const auto bristle_idx = (start_idx + j) % num_bristles;
             brush_bristle *bristle;
 
@@ -433,12 +428,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
             lat_force += dot(m_lat_dir, -spring_force);
             aligning_torque += dot(cross(bristle_root - m_patch_center, -spring_force), normal);
 
-            lon_error += dot(m_lon_dir, bristle_defl);
-            lat_error += dot(m_lat_dir, bristle_defl);
-
-            // Angle (approx.) subtended by bristle from the patch center.
-            aligning_error += dot(cross(bristle_root - m_patch_center, bristle_tip - m_patch_center), normal);
-
             bristle->deflection = bristle_defl;
             bristle->tip = bristle_tip;
             bristle->root = bristle_root;
@@ -463,12 +452,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         tread_row.prev_contact_angle = contact_angle;
         tread_row.prev_spin_count = spin_angleA.count;
         tread_row.prev_row_half_angle = row_half_angle;
-    }
-
-    if (total_bristles > 0) {
-        lon_error /= total_bristles;
-        lat_error /= total_bristles;
-        aligning_error /= total_bristles;
     }
 
     // Longitudinal stiffness.
