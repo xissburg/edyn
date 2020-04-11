@@ -27,7 +27,8 @@ void tirecarcass_constraint::init(entt::entity, constraint &con, const relation 
     }
 }
 
-void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
+void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relation &rel, 
+                                     entt::registry &registry, scalar dt) {
     auto &posA    = registry.get<const position   >(rel.entity[0]);
     auto &ornA    = registry.get<const orientation>(rel.entity[0]);
     auto &linvelA = registry.get<const linvel     >(rel.entity[0]);
@@ -149,8 +150,8 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
     // Longitudinal twist.
     {
         auto error = (angleA.s - angleB.s) + (angleA.count - angleB.count) * pi2;
-        auto spring_force = -error * m_longitudinal_stiffness;
-        auto spring_impulse = spring_force * dt;
+        auto spring_torque = -error * m_longitudinal_stiffness;
+        auto spring_impulse = spring_torque * dt;
 
         auto &row = registry.get<constraint_row>(con.row[idx++]);
         row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
@@ -163,9 +164,9 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
 
     // Longitudinal damping.
     {
-        auto relspd = spinA - spinB;
-        auto damping_force = m_longitudinal_damping * relspd;
-        auto damping_impulse = damping_force * dt;
+        auto relspd = spinA.s - spinB.s;
+        auto damping_torque = m_longitudinal_damping * relspd;
+        auto damping_impulse = damping_torque * dt;
         auto impulse = std::abs(damping_impulse);
 
         auto &row = registry.get<constraint_row>(con.row[idx++]);
@@ -181,7 +182,7 @@ void tirecarcass_constraint::prepare(entt::entity, constraint &con, const relati
 }
 
 void tirecarcass_constraint::iteration(entt::entity entity, constraint &con, 
-                                         const relation &rel, entt::registry &registry, scalar dt) {
+                                       const relation &rel, entt::registry &registry, scalar dt) {
     // Adjust damping row limits to account for velocity changes during iterations.
     auto &dvA = registry.get<delta_linvel>(rel.entity[0]);
     auto &dwA = registry.get<delta_angvel>(rel.entity[0]);
@@ -223,14 +224,15 @@ void tirecarcass_constraint::iteration(entt::entity entity, constraint &con,
     // Longitudinal damping.
     {
         auto &row = registry.get<constraint_row>(con.row[9]);
-        auto delta_relspd = dsA.s - dsB.s;
+        // Note the `+` because the impulse is equal and opposite.
+        auto delta_relspd = dsA.s + dsB.s; 
         auto relspd = m_longitudinal_relspd + delta_relspd;
         auto damping_force = m_longitudinal_damping * relspd;
         auto damping_impulse = damping_force * dt;
         auto impulse = std::abs(damping_impulse);
         row.lower_limit = -impulse;
         row.upper_limit =  impulse;
-    } 
+    }
 }
 
 }
