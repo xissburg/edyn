@@ -2,6 +2,32 @@
 
 namespace edyn {
 
+void triangle_mesh::calculate_aabb() {
+    aabb.min = vector3_max;
+    aabb.max = -vector3_max;
+
+    for (auto &v : vertices) {
+        if (v.x < aabb.min.x) {
+            aabb.min.x = v.x;
+        }
+        if (v.y < aabb.min.y) {
+            aabb.min.y = v.y;
+        }
+        if (v.z < aabb.min.z) {
+            aabb.min.z = v.z;
+        }
+        if (v.x > aabb.max.x) {
+            aabb.max.x = v.x;
+        }
+        if (v.y > aabb.max.y) {
+            aabb.max.y = v.y;
+        }
+        if (v.z > aabb.max.z) {
+            aabb.max.z = v.z;
+        }
+    }
+}
+
 void triangle_mesh::calculate_adjacency() {
     adjacency.resize(indices.size());
     cos_angles.resize(indices.size());

@@ -13,7 +13,7 @@ struct mesh_shape {
     std::shared_ptr<triangle_mesh> trimesh;
 
     AABB aabb(const vector3 &pos, const quaternion &orn) const {
-        return {-vector3_max, vector3_max};
+        return {trimesh->aabb.min + pos, trimesh->aabb.max + pos};
     }
 
     vector3 inertia(scalar mass) const {

@@ -15,6 +15,7 @@ struct triangle_mesh {
     std::vector<uint16_t> adjacency;
     std::vector<scalar> cos_angles;
     std::vector<bool> is_concave_edge;
+    AABB aabb;
 
     size_t num_triangles() const {
         EDYN_ASSERT(indices.size() % 3 == 0);
@@ -39,6 +40,7 @@ struct triangle_mesh {
         }
     }
 
+    void calculate_aabb();
     void calculate_adjacency();
 };
 
