@@ -169,12 +169,6 @@ void warm_start(entt::registry &registry, constraint_row &row,
                 delta_linvel &dvA, delta_linvel &dvB,
                 delta_angvel &dwA, delta_angvel &dwB,
                 delta_spin *dsA, delta_spin *dsB) {    
-    // Do not warm start when there's restitution since this constraint isn't 
-    // going to rest and also to prevent adding energy to the system.
-    if (restitution_curve(row.restitution, row.relvel) > 0) {
-        return;
-    }
-
     apply_impulse(row.impulse, registry, row, 
                   inv_mA, inv_mB, 
                   inv_IA, inv_IB, 
@@ -189,13 +183,7 @@ void warm_start3(entt::registry &registry, constraint_row &row,
                  const matrix3x3 &inv_IA, const matrix3x3 &inv_IB, const matrix3x3 &inv_IC,
                  delta_linvel &dvA, delta_linvel &dvB, delta_linvel &dvC,
                  delta_angvel &dwA, delta_angvel &dwB, delta_angvel &dwC,
-                 delta_spin *dsA, delta_spin *dsB, delta_spin *dsC) {    
-    // Do not warm start when there's restitution since this constraint isn't 
-    // going to rest and also to prevent adding energy to the system.
-    if (restitution_curve(row.restitution, row.relvel) > 0) {
-        return;
-    }
-
+                 delta_spin *dsA, delta_spin *dsB, delta_spin *dsC) {
     apply_impulse3(row.impulse, registry, row, 
                    inv_mA, inv_mB, inv_mC, 
                    inv_IA, inv_IB, inv_IC, 

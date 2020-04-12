@@ -12,6 +12,9 @@ namespace edyn {
 struct triangle_mesh {
     std::vector<vector3> vertices;
     std::vector<uint16_t> indices;
+    std::vector<uint16_t> adjacency;
+    std::vector<scalar> cos_angles;
+    std::vector<bool> is_concave_edge;
 
     size_t num_triangles() const {
         EDYN_ASSERT(indices.size() % 3 == 0);
@@ -19,7 +22,7 @@ struct triangle_mesh {
     }
 
     template<typename Func>
-    void visit(const AABB &aabb, Func func) {
+    void visit(const AABB &aabb, Func func) const {
         // TODO: use bounding volume hierarchy tree.
         for (size_t i = 0; i < num_triangles(); ++i) {
             auto verts = triangle_vertices{
@@ -31,10 +34,12 @@ struct triangle_mesh {
             auto tri_max = max(max(verts[0], verts[1]), verts[2]);
 
             if (intersect_aabb(aabb.min, aabb.max, tri_min, tri_max)) {
-                func(verts);
+                func(i, verts);
             }
         }
     }
+
+    void calculate_adjacency();
 };
 
 }
