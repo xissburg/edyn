@@ -2,6 +2,7 @@
 #define EDYN_COMP_AABB_HPP
 
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/geom.hpp"
 
 namespace edyn {
 
@@ -18,12 +19,7 @@ struct AABB {
 };
 
 inline bool intersect(const AABB &b0, const AABB &b1) {
-    return (b0.min.x <= b1.max.x) &&
-		   (b0.max.x >= b1.min.x) &&
-		   (b0.min.y <= b1.max.y) &&
-		   (b0.max.y >= b1.min.y) &&
-		   (b0.min.z <= b1.max.z) &&
-		   (b0.max.z >= b1.min.z);
+    return intersect_aabb(b0.min, b0.max, b1.min, b1.max);
 }
 
 }
