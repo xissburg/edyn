@@ -37,6 +37,20 @@ scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
                              const vector3 &p, scalar &t, vector3 &q);
 
 /**
+ * @brief Computes the point in the line `q(t) = q0 + t*dir` closest
+ * to point `p`.
+ * 
+ * @param q0 Point in line.
+ * @param dir Line direction vector.
+ * @param p The point.
+ * @param t Outputs the parameter where `q(t)` gives the closest point to `p`.
+ * @param r Outputs the point in `q(t)` closest to `p`.
+ * @return The squared distance between `q(t)` an `p`.
+ */
+scalar closest_point_line(const vector3 &q0, const vector3 &dir,
+                          const vector3 &p, scalar &t, vector3 &r);
+
+/**
  * @brief Computes the closest points `c1` and `c2` of segments 
  * `s1(s) = p1 + s*(q1 - p1)` and `s2(t) = p2 + t*(q2 - p2)`, 
  * where `0 <= s <= 1` and `0 <= t <= 1`.
@@ -120,12 +134,21 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
  */
 void plane_space(const vector3 &n, vector3 &p, vector3 &q);
 
+/**
+ * Checks whether point `p` is contained within the infinite prism with 
+ * triangular base defined by the given `vertices` and direction `normal`.
+ */
 bool point_in_triangle(const triangle_vertices &, 
                        const vector3 &normal, 
                        const vector3 &p);
 
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1);
+
+size_t intersect_line_circle(scalar px, scalar py, 
+                             scalar qx, scalar qy, 
+                             scalar radius, 
+                             scalar &s0, scalar &s1);
 
 }
 
