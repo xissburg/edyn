@@ -145,10 +145,17 @@ bool point_in_triangle(const triangle_vertices &,
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1);
 
+bool intersect_segments(scalar p0x, scalar p0y, scalar p1x, scalar p1y,
+                        scalar q0x, scalar q0y, scalar q1x, scalar q1y,
+                        scalar &s, scalar &t, scalar &rx, scalar &ry);
+
 size_t intersect_line_circle(scalar px, scalar py, 
                              scalar qx, scalar qy, 
                              scalar radius, 
                              scalar &s0, scalar &s1);
+
+vector3 support_point_circle(scalar radius, const vector3 &pos, 
+                             const quaternion &orn, const vector3 &dir);
 
 }
 

@@ -612,4 +612,20 @@ bool intersect_aabb(const vector3 &min0, const vector3 &max0,
 		   (max0.z >= min1.z);
 }
 
+vector3 support_point_circle(scalar radius, const vector3 &pos, const quaternion &orn, const vector3 &dir) {
+    auto local_dir = rotate(conjugate(orn), dir);
+    // Squared length in yz plane.
+    auto len_yz_sqr = local_dir.y * local_dir.y + local_dir.z * local_dir.z;
+    vector3 sup;
+
+    if (len_yz_sqr > EDYN_EPSILON) {
+        auto d = radius / std::sqrt(len_yz_sqr);
+        sup = {0, local_dir.y * d, local_dir.z * d};
+    } else {
+        sup = {0, radius, 0};
+    }
+
+    return pos + rotate(orn, sup);
+}
+
 }

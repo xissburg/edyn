@@ -205,11 +205,13 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 axis.cyl_feature_index = axis_dot > 0 ? 1 : 0;
                 auto disc_center = posA_in_B + cyl_axis * shA.half_length * (axis_dot > 0 ? -1 : 1);
                 axis.distance = dot(tri_normal, disc_center - vertices[0]);
-            } else {            
-                auto p_pos = shA.support_point(posA_in_B, ornA_in_B, axis.dir);
-                auto p_neg = shA.support_point(posA_in_B, ornA_in_B, -axis.dir);
-                auto proj_pos = dot(p_pos - axis.pos, axis.dir);
-                auto proj_neg = dot(p_neg - axis.pos, axis.dir);
+            } else {
+                auto disc_center_pos = posA_in_B + cyl_axis * shA.half_length;
+                auto disc_center_neg = posA_in_B - cyl_axis * shA.half_length;
+                auto sup_pos = support_point_circle(shA.radius, disc_center_pos, ornA_in_B, -tri_normal);
+                auto sup_neg = support_point_circle(shA.radius, disc_center_neg, ornA_in_B, -tri_normal);
+                auto proj_pos = dot(sup_pos - axis.pos, axis.dir);
+                auto proj_neg = dot(sup_neg - axis.pos, axis.dir);
 
                 if (std::abs(proj_pos - proj_neg) < EDYN_EPSILON) {
                     // Cylinder side is parallel to triangle face.
@@ -218,16 +220,15 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 } else {
                     axis.cyl_feature = CYLINDER_FEATURE_CIRCLE_EDGE;
 
-                    if (std::abs(proj_pos) < std::abs(proj_neg)) {
-                        // Positive face closer to triangle.
+                    // Select deepest circle.
+                    if (proj_pos < proj_neg) {
                         axis.cyl_feature_index = 0;
                         axis.distance = proj_pos;
-                        axis.pivotA = p_pos;
+                        axis.pivotA = sup_pos;
                     } else {
-                        // Negative face closer to triangle.
                         axis.cyl_feature_index = 1;
                         axis.distance = proj_neg;
-                        axis.pivotA = p_neg;
+                        axis.pivotA = sup_neg;
                     }
                 }
             }
@@ -434,7 +435,33 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             }
 
             case CYLINDER_FEATURE_SIDE_EDGE: {
+                // Segment-triangle intersection/containment test.
+                auto cyl_axis = quaternion_x(ornA_in_B);
+                auto c0 = posA_in_B + cyl_axis * shA.half_length;
+                auto c1 = posA_in_B - cyl_axis * shA.half_length;
+                auto c0_in_tri = point_in_triangle(vertices, tri_normal, c0);
+                auto c1_in_tri = point_in_triangle(vertices, tri_normal, c1);
 
+                if (c0_in_tri && c1_in_tri) {
+                    result.num_points = 2;
+
+                    auto p0 = c0 - tri_normal * shA.radius;
+                    auto p0_world = posB + rotate(ornB, p0);
+                    auto p0_A = rotate(conjugate(ornA), p0_world - posA);
+                    result.point[0].pivotA = p0_A;
+                    result.point[0].pivotB = project_plane(c0, vertices[0], tri_normal);
+                    result.point[0].normalB = axis.dir;
+                    result.point[0].distance = penetration;
+
+                    auto p1 = c1 - tri_normal * shA.radius;
+                    auto p1_world = posB + rotate(ornB, p1);
+                    auto p1_A = rotate(conjugate(ornA), p1_world - posA);
+                    result.point[1].pivotA = p1_A;
+                    result.point[1].pivotB = project_plane(c1, vertices[0], tri_normal);
+                    result.point[1].normalB = axis.dir;
+                    result.point[1].distance = penetration;
+                }
+                
                 break;
             }
             case CYLINDER_FEATURE_CIRCLE_EDGE: {
@@ -454,7 +481,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         }
     });
 
-     return result;
+    return result;
 }
 
 }
