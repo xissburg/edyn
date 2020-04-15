@@ -248,17 +248,30 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 auto sup_neg = support_point_circle(shA.radius, disc_center_neg, ornA_in_B, -tri_normal);
                 auto proj_pos = dot(sup_pos - axis.pos, axis.dir);
                 auto proj_neg = dot(sup_neg - axis.pos, axis.dir);
-                axis.cyl_feature = CYLINDER_FEATURE_FACE_EDGE;
 
-                // Select deepest disc.
-                if (proj_pos < proj_neg) {
-                    axis.cyl_feature_index = 0;
-                    axis.distance = proj_pos;
-                    axis.pivotA = sup_pos;
+                // If support points are not further apart than threshold along the 
+                // triangle normal, consider the cylinder to by laying on its side.
+                if (std::abs(proj_pos - proj_neg) < threshold) {
+                    // Cylinder side is parallel to triangle face.
+                    axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                    // The correct distance would be the minumum of the projections but,
+                    // using the maximum helps this axis have priority over cylinder-edge
+                    // vs triangle-edge which is good for contact persistence when 
+                    // rolling while partly over the triangle face.
+                    axis.distance = std::max(proj_pos, proj_neg);
                 } else {
-                    axis.cyl_feature_index = 1;
-                    axis.distance = proj_neg;
-                    axis.pivotA = sup_neg;
+                    axis.cyl_feature = CYLINDER_FEATURE_FACE_EDGE;
+                    
+                    // Select deepest disc.
+                    if (proj_pos < proj_neg) {
+                        axis.cyl_feature_index = 0;
+                        axis.distance = proj_pos;
+                        axis.pivotA = sup_pos;
+                    } else {
+                        axis.cyl_feature_index = 1;
+                        axis.distance = proj_neg;
+                        axis.pivotA = sup_neg;
+                    }
                 }
             }
 
@@ -267,81 +280,97 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
         // Cylinder side wall edges.
         {
-            // Cylinder side wall against triangle vertices.
-            for (uint8_t i = 0; i < 3; ++i) {
-                auto axis = separating_axis{};
-                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
-                axis.tri_feature = TRIANGLE_FEATURE_VERTEX;
-                axis.tri_feature_index = i;
-                axis.pos = vertices[i];
-
-                // Find closest point in cylinder segment to this vertex and use the
-                // axis connecting them as the separating axis.
-                scalar t;
-                vector3 closest;
-                auto dist_sqr = closest_point_segment(disc_center_pos, disc_center_neg, 
-                                                      vertices[i], t, closest);
-
-                // Ignore points at the extremes.
-                if (t > 0 && t < 1) {
-                    auto dist = std::sqrt(dist_sqr);
-                    axis.dir = (closest - vertices[i]) / dist;
-
-                    // It has to be the vertex closest to the cylinder along this axis.
-                    // Note that `dist = dot(-axis.dir, vertices[i] - disc_center_pos)`.
-                    auto proj0 = dot(-axis.dir, vertices[(i + 1) % 3] - disc_center_pos);
-                    auto proj1 = dot(-axis.dir, vertices[(i + 2) % 3] - disc_center_pos);
-
-                    if (dist < proj0 && dist < proj1) {
-                        axis.distance = dist - shA.radius;
-                        axis.pivotA = closest - axis.dir * shA.radius;
-                        sep_axes.push_back(axis);
-                    }
-                }
-            }                        
-
             // Cylinder side wall against triangle edges.
             for (uint8_t i = 0; i < 3; ++i) {
-                auto axis = separating_axis{};
-                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
-                axis.tri_feature = TRIANGLE_FEATURE_EDGE;
-                axis.tri_feature_index = i;
-                axis.pos = vertices[i];
-
-                axis.dir = cross(edges[i], cyl_axis);
-
-                if (length2(axis.dir) <= EDYN_EPSILON) {
-                    // Parallel. Find a vector that's orthogonal to both
-                    // which lies in the same plane.
-                    auto plane_normal = cross(edges[i], disc_center_pos - vertices[i]);
-                    axis.dir = cross(plane_normal, edges[i]);
+                if (shB.trimesh->is_concave_edge[i]) {
+                    continue;
                 }
+                
+                auto v0 = vertices[i];
+                auto v1 = vertices[(i + 1) % 3];
+                scalar s, t;
+                vector3 p0, p1;
+                closest_point_segment_segment(disc_center_pos, disc_center_neg, v0, v1,
+                                              s, t, p0, p1);
 
-                if (dot(posA_in_B - axis.pos, axis.dir) < 0) {
-                    axis.dir *= -1;
-                }
+                // If the closest point parameter is in (0,1) we've hit a triangle edge.
+                if (t > 0 && t < 1) {
+                    auto axis = separating_axis{};
+                    axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                    axis.tri_feature = TRIANGLE_FEATURE_EDGE;
+                    axis.tri_feature_index = i;
+                    axis.pos = vertices[i];
+                    axis.dir = cross(edges[i], cyl_axis);
 
-                axis.dir = normalize(axis.dir);
-
-                // The vertex with greatest projection along axis has to be one
-                // of the vertices in the current edge, because otherwise there
-                // is another axis with greater projection distance.
-                auto max_proj = -EDYN_SCALAR_MAX;
-                uint8_t max_vertex_idx;
-
-                for (uint8_t j = 0; j < 3; ++j) {
-                    auto proj = dot(axis.dir, vertices[j] - axis.pos);
-
-                    if (proj > max_proj) {
-                        max_proj = proj;
-                        max_vertex_idx = j;
+                    if (length2(axis.dir) <= EDYN_EPSILON) {
+                        // Parallel. Find a vector that's orthogonal to both
+                        // which lies in the same plane.
+                        auto plane_normal = cross(edges[i], disc_center_pos - vertices[i]);
+                        axis.dir = cross(plane_normal, edges[i]);
                     }
-                }
 
-                if (max_vertex_idx == i || max_vertex_idx == (i + 1) % 3) {
-                    auto sup = shA.support_point(posA_in_B, ornA_in_B, -axis.dir);
-                    axis.distance = -(dot(-axis.dir, sup - axis.pos) + max_proj);
-                    sep_axes.push_back(axis);
+                    if (dot(posA_in_B - axis.pos, axis.dir) < 0) {
+                        axis.dir *= -1;
+                    }
+
+                    axis.dir = normalize(axis.dir);
+
+                    // The vertex with greatest projection along axis has to be one
+                    // of the vertices in the current edge, because otherwise there
+                    // is another axis with greater projection distance.
+                    auto max_proj = -EDYN_SCALAR_MAX;
+                    uint8_t max_vertex_idx;
+
+                    for (uint8_t j = 0; j < 3; ++j) {
+                        auto proj = dot(axis.dir, vertices[j] - axis.pos);
+
+                        if (proj > max_proj) {
+                            max_proj = proj;
+                            max_vertex_idx = j;
+                        }
+                    }
+
+                    if (max_vertex_idx == i || max_vertex_idx == (i + 1) % 3) {
+                        auto sup = shA.support_point(posA_in_B, ornA_in_B, -axis.dir);
+                        axis.distance = -(dot(-axis.dir, sup - axis.pos) + max_proj);
+                        axis.pivotA = p0 - axis.dir * shA.radius;
+                        axis.pivotB = p1;
+                        sep_axes.push_back(axis);
+                    }
+                } else if (t == 0) {
+                    // If the closest point parameter is zero it means it is the first
+                    // vertex in the edge. It's unecessary to handle the second vertex
+                    // because it is the first vertex of one of the other edges being
+                    // tested.
+                    auto axis = separating_axis{};
+                    axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                    axis.tri_feature = TRIANGLE_FEATURE_VERTEX;
+                    axis.tri_feature_index = i;
+                    axis.pos = vertices[i];
+
+                    // Find closest point in cylinder segment to this vertex and use the
+                    // axis connecting them as the separating axis.
+                    scalar r;
+                    vector3 closest;
+                    auto dist_sqr = closest_point_segment(disc_center_pos, disc_center_neg, 
+                                                          axis.pos, r, closest);
+
+                    // Ignore points at the extremes.
+                    if (r > 0 && r < 1) {
+                        auto dist = std::sqrt(dist_sqr);
+                        axis.dir = (closest - vertices[i]) / dist;
+
+                        // It has to be the vertex closest to the cylinder along this axis.
+                        // Note that `dist = dot(-axis.dir, vertices[i] - disc_center_pos)`.
+                        auto proj0 = dot(-axis.dir, vertices[(i + 1) % 3] - disc_center_pos);
+                        auto proj1 = dot(-axis.dir, vertices[(i + 2) % 3] - disc_center_pos);
+
+                        if (dist < proj0 && dist < proj1) {
+                            axis.distance = dist - shA.radius;
+                            axis.pivotA = closest - axis.dir * shA.radius;
+                            sep_axes.push_back(axis);
+                        }
+                    }
                 }
             }
         }
@@ -370,7 +399,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                         // The vertex with greatest projection along axis has to be one
                         // of the vertices in the current edge, because otherwise there
                         // is another axis with greater projection distance.
-                        auto max_tri_proj = -EDYN_SCALAR_MAX;
                         auto other_vertex_idx = (j + 2) % 3;
 
                         if (dot(normal, vertices[other_vertex_idx] - cl0) < 0) {
@@ -652,27 +680,13 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     break;
                 }
                 case TRIANGLE_FEATURE_EDGE: {
-                    auto v0 = vertices[axis.tri_feature_index];
-                    auto v1 = vertices[(axis.tri_feature_index + 1) % 3];
-                    scalar s[2], t[2];
-                    vector3 p0[2], p1[2];
-                    size_t num_points = 0;
-                    closest_point_segment_segment(disc_center_pos, disc_center_neg, v0, v1,
-                                                  s[0], t[0], p0[0], p1[0], &num_points, 
-                                                  &s[1], &t[1], &p0[1], &p1[1]);
-
-                    for (uint8_t i = 0; i < num_points; ++i) {
-                        if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                            auto idx = result.num_points++;
-                            auto pA_in_B = p0[i] - axis.dir * shA.radius;
-                            auto pA_world = posB + rotate(ornB, pA_in_B);
-                            auto pA = rotate(conjugate(ornA), pA_world - posA);
-                            result.point[idx].pivotA = pA;
-                            result.point[idx].pivotB = p1[i];
-                            result.point[idx].normalB = axis.dir;
-                            result.point[idx].distance = penetration;
-                        }
-                    }
+                    auto idx = result.num_points++;
+                    auto pA_world = posB + rotate(ornB, axis.pivotA);
+                    auto pA = rotate(conjugate(ornA), pA_world - posA);
+                    result.point[idx].pivotA = pA;
+                    result.point[idx].pivotB = axis.pivotB;
+                    result.point[idx].normalB = axis.dir;
+                    result.point[idx].distance = axis.distance;
                     break;
                 }
                 case TRIANGLE_FEATURE_VERTEX: {
