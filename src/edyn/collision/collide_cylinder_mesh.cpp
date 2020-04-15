@@ -282,10 +282,10 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         {
             // Cylinder side wall against triangle edges.
             for (uint8_t i = 0; i < 3; ++i) {
-                if (shB.trimesh->is_concave_edge[i]) {
+                if (shB.trimesh->is_concave_edge[tri_idx * 3 + i]) {
                     continue;
                 }
-                
+
                 auto v0 = vertices[i];
                 auto v1 = vertices[(i + 1) % 3];
                 scalar s, t;
