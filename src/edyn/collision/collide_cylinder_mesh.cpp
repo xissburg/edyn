@@ -43,14 +43,16 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
         std::vector<separating_axis> sep_axes;
 
-        auto edges = get_triangle_edges(vertices);
-        auto tri_normal = normalize(cross(edges[0], edges[1]));
+        const auto edges = get_triangle_edges(vertices);
+        const auto tri_normal = normalize(cross(edges[0], edges[1]));
+        const auto cyl_axis = quaternion_x(ornA_in_B);
 
         // Cylinder cap normal.
         {
             auto axis = separating_axis{};
-            axis.dir = quaternion_x(ornA_in_B);
+            axis.dir = cyl_axis;
             axis.pos = posA_in_B;
+            axis.cyl_feature = CYLINDER_FEATURE_FACE;
             
             auto minA = -shA.half_length;
             auto maxA = shA.half_length;
@@ -117,8 +119,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 }
             }
 
-            axis.cyl_feature = CYLINDER_FEATURE_FACE;
-
             if (minB > maxA) {
                 // B is after A (i.e. wrt `axis.dir`).
                 axis.distance = minB - maxA;
@@ -184,9 +184,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 }
             }
 
-            if (axis.distance < threshold) {
-                sep_axes.push_back(axis);
-            }
+            sep_axes.push_back(axis);
         }
 
         // Face normal.
@@ -197,7 +195,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             axis.dir = tri_normal;
             axis.pos = vertices[0];
 
-            auto cyl_axis = quaternion_x(ornA_in_B);
             auto axis_dot = dot(tri_normal, cyl_axis);
 
             if (std::abs(axis_dot) + EDYN_EPSILON >= 1) {
@@ -205,6 +202,11 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 axis.cyl_feature_index = axis_dot > 0 ? 1 : 0;
                 auto disc_center = posA_in_B + cyl_axis * shA.half_length * (axis_dot > 0 ? -1 : 1);
                 axis.distance = dot(tri_normal, disc_center - vertices[0]);
+            } else if (std::abs(axis_dot) <= EDYN_EPSILON) {
+                // Cylinder side is parallel to triangle face.
+                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                auto disc_center = posA_in_B + cyl_axis * shA.half_length;
+                axis.distance = dot(tri_normal, disc_center - vertices[0]) - shA.radius;
             } else {
                 auto disc_center_pos = posA_in_B + cyl_axis * shA.half_length;
                 auto disc_center_neg = posA_in_B - cyl_axis * shA.half_length;
@@ -212,29 +214,99 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 auto sup_neg = support_point_circle(shA.radius, disc_center_neg, ornA_in_B, -tri_normal);
                 auto proj_pos = dot(sup_pos - axis.pos, axis.dir);
                 auto proj_neg = dot(sup_neg - axis.pos, axis.dir);
+                axis.cyl_feature = CYLINDER_FEATURE_CIRCLE_EDGE;
 
-                if (std::abs(proj_pos - proj_neg) < EDYN_EPSILON) {
-                    // Cylinder side is parallel to triangle face.
-                    axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                // Select deepest circle.
+                if (proj_pos < proj_neg) {
+                    axis.cyl_feature_index = 0;
                     axis.distance = proj_pos;
+                    axis.pivotA = sup_pos;
                 } else {
-                    axis.cyl_feature = CYLINDER_FEATURE_CIRCLE_EDGE;
+                    axis.cyl_feature_index = 1;
+                    axis.distance = proj_neg;
+                    axis.pivotA = sup_neg;
+                }
+            }
 
-                    // Select deepest circle.
-                    if (proj_pos < proj_neg) {
-                        axis.cyl_feature_index = 0;
-                        axis.distance = proj_pos;
-                        axis.pivotA = sup_pos;
-                    } else {
-                        axis.cyl_feature_index = 1;
-                        axis.distance = proj_neg;
-                        axis.pivotA = sup_neg;
+            sep_axes.push_back(axis);
+        }
+
+        // Cylinder side edges.
+        {
+            auto c0 = posA_in_B + cyl_axis * shA.half_length;
+            auto c1 = posA_in_B - cyl_axis * shA.half_length;
+
+            // Cylinder side wall against triangle vertices.
+            for (uint8_t i = 0; i < 3; ++i) {
+                auto axis = separating_axis{};
+                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                axis.tri_feature = TRIANGLE_FEATURE_VERTEX;
+                axis.tri_feature_index = i;
+                axis.pos = vertices[i];
+
+                scalar t;
+                vector3 closest;
+                auto dist_sqr = closest_point_segment(c0, c1, vertices[i], t, closest);
+
+                if (t > 0 && t < 1) {
+                    auto dist = std::sqrt(dist_sqr);
+                    axis.dir = (closest - vertices[i]) / dist;
+
+                    // It has to be the vertex closest to the cylinder along this axis.
+                    // Note that `dist = dot(-axis.dir, vertices[i] - c0)`.
+                    auto proj0 = dot(-axis.dir, vertices[(i + 1) % 3] - c0);
+                    auto proj1 = dot(-axis.dir, vertices[(i + 2) % 3] - c0);
+
+                    if (dist < proj0 && dist < proj1) {
+                        axis.distance = dist - shA.radius;
+                        axis.pivotA = closest - axis.dir * shA.radius;
+                        sep_axes.push_back(axis);
                     }
                 }
             }
 
-            if (axis.distance < threshold) {
-                sep_axes.push_back(axis);
+            // Cylinder side wall against triangle edges.
+            for (uint8_t i = 0; i < 3; ++i) {
+                auto axis = separating_axis{};
+                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                axis.tri_feature = TRIANGLE_FEATURE_EDGE;
+                axis.tri_feature_index = i;
+                axis.pos = vertices[i];
+
+                axis.dir = cross(edges[i], cyl_axis);
+
+                if (length2(axis.dir) <= EDYN_EPSILON) {
+                    // Parallel.
+                    auto disc_center = posA_in_B + cyl_axis * shA.half_length;
+                    auto plane_normal = cross(edges[i], disc_center - vertices[i]);
+                    axis.dir = cross(plane_normal, edges[i]);
+                }
+
+                if (dot(posA_in_B - axis.pos, axis.dir) < 0) {
+                    axis.dir *= -1;
+                }
+
+                axis.dir = normalize(axis.dir);
+
+                auto max_proj = -EDYN_SCALAR_MAX;
+                uint8_t max_vertex_idx;
+
+                for (uint8_t j = 0; j < 3; ++j) {
+                    auto proj = dot(axis.dir, vertices[j] - axis.pos);
+
+                    if (proj > max_proj) {
+                        max_proj = proj;
+                        max_vertex_idx = j;
+                    }
+                }
+
+                // The vertex with greatest projection along axis has to be one
+                // of the vertices in the current edge.
+                if (max_vertex_idx == i || max_vertex_idx == (i + 1) % 3) {
+                    auto sup = shA.support_point(posA_in_B, ornA_in_B, -axis.dir);
+                    axis.distance = -(dot(-axis.dir, sup - axis.pos) + max_proj);
+                    sep_axes.push_back(axis);
+                }
             }
         }
 
@@ -251,7 +323,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             }
         }
 
-        if (sep_axis_idx != UINT16_MAX) {
+        if (penetration < threshold && sep_axis_idx != UINT16_MAX) {
             auto &axis = sep_axes[sep_axis_idx];
 
             switch (axis.cyl_feature) {
@@ -417,7 +489,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                         }
 
                         tangent = normalize(tangent);
-                        auto cyl_axis = quaternion_x(ornA_in_B);
                         auto disc_center = posA_in_B + cyl_axis * shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
                         auto pivotA_in_B = disc_center + tangent * shA.radius;
                         auto pivotA_world = posB + rotate(ornB, pivotA_in_B);
@@ -431,53 +502,133 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     }
                     break;
                 }
-                break;
-            }
-
-            case CYLINDER_FEATURE_SIDE_EDGE: {
-                // Segment-triangle intersection/containment test.
-                auto cyl_axis = quaternion_x(ornA_in_B);
-                auto c0 = posA_in_B + cyl_axis * shA.half_length;
-                auto c1 = posA_in_B - cyl_axis * shA.half_length;
-                auto c0_in_tri = point_in_triangle(vertices, tri_normal, c0);
-                auto c1_in_tri = point_in_triangle(vertices, tri_normal, c1);
-
-                if (c0_in_tri && c1_in_tri) {
-                    result.num_points = 2;
-
-                    auto p0 = c0 - tri_normal * shA.radius;
-                    auto p0_world = posB + rotate(ornB, p0);
-                    auto p0_A = rotate(conjugate(ornA), p0_world - posA);
-                    result.point[0].pivotA = p0_A;
-                    result.point[0].pivotB = project_plane(c0, vertices[0], tri_normal);
-                    result.point[0].normalB = axis.dir;
-                    result.point[0].distance = penetration;
-
-                    auto p1 = c1 - tri_normal * shA.radius;
-                    auto p1_world = posB + rotate(ornB, p1);
-                    auto p1_A = rotate(conjugate(ornA), p1_world - posA);
-                    result.point[1].pivotA = p1_A;
-                    result.point[1].pivotB = project_plane(c1, vertices[0], tri_normal);
-                    result.point[1].normalB = axis.dir;
-                    result.point[1].distance = penetration;
                 }
-                
-                break;
-            }
-            case CYLINDER_FEATURE_CIRCLE_EDGE: {
-                auto pivotA_world = posB + rotate(ornB, axis.pivotA);
-                auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
-                auto pivotB = project_plane(axis.pivotA, vertices[0], tri_normal);
-                auto idx = result.num_points++;
-                result.point[idx].pivotA = pivotA;
-                result.point[idx].pivotB = pivotB;
-                result.point[idx].normalB = axis.dir;
-                result.point[idx].distance = axis.distance;
-                break;
-            }
-            }
+            break;
 
-            
+            case CYLINDER_FEATURE_SIDE_EDGE:
+                switch (axis.tri_feature) {
+                case TRIANGLE_FEATURE_FACE: {
+                    // Cylinder is on its side laying on the triangle face.
+                    // Segment-triangle intersection/containment test.
+                    auto c0 = posA_in_B + cyl_axis * shA.half_length;
+                    auto c1 = posA_in_B - cyl_axis * shA.half_length;
+                    auto c0_in_tri = point_in_triangle(vertices, tri_normal, c0);
+                    auto c1_in_tri = point_in_triangle(vertices, tri_normal, c1);
+
+                    if (c0_in_tri) {
+                        auto idx = result.num_points++;
+                        auto p0 = c0 - tri_normal * shA.radius;
+                        auto p0_world = posB + rotate(ornB, p0);
+                        auto p0_A = rotate(conjugate(ornA), p0_world - posA);
+                        result.point[idx].pivotA = p0_A;
+                        result.point[idx].pivotB = project_plane(c0, vertices[0], tri_normal);
+                        result.point[idx].normalB = axis.dir;
+                        result.point[idx].distance = penetration;
+                    }
+
+                    if (c1_in_tri) {
+                        auto idx = result.num_points++;
+                        auto p1 = c1 - tri_normal * shA.radius;
+                        auto p1_world = posB + rotate(ornB, p1);
+                        auto p1_A = rotate(conjugate(ornA), p1_world - posA);
+                        result.point[idx].pivotA = p1_A;
+                        result.point[idx].pivotB = project_plane(c1, vertices[0], tri_normal);
+                        result.point[idx].normalB = axis.dir;
+                        result.point[idx].distance = penetration;
+                    }
+
+                    if (!c0_in_tri || !c1_in_tri) {
+                        // One of them is outside. Perform segment intersection test.
+                        for (uint8_t i = 0; i < 3; ++i) {
+                            scalar s[2], t[2];
+                            vector3 p0[2], p1[2];
+                            size_t num_points = 0;
+                            closest_point_segment_segment(c0, c1, vertices[i], vertices[(i + 1) % 3],
+                                                              s[0], t[0], p0[0], p1[0], &num_points, 
+                                                              &s[1], &t[1], &p0[1], &p1[1]);
+
+                            for (uint8_t i = 0; i < num_points; ++i) {
+                                if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
+                                    auto idx = result.num_points++;
+                                    auto pA_in_B = p0[i] - tri_normal * shA.radius;
+                                    auto pA_world = posB + rotate(ornB, pA_in_B);
+                                    auto pA = rotate(conjugate(ornA), pA_world - posA);
+                                    result.point[idx].pivotA = pA;
+                                    result.point[idx].pivotB = p1[i];
+                                    result.point[idx].normalB = axis.dir;
+                                    result.point[idx].distance = penetration;
+                                }
+                            }
+                        }
+                    }
+                    
+                    break;
+                }
+                case TRIANGLE_FEATURE_EDGE: {
+                    auto c0 = posA_in_B + cyl_axis * shA.half_length;
+                    auto c1 = posA_in_B - cyl_axis * shA.half_length;
+                    auto v0 = vertices[axis.tri_feature_index];
+                    auto v1 = vertices[(axis.tri_feature_index + 1) % 3];
+                    scalar s[2], t[2];
+                    vector3 p0[2], p1[2];
+                    size_t num_points = 0;
+                    closest_point_segment_segment(c0, c1, v0, v1,
+                                                  s[0], t[0], p0[0], p1[0], &num_points, 
+                                                  &s[1], &t[1], &p0[1], &p1[1]);
+
+                    for (uint8_t i = 0; i < num_points; ++i) {
+                        if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
+                            auto idx = result.num_points++;
+                            auto pA_in_B = p0[i] - axis.dir * shA.radius;
+                            auto pA_world = posB + rotate(ornB, pA_in_B);
+                            auto pA = rotate(conjugate(ornA), pA_world - posA);
+                            result.point[idx].pivotA = pA;
+                            result.point[idx].pivotB = p1[i];
+                            result.point[idx].normalB = axis.dir;
+                            result.point[idx].distance = penetration;
+                        }
+                    }
+                    break;
+                }
+                case TRIANGLE_FEATURE_VERTEX: {
+                    auto idx = result.num_points++;
+                    auto pA_in_B = axis.pivotA;
+                    auto pA_world = posB + rotate(ornB, pA_in_B);
+                    auto pA = rotate(conjugate(ornA), pA_world - posA);
+                    result.point[idx].pivotA = pA;
+                    result.point[idx].pivotB = vertices[axis.tri_feature_index];
+                    result.point[idx].normalB = axis.dir;
+                    result.point[idx].distance = penetration;
+                    break;
+                }
+                }
+            break;
+
+            case CYLINDER_FEATURE_CIRCLE_EDGE: {
+                switch (axis.tri_feature) {
+                case TRIANGLE_FEATURE_FACE: {
+                    if (point_in_triangle(vertices, tri_normal, axis.pivotA)) {
+                        auto pivotA_world = posB + rotate(ornB, axis.pivotA);
+                        auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
+                        auto pivotB = project_plane(axis.pivotA, vertices[0], tri_normal);
+                        auto idx = result.num_points++;
+                        result.point[idx].pivotA = pivotA;
+                        result.point[idx].pivotB = pivotB;
+                        result.point[idx].normalB = axis.dir;
+                        result.point[idx].distance = axis.distance;
+                    }
+                    break;
+                }
+                case TRIANGLE_FEATURE_EDGE: {
+                    break;
+                }
+                case TRIANGLE_FEATURE_VERTEX: {
+                    break;
+                }
+                }
+                break;
+            }
+            }
         }
     });
 
