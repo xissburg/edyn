@@ -325,7 +325,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
                 // The vertex with greatest projection along axis has to be one
                 // of the vertices in the current edge, because otherwise there
-                // is anpther axis with greater projection distance.
+                // is another axis with greater projection distance.
                 auto max_proj = -EDYN_SCALAR_MAX;
                 uint8_t max_vertex_idx;
 
@@ -362,38 +362,37 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                             num_points, s0, cc0, cl0, s1, cc1, cl1, normal, threshold);
                     
                     if (num_points > 0) {
-                        auto axis = separating_axis{};
-                        axis.cyl_feature = CYLINDER_FEATURE_FACE_EDGE;
-                        axis.cyl_feature_index = i;
-                        axis.tri_feature = TRIANGLE_FEATURE_EDGE;
-                        axis.tri_feature_index = j;
-                        axis.dir = normalize(cc0 - cl0);
-                        axis.pos = cl0;
-                        axis.pivotA = cc0;
-                        axis.pivotB = cl0;
-
-                        auto sup_pos = support_point_circle(shA.radius, disc_center_pos, ornA_in_B, axis.dir);
-                        auto sup_neg = support_point_circle(shA.radius, disc_center_neg, ornA_in_B, axis.dir);
-                        auto proj_pos = dot(sup_pos - axis.pos, axis.dir);
-                        auto proj_neg = dot(sup_neg - axis.pos, axis.dir);
-
-                        if (std::abs(proj_pos) > std::abs(proj_neg)) {
-                            axis.distance = proj_neg;
-
-                            if (dot(cyl_axis, axis.dir) < 0) {
-                                axis.dir *= -1;
-                                axis.distance *= -1;
-                            }
-                        } else {
-                            axis.distance = proj_pos;
-
-                            if (dot(cyl_axis, axis.dir) > 0) {
-                                axis.dir *= -1;
-                                axis.distance *= -1;
-                            }
+                        // Make normal point towards cylinder center.
+                        if (dot(normal, posA_in_B - cl0) < 0) {
+                            normal *= -1;
                         }
 
-                        sep_axes.push_back(axis);
+                        // The vertex with greatest projection along axis has to be one
+                        // of the vertices in the current edge, because otherwise there
+                        // is another axis with greater projection distance.
+                        auto max_tri_proj = -EDYN_SCALAR_MAX;
+                        auto other_vertex_idx = (j + 2) % 3;
+
+                        if (dot(normal, vertices[other_vertex_idx] - cl0) < 0) {
+                            auto axis = separating_axis{};
+                            axis.cyl_feature = CYLINDER_FEATURE_FACE_EDGE;
+                            axis.cyl_feature_index = i;
+                            axis.tri_feature = TRIANGLE_FEATURE_EDGE;
+                            axis.tri_feature_index = j;
+                            axis.dir = normal; // normalize(cc0 - cl0);
+                            axis.pos = cl0;
+
+                            auto pivotA = shA.support_point(posA_in_B, ornA_in_B, -axis.dir);
+
+                            scalar t;
+                            vector3 pivotB;
+                            closest_point_segment(v0, v1, pivotA, t, pivotB);
+                            
+                            axis.distance = dot(pivotA - pivotB, axis.dir);
+                            axis.pivotA = pivotA;
+                            axis.pivotB = pivotB;
+                            sep_axes.push_back(axis);
+                        }
                     }
                 }
             }
@@ -708,6 +707,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 case TRIANGLE_FEATURE_EDGE: {
                     auto pivotA_world = posB + rotate(ornB, axis.pivotA);
                     auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
+                    
                     auto idx = result.num_points++;
                     result.point[idx].pivotA = pivotA;
                     result.point[idx].pivotB = axis.pivotB;
