@@ -20,87 +20,62 @@ enum triangle_feature {
 };
 
 struct separating_axis {
-    vector3 pos;
     vector3 dir;
     scalar distance;
     cylinder_feature cyl_feature;
     triangle_feature tri_feature;
-    uint16_t cyl_feature_index; // 0: positive face, 1: negative face.
-    uint16_t tri_feature_index; // Vertex index or edge index.
+    uint8_t cyl_feature_index; // 0: positive face, 1: negative face.
+    uint8_t tri_feature_index; // Vertex index or edge index.
     vector3 pivotA;
     vector3 pivotB;
 };
 
 /**
- * Gets the minimum and maximum projections of the triangle onto the given axis
- * along with the features present at both extremes.
+ * Gets the greatest projection of the triangle onto the given axis
+ * along with the features present at the extreme.
  */
 static
-void get_triangle_min_max_features(const triangle_vertices &vertices, 
-                                   const vector3 &axis_pos, const vector3 &axis_dir,
-                                   scalar &proj_min, scalar &proj_max,
-                                   triangle_feature &min_tri_feature, triangle_feature &max_tri_feature,
-                                   uint8_t &min_tri_feature_index, uint8_t &max_tri_feature_index) {
-    proj_min = large_scalar;
-    proj_max = -large_scalar;
+void get_triangle_features(const triangle_vertices &vertices, 
+                           const vector3 &axis_pos, const vector3 &axis_dir,
+                           scalar &projection, triangle_feature &tri_feature,
+                           uint8_t &tri_feature_index) {
+    projection = -large_scalar;
 
-    for (uint16_t i = 0; i < 3; ++i) {
+    for (uint8_t i = 0; i < 3; ++i) {
         auto &v = vertices[i];
-        auto proj = dot(v - axis_pos, axis_dir);
+        auto proj_i = dot(v - axis_pos, axis_dir);
 
         // If the projection is near the current maximum, it means 
         // there's another vertex already at that spot, thus the 
         // feature could be either an edge or the face.
-        if (std::abs(proj - proj_max) < EDYN_EPSILON) {
+        if (i > 0 && std::abs(proj_i - projection) < EDYN_EPSILON) {
             // If the maximum feature is a vertex, then the current vertex
             // is included to form an edge.
-            if (max_tri_feature == TRIANGLE_FEATURE_VERTEX) {
-                max_tri_feature = TRIANGLE_FEATURE_EDGE;
+            if (tri_feature == TRIANGLE_FEATURE_VERTEX) {
+                tri_feature = TRIANGLE_FEATURE_EDGE;
                 if (i == 2) {
                     // If this is the third vertex (index 2), the previous in this 
                     // for loop could have been either vertex 1 or 0. If 0, then the 
                     // edge is the last one, i.e. edge 2. If 1, then the edge is #1.
-                    if (max_tri_feature_index == 0) {
-                        max_tri_feature_index = 2;
+                    if (tri_feature_index == 0) {
+                        tri_feature_index = 2;
                     } else {
-                        max_tri_feature_index = 1;
+                        tri_feature_index = 1;
                     }
                 } else {
                     // If this is the second vertex (index 1), the previous could
                     // only have been vertex 0, thus this must be edge 0.
-                    max_tri_feature_index = 0;
+                    tri_feature_index = 0;
                 }
-            } else if (max_tri_feature == TRIANGLE_FEATURE_EDGE) {
+            } else if (tri_feature == TRIANGLE_FEATURE_EDGE) {
                 // If the maximum feature was already an edge, adding this
                 // vertex to it makes it a face.
-                max_tri_feature = TRIANGLE_FEATURE_FACE;
+                tri_feature = TRIANGLE_FEATURE_FACE;
             }
-        } else if (proj > proj_max) {
-            proj_max = proj;
-            max_tri_feature = TRIANGLE_FEATURE_VERTEX;
-            max_tri_feature_index = i;
-        }
-        
-        // Same as above though for the negative/minimum direction.
-        if (std::abs(proj - proj_min) < EDYN_EPSILON) {
-            if (min_tri_feature == TRIANGLE_FEATURE_VERTEX) {
-                min_tri_feature = TRIANGLE_FEATURE_EDGE;
-                if (i == 2) {
-                    if (min_tri_feature_index == 0) {
-                        min_tri_feature_index = 2;
-                    } else {
-                        min_tri_feature_index = 1;
-                    }
-                } else {
-                    min_tri_feature_index = 0;
-                }
-            } else if (max_tri_feature == TRIANGLE_FEATURE_EDGE) {
-                min_tri_feature = TRIANGLE_FEATURE_FACE;
-            }
-        } else if (proj < proj_min) {
-            proj_min = proj;
-            min_tri_feature = TRIANGLE_FEATURE_VERTEX;
-            min_tri_feature_index = i;
+        } else if (proj_i > projection) {
+            projection = proj_i;
+            tri_feature = TRIANGLE_FEATURE_VERTEX;
+            tri_feature_index = i;
         }
     }
 }
@@ -125,6 +100,10 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         }
 
         // Separating-axis test. Find axis with greatest distance between intervals.
+        // Axes to be tested:
+        // - Cylinder cap normals. Simply find the triangle vertices that are 
+        //   further down in both directions.
+        // - 
         std::vector<separating_axis> sep_axes;
 
         const auto edges = get_triangle_edges(vertices);
@@ -133,101 +112,30 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         // Cylinder cap normal. Test both directions of the cylinder axis to
         // cover both caps.
         {
-            auto axis = separating_axis{};
-            axis.dir = cyl_axis;
-            axis.pos = posA_in_B;
-            axis.cyl_feature = CYLINDER_FEATURE_FACE;
-            
-            // Projection along separating axis.
-            auto minA = -shA.half_length;
-            auto maxA = shA.half_length;
-            // For the triangle they'll be taken as the min/max projection of 
-            // all vertices.
-            scalar minB, maxB;
-            // The triangle feature at each end of the projection.
-            triangle_feature min_tri_feature, max_tri_feature;
-            uint8_t min_tri_feature_index, max_tri_feature_index;
+            for (uint8_t i = 0; i < 2; ++i) {
+                auto dir_sign = i == 0 ? -1 : 1;
+                auto axis = separating_axis{};
+                axis.dir = cyl_axis * dir_sign; // Points towards cylinder.
+                axis.cyl_feature = CYLINDER_FEATURE_FACE;
+                axis.cyl_feature_index = i;
 
-            get_triangle_min_max_features(vertices,
-                                          axis.pos, axis.dir, 
-                                          minB, maxB, 
-                                          min_tri_feature, max_tri_feature, 
-                                          min_tri_feature_index, max_tri_feature_index);
-
-            if (minB > maxA) {
-                // B is after A (i.e. wrt `axis.dir`).
-                axis.distance = minB - maxA;
-                // Positive cylinder face.
-                axis.cyl_feature_index = 0;
-                // Triangle features at the opposite direction of the separating axis.
-                axis.tri_feature = min_tri_feature;
-                axis.tri_feature_index = min_tri_feature_index;
-                // Make direction point from B to A so it can be correctly used as contact normal.
-                axis.dir *= -1;
-            } else if (maxB < minA) {
-                // B is before A.
-                axis.distance = minA - maxB;
-                axis.cyl_feature_index = 1;
-                axis.tri_feature = max_tri_feature;
-                axis.tri_feature_index = max_tri_feature_index;
-            } else {
-                // Ranges intersect.
-                if (minB < minA) {
-                    // Left side of B is before left side of A.
-                    if (maxB > maxA) {
-                        // A's projection is contained in B's.
-                        if (maxA - minB < maxB - minA) {
-                            axis.cyl_feature_index = 0;
-                            axis.tri_feature = min_tri_feature;
-                            axis.tri_feature_index = min_tri_feature_index;
-                            axis.distance = minB - maxA;
-                            axis.dir *= -1;
-                        } else {
-                            axis.cyl_feature_index = 1;
-                            axis.tri_feature = max_tri_feature;
-                            axis.tri_feature_index = max_tri_feature_index;
-                            axis.distance = minA - maxB;
-                        }
-                    } else {
-                        // Right side of B is before right side of A.
-                        axis.distance = minA - maxB;
-                        axis.cyl_feature_index = 1;
-                        axis.tri_feature = max_tri_feature;
-                        axis.tri_feature_index = max_tri_feature_index;
-                    }
-                } else {
-                    if (maxB < maxA) {
-                        // B's projection is contained in A's.
-                        if (maxA - minB < maxB - minA) {
-                            axis.cyl_feature_index = 0;
-                            axis.tri_feature = min_tri_feature;
-                            axis.tri_feature_index = min_tri_feature_index;
-                            axis.distance = minB - maxA;
-                            axis.dir *= -1;
-                        } else {
-                            axis.cyl_feature_index = 1;
-                            axis.tri_feature = max_tri_feature;
-                            axis.tri_feature_index = max_tri_feature_index;
-                            axis.distance = minA - maxB;
-                        }
-                    } else {
-                        axis.distance = minB - maxA;
-                        axis.cyl_feature_index = 0;
-                        axis.tri_feature = min_tri_feature;
-                        axis.tri_feature_index = min_tri_feature_index;
-                    }
-                }
+                // Find vertices that have the lowest projection along axis.
+                scalar tri_proj;
+                triangle_feature tri_feature;
+                uint8_t tri_feature_index;
+                get_triangle_features(vertices, posA_in_B, axis.dir, 
+                                      tri_proj, axis.tri_feature, axis.tri_feature_index);
+                axis.distance = -(shA.half_length + tri_proj);
+                sep_axes.push_back(axis);
             }
-
-            sep_axes.push_back(axis);
         }
 
         // Triangle face normal.
         {
+            const auto &v0 = vertices[0];
             auto axis = separating_axis{};
             axis.tri_feature = TRIANGLE_FEATURE_FACE;
             axis.dir = tri_normal;
-            axis.pos = vertices[0];
 
             auto axis_dot = dot(tri_normal, cyl_axis);
 
@@ -236,18 +144,18 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 axis.cyl_feature = CYLINDER_FEATURE_FACE;
                 axis.cyl_feature_index = axis_dot > 0 ? 1 : 0;
                 auto disc_center = axis_dot > 0 ? disc_center_neg : disc_center_pos;
-                axis.distance = dot(tri_normal, disc_center - vertices[0]);
+                axis.distance = dot(tri_normal, disc_center - v0);
             } else if (std::abs(axis_dot) <= EDYN_EPSILON) {
                 // Cylinder side is parallel to triangle face.
                 axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
-                axis.distance = dot(tri_normal, disc_center_pos - vertices[0]) - shA.radius;
+                axis.distance = dot(tri_normal, disc_center_pos - v0) - shA.radius;
             } else {
                 // Get support points for both discs in the opposite direction
                 // of triangle normal.
                 auto sup_pos = support_point_circle(shA.radius, disc_center_pos, ornA_in_B, -tri_normal);
                 auto sup_neg = support_point_circle(shA.radius, disc_center_neg, ornA_in_B, -tri_normal);
-                auto proj_pos = dot(sup_pos - axis.pos, axis.dir);
-                auto proj_neg = dot(sup_neg - axis.pos, axis.dir);
+                auto proj_pos = dot(sup_pos - v0, axis.dir);
+                auto proj_neg = dot(sup_neg - v0, axis.dir);
 
                 // If support points are not further apart than threshold along the 
                 // triangle normal, consider the cylinder to by laying on its side.
@@ -286,8 +194,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     continue;
                 }
 
-                auto v0 = vertices[i];
-                auto v1 = vertices[(i + 1) % 3];
+                const auto &v0 = vertices[i];
+                const auto &v1 = vertices[(i + 1) % 3];
                 scalar s, t;
                 vector3 p0, p1;
                 closest_point_segment_segment(disc_center_pos, disc_center_neg, v0, v1,
@@ -299,17 +207,16 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
                     axis.tri_feature = TRIANGLE_FEATURE_EDGE;
                     axis.tri_feature_index = i;
-                    axis.pos = vertices[i];
                     axis.dir = cross(edges[i], cyl_axis);
 
                     if (length2(axis.dir) <= EDYN_EPSILON) {
                         // Parallel. Find a vector that's orthogonal to both
                         // which lies in the same plane.
-                        auto plane_normal = cross(edges[i], disc_center_pos - vertices[i]);
+                        auto plane_normal = cross(edges[i], disc_center_pos - v0);
                         axis.dir = cross(plane_normal, edges[i]);
                     }
 
-                    if (dot(posA_in_B - axis.pos, axis.dir) < 0) {
+                    if (dot(posA_in_B - v0, axis.dir) < 0) {
                         axis.dir *= -1;
                     }
 
@@ -322,7 +229,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     uint8_t max_vertex_idx;
 
                     for (uint8_t j = 0; j < 3; ++j) {
-                        auto proj = dot(axis.dir, vertices[j] - axis.pos);
+                        auto proj = dot(axis.dir, vertices[j] - v0);
 
                         if (proj > max_proj) {
                             max_proj = proj;
@@ -332,7 +239,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
                     if (max_vertex_idx == i || max_vertex_idx == (i + 1) % 3) {
                         auto sup = shA.support_point(posA_in_B, ornA_in_B, -axis.dir);
-                        axis.distance = -(dot(-axis.dir, sup - axis.pos) + max_proj);
+                        axis.distance = -(dot(-axis.dir, sup - v0) + max_proj);
                         axis.pivotA = p0 - axis.dir * shA.radius;
                         axis.pivotB = p1;
                         sep_axes.push_back(axis);
@@ -346,19 +253,18 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
                     axis.tri_feature = TRIANGLE_FEATURE_VERTEX;
                     axis.tri_feature_index = i;
-                    axis.pos = vertices[i];
 
                     // Find closest point in cylinder segment to this vertex and use the
                     // axis connecting them as the separating axis.
                     scalar r;
                     vector3 closest;
                     auto dist_sqr = closest_point_segment(disc_center_pos, disc_center_neg, 
-                                                          axis.pos, r, closest);
+                                                          v0, r, closest);
 
                     // Ignore points at the extremes.
                     if (r > 0 && r < 1) {
                         auto dist = std::sqrt(dist_sqr);
-                        axis.dir = (closest - vertices[i]) / dist;
+                        axis.dir = dist > EDYN_EPSILON ? (closest - v0) / dist : vector3_x;
 
                         // It has to be the vertex closest to the cylinder along this axis.
                         // Note that `dist = dot(-axis.dir, vertices[i] - disc_center_pos)`.
@@ -390,7 +296,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     closest_point_disc_line(disc_center, ornA_in_B, shA.radius, v0, v1, 
                                             num_points, s0, cc0, cl0, s1, cc1, cl1, normal, threshold);
                     
-                    if (num_points > 0) {
+                    if (num_points > 0 && s0 > 0 && s0 < 1) {
                         // Make normal point towards cylinder center.
                         if (dot(normal, posA_in_B - cl0) < 0) {
                             normal *= -1;
@@ -402,24 +308,24 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                         auto other_vertex_idx = (j + 2) % 3;
 
                         if (dot(normal, vertices[other_vertex_idx] - cl0) < 0) {
-                            auto axis = separating_axis{};
-                            axis.cyl_feature = CYLINDER_FEATURE_FACE_EDGE;
-                            axis.cyl_feature_index = i;
-                            axis.tri_feature = TRIANGLE_FEATURE_EDGE;
-                            axis.tri_feature_index = j;
-                            axis.dir = normal; // normalize(cc0 - cl0);
-                            axis.pos = cl0;
-
-                            auto pivotA = shA.support_point(posA_in_B, ornA_in_B, -axis.dir);
+                            auto pivotA = shA.support_point(posA_in_B, ornA_in_B, -normal);
 
                             scalar t;
                             vector3 pivotB;
                             closest_point_segment(v0, v1, pivotA, t, pivotB);
                             
-                            axis.distance = dot(pivotA - pivotB, axis.dir);
-                            axis.pivotA = pivotA;
-                            axis.pivotB = pivotB;
-                            sep_axes.push_back(axis);
+                            if (t > 0 && t < 1) {
+                                auto axis = separating_axis{};
+                                axis.cyl_feature = CYLINDER_FEATURE_FACE_EDGE;
+                                axis.cyl_feature_index = i;
+                                axis.tri_feature = TRIANGLE_FEATURE_EDGE;
+                                axis.tri_feature_index = j;
+                                axis.dir = normal; // normalize(cc0 - cl0);
+                                axis.distance = dot(pivotA - pivotB, axis.dir);
+                                axis.pivotA = pivotA;
+                                axis.pivotB = pivotB;
+                                sep_axes.push_back(axis);
+                            }
                         }
                     }
                 }
@@ -450,7 +356,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     auto vertex_world = posB + rotate(ornB, vertex);
                     auto vertex_in_A = rotate(conjugate(ornA), vertex_world - posA);
                     auto vertex_proj_in_A = vertex_in_A;
-                    vertex_proj_in_A.x = shA.half_length * (axis.tri_feature_index == 0 ? 1 : -1);
+                    vertex_proj_in_A.x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
 
                     auto idx = result.num_points++;
                     result.point[idx].pivotA = vertex_proj_in_A;
