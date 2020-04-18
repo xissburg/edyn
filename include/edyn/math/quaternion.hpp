@@ -185,6 +185,11 @@ quaternion shortest_arc(const vector3 &v0, const vector3 &v1);
 // Returns the angle between two quaternions along the shortest path.
 scalar angle_between(const quaternion &q0, const quaternion &q1);
 
+inline
+vector3 to_object_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
+    return rotate(conjugate(orn), p - pos);
+}
+
 }
 
 #endif // EDYN_MATH_QUATERNION_HPP
