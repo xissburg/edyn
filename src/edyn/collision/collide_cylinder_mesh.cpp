@@ -310,7 +310,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     closest_point_disc_line(disc_center, ornA_in_B, shA.radius, v0, v1, 
                                             num_points, s0, cc0, cl0, s1, cc1, cl1, normal, threshold);
                     
-                    if (num_points > 0 && s0 > 0 && s0 < 1) {
+                    if (s0 > 0 && s0 < 1) {
                         // Make normal point towards cylinder center.
                         if (dot(normal, posA_in_B - cl0) < 0) {
                             normal *= -1;
@@ -381,6 +381,9 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 }
 
                 case TRIANGLE_FEATURE_EDGE: {
+                    if (dot(axis.dir, tri_normal) < shB.trimesh->cos_angles[tri_idx * 3 + axis.tri_feature_index]) {
+                        break;
+                    }
                     // Intersect edge with circular face.
                     auto v0 = vertices[axis.tri_feature_index];
                     auto v0_world = posB + rotate(ornB, v0);
@@ -602,13 +605,18 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     break;
                 }
                 case TRIANGLE_FEATURE_EDGE: {
-                    auto idx = result.num_points++;
-                    auto pA_world = posB + rotate(ornB, axis.pivotA);
-                    auto pA = rotate(conjugate(ornA), pA_world - posA);
-                    result.point[idx].pivotA = pA;
-                    result.point[idx].pivotB = axis.pivotB;
-                    result.point[idx].normalB = axis.dir;
-                    result.point[idx].distance = axis.distance;
+                    // Check Voronoi region.                    
+                    // Check if angle between edge normal and the i-th triangle normal
+                    // is in the range between the i-th and k-th triangle normals. 
+                    if (dot(axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + axis.tri_feature_index]) {
+                        auto idx = result.num_points++;
+                        auto pA_world = posB + rotate(ornB, axis.pivotA);
+                        auto pA = rotate(conjugate(ornA), pA_world - posA);
+                        result.point[idx].pivotA = pA;
+                        result.point[idx].pivotB = axis.pivotB;
+                        result.point[idx].normalB = axis.dir;
+                        result.point[idx].distance = axis.distance;
+                    }
                     break;
                 }
                 case TRIANGLE_FEATURE_VERTEX: {
@@ -638,13 +646,15 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     break;
                 }
                 case TRIANGLE_FEATURE_EDGE: {
-                    auto pivotA_world = posB + rotate(ornB, axis.pivotA);
-                    auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
-                    auto idx = result.num_points++;
-                    result.point[idx].pivotA = pivotA;
-                    result.point[idx].pivotB = axis.pivotB;
-                    result.point[idx].normalB = axis.dir;
-                    result.point[idx].distance = axis.distance;
+                    if (dot(axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + axis.tri_feature_index]) {
+                        auto pivotA_world = posB + rotate(ornB, axis.pivotA);
+                        auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
+                        auto idx = result.num_points++;
+                        result.point[idx].pivotA = pivotA;
+                        result.point[idx].pivotB = axis.pivotB;
+                        result.point[idx].normalB = axis.dir;
+                        result.point[idx].distance = axis.distance;
+                    }
                     break;
                 }
                 case TRIANGLE_FEATURE_VERTEX: {

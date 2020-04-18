@@ -157,6 +157,25 @@ size_t intersect_line_circle(scalar px, scalar py,
 vector3 support_point_circle(scalar radius, const vector3 &pos, 
                              const quaternion &orn, const vector3 &dir);
 
+template<size_t N>
+size_t support_point_vertices(const std::array<vector3, N> &vertices, 
+                              const vector3 &dir) {
+    auto max_dot = -EDYN_SCALAR_MAX;
+    size_t max_idx;
+
+    for (size_t i = 0; i < N; ++i) {
+        auto &v = vertices[i];
+        auto d = dot(v, max_dot);
+
+        if (d > max_dot) {
+            d = max_dot;
+            max_idx = i;
+        }
+    }
+
+    return max_idx;
+}
+
 }
 
 #endif // EDYN_MATH_GEOM_HPP

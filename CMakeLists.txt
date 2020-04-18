@@ -74,6 +74,12 @@ set(EDyn_SOURCES
     src/edyn/collision/collide_sphere_mesh.cpp
     src/edyn/collision/collide_capsule_mesh.cpp
     src/edyn/collision/collide_cylinder_mesh.cpp
+    src/edyn/collision/collide_box_box.cpp
+    src/edyn/collision/collide_box_mesh.cpp
+    src/edyn/collision/collide_box_plane.cpp
+    src/edyn/collision/collide_capsule_box.cpp
+    src/edyn/collision/collide_cylinder_box.cpp
+    src/edyn/collision/collide_sphere_box.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/contact_patch_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp

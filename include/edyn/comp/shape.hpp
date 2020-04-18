@@ -7,6 +7,7 @@
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/capsule_shape.hpp"
 #include "edyn/shapes/mesh_shape.hpp"
+#include "edyn/shapes/box_shape.hpp"
 
 namespace edyn {
 
@@ -15,7 +16,8 @@ struct shape {
                  sphere_shape, 
                  cylinder_shape,
                  capsule_shape,
-                 mesh_shape> var;
+                 mesh_shape,
+                 box_shape> var;
 };
 
 }
