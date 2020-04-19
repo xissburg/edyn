@@ -6,17 +6,6 @@ namespace edyn {
 
 struct box_box_separating_axis {
     vector3 dir;
-    scalar minA, maxA;
-    scalar minB, maxB;
-    bool swap {false};
-    box_feature min_featureA;
-    box_feature max_featureB;
-    box_feature min_featureB;
-    box_feature max_featureA;
-    uint8_t min_feature_indexA;
-    uint8_t max_feature_indexB;
-    uint8_t min_feature_indexB;
-    uint8_t max_feature_indexA;
     box_feature featureA;
     box_feature featureB;
     uint8_t feature_indexA;
@@ -47,24 +36,23 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     for (uint8_t i = 0; i < 3; ++i) {
         auto &axisA = axesA[i];
         auto &axis = sep_axes[axis_idx];
-        axis.dir = axisA;
-        auto proj_posA = dot(posA, axisA);
-        axis.minA = proj_posA - shA.half_extents[i];
-        axis.maxA = proj_posA + shA.half_extents[i];
-        axis.min_featureA = BOX_FEATURE_FACE;
-        axis.max_featureA = BOX_FEATURE_FACE;
-        axis.min_feature_indexA = i * 2 + 1;
-        axis.max_feature_indexA = i * 2;
+        axis.featureA = BOX_FEATURE_FACE;
+        auto projA = -shA.half_extents[i];
 
-        auto [min_featureB, min_feature_indexB] = shB.support_feature(ornB, -axis.dir);
-        axis.min_featureB = min_featureB;
-        axis.min_feature_indexB = min_feature_indexB;
-        axis.minB = dot(axis.dir, shB.support_point(posB, ornB, -axis.dir));
+        if (dot(posB - posA, axisA) > 0) {
+            axis.feature_indexA = i * 2; // Positive face along axis.
+            axis.dir = -axisA; // Point towards A.
+        } else {
+            axis.feature_indexA = i * 2 + 1; // Negative face along axis.
+            axis.dir = axisA; // Point towards A.
+        }
 
-        auto [max_featureB, max_feature_indexB] = shB.support_feature(ornB, axis.dir);
-        axis.max_featureB = max_featureB;
-        axis.max_feature_indexB = max_feature_indexB;
-        axis.maxB = dot(axis.dir, shB.support_point(posB, ornB, axis.dir));
+        auto [featureB, feature_indexB] = shB.support_feature(ornB, axis.dir);
+        axis.featureB = featureB;
+        axis.feature_indexB = feature_indexB;
+
+        scalar projB = dot(axis.dir, shB.support_point(posB, ornB, axis.dir) - posA);
+        axis.distance = projA - projB;
 
         ++axis_idx;
     }
@@ -72,24 +60,23 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     for (uint8_t i = 0; i < 3; ++i) {
         auto &axisB = axesB[i];
         auto &axis = sep_axes[axis_idx];
-        axis.dir = axisB;
-        auto proj_posB = dot(posB, axisB);
-        axis.minB = proj_posB - shB.half_extents[i];
-        axis.maxB = proj_posB + shB.half_extents[i];
-        axis.min_featureB = BOX_FEATURE_FACE;
-        axis.max_featureB = BOX_FEATURE_FACE;
-        axis.min_feature_indexB = i * 2 + 1;
-        axis.max_feature_indexB = i * 2;
+        axis.featureB = BOX_FEATURE_FACE;
+        auto projB = shB.half_extents[i];
 
-        auto [min_featureA, min_feature_indexA] = shA.support_feature(ornA, -axis.dir);
-        axis.min_featureA = min_featureA;
-        axis.min_feature_indexA = min_feature_indexA;
-        axis.minA = dot(axis.dir, shA.support_point(posA, ornA, -axis.dir));
+        if (dot(posA - posB, axisB) > 0) {
+            axis.feature_indexB = i * 2; // Positive face along axis.
+            axis.dir = axisB; // Point towards A.
+        } else {
+            axis.feature_indexB = i * 2 + 1; // Negative face along axis.
+            axis.dir = -axisB; // Point towards A.
+        }
 
-        auto [max_featureA, max_feature_indexA] = shA.support_feature(ornA, axis.dir);
-        axis.max_featureA = max_featureA;
-        axis.max_feature_indexA = max_feature_indexA;
-        axis.maxA = dot(axis.dir, shA.support_point(posA, ornA, axis.dir));
+        auto [featureA, feature_indexA] = shA.support_feature(ornA, -axis.dir);
+        axis.featureA = featureA;
+        axis.feature_indexA = feature_indexA;
+
+        scalar projA = dot(axis.dir, shA.support_point(posA, ornA, -axis.dir) - posB);
+        axis.distance = projA - projB;
 
         ++axis_idx;
     }
@@ -108,26 +95,23 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             }
 
             axis.dir /= std::sqrt(dir_len_sqr);
-            axis.minA = dot(axis.dir, shA.support_point(posA, ornA, -axis.dir));
-            axis.maxA = dot(axis.dir, shA.support_point(posA, ornA, axis.dir));
-            axis.minB = dot(axis.dir, shB.support_point(posB, ornB, -axis.dir));
-            axis.maxB = dot(axis.dir, shB.support_point(posB, ornB, axis.dir));
-        
-            auto [min_featureA, min_feature_indexA] = shA.support_feature(ornA, -axis.dir);
-            axis.min_featureA = min_featureA;
-            axis.min_feature_indexA = min_feature_indexA;
-        
-            auto [max_featureA, max_feature_indexA] = shA.support_feature(ornA, axis.dir);
-            axis.max_featureA = max_featureA;
-            axis.max_feature_indexA = max_feature_indexA;
-        
-            auto [min_featureB, min_feature_indexB] = shB.support_feature(ornB, -axis.dir);
-            axis.min_featureB = min_featureB;
-            axis.min_feature_indexB = min_feature_indexB;
 
-            auto [max_featureB, max_feature_indexB] = shB.support_feature(ornB, axis.dir);
-            axis.max_featureB = max_featureB;
-            axis.max_feature_indexB = max_feature_indexB;
+            if (dot(posA - posB, axis.dir) < 0) {
+                // Make it point towards A.
+                axis.dir *= -1;
+            }
+
+            auto [featureA, feature_indexA] = shA.support_feature(ornA, -axis.dir);
+            axis.featureA = featureA;
+            axis.feature_indexA = feature_indexA;
+
+            auto [featureB, feature_indexB] = shB.support_feature(ornB, axis.dir);
+            axis.featureB = featureB;
+            axis.feature_indexB = feature_indexB;
+
+            auto projA = dot(axis.dir, shA.support_point(posA, ornA, -axis.dir) - posB);
+            auto projB = dot(axis.dir, shB.support_point(posB, ornB, axis.dir) - posB);
+            axis.distance = projA - projB;
 
             ++axis_idx;
         }
@@ -138,89 +122,6 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
     for (uint8_t i = 0; i < axis_idx; ++i) {
         auto &sep_axis = sep_axes[i];
-
-        if (sep_axis.maxA < sep_axis.minB) {
-            // B's interval is in front of A's.
-            sep_axis.distance = sep_axis.minB - sep_axis.maxA;
-            // Choose max feature for A.
-            sep_axis.featureA = sep_axis.max_featureA;
-            sep_axis.feature_indexA = sep_axis.max_feature_indexA;
-            // Choose min feature for B.
-            sep_axis.featureB = sep_axis.min_featureB;
-            sep_axis.feature_indexB = sep_axis.min_feature_indexB;
-            // Axis must be flipped to point towards A.
-            sep_axis.swap = true;
-        } else if (sep_axis.maxB < sep_axis.minA) {
-            // A's interval is in front of B's.
-            sep_axis.distance = sep_axis.minA - sep_axis.maxB;
-            // Choose min feature for A.
-            sep_axis.featureA = sep_axis.min_featureA;
-            sep_axis.feature_indexA = sep_axis.min_feature_indexA;
-            // Choose max feature for B.
-            sep_axis.featureB = sep_axis.max_featureB;
-            sep_axis.feature_indexB = sep_axis.max_feature_indexB;
-        }
-
-        if (sep_axis.minB < sep_axis.maxA) {
-            if (sep_axis.maxB < sep_axis.maxA) {
-                if (sep_axis.maxA - sep_axis.minB < sep_axis.maxB - sep_axis.minA) {
-                    sep_axis.distance = sep_axis.minB - sep_axis.maxA;
-                    // Choose max feature for A.
-                    sep_axis.featureA = sep_axis.max_featureA;
-                    sep_axis.feature_indexA = sep_axis.max_feature_indexA;
-                    // Choose min feature for B.
-                    sep_axis.featureB = sep_axis.min_featureB;
-                    sep_axis.feature_indexB = sep_axis.min_feature_indexB;
-                    sep_axis.swap = true;
-                } else {
-                    sep_axis.distance = sep_axis.minA - sep_axis.maxB;
-                    // Choose min feature for A.
-                    sep_axis.featureA = sep_axis.min_featureA;
-                    sep_axis.feature_indexA = sep_axis.min_feature_indexA;
-                    // Choose max feature for B.
-                    sep_axis.featureB = sep_axis.max_featureB;
-                    sep_axis.feature_indexB = sep_axis.max_feature_indexB;
-                }
-            } else {
-                sep_axis.distance = sep_axis.minB - sep_axis.maxA;
-                // Choose max feature for A.
-                sep_axis.featureA = sep_axis.max_featureA;
-                sep_axis.feature_indexA = sep_axis.max_feature_indexA;
-                // Choose min feature for B.
-                sep_axis.featureB = sep_axis.min_featureB;
-                sep_axis.feature_indexB = sep_axis.min_feature_indexB;
-                sep_axis.swap = true;
-            }
-        } else {
-            if (sep_axis.minA < sep_axis.minB) {
-                if (sep_axis.maxB - sep_axis.minA < sep_axis.maxA - sep_axis.minB) {
-                    sep_axis.distance = sep_axis.minA - sep_axis.maxB;
-                    // Choose min feature for A.
-                    sep_axis.featureA = sep_axis.min_featureA;
-                    sep_axis.feature_indexA = sep_axis.min_feature_indexA;
-                    // Choose max feature for B.
-                    sep_axis.featureB = sep_axis.max_featureB;
-                    sep_axis.feature_indexB = sep_axis.max_feature_indexB;
-                } else {
-                    sep_axis.distance = sep_axis.minB - sep_axis.maxA;
-                    // Choose max feature for A.
-                    sep_axis.featureA = sep_axis.max_featureA;
-                    sep_axis.feature_indexA = sep_axis.max_feature_indexA;
-                    // Choose min feature for B.
-                    sep_axis.featureB = sep_axis.min_featureB;
-                    sep_axis.feature_indexB = sep_axis.min_feature_indexB;
-                    sep_axis.swap = true;
-                }
-            } else {
-                sep_axis.distance = sep_axis.minA - sep_axis.maxB;
-                // Choose min feature for A.
-                sep_axis.featureA = sep_axis.min_featureA;
-                sep_axis.feature_indexA = sep_axis.min_feature_indexA;
-                // Choose max feature for B.
-                sep_axis.featureB = sep_axis.max_featureB;
-                sep_axis.feature_indexB = sep_axis.max_feature_indexB;
-            }
-        }
         
         if (sep_axis.distance > greatest_distance) {
             greatest_distance = sep_axis.distance;
@@ -235,12 +136,10 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     }
 
     auto result = collision_result{};
-    auto normal_world = sep_axis.dir * (sep_axis.swap ? -1 : 1);
-    auto normalB = rotate(conjugate(ornB), normal_world);
+    auto normalB = rotate(conjugate(ornB), sep_axis.dir);
 
     if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == BOX_FEATURE_FACE) {
         // Face-Face.
-        // Intersect each edge of face A with face B.
         auto face_verticesA = shA.get_face(sep_axis.feature_indexA, posA, ornA);
         auto face_normalA = shA.get_face_normal(sep_axis.feature_indexA, ornA);
         std::array<vector3, 4> face_tangentsA;
@@ -409,7 +308,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     } else if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == BOX_FEATURE_VERTEX) {
         // Face A, Vertex B.
         auto pivotB = shB.get_vertex(sep_axis.feature_indexB);
-        auto pivotA = (posB + rotate(ornB, pivotB)) - normal_world * sep_axis.distance;
+        auto pivotA = (posB + rotate(ornB, pivotB)) + sep_axis.dir * sep_axis.distance;
         result.num_points = 1;
         result.point[0].pivotA = to_object_space(pivotA, posA, ornA);
         result.point[0].pivotB = pivotB;
@@ -418,7 +317,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     } else if (sep_axis.featureB == BOX_FEATURE_FACE && sep_axis.featureA == BOX_FEATURE_VERTEX) {
         // Face B, Vertex A.
         auto pivotA = shA.get_vertex(sep_axis.feature_indexA);
-        auto pivotB = (posA + rotate(ornA, pivotA)) - normal_world * sep_axis.distance;
+        auto pivotB = (posA + rotate(ornA, pivotA)) - sep_axis.dir * sep_axis.distance;
         result.num_points = 1;
         result.point[0].pivotA = pivotA;
         result.point[0].pivotB = to_object_space(pivotB, posB, ornB);
