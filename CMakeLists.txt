@@ -104,6 +104,7 @@ set(EDyn_SOURCES
     src/edyn/util/spring_util.cpp
     src/edyn/util/tire.cpp
     src/edyn/shapes/triangle_mesh.cpp
+    src/edyn/shapes/box_shape.cpp
     src/edyn/edyn.cpp
 )
 

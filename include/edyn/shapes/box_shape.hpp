@@ -5,11 +5,15 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
-#include <array>
+#include <tuple>
 
 namespace edyn {
 
-using box_vertices = std::array<vector3, 8>;
+enum box_feature {
+    BOX_FEATURE_VERTEX,
+    BOX_FEATURE_EDGE,
+    BOX_FEATURE_FACE
+};
 
 struct box_shape {
     vector3 half_extents;
@@ -64,29 +68,19 @@ struct box_shape {
         return pos + support_point(orn, dir);
     }
 
-    box_vertices vertices() const {
-        return {
-            half_extents * vector3{ 1,  1,  1},
-            half_extents * vector3{-1,  1,  1},
-            half_extents * vector3{ 1, -1,  1},
-            half_extents * vector3{ 1,  1, -1},
-            half_extents * vector3{-1, -1,  1},
-            half_extents * vector3{-1,  1, -1},
-            half_extents * vector3{ 1, -1, -1},
-            half_extents * vector3{-1, -1, -1}
-        };
+    std::tuple<box_feature, size_t> support_feature(const vector3 &dir) const;
+
+    std::tuple<box_feature, size_t> support_feature(const quaternion &orn, const vector3 &dir) const {
+        auto local_dir = rotate(conjugate(orn), dir);
+        return support_feature(local_dir);
     }
 
-    box_vertices vertices(const vector3 &pos, const quaternion &orn) const {
-        auto verts = vertices();
-        auto transformed = box_vertices{};
+    vector3 get_vertex(size_t i) const;
 
-        for (size_t i = 0; i < verts.size(); ++i) {
-            transformed[i] = pos + rotate(orn, verts[i]);
-        }
+    std::tuple<vector3, vector3> get_edge(size_t i) const;
 
-        return transformed;
-    }
+    std::tuple<vector3, vector3, vector3, vector3>
+    get_face(size_t i) const;
 };
 
 }
