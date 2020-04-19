@@ -6,6 +6,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
 #include <tuple>
+#include <array>
 
 namespace edyn {
 
@@ -77,10 +78,19 @@ struct box_shape {
 
     vector3 get_vertex(size_t i) const;
 
-    std::tuple<vector3, vector3> get_edge(size_t i) const;
+    vector3 get_vertex(size_t i, const vector3 &pos, const quaternion &orn) const;
 
-    std::tuple<vector3, vector3, vector3, vector3>
-    get_face(size_t i) const;
+    std::array<vector3, 2> get_edge(size_t i) const;
+
+    std::array<vector3, 2> get_edge(size_t i, const vector3 &pos, const quaternion &orn) const;
+
+    std::array<vector3, 4> get_face(size_t i) const;
+
+    std::array<vector3, 4> get_face(size_t i, const vector3 &pos, const quaternion &orn) const;
+
+    vector3 get_face_normal(size_t i) const;
+
+    vector3 get_face_normal(size_t i, const quaternion &orn) const;
 };
 
 }
