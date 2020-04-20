@@ -164,11 +164,14 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             if (result.num_points == max_contacts) {
                 break;
             }
+
+            scalar dots[4];
+            for (uint8_t j = 0; j < 4; ++j) {
+                dots[j] = dot(face_verticesB[i] - face_verticesA[j], face_tangentsA[j]);
+            } 
             
-            if (dot(face_verticesB[i] - face_verticesA[0], face_tangentsA[0]) > -EDYN_EPSILON &&
-                dot(face_verticesB[i] - face_verticesA[1], face_tangentsA[1]) > -EDYN_EPSILON &&
-                dot(face_verticesB[i] - face_verticesA[2], face_tangentsA[2]) > -EDYN_EPSILON &&
-                dot(face_verticesB[i] - face_verticesA[3], face_tangentsA[3]) > -EDYN_EPSILON) {
+            if (dots[0] > -EDYN_EPSILON && dots[1] > -EDYN_EPSILON && 
+                dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON) {
                 // Face B vertex is inside Face A.
                 auto pivot_face = project_plane(face_verticesB[i], face_verticesA[0], face_normalA);
                 auto idx = result.num_points++;
@@ -185,10 +188,13 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 break;
             }
 
-            if (dot(face_verticesA[i] - face_verticesB[0], face_tangentsB[0]) > -EDYN_EPSILON &&
-                dot(face_verticesA[i] - face_verticesB[1], face_tangentsB[1]) > -EDYN_EPSILON &&
-                dot(face_verticesA[i] - face_verticesB[2], face_tangentsB[2]) > -EDYN_EPSILON &&
-                dot(face_verticesA[i] - face_verticesB[3], face_tangentsB[3]) > -EDYN_EPSILON) {
+            scalar dots[4];
+            for (uint8_t j = 0; j < 4; ++j) {
+                dots[j] = dot(face_verticesA[i] - face_verticesB[j], face_tangentsB[j]);
+            }
+
+            if (dots[0] > -EDYN_EPSILON && dots[1] > -EDYN_EPSILON && 
+                dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON) {
                 // Face A vertex is inside Face B.
                 auto pivot_face = project_plane(face_verticesA[i], face_verticesB[0], face_normalB);
                 auto idx = result.num_points++;
@@ -217,11 +223,26 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                                                   &s[1], &t[1], &p0[1], &p1[1]);
                     for (uint8_t k = 0; k < num_points; ++k) {
                         if (s[k] > 0 && s[k] < 1 && t[k] > 0 && t[k] < 1) {
+                            auto pivotB = to_object_space(p1[k], posB, ornB);
+
+                            // Ignore if there's already a point that's near this one.
+                            auto ignore = false;
+                            for (uint8_t l = 0; l < max_contacts; ++l) {
+                                auto dist_sqr = distance2(pivotB, result.point[l].pivotB);
+                                if (dist_sqr < threshold * threshold) {
+                                    ignore = true;
+                                    break;
+                                }
+                            }
+
+                            if (ignore) {
+                                continue;
+                            }
+
                             if (result.num_points == max_contacts) {
                                 // Find an existing point to replace. Sort all points anti-clockwise
                                 // and look for the point that is the closest to being collinear with
                                 // its neighbors and replace it with the new.
-                                auto pivotB = to_object_space(p1[k], posB, ornB);
                                 constexpr auto num_contacts = max_contacts + 1;
                                 std::array<vector3, num_contacts> points = {
                                     result.point[0].pivotB,
@@ -320,7 +341,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                             } else {
                                 auto idx = result.num_points++;
                                 result.point[idx].pivotA = to_object_space(p0[k], posA, ornA);
-                                result.point[idx].pivotB = to_object_space(p1[k], posB, ornB);
+                                result.point[idx].pivotB = pivotB;
                                 result.point[idx].normalB = normalB;
                                 result.point[idx].distance = sep_axis.distance;
                             }
