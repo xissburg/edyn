@@ -161,10 +161,14 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // Check for vertices of Face B contained in Face A.
         for (uint8_t i = 0; i < 4; ++i) {
-            if (dot(face_verticesB[i] - face_verticesA[0], face_tangentsA[0]) > 0 &&
-                dot(face_verticesB[i] - face_verticesA[1], face_tangentsA[1]) > 0 &&
-                dot(face_verticesB[i] - face_verticesA[2], face_tangentsA[2]) > 0 &&
-                dot(face_verticesB[i] - face_verticesA[3], face_tangentsA[3]) > 0) {
+            if (result.num_points == max_contacts) {
+                break;
+            }
+            
+            if (dot(face_verticesB[i] - face_verticesA[0], face_tangentsA[0]) > -EDYN_EPSILON &&
+                dot(face_verticesB[i] - face_verticesA[1], face_tangentsA[1]) > -EDYN_EPSILON &&
+                dot(face_verticesB[i] - face_verticesA[2], face_tangentsA[2]) > -EDYN_EPSILON &&
+                dot(face_verticesB[i] - face_verticesA[3], face_tangentsA[3]) > -EDYN_EPSILON) {
                 // Face B vertex is inside Face A.
                 auto pivot_face = project_plane(face_verticesB[i], face_verticesA[0], face_normalA);
                 auto idx = result.num_points++;
@@ -177,10 +181,14 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // Check for vertices of Face A contained in Face B.
         for (uint8_t i = 0; i < 4; ++i) {
-            if (dot(face_verticesA[i] - face_verticesB[0], face_tangentsB[0]) > 0 &&
-                dot(face_verticesA[i] - face_verticesB[1], face_tangentsB[1]) > 0 &&
-                dot(face_verticesA[i] - face_verticesB[2], face_tangentsB[2]) > 0 &&
-                dot(face_verticesA[i] - face_verticesB[3], face_tangentsB[3]) > 0) {
+            if (result.num_points == max_contacts) {
+                break;
+            }
+
+            if (dot(face_verticesA[i] - face_verticesB[0], face_tangentsB[0]) > -EDYN_EPSILON &&
+                dot(face_verticesA[i] - face_verticesB[1], face_tangentsB[1]) > -EDYN_EPSILON &&
+                dot(face_verticesA[i] - face_verticesB[2], face_tangentsB[2]) > -EDYN_EPSILON &&
+                dot(face_verticesA[i] - face_verticesB[3], face_tangentsB[3]) > -EDYN_EPSILON) {
                 // Face A vertex is inside Face B.
                 auto pivot_face = project_plane(face_verticesA[i], face_verticesB[0], face_normalB);
                 auto idx = result.num_points++;
@@ -275,14 +283,19 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
                                 // Give each point _reverse_ scores proportional to the angle
                                 // between the edges connecting it to its immediate neighbors.
-                                std::array<scalar, num_contacts> scores;
+                                auto scores = make_array<num_contacts>(EDYN_SCALAR_MAX);
                                 for (uint8_t l = 0; l < num_contacts; ++l) {
                                     auto &p0 = points[l];
                                     auto &p1 = points[(l + (num_contacts - 1)) % num_contacts];
                                     auto &p2 = points[(l + 1) % num_contacts];
                                     auto v1 = p1 - p0;
                                     auto v2 = p2 - p0;
-                                    scores[l] = dot(v1 / length2(v1), v2 / length2(v2));
+                                    auto l1 = length2(v1);
+                                    auto l2 = length2(v2);
+
+                                    if (l1 > EDYN_EPSILON && l2 > EDYN_EPSILON) {
+                                        scores[l] = dot(v1 / l1, v2 / l2);
+                                    }
                                 }
 
                                 // Choose point with lowest score.
