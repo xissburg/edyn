@@ -1,6 +1,7 @@
 #include "edyn/collision/collide.hpp"
 #include <algorithm>
 #include <numeric>
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
@@ -204,24 +205,115 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                     vector3 p0[2], p1[2];
                     size_t num_points = 0;
                     closest_point_segment_segment(a0, a1, b0, b1, 
-                                                s[0], t[0], p0[0], p1[0], &num_points, 
-                                                &s[1], &t[1], &p0[1], &p1[1]);
-                    for (uint8_t i = 0; i < num_points; ++i) {
-                        if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                            auto idx = result.num_points++;
-                            result.point[idx].pivotA = to_object_space(p0[i], posA, ornA);
-                            result.point[idx].pivotB = to_object_space(p1[i], posB, ornB);
-                            result.point[idx].normalB = normalB;
-                            result.point[idx].distance = sep_axis.distance;
+                                                  s[0], t[0], p0[0], p1[0], &num_points, 
+                                                  &s[1], &t[1], &p0[1], &p1[1]);
+                    for (uint8_t k = 0; k < num_points; ++k) {
+                        if (s[k] > 0 && s[k] < 1 && t[k] > 0 && t[k] < 1) {
+                            if (result.num_points == max_contacts) {
+                                // Find an existing point to replace. Sort all points anti-clockwise
+                                // and look for the point that is the closest to being collinear with
+                                // its neighbors and replace it with the new.
+                                auto pivotB = to_object_space(p1[k], posB, ornB);
+                                constexpr auto num_contacts = max_contacts + 1;
+                                std::array<vector3, num_contacts> points = {
+                                    result.point[0].pivotB,
+                                    result.point[1].pivotB,
+                                    result.point[2].pivotB,
+                                    result.point[3].pivotB,
+                                    pivotB,
+                                };
 
-                            if (result.num_points == max_contacts) break;
+                                // Points will be sorted below. Use an array of indices to refer back
+                                // to the points in `result.point`.
+                                std::array<uint8_t, num_contacts> index_map;
+                                for (uint8_t l = 0; l < num_contacts; ++l) {
+                                    index_map[l] = l;
+                                }
+
+                                // Find a second point which connects to the first and has all other
+                                // points on a single side.
+                                auto normal = shB.get_face_normal(sep_axis.feature_indexB);
+                                
+                                for (uint8_t l = 1; l < num_contacts; ++l) {
+                                    auto edge = points[l] - points[0];
+                                    auto tangent = cross(edge, normal);
+                                    bool b = true;
+
+                                    for (uint8_t m = 1; m < num_contacts; ++m) {
+                                        if (m == l) continue;
+                                        if (dot(points[m] - points[0], tangent) < 0) {
+                                            b = false;
+                                            break;
+                                        }
+                                    }
+
+                                    if (b) {
+                                        std::swap(points[1], points[l]);
+                                        std::swap(index_map[1], index_map[l]);
+                                        break;
+                                    }
+                                }
+
+                                // Sort points counter-clockwise.
+                                for (uint8_t l = 1; l < num_contacts - 2; ++l) {
+                                    auto max_dot = -EDYN_SCALAR_MAX;
+                                    uint8_t max_idx;
+                                    auto edge = points[l] - points[0];
+
+                                    // Find other point that's furthest along edge.
+                                    for (uint8_t m = l + 1; m < num_contacts; ++m) {
+                                        auto d = dot(points[m] - points[0], edge);
+                                        if (d > max_dot) {
+                                            max_dot = d;
+                                            max_idx = m;
+                                        }
+                                    }
+
+                                    std::swap(points[l + 1], points[max_idx]);
+                                    std::swap(index_map[l + 1], index_map[max_idx]);
+                                }
+
+                                // Give each point _reverse_ scores proportional to the angle
+                                // between the edges connecting it to its immediate neighbors.
+                                std::array<scalar, num_contacts> scores;
+                                for (uint8_t l = 0; l < num_contacts; ++l) {
+                                    auto &p0 = points[l];
+                                    auto &p1 = points[(l + (num_contacts - 1)) % num_contacts];
+                                    auto &p2 = points[(l + 1) % num_contacts];
+                                    auto v1 = p1 - p0;
+                                    auto v2 = p2 - p0;
+                                    scores[l] = dot(v1 / length2(v1), v2 / length2(v2));
+                                }
+
+                                // Choose point with lowest score.
+                                auto min_score = EDYN_SCALAR_MAX;
+                                uint8_t min_score_idx;
+                                for (uint8_t l = 0; l < num_contacts; ++l) {
+                                    if (scores[l] < min_score) {
+                                        min_score = scores[l];
+                                        min_score_idx = l;
+                                    }
+                                }
+
+                                // If the point with lowest score is not the new point, replace it
+                                // by the new point.
+                                if (min_score_idx != index_map[num_contacts - 1]) {
+                                    auto idx = index_map[min_score_idx];
+                                    result.point[idx].pivotA = to_object_space(p0[k], posA, ornA);
+                                    result.point[idx].pivotB = pivotB;
+                                    result.point[idx].normalB = normalB;
+                                    result.point[idx].distance = sep_axis.distance;
+                                }
+                            } else {
+                                auto idx = result.num_points++;
+                                result.point[idx].pivotA = to_object_space(p0[k], posA, ornA);
+                                result.point[idx].pivotB = to_object_space(p1[k], posB, ornB);
+                                result.point[idx].normalB = normalB;
+                                result.point[idx].distance = sep_axis.distance;
+                            }
                         }
                     }
-
-                    if (result.num_points == max_contacts) break;
                 }
-
-                if (result.num_points == max_contacts) break;
             }
         }
     } else if ((sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == BOX_FEATURE_EDGE) ||
