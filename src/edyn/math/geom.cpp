@@ -571,27 +571,6 @@ void plane_space(const vector3 &n, vector3 &p, vector3 &q) {
     }
 }
 
-bool point_in_triangle(const triangle_vertices &vertices, 
-                       const vector3 &normal, 
-                       const vector3 &p) {
-    auto edges = get_triangle_edges(vertices);
-
-    auto q0 = p - vertices[0];
-    auto q1 = p - vertices[1];
-    auto q2 = p - vertices[2];
-
-    auto en0 = cross(edges[0], normal);
-    auto en1 = cross(edges[1], normal);
-    auto en2 = cross(edges[2], normal);
-
-    auto d0 = dot(en0, q0);
-    auto d1 = dot(en1, q1);
-    auto d2 = dot(en2, q2);
-
-    return (d0 >= 0 && d1 >= 0 && d2 >= 0) || 
-           (d0 <= 0 && d1 <= 0 && d2 <= 0);
-}
-
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1) {
     return (min0.x <= max1.x) &&

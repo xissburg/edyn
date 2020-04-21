@@ -1,23 +1,9 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/shapes/triangle_shape.hpp"
 #include "edyn/math/math.hpp"
 #include <algorithm>
 
 namespace edyn {
-
-enum cylinder_feature {
-    // Either of the two cylinder caps.
-    CYLINDER_FEATURE_FACE,
-    // An edge on the side wall of the cylinder.
-    CYLINDER_FEATURE_SIDE_EDGE,
-    // The edge/border of a cylinder cap.
-    CYLINDER_FEATURE_FACE_EDGE,
-};
-
-enum triangle_feature {
-    TRIANGLE_FEATURE_VERTEX,
-    TRIANGLE_FEATURE_EDGE,
-    TRIANGLE_FEATURE_FACE
-};
 
 struct separating_axis {
     vector3 dir;
@@ -29,56 +15,6 @@ struct separating_axis {
     vector3 pivotA;
     vector3 pivotB;
 };
-
-/**
- * Gets the greatest projection of the triangle onto the given axis
- * along with the features present at the extreme.
- */
-static
-void get_triangle_features(const triangle_vertices &vertices, 
-                           const vector3 &axis_pos, const vector3 &axis_dir,
-                           scalar &projection, triangle_feature &tri_feature,
-                           uint8_t &tri_feature_index) {
-    projection = -large_scalar;
-
-    for (uint8_t i = 0; i < 3; ++i) {
-        auto &v = vertices[i];
-        auto proj_i = dot(v - axis_pos, axis_dir);
-
-        // If the projection is near the current maximum, it means 
-        // there's another vertex already at that spot, thus the 
-        // feature could be either an edge or the face.
-        if (i > 0 && std::abs(proj_i - projection) < EDYN_EPSILON) {
-            // If the maximum feature is a vertex, then the current vertex
-            // is included to form an edge.
-            if (tri_feature == TRIANGLE_FEATURE_VERTEX) {
-                tri_feature = TRIANGLE_FEATURE_EDGE;
-                if (i == 2) {
-                    // If this is the third vertex (index 2), the previous in this 
-                    // for loop could have been either vertex 1 or 0. If 0, then the 
-                    // edge is the last one, i.e. edge 2. If 1, then the edge is #1.
-                    if (tri_feature_index == 0) {
-                        tri_feature_index = 2;
-                    } else {
-                        tri_feature_index = 1;
-                    }
-                } else {
-                    // If this is the second vertex (index 1), the previous could
-                    // only have been vertex 0, thus this must be edge 0.
-                    tri_feature_index = 0;
-                }
-            } else if (tri_feature == TRIANGLE_FEATURE_EDGE) {
-                // If the maximum feature was already an edge, adding this
-                // vertex to it makes it a face.
-                tri_feature = TRIANGLE_FEATURE_FACE;
-            }
-        } else if (proj_i > projection) {
-            projection = proj_i;
-            tri_feature = TRIANGLE_FEATURE_VERTEX;
-            tri_feature_index = i;
-        }
-    }
-}
 
 collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
@@ -137,8 +73,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 scalar tri_proj;
                 triangle_feature tri_feature;
                 uint8_t tri_feature_index;
-                get_triangle_features(vertices, posA_in_B, axis.dir, 
-                                      tri_proj, axis.tri_feature, axis.tri_feature_index);
+                get_triangle_support_feature(vertices, posA_in_B, axis.dir, axis.tri_feature,
+                                             axis.tri_feature_index, tri_proj);
                 axis.distance = -(shA.half_length + tri_proj);
                 sep_axes.push_back(axis);
             }

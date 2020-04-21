@@ -6,6 +6,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
+#include "edyn/shapes/triangle_shape.hpp"
 
 namespace edyn {
 

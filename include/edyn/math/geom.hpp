@@ -10,18 +10,6 @@ namespace edyn {
  * Geometric utilities.
  */
 
-using triangle_vertices = std::array<vector3, 3>;
-using triangle_edges = std::array<vector3, 3>;
-
-inline
-triangle_edges get_triangle_edges(const triangle_vertices &vertices) {
-    return {
-        vertices[1] - vertices[0],
-        vertices[2] - vertices[1],
-        vertices[0] - vertices[2]
-    };
-}
-
 /**
  * @brief Computes the point in the segment `q(t) = q0 + t*(q1 - q0)` closest
  * to point `p`.
@@ -133,14 +121,6 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
  * @param q Outputs the second vector on the plane, orthogonal to `p`.
  */
 void plane_space(const vector3 &n, vector3 &p, vector3 &q);
-
-/**
- * Checks whether point `p` is contained within the infinite prism with 
- * triangular base defined by the given `vertices` and direction `normal`.
- */
-bool point_in_triangle(const triangle_vertices &, 
-                       const vector3 &normal, 
-                       const vector3 &p);
 
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1);

@@ -8,6 +8,7 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/contact_manifold.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/collision/collide.hpp"
 #include <entt/entt.hpp>
 
@@ -71,6 +72,11 @@ void narrowphase::update() {
     auto view = registry->view<relation, contact_manifold>();
 
     view.each([&] (entt::entity ent, relation &rel, contact_manifold &manifold) {
+        if (registry->has<sleeping_tag>(rel.entity[0]) && 
+            registry->has<sleeping_tag>(rel.entity[1])) {
+            return;
+        }
+
         auto &posA   = registry->get<const position   >(rel.entity[0]);
         auto &ornA   = registry->get<const orientation>(rel.entity[0]);
         auto &shapeA = registry->get<const shape      >(rel.entity[0]);

@@ -36,9 +36,8 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
     for (uint8_t i = 0; i < 3; ++i) {
         auto &axisA = axesA[i];
-        auto &axis = sep_axes[axis_idx];
+        auto &axis = sep_axes[axis_idx++];
         axis.featureA = BOX_FEATURE_FACE;
-        auto projA = -shA.half_extents[i];
 
         if (dot(posB - posA, axisA) > 0) {
             axis.feature_indexA = i * 2; // Positive face along axis.
@@ -48,21 +47,17 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             axis.dir = axisA; // Point towards A.
         }
 
-        auto [featureB, feature_indexB] = shB.support_feature(ornB, axis.dir);
-        axis.featureB = featureB;
-        axis.feature_indexB = feature_indexB;
-
-        scalar projB = dot(axis.dir, shB.support_point(posB, ornB, axis.dir) - posA);
-        axis.distance = projA - projB;
-
-        ++axis_idx;
+        shB.support_feature(posB, ornB, posA, axis.dir, axis.featureB, axis.feature_indexB, axis.distance);
+        // `axis.distance` contains the projection of the furthest feature with
+        // respect to the center of A, thus it's necessary to add half the extent
+        // of A to push it to the surface.
+        axis.distance = -(shA.half_extents[i] + axis.distance);
     }
 
     for (uint8_t i = 0; i < 3; ++i) {
         auto &axisB = axesB[i];
-        auto &axis = sep_axes[axis_idx];
+        auto &axis = sep_axes[axis_idx++];
         axis.featureB = BOX_FEATURE_FACE;
-        auto projB = shB.half_extents[i];
 
         if (dot(posA - posB, axisB) > 0) {
             axis.feature_indexB = i * 2; // Positive face along axis.
@@ -72,14 +67,8 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             axis.dir = -axisB; // Point towards A.
         }
 
-        auto [featureA, feature_indexA] = shA.support_feature(ornA, -axis.dir);
-        axis.featureA = featureA;
-        axis.feature_indexA = feature_indexA;
-
-        scalar projA = dot(axis.dir, shA.support_point(posA, ornA, -axis.dir) - posB);
-        axis.distance = projA - projB;
-
-        ++axis_idx;
+        shA.support_feature(posA, ornA, posB, -axis.dir, axis.featureA, axis.feature_indexA, axis.distance);
+        axis.distance = -(shB.half_extents[i] + axis.distance);
     }
 
     for (uint8_t i = 0; i < 3; ++i) {
@@ -102,17 +91,10 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 axis.dir *= -1;
             }
 
-            auto [featureA, feature_indexA] = shA.support_feature(ornA, -axis.dir);
-            axis.featureA = featureA;
-            axis.feature_indexA = feature_indexA;
-
-            auto [featureB, feature_indexB] = shB.support_feature(ornB, axis.dir);
-            axis.featureB = featureB;
-            axis.feature_indexB = feature_indexB;
-
-            auto projA = dot(axis.dir, shA.support_point(posA, ornA, -axis.dir) - posB);
-            auto projB = dot(axis.dir, shB.support_point(posB, ornB, axis.dir) - posB);
-            axis.distance = projA - projB;
+            scalar projA, projB;
+            shA.support_feature(posA, ornA, posB, -axis.dir, axis.featureA, axis.feature_indexA, projA);
+            shB.support_feature(posB, ornB, posB, axis.dir, axis.featureB, axis.feature_indexB, projB);
+            axis.distance = -(projA + projB);
 
             ++axis_idx;
         }

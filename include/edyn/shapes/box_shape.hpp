@@ -69,12 +69,13 @@ struct box_shape {
         return pos + support_point(orn, dir);
     }
 
-    std::tuple<box_feature, size_t> support_feature(const vector3 &dir) const;
+    void support_feature(const vector3 &dir, box_feature &feature, 
+                         uint8_t &feature_index, scalar &projection) const;
 
-    std::tuple<box_feature, size_t> support_feature(const quaternion &orn, const vector3 &dir) const {
-        auto local_dir = rotate(conjugate(orn), dir);
-        return support_feature(local_dir);
-    }
+    void support_feature(const vector3 &pos, const quaternion &orn, 
+                         const vector3 &axis_pos, const vector3 &axis_dir,
+                         box_feature &feature, uint8_t &feature_index,
+                         scalar &projection) const;
 
     vector3 get_vertex(size_t i) const;
 

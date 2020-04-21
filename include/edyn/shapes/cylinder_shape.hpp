@@ -6,6 +6,15 @@
 
 namespace edyn {
 
+enum cylinder_feature {
+    // Either of the two cylinder caps.
+    CYLINDER_FEATURE_FACE,
+    // An edge on the side wall of the cylinder.
+    CYLINDER_FEATURE_SIDE_EDGE,
+    // The edge/border of a cylinder cap.
+    CYLINDER_FEATURE_FACE_EDGE,
+};
+
 struct cylinder_shape {
     scalar radius;
     scalar half_length;
