@@ -46,11 +46,12 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
         // If the projection is near the current maximum, it means 
         // there's another vertex already at that spot, thus the 
         // feature could be either an edge or the face.
-        if (i > 0 && std::abs(proj_i - projection) < EDYN_EPSILON) {
+        if (i > 0 && std::abs(proj_i - projection) < contact_breaking_threshold) {
             // If the maximum feature is a vertex, then the current vertex
             // is included to form an edge.
             if (tri_feature == TRIANGLE_FEATURE_VERTEX) {
                 tri_feature = TRIANGLE_FEATURE_EDGE;
+
                 if (i == 2) {
                     // If this is the third vertex (index 2), the previous in this 
                     // for loop could have been either vertex 1 or 0. If 0, then the 
@@ -64,11 +65,13 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
                     // If this is the second vertex (index 1), the previous could
                     // only have been vertex 0, thus this must be edge 0.
                     tri_feature_index = 0;
+                    projection = std::max(proj_i, projection);
                 }
             } else if (tri_feature == TRIANGLE_FEATURE_EDGE) {
                 // If the maximum feature was already an edge, adding this
                 // vertex to it makes it a face.
                 tri_feature = TRIANGLE_FEATURE_FACE;
+                projection = std::max(proj_i, projection);
             }
         } else if (proj_i > projection) {
             projection = proj_i;
