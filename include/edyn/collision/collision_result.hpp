@@ -3,8 +3,9 @@
 
 #include <array>
 #include <utility>
-#include "edyn/math/vector3.hpp"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
@@ -27,6 +28,8 @@ struct collision_result {
         }
         return *this;
     }
+
+    void add_point(const collision_point &new_point);
 };
 
 }

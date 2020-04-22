@@ -51,6 +51,10 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         // `axis.distance` contains the projection of the furthest feature with
         // respect to the center of A, thus it's necessary to add half the extent
         // of A to push it to the surface.
+        // It also has to be negated because the projection given by `support_feature`
+        // is in the direction `axis.dir` which points towards A and thus positive
+        // projection has to be turned into penetration, which is intepreted as
+        // negative distance.
         axis.distance = -(shA.half_extents[i] + axis.distance);
     }
 
@@ -156,11 +160,9 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON) {
                 // Face B vertex is inside Face A.
                 auto pivot_face = project_plane(face_verticesB[i], face_verticesA[0], face_normalA);
-                auto idx = result.num_points++;
-                result.point[idx].pivotA = to_object_space(pivot_face, posA, ornA);
-                result.point[idx].pivotB = to_object_space(face_verticesB[i], posB, ornB);
-                result.point[idx].normalB = normalB;
-                result.point[idx].distance = sep_axis.distance;
+                auto pivotA = to_object_space(pivot_face, posA, ornA);
+                auto pivotB = to_object_space(face_verticesB[i], posB, ornB);
+                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
         }
 
@@ -179,16 +181,16 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON) {
                 // Face A vertex is inside Face B.
                 auto pivot_face = project_plane(face_verticesA[i], face_verticesB[0], face_normalB);
-                auto idx = result.num_points++;
-                result.point[idx].pivotA = to_object_space(face_verticesA[i], posA, ornA);
-                result.point[idx].pivotB = to_object_space(pivot_face, posB, ornB);
-                result.point[idx].normalB = normalB;
-                result.point[idx].distance = sep_axis.distance;
+                auto pivotA = to_object_space(face_verticesA[i], posA, ornA);
+                auto pivotB = to_object_space(pivot_face, posB, ornB);
+                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
         }
 
         // If not all vertices are contained in a face, perform edge intersection tests.
         if (result.num_points < 4) {
+            auto face_normalB = shB.get_face_normal(sep_axis.feature_indexB);
+
             for (uint8_t i = 0; i < 4; ++i) {
                 auto &a0 = face_verticesA[i];
                 auto &a1 = face_verticesA[(i + 1) % 4];
@@ -205,128 +207,9 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                                                   &s[1], &t[1], &p0[1], &p1[1]);
                     for (uint8_t k = 0; k < num_points; ++k) {
                         if (s[k] > 0 && s[k] < 1 && t[k] > 0 && t[k] < 1) {
+                            auto pivotA = to_object_space(p0[k], posA, ornA);
                             auto pivotB = to_object_space(p1[k], posB, ornB);
-
-                            // Ignore if there's already a point that's near this one.
-                            auto ignore = false;
-                            for (uint8_t l = 0; l < max_contacts; ++l) {
-                                auto dist_sqr = distance2(pivotB, result.point[l].pivotB);
-                                if (dist_sqr < threshold * threshold) {
-                                    ignore = true;
-                                    break;
-                                }
-                            }
-
-                            if (ignore) {
-                                continue;
-                            }
-
-                            if (result.num_points == max_contacts) {
-                                // Find an existing point to replace. Sort all points anti-clockwise
-                                // and look for the point that is the closest to being collinear with
-                                // its neighbors and replace it with the new.
-                                constexpr auto num_contacts = max_contacts + 1;
-                                std::array<vector3, num_contacts> points = {
-                                    result.point[0].pivotB,
-                                    result.point[1].pivotB,
-                                    result.point[2].pivotB,
-                                    result.point[3].pivotB,
-                                    pivotB,
-                                };
-
-                                // Points will be sorted below. Use an array of indices to refer back
-                                // to the points in `result.point`.
-                                std::array<uint8_t, num_contacts> index_map;
-                                for (uint8_t l = 0; l < num_contacts; ++l) {
-                                    index_map[l] = l;
-                                }
-
-                                // Find a second point which connects to the first and has all other
-                                // points on a single side.
-                                auto normal = shB.get_face_normal(sep_axis.feature_indexB);
-                                
-                                for (uint8_t l = 1; l < num_contacts; ++l) {
-                                    auto edge = points[l] - points[0];
-                                    auto tangent = cross(edge, normal);
-                                    bool b = true;
-
-                                    for (uint8_t m = 1; m < num_contacts; ++m) {
-                                        if (m == l) continue;
-                                        if (dot(points[m] - points[0], tangent) < 0) {
-                                            b = false;
-                                            break;
-                                        }
-                                    }
-
-                                    if (b) {
-                                        std::swap(points[1], points[l]);
-                                        std::swap(index_map[1], index_map[l]);
-                                        break;
-                                    }
-                                }
-
-                                // Sort points counter-clockwise.
-                                for (uint8_t l = 1; l < num_contacts - 2; ++l) {
-                                    auto max_dot = -EDYN_SCALAR_MAX;
-                                    uint8_t max_idx;
-                                    auto edge = points[l] - points[0];
-
-                                    // Find other point that's furthest along edge.
-                                    for (uint8_t m = l + 1; m < num_contacts; ++m) {
-                                        auto d = dot(points[m] - points[0], edge);
-                                        if (d > max_dot) {
-                                            max_dot = d;
-                                            max_idx = m;
-                                        }
-                                    }
-
-                                    std::swap(points[l + 1], points[max_idx]);
-                                    std::swap(index_map[l + 1], index_map[max_idx]);
-                                }
-
-                                // Give each point _reverse_ scores proportional to the angle
-                                // between the edges connecting it to its immediate neighbors.
-                                auto scores = make_array<num_contacts>(EDYN_SCALAR_MAX);
-                                for (uint8_t l = 0; l < num_contacts; ++l) {
-                                    auto &p0 = points[l];
-                                    auto &p1 = points[(l + (num_contacts - 1)) % num_contacts];
-                                    auto &p2 = points[(l + 1) % num_contacts];
-                                    auto v1 = p1 - p0;
-                                    auto v2 = p2 - p0;
-                                    auto l1 = length2(v1);
-                                    auto l2 = length2(v2);
-
-                                    if (l1 > EDYN_EPSILON && l2 > EDYN_EPSILON) {
-                                        scores[l] = dot(v1 / l1, v2 / l2);
-                                    }
-                                }
-
-                                // Choose point with lowest score.
-                                auto min_score = EDYN_SCALAR_MAX;
-                                uint8_t min_score_idx;
-                                for (uint8_t l = 0; l < num_contacts; ++l) {
-                                    if (scores[l] < min_score) {
-                                        min_score = scores[l];
-                                        min_score_idx = l;
-                                    }
-                                }
-
-                                // If the point with lowest score is not the new point, replace it
-                                // by the new point.
-                                if (min_score_idx != index_map[num_contacts - 1]) {
-                                    auto idx = index_map[min_score_idx];
-                                    result.point[idx].pivotA = to_object_space(p0[k], posA, ornA);
-                                    result.point[idx].pivotB = pivotB;
-                                    result.point[idx].normalB = normalB;
-                                    result.point[idx].distance = sep_axis.distance;
-                                }
-                            } else {
-                                auto idx = result.num_points++;
-                                result.point[idx].pivotA = to_object_space(p0[k], posA, ornA);
-                                result.point[idx].pivotB = pivotB;
-                                result.point[idx].normalB = normalB;
-                                result.point[idx].distance = sep_axis.distance;
-                            }
+                            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                         }
                     }
                 }
@@ -345,32 +228,31 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                                         shA.get_edge(sep_axis.feature_indexA, posA, ornA);
 
         std::array<vector3, 4> face_tangents;
-        for (uint8_t i = 0; i < 4; ++i) {
+        for (int i = 0; i < 4; ++i) {
             auto &v0 = face_vertices[i];
             auto &v1 = face_vertices[(i + 1) % 4];
             face_tangents[i] = cross(face_normal, v1 - v0);
         }
 
-        for (uint8_t i = 0; i < 2; ++i) {
+        // Check if edge vertices are inside face.
+        for (int i = 0; i < 2; ++i) {
             if (dot(edge_vertices[i] - face_vertices[0], face_tangents[0]) > 0 &&
                 dot(edge_vertices[i] - face_vertices[1], face_tangents[1]) > 0 &&
                 dot(edge_vertices[i] - face_vertices[2], face_tangents[2]) > 0 &&
                 dot(edge_vertices[i] - face_vertices[3], face_tangents[3]) > 0) {
                 // Edge's vertex is inside face.
                 auto pivot_face = project_plane(edge_vertices[i], face_vertices[0], face_normal);
-                auto idx = result.num_points++;
-                result.point[idx].pivotA = is_faceA ? to_object_space(pivot_face, posA, ornA) :
-                                                      to_object_space(edge_vertices[i], posA, ornA);
-                result.point[idx].pivotB = is_faceA ? to_object_space(edge_vertices[i], posB, ornB) :
-                                                      to_object_space(pivot_face, posB, ornB);
-                result.point[idx].normalB = normalB;
-                result.point[idx].distance = sep_axis.distance;
+                auto pivotA = is_faceA ? to_object_space(pivot_face, posA, ornA) :
+                                         to_object_space(edge_vertices[i], posA, ornA);
+                auto pivotB = is_faceA ? to_object_space(edge_vertices[i], posB, ornB) :
+                                         to_object_space(pivot_face, posB, ornB);
+                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
         }
 
         // If both vertices are not inside the face then perform edge intersection tests.
         if (result.num_points < 2) {
-            for (uint8_t i = 0; i < 4; ++i) {
+            for (int i = 0; i < 4; ++i) {
                 auto &v0 = face_vertices[i];
                 auto &v1 = face_vertices[(i + 1) % 4];
 
@@ -380,15 +262,13 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 closest_point_segment_segment(v0, v1, edge_vertices[0], edge_vertices[1], 
                                               s[0], t[0], p0[0], p1[0], &num_points, 
                                               &s[1], &t[1], &p0[1], &p1[1]);
-                for (uint8_t i = 0; i < num_points; ++i) {
+                for (int i = 0; i < num_points; ++i) {
                     if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                        auto idx = result.num_points++;
-                        result.point[idx].pivotA = is_faceA ? to_object_space(p0[i], posA, ornA) :
-                                                              to_object_space(p1[i], posA, ornA);
-                        result.point[idx].pivotB = is_faceA ? to_object_space(p1[i], posB, ornB) :
-                                                              to_object_space(p0[i], posB, ornB);
-                        result.point[idx].normalB = normalB;
-                        result.point[idx].distance = sep_axis.distance;
+                        auto pivotA = is_faceA ? to_object_space(p0[i], posA, ornA) :
+                                                 to_object_space(p1[i], posA, ornA);
+                        auto pivotB = is_faceA ? to_object_space(p1[i], posB, ornB) :
+                                                 to_object_space(p0[i], posB, ornB);
+                        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                     }
                 }
             }
@@ -406,31 +286,23 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         for (uint8_t i = 0; i < num_points; ++i) {
             if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                auto idx = result.num_points++;
-                result.point[idx].pivotA = to_object_space(p0[i], posA, ornA);
-                result.point[idx].pivotB = to_object_space(p1[i], posB, ornB);
-                result.point[idx].normalB = normalB;
-                result.point[idx].distance = sep_axis.distance;
+                auto pivotA = to_object_space(p0[i], posA, ornA);
+                auto pivotB = to_object_space(p1[i], posB, ornB);
+                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
         }
     } else if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == BOX_FEATURE_VERTEX) {
         // Face A, Vertex B.
         auto pivotB = shB.get_vertex(sep_axis.feature_indexB);
         auto pivotA = (posB + rotate(ornB, pivotB)) + sep_axis.dir * sep_axis.distance;
-        result.num_points = 1;
-        result.point[0].pivotA = to_object_space(pivotA, posA, ornA);
-        result.point[0].pivotB = pivotB;
-        result.point[0].normalB = normalB;
-        result.point[0].distance = sep_axis.distance;
+        pivotA = to_object_space(pivotA, posA, ornA);
+        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
     } else if (sep_axis.featureB == BOX_FEATURE_FACE && sep_axis.featureA == BOX_FEATURE_VERTEX) {
         // Face B, Vertex A.
         auto pivotA = shA.get_vertex(sep_axis.feature_indexA);
         auto pivotB = (posA + rotate(ornA, pivotA)) - sep_axis.dir * sep_axis.distance;
-        result.num_points = 1;
-        result.point[0].pivotA = pivotA;
-        result.point[0].pivotB = to_object_space(pivotB, posB, ornB);
-        result.point[0].normalB = normalB;
-        result.point[0].distance = sep_axis.distance;
+        pivotB = to_object_space(pivotB, posB, ornB);
+        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
     }
 
     return result;
