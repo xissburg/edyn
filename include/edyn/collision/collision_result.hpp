@@ -29,7 +29,7 @@ struct collision_result {
         return *this;
     }
 
-    void add_point(const collision_point &new_point);
+    void add_point(const collision_point &);
 };
 
 }

@@ -32,4 +32,5 @@
 #include "time/time.hpp"
 #include "util/rigidbody.hpp"
 #include "util/constraint.hpp"
+#include "util/shape_util.hpp"
 #include "dynamics/island_util.hpp"

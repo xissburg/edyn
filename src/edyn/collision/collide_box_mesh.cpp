@@ -32,6 +32,17 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     shB.trimesh->visit(aabb, [&] (size_t tri_idx, const triangle_vertices &vertices) {
         const auto edges = get_triangle_edges(vertices);
         const auto tri_normal = normalize(cross(edges[0], edges[1]));
+        bool is_concave_edge[3];
+        bool is_concave_vertex[3];
+
+        for (int i = 0; i < 3; ++i) {
+            is_concave_edge[i] = shB.trimesh->is_concave_edge[tri_idx * 3 + i];
+        }
+
+        for (int i = 0; i < 3; ++i) {
+            // If edge starting or ending in this vertex are concave then thus is the vertex.
+            is_concave_vertex[i] = is_concave_edge[i] || is_concave_edge[(i + 2) % 3];
+        }
 
         std::array<box_mesh_separating_axis, 13> sep_axes;
         uint8_t axis_idx = 0;
@@ -145,8 +156,15 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 face_tangents_in_B[i] = cross(face_normal_in_B, v1 - v0);
             }
 
+            size_t num_tri_vert_in_box_face = 0;
+
             // Check for triangle vertices inside box face.
             for (int i = 0; i < 3; ++i) {
+                // Ignore vertices that are on a concave edge.
+                if (is_concave_vertex[i]) {
+                    continue;
+                }
+
                 scalar dots[4];
                 for (int j = 0; j < 4; ++j) {
                     dots[j] = dot(vertices[i] - face_vertices_in_B[j], face_tangents_in_B[j]);
@@ -160,29 +178,38 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                     auto pivotA = to_object_space(pivot_face_world, posA, ornA);
                     auto pivotB = vertices[i];
                     result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                    ++num_tri_vert_in_box_face;
                 }
             }
 
             // Continue if not all triangle vertices are contained in face.
-            if (result.num_points < 3) {
+            size_t num_box_vert_in_tri_face = 0;
+
+            if (num_tri_vert_in_box_face < 3) {
                 // Look for box face vertices inside triangle face.
                 for (int i = 0; i < 4; ++i) {
                     if (point_in_triangle(vertices, tri_normal, face_vertices_in_B[i])) {
                         auto pivotA = face_vertices[i];
                         auto pivotB = project_plane(face_vertices_in_B[i], vertices[0], sep_axis.dir);
                         result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                        ++num_box_vert_in_tri_face;
                     }
                 }
             }
 
             // Continue if not all box's face vertices are contained in the triangle.
             // Perform edge intersection tests.
-            if (result.num_points < 4) {
+            if (num_box_vert_in_tri_face < 4) {
                 for (int i = 0; i < 4; ++i) {
                     auto &a0 = face_vertices_in_B[i];
                     auto &a1 = face_vertices_in_B[(i + 1) % 4];
 
                     for (int j = 0; j < 3; ++j) {
+                        // Ignore concave edges.
+                        if (is_concave_edge[j]) {
+                            continue;
+                        }
+
                         auto &b0 = vertices[j];
                         auto &b1 = vertices[(j + 1) % 3];
 
@@ -204,55 +231,60 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 }
             }
         } else if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == TRIANGLE_FEATURE_EDGE) {
-            auto face_normal = shA.get_face_normal(sep_axis.feature_indexA, ornA_in_B);
-            auto face_vertices = shA.get_face(sep_axis.feature_indexA, posA_in_B, ornA_in_B);
+            // Ignore concave edges.
+            if (!is_concave_edge[sep_axis.feature_indexB]) {
+                auto face_normal = shA.get_face_normal(sep_axis.feature_indexA, ornA_in_B);
+                auto face_vertices = shA.get_face(sep_axis.feature_indexA, posA_in_B, ornA_in_B);
 
-            std::array<vector3, 4> face_tangents;
-            for (int i = 0; i < 4; ++i) {
-                auto &v0 = face_vertices[i];
-                auto &v1 = face_vertices[(i + 1) % 4];
-                face_tangents[i] = cross(face_normal, v1 - v0);
-            }
-
-            // Check if edge vertices are inside box face.
-            vector3 edge_vertices[] = {vertices[sep_axis.feature_indexB],
-                                       vertices[(sep_axis.feature_indexB + 1) % 3]};
-
-            for (int i = 0; i < 2; ++i) {
-                scalar dots[4];
-                for (int j = 0; j < 4; ++j) {
-                    dots[j] = dot(edge_vertices[i] - face_vertices[j], face_tangents[j]);
-                }
-
-                if (dots[0] > -EDYN_EPSILON && dots[1] > -EDYN_EPSILON &&
-                    dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON) {
-                    // Edge's vertex is inside face.
-                    auto pivot_face = project_plane(edge_vertices[i], face_vertices[0], face_normal);
-                    auto pivot_face_world = posB + rotate(ornB, pivot_face);
-                    auto pivotA = to_object_space(pivot_face_world, posA, ornA);
-                    auto pivotB = edge_vertices[i];
-                    result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
-                }
-            }
-
-            // If both vertices are not inside the face then perform edge intersection tests.
-            if (result.num_points < 2) {
+                std::array<vector3, 4> face_tangents;
                 for (int i = 0; i < 4; ++i) {
                     auto &v0 = face_vertices[i];
                     auto &v1 = face_vertices[(i + 1) % 4];
+                    face_tangents[i] = cross(face_normal, v1 - v0);
+                }
 
-                    scalar s[2], t[2];
-                    vector3 p0[2], p1[2];
-                    size_t num_points = 0;
-                    closest_point_segment_segment(v0, v1, edge_vertices[0], edge_vertices[1], 
-                                                  s[0], t[0], p0[0], p1[0], &num_points, 
-                                                  &s[1], &t[1], &p0[1], &p1[1]);
-                    for (int i = 0; i < num_points; ++i) {
-                        if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                            auto p0_world = posB + rotate(ornB, p0[i]);
-                            auto pivotA = to_object_space(p0_world, posA, ornA);
-                            auto pivotB = p1[i];
-                            result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                // Check if edge vertices are inside box face.
+                vector3 edge_vertices[] = {vertices[sep_axis.feature_indexB],
+                                        vertices[(sep_axis.feature_indexB + 1) % 3]};
+                size_t num_edge_vert_in_box_face = 0;
+
+                for (int i = 0; i < 2; ++i) {
+                    scalar dots[4];
+                    for (int j = 0; j < 4; ++j) {
+                        dots[j] = dot(edge_vertices[i] - face_vertices[j], face_tangents[j]);
+                    }
+
+                    if (dots[0] > -EDYN_EPSILON && dots[1] > -EDYN_EPSILON &&
+                        dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON) {
+                        // Edge's vertex is inside face.
+                        auto pivot_face = project_plane(edge_vertices[i], face_vertices[0], face_normal);
+                        auto pivot_face_world = posB + rotate(ornB, pivot_face);
+                        auto pivotA = to_object_space(pivot_face_world, posA, ornA);
+                        auto pivotB = edge_vertices[i];
+                        result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                        ++num_edge_vert_in_box_face;
+                    }
+                }
+
+                // If both vertices are not inside the face then perform edge intersection tests.
+                if (num_edge_vert_in_box_face < 2) {
+                    for (int i = 0; i < 4; ++i) {
+                        auto &v0 = face_vertices[i];
+                        auto &v1 = face_vertices[(i + 1) % 4];
+
+                        scalar s[2], t[2];
+                        vector3 p0[2], p1[2];
+                        size_t num_points = 0;
+                        closest_point_segment_segment(v0, v1, edge_vertices[0], edge_vertices[1], 
+                                                    s[0], t[0], p0[0], p1[0], &num_points, 
+                                                    &s[1], &t[1], &p0[1], &p1[1]);
+                        for (int i = 0; i < num_points; ++i) {
+                            if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
+                                auto p0_world = posB + rotate(ornB, p0[i]);
+                                auto pivotA = to_object_space(p0_world, posA, ornA);
+                                auto pivotB = p1[i];
+                                result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                            }
                         }
                     }
                 }
@@ -261,6 +293,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             // Check if edge vertices are inside triangle face.
             auto edge = shA.get_edge(sep_axis.feature_indexA);
             auto edge_in_B = edge;
+            size_t num_edge_vert_in_tri_face = 0;
 
             for (size_t i = 0; i < 2; ++i) {
                 edge_in_B[i] = posA_in_B + rotate(ornA_in_B, edge[i]);
@@ -269,12 +302,18 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                     auto pivotA = edge[i];
                     auto pivotB = project_plane(edge_in_B[i], vertices[0], sep_axis.dir);
                     result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                    num_edge_vert_in_tri_face = 0;
                 }
             }
 
             // If both vertices are not inside the face then perform edge intersection tests.
-            if (result.num_points < 2) {
+            if (num_edge_vert_in_tri_face < 2) {
                 for (int i = 0; i < 3; ++i) {
+                    // Ignore concave edges.
+                    if (is_concave_edge[i]) {
+                        continue;
+                    }
+                    
                     auto &v0 = vertices[i];
                     auto &v1 = vertices[(i + 1) % 3];
 
@@ -295,31 +334,36 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 }
             }
         } else if (sep_axis.featureA == BOX_FEATURE_EDGE && sep_axis.featureB == TRIANGLE_FEATURE_EDGE) {
-            scalar s[2], t[2];
-            vector3 p0[2], p1[2];
-            size_t num_points = 0;
-            auto edgeA = shA.get_edge(sep_axis.feature_indexA, posA_in_B, ornA_in_B);
-            vector3 edgeB[2];
-            edgeB[0] = vertices[sep_axis.feature_indexB];
-            edgeB[1] = vertices[(sep_axis.feature_indexB + 1) % 3];
-            closest_point_segment_segment(edgeA[0], edgeA[1], edgeB[0], edgeB[1], 
-                                          s[0], t[0], p0[0], p1[0], &num_points, 
-                                          &s[1], &t[1], &p0[1], &p1[1]);
+            if (!is_concave_edge[sep_axis.feature_indexB]) {
+                scalar s[2], t[2];
+                vector3 p0[2], p1[2];
+                size_t num_points = 0;
+                auto edgeA = shA.get_edge(sep_axis.feature_indexA, posA_in_B, ornA_in_B);
+                vector3 edgeB[2];
+                edgeB[0] = vertices[sep_axis.feature_indexB];
+                edgeB[1] = vertices[(sep_axis.feature_indexB + 1) % 3];
+                closest_point_segment_segment(edgeA[0], edgeA[1], edgeB[0], edgeB[1], 
+                                            s[0], t[0], p0[0], p1[0], &num_points, 
+                                            &s[1], &t[1], &p0[1], &p1[1]);
 
-            for (int i = 0; i < num_points; ++i) {
-                if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                    auto pivotA = to_object_space(p0[i], posA, ornA);
-                    auto pivotB = to_object_space(p1[i], posB, ornB);
-                    result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                for (int i = 0; i < num_points; ++i) {
+                    if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
+                        auto pivotA = to_object_space(p0[i], posA, ornA);
+                        auto pivotB = to_object_space(p1[i], posB, ornB);
+                        result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                    }
                 }
             }
         } else if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == TRIANGLE_FEATURE_VERTEX) {
-            auto vertex = vertices[sep_axis.feature_indexB];
-            auto vertex_proj = vertex - sep_axis.dir * sep_axis.distance;
-            auto vertex_proj_world = posB + rotate(ornB, vertex);
-            auto pivotA = to_object_space(vertex_proj_world, posA, ornA);
-            auto pivotB = vertex;
-            result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+            // Ignore vertices that are on a concave edge.
+            if (!is_concave_vertex[sep_axis.feature_indexB]) {
+                auto vertex = vertices[sep_axis.feature_indexB];
+                auto vertex_proj = vertex - sep_axis.dir * sep_axis.distance;
+                auto vertex_proj_world = posB + rotate(ornB, vertex);
+                auto pivotA = to_object_space(vertex_proj_world, posA, ornA);
+                auto pivotB = vertex;
+                result.add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+            }
         } else if (sep_axis.featureA == BOX_FEATURE_VERTEX && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
             auto pivotA = shA.get_vertex(sep_axis.feature_indexA);
             auto pivotB = posA_in_B + rotate(ornA_in_B, pivotA) - tri_normal * sep_axis.distance;

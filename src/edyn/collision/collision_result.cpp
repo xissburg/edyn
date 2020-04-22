@@ -7,7 +7,22 @@ void collision_result::add_point(const collision_result::collision_point &new_po
         auto idx = num_points++;
         point[idx] = new_point;
         return;
-    } 
+    }
+
+    /* auto max_dist = EDYN_SCALAR_MAX;
+    size_t max_dist_idx;
+
+    for (size_t i = 0; i < max_contacts; ++i) {
+        if (point[i].distance > max_dist) {
+            max_dist = point[i].distance;
+            max_dist_idx = i;
+        }
+    }
+
+    if (new_point.distance < max_dist - EDYN_EPSILON) {
+        point[max_dist_idx] = new_point;
+        return;
+    } */
 
     // Ignore if there's already a point that's near this one.
     auto ignore = false;
@@ -64,23 +79,30 @@ void collision_result::add_point(const collision_result::collision_point &new_po
         }
     }
 
-    // Sort points counter-clockwise.
+    // Sort points in a winding order (could be CW or CCW, doesn't matter).
     for (size_t i = 1; i < num_contacts - 2; ++i) {
-        auto max_dot = -EDYN_SCALAR_MAX;
-        size_t max_idx;
-        auto edge = points[i] - points[0];
+        auto max_dot_edge = -EDYN_SCALAR_MAX;
+        auto min_dot_tangent = EDYN_SCALAR_MAX;
+        size_t next_idx;
+        auto edge = points[i] - points[i - 1];
+        auto tangent = cross(edge, new_point.normalB);
 
-        // Find other point that's furthest along edge.
+        // Find other point that's furthest along edge and closest along tangent.
         for (size_t j = i + 1; j < num_contacts; ++j) {
-            auto d = dot(points[j] - points[0], edge);
-            if (d > max_dot) {
-                max_dot = d;
-                max_idx = j;
+            auto de = dot(points[j] - points[i - 1], edge);
+            if (de > max_dot_edge) {
+                auto dt = dot(points[j] - points[i - 1], tangent);
+
+                if (dt < min_dot_tangent) {
+                    max_dot_edge = de;
+                    min_dot_tangent = dt;
+                    next_idx = j;
+                }
             }
         }
 
-        std::swap(points[i + 1], points[max_idx]);
-        std::swap(index_map[i + 1], index_map[max_idx]);
+        std::swap(points[i + 1], points[next_idx]);
+        std::swap(index_map[i + 1], index_map[next_idx]);
     }
 
     // Give each point _reverse_ scores proportional to the angle

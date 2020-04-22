@@ -79,8 +79,7 @@ void triangle_mesh::calculate_adjacency() {
 
                     // Check if the vertex in triangle k which is not in the shared 
                     // edge is in front of or behind the plane of triangle i.
-                    auto sign = dot(i_normal, vertices[other_idx] - vertices[i_idx[m]]);
-                    auto concave = sign > 0;
+                    auto concave = dot(i_normal, vertices[other_idx] - vertices[i_idx[m]]) > -EDYN_EPSILON;
                     is_concave_edge[i * 3 + m] = concave;
 
                     // Get edge angle from the cross product of normals and use 
