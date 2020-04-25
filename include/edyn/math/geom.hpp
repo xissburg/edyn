@@ -138,22 +138,18 @@ vector3 support_point_circle(scalar radius, const vector3 &pos,
                              const quaternion &orn, const vector3 &dir);
 
 template<size_t N>
-size_t support_point_vertices(const std::array<vector3, N> &vertices, 
-                              const vector3 &dir) {
-    auto max_dot = -EDYN_SCALAR_MAX;
-    size_t max_idx;
+void support_point_vertices(const std::array<vector3, N> &vertices, 
+                              const vector3 &dir, size_t &idx, scalar &proj) {
+    proj = -EDYN_SCALAR_MAX;
 
     for (size_t i = 0; i < N; ++i) {
-        auto &v = vertices[i];
-        auto d = dot(v, max_dot);
+        auto d = dot(vertices[i], dir);
 
-        if (d > max_dot) {
-            d = max_dot;
-            max_idx = i;
+        if (d > proj) {
+            proj = d;
+            idx = i;
         }
     }
-
-    return max_idx;
 }
 
 }
