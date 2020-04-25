@@ -3,6 +3,20 @@
 namespace edyn {
 
 void collision_result::add_point(const collision_result::collision_point &new_point) {
+    // Ignore if there's already a point that's near this one.
+    auto ignore = false;
+    for (size_t i = 0; i < num_points; ++i) {
+        auto dist_sqr = distance2(new_point.pivotB, point[i].pivotB);
+        if (dist_sqr < contact_breaking_threshold * contact_breaking_threshold) {
+            ignore = true;
+            break;
+        }
+    }
+
+    if (ignore) {
+        return;
+    }
+    
     if (num_points < max_contacts) {
         auto idx = num_points++;
         point[idx] = new_point;
@@ -24,19 +38,6 @@ void collision_result::add_point(const collision_result::collision_point &new_po
         return;
     } */
 
-    // Ignore if there's already a point that's near this one.
-    auto ignore = false;
-    for (size_t i = 0; i < max_contacts; ++i) {
-        auto dist_sqr = distance2(new_point.pivotB, point[i].pivotB);
-        if (dist_sqr < contact_breaking_threshold * contact_breaking_threshold) {
-            ignore = true;
-            break;
-        }
-    }
-
-    if (ignore) {
-        return;
-    }
 
     // Find an existing point to replace. Sort all points anti-clockwise
     // and look for the point that is the closest to being collinear with
