@@ -31,10 +31,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
     auto aabb = shA.aabb(posA_in_B, ornA_in_B);
     shB.trimesh->visit(aabb, [&] (size_t tri_idx, const triangle_vertices &vertices) {
-        if (result.num_points == max_contacts) {
-            return;
-        }
-
         // Separating-axis test. Find axis with greatest distance between projection
         // intervals.
         // Axes to be tested:
@@ -307,12 +303,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     auto vertex_in_A = rotate(conjugate(ornA), vertex_world - posA);
                     auto vertex_proj_in_A = vertex_in_A;
                     vertex_proj_in_A.x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
-
-                    auto idx = result.num_points++;
-                    result.point[idx].pivotA = vertex_proj_in_A;
-                    result.point[idx].pivotB = vertex;
-                    result.point[idx].normalB = axis.dir;
-                    result.point[idx].distance = axis.distance;
+                    result.maybe_add_point({vertex_proj_in_A, vertex, axis.dir, axis.distance});
                     break;
                 }
 
@@ -342,11 +333,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     auto p0_world = posA + rotate(ornA, p0);
                     auto p0_B = rotate(conjugate(ornB), p0_world - posB);
 
-                    auto idx = result.num_points++;
-                    result.point[idx].pivotA = {pivotA_x, p0.y, p0.z};
-                    result.point[idx].pivotB = p0_B;
-                    result.point[idx].normalB = axis.dir;
-                    result.point[idx].distance = axis.distance;
+                    auto pivotA = vector3{pivotA_x, p0.y, p0.z};
+                    result.maybe_add_point({pivotA, p0_B, axis.dir, axis.distance});
 
                     if (num_points == 2) {
                         s1 = clamp_unit(s1);
@@ -354,11 +342,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                         auto p1_world = posA + rotate(ornA, p1);
                         auto p1_B = rotate(conjugate(ornB), p1_world - posB);
 
-                        auto idx = result.num_points++;
-                        result.point[idx].pivotA = {pivotA_x, p1.y, p1.z};
-                        result.point[idx].pivotB = p1_B;
-                        result.point[idx].normalB = axis.dir;
-                        result.point[idx].distance = axis.distance;
+                        auto pivotA = vector3{pivotA_x, p1.y, p1.z};
+                        result.maybe_add_point({pivotA, p1_B, axis.dir, axis.distance});
                     }
                     break;
                 }
@@ -395,11 +380,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                         auto p0_world = posA + rotate(ornA, p0);
                         auto p0_B = rotate(conjugate(ornB), p0_world - posB);
 
-                        auto idx = result.num_points++;
-                        result.point[idx].pivotA = {pivotA_x, p0.y, p0.z};
-                        result.point[idx].pivotB = p0_B;
-                        result.point[idx].normalB = axis.dir;
-                        result.point[idx].distance = axis.distance;
+                        auto pivotA = vector3{pivotA_x, p0.y, p0.z};
+                        result.maybe_add_point({pivotA, p0_B, axis.dir, axis.distance});
 
                         if (num_points == 2) {
                             s1 = clamp_unit(s1);
@@ -407,11 +389,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                             auto p1_world = posA + rotate(ornA, p1);
                             auto p1_B = rotate(conjugate(ornB), p1_world - posB);
 
-                            auto idx = result.num_points++;
-                            result.point[idx].pivotA = {pivotA_x, p1.y, p1.z};
-                            result.point[idx].pivotB = p1_B;
-                            result.point[idx].normalB = axis.dir;
-                            result.point[idx].distance = axis.distance;
+                            auto pivotA = vector3{pivotA_x, p1.y, p1.z};
+                            result.maybe_add_point({pivotA, p1_B, axis.dir, axis.distance});
                         }
                     }
 
@@ -424,7 +403,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                         vector3 r;
 
                         if (closest_point_line(posA_in_B, axis.dir, vertices[0], t, r) < shA.radius * shA.radius) {
-                            result.num_points = 3;
                             auto pivotA_x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
 
                             for(size_t i = 0; i < 3; ++i) {
@@ -432,17 +410,12 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                 auto vertex_world = posB + rotate(ornB, vertex_B);
                                 auto vertex_A = rotate(conjugate(ornA), vertex_world - posA);
                                 vertex_A.x = pivotA_x;
-
-                                result.point[i].pivotA = vertex_A;
-                                result.point[i].pivotB = vertex_B;
-                                result.point[i].normalB = axis.dir;
-                                result.point[i].distance = axis.distance;
+                                result.maybe_add_point({vertex_A, vertex_B, axis.dir, axis.distance});
                             }
                         } else if (point_in_triangle(vertices, tri_normal, posA_in_B)) {
                             // If the circle doesn't intersect the edges of the triangle and its center
                             // is contained within the triangle, it means the entire circle is contained
                             // within the triangle.
-                            result.num_points = 4;
                             auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
                             for(size_t i = 0; i < 4; ++i) {
                                 auto pivotA_x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
@@ -451,10 +424,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                                       shA.radius * multipliers[(i + 1) % 4]};
                                 auto pivotA_world = posA + rotate(ornA, pivotA);
                                 auto pivotB = rotate(conjugate(ornB), pivotA_world - posB);
-                                result.point[i].pivotA = pivotA;
-                                result.point[i].pivotB = pivotB;
-                                result.point[i].normalB = axis.dir;
-                                result.point[i].distance = axis.distance;
+                                result.maybe_add_point({pivotA, pivotB, axis.dir, axis.distance});
                             }
                         }
                     } else if (num_edge_intersections == 1) {
@@ -471,11 +441,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                         auto pivotA_world = posB + rotate(ornB, pivotA_in_B);
                         auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
                         auto pivotB = project_plane(pivotA_in_B, vertices[0], tri_normal);
-                        auto idx = result.num_points++;
-                        result.point[idx].pivotA = pivotA;
-                        result.point[idx].pivotB = pivotB;
-                        result.point[idx].normalB = axis.dir;
-                        result.point[idx].distance = axis.distance;
+                        result.maybe_add_point({pivotA, pivotB, axis.dir, axis.distance});
                     }
                     break;
                 }
@@ -491,25 +457,19 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     auto c1_in_tri = point_in_triangle(vertices, tri_normal, disc_center_neg);
 
                     if (c0_in_tri) {
-                        auto idx = result.num_points++;
                         auto p0 = disc_center_pos - tri_normal * shA.radius;
                         auto p0_world = posB + rotate(ornB, p0);
                         auto p0_A = rotate(conjugate(ornA), p0_world - posA);
-                        result.point[idx].pivotA = p0_A;
-                        result.point[idx].pivotB = project_plane(disc_center_pos, vertices[0], tri_normal);
-                        result.point[idx].normalB = axis.dir;
-                        result.point[idx].distance = axis.distance;
+                        auto pivotB = project_plane(disc_center_pos, vertices[0], tri_normal);
+                        result.maybe_add_point({p0_A, pivotB, axis.dir, axis.distance});
                     }
 
                     if (c1_in_tri) {
-                        auto idx = result.num_points++;
                         auto p1 = disc_center_neg - tri_normal * shA.radius;
                         auto p1_world = posB + rotate(ornB, p1);
                         auto p1_A = rotate(conjugate(ornA), p1_world - posA);
-                        result.point[idx].pivotA = p1_A;
-                        result.point[idx].pivotB = project_plane(disc_center_neg, vertices[0], tri_normal);
-                        result.point[idx].normalB = axis.dir;
-                        result.point[idx].distance = axis.distance;
+                        auto pivotB = project_plane(disc_center_neg, vertices[0], tri_normal);
+                        result.maybe_add_point({p1_A, pivotB, axis.dir, axis.distance});
                     }
 
                     if (!c0_in_tri || !c1_in_tri) {
@@ -525,14 +485,10 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
                             for (size_t i = 0; i < num_points; ++i) {
                                 if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                                    auto idx = result.num_points++;
                                     auto pA_in_B = p0[i] - tri_normal * shA.radius;
                                     auto pA_world = posB + rotate(ornB, pA_in_B);
                                     auto pA = rotate(conjugate(ornA), pA_world - posA);
-                                    result.point[idx].pivotA = pA;
-                                    result.point[idx].pivotB = p1[i];
-                                    result.point[idx].normalB = axis.dir;
-                                    result.point[idx].distance = axis.distance;
+                                    result.maybe_add_point({pA, p1[i], axis.dir, axis.distance});
                                 }
                             }
                         }
@@ -545,24 +501,17 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     // Check if angle between edge normal and the i-th triangle normal
                     // is in the range between the i-th and k-th triangle normals. 
                     if (dot(axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + axis.tri_feature_index]) {
-                        auto idx = result.num_points++;
                         auto pA_world = posB + rotate(ornB, axis.pivotA);
                         auto pA = rotate(conjugate(ornA), pA_world - posA);
-                        result.point[idx].pivotA = pA;
-                        result.point[idx].pivotB = axis.pivotB;
-                        result.point[idx].normalB = axis.dir;
-                        result.point[idx].distance = axis.distance;
+                        result.maybe_add_point({pA, axis.pivotB, axis.dir, axis.distance});
                     }
                     break;
                 }
                 case TRIANGLE_FEATURE_VERTEX: {
-                    auto idx = result.num_points++;
                     auto pA_world = posB + rotate(ornB, axis.pivotA);
                     auto pA = rotate(conjugate(ornA), pA_world - posA);
-                    result.point[idx].pivotA = pA;
-                    result.point[idx].pivotB = vertices[axis.tri_feature_index];
-                    result.point[idx].normalB = axis.dir;
-                    result.point[idx].distance = axis.distance;
+                    auto pivotB = vertices[axis.tri_feature_index];
+                    result.maybe_add_point({pA, pivotB, axis.dir, axis.distance});
                     break;
                 }
                 }
@@ -574,22 +523,14 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     auto pivotA_world = posB + rotate(ornB, axis.pivotA);
                     auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
                     auto pivotB = project_plane(axis.pivotA, vertices[0], tri_normal);
-                    auto idx = result.num_points++;
-                    result.point[idx].pivotA = pivotA;
-                    result.point[idx].pivotB = pivotB;
-                    result.point[idx].normalB = axis.dir;
-                    result.point[idx].distance = axis.distance;
+                    result.maybe_add_point({pivotA, pivotB, axis.dir, axis.distance});
                     break;
                 }
                 case TRIANGLE_FEATURE_EDGE: {
                     if (dot(axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + axis.tri_feature_index]) {
                         auto pivotA_world = posB + rotate(ornB, axis.pivotA);
                         auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
-                        auto idx = result.num_points++;
-                        result.point[idx].pivotA = pivotA;
-                        result.point[idx].pivotB = axis.pivotB;
-                        result.point[idx].normalB = axis.dir;
-                        result.point[idx].distance = axis.distance;
+                        result.maybe_add_point({pivotA, axis.pivotB, axis.dir, axis.distance});
                     }
                     break;
                 }
