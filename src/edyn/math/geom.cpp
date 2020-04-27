@@ -597,4 +597,75 @@ vector3 support_point_circle(scalar radius, const vector3 &pos, const quaternion
     return pos + rotate(orn, sup);
 }
 
+scalar signed_triangle_area(const vector2 &a, const vector2 &b, const vector2 &c) {
+    return (a.x - c.x) * (b.y - c.y) - (a.y - c.y) * (b.x - c.x);
+}
+
+size_t intersect_segments(const vector2 &p0, const vector2 &p1,
+                          const vector2 &q0, const vector2 &q1,
+                          scalar &s0, scalar &t0,
+                          scalar &s1, scalar &t1) {
+    auto dp = p1 - p0;
+    auto dq = q1 - q0;
+    auto e = q0 - p0;
+    auto denom = perp_product(dp, dq);
+
+    if (std::abs(denom) > EDYN_EPSILON) {
+        auto denom_inv = scalar(1) / denom;
+        s0 = perp_product(e, dq) * denom_inv;
+        t0 = perp_product(e, dp) * denom_inv;
+        return s0 < 0 || s0 > 1 || t0 < 0 || t0 > 1 ? 0 : 1;
+    }
+
+    // Segments are parallel.
+    if (perp_product(e, dp) < EDYN_EPSILON) {
+        // Calculate intersection interval.
+        auto dir = dot(dp, dq);
+        auto denom_p = scalar(1) / dot(dp, dp);
+        auto denom_q = scalar(1) / dot(dq, dq);
+
+        if (dir > 0) {
+            auto f = q1 - p1;
+            s0 = dot(e, dp) * denom_p;
+            t0 = -dot(e, dq) * denom_q;
+
+            s1 = scalar(1) + dot(f, dp) * denom_p;
+            t1 = scalar(1) - dot(f, dq) * denom_q;
+        } else {
+            auto f = q1 - p0;
+            s0 = dot(f, dp) * denom_p;
+            t0 = -dot(f, dq) * denom_q;
+
+            auto g = q0 - p1;
+            s1 = scalar(1) + dot(g, dp) * denom_p;
+            t1 = scalar(1) - dot(g, dq) * denom_q;
+        }
+
+        if (s0 < 0 || s0 > 1 || t0 < 0 || t0 > 1 ||
+            s1 < 0 || s1 > 1 || t1 < 0 || t1 > 1) {
+            return 0;
+        }
+        
+        return 2;
+    }
+
+    return 0;
+}
+
+scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, const vector3& p3) {
+	vector3 a[3], b[3];
+	a[0] = p0 - p1;
+	a[1] = p0 - p2;
+	a[2] = p0 - p3;
+	b[0] = p2 - p3;
+	b[1] = p1 - p3;
+	b[2] = p1 - p2;
+
+	vector3 tmp0 = cross(a[0], b[0]);
+	vector3 tmp1 = cross(a[1], b[1]);
+	vector3 tmp2 = cross(a[2], b[2]);
+
+	return std::max(std::max(length2(tmp0), length2(tmp1)), length2(tmp2));
+}
+
 }

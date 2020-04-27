@@ -4,53 +4,56 @@ namespace edyn {
 
 void box_shape::support_feature(const vector3 &dir, box_feature &feature, 
                                 uint8_t &feature_index, scalar &projection) const {
-    scalar threshold = 0.0002;
+    scalar threshold = 0.002;
 
     // Faces.
-    if (dir.x >= scalar(1) - threshold) {
-        feature = BOX_FEATURE_FACE;
-        feature_index = 0;
-        projection = half_extents[0];
-        return;
-    } 
-    
-    if (dir.x <= scalar(-1) + threshold) {
-        feature = BOX_FEATURE_FACE;
-        feature_index = 1;
-        projection = half_extents[0];
-        return;
-    }
-    
-    if (dir.y >= scalar(1) - threshold) {
-        feature = BOX_FEATURE_FACE;
-        feature_index = 2;
-        projection = half_extents[1];
+    if (dir.y * dir.y * half_extents.y * half_extents.y + 
+        dir.z * dir.z * half_extents.z * half_extents.z < threshold) {
+        if (dir.x > 0) {
+            feature = BOX_FEATURE_FACE;
+            feature_index = 0;
+        } else {
+            feature = BOX_FEATURE_FACE;
+            feature_index = 1;
+        }
+        auto vertices = get_face(feature_index);
+        size_t idx;
+        support_point_vertices(vertices, dir, idx, projection);
         return;
     }
     
-    if (dir.y <= scalar(-1) + threshold) {
-        feature = BOX_FEATURE_FACE;
-        feature_index = 3;
-        projection = half_extents[1];
+    if (dir.x * dir.x * half_extents.x * half_extents.x + 
+        dir.z * dir.z * half_extents.z * half_extents.z < threshold) {
+        if (dir.y > 0) {
+            feature = BOX_FEATURE_FACE;
+            feature_index = 2;
+        } else {
+            feature = BOX_FEATURE_FACE;
+            feature_index = 3;
+        }
+        auto vertices = get_face(feature_index);
+        size_t idx;
+        support_point_vertices(vertices, dir, idx, projection);
         return;
-    } 
+    }
     
-    if (dir.z >= scalar(1) - threshold) {
-        feature = BOX_FEATURE_FACE;
-        feature_index = 4;
-        projection = half_extents[2];
-        return;
-    } 
-    
-    if (dir.z <= scalar(-1) + threshold) {
-        feature = BOX_FEATURE_FACE;
-        feature_index = 5;
-        projection = half_extents[2];
+    if (dir.x * dir.x * half_extents.x * half_extents.x + 
+        dir.y * dir.y * half_extents.y * half_extents.y < threshold) {
+        if (dir.z > 0) {
+            feature = BOX_FEATURE_FACE;
+            feature_index = 4;
+        } else {
+            feature = BOX_FEATURE_FACE;
+            feature_index = 5;
+        }
+        auto vertices = get_face(feature_index);
+        size_t idx;
+        support_point_vertices(vertices, dir, idx, projection);
         return;
     }
 
     // Edges.
-    if (std::abs(dir.x) < threshold) {
+    if (std::abs(dir.x / std::sqrt(dir.y * dir.y + dir.z * dir.z)) < threshold / (half_extents.x * scalar(2))) {
         if (dir.y > 0) {
             if (dir.z > 0) {
                 feature = BOX_FEATURE_EDGE;
@@ -69,11 +72,11 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
             }
         }
 
-        projection = dot(dir, get_edge(feature_index)[0]);
+        projection = dot(dir, get_edge(feature_index)[dir.x > 0 ? 0 : 1]);
         return;
     }
 
-    if (std::abs(dir.y) < threshold) {
+    if (std::abs(dir.y / std::sqrt(dir.x * dir.x + dir.z * dir.z)) < threshold / (half_extents.y * scalar(2))) {
         if (dir.x > 0) {
             if (dir.z > 0) {
                 feature = BOX_FEATURE_EDGE;
@@ -92,11 +95,11 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
             }
         }
 
-        projection = dot(dir, get_edge(feature_index)[0]);
+        projection = dot(dir, get_edge(feature_index)[dir.y > 0 ? 0 : 1]);
         return;
     }
 
-    if (std::abs(dir.z) < threshold) {
+    if (std::abs(dir.z / std::sqrt(dir.x * dir.x + dir.y * dir.y)) < threshold / (half_extents.z * scalar(2))) {
         if (dir.x > 0) {
             if (dir.y > 0) {
                 feature = BOX_FEATURE_EDGE;
@@ -115,7 +118,7 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
             }
         }
 
-        projection = dot(dir, get_edge(feature_index)[0]);
+        projection = dot(dir, get_edge(feature_index)[dir.z > 0 ? 0 : 1]);
         return;
     }
 

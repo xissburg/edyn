@@ -59,6 +59,12 @@ inline vector3 operator*(const matrix3x3 &m, const vector3 &v) {
     return {dot(m.row[0], v), dot(m.row[1], v), dot(m.row[2], v)};
 }
 
+// Multiply vector by matrix on the right, effectively multiplying
+// by the transpose.
+inline vector3 operator*(const vector3 &v, const matrix3x3 &m) {
+    return {m.column_dot(0, v), m.column_dot(1, v), m.column_dot(2, v)};
+}
+
 // Transpose of a 3x3 matrix.
 inline matrix3x3 transpose(const matrix3x3 &m) {
     return {m.column(0), m.column(1), m.column(2)};

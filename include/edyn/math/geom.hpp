@@ -3,7 +3,8 @@
 
 #include "constants.hpp"
 #include "quaternion.hpp"
-#include <array>
+#include "vector2.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 /**
@@ -125,9 +126,10 @@ void plane_space(const vector3 &n, vector3 &p, vector3 &q);
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1);
 
-bool intersect_segments(scalar p0x, scalar p0y, scalar p1x, scalar p1y,
-                        scalar q0x, scalar q0y, scalar q1x, scalar q1y,
-                        scalar &s, scalar &t, scalar &rx, scalar &ry);
+size_t intersect_segments(const vector2 &p0, const vector2 &p1,
+                          const vector2 &q0, const vector2 &q1,
+                          scalar &s0, scalar &t0,
+                          scalar &s1, scalar &t1);
 
 size_t intersect_line_circle(scalar px, scalar py, 
                              scalar qx, scalar qy, 
@@ -150,6 +152,90 @@ void support_point_vertices(const std::array<vector3, N> &vertices,
             idx = i;
         }
     }
+}
+
+scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, const vector3& p3);
+
+template<size_t N> inline
+size_t insert_index(std::array<vector3, N> points,
+                    std::array<scalar, N> depths,
+                    size_t num_points,
+                    const vector3 &new_point,
+                    scalar new_point_depth) {
+    EDYN_ASSERT(num_points <= N);
+
+    // Look for nearby points.
+    auto closest_idx = SIZE_MAX;
+    auto closest_dist_sqr = EDYN_SCALAR_MAX;
+
+    for (size_t i = 0; i < num_points; ++i) {
+        auto dist_sqr = distance2(new_point, points[i]);
+        if (dist_sqr < closest_dist_sqr) {
+            closest_dist_sqr = dist_sqr;
+            closest_idx = i;
+        }
+    }
+    
+    if (closest_dist_sqr < contact_breaking_threshold * contact_breaking_threshold) {
+        // Replace with new point if it's deeper.
+        if (new_point_depth < depths[closest_idx]) {
+            return closest_idx;
+        }
+        // Else, ignore new point.
+        return N;
+    }
+
+    // Return the index after last to signal the insertion of a new point.
+    if (num_points < N) {
+        return num_points;
+    }
+
+    // Find deepest point and don't replace it.
+    auto deepest_dist = new_point_depth;
+    auto deepest_dist_idx = N;
+
+    for (size_t i = 0; i < N; ++i) {
+        if (depths[i] < deepest_dist) {
+            deepest_dist = depths[i];
+            deepest_dist_idx = i;
+        }
+    }
+
+    // The approximate area when the i-th point is removed.
+    auto areas = make_array<5>(scalar(0));
+
+    // Do not calculate it for the deepest point.
+    if (deepest_dist_idx != 0) {
+        areas[0] = area_4_points(new_point, points[1], points[2], points[3]);
+    } 
+    if (deepest_dist_idx != 1) {
+        areas[1] = area_4_points(new_point, points[0], points[2], points[3]);
+    } 
+    if (deepest_dist_idx != 2) {
+        areas[2] = area_4_points(new_point, points[0], points[1], points[3]);
+    } 
+    if (deepest_dist_idx != 3) {
+        areas[3] = area_4_points(new_point, points[0], points[1], points[2]);
+    }
+    if (deepest_dist_idx != 4) { // Area without the new point.
+        areas[4] = area_4_points(points[0], points[1], points[2], points[3]);
+    }
+
+    auto max_area = scalar(0);
+    auto max_area_idx = SIZE_MAX;
+    for (size_t i = 0; i < areas.size(); ++i) {
+        if (areas[i] > max_area) {
+            max_area = areas[i];
+            max_area_idx = i;
+        }
+    }
+
+    if (max_area_idx < max_contacts) {
+        return max_area_idx;
+    }
+
+    // Ignore new point because the contact set is better as it is.
+    return N;
 }
 
 }

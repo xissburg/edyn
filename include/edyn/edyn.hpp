@@ -24,6 +24,7 @@
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
 #include "math/vector3.hpp"
+#include "math/vector2.hpp"
 #include "math/quaternion.hpp"
 #include "math/matrix3x3.hpp"
 #include "math/math.hpp"
