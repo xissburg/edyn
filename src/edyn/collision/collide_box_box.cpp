@@ -9,8 +9,8 @@ struct box_box_separating_axis {
     vector3 dir;
     box_feature featureA;
     box_feature featureB;
-    uint8_t feature_indexA;
-    uint8_t feature_indexB;
+    size_t feature_indexA;
+    size_t feature_indexB;
     scalar distance;
 };
 
@@ -32,9 +32,9 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         quaternion_z(ornB)
     };
 
-    uint8_t axis_idx = 0;
+    size_t axis_idx = 0;
 
-    for (uint8_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
         auto &axisA = axesA[i];
         auto &axis = sep_axes[axis_idx++];
         axis.featureA = BOX_FEATURE_FACE;
@@ -58,7 +58,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         axis.distance = -(shA.half_extents[i] + axis.distance);
     }
 
-    for (uint8_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
         auto &axisB = axesB[i];
         auto &axis = sep_axes[axis_idx++];
         axis.featureB = BOX_FEATURE_FACE;
@@ -75,10 +75,10 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         axis.distance = -(shB.half_extents[i] + axis.distance);
     }
 
-    for (uint8_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
         auto &axisA = axesA[i];
 
-        for (uint8_t j = 0; j < 3; ++j) {
+        for (size_t j = 0; j < 3; ++j) {
             auto &axisB = axesB[j];
             auto &axis = sep_axes[axis_idx];
             axis.dir = cross(axisA, axisB);
@@ -105,9 +105,9 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     }
 
     auto greatest_distance = -EDYN_SCALAR_MAX;
-    uint8_t sep_axis_idx;
+    size_t sep_axis_idx;
 
-    for (uint8_t i = 0; i < axis_idx; ++i) {
+    for (size_t i = 0; i < axis_idx; ++i) {
         auto &sep_axis = sep_axes[i];
         
         if (sep_axis.distance > greatest_distance) {
@@ -130,7 +130,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         auto face_verticesA = shA.get_face(sep_axis.feature_indexA, posA, ornA);
         auto face_normalA = shA.get_face_normal(sep_axis.feature_indexA, ornA);
         std::array<vector3, 4> face_tangentsA;
-        for (uint8_t i = 0; i < 4; ++i) {
+        for (size_t i = 0; i < 4; ++i) {
             auto &v0 = face_verticesA[i];
             auto &v1 = face_verticesA[(i + 1) % 4];
             face_tangentsA[i] = cross(face_normalA, v1 - v0);
@@ -139,20 +139,20 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         auto face_verticesB = shB.get_face(sep_axis.feature_indexB, posB, ornB);
         auto face_normalB = shB.get_face_normal(sep_axis.feature_indexB, ornB);
         std::array<vector3, 4> face_tangentsB;
-        for (uint8_t i = 0; i < 4; ++i) {
+        for (size_t i = 0; i < 4; ++i) {
             auto &v0 = face_verticesB[i];
             auto &v1 = face_verticesB[(i + 1) % 4];
             face_tangentsB[i] = cross(face_normalB, v1 - v0);
         }
 
         // Check for vertices of Face B contained in Face A.
-        for (uint8_t i = 0; i < 4; ++i) {
+        for (size_t i = 0; i < 4; ++i) {
             if (result.num_points == max_contacts) {
                 break;
             }
 
             scalar dots[4];
-            for (uint8_t j = 0; j < 4; ++j) {
+            for (size_t j = 0; j < 4; ++j) {
                 dots[j] = dot(face_verticesB[i] - face_verticesA[j], face_tangentsA[j]);
             } 
             
@@ -167,13 +167,13 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         }
 
         // Check for vertices of Face A contained in Face B.
-        for (uint8_t i = 0; i < 4; ++i) {
+        for (size_t i = 0; i < 4; ++i) {
             if (result.num_points == max_contacts) {
                 break;
             }
 
             scalar dots[4];
-            for (uint8_t j = 0; j < 4; ++j) {
+            for (size_t j = 0; j < 4; ++j) {
                 dots[j] = dot(face_verticesA[i] - face_verticesB[j], face_tangentsB[j]);
             }
 
@@ -191,11 +191,11 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         if (result.num_points < 4) {
             auto face_normalB = shB.get_face_normal(sep_axis.feature_indexB);
 
-            for (uint8_t i = 0; i < 4; ++i) {
+            for (size_t i = 0; i < 4; ++i) {
                 auto &a0 = face_verticesA[i];
                 auto &a1 = face_verticesA[(i + 1) % 4];
 
-                for (uint8_t j = 0; j < 4; ++j) {
+                for (size_t j = 0; j < 4; ++j) {
                     auto &b0 = face_verticesB[j];
                     auto &b1 = face_verticesB[(j + 1) % 4];
 
@@ -205,7 +205,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                     closest_point_segment_segment(a0, a1, b0, b1, 
                                                   s[0], t[0], p0[0], p1[0], &num_points, 
                                                   &s[1], &t[1], &p0[1], &p1[1]);
-                    for (uint8_t k = 0; k < num_points; ++k) {
+                    for (size_t k = 0; k < num_points; ++k) {
                         if (s[k] > 0 && s[k] < 1 && t[k] > 0 && t[k] < 1) {
                             auto pivotA = to_object_space(p0[k], posA, ornA);
                             auto pivotB = to_object_space(p1[k], posB, ornB);
@@ -284,7 +284,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                                       s[0], t[0], p0[0], p1[0], &num_points, 
                                       &s[1], &t[1], &p0[1], &p1[1]);
 
-        for (uint8_t i = 0; i < num_points; ++i) {
+        for (size_t i = 0; i < num_points; ++i) {
             if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
                 auto pivotA = to_object_space(p0[i], posA, ornA);
                 auto pivotB = to_object_space(p1[i], posB, ornB);

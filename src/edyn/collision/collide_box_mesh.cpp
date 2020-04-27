@@ -7,8 +7,8 @@ struct box_mesh_separating_axis {
     vector3 dir;
     box_feature featureA;
     triangle_feature featureB;
-    uint8_t feature_indexA;
-    uint8_t feature_indexB;
+    size_t feature_indexA;
+    size_t feature_indexB;
     scalar distance;
 };
 
@@ -72,17 +72,17 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         }
 
         std::array<box_mesh_separating_axis, 13> sep_axes;
-        uint8_t axis_idx = 0;
+        size_t axis_idx = 0;
 
         // Box faces.
-        for (uint8_t i = 0; i < 3; ++i) {
+        for (size_t i = 0; i < 3; ++i) {
             auto &axisA = axesA[i];
             auto &axis = sep_axes[axis_idx];
             axis.featureA = BOX_FEATURE_FACE;
 
             // Find which direction gives greatest penetration.
             triangle_feature neg_tri_feature, pos_tri_feature;
-            uint8_t neg_tri_feature_index, pos_tri_feature_index;
+            size_t neg_tri_feature_index, pos_tri_feature_index;
             scalar neg_tri_proj, pos_tri_proj;
             get_triangle_support_feature(vertices, posA_in_B, -axisA, neg_tri_feature, neg_tri_feature_index, neg_tri_proj);
             get_triangle_support_feature(vertices, posA_in_B, axisA, pos_tri_feature, pos_tri_feature_index, pos_tri_proj);
@@ -133,10 +133,10 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         }
 
         // Edges.
-        for (uint8_t i = 0; i < 3; ++i) {
+        for (size_t i = 0; i < 3; ++i) {
             auto &axisA = axesA[i];
 
-            for (uint8_t j = 0; j < 3; ++j) {
+            for (size_t j = 0; j < 3; ++j) {
                 if (is_concave_edge[j]) {
                     continue;
                 }
@@ -178,9 +178,9 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // Get axis with greatest penetration.
         auto greatest_distance = -EDYN_SCALAR_MAX;
-        uint8_t sep_axis_idx;
+        size_t sep_axis_idx;
 
-        for (uint8_t i = 0; i < axis_idx; ++i) {
+        for (size_t i = 0; i < axis_idx; ++i) {
             auto &sep_axis = sep_axes[i];
             
             if (sep_axis.distance > greatest_distance) {
@@ -278,7 +278,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                         scalar s[2], t[2];
                         auto num_points = intersect_segments(p0, p1, q0, q1, s[0], t[0], s[1], t[1]);
 
-                        for (uint8_t k = 0; k < num_points; ++k) {
+                        for (size_t k = 0; k < num_points; ++k) {
                             auto pivotA = lerp(a0, a1, s[k]);
                             auto pivotB = lerp(b0, b1, t[k]);
                             result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
@@ -336,7 +336,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                     scalar s[2], t[2];
                     auto num_points = intersect_segments(p0, p1, q0, q1, s[0], t[0], s[1], t[1]);
 
-                    for (uint8_t k = 0; k < num_points; ++k) {
+                    for (size_t k = 0; k < num_points; ++k) {
                         auto pivotA = lerp(a0, a1, s[k]);
                         auto pivotB = lerp(edge_vertices[0], edge_vertices[1], t[k]);
                         result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
@@ -390,7 +390,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                     scalar s[2], t[2];
                     auto num_points = intersect_segments(p0, p1, q0, q1, s[0], t[0], s[1], t[1]);
 
-                    for (uint8_t k = 0; k < num_points; ++k) {
+                    for (size_t k = 0; k < num_points; ++k) {
                         auto pivotA = lerp(edge[0], edge[1], s[k]);
                         auto pivotB = lerp(v0, v1, t[k]);
                         result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});

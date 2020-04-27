@@ -70,11 +70,11 @@ struct box_shape {
     }
 
     void support_feature(const vector3 &dir, box_feature &feature, 
-                         uint8_t &feature_index, scalar &projection) const;
+                         size_t &feature_index, scalar &projection) const;
 
     void support_feature(const vector3 &pos, const quaternion &orn, 
                          const vector3 &axis_pos, const vector3 &axis_dir,
-                         box_feature &feature, uint8_t &feature_index,
+                         box_feature &feature, size_t &feature_index,
                          scalar &projection) const;
 
     vector3 get_vertex(size_t i) const;
@@ -92,6 +92,10 @@ struct box_shape {
     vector3 get_face_normal(size_t i) const;
 
     vector3 get_face_normal(size_t i, const quaternion &orn) const;
+
+    size_t get_edge_index(size_t v0_idx, size_t v1_idx) const;
+    size_t get_face_index(size_t v0_idx, size_t v1_idx,
+                          size_t v2_idx, size_t v3_idx) const;
 };
 
 }

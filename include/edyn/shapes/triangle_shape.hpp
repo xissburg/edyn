@@ -33,7 +33,7 @@ triangle_edges get_triangle_edges(const triangle_vertices &vertices);
 void get_triangle_support_feature(const triangle_vertices &vertices, 
                                   const vector3 &axis_pos, const vector3 &axis_dir,
                                   triangle_feature &tri_feature,
-                                  uint8_t &tri_feature_index,
+                                  size_t &tri_feature_index,
                                   scalar &projection);
 
 }

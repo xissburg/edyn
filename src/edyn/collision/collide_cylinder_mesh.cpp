@@ -10,8 +10,8 @@ struct separating_axis {
     scalar distance;
     cylinder_feature cyl_feature;
     triangle_feature tri_feature;
-    uint8_t cyl_feature_index; // 0: positive face, 1: negative face.
-    uint8_t tri_feature_index; // Vertex index or edge index.
+    size_t cyl_feature_index; // 0: positive face, 1: negative face.
+    size_t tri_feature_index; // Vertex index or edge index.
     vector3 pivotA;
     vector3 pivotB;
 };
@@ -62,7 +62,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         // Cylinder cap normal. Test both directions of the cylinder axis to
         // cover both caps.
         {
-            for (uint8_t i = 0; i < 2; ++i) {
+            for (size_t i = 0; i < 2; ++i) {
                 auto dir_sign = i == 0 ? -1 : 1;
                 auto axis = separating_axis{};
                 axis.dir = cyl_axis * dir_sign; // Points towards cylinder.
@@ -72,7 +72,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 // Find vertices that have the lowest projection along axis.
                 scalar tri_proj;
                 triangle_feature tri_feature;
-                uint8_t tri_feature_index;
+                size_t tri_feature_index;
                 get_triangle_support_feature(vertices, posA_in_B, axis.dir, axis.tri_feature,
                                              axis.tri_feature_index, tri_proj);
                 axis.distance = -(shA.half_length + tri_proj);
@@ -139,7 +139,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         // Cylinder side wall edges.
         {
             // Cylinder side wall against triangle edges.
-            for (uint8_t i = 0; i < 3; ++i) {
+            for (size_t i = 0; i < 3; ++i) {
                 if (shB.trimesh->is_concave_edge[tri_idx * 3 + i]) {
                     continue;
                 }
@@ -176,9 +176,9 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     // of the vertices in the current edge, because otherwise there
                     // is another axis with greater projection distance.
                     auto max_proj = -EDYN_SCALAR_MAX;
-                    uint8_t max_vertex_idx;
+                    size_t max_vertex_idx;
 
-                    for (uint8_t j = 0; j < 3; ++j) {
+                    for (size_t j = 0; j < 3; ++j) {
                         auto proj = dot(axis.dir, vertices[j] - v0);
 
                         if (proj > max_proj) {
@@ -233,10 +233,10 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
         // Cylinder face edges.
         {
-            for (uint8_t i = 0; i < 2; ++i) {
+            for (size_t i = 0; i < 2; ++i) {
                 auto disc_center = i == 0 ? disc_center_pos : disc_center_neg;
 
-                for (uint8_t j = 0; j < 3; ++j) {
+                for (size_t j = 0; j < 3; ++j) {
                     auto &v0 = vertices[j];
                     auto &v1 = vertices[(j + 1) % 3];
                     size_t num_points;
@@ -364,11 +364,11 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 }
 
                 case TRIANGLE_FEATURE_FACE: {
-                    uint8_t num_edge_intersections = 0;
-                    uint8_t last_edge_index;
+                    size_t num_edge_intersections = 0;
+                    size_t last_edge_index;
 
                     // Check if circle and triangle edges intersect.
-                    for(uint8_t i = 0; i < 3; ++i) {
+                    for(size_t i = 0; i < 3; ++i) {
                         auto v0 = vertices[i];
                         auto v0_world = posB + rotate(ornB, v0);
                         auto v0_A = rotate(conjugate(ornA), v0_world - posA);
@@ -427,7 +427,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                             result.num_points = 3;
                             auto pivotA_x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
 
-                            for(uint8_t i = 0; i < 3; ++i) {
+                            for(size_t i = 0; i < 3; ++i) {
                                 auto vertex_B = vertices[i];
                                 auto vertex_world = posB + rotate(ornB, vertex_B);
                                 auto vertex_A = rotate(conjugate(ornA), vertex_world - posA);
@@ -444,7 +444,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                             // within the triangle.
                             result.num_points = 4;
                             auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
-                            for(uint8_t i = 0; i < 4; ++i) {
+                            for(size_t i = 0; i < 4; ++i) {
                                 auto pivotA_x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
                                 auto pivotA = vector3{pivotA_x, 
                                                       shA.radius * multipliers[i], 
@@ -514,7 +514,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
                     if (!c0_in_tri || !c1_in_tri) {
                         // One of them is outside. Perform segment intersection test.
-                        for (uint8_t i = 0; i < 3; ++i) {
+                        for (size_t i = 0; i < 3; ++i) {
                             scalar s[2], t[2];
                             vector3 p0[2], p1[2];
                             size_t num_points = 0;
@@ -523,7 +523,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                                           s[0], t[0], p0[0], p1[0], &num_points, 
                                                           &s[1], &t[1], &p0[1], &p1[1]);
 
-                            for (uint8_t i = 0; i < num_points; ++i) {
+                            for (size_t i = 0; i < num_points; ++i) {
                                 if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
                                     auto idx = result.num_points++;
                                     auto pA_in_B = p0[i] - tri_normal * shA.radius;
