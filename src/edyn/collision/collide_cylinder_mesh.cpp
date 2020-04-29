@@ -70,7 +70,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 triangle_feature tri_feature;
                 size_t tri_feature_index;
                 get_triangle_support_feature(vertices, posA_in_B, axis.dir, axis.tri_feature,
-                                             axis.tri_feature_index, tri_proj);
+                                             axis.tri_feature_index, tri_proj, threshold);
                 axis.distance = -(shA.half_length + tri_proj);
                 sep_axes.push_back(axis);
             }

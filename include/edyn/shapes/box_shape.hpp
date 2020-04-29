@@ -70,12 +70,14 @@ struct box_shape {
     }
 
     void support_feature(const vector3 &dir, box_feature &feature, 
-                         size_t &feature_index, scalar &projection) const;
+                         size_t &feature_index, scalar &projection,
+                         scalar threshold) const;
 
     void support_feature(const vector3 &pos, const quaternion &orn, 
                          const vector3 &axis_pos, const vector3 &axis_dir,
                          box_feature &feature, size_t &feature_index,
-                         scalar &projection) const;
+                         scalar &projection,
+                         scalar threshold) const;
 
     vector3 get_vertex(size_t i) const;
 

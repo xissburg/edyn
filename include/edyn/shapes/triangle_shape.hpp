@@ -34,7 +34,7 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
                                   const vector3 &axis_pos, const vector3 &axis_dir,
                                   triangle_feature &tri_feature,
                                   size_t &tri_feature_index,
-                                  scalar &projection);
+                                  scalar &projection, scalar threshold);
 
 }
 

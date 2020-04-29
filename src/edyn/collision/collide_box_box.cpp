@@ -47,7 +47,9 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             axis.dir = axisA; // Point towards A.
         }
 
-        shB.support_feature(posB, ornB, posA, axis.dir, axis.featureB, axis.feature_indexB, axis.distance);
+        shB.support_feature(posB, ornB, posA, axis.dir, 
+                            axis.featureB, axis.feature_indexB, 
+                            axis.distance, threshold);
         // `axis.distance` contains the projection of the furthest feature with
         // respect to the center of A, thus it's necessary to add half the extent
         // of A to push it to the surface.
@@ -71,7 +73,9 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             axis.dir = -axisB; // Point towards A.
         }
 
-        shA.support_feature(posA, ornA, posB, -axis.dir, axis.featureA, axis.feature_indexA, axis.distance);
+        shA.support_feature(posA, ornA, posB, -axis.dir, 
+                            axis.featureA, axis.feature_indexA, 
+                            axis.distance, threshold);
         axis.distance = -(shB.half_extents[i] + axis.distance);
     }
 
@@ -96,8 +100,12 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             }
 
             scalar projA, projB;
-            shA.support_feature(posA, ornA, posB, -axis.dir, axis.featureA, axis.feature_indexA, projA);
-            shB.support_feature(posB, ornB, posB, axis.dir, axis.featureB, axis.feature_indexB, projB);
+            shA.support_feature(posA, ornA, posB, -axis.dir, 
+                                axis.featureA, axis.feature_indexA, 
+                                projA, threshold);
+            shB.support_feature(posB, ornB, posB, axis.dir, 
+                                axis.featureB, axis.feature_indexB, 
+                                projB, threshold);
             axis.distance = -(projA + projB);
 
             ++axis_idx;

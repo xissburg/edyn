@@ -36,7 +36,7 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
                                   const vector3 &axis_pos, const vector3 &axis_dir,
                                   triangle_feature &tri_feature,
                                   size_t &tri_feature_index,
-                                  scalar &projection) {
+                                  scalar &projection, scalar threshold) {
     projection = -large_scalar;
 
     for (size_t i = 0; i < 3; ++i) {
@@ -46,7 +46,7 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
         // If the projection is near the current maximum, it means 
         // there's another vertex already at that spot, thus the 
         // feature could be either an edge or the face.
-        if (i > 0 && std::abs(proj_i - projection) < contact_breaking_threshold) {
+        if (i > 0 && std::abs(proj_i - projection) < threshold) {
             // If the maximum feature is a vertex, then the current vertex
             // is included to form an edge.
             if (tri_feature == TRIANGLE_FEATURE_VERTEX) {

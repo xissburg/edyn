@@ -84,8 +84,12 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             triangle_feature neg_tri_feature, pos_tri_feature;
             size_t neg_tri_feature_index, pos_tri_feature_index;
             scalar neg_tri_proj, pos_tri_proj;
-            get_triangle_support_feature(vertices, posA_in_B, -axisA, neg_tri_feature, neg_tri_feature_index, neg_tri_proj);
-            get_triangle_support_feature(vertices, posA_in_B, axisA, pos_tri_feature, pos_tri_feature_index, pos_tri_proj);
+            get_triangle_support_feature(vertices, posA_in_B, -axisA, 
+                                         neg_tri_feature, neg_tri_feature_index, 
+                                         neg_tri_proj, threshold);
+            get_triangle_support_feature(vertices, posA_in_B, axisA, 
+                                         pos_tri_feature, pos_tri_feature_index, 
+                                         pos_tri_proj, threshold);
 
             if (neg_tri_proj < pos_tri_proj) {
                 axis.dir = -axisA;
@@ -127,7 +131,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             shA.support_feature(posA_in_B, ornA_in_B, 
                                 vertices[0], -tri_normal, 
                                 axis.featureA, axis.feature_indexA, 
-                                axis.distance);
+                                axis.distance, threshold);
             // Make distance negative when penetrating.
             axis.distance *= -1;
         }
@@ -158,8 +162,12 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 }
 
                 scalar projA, projB;
-                shA.support_feature(posA_in_B, ornA_in_B, vertices[j], -axis.dir, axis.featureA, axis.feature_indexA, projA);
-                get_triangle_support_feature(vertices, vertices[j], axis.dir, axis.featureB, axis.feature_indexB, projB);
+                shA.support_feature(posA_in_B, ornA_in_B, vertices[j], -axis.dir, 
+                                    axis.featureA, axis.feature_indexA, 
+                                    projA, threshold);
+                get_triangle_support_feature(vertices, vertices[j], axis.dir, 
+                                             axis.featureB, axis.feature_indexB, 
+                                             projB, threshold);
                 axis.distance = -(projA + projB);
 
                 // Support feature must be the current edge.

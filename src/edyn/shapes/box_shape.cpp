@@ -5,8 +5,8 @@
 namespace edyn {
 
 void box_shape::support_feature(const vector3 &dir, box_feature &feature, 
-                                size_t &feature_index, scalar &projection) const {
-    scalar threshold = 0.02;
+                                size_t &feature_index, scalar &projection,
+                                scalar threshold) const {
     std::array<scalar, 8> projections;
     size_t max_idx;
     projection = -EDYN_SCALAR_MAX;
@@ -66,9 +66,9 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
 void box_shape::support_feature(const vector3 &pos, const quaternion &orn, 
                                 const vector3 &axis_pos, const vector3 &axis_dir,
                                 box_feature &feature, size_t &feature_index,
-                                scalar &projection) const {
+                                scalar &projection, scalar threshold) const {
     auto local_dir = rotate(conjugate(orn), axis_dir);
-    support_feature(local_dir, feature, feature_index, projection);
+    support_feature(local_dir, feature, feature_index, projection, threshold);
     projection += dot(pos - axis_pos, axis_dir);
 }
 
