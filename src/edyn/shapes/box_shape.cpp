@@ -4,6 +4,56 @@
 
 namespace edyn {
 
+AABB box_shape::aabb(const vector3 &pos, const quaternion &orn) const {
+    // Reference: Real-Time Collision Detection - Christer Ericson, section 4.2.6.
+    auto aabb = AABB{pos, pos};
+    auto basis = to_matrix3x3(orn);
+
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            auto e = basis[i][j] * -half_extents[j];
+            auto f = -e;
+
+            if (e < f) {
+                aabb.min[i] += e;
+                aabb.max[i] += f;
+            } else {
+                aabb.min[i] += f;
+                aabb.max[i] += e;
+            }
+        }
+    }
+
+    return aabb;
+}
+
+vector3 box_shape::inertia(scalar mass) const {
+    auto extents = half_extents * 2;
+    return scalar(1) / scalar(12) * mass * vector3{
+        extents.y * extents.y + extents.z * extents.z,
+        extents.z * extents.z + extents.x * extents.x,
+        extents.x * extents.x + extents.y * extents.y,
+    };
+}
+
+vector3 box_shape::support_point(const vector3 &dir) const {
+    return {
+        dir.x > 0 ? half_extents.x : -half_extents.x,
+        dir.y > 0 ? half_extents.y : -half_extents.y,
+        dir.z > 0 ? half_extents.z : -half_extents.z
+    };
+}
+
+vector3 box_shape::support_point(const quaternion &orn, const vector3 &dir) const {
+    auto local_dir = rotate(conjugate(orn), dir);
+    auto pt = support_point(local_dir);
+    return rotate(orn, pt);
+}
+
+vector3 box_shape::support_point(const vector3 &pos, const quaternion &orn, const vector3 &dir) const {
+    return pos + support_point(orn, dir);
+}
+
 void box_shape::support_feature(const vector3 &dir, box_feature &feature, 
                                 size_t &feature_index, scalar &projection,
                                 scalar threshold) const {
