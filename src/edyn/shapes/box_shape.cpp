@@ -143,23 +143,9 @@ vector3 box_shape::get_vertex(size_t i, const vector3 &pos, const quaternion &or
 
 std::array<vector3, 2> box_shape::get_edge(size_t i) const {
     EDYN_ASSERT(i < 12);
-    constexpr size_t indices[] = {
-        0, 1,
-        1, 2,
-        2, 3,
-        3, 0,
-        4, 5,
-        5, 6,
-        6, 7,
-        7, 4,
-        0, 4,
-        1, 7,
-        2, 6,
-        3, 5
-    };
     return {
-        get_vertex(indices[i * 2 + 0]),
-        get_vertex(indices[i * 2 + 1])
+        get_vertex(edge_indices[i * 2 + 0]),
+        get_vertex(edge_indices[i * 2 + 1])
     };
 }
 
@@ -173,19 +159,11 @@ std::array<vector3, 2> box_shape::get_edge(size_t i, const vector3 &pos, const q
 
 std::array<vector3, 4> box_shape::get_face(size_t i) const {
     EDYN_ASSERT(i < 6);
-    constexpr size_t indices[] = {
-        0, 1, 2, 3,
-        4, 5, 6, 7,
-        0, 3, 5, 4,
-        1, 7, 6, 2,
-        0, 4, 7, 1,
-        3, 2, 6, 5
-    };
     return {
-        get_vertex(indices[i * 4 + 0]),
-        get_vertex(indices[i * 4 + 1]),
-        get_vertex(indices[i * 4 + 2]),
-        get_vertex(indices[i * 4 + 3])
+        get_vertex(face_indices[i * 4 + 0]),
+        get_vertex(face_indices[i * 4 + 1]),
+        get_vertex(face_indices[i * 4 + 2]),
+        get_vertex(face_indices[i * 4 + 3])
     };
 }
 
@@ -216,25 +194,10 @@ vector3 box_shape::get_face_normal(size_t i, const quaternion &orn) const {
     return rotate(orn, get_face_normal(i));
 }
 
-size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {
-    constexpr size_t indices[] = {
-        0, 1,
-        1, 2,
-        2, 3,
-        3, 0,
-        4, 5,
-        5, 6,
-        6, 7,
-        7, 4,
-        0, 4,
-        1, 7,
-        2, 6,
-        3, 5
-    };
-    
+size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {    
     for (size_t i = 0; i < 12; ++i) {
-        auto idx0 = indices[i * 2];
-        auto idx1 = indices[i * 2 + 1];
+        auto idx0 = edge_indices[i * 2];
+        auto idx1 = edge_indices[i * 2 + 1];
 
         if ((idx0 == v0_idx && idx1 == v1_idx) ||
             (idx1 == v0_idx && idx0 == v1_idx)) {
@@ -247,23 +210,14 @@ size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {
 
 size_t box_shape::get_face_index(size_t v0_idx, size_t v1_idx,
                                  size_t v2_idx, size_t v3_idx) const {
-    constexpr size_t indices[] = {
-        0, 1, 2, 3,
-        4, 5, 6, 7,
-        0, 3, 5, 4,
-        1, 7, 6, 2,
-        0, 4, 7, 1,
-        3, 2, 6, 5
-    };
-
     const auto vidx_set = std::unordered_set<size_t>{v0_idx, v1_idx, v2_idx, v3_idx};
     
     for (size_t i = 0; i < 6; ++i) {
         const auto idx_set = std::unordered_set<size_t>{
-            indices[i * 4 + 0],
-            indices[i * 4 + 1],
-            indices[i * 4 + 2],
-            indices[i * 4 + 3]
+            face_indices[i * 4 + 0],
+            face_indices[i * 4 + 1],
+            face_indices[i * 4 + 2],
+            face_indices[i * 4 + 3]
         };
 
         if (vidx_set == idx_set) {

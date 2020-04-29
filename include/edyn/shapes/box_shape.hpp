@@ -19,43 +19,172 @@ enum box_feature {
 struct box_shape {
     vector3 half_extents;
 
+    static constexpr size_t edge_indices[] = {
+        0, 1,
+        1, 2,
+        2, 3,
+        3, 0,
+        4, 5,
+        5, 6,
+        6, 7,
+        7, 4,
+        0, 4,
+        1, 7,
+        2, 6,
+        3, 5
+    };
+
+    static constexpr size_t face_indices[] = {
+        0, 1, 2, 3,
+        4, 5, 6, 7,
+        0, 3, 5, 4,
+        1, 7, 6, 2,
+        0, 4, 7, 1,
+        3, 2, 6, 5
+    };
+
     AABB aabb(const vector3 &pos, const quaternion &orn) const;
 
     vector3 inertia(scalar mass) const;
 
+    /**
+     * Get support point in object space.
+     * @param dir Direction vector in object space.
+     * @return Support point in object space.
+     */
     vector3 support_point(const vector3 &dir) const;
 
+    /**
+     * Get support point with rotation and no translation.
+     * @param orn Orientation.
+     * @param dir Direction vector.
+     * @return Support point.
+     */
     vector3 support_point(const quaternion &orn, const vector3 &dir) const;
     
+    /**
+     * Get support point in world space.
+     * @param pos Position of geometric center.
+     * @param orn Orientation.
+     * @param dir Direction vector.
+     * @return Support point in world space.
+     */
     vector3 support_point(const vector3 &pos, const quaternion &orn, const vector3 &dir) const;
 
-    void support_feature(const vector3 &dir, box_feature &feature, 
-                         size_t &feature_index, scalar &projection,
+    /**
+     * Get feature (vertex or edge or face) that's furthest along a direction 
+     * in object space.
+     * @param dir Direction vector, in object space.
+     * @param out_feature The feature type.
+     * @param out_feature_index The feature index.
+     * @param out_projection The projection of the feature along the direction.
+     * @param threshold Parameter that gives extra margin in the feature 
+     *        classification.
+     */
+    void support_feature(const vector3 &dir, box_feature &out_feature, 
+                         size_t &out_feature_index, scalar &out_projection,
                          scalar threshold) const;
 
+    /**
+     * Get feature (vertex or edge or face) that's furthest along a direction 
+     * in world space.
+     * @param pos Position of geometric center.
+     * @param orn Orientation.
+     * @param axis_pos A point in the line used as axis.
+     * @param axis_dir Direction vector, in world space.
+     * @param out_feature The feature type.
+     * @param out_feature_index The feature index.
+     * @param out_projection The projection of the feature along the direction.
+     * @param threshold Parameter that gives extra margin in the feature 
+     *        classification.
+     */
     void support_feature(const vector3 &pos, const quaternion &orn, 
                          const vector3 &axis_pos, const vector3 &axis_dir,
-                         box_feature &feature, size_t &feature_index,
-                         scalar &projection,
+                         box_feature &out_feature, size_t &out_feature_index,
+                         scalar &out_projection,
                          scalar threshold) const;
 
+    /**
+     * Get vertex position in object space.
+     * @param i The vertex index in [0, 8).
+     * @return Vertex position in object space.
+     */
     vector3 get_vertex(size_t i) const;
 
+    /**
+     * Get vertex position in world space.
+     * @param i The vertex index in [0, 8).
+     * @param pos Position of geometric center.
+     * @param orn Orientation.
+     * @return Vertex position in world space.
+     */
     vector3 get_vertex(size_t i, const vector3 &pos, const quaternion &orn) const;
 
+    /**
+     * Get vertex positions of an edge in object space.
+     * @param i Edge index in [0, 12).
+     * @return Position of the two vertices in object space.
+     */
     std::array<vector3, 2> get_edge(size_t i) const;
 
+    /**
+     * Get vertex positions of an edge in world space.
+     * @param i Edge index in [0, 12).
+     * @param pos Position of geometric center.
+     * @param orn Orientation.
+     * @return Position of the two vertices in world space.
+     */
     std::array<vector3, 2> get_edge(size_t i, const vector3 &pos, const quaternion &orn) const;
 
+    /**
+     * Get the vertex positions of a face in object space.
+     * @param i Face index in [0, 6).
+     * @return Position of the four vertices in object space.
+     */
     std::array<vector3, 4> get_face(size_t i) const;
 
+    /**
+     * Get the vertex positions of a face in world space.
+     * @param i Face index in [0, 6).
+     * @param pos Position of geometric center.
+     * @param orn Orientation.
+     * @return Position of the four vertices in world space.
+     */
     std::array<vector3, 4> get_face(size_t i, const vector3 &pos, const quaternion &orn) const;
 
+    /**
+     * Get face normal in object space.
+     * @param i Face index in [0, 6).
+     * @return Face normal in object space.
+     */
     vector3 get_face_normal(size_t i) const;
 
+    /**
+     * Get face normal in world space.
+     * @param i Face index in [0, 6).
+     * @param orn Orientation.
+     * @return Face normal in world space.
+     */
     vector3 get_face_normal(size_t i, const quaternion &orn) const;
 
+    /**
+     * Get edge index from vertex indices.
+     * @param v0_idx Index of first vertex.
+     * @param v1_idx Index of second vertex.
+     * @return Edge index.
+     * @remarks Order does not matter.
+     */
     size_t get_edge_index(size_t v0_idx, size_t v1_idx) const;
+
+    /**
+     * Get face index from vertex indices.
+     * @param v0_idx Index of first vertex.
+     * @param v1_idx Index of second vertex.
+     * @param v2_idx Index of third vertex.
+     * @param v3_idx Index of fourth vertex.
+     * @return Face index.
+     * @remarks Order does not matter.
+     */
     size_t get_face_index(size_t v0_idx, size_t v1_idx,
                           size_t v2_idx, size_t v3_idx) const;
 };
