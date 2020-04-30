@@ -54,25 +54,70 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
         const auto edges = get_triangle_edges(vertices);
         const auto tri_normal = normalize(cross(edges[0], edges[1]));
+        bool is_concave_edge[3];
+        bool is_concave_vertex[3];
+
+        for (int i = 0; i < 3; ++i) {
+            is_concave_edge[i] = shB.trimesh->is_concave_edge[tri_idx * 3 + i];
+        }
+
+        for (int i = 0; i < 3; ++i) {
+            // If edge starting or ending in this vertex are concave then thus is the vertex.
+            is_concave_vertex[i] = is_concave_edge[i] || is_concave_edge[(i + 2) % 3];
+        }
+
+        vector3 edge_tangents[3];
+
+        for (int i = 0; i < 3; ++i) {
+            edge_tangents[i] = cross(edges[i], tri_normal);
+        }
 
         // Cylinder cap normal. Test both directions of the cylinder axis to
         // cover both caps.
         {
-            for (size_t i = 0; i < 2; ++i) {
-                auto dir_sign = i == 0 ? -1 : 1;
-                auto axis = separating_axis{};
-                axis.dir = cyl_axis * dir_sign; // Points towards cylinder.
-                axis.cyl_feature = CYLINDER_FEATURE_FACE;
-                axis.cyl_feature_index = i;
+            auto axis = separating_axis{};
+            axis.cyl_feature = CYLINDER_FEATURE_FACE;
 
-                // Find vertices that have the lowest projection along axis.
-                scalar tri_proj;
-                triangle_feature tri_feature;
-                size_t tri_feature_index;
-                get_triangle_support_feature(vertices, posA_in_B, axis.dir, axis.tri_feature,
-                                             axis.tri_feature_index, tri_proj, threshold);
-                axis.distance = -(shA.half_length + tri_proj);
-                sep_axes.push_back(axis);
+            // Find vertices that have the lowest projection along axis.
+            triangle_feature neg_tri_feature, pos_tri_feature;
+            size_t neg_tri_feature_index, pos_tri_feature_index;
+            scalar neg_tri_proj, pos_tri_proj;
+            get_triangle_support_feature(vertices, posA_in_B, axis.dir, 
+                                         pos_tri_feature, pos_tri_feature_index, 
+                                         pos_tri_proj, threshold);
+            get_triangle_support_feature(vertices, posA_in_B, -axis.dir, 
+                                         neg_tri_feature, neg_tri_feature_index, 
+                                         neg_tri_proj, threshold);
+            
+            // If the projection along the positive axis is smaller then the triangle
+            // penetrating through the negative face and vice-versa.
+            if (neg_tri_proj < pos_tri_proj) {
+                axis.dir = -cyl_axis;
+                axis.cyl_feature_index = 0;
+                axis.tri_feature = neg_tri_feature;
+                axis.tri_feature_index = neg_tri_feature_index;
+                axis.distance = -(shA.half_length + neg_tri_proj);
+            } else {
+                axis.dir = cyl_axis;
+                axis.cyl_feature_index = 1;
+                axis.tri_feature = pos_tri_feature;
+                axis.tri_feature_index = pos_tri_feature_index;
+                axis.distance = -(shA.half_length + pos_tri_proj);
+            }
+
+            if (axis.tri_feature == TRIANGLE_FEATURE_VERTEX) {
+                if (!is_concave_vertex[axis.tri_feature_index]) {
+                    sep_axes.push_back(axis);
+                }
+            } else if (axis.tri_feature == TRIANGLE_FEATURE_EDGE) {
+                    // Ignore concave edges.
+                if (!is_concave_edge[axis.tri_feature_index]) {
+                    // Direction must be in the edge's Voronoi region.
+                    if (dot(axis.dir, edge_tangents[axis.tri_feature_index]) > 0 &&
+                        dot(axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + axis.tri_feature_index]) {
+                        sep_axes.push_back(axis);
+                    }
+                }
             }
         }
 
@@ -83,91 +128,52 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             axis.tri_feature = TRIANGLE_FEATURE_FACE;
             axis.dir = tri_normal;
 
-            auto axis_dot = dot(tri_normal, cyl_axis);
-
-            if (std::abs(axis_dot) + EDYN_EPSILON >= 1) {
-                // Cylinder is orthogonal to triangle face.
-                axis.cyl_feature = CYLINDER_FEATURE_FACE;
-                axis.cyl_feature_index = axis_dot > 0 ? 1 : 0;
-                auto disc_center = axis_dot > 0 ? disc_center_neg : disc_center_pos;
-                axis.distance = dot(tri_normal, disc_center - v0);
-            } else if (std::abs(axis_dot) <= EDYN_EPSILON) {
-                // Cylinder side is parallel to triangle face.
-                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
-                axis.distance = dot(tri_normal, disc_center_pos - v0) - shA.radius;
-            } else {
-                // Get support points for both discs in the opposite direction
-                // of triangle normal.
-                auto sup_pos = support_point_circle(shA.radius, disc_center_pos, ornA_in_B, -tri_normal);
-                auto sup_neg = support_point_circle(shA.radius, disc_center_neg, ornA_in_B, -tri_normal);
-                auto proj_pos = dot(sup_pos - v0, axis.dir);
-                auto proj_neg = dot(sup_neg - v0, axis.dir);
-
-                // If support points are not further apart than threshold along the 
-                // triangle normal, consider the cylinder to by laying on its side.
-                if (std::abs(proj_pos - proj_neg) < threshold) {
-                    // Cylinder side is parallel to triangle face.
-                    axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
-                    // The correct distance would be the minumum of the projections but,
-                    // using the maximum helps this axis have priority over cylinder-edge
-                    // vs triangle-edge which is good for contact persistence when 
-                    // rolling while partly over the triangle face.
-                    axis.distance = std::max(proj_pos, proj_neg);
-                } else {
-                    axis.cyl_feature = CYLINDER_FEATURE_FACE_EDGE;
-                    
-                    // Select deepest disc.
-                    if (proj_pos < proj_neg) {
-                        axis.cyl_feature_index = 0;
-                        axis.distance = proj_pos;
-                        axis.pivotA = sup_pos;
-                    } else {
-                        axis.cyl_feature_index = 1;
-                        axis.distance = proj_neg;
-                        axis.pivotA = sup_neg;
-                    }
-                }
-            }
-
+            shA.support_feature(posA_in_B, ornA_in_B, vertices[0], -tri_normal, 
+                                axis.cyl_feature, axis.cyl_feature_index, 
+                                axis.pivotA, axis.distance, threshold);
+            // Make distance negative when penetrating.
+            axis.distance *= -1;
             sep_axes.push_back(axis);
         }
 
         // Cylinder side wall edges.
-        {
-            // Cylinder side wall against triangle edges.
-            for (size_t i = 0; i < 3; ++i) {
-                if (shB.trimesh->is_concave_edge[tri_idx * 3 + i]) {
-                    continue;
+        for (size_t i = 0; i < 3; ++i) {
+            // Ignore concave edges.
+            if (is_concave_edge[i]) {
+                continue;
+            }
+
+            // Test cylinder axis against triangle edge.
+            const auto &v0 = vertices[i];
+            const auto &v1 = vertices[(i + 1) % 3];
+            scalar s, t;
+            vector3 p0, p1;
+            auto dist_sqr = closest_point_segment_segment(disc_center_pos, disc_center_neg, 
+                                                            v0, v1, s, t, p0, p1);
+
+            if (t > 0 && t < 1) {
+                // Within segment.
+                auto axis = separating_axis{};
+                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                axis.tri_feature = TRIANGLE_FEATURE_EDGE;
+                axis.tri_feature_index = i;
+                axis.dir = cross(edges[i], cyl_axis);
+
+                if (length2(axis.dir) <= EDYN_EPSILON) {
+                    // Parallel. Find a vector that's orthogonal to both
+                    // which lies in the same plane.
+                    auto plane_normal = cross(edges[i], disc_center_pos - v0);
+                    axis.dir = cross(plane_normal, edges[i]);
                 }
 
-                const auto &v0 = vertices[i];
-                const auto &v1 = vertices[(i + 1) % 3];
-                scalar s, t;
-                vector3 p0, p1;
-                closest_point_segment_segment(disc_center_pos, disc_center_neg, v0, v1,
-                                              s, t, p0, p1);
+                if (dot(posA_in_B - v0, axis.dir) < 0) {
+                    axis.dir *= -1;
+                }
 
-                // If the closest point parameter is in (0,1) we've hit a triangle edge.
-                if (t > 0 && t < 1) {
-                    auto axis = separating_axis{};
-                    axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
-                    axis.tri_feature = TRIANGLE_FEATURE_EDGE;
-                    axis.tri_feature_index = i;
-                    axis.dir = cross(edges[i], cyl_axis);
+                axis.dir = normalize(axis.dir);
 
-                    if (length2(axis.dir) <= EDYN_EPSILON) {
-                        // Parallel. Find a vector that's orthogonal to both
-                        // which lies in the same plane.
-                        auto plane_normal = cross(edges[i], disc_center_pos - v0);
-                        axis.dir = cross(plane_normal, edges[i]);
-                    }
-
-                    if (dot(posA_in_B - v0, axis.dir) < 0) {
-                        axis.dir *= -1;
-                    }
-
-                    axis.dir = normalize(axis.dir);
-
+                // Direction must be in the edge's Voronoi region.
+                if (dot(axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + i]) {
                     // The vertex with greatest projection along axis has to be one
                     // of the vertices in the current edge, because otherwise there
                     // is another axis with greater projection distance.
@@ -184,34 +190,35 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     }
 
                     if (max_vertex_idx == i || max_vertex_idx == (i + 1) % 3) {
-                        auto sup = shA.support_point(posA_in_B, ornA_in_B, -axis.dir);
-                        axis.distance = -(dot(-axis.dir, sup - v0) + max_proj);
                         axis.pivotA = p0 - axis.dir * shA.radius;
                         axis.pivotB = p1;
+                        axis.distance = std::sqrt(dist_sqr) - shA.radius;
                         sep_axes.push_back(axis);
                     }
-                } else if (t == 0) {
-                    // If the closest point parameter is zero it means it is the first
-                    // vertex in the edge. It's unecessary to handle the second vertex
-                    // because it is the first vertex of one of the other edges being
-                    // tested.
-                    auto axis = separating_axis{};
-                    axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
-                    axis.tri_feature = TRIANGLE_FEATURE_VERTEX;
-                    axis.tri_feature_index = i;
+                }
+            } else if (t == 0 && !is_concave_vertex[i]) {
+                // If the closest point parameter is zero it means it is the first
+                // vertex in the edge. It's unecessary to handle the second vertex
+                // because it is the first vertex of the next edge.
+                auto axis = separating_axis{};
+                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                axis.tri_feature = TRIANGLE_FEATURE_VERTEX;
+                axis.tri_feature_index = i;
 
-                    // Find closest point in cylinder segment to this vertex and use the
-                    // axis connecting them as the separating axis.
-                    scalar r;
-                    vector3 closest;
-                    auto dist_sqr = closest_point_segment(disc_center_pos, disc_center_neg, 
-                                                          v0, r, closest);
+                // Find closest point in cylinder segment to this vertex and use the
+                // axis connecting them as the separating axis.
+                scalar r;
+                vector3 closest;
+                auto dist_sqr = closest_point_segment(disc_center_pos, disc_center_neg, 
+                                                        v0, r, closest);
 
-                    // Ignore points at the extremes.
-                    if (r > 0 && r < 1) {
-                        auto dist = std::sqrt(dist_sqr);
-                        axis.dir = dist > EDYN_EPSILON ? (closest - v0) / dist : vector3_x;
+                // Ignore points at the extremes.
+                if (r > 0 && r < 1) {
+                    auto dist = std::sqrt(dist_sqr);
+                    axis.dir = dist > EDYN_EPSILON ? (closest - v0) / dist : vector3_x;
 
+                    // Direction must be in the edge's Voronoi region.
+                    if (dot(axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + i]) {
                         // It has to be the vertex closest to the cylinder along this axis.
                         // Note that `dist = dot(-axis.dir, vertices[i] - disc_center_pos)`.
                         auto proj0 = dot(-axis.dir, vertices[(i + 1) % 3] - disc_center_pos);
@@ -228,26 +235,34 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         }
 
         // Cylinder face edges.
-        {
-            for (size_t i = 0; i < 2; ++i) {
-                auto disc_center = i == 0 ? disc_center_pos : disc_center_neg;
+        for (size_t i = 0; i < 2; ++i) {
+            auto disc_center = i == 0 ? disc_center_pos : disc_center_neg;
 
-                for (size_t j = 0; j < 3; ++j) {
-                    auto &v0 = vertices[j];
-                    auto &v1 = vertices[(j + 1) % 3];
-                    size_t num_points;
-                    scalar s0, s1;
-                    vector3 cc0, cl0, cc1, cl1;
-                    vector3 normal;
-                    closest_point_disc_line(disc_center, ornA_in_B, shA.radius, v0, v1, 
-                                            num_points, s0, cc0, cl0, s1, cc1, cl1, normal, threshold);
-                    
-                    if (s0 > 0 && s0 < 1) {
-                        // Make normal point towards cylinder center.
-                        if (dot(normal, posA_in_B - cl0) < 0) {
-                            normal *= -1;
-                        }
+            // Find closest point between circle and triangle edge segment. 
+            for (size_t j = 0; j < 3; ++j) {
+                // Ignore concave edges.
+                if (is_concave_edge[j]) {
+                    continue;
+                }
 
+                auto &v0 = vertices[j];
+                auto &v1 = vertices[(j + 1) % 3];
+
+                size_t num_points;
+                scalar s0, s1;
+                vector3 cc0, cl0, cc1, cl1;
+                vector3 normal;
+                closest_point_disc_line(disc_center, ornA_in_B, shA.radius, v0, v1, 
+                                        num_points, s0, cc0, cl0, s1, cc1, cl1, normal, threshold);
+                
+                if (s0 > 0 && s0 < 1) {
+                    // Make normal point towards cylinder center.
+                    if (dot(normal, posA_in_B - cl0) < 0) {
+                        normal *= -1;
+                    }
+
+                    // Direction must be in the edge's Voronoi region.
+                    if (dot(normal, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + i]) {
                         // The vertex with greatest projection along axis has to be one
                         // of the vertices in the current edge, because otherwise there
                         // is another axis with greater projection distance.
@@ -280,7 +295,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
         // Get axis with greatest penetration.
         auto penetration = -EDYN_SCALAR_MAX;
-        uint16_t sep_axis_idx = UINT16_MAX;
+        auto sep_axis_idx = SIZE_MAX;
 
         for (size_t i = 0; i < sep_axes.size(); ++i) {
             auto &axis = sep_axes[i];
@@ -291,256 +306,253 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             }
         }
 
-        if (penetration < threshold && sep_axis_idx != UINT16_MAX) {
-            auto &axis = sep_axes[sep_axis_idx];
+        if (penetration > threshold || sep_axis_idx == SIZE_MAX) {
+            return;
+        }
 
-            switch (axis.cyl_feature) {
-            case CYLINDER_FEATURE_FACE:
-                switch (axis.tri_feature) {
-                case TRIANGLE_FEATURE_VERTEX: {
-                    auto vertex = vertices[axis.tri_feature_index];
-                    auto vertex_world = posB + rotate(ornB, vertex);
-                    auto vertex_in_A = rotate(conjugate(ornA), vertex_world - posA);
+        auto &sep_axis = sep_axes[sep_axis_idx];
+
+        switch (sep_axis.cyl_feature) {
+        case CYLINDER_FEATURE_FACE:
+            switch (sep_axis.tri_feature) {
+            case TRIANGLE_FEATURE_VERTEX: {
+                auto vertex = vertices[sep_axis.tri_feature_index];
+                vector3 closest; scalar t;
+                auto dir = disc_center_pos - disc_center_neg;
+                auto dist_sqr = closest_point_line(disc_center_neg, dir, vertex, t, closest);
+
+                if (dist_sqr <= shA.radius * shA.radius) {
+                    auto vertex_in_A = rotate(conjugate(ornA_in_B), vertex - posA_in_B);
                     auto vertex_proj_in_A = vertex_in_A;
-                    vertex_proj_in_A.x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
-                    result.maybe_add_point({vertex_proj_in_A, vertex, axis.dir, axis.distance});
-                    break;
+                    vertex_proj_in_A.x = shA.half_length * (sep_axis.cyl_feature_index == 0 ? 1 : -1);
+                    result.maybe_add_point({vertex_proj_in_A, vertex, sep_axis.dir, sep_axis.distance});
                 }
+                break;
+            }
 
-                case TRIANGLE_FEATURE_EDGE: {
-                    if (dot(axis.dir, tri_normal) < shB.trimesh->cos_angles[tri_idx * 3 + axis.tri_feature_index]) {
-                        break;
+            case TRIANGLE_FEATURE_EDGE: {
+                // Intersect edge with circular face.
+                auto v0 = vertices[sep_axis.tri_feature_index];
+                auto v0_A = to_object_space(v0, posA_in_B, ornA_in_B);
+
+                auto v1 = vertices[(sep_axis.tri_feature_index + 1) % 3];
+                auto v1_A = to_object_space(v1, posA_in_B, ornA_in_B);
+
+                scalar s0, s1;
+                auto num_points = intersect_line_circle(v0_A.z, v0_A.y, 
+                                                        v1_A.z, v1_A.y, 
+                                                        shA.radius, s0, s1);
+
+                EDYN_ASSERT(num_points > 0);
+
+                s0 = clamp_unit(s0);
+                auto p0 = lerp(v0_A, v1_A, s0);
+                auto pivotA_x = shA.half_length * (sep_axis.cyl_feature_index == 0 ? 1 : -1);
+                auto p0_B = posA_in_B + rotate(ornA_in_B, p0);
+
+                auto pivotA = vector3{pivotA_x, p0.y, p0.z};
+                result.maybe_add_point({pivotA, p0_B, sep_axis.dir, sep_axis.distance});
+
+                if (num_points == 2) {
+                    s1 = clamp_unit(s1);
+                    auto p1 = lerp(v0_A, v1_A, s1);
+                    auto p1_B = posA_in_B + rotate(ornA_in_B, p1);
+
+                    auto pivotA = vector3{pivotA_x, p1.y, p1.z};
+                    result.maybe_add_point({pivotA, p1_B, sep_axis.dir, sep_axis.distance});
+                }
+                break;
+            }
+
+            case TRIANGLE_FEATURE_FACE: {
+                size_t num_edge_intersections = 0;
+                size_t last_edge_index;
+
+                // Check if circle and triangle edges intersect.
+                for(size_t i = 0; i < 3; ++i) {
+                    // Ignore concave edges.
+                    if (is_concave_edge[i]) {
+                        continue;
                     }
-                    // Intersect edge with circular face.
-                    auto v0 = vertices[axis.tri_feature_index];
-                    auto v0_world = posB + rotate(ornB, v0);
-                    auto v0_A = rotate(conjugate(ornA), v0_world - posA);
+                    
+                    auto v0 = vertices[i];
+                    auto v0_A = to_object_space(v0, posA_in_B, ornA_in_B);
 
-                    auto v1 = vertices[(axis.tri_feature_index + 1) % 3];
-                    auto v1_world = posB + rotate(ornB, v1);
-                    auto v1_A = rotate(conjugate(ornA), v1_world - posA);
+                    auto v1 = vertices[(i + 1) % 3];
+                    auto v1_A = to_object_space(v1, posA_in_B, ornA_in_B);
 
                     scalar s0, s1;
                     auto num_points = intersect_line_circle(v0_A.z, v0_A.y, 
                                                             v1_A.z, v1_A.y, 
                                                             shA.radius, s0, s1);
 
-                    EDYN_ASSERT(num_points > 0);
+                    if (num_points == 0) {
+                        continue;
+                    }
+
+                    ++num_edge_intersections;
+                    last_edge_index = i;
 
                     s0 = clamp_unit(s0);
-                    auto p0 = lerp(v0_A, v1_A, s0);
-                    auto pivotA_x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
-                    auto p0_world = posA + rotate(ornA, p0);
-                    auto p0_B = rotate(conjugate(ornB), p0_world - posB);
+                    auto p0_B = lerp(v0, v1, s0);
 
-                    auto pivotA = vector3{pivotA_x, p0.y, p0.z};
-                    result.maybe_add_point({pivotA, p0_B, axis.dir, axis.distance});
+                    auto pivotA_x = shA.half_length * (sep_axis.cyl_feature_index == 0 ? 1 : -1);
+                    auto p0_A = lerp(v0_A, v1_A, s0);
+                    auto pivotA = vector3{pivotA_x, p0_A.y, p0_A.z};
+                    result.maybe_add_point({pivotA, p0_B, sep_axis.dir, sep_axis.distance});
 
                     if (num_points == 2) {
                         s1 = clamp_unit(s1);
-                        auto p1 = lerp(v0_A, v1_A, s1);
-                        auto p1_world = posA + rotate(ornA, p1);
-                        auto p1_B = rotate(conjugate(ornB), p1_world - posB);
+                        auto p1_B = lerp(v0, v1, s1);
 
-                        auto pivotA = vector3{pivotA_x, p1.y, p1.z};
-                        result.maybe_add_point({pivotA, p1_B, axis.dir, axis.distance});
+                        auto p1_A = lerp(v0_A, v1_A, s1);
+                        auto pivotA = vector3{pivotA_x, p1_A.y, p1_A.z};
+                        result.maybe_add_point({pivotA, p1_B, sep_axis.dir, sep_axis.distance});
                     }
-                    break;
                 }
 
-                case TRIANGLE_FEATURE_FACE: {
-                    size_t num_edge_intersections = 0;
-                    size_t last_edge_index;
+                if (num_edge_intersections == 0) {
+                    // Either circle is contained in triangle or triangle is contained in circle.
+                    // If the circle doesn't intersect the edges of the triangle and the distance
+                    // between one vertex of the triangle and the center of the circle is smaller
+                    // than the radius, it means the triangle is contained within the circle.
+                    scalar t;
+                    vector3 r;
 
-                    // Check if circle and triangle edges intersect.
-                    for(size_t i = 0; i < 3; ++i) {
-                        auto v0 = vertices[i];
-                        auto v0_world = posB + rotate(ornB, v0);
-                        auto v0_A = rotate(conjugate(ornA), v0_world - posA);
+                    if (closest_point_line(posA_in_B, sep_axis.dir, vertices[0], t, r) < shA.radius * shA.radius) {
+                        auto pivotA_x = shA.half_length * (sep_axis.cyl_feature_index == 0 ? 1 : -1);
 
-                        auto v1 = vertices[(i + 1) % 3];
-                        auto v1_world = posB + rotate(ornB, v1);
-                        auto v1_A = rotate(conjugate(ornA), v1_world - posA);
-
-                        scalar s0, s1;
-                        auto num_points = intersect_line_circle(v0_A.z, v0_A.y, 
-                                                                v1_A.z, v1_A.y, 
-                                                                shA.radius, s0, s1);
-
-                        if (num_points == 0) {
-                            continue;
+                        for(size_t i = 0; i < 3; ++i) {
+                            auto vertex_B = vertices[i];
+                            auto vertex_A = to_object_space(vertex_B, posA_in_B, ornA_in_B);
+                            vertex_A.x = pivotA_x;
+                            result.maybe_add_point({vertex_A, vertex_B, sep_axis.dir, sep_axis.distance});
                         }
-
-                        ++num_edge_intersections;
-                        last_edge_index = i;
-
-                        s0 = clamp_unit(s0);
-                        auto p0 = lerp(v0_A, v1_A, s0);
-                        auto pivotA_x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
-                        auto p0_world = posA + rotate(ornA, p0);
-                        auto p0_B = rotate(conjugate(ornB), p0_world - posB);
-
-                        auto pivotA = vector3{pivotA_x, p0.y, p0.z};
-                        result.maybe_add_point({pivotA, p0_B, axis.dir, axis.distance});
-
-                        if (num_points == 2) {
-                            s1 = clamp_unit(s1);
-                            auto p1 = lerp(v0_A, v1_A, s1);
-                            auto p1_world = posA + rotate(ornA, p1);
-                            auto p1_B = rotate(conjugate(ornB), p1_world - posB);
-
-                            auto pivotA = vector3{pivotA_x, p1.y, p1.z};
-                            result.maybe_add_point({pivotA, p1_B, axis.dir, axis.distance});
+                    } else if (point_in_triangle(vertices, tri_normal, posA_in_B)) {
+                        // If the circle doesn't intersect the edges of the triangle and its center
+                        // is contained within the triangle, it means the entire circle is contained
+                        // within the triangle.
+                        auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
+                        for(size_t i = 0; i < 4; ++i) {
+                            auto pivotA_x = shA.half_length * (sep_axis.cyl_feature_index == 0 ? 1 : -1);
+                            auto pivotA = vector3{pivotA_x, 
+                                                  shA.radius * multipliers[i], 
+                                                  shA.radius * multipliers[(i + 1) % 4]};
+                            auto pivotB = posA_in_B + rotate(ornA_in_B, pivotA);
+                            pivotB = project_plane(pivotB, vertices[0], tri_normal);
+                            result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
                         }
                     }
-
-                    if (num_edge_intersections == 0) {
-                        // Either circle is contained in triangle or triangle is contained in circle.
-                        // If the circle doesn't intersect the edges of the triangle and the distance
-                        // between one vertex of the triangle and the center of the circle is smaller
-                        // than the radius, it means the triangle is contained within the circle.
-                        scalar t;
-                        vector3 r;
-
-                        if (closest_point_line(posA_in_B, axis.dir, vertices[0], t, r) < shA.radius * shA.radius) {
-                            auto pivotA_x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
-
-                            for(size_t i = 0; i < 3; ++i) {
-                                auto vertex_B = vertices[i];
-                                auto vertex_world = posB + rotate(ornB, vertex_B);
-                                auto vertex_A = rotate(conjugate(ornA), vertex_world - posA);
-                                vertex_A.x = pivotA_x;
-                                result.maybe_add_point({vertex_A, vertex_B, axis.dir, axis.distance});
-                            }
-                        } else if (point_in_triangle(vertices, tri_normal, posA_in_B)) {
-                            // If the circle doesn't intersect the edges of the triangle and its center
-                            // is contained within the triangle, it means the entire circle is contained
-                            // within the triangle.
-                            auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
-                            for(size_t i = 0; i < 4; ++i) {
-                                auto pivotA_x = shA.half_length * (axis.cyl_feature_index == 0 ? 1 : -1);
-                                auto pivotA = vector3{pivotA_x, 
-                                                      shA.radius * multipliers[i], 
-                                                      shA.radius * multipliers[(i + 1) % 4]};
-                                auto pivotA_world = posA + rotate(ornA, pivotA);
-                                auto pivotB = rotate(conjugate(ornB), pivotA_world - posB);
-                                result.maybe_add_point({pivotA, pivotB, axis.dir, axis.distance});
-                            }
-                        }
-                    } else if (num_edge_intersections == 1) {
-                        // Add extra points to create a stable base.
-                        auto tangent = cross(tri_normal, edges[last_edge_index]);
-                        auto other_vertex_idx = (last_edge_index + 2) % 3;
-                        if (dot(tangent, vertices[other_vertex_idx] - vertices[last_edge_index]) < 0) {
-                            tangent *= -1;
-                        }
-
-                        tangent = normalize(tangent);
-                        auto disc_center = axis.cyl_feature_index == 0 ? disc_center_pos : disc_center_neg;
-                        auto pivotA_in_B = disc_center + tangent * shA.radius;
-                        auto pivotA_world = posB + rotate(ornB, pivotA_in_B);
-                        auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
-                        auto pivotB = project_plane(pivotA_in_B, vertices[0], tri_normal);
-                        result.maybe_add_point({pivotA, pivotB, axis.dir, axis.distance});
-                    }
-                    break;
-                }
-                }
-            break;
-
-            case CYLINDER_FEATURE_SIDE_EDGE:
-                switch (axis.tri_feature) {
-                case TRIANGLE_FEATURE_FACE: {
-                    // Cylinder is on its side laying on the triangle face.
-                    // Segment-triangle intersection/containment test.
-                    auto c0_in_tri = point_in_triangle(vertices, tri_normal, disc_center_pos);
-                    auto c1_in_tri = point_in_triangle(vertices, tri_normal, disc_center_neg);
-
-                    if (c0_in_tri) {
-                        auto p0 = disc_center_pos - tri_normal * shA.radius;
-                        auto p0_world = posB + rotate(ornB, p0);
-                        auto p0_A = rotate(conjugate(ornA), p0_world - posA);
-                        auto pivotB = project_plane(disc_center_pos, vertices[0], tri_normal);
-                        result.maybe_add_point({p0_A, pivotB, axis.dir, axis.distance});
+                } else if (num_edge_intersections == 1) {
+                    // Add extra points to create a stable base.
+                    auto tangent = cross(tri_normal, edges[last_edge_index]);
+                    auto other_vertex_idx = (last_edge_index + 2) % 3;
+                    if (dot(tangent, vertices[other_vertex_idx] - vertices[last_edge_index]) < 0) {
+                        tangent *= -1;
                     }
 
-                    if (c1_in_tri) {
-                        auto p1 = disc_center_neg - tri_normal * shA.radius;
-                        auto p1_world = posB + rotate(ornB, p1);
-                        auto p1_A = rotate(conjugate(ornA), p1_world - posA);
-                        auto pivotB = project_plane(disc_center_neg, vertices[0], tri_normal);
-                        result.maybe_add_point({p1_A, pivotB, axis.dir, axis.distance});
-                    }
-
-                    if (!c0_in_tri || !c1_in_tri) {
-                        // One of them is outside. Perform segment intersection test.
-                        for (size_t i = 0; i < 3; ++i) {
-                            scalar s[2], t[2];
-                            vector3 p0[2], p1[2];
-                            size_t num_points = 0;
-                            closest_point_segment_segment(disc_center_pos, disc_center_neg, 
-                                                          vertices[i], vertices[(i + 1) % 3],
-                                                          s[0], t[0], p0[0], p1[0], &num_points, 
-                                                          &s[1], &t[1], &p0[1], &p1[1]);
-
-                            for (size_t i = 0; i < num_points; ++i) {
-                                if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                                    auto pA_in_B = p0[i] - tri_normal * shA.radius;
-                                    auto pA_world = posB + rotate(ornB, pA_in_B);
-                                    auto pA = rotate(conjugate(ornA), pA_world - posA);
-                                    result.maybe_add_point({pA, p1[i], axis.dir, axis.distance});
-                                }
-                            }
-                        }
-                    }
-                    
-                    break;
-                }
-                case TRIANGLE_FEATURE_EDGE: {
-                    // Check Voronoi region.                    
-                    // Check if angle between edge normal and the i-th triangle normal
-                    // is in the range between the i-th and k-th triangle normals. 
-                    if (dot(axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + axis.tri_feature_index]) {
-                        auto pA_world = posB + rotate(ornB, axis.pivotA);
-                        auto pA = rotate(conjugate(ornA), pA_world - posA);
-                        result.maybe_add_point({pA, axis.pivotB, axis.dir, axis.distance});
-                    }
-                    break;
-                }
-                case TRIANGLE_FEATURE_VERTEX: {
-                    auto pA_world = posB + rotate(ornB, axis.pivotA);
-                    auto pA = rotate(conjugate(ornA), pA_world - posA);
-                    auto pivotB = vertices[axis.tri_feature_index];
-                    result.maybe_add_point({pA, pivotB, axis.dir, axis.distance});
-                    break;
-                }
-                }
-            break;
-
-            case CYLINDER_FEATURE_FACE_EDGE: {
-                switch (axis.tri_feature) {
-                case TRIANGLE_FEATURE_FACE: {
-                    auto pivotA_world = posB + rotate(ornB, axis.pivotA);
-                    auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
-                    auto pivotB = project_plane(axis.pivotA, vertices[0], tri_normal);
-                    result.maybe_add_point({pivotA, pivotB, axis.dir, axis.distance});
-                    break;
-                }
-                case TRIANGLE_FEATURE_EDGE: {
-                    if (dot(axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + axis.tri_feature_index]) {
-                        auto pivotA_world = posB + rotate(ornB, axis.pivotA);
-                        auto pivotA = rotate(conjugate(ornA), pivotA_world - posA);
-                        result.maybe_add_point({pivotA, axis.pivotB, axis.dir, axis.distance});
-                    }
-                    break;
-                }
-                case TRIANGLE_FEATURE_VERTEX: {
-                    break;
-                }
+                    tangent = normalize(tangent);
+                    auto disc_center = sep_axis.cyl_feature_index == 0 ? disc_center_pos : disc_center_neg;
+                    auto pivotA_in_B = disc_center + tangent * shA.radius;
+                    auto pivotA = to_object_space(pivotA_in_B, posA_in_B, ornA_in_B);
+                    auto pivotB = project_plane(pivotA_in_B, vertices[0], tri_normal);
+                    result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
                 }
                 break;
             }
             }
+        break;
+
+        case CYLINDER_FEATURE_SIDE_EDGE:
+            switch (sep_axis.tri_feature) {
+            case TRIANGLE_FEATURE_FACE: {
+                // Cylinder is on its side laying on the triangle face.
+                // Segment-triangle intersection/containment test.
+                auto c0_in_tri = point_in_triangle(vertices, tri_normal, disc_center_pos);
+                auto c1_in_tri = point_in_triangle(vertices, tri_normal, disc_center_neg);
+
+                if (c0_in_tri) {
+                    auto p0 = disc_center_pos - tri_normal * shA.radius;
+                    auto p0_A = to_object_space(p0, posA_in_B, ornA_in_B);
+                    auto pivotB = project_plane(disc_center_pos, vertices[0], tri_normal);
+                    result.maybe_add_point({p0_A, pivotB, sep_axis.dir, sep_axis.distance});
+                }
+
+                if (c1_in_tri) {
+                    auto p1 = disc_center_neg - tri_normal * shA.radius;
+                    auto p1_A = to_object_space(p1, posA_in_B, ornA_in_B);
+                    auto pivotB = project_plane(disc_center_neg, vertices[0], tri_normal);
+                    result.maybe_add_point({p1_A, pivotB, sep_axis.dir, sep_axis.distance});
+                }
+
+                if (!c0_in_tri || !c1_in_tri) {
+                    // One of them is outside. Perform segment intersection test.
+                    for (size_t i = 0; i < 3; ++i) {
+                        // Ignore concave edges.
+                        if (is_concave_edge[i]) {
+                            continue;
+                        }
+
+                        scalar s[2], t[2];
+                        vector3 p0[2], p1[2];
+                        size_t num_points = 0;
+                        closest_point_segment_segment(disc_center_pos, disc_center_neg, 
+                                                        vertices[i], vertices[(i + 1) % 3],
+                                                        s[0], t[0], p0[0], p1[0], &num_points, 
+                                                        &s[1], &t[1], &p0[1], &p1[1]);
+
+                        for (size_t i = 0; i < num_points; ++i) {
+                            if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
+                                auto pA_in_B = p0[i] - tri_normal * shA.radius;
+                                auto pA = to_object_space(pA_in_B, posA_in_B, ornA_in_B);
+                                result.maybe_add_point({pA, p1[i], sep_axis.dir, sep_axis.distance});
+                            }
+                        }
+                    }
+                }
+                
+                break;
+            }
+            case TRIANGLE_FEATURE_EDGE: {
+                // Check Voronoi region.                    
+                // Check if angle between edge normal and the i-th triangle normal
+                // is in the range between the i-th and k-th triangle normals. 
+                if (dot(sep_axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + sep_axis.tri_feature_index]) {
+                    auto pA = to_object_space(sep_axis.pivotA, posA_in_B, ornA_in_B);
+                    result.maybe_add_point({pA, sep_axis.pivotB, sep_axis.dir, sep_axis.distance});
+                }
+                break;
+            }
+            case TRIANGLE_FEATURE_VERTEX: {
+                auto pA = to_object_space(sep_axis.pivotA, posA_in_B, ornA_in_B);
+                auto pivotB = vertices[sep_axis.tri_feature_index];
+                result.maybe_add_point({pA, pivotB, sep_axis.dir, sep_axis.distance});
+                break;
+            }
+            }
+        break;
+
+        case CYLINDER_FEATURE_FACE_EDGE: {
+            switch (sep_axis.tri_feature) {
+            case TRIANGLE_FEATURE_FACE: {
+                auto pivotA = to_object_space(sep_axis.pivotA, posA_in_B, ornA_in_B);
+                auto pivotB = project_plane(sep_axis.pivotA, vertices[0], tri_normal);
+                result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                break;
+            }
+            case TRIANGLE_FEATURE_EDGE: {
+                if (dot(sep_axis.dir, tri_normal) > shB.trimesh->cos_angles[tri_idx * 3 + sep_axis.tri_feature_index]) {
+                    auto pivotA = to_object_space(sep_axis.pivotA, posA_in_B, ornA_in_B);
+                    result.maybe_add_point({pivotA, sep_axis.pivotB, sep_axis.dir, sep_axis.distance});
+                }
+                break;
+            }
+            case TRIANGLE_FEATURE_VERTEX: {
+                break;
+            }
+            }
+            break;
+        }
         }
     });
 

@@ -108,6 +108,7 @@ set(EDyn_SOURCES
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/triangle_shape.cpp
     src/edyn/shapes/box_shape.cpp
+    src/edyn/shapes/cylinder_shape.cpp
     src/edyn/edyn.cpp
 )
 

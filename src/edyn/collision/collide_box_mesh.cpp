@@ -184,7 +184,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             }
         }
 
-        // Get axis with greatest penetration.
+        // Get axis with greatest distance.
         auto greatest_distance = -EDYN_SCALAR_MAX;
         size_t sep_axis_idx;
 
@@ -249,7 +249,6 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             // Continue if not all box's face vertices are contained in the triangle.
             // Perform edge intersection tests.
             if (num_box_vert_in_tri_face < 4) {
-
                 for (int i = 0; i < 4; ++i) {
                     auto &a0_in_B = face_vertices_in_B[i];
                     auto &a1_in_B = face_vertices_in_B[(i + 1) % 4];
