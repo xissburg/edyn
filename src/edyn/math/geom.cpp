@@ -24,7 +24,7 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
     EDYN_ASSERT(b > EDYN_EPSILON);
     t = a / b;
     r = q0 + dir * t;
-    return length2(p - q0);
+    return length2(p - r);
 }
 
 // Reference: Real-Time Collision Detection - Christer Ericson, section 5.1.9.

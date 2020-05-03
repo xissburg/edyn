@@ -25,6 +25,12 @@ struct triangle_mesh {
 
     template<typename Func>
     void visit(const AABB &aabb, Func func) const {
+        constexpr auto offset = vector3 {
+            contact_breaking_threshold, 
+            contact_breaking_threshold, 
+            contact_breaking_threshold
+        };
+        
         // TODO: use bounding volume hierarchy tree.
         for (size_t i = 0; i < num_triangles(); ++i) {
             auto verts = triangle_vertices{
@@ -35,7 +41,8 @@ struct triangle_mesh {
             auto tri_min = min(min(verts[0], verts[1]), verts[2]);
             auto tri_max = max(max(verts[0], verts[1]), verts[2]);
 
-            if (intersect_aabb(aabb.min, aabb.max, tri_min, tri_max)) {
+            if (intersect_aabb(aabb.min - offset, aabb.max + offset, 
+                               tri_min - offset, tri_max + offset)) {
                 func(i, verts);
             }
         }

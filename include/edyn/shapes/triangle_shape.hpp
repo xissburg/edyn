@@ -7,8 +7,12 @@
 
 namespace edyn {
 
+/**
+ * The three types of triangle features. Their integer value is the number of
+ * vertices in that feature minus one.
+ */
 enum triangle_feature {
-    TRIANGLE_FEATURE_VERTEX,
+    TRIANGLE_FEATURE_VERTEX = 0,
     TRIANGLE_FEATURE_EDGE,
     TRIANGLE_FEATURE_FACE
 };
@@ -35,6 +39,10 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
                                   triangle_feature &tri_feature,
                                   size_t &tri_feature_index,
                                   scalar &projection, scalar threshold);
+
+size_t get_triangle_feature_num_vertices(triangle_feature feature);
+
+size_t get_triangle_feature_num_edges(triangle_feature feature);
 
 }
 

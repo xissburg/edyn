@@ -239,6 +239,12 @@ collision_result collide(const mesh_shape &shA, const vector3 &posA, const quate
     return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
 }
 
+void collide_cylinder_triangle(
+    const cylinder_shape &, const vector3 &posA, const quaternion &ornA,
+    const vector3 &disc_center_pos, const vector3 &disc_center_neg,
+    const vector3 &cylinder_axis, const triangle_vertices &, 
+    const std::array<bool, 3> &is_concave_edge, const std::array<scalar, 3> &cos_angles, 
+    scalar threshold, collision_result &);
 }
 
 #endif // EDYN_COLLISION_COLLIDE_HPP

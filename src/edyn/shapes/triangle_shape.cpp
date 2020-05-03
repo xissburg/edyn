@@ -81,4 +81,17 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
     }
 }
 
+size_t get_triangle_feature_num_vertices(triangle_feature feature) {
+    return size_t(feature) + 1;
+}
+
+size_t get_triangle_feature_num_edges(triangle_feature feature) {
+    if (feature == TRIANGLE_FEATURE_EDGE) {
+        return 1;
+    } else if (feature == TRIANGLE_FEATURE_FACE) {
+        return 3;
+    }
+    return 0;
+}
+
 }

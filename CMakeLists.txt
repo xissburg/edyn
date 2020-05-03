@@ -80,6 +80,7 @@ set(EDyn_SOURCES
     src/edyn/collision/collide_capsule_box.cpp
     src/edyn/collision/collide_cylinder_box.cpp
     src/edyn/collision/collide_sphere_box.cpp
+    src/edyn/collision/collide_cylinder_triangle.cpp
     src/edyn/collision/collision_result.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/contact_patch_constraint.cpp
