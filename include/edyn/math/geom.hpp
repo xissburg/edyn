@@ -78,33 +78,34 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
                           const vector3 &p, vector3 &q);
 
 /**
- * Computes the closest points between a line `p(s) = p0 + s*(p1 - p0)` and a disc.
- * @param cpos Center of disc.
- * @param corn Orientation of disc.The face of the disc points towards the
+ * Computes the closest points between a line `p(s) = p0 + s*(p1 - p0)` and a circle.
+ * @param cpos Center of circle.
+ * @param corn Orientation of circle.The face of the circle points towards the
  *             positive x-axis.
- * @param radius Disc radius.
+ * @param radius Circle radius.
  * @param p0 A point in the line.
  * @param p1 Another point in the line.
  * @param num_points Number of closest points. Can be two in case the line is 
- *        nearly parallel to the plane that contains the disc and its 
- *        projection onto the plane intersects the disc.
+ *        nearly parallel to the plane that contains the circle and its 
+ *        projection onto the plane intersects the circle.
  * @param s0 Outputs the parameter where the line gives the first closest point
- *        to the disc.
- * @param cc0 First closest point in the disc.
- * @param cl0 First closest point in the line.
+ *        to the circle.
+ * @param rc0 First closest point in the circle.
+ * @param rl0 First closest point in the line.
  * @param s1 Outputs the parameter where the line gives the second closest
- *        point to the disc.
- * @param cc1 Second closest point in the disc.
- * @param cl1 Second closest point in the line.
- * @param normal Normal vector pointing out the disc.
- * @param threshold Value used to determine whether the line is parallel to disc.
+ *        point to the circle.
+ * @param rc1 Second closest point in the circle.
+ * @param rl1 Second closest point in the line.
+ * @param normal Normal vector pointing out the circle.
+ * @param threshold Value used to determine whether the line is parallel to circle.
  * @return The squared distance.
  */
-scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn, scalar radius,
-                               const vector3 &p0, const vector3 &p1, size_t &num_points, 
-                               scalar &s0, vector3 &cc0, vector3 &cl0,
-                               scalar &s1, vector3 &cc1, vector3 &cl1, 
-                               vector3 &normal, scalar threshold = contact_breaking_threshold);
+scalar closest_point_circle_line(
+    const vector3 &cpos, const quaternion &corn, scalar radius,
+    const vector3 &p0, const vector3 &p1, size_t &num_points, 
+    scalar &s0, vector3 &rc0, vector3 &rl0,
+    scalar &s1, vector3 &rc1, vector3 &rl1, 
+    vector3 &normal, scalar threshold = contact_breaking_threshold);
 
 using closest_points_array = std::array<std::pair<vector3, vector3>, max_contacts>;
 

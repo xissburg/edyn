@@ -198,16 +198,16 @@ void collide_cylinder_triangle(
     for (size_t i = 0; i < 2; ++i) {
         auto disc_center = i == 0 ? disc_center_pos : disc_center_neg;
 
-        // Find closest point between circle and triangle edge segment. 
         for (size_t j = 0; j < 3; ++j) {
             auto &v0 = vertices[j];
             auto &v1 = vertices[(j + 1) % 3];
 
+            // Find closest point between circle and triangle edge segment. 
             size_t num_points;
             scalar s0, s1;
             vector3 cc0, cl0, cc1, cl1;
             vector3 normal;
-            closest_point_disc_line(disc_center, ornA, cylinder.radius, v0, v1, 
+            closest_point_circle_line(disc_center, ornA, cylinder.radius, v0, v1, 
                                     num_points, s0, cc0, cl0, s1, cc1, cl1, normal, threshold);
             
             if (s0 > 0 && s0 < 1) {
@@ -429,12 +429,14 @@ void collide_cylinder_triangle(
         }
         case TRIANGLE_FEATURE_VERTEX: {
             if (!is_concave_vertex[sep_axis.tri_feature_index]) {
+                // Direction vector must point outside the triangle face on either edge
+                // that share this vertex.
                 auto dot_tangent_0 = dot(sep_axis.dir, edge_tangents[sep_axis.tri_feature_index]);
                 auto dot_tangent_1 = dot(sep_axis.dir, edge_tangents[(sep_axis.tri_feature_index + 2) % 3]);
 
                 if (dot_tangent_0 > -EDYN_EPSILON || dot_tangent_1 > -EDYN_EPSILON) {
                     auto cos_angle = dot(sep_axis.dir, tri_normal);
-                    
+
                     if (cos_angle > cos_angles[sep_axis.tri_feature_index]) {
                         auto pA = to_object_space(sep_axis.pivotA, posA, ornA);
                         auto pivotB = vertices[sep_axis.tri_feature_index];
