@@ -37,7 +37,7 @@ void doublewishbone_constraint::prepare(entt::entity, constraint &con, const rel
     auto uposB = pB + urB;
 
     auto ud = uposA - uposB;
-    auto ul2 = length2(ud);
+    auto ul2 = length_sqr(ud);
 
     // Lower control arm locations.
     auto lrA = rotate(qA, lower_pivotA);
@@ -47,7 +47,7 @@ void doublewishbone_constraint::prepare(entt::entity, constraint &con, const rel
     auto lposB = pB + lrB;
 
     auto ld = lposA - lposB;
-    auto ll2 = length2(ld);
+    auto ll2 = length_sqr(ld);
 
     // Z axis points forward.
     auto chassis_z = rotate(qA, vector3_z);

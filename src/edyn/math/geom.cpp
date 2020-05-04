@@ -13,7 +13,7 @@ scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
     EDYN_ASSERT(b > EDYN_EPSILON);
     t = clamp_unit(a / b);
     q = q0 + v * t;
-    return length2(p - q);
+    return length_sqr(p - q);
 }
 
 scalar closest_point_line(const vector3 &q0, const vector3 &dir,
@@ -24,7 +24,7 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
     EDYN_ASSERT(b > EDYN_EPSILON);
     t = a / b;
     r = q0 + dir * t;
-    return length2(p - r);
+    return length_sqr(p - r);
 }
 
 // Reference: Real-Time Collision Detection - Christer Ericson, section 5.1.9.
@@ -48,7 +48,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
         s = t = 0;
         c1 = p1;
         c2 = p2;
-        return length2(c1 - c2);
+        return length_sqr(c1 - c2);
     }
 
     if (a <= EDYN_EPSILON) {
@@ -124,7 +124,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
 
     c1 = p1 + d1 * s;
     c2 = p2 + d2 * t;
-    return length2(c1 - c2);
+    return length_sqr(c1 - c2);
 }
 
 scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius, 
@@ -134,7 +134,7 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
     const auto ln = dot(p - dpos, normal);
     const auto p_proj = p - normal * ln;
     const auto d = p_proj - dpos;
-    const auto l2 = length2(d);
+    const auto l2 = length_sqr(d);
 
     // Projection is inside disc.
     if (l2 < radius * radius) {
@@ -145,7 +145,7 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
     const auto l = std::sqrt(l2);
     const auto dn = d / l;
     q = dpos + dn * radius;
-    return length2(p - q);
+    return length_sqr(p - q);
 }
 
 size_t intersect_line_circle(scalar px, scalar py, 
@@ -186,7 +186,7 @@ scalar closest_point_circle_line(
     auto q0 = to_object_space(p0, cpos, corn);
     auto q1 = to_object_space(p1, cpos, corn);
     auto qv = q1 - q0;
-    auto qv_len_sqr = length2(qv);
+    auto qv_len_sqr = length_sqr(qv);
     auto qv_len = std::sqrt(qv_len_sqr);
     auto diameter = scalar(2) * radius;
 
@@ -235,7 +235,7 @@ scalar closest_point_circle_line(
             auto dir = normalize(proj - cpos);
             rc0 = cpos + dir * radius;
             auto d = rl0 - rc0;
-            auto dl2 = length2(d);
+            auto dl2 = length_sqr(d);
 
             if (dl2 > EDYN_EPSILON) {
                 normal = d / std::sqrt(dl2);
@@ -318,7 +318,7 @@ scalar closest_point_circle_line(
     auto tangent = vector3{0, closest_cos_theta, -closest_sin_theta};
     normal = cross(tangent, qv);
 
-    auto normal_len_sqr = length2(normal);
+    auto normal_len_sqr = length_sqr(normal);
 
     if (normal_len_sqr > EDYN_EPSILON) {
         normal /= std::sqrt(normal_len_sqr);
@@ -389,7 +389,7 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
     // problem can be handled as segment-segment closest point.
     auto tangentA = cross(posA - posB, normalB);
     auto tangentB = cross(posA - posB, normalA);
-    auto tangent = length2(tangentA) > length2(tangentB) ? tangentA : tangentB;
+    auto tangent = length_sqr(tangentA) > length_sqr(tangentB) ? tangentA : tangentB;
 
     if (std::abs(dot(tangent, normalA)) < 0.01 &&
         std::abs(dot(tangent, normalB)) < 0.01) {
@@ -494,7 +494,7 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
         auto distA = dot(closestA - posB, normalB);
         auto closestA_projB = closestA - normalB * distA;
 
-        if (length2(closestA_projB - posB) < radiusB) {
+        if (length_sqr(closestA_projB - posB) < radiusB) {
             num_points = 1;
             closest[0].first = closestA;
             closest[0].second = closestA_projB;
@@ -523,7 +523,7 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
         auto distB = dot(closestB - posA, normalA);
         auto closestB_projA = closestB - normalA * distB;
 
-        if (length2(closestB_projA - posA) < radiusA) {
+        if (length_sqr(closestB_projA - posA) < radiusA) {
             num_points = 1;
             closest[0].first = closestB;
             closest[0].second = closestB_projA;
@@ -554,7 +554,7 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
             r.x = 0;
             r = normalize(r) * radiusB;
             d = q - r;
-            l2 = length2(d);
+            l2 = length_sqr(d);
         } else {
             r = {0, q.y, q.z};
             d = {q.x, 0, 0};
@@ -699,7 +699,7 @@ scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, co
 	vector3 tmp1 = cross(a[1], b[1]);
 	vector3 tmp2 = cross(a[2], b[2]);
 
-	return std::max(std::max(length2(tmp0), length2(tmp1)), length2(tmp2));
+	return std::max(std::max(length_sqr(tmp0), length_sqr(tmp1)), length_sqr(tmp2));
 }
 
 }

@@ -108,7 +108,7 @@ inline matrix3x3 matrix3x3_columns(const vector3 &v0,
 }
 
 inline matrix3x3 to_matrix3x3(const quaternion &q) {
-    auto d = length2(q);
+    auto d = length_sqr(q);
     auto s = 2 / d;
     auto xs = q.x * s , ys = q.y * s , zs = q.z * s ;
     auto wx = q.w * xs, wy = q.w * ys, wz = q.w * zs;

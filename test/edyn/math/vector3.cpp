@@ -103,7 +103,7 @@ TEST_F(vector3_test, cross) {
 
 TEST_F(vector3_test, length) {
     auto v = randomvec();
-    auto l2 = edyn::length2(v);
+    auto l2 = edyn::length_sqr(v);
     ASSERT_SCALAR_EQ(l2, v.x * v.x + v.y * v.y + v.z * v.z);
     auto l = edyn::length(v);
     ASSERT_SCALAR_EQ(l, std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z));
@@ -112,7 +112,7 @@ TEST_F(vector3_test, length) {
 TEST_F(vector3_test, normalize) {
     auto v = randomvec();
 
-    if (edyn::length2(v) < EDYN_EPSILON) {
+    if (edyn::length_sqr(v) < EDYN_EPSILON) {
         v = edyn::vector3_x;
     }
 

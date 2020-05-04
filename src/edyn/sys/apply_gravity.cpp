@@ -20,7 +20,7 @@ void apply_gravity(entt::registry &registry, scalar dt) {
         auto [posB, mB, linvelB] = inner_view.get<const position, const mass, linvel>(rel.entity[1]);
         
         auto d = posA - posB;
-        auto l2 = length2(d);
+        auto l2 = length_sqr(d);
         l2 = std::max(l2, EDYN_EPSILON);
 
         auto l = std::sqrt(l2);

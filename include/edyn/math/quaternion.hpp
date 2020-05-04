@@ -78,13 +78,13 @@ inline quaternion operator*(const vector3 &v, const quaternion &q) {
 }
 
 // Squared length of a quaternion.
-inline scalar length2(const quaternion &q) {
+inline scalar length_sqr(const quaternion &q) {
     return q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
 }
 
 // Length of a quaternion.
 inline scalar length(const quaternion &q) {
-    return std::sqrt(length2(q));
+    return std::sqrt(length_sqr(q));
 }
 
 inline scalar dot(const quaternion &q0, const quaternion &q1) {
@@ -150,7 +150,7 @@ inline vector3 quaternion_z(const quaternion &q) {
 
 // Spherical linear interpolation.
 inline quaternion slerp(const quaternion &q0, const quaternion &q1, scalar s) {
-    const auto magnitude = std::sqrt(length2(q0) * length2(q1));
+    const auto magnitude = std::sqrt(length_sqr(q0) * length_sqr(q1));
     EDYN_ASSERT(magnitude > 0);
 
     const auto prod = dot(q0, q1) / magnitude;

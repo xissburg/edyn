@@ -21,7 +21,7 @@ static
 vector3 support_point_circle(const vector3 &pos, const quaternion &orn, scalar radius, const vector3 &dir) {
     auto normal = rotate(orn, vector3_x);
     auto proj = dir - normal * dot(dir, normal);
-    auto l2 = length2(proj);
+    auto l2 = length_sqr(proj);
 
     if (l2 > EDYN_EPSILON) {
         auto s = radius / std::sqrt(l2);
@@ -201,7 +201,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
     // Calculate longitudinal and lateral friction directions.
     m_lat_dir = axis - normal * dot(axis, normal);
-    auto lat_dir_len2 = length2(m_lat_dir);
+    auto lat_dir_len2 = length_sqr(m_lat_dir);
 
     if (lat_dir_len2 > EDYN_EPSILON) {
         m_lat_dir /= std::sqrt(lat_dir_len2);
@@ -369,7 +369,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 
             auto spring_force = vector3_zero;
             auto bristle_defl = bristle_root - bristle_tip;
-            auto bristle_defl_len2 = length2(bristle_defl);
+            auto bristle_defl_len2 = length_sqr(bristle_defl);
 
             if (bristle_defl_len2 > EDYN_EPSILON) {
                 // TODO: handle anysotropic stiffness.
@@ -396,7 +396,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                 // for the current normal load, which mean the bristle must slide.
                 // Thus, move the bristle tip closer to its root so that the 
                 // tangential deflection force is equals to the friction force.
-                if (length2(spring_force) > max_friction_force * max_friction_force) {
+                if (length_sqr(spring_force) > max_friction_force * max_friction_force) {
                     auto error = std::sqrt(bristle_defl_len2);
                     auto dir = bristle_defl / error;
                     auto max_tread_defl = bristle->friction * normal_pressure / m_lon_tread_stiffness;
@@ -631,13 +631,13 @@ void contact_patch_constraint::iteration(entt::entity entity, constraint &con,
                                   (tread_row.tread_width * tread_row.patch_half_length * scalar(2 * (1 - 0.25/2 - 0.25/3))) : 
                                   scalar(0);
             auto max_friction_force = bristle.friction * normal_pressure * tread_row.tread_area;
-            auto dl2 = length2(bristle.deflection);
+            auto dl2 = length_sqr(bristle.deflection);
             auto force = vector3_zero;
 
             if (dl2 > EDYN_EPSILON) {
                 force = m_lon_tread_stiffness * tread_row.tread_area * bristle.deflection;
 
-                if (length2(force) > max_friction_force * max_friction_force) {
+                if (length_sqr(force) > max_friction_force * max_friction_force) {
                     auto dir = bristle.deflection / std::sqrt(dl2);
                     auto max_tread_defl = bristle.friction * normal_pressure / m_lon_tread_stiffness;
                     bristle.deflection = dir * max_tread_defl;

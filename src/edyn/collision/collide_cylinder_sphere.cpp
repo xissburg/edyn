@@ -20,7 +20,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     if (t > 0 && t < 1) {
         const auto p = p0 + v * t;
         const auto d = p - posB;
-        const auto l2 = length2(d);
+        const auto l2 = length_sqr(d);
         const auto min_dist = shA.radius + shB.radius + threshold;
     
         if (l2 > min_dist * min_dist) {
@@ -48,7 +48,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     }
 
     auto normal = q - posB;
-    const auto nl2 = length2(normal);
+    const auto nl2 = length_sqr(normal);
     const auto nl = std::sqrt(nl2);
     normal = nl2 > EDYN_EPSILON ? normal / nl : rotate(ornA, vector3_x) * (t < 0.5 ? -1 : 1);
 

@@ -126,7 +126,7 @@ void collide_cylinder_triangle(
                 axis.tri_feature_index = i;
                 axis.dir = cross(edges[i], cylinder_axis);
 
-                if (length2(axis.dir) <= EDYN_EPSILON) {
+                if (length_sqr(axis.dir) <= EDYN_EPSILON) {
                     // Parallel. Find a vector that's orthogonal to both
                     // which lies in the same plane.
                     auto plane_normal = cross(edges[i], disc_center_pos - v0);

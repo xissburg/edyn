@@ -12,7 +12,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     auto result = collision_result{};
 
     auto n_proj = normal - cyl_axis * dot(normal, cyl_axis);
-    auto n_proj_len2 = length2(n_proj);
+    auto n_proj_len2 = length_sqr(n_proj);
 
     if (n_proj_len2 > scalar(1e-7)) {
         n_proj /= std::sqrt(n_proj_len2);

@@ -31,7 +31,7 @@ void distance_constraint::prepare(entt::entity, constraint &con, const relation 
     auto rB = rotate(ornB, pivot[1]);
 
     auto d = posA + rA - posB - rB;
-    auto l2 = length2(d);
+    auto l2 = length_sqr(d);
     
     if (l2 <= EDYN_EPSILON) {
         d = vector3_x;

@@ -117,8 +117,8 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
 
         for (size_t k = 0; k < manifold.num_points; ++k) {
             auto &cp = manifold.point[k];
-            auto dA = length2(rp.pivotA - cp.pivotA);
-            auto dB = length2(rp.pivotB - cp.pivotB);
+            auto dA = length_sqr(rp.pivotA - cp.pivotA);
+            auto dB = length_sqr(rp.pivotB - cp.pivotB);
 
             if (dA < shortest_dist) {
                 shortest_dist = dA;
@@ -221,7 +221,7 @@ void narrowphase::prune(entt::entity entity, contact_manifold &manifold,
         auto dp = d - dn * n; // tangential separation on contact plane
 
         if (dn > contact_breaking_threshold ||
-            length2(dp) > contact_breaking_threshold * contact_breaking_threshold) {
+            length_sqr(dp) > contact_breaking_threshold * contact_breaking_threshold) {
 
             if (auto con = registry->try_get<constraint>(entity)) {
                 // Destroy constraint rows.

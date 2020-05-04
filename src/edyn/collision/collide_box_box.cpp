@@ -86,7 +86,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             auto &axisB = axesB[j];
             auto &axis = sep_axes[axis_idx];
             axis.dir = cross(axisA, axisB);
-            auto dir_len_sqr = length2(axis.dir);
+            auto dir_len_sqr = length_sqr(axis.dir);
 
             if (dir_len_sqr <= EDYN_EPSILON) {
                 continue;

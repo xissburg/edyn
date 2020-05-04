@@ -80,7 +80,7 @@ void antiroll_constraint::prepare(entt::entity, constraint &con, const relation 
     // Apply impulses in the direction of deformation.
     auto n = d_projC - d_projB;
     
-    if (length2(n) <= EDYN_EPSILON) {
+    if (length_sqr(n) <= EDYN_EPSILON) {
         n = cross(d_projC, chassis_x);
     }
     

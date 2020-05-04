@@ -68,8 +68,8 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
                 w += rotate(orn, vector3_x) * *s;
             }
 
-            if (length2(v) > island_linear_sleep_threshold * island_linear_sleep_threshold || 
-                length2(w) > island_angular_sleep_threshold * island_angular_sleep_threshold) {
+            if (length_sqr(v) > island_linear_sleep_threshold * island_linear_sleep_threshold || 
+                length_sqr(w) > island_angular_sleep_threshold * island_angular_sleep_threshold) {
                 sleep = false;
                 break;
             }

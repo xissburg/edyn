@@ -145,13 +145,13 @@ inline vector3 cross(const vector3 &v, const vector3 &w) {
 }
 
 // Square length of a vector.
-inline scalar length2(const vector3 &v) {
+inline scalar length_sqr(const vector3 &v) {
     return dot(v, v);
 }
 
 // Length of a vector.
 inline scalar length(const vector3 &v) {
-    return std::sqrt(length2(v));
+    return std::sqrt(length_sqr(v));
 }
 
 // Distance between two points.
@@ -161,7 +161,7 @@ inline scalar distance(const vector3 &p0, const vector3 &p1) {
 
 // Squared distance between two points.
 inline scalar distance2(const vector3 &p0, const vector3 &p1) {
-    return length2(p0 - p1);
+    return length_sqr(p0 - p1);
 }
 
 // Normalized vector (unit length). Asserts if the vector's length is zero.

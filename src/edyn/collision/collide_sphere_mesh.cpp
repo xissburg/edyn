@@ -17,7 +17,7 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
         
         auto edges = get_triangle_edges(vertices);
         auto normal = cross(edges[0], edges[1]);
-        auto normal_len_sqr = length2(normal);
+        auto normal_len_sqr = length_sqr(normal);
 
         if (normal_len_sqr < EDYN_EPSILON) {
             // Degenerate triangle.

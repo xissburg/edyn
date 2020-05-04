@@ -6,7 +6,7 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
                          const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
     auto d = posA - posB;
-    auto l2 = length2(d);
+    auto l2 = length_sqr(d);
     auto r = shA.radius + shB.radius + threshold;
 
     if (l2 > r * r) {

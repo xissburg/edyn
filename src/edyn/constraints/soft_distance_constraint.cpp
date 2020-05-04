@@ -35,7 +35,7 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
     auto rB = rotate(ornB, pivot[1]);
 
     auto d = posA + rA - posB - rB;
-    auto l2 = length2(d);
+    auto l2 = length_sqr(d);
     auto l = std::sqrt(l2);
     vector3 dn;
     
