@@ -46,33 +46,16 @@ void collide_cylinder_triangle(
         auto axis = separating_axis_cyl_tri{};
         axis.cyl_feature = CYLINDER_FEATURE_FACE;
 
-        // Find vertices that have the lowest projection along axis.
-        triangle_feature neg_tri_feature, pos_tri_feature;
-        size_t neg_tri_feature_index, pos_tri_feature_index;
-        scalar neg_tri_proj, pos_tri_proj;
-        get_triangle_support_feature(vertices, posA, cylinder_axis, 
-                                        pos_tri_feature, pos_tri_feature_index, 
-                                        pos_tri_proj, threshold);
-        get_triangle_support_feature(vertices, posA, -cylinder_axis, 
-                                        neg_tri_feature, neg_tri_feature_index, 
-                                        neg_tri_proj, threshold);
-        
-        // If the projection along the positive axis is smaller, then the triangle
-        // penetrating through the negative face is selected and vice-versa.
-        if (neg_tri_proj < pos_tri_proj) {
-            axis.dir = -cylinder_axis;
-            axis.cyl_feature_index = 0;
-            axis.tri_feature = neg_tri_feature;
-            axis.tri_feature_index = neg_tri_feature_index;
-            axis.distance = -(cylinder.half_length + neg_tri_proj);
-        } else {
-            axis.dir = cylinder_axis;
-            axis.cyl_feature_index = 1;
-            axis.tri_feature = pos_tri_feature;
-            axis.tri_feature_index = pos_tri_feature_index;
-            axis.distance = -(cylinder.half_length + pos_tri_proj);
-        }
+        // Triangle is single-sided thus choose the cylinder cap that faces the
+        // triangle.
+        axis.cyl_feature_index = dot(cylinder_axis, tri_normal) > 0 ? 1 : 0;
+        axis.dir = axis.cyl_feature_index == 0 ? -cylinder_axis : cylinder_axis;
 
+        get_triangle_support_feature(vertices, posA, cylinder_axis, 
+                                     axis.tri_feature, axis.tri_feature_index, 
+                                     axis.distance, threshold);
+    
+        axis.distance = -(cylinder.half_length + axis.distance);
         sep_axes.push_back(axis);
     }
 
