@@ -15,12 +15,21 @@ struct constraint_row {
     scalar error;
     scalar lower_limit;
     scalar upper_limit;
-    // Effective mass (J M^-1 J^T)^-1
+
+    // Effective mass (J M^-1 J^T)^-1.
     scalar eff_mass;
-    // Right hand side Jv + b
+
+    // Right hand side Jv + bias.
     scalar rhs;
+
+    // Error reduction parameter.
+    scalar erp {0.2};
+
+    // Relative velocity at pivot points.
     scalar relvel;
     scalar restitution {0};
+
+    // Applied impulse.
     scalar impulse {0};
     int priority {0};
 };

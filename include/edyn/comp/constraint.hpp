@@ -4,6 +4,7 @@
 #include <variant>
 #include <entt/entt.hpp>
 #include "edyn/constraints/distance_constraint.hpp"
+#include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/constraints/point_constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/hinge_constraint.hpp"
@@ -12,12 +13,13 @@
 
 namespace edyn {
 
-inline constexpr size_t max_constraint_rows = 8;
+inline constexpr size_t max_constraint_rows = 16;
 
 struct constraint {
     std::variant<contact_constraint, 
                  point_constraint, 
                  distance_constraint,
+                 soft_distance_constraint,
                  hinge_constraint,
                  generic_constraint> var;
     size_t num_rows {0};

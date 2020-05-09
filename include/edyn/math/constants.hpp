@@ -8,6 +8,8 @@
 namespace edyn {
 
 inline constexpr scalar pi = 3.1415926535897932384626433832795029;
+inline constexpr scalar pi2 = pi * scalar(2);
+inline constexpr scalar half_pi = pi * scalar(0.5);
 inline constexpr scalar half_sqrt2 = 0.7071067811865475244008443621048490;
 // `large_scalar * large_scalar` < EDYN_SCALAR_MAX`
 inline constexpr scalar large_scalar = 1e18;
@@ -33,8 +35,8 @@ inline constexpr size_t max_contacts = 4;
 inline constexpr scalar contact_breaking_threshold = 0.02;
 inline constexpr scalar contact_caching_threshold = 0.04;
 inline constexpr scalar island_time_to_sleep = 2;
-inline constexpr scalar island_linear_sleep_threshold = 0.01;
-inline constexpr scalar island_angular_sleep_threshold = pi / 24;
+inline constexpr scalar island_linear_sleep_threshold = 0.005;
+inline constexpr scalar island_angular_sleep_threshold = pi / 48;
 
 }
 

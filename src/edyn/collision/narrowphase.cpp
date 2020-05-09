@@ -7,10 +7,24 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/contact_manifold.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/collision/collide.hpp"
+#include "edyn/math/geom.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
+
+void refresh_manifold(contact_manifold &manifold,
+                      const vector3 &posA, const quaternion &ornA, 
+                      const vector3 &posB, const quaternion &ornB) {
+    for (size_t i = 0; i < manifold.num_points; ++i) {
+        auto &pt = manifold.point[i];
+        auto pivotA_world = posA + rotate(ornA, pt.pivotA);
+        auto pivotB_world = posB + rotate(ornB, pt.pivotB);
+        auto normal_world = rotate(ornB, pt.normalB);
+        pt.distance = dot(normal_world, pivotA_world - pivotB_world);
+    }
+}
 
 narrowphase::narrowphase(entt::registry &reg)
     : registry(&reg)
@@ -40,6 +54,11 @@ void narrowphase::update() {
     auto view = registry->view<relation, contact_manifold>();
 
     view.each([&] (entt::entity ent, relation &rel, contact_manifold &manifold) {
+        if (registry->has<sleeping_tag>(rel.entity[0]) && 
+            registry->has<sleeping_tag>(rel.entity[1])) {
+            return;
+        }
+
         auto &posA   = registry->get<const position   >(rel.entity[0]);
         auto &ornA   = registry->get<const orientation>(rel.entity[0]);
         auto &shapeA = registry->get<const shape      >(rel.entity[0]);
@@ -54,6 +73,7 @@ void narrowphase::update() {
             }, shapeB.var);
         }, shapeA.var);
 
+        refresh_manifold(manifold, posA, ornA, posB, ornB);
         process_collision(ent, manifold, rel, result);
         prune(ent, manifold, posA, ornA, posB, ornB);
     });
@@ -65,49 +85,6 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
     cp.pivotB = rp.pivotB;
     cp.normalB = rp.normalB;
     cp.distance = rp.distance;
-}
-
-static
-size_t insert_index(const contact_manifold &manifold, const collision_result::collision_point &rp) {
-    if (manifold.num_points < max_contacts) {
-        return manifold.num_points;
-    }
-
-    // Keep the deepest contact point.
-    auto min_dist_idx = max_contacts;
-    auto min_dist = rp.distance;
-
-    for (size_t i = 0; i < max_contacts; ++i) {
-        if (manifold.point[i].distance < min_dist) {
-            min_dist = manifold.point[i].distance;
-            min_dist_idx = i;
-        }
-    }
-
-    // Find which combination maximizes the contact manifold area.
-    auto areas = make_array<max_contacts>(scalar(0));
-    size_t largest_idx = 0;
-    scalar largest_area = 0;
-
-    for (size_t i = 0; i < max_contacts; ++i) {
-        if (i == min_dist_idx) {
-            continue;
-        }
-        // Not exactly the area, could be incorrect in certain 
-        // configurations but it's good enough.
-        auto v = cross(rp.pivotA - manifold.point[(i + 1) % max_contacts].pivotA,
-                       rp.pivotA - manifold.point[(i + 2) % max_contacts].pivotA);
-        auto w = cross(manifold.point[(i + 3) % max_contacts].pivotA - manifold.point[(i + 1) % max_contacts].pivotA,
-                        manifold.point[(i + 3) % max_contacts].pivotA - manifold.point[(i + 2) % max_contacts].pivotA);
-        areas[i] = length2(v) + length2(w);
-    
-        if (areas[i] > largest_area) {
-            largest_area = areas[i];
-            largest_idx = i;
-        }
-    }
-
-    return largest_idx;
 }
 
 void narrowphase::process_collision(entt::entity entity, contact_manifold &manifold, 
@@ -122,8 +99,8 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
 
         for (size_t k = 0; k < manifold.num_points; ++k) {
             auto &cp = manifold.point[k];
-            auto dA = length2(rp.pivotA - cp.pivotA);
-            auto dB = length2(rp.pivotB - cp.pivotB);
+            auto dA = length_sqr(rp.pivotA - cp.pivotA);
+            auto dB = length_sqr(rp.pivotB - cp.pivotB);
 
             if (dA < shortest_dist) {
                 shortest_dist = dA;
@@ -142,48 +119,67 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
             merge_point(rp, cp);
         } else {
             // Append to array of points and set it up.
-            auto idx = insert_index(manifold, rp);
-            auto &cp = manifold.point[idx];
-            cp.lifetime = 0;
-            merge_point(rp, cp);
+            std::array<vector3, max_contacts> pivots;
+            std::array<scalar, max_contacts> distances;
+            for (size_t i = 0; i < manifold.num_points; ++i) {
+                pivots[i] = manifold.point[i].pivotA;
+                distances[i] = manifold.point[i].distance;
+            }
 
-            if (auto con = registry->try_get<constraint>(entity)) {
-                // Combine material/surface parameters.
-                auto &materialA = registry->get<const material>(rel.entity[0]);
-                auto &materialB = registry->get<const material>(rel.entity[1]);
-                cp.restitution = materialA.restitution * materialB.restitution;
-                cp.friction = materialA.friction * materialB.friction;
+            auto idx = insert_index(pivots, distances, manifold.num_points, rp.pivotA, rp.distance);
 
-                if (manifold.num_points < max_contacts) {
-                    // Create new constraint rows for this contact point.
-                    auto normal_row_entity = registry->create();
-                    con->row[con->num_rows++] = normal_row_entity;
-                    auto friction_row_entity = registry->create();
-                    con->row[con->num_rows++] = friction_row_entity;
+            if (idx < max_contacts) {
+                auto &cp = manifold.point[idx];
+                cp.lifetime = 0;
+                merge_point(rp, cp);
 
-                    // Assign row component and associate entities.
-                    auto &normal_row = registry->assign<constraint_row>(normal_row_entity);
-                    normal_row.entity = rel.entity;
-                    auto &friction_row = registry->assign<constraint_row>(friction_row_entity);
-                    friction_row.entity = rel.entity;
+                if (auto con = registry->try_get<constraint>(entity)) {
+                    // Combine material/surface parameters.
+                    auto &materialA = registry->get<const material>(rel.entity[0]);
+                    auto &materialB = registry->get<const material>(rel.entity[1]);
+                    cp.restitution = materialA.restitution * materialB.restitution;
+                    cp.friction = materialA.friction * materialB.friction;
 
-                    // Contact point can now refer to constraint rows.
-                    cp.normal_row_entity = normal_row_entity;
-                    cp.friction_row_entity = friction_row_entity;
+                    // Only add normal and friction constraint rows if this is a
+                    // regular contact. Contact patches do their own thing.
+                    if (std::holds_alternative<contact_constraint>(con->var)) {
+                        if (idx == manifold.num_points) {
+                            // Create new constraint rows for this contact point.
+                            auto normal_row_entity = registry->create();
+                            con->row[con->num_rows++] = normal_row_entity;
+                            auto friction_row_entity = registry->create();
+                            con->row[con->num_rows++] = friction_row_entity;
 
-                    normal_row.restitution = cp.restitution;
+                            // Assign row component and associate entities.
+                            auto &normal_row = registry->assign<constraint_row>(normal_row_entity);
+                            normal_row.entity = rel.entity;
+                            normal_row.priority = 0;
+                            auto &friction_row = registry->assign<constraint_row>(friction_row_entity);
+                            friction_row.entity = rel.entity;
+                            friction_row.priority = 1;
 
+                            // Contact point can now refer to constraint rows.
+                            cp.normal_row_entity = normal_row_entity;
+                            cp.friction_row_entity = friction_row_entity;
+
+                            normal_row.restitution = cp.restitution;
+
+                        } else {
+                            // One of the existing contacts has been replaced by the new.
+                            // Update its rows.
+                            auto &normal_row = registry->get<constraint_row>(cp.normal_row_entity);
+                            auto &friction_row = registry->get<constraint_row>(cp.friction_row_entity);
+                            normal_row.restitution = cp.restitution;
+
+                            // Zero out warm-starting impulses.
+                            normal_row.impulse = 0;
+                            friction_row.impulse = 0;
+                        }
+                    }
+                }
+
+                if (idx == manifold.num_points) {
                     ++manifold.num_points;
-                } else {
-                    // One of the existing contacts has been replaced by the new. 
-                    // Update its rows.
-                    auto &normal_row = registry->get<constraint_row>(cp.normal_row_entity);
-                    auto &friction_row = registry->get<constraint_row>(cp.friction_row_entity);
-                    normal_row.restitution = cp.restitution;
-                    
-                    // Zero out warm-starting impulses.
-                    normal_row.impulse = 0;
-                    friction_row.impulse = 0;
                 }
             }
         }
@@ -205,8 +201,8 @@ void narrowphase::prune(entt::entity entity, contact_manifold &manifold,
         auto dp = d - dn * n; // tangential separation on contact plane
 
         if (dn > contact_breaking_threshold ||
-            length2(dp) > contact_breaking_threshold * contact_breaking_threshold) {
-            
+            length_sqr(dp) > contact_breaking_threshold * contact_breaking_threshold) {
+
             if (auto con = registry->try_get<constraint>(entity)) {
                 // Destroy constraint rows.
                 for (int r = con->num_rows; r > 0; --r) {

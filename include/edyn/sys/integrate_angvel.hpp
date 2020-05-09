@@ -10,7 +10,7 @@
 namespace edyn {
 
 inline void integrate_angvel(entt::registry &registry, scalar dt) {
-    auto view = registry.view<dynamic_tag, orientation, const angvel>(exclude_sleeping);
+    auto view = registry.view<dynamic_tag, orientation, const angvel>(exclude_global);
     view.each([&] (auto, auto, orientation &orn, const angvel &vel) {
         orn = integrate(orn, vel, dt);
     });

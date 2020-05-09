@@ -2,6 +2,7 @@
 #define EDYN_MATH_QUATERNION_HPP
 
 #include "vector3.hpp"
+#include "constants.hpp"
 
 namespace edyn {
 
@@ -77,13 +78,17 @@ inline quaternion operator*(const vector3 &v, const quaternion &q) {
 }
 
 // Squared length of a quaternion.
-inline scalar length2(const quaternion &q) {
+inline scalar length_sqr(const quaternion &q) {
     return q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
 }
 
 // Length of a quaternion.
 inline scalar length(const quaternion &q) {
-    return std::sqrt(length2(q));
+    return std::sqrt(length_sqr(q));
+}
+
+inline scalar dot(const quaternion &q0, const quaternion &q1) {
+    return q0.x * q1.x + q0.y * q1.y + q0.z * q1.z + q0.w * q1.w;
 }
 
 // Returns a unit-length version of the given quaternion.
@@ -104,16 +109,19 @@ inline vector3 rotate(const quaternion &q, const vector3 &v) {
     return {r.x, r.y, r.z};
 }
 
+// Build a quaternion from an angle about and axis of rotation.
 inline quaternion quaternion_axis_angle(const vector3 &v, scalar a) {
     auto l = length(v);
     auto s = std::sin(a * scalar(0.5)) / l;
     return {v.x * s, v.y * s, v.z * s, std::cos(a * scalar(0.5))};
 }
 
+// Get rotation angle of a quaternion.
 inline scalar quaternion_angle(const quaternion &q) {
     return std::acos(q.w) * scalar(2);
 }
 
+// Get rotation axis of a quaternion.
 inline vector3 quaternion_axis(const quaternion &q) {
     auto s2 = scalar(1) - q.w * q.w;
 
@@ -125,11 +133,62 @@ inline vector3 quaternion_axis(const quaternion &q) {
     return vector3_x;
 }
 
+// Get x-axis of the basis of a quaternion.
+inline vector3 quaternion_x(const quaternion &q) {
+    return rotate(q, vector3_x);
+}
+
+// Get y-axis of the basis of a quaternion.
+inline vector3 quaternion_y(const quaternion &q) {
+    return rotate(q, vector3_y);
+}
+
+// Get z-axis of the basis of a quaternion.
+inline vector3 quaternion_z(const quaternion &q) {
+    return rotate(q, vector3_z);
+}
+
+// Spherical linear interpolation.
+inline quaternion slerp(const quaternion &q0, const quaternion &q1, scalar s) {
+    const auto magnitude = std::sqrt(length_sqr(q0) * length_sqr(q1));
+    EDYN_ASSERT(magnitude > 0);
+
+    const auto prod = dot(q0, q1) / magnitude;
+    const auto abs_prod = std::abs(prod);
+
+    if (abs_prod > scalar(1) - EDYN_EPSILON) {
+        return q0;
+    }
+
+    const auto theta = std::acos(abs_prod);
+    const auto d = std::sin(theta);
+    EDYN_ASSERT(d > 0);
+
+    const auto sign = prod < 0 ? scalar(-1) : scalar(1);
+    const auto s0 = std::sin((scalar(1) - s) * theta) / d;
+    const auto s1 = std::sin(sign * s * theta) / d;
+
+    return {
+        q0.x * s0 + q1.x * s1,
+        q0.y * s0 + q1.y * s1,
+        q0.z * s0 + q1.z * s1,
+        q0.w * s0 + q1.w * s1
+    };
+}
+
 // Integrate angular velocity over time.
 quaternion integrate(const quaternion &q, const vector3 &w, scalar dt);
 
 // Returns the shortest rotation that takes `v0` to `v1`.
 quaternion shortest_arc(const vector3 &v0, const vector3 &v1);
+
+// Returns the angle between two quaternions along the shortest path.
+scalar angle_between(const quaternion &q0, const quaternion &q1);
+
+inline
+vector3 to_object_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
+    return rotate(conjugate(orn), p - pos);
+}
 
 }
 

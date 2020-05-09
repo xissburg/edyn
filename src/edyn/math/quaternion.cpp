@@ -37,4 +37,11 @@ quaternion shortest_arc(const vector3 &v0, const vector3 &v1) {
     return {c.x * rs, c.y * rs, c.z * rs, s * 0.5};
 }
 
+scalar angle_between(const quaternion &q0, const quaternion &q1) {
+    auto s = std::sqrt(length_sqr(q0) * length_sqr(q1));
+    EDYN_ASSERT(std::abs(s) > EDYN_EPSILON);
+    auto d = dot(q0, q1);
+    return std::acos(d / s) * scalar(2);
+}
+
 }

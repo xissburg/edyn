@@ -69,8 +69,7 @@ void contact_constraint::prepare(entt::entity entity, constraint &con, const rel
         } else {
             // If this is a resting contact and it is penetrating, apply impulse to push it out.
             //if (cp.lifetime > 0) {
-                constexpr scalar contact_erp = 0.2;
-                normal_row.error = std::min(pvel, scalar(0)) * contact_erp;
+                normal_row.error = std::min(pvel, scalar(0));
             //}
         }
         
@@ -91,6 +90,7 @@ void contact_constraint::iteration(entt::entity entity, constraint &con, const r
 
     for (size_t i = 0; i < manifold.num_points; ++i) {
         auto &cp = manifold.point.at(i);
+        //auto &cp = manifold.point[i];
         auto &normal_row = registry.get<constraint_row>(cp.normal_row_entity);
         auto friction_impulse = std::abs(normal_row.impulse * cp.friction);
 

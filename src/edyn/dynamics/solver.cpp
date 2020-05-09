@@ -68,7 +68,7 @@ void prepare(constraint_row &row,
     row.relvel = relvel;
     
     auto restitution = restitution_curve(row.restitution, row.relvel);
-    row.rhs = -(row.error + relvel * (1 + restitution));
+    row.rhs = -(row.error * row.erp + relvel * (1 + restitution));
 }
 
 static
@@ -104,13 +104,7 @@ void warm_start(entt::registry &registry, constraint_row &row,
                 scalar inv_mA, scalar inv_mB,
                 const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
                 delta_linvel &dvA, delta_linvel &dvB,
-                delta_angvel &dwA, delta_angvel &dwB) {    
-    // Do not warm start when there's restitution since this constraint isn't 
-    // going to rest and also to prevent adding energy to the system.
-    if (restitution_curve(row.restitution, row.relvel) > 0) {
-        return;
-    }
-
+                delta_angvel &dwA, delta_angvel &dwB) {
     apply_impulse(row.impulse, registry, row, 
                   inv_mA, inv_mB, 
                   inv_IA, inv_IB, 
@@ -126,16 +120,7 @@ scalar solve(constraint_row &row,
                         dot(row.J[1], dwA) +
                         dot(row.J[2], dvB) +
                         dot(row.J[3], dwB);
-    auto restitution = restitution_curve(row.restitution, row.relvel + delta_relvel);
-    auto delta_impulse = (row.rhs - delta_relvel * (1 + restitution)) * row.eff_mass;
-
-    // Clamp `delta_impulse` for proper shock propagation when there's restitution.
-    // This prevents contact constraints from 'sucking' and consequently 
-    // eliminating the restitution effect.
-    if (row.restitution > 0) {
-        delta_impulse = std::clamp(delta_impulse, row.lower_limit, row.upper_limit);
-    }
-
+    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
     auto impulse = row.impulse + delta_impulse;
 
     if (impulse < row.lower_limit) {
@@ -152,7 +137,7 @@ scalar solve(constraint_row &row,
 }
 
 void update_inertia(entt::registry &registry) {
-    auto view = registry.view<dynamic_tag, const orientation, const inertia_inv, inertia_world_inv>(exclude_sleeping);
+    auto view = registry.view<dynamic_tag, const orientation, const inertia_inv, inertia_world_inv>(exclude_global);
     view.each([] (auto, auto, const orientation& orn, const inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
@@ -183,11 +168,21 @@ void solver::update(uint64_t step, scalar dt) {
     apply_gravity(*registry, dt);
 
     // Setup constraints.
-    auto mass_inv_view = registry->view<const mass_inv, const inertia_world_inv>(exclude_sleeping);
-    auto vel_view = registry->view<const linvel, const angvel>(exclude_sleeping);
-    auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_sleeping);
+    auto mass_inv_view = registry->view<const mass_inv, const inertia_world_inv>(exclude_global);
+    auto vel_view = registry->view<const linvel, const angvel>(exclude_global);
+    auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_global);
 
-    auto con_view = registry->view<const relation, constraint>(exclude_sleeping);
+    auto con_view = registry->view<const relation, constraint>(exclude_global);
+    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
+        std::visit([&] (auto &&c) {
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
+        }, con.var);
+    });
+
+    registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
+        return lhs.priority > rhs.priority;
+    });
+
     con_view.each([&] (auto entity, const relation &rel, constraint &con) {
         std::visit([&] (auto &&c) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
@@ -223,7 +218,7 @@ void solver::update(uint64_t step, scalar dt) {
     });
 
     // Solve constraints.
-    auto row_view = registry->view<constraint_row>(exclude_sleeping);
+    auto row_view = registry->view<constraint_row>(exclude_global);
 
     for (uint32_t i = 0; i < iterations; ++i) {
         // Prepare constraints for iteration.
@@ -249,13 +244,13 @@ void solver::update(uint64_t step, scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    auto linvel_view = registry->view<dynamic_tag, linvel, delta_linvel>(exclude_sleeping);
+    auto linvel_view = registry->view<dynamic_tag, linvel, delta_linvel>(exclude_global);
     linvel_view.each([] (auto, auto, linvel &vel, delta_linvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
-    auto angvel_view = registry->view<dynamic_tag, angvel, delta_angvel>(exclude_sleeping);
+    auto angvel_view = registry->view<dynamic_tag, angvel, delta_angvel>(exclude_global);
     angvel_view.each([] (auto, auto, angvel &vel, delta_angvel &delta) {
         vel += delta;
         delta = vector3_zero;
@@ -270,7 +265,7 @@ void solver::update(uint64_t step, scalar dt) {
 
     put_islands_to_sleep(*registry, step, dt);
 
-    clear_kinematic_velocities(*registry);
+    //clear_kinematic_velocities(*registry);
 }
 
 }

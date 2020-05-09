@@ -8,7 +8,12 @@
 
 namespace edyn {
 
-constexpr auto exclude_sleeping = entt::exclude_t<sleeping_tag>{};
+/**
+ * Global exclusion list which covers the range of entities that should not
+ * take part in any step of the simulation update, e.g. sleeping and disabled
+ * entities.
+ */
+constexpr auto exclude_global = entt::exclude_t<sleeping_tag, disabled_tag>{};
 
 /**
  * Wake up one entity. It wakes up the island where the entity is in.

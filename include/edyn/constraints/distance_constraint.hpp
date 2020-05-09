@@ -1,5 +1,5 @@
-#ifndef EDYN_CONSTRAINTS_DISTANCE_CONSTRAINT_HPP
-#define EDYN_CONSTRAINTS_DISTANCE_CONSTRAINT_HPP
+#ifndef EDYN_CONSTRAINTS_DISTANCE_CONSTRAINT
+#define EDYN_CONSTRAINTS_DISTANCE_CONSTRAINT
 
 #include <array>
 #include "constraint_base.hpp"
@@ -10,8 +10,6 @@ namespace edyn {
 struct distance_constraint : public constraint_base<distance_constraint> {
     std::array<vector3, 2> pivot;
     scalar distance {0};
-    scalar stiffness {1e10};
-    scalar damping {1e10};
 
     void init(entt::entity, constraint &, const relation &, entt::registry &);
     void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
@@ -19,4 +17,4 @@ struct distance_constraint : public constraint_base<distance_constraint> {
 
 }
 
-#endif // EDYN_CONSTRAINTS_DISTANCE_CONSTRAINT_HPP
+#endif // EDYN_CONSTRAINTS_DISTANCE_CONSTRAINT

@@ -11,24 +11,25 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/collision_filter.hpp"
 
 namespace edyn {
 
-void on_construct_mass(entt::entity entity, entt::registry &registry, mass &m) {
+void on_construct_or_replace_mass(entt::entity entity, entt::registry &registry, mass &m) {
     EDYN_ASSERT(m > 0);
-    registry.assign<mass_inv>(entity, m < EDYN_SCALAR_MAX ? 1 / m : 0);
+    registry.assign_or_replace<mass_inv>(entity, m < EDYN_SCALAR_MAX ? 1 / m : 0);
 }
 
 void on_destroy_mass(entt::entity entity, entt::registry &registry) {
     registry.reset<mass_inv>(entity);
 }
 
-void on_construct_inertia(entt::entity entity, entt::registry &registry, inertia &i) {
+void on_construct_or_replace_inertia(entt::entity entity, entt::registry &registry, inertia &i) {
     EDYN_ASSERT(i > vector3_zero);
-    auto &invI = registry.assign<inertia_inv>(entity, i.x < EDYN_SCALAR_MAX ? 1 / i.x : 0, 
-                                                      i.y < EDYN_SCALAR_MAX ? 1 / i.y : 0, 
-                                                      i.z < EDYN_SCALAR_MAX ? 1 / i.z : 0);
-    registry.assign<inertia_world_inv>(entity, diagonal(invI));
+    auto &invI = registry.assign_or_replace<inertia_inv>(entity, i.x < EDYN_SCALAR_MAX ? 1 / i.x : 0, 
+                                                         i.y < EDYN_SCALAR_MAX ? 1 / i.y : 0, 
+                                                         i.z < EDYN_SCALAR_MAX ? 1 / i.z : 0);
+    registry.assign_or_replace<inertia_world_inv>(entity, diagonal(invI));
 }
 
 void on_destroy_inertia(entt::entity entity, entt::registry &registry) {
@@ -38,10 +39,12 @@ void on_destroy_inertia(entt::entity entity, entt::registry &registry) {
 
 void on_construct_shape(entt::entity entity, entt::registry &registry, shape &) {
     registry.assign<AABB>(entity);
+    registry.assign<collision_filter>(entity);
 }
 
 void on_destroy_shape(entt::entity entity, entt::registry &registry) {
     registry.reset<AABB>(entity);
+    registry.reset<collision_filter>(entity);
 }
 
 void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dynamic_tag) {
@@ -73,10 +76,12 @@ world::world(entt::registry &reg)
     , bphase(reg)
     , nphase(reg)
 {
-    connections.push_back(reg.on_construct<mass>().connect<&on_construct_mass>());
+    connections.push_back(reg.on_construct<mass>().connect<&on_construct_or_replace_mass>());
+    connections.push_back(reg.on_replace<mass>().connect<&on_construct_or_replace_mass>());
     connections.push_back(reg.on_destroy<mass>().connect<&on_destroy_mass>());
 
-    connections.push_back(reg.on_construct<inertia>().connect<&on_construct_inertia>());
+    connections.push_back(reg.on_construct<inertia>().connect<&on_construct_or_replace_inertia>());
+    connections.push_back(reg.on_replace<inertia>().connect<&on_construct_or_replace_inertia>());
     connections.push_back(reg.on_destroy<inertia>().connect<&on_destroy_inertia>());
 
     connections.push_back(reg.on_construct<shape>().connect<&on_construct_shape>());

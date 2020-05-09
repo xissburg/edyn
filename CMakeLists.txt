@@ -70,8 +70,20 @@ set(EDyn_SOURCES
     src/edyn/collision/collide_capsule_cylinder.cpp
     src/edyn/collision/collide_capsule_plane.cpp
     src/edyn/collision/collide_capsule_sphere.cpp
+    src/edyn/collision/collide_sphere_mesh.cpp
+    src/edyn/collision/collide_capsule_mesh.cpp
+    src/edyn/collision/collide_cylinder_mesh.cpp
+    src/edyn/collision/collide_box_box.cpp
+    src/edyn/collision/collide_box_mesh.cpp
+    src/edyn/collision/collide_box_plane.cpp
+    src/edyn/collision/collide_capsule_box.cpp
+    src/edyn/collision/collide_cylinder_box.cpp
+    src/edyn/collision/collide_sphere_box.cpp
+    src/edyn/collision/collide_cylinder_triangle.cpp
+    src/edyn/collision/collision_result.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
+    src/edyn/constraints/soft_distance_constraint.cpp
     src/edyn/constraints/point_constraint.cpp
     src/edyn/constraints/hinge_constraint.cpp
     src/edyn/constraints/generic_constraint.cpp
@@ -80,6 +92,12 @@ set(EDyn_SOURCES
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp
     src/edyn/util/rigidbody.cpp
+    src/edyn/util/constraint.cpp
+    src/edyn/util/shape_util.cpp
+    src/edyn/shapes/triangle_mesh.cpp
+    src/edyn/shapes/triangle_shape.cpp
+    src/edyn/shapes/box_shape.cpp
+    src/edyn/shapes/cylinder_shape.cpp
     src/edyn/edyn.cpp
 )
 

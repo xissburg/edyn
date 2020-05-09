@@ -29,6 +29,7 @@ struct rigidbody_def {
     // Initial position and orientation.
     vector3 position {vector3_zero};
     quaternion orientation {quaternion_identity};
+    scalar spin_angle {0};
 
     // Mass properties for dynamic entities.
     scalar mass {1};
@@ -37,6 +38,7 @@ struct rigidbody_def {
     // Initial linear and angular velocity.
     vector3 linvel {vector3_zero};
     vector3 angvel {vector3_zero};
+    scalar spin {0};
 
     // Gravity acceleration.
     vector3 gravity {gravity_earth};
@@ -51,6 +53,17 @@ struct rigidbody_def {
 
     bool sensor {false};
 
+    bool spin_enabled {false};
+
+    bool is_tire {false};
+    scalar lon_tread_stiffness {3000000};
+    scalar lat_tread_stiffness {1800000};
+    scalar speed_sensitivity {0.03};
+    scalar load_sensitivity {0.05};
+
+    uint64_t collision_group {1ULL};
+    uint64_t collision_mask {~0ULL};
+
     // Whether this entity will be used for presentation and needs 
     // position/orientation interpolation.
     bool presentation {false};
@@ -58,8 +71,36 @@ struct rigidbody_def {
     void update_inertia();
 };
 
+/**
+ * Assigns to `entity` all necessary components to build a rigid body according
+ * to the given definition.
+ */
 void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
 entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
+
+/**
+ * Sets the mass of a rigid body and recalculates its inertia. It assumes the
+ * entity has a shape associated to it, thus it must not be used with implicit
+ * rigid bodies.
+ */
+void rigidbody_set_mass(entt::registry &, entt::entity, scalar mass);
+
+/**
+ * Recalculates the inertia of a rigid body. Must be called after the shape of
+ * a body changes. It assumes the entity has a shape associated to it, thus it
+ * must not be used with implicit rigid bodies.
+ */
+void rigidbody_update_inertia(entt::registry &, entt::entity);
+
+/**
+ * Applies `impulse` to entity.
+ * @param rel_location Location where the impulse should be applied relative to
+ * the entity's center/position, in world space, i.e.
+ * `actual_world_space_location - position`.
+ */
+void rigidbody_apply_impulse(entt::registry &, entt::entity, 
+                             const vector3 &impulse, 
+                             const vector3 &rel_location);
 
 void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);
 void update_kinematic_orientation(entt::registry &, entt::entity, const quaternion &, scalar dt);

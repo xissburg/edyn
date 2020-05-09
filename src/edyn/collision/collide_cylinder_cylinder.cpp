@@ -80,7 +80,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             }
             // Find point in line closest to disc and later check if they're in
             // the segment's [0,1] range.
-            dist2A = closest_point_disc_line(posA + hlA * sideA, orn, shA.radius,
+            dist2A = closest_point_circle_line(posA + hlA * sideA, orn, shA.radius,
                                              p0B, p1B, num_pointsA, 
                                              sA0, cA0A, cB0A,
                                              sA1, cA1A, cB1A, normalA);
@@ -97,7 +97,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             if (sideB < 0) {
                 orn *= quaternion_axis_angle(vector3_y, pi);
             }
-            dist2B = closest_point_disc_line(posB + hlB * sideB, orn, shB.radius,
+            dist2B = closest_point_circle_line(posB + hlB * sideB, orn, shB.radius,
                                              p0A, p1A, num_pointsB,
                                              sB0, cB0B, cA0B,
                                              sB1, cB1B, cA1B, normalB);

@@ -6,7 +6,6 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/util/array.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -45,8 +44,8 @@ void wakeup_island(entt::entity island_ent, entt::registry &registry) {
 }
 
 void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
-    auto vel_view = registry.view<dynamic_tag, linvel, angvel>(exclude_sleeping);
-    auto island_view = registry.view<island>(exclude_sleeping);
+    auto vel_view = registry.view<dynamic_tag, linvel, angvel>(exclude_global);
+    auto island_view = registry.view<island>(exclude_global);
 
     island_view.each([&] (auto ent, auto &isle) {
         // Check if there are any entities in this island moving faster than
@@ -59,9 +58,11 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
                 break;
             }
 
-            auto [v, w] = vel_view.get<linvel, angvel>(e);
-            if (length2(v) > island_linear_sleep_threshold * island_linear_sleep_threshold || 
-                length2(w) > island_angular_sleep_threshold * island_angular_sleep_threshold) {
+            const auto &v = vel_view.get<linvel>(e);
+            const auto &w = vel_view.get<angvel>(e);
+
+            if (length_sqr(v) > island_linear_sleep_threshold * island_linear_sleep_threshold || 
+                length_sqr(w) > island_angular_sleep_threshold * island_angular_sleep_threshold) {
                 sleep = false;
                 break;
             }
@@ -84,6 +85,7 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
                 auto [v, w] = vel_view.get<linvel, angvel>(e);
                 v = vector3_zero;
                 w = vector3_zero;
+
                 registry.assign<sleeping_tag>(e);
 
                 auto rel_con = registry.get<relation_container>(e);
@@ -185,8 +187,7 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
     auto &rel = registry.get<relation>(entity);
 
     // Remove the destroyed relation from the `relation_container` of the
-    // related entities. Empty containers are removed at the end. This makes
-    // it unecessary to check for existence in the next step.
+    // related entities.
     for (auto ent : rel.entity) {
         if (ent == entt::null) { continue; }
         auto &container = registry.get<relation_container>(ent);
@@ -289,15 +290,6 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
 
     // Wake up the biggest island either way since something has changed in it.
     wakeup_island(biggest_ent, registry);
-
-    // Remove empty `relation_container`s.
-    for (auto ent : rel.entity) {
-        if (ent == entt::null) { continue; }
-        auto &container = registry.get<relation_container>(ent);
-        if (container.entities.empty()) {
-            registry.remove<relation_container>(ent);
-        }
-    }
 }
 
 }

@@ -13,7 +13,18 @@ scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
     EDYN_ASSERT(b > EDYN_EPSILON);
     t = clamp_unit(a / b);
     q = q0 + v * t;
-    return length2(p - q);
+    return length_sqr(p - q);
+}
+
+scalar closest_point_line(const vector3 &q0, const vector3 &dir,
+                          const vector3 &p, scalar &t, vector3 &r) {
+    auto w = p - q0; // Vector from initial point of line to point `p`.
+    auto a = dot(w, dir);
+    auto b = dot(dir, dir);
+    EDYN_ASSERT(b > EDYN_EPSILON);
+    t = a / b;
+    r = q0 + dir * t;
+    return length_sqr(p - r);
 }
 
 // Reference: Real-Time Collision Detection - Christer Ericson, section 5.1.9.
@@ -37,7 +48,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
         s = t = 0;
         c1 = p1;
         c2 = p2;
-        return length2(c1 - c2);
+        return length_sqr(c1 - c2);
     }
 
     if (a <= EDYN_EPSILON) {
@@ -113,7 +124,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
 
     c1 = p1 + d1 * s;
     c2 = p2 + d2 * t;
-    return length2(c1 - c2);
+    return length_sqr(c1 - c2);
 }
 
 scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius, 
@@ -123,7 +134,7 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
     const auto ln = dot(p - dpos, normal);
     const auto p_proj = p - normal * ln;
     const auto d = p_proj - dpos;
-    const auto l2 = length2(d);
+    const auto l2 = length_sqr(d);
 
     // Projection is inside disc.
     if (l2 < radius * radius) {
@@ -134,7 +145,7 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
     const auto l = std::sqrt(l2);
     const auto dn = d / l;
     q = dpos + dn * radius;
-    return length2(p - q);
+    return length_sqr(p - q);
 }
 
 size_t intersect_line_circle(scalar px, scalar py, 
@@ -162,58 +173,74 @@ size_t intersect_line_circle(scalar px, scalar py,
     return 1;
 }
 
-scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  scalar radius,
-                                  const vector3 &p0, const vector3 &p1, size_t &num_points, 
-                                  scalar &s0, vector3 &cc0, vector3 &cl0,
-                                  scalar &s1, vector3 &cc1, vector3 &cl1, 
-                                  vector3 &normal, scalar threshold) {
-    // Line vertices in local disc space. The face of the disc points towards
+scalar closest_point_circle_line(
+    const vector3 &cpos, const quaternion &corn,  scalar radius,
+    const vector3 &p0, const vector3 &p1, size_t &num_points, 
+    scalar &s0, vector3 &rc0, vector3 &rl0,
+    scalar &s1, vector3 &rc1, vector3 &rl1, 
+    vector3 &normal, scalar threshold) {
+
+    // Line points in local disc space. The face of the disc points towards
     // the positive x-axis.
     auto corn_conj = conjugate(corn);
-    auto q0 = rotate(corn_conj, p0 - cpos);
-    auto q1 = rotate(corn_conj, p1 - cpos);
+    auto q0 = to_object_space(p0, cpos, corn);
+    auto q1 = to_object_space(p1, cpos, corn);
     auto qv = q1 - q0;
-    auto qvl = length(qv);
+    auto qv_len_sqr = length_sqr(qv);
+    auto qv_len = std::sqrt(qv_len_sqr);
+    auto diameter = scalar(2) * radius;
 
-    // If a segment of the line of length `radius` does not move away from
-    // the yz plane more than the threshold, the line is considered to be 
-    // parallel to the disc. 
-    if (std::abs(qv.x / qvl) * radius < threshold) {
+    // If the projection of a segment of the line of length `diameter` on the x axis
+    // is smaller than threshold, the line is considered to be parallel to the circle. 
+    if (std::abs(qv.x) < EDYN_EPSILON) { // (std::abs(qv.x / qv_len) * diameter < threshold) {
         // Calculate line-circle intersection in the yz plane.
-        normal = rotate(corn, vector3_x);
+        // For the normal vector, calculate something orthogonal to the line.
+        auto tangent = cross(qv, vector3_x); // tangent lies on the circle plane.
+        normal = cross(qv, tangent);
+        normal = rotate(corn, normal);
+        normal = normalize(normal);
+
         num_points = intersect_line_circle(q0.y, q0.z, q1.y, q1.z, radius, s0, s1);
 
         if (num_points > 0) {
-            s0 = clamp_unit(s0);
-            cl0 = q0 + qv * s0;
-            cc0 = {0, cl0.y, cl0.z};
-            auto dist2 = cl0.x * cl0.x;
+            auto rl0_local = q0 + qv * s0;
+            auto rc0_local = vector3{0, rl0_local.y, rl0_local.z};
+            // Transform to world space.
+            rl0 = cpos + rotate(corn, rl0_local);
+            rc0 = cpos + rotate(corn, rc0_local);
 
-            cl0 = cpos + rotate(corn, cl0);
-            cc0 = cpos + rotate(corn, cc0);
+            // The distance is simply the x coord of the resulting point in the line
+            // in circle space.
+            auto dist2 = rl0_local.x * rl0_local.x;
 
             if (num_points > 1) {
-                s1 = clamp_unit(s1);
-                cl1 = q0 + qv * s1;
-                cc1 = {0, cl1.y, cl1.z};
-                cl1 = cpos + rotate(corn, cl1);
-                cc1 = cpos + rotate(corn, cc1);
+                auto rl1_local = q0 + qv * s1;
+                auto rc1_local = vector3{0, rl1_local.y, rl1_local.z};
+                rl1 = cpos + rotate(corn, rl1_local);
+                rc1 = cpos + rotate(corn, rc1_local);
+
+                dist2 = std::min(dist2, rl1_local.x * rl1_local.x);
             }
 
             return dist2;
         } else {
             // If the projection of line in the yz plane does not intersect disc 
-            // (despite being parallel), the closest point calculation falls 
-            // into a point-segment problem, with a projection for the circle.
+            // (despite being parallel), the closest point in the line is the point
+            // closest to the circle center and the the closest point on the circle
+            // is the closest point on the line projected on the circle plane,
+            // normalized and multiplied by radius.
             // Calculations done in world-space this time.
-            closest_point_segment(p0, p1, cpos, s0, cl0);
-            auto proj = cl0 - normal * dot(cl0 - cpos, normal);
-            cc0 = cpos + normalize(proj - cpos) * radius;
-            auto d = cl0 - cc0;
-            auto dl2 = length2(d);
+            closest_point_segment(p0, p1, cpos, s0, rl0);
+            auto proj = project_plane(rl0, cpos, normal);
+            auto dir = normalize(proj - cpos);
+            rc0 = cpos + dir * radius;
+            auto d = rl0 - rc0;
+            auto dl2 = length_sqr(d);
 
             if (dl2 > EDYN_EPSILON) {
                 normal = d / std::sqrt(dl2);
+            } else {
+                normal = dir;
             }
 
             num_points = 1;
@@ -221,85 +248,93 @@ scalar closest_point_disc_line(const vector3 &cpos, const quaternion &corn,  sca
         }
     }
 
-    // The closest point on the circle (perimeter of the disc) to any other 
-    // point is the normalized projection of the point on the yz plane
-    // multiplied by the radius of the circle. Given a line `p(t) = p0 + dq*t`,
-    // the closest point on the circle is `q(t) = radius * p_yz(t) / |p_yz(t)|`,
-    // where `p_yz(t)` is the projection of `p(t)` on the yz plane (i.e. just
-    // set the x coordinate of `p(t)` to zero). The vector between the 
-    // closest points is thus `d(t) = p(t) - q(t)`, and it must be minimized. 
-    // Let `f(t) = (1/2) * <d(t), d(t)>`, where `<,>` represents the dot product.
-    // Minimize `f(t)` using the Newton's method. The first and second derivatives
-    // of `f(t)` are needed: `f' = <d, d'>` and `f" = <d', d'> + <d, d">`.
-    // To facilitate the derivatives we define `ϴ(t) = atan(p_z(t) / p_y(t))` and
-    // `r(α) = [0 cosα sinα]`, and then redefine `q(t) = r(ϴ(t)) * radius`.
-    // Then `q' = r'(ϴ) * ϴ' * radius`, `q" = (r"(ϴ) * ϴ'^2 + r'(ϴ) * ϴ") * radius`.
-    // Also `ϴ' = (p_z' * p_y - p_z * p_y') / (p_z^2 + p_y^2)` and
-    // `ϴ" = (p_z' * p_y - p_z * p_y') * (2 * p_z * p_z' + 2 * p_y * p_y') /
-    // (p_z^2 + p_y^2)^2`. Then, the Newton iteration is taken with `f' / f"`.
+    // Let `q(θ) = [0, sin(θ) * r, cos(θ) * r]` be the parametrized circle in the yz
+    // plane, then the function `c(θ) = q0 + ((q(θ) - q0) · qv) / (qv · qv) * qv` 
+    // gives the point in the line that's closest to `q(θ)`. The function
+    // `d(θ) = q(θ) - c(θ)` gives us the vector connecting the closest points.
+    // The function `f(θ) = 0.5 * d(θ) · d(θ)` gives us half the squared length of
+    // `d(θ)`. Minimizing `f(θ)` will result in the angle `θ_m` where `d(θ)` achieves
+    // its smallest magnitude, thus `q(θ_m)` is the point in the circle closest to
+    // the line. The Newton-Raphson method is used for minimization.
 
-    // Start from the end closer to the plane to converge towards the closest
-    // minima and to avoid the central area which could contain a local maxima.
-    scalar s = qv.x > 0 ? 0 : 1;
-    constexpr size_t max_iterations = 5;
+    // Intersect line with yz plane and use the angle of this point as the
+    // initial value.
+    const auto q_yz_plane = q0 - (q0.x / qv.x) * qv;
+    const auto initial_theta = std::atan2(q_yz_plane.y, q_yz_plane.z);
+
+    // Newton-Raphson iterations.
+    auto theta = initial_theta;
+    size_t max_iterations = 3;
 
     for (size_t i = 0; i < max_iterations; ++i) {
-        auto qt = q0 + qv * s;
-        auto qtl_inv = scalar(1) / length(qt);
-        auto theta_sin = qt.z * qtl_inv;
-        auto theta_cos = qt.y * qtl_inv;
-        
-        auto rt = vector3{0, radius * theta_cos, radius * theta_sin};
-        auto d = qt - rt;
-        auto dtheta_denom_inv = scalar(1) / (qt.y * qt.y + qt.z * qt.z);
-        auto dtheta_num = qv.z * qt.y - qv.y * qt.z;
-        auto dtheta = dtheta_num * dtheta_denom_inv;
-        auto dq = vector3{0, -theta_sin, theta_cos} * radius * dtheta;
-        auto dd = qv - dq;
+        auto qv_len_sqr_inv = scalar(1) / qv_len_sqr;
+        auto sin_theta = std::sin(theta);
+        auto cos_theta = std::cos(theta);
 
-        auto qdd = radius * dtheta_num * dtheta_denom_inv * dtheta_denom_inv * 
-                   (vector3{0, -theta_cos, -theta_sin} * dtheta_num +
-                   vector3{0, -theta_sin, theta_cos} * (qt.z * dq.z + qt.y * dq.y) * 2);
-        auto ddd = -qdd;
+        // Function q(θ) = [0, sin(θ) * r, cos(θ) * r] and its first and
+        // second derivatives.
+        auto q_theta    = vector3{0,  sin_theta * radius,  cos_theta * radius};
+        auto d_q_theta  = vector3{0,  cos_theta * radius, -sin_theta * radius};
+        auto dd_q_theta = vector3{0, -sin_theta * radius, -cos_theta * radius};
 
-        auto f = dot(d, dd);
-        auto ff = dot(dd, dd) + dot(d, ddd);
-        
-        auto curr_s = s;
-        s = curr_s - f / ff;
-        auto step = s - curr_s;
+        // Function c(θ) gives the point in the line closest to q(θ).
+        // First and second derivates follow.
+        auto c_theta = q0 + dot(q_theta - q0, qv) * qv_len_sqr_inv * qv;
+        auto d_c_theta = dot(d_q_theta, qv) * qv_len_sqr_inv * qv;
+        auto dd_c_theta = dot(dd_q_theta, qv) * qv_len_sqr_inv * qv;
 
-        if (std::abs(step) < 0.0001) {
+        // Function d(θ) is the vector connecting the closest points.
+        // First and second derivates follow.
+        auto d_theta = q_theta - c_theta;
+        auto d_d_theta = d_q_theta - d_c_theta;
+        auto dd_d_theta = dd_q_theta - dd_c_theta;
+
+        // Function f(θ) gives a scalar proportional to the length of d(θ).
+        // First derivative f' = d'· d
+        // Second derivative f" = d'· d + d"· d
+        auto f_theta = scalar(0.5) * dot(d_theta, d_theta);
+        auto d_f_theta = dot(d_theta, d_d_theta);
+        auto dd_f_theta = dot(d_d_theta, d_d_theta) + dot(dd_d_theta, d_theta);
+
+        auto delta = d_f_theta / dd_f_theta;
+        theta -= delta;
+
+        // Stop when the delta is smaller than a degree.
+        if (std::abs(delta) < pi * scalar(1) / scalar(180)) {
             break;
         }
     }
 
-    s0 = s;
+    auto closest_sin_theta = std::sin(theta);
+    auto closest_cos_theta = std::cos(theta);
+    auto rc0_local = vector3{0, closest_sin_theta * radius, closest_cos_theta * radius};
+    vector3 rl0_local;
+    auto dist_sqr = closest_point_line(q0, qv, rc0_local, s0, rl0_local);
 
-    auto q = q0 + qv * s;
-    auto r = q;
-    vector3 d;
-    scalar l2;
+    rc0 = cpos + rotate(corn, rc0_local);
+    rl0 = cpos + rotate(corn, rl0_local);
 
-    if (q.y * q.y + q.z * q.z > radius * radius) {
-        r.x = 0;
-        r = normalize(r) * radius;
-        d = q - r;
-        l2 = length2(d);
+    // Get tangent at θ and use cross product with line to calculate normal.
+    auto tangent = vector3{0, closest_cos_theta, -closest_sin_theta};
+    normal = cross(tangent, qv);
+
+    auto normal_len_sqr = length_sqr(normal);
+
+    if (normal_len_sqr > EDYN_EPSILON) {
+        normal /= std::sqrt(normal_len_sqr);
+        normal = rotate(corn, normal);
+    } else if (dist_sqr > EDYN_EPSILON) {
+        // If line is parallel to tangent and closest points do not coincide.
+        normal = (rl0 - rc0) / std::sqrt(dist_sqr);
     } else {
-        r = {0, q.y, q.z};
-        d = {q.x, 0, 0};
-        l2 = q.x * q.x;
+        // If points coincide, take a vector at an angle θ.
+        normal = vector3{0, closest_sin_theta, closest_cos_theta};
+        normal = rotate(corn, normal);
     }
-
-    cc0 = cpos + rotate(corn, r);
-    cl0 = cpos + rotate(corn, q);
-    normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
-    normal = rotate(corn, normal);
 
     num_points = 1;
 
-    return l2;
+    return dist_sqr;
 }
 
 size_t intersect_circle_circle(scalar px, scalar py, 
@@ -354,7 +389,7 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
     // problem can be handled as segment-segment closest point.
     auto tangentA = cross(posA - posB, normalB);
     auto tangentB = cross(posA - posB, normalA);
-    auto tangent = length2(tangentA) > length2(tangentB) ? tangentA : tangentB;
+    auto tangent = length_sqr(tangentA) > length_sqr(tangentB) ? tangentA : tangentB;
 
     if (std::abs(dot(tangent, normalA)) < 0.01 &&
         std::abs(dot(tangent, normalB)) < 0.01) {
@@ -459,7 +494,7 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
         auto distA = dot(closestA - posB, normalB);
         auto closestA_projB = closestA - normalB * distA;
 
-        if (length2(closestA_projB - posB) < radiusB) {
+        if (length_sqr(closestA_projB - posB) < radiusB) {
             num_points = 1;
             closest[0].first = closestA;
             closest[0].second = closestA_projB;
@@ -488,7 +523,7 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
         auto distB = dot(closestB - posA, normalA);
         auto closestB_projA = closestB - normalA * distB;
 
-        if (length2(closestB_projA - posA) < radiusA) {
+        if (length_sqr(closestB_projA - posA) < radiusA) {
             num_points = 1;
             closest[0].first = closestB;
             closest[0].second = closestB_projA;
@@ -519,7 +554,7 @@ scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scal
             r.x = 0;
             r = normalize(r) * radiusB;
             d = q - r;
-            l2 = length2(d);
+            l2 = length_sqr(d);
         } else {
             r = {0, q.y, q.z};
             d = {q.x, 0, 0};
@@ -568,6 +603,103 @@ void plane_space(const vector3 &n, vector3 &p, vector3 &q) {
         q.y = n.z * p.x;
         q.z = a * k;
     }
+}
+
+bool intersect_aabb(const vector3 &min0, const vector3 &max0,
+                    const vector3 &min1, const vector3 &max1) {
+    return (min0.x <= max1.x) &&
+		   (max0.x >= min1.x) &&
+		   (min0.y <= max1.y) &&
+		   (max0.y >= min1.y) &&
+		   (min0.z <= max1.z) &&
+		   (max0.z >= min1.z);
+}
+
+vector3 support_point_circle(scalar radius, const vector3 &pos, const quaternion &orn, const vector3 &dir) {
+    auto local_dir = rotate(conjugate(orn), dir);
+    // Squared length in yz plane.
+    auto len_yz_sqr = local_dir.y * local_dir.y + local_dir.z * local_dir.z;
+    vector3 sup;
+
+    if (len_yz_sqr > EDYN_EPSILON) {
+        auto d = radius / std::sqrt(len_yz_sqr);
+        sup = {0, local_dir.y * d, local_dir.z * d};
+    } else {
+        sup = {0, radius, 0};
+    }
+
+    return pos + rotate(orn, sup);
+}
+
+scalar signed_triangle_area(const vector2 &a, const vector2 &b, const vector2 &c) {
+    return (a.x - c.x) * (b.y - c.y) - (a.y - c.y) * (b.x - c.x);
+}
+
+size_t intersect_segments(const vector2 &p0, const vector2 &p1,
+                          const vector2 &q0, const vector2 &q1,
+                          scalar &s0, scalar &t0,
+                          scalar &s1, scalar &t1) {
+    auto dp = p1 - p0;
+    auto dq = q1 - q0;
+    auto e = q0 - p0;
+    auto denom = perp_product(dp, dq);
+
+    if (std::abs(denom) > EDYN_EPSILON) {
+        auto denom_inv = scalar(1) / denom;
+        s0 = perp_product(e, dq) * denom_inv;
+        t0 = perp_product(e, dp) * denom_inv;
+        return s0 < 0 || s0 > 1 || t0 < 0 || t0 > 1 ? 0 : 1;
+    }
+
+    // Segments are parallel.
+    if (perp_product(e, dp) < EDYN_EPSILON) {
+        // Calculate intersection interval.
+        auto dir = dot(dp, dq);
+        auto denom_p = scalar(1) / dot(dp, dp);
+        auto denom_q = scalar(1) / dot(dq, dq);
+
+        if (dir > 0) {
+            auto f = q1 - p1;
+            s0 = dot(e, dp) * denom_p;
+            t0 = -dot(e, dq) * denom_q;
+
+            s1 = scalar(1) + dot(f, dp) * denom_p;
+            t1 = scalar(1) - dot(f, dq) * denom_q;
+        } else {
+            auto f = q1 - p0;
+            s0 = dot(f, dp) * denom_p;
+            t0 = -dot(f, dq) * denom_q;
+
+            auto g = q0 - p1;
+            s1 = scalar(1) + dot(g, dp) * denom_p;
+            t1 = scalar(1) - dot(g, dq) * denom_q;
+        }
+
+        if (s0 < 0 || s0 > 1 || t0 < 0 || t0 > 1 ||
+            s1 < 0 || s1 > 1 || t1 < 0 || t1 > 1) {
+            return 0;
+        }
+        
+        return 2;
+    }
+
+    return 0;
+}
+
+scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, const vector3& p3) {
+	vector3 a[3], b[3];
+	a[0] = p0 - p1;
+	a[1] = p0 - p2;
+	a[2] = p0 - p3;
+	b[0] = p2 - p3;
+	b[1] = p1 - p3;
+	b[2] = p1 - p2;
+
+	vector3 tmp0 = cross(a[0], b[0]);
+	vector3 tmp1 = cross(a[1], b[1]);
+	vector3 tmp2 = cross(a[2], b[2]);
+
+	return std::max(std::max(length_sqr(tmp0), length_sqr(tmp1)), length_sqr(tmp2));
 }
 
 }

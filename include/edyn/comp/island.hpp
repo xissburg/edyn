@@ -13,7 +13,7 @@ struct island {
     // All entities in this island.
     std::vector<entt::entity> entities;
 
-    // The step when all entities in this island reached a speed lower then the
+    // The step when all entities in this island reached a speed lower than the
     // threshold. If the speed continues below the threshold for more than a
     // certain period of time, the island is put to sleep.
     uint64_t sleep_step {UINT64_MAX};

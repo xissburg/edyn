@@ -6,9 +6,34 @@
 
 namespace edyn {
 
+enum cylinder_feature {
+    // Either of the two cylinder caps.
+    CYLINDER_FEATURE_FACE,
+    // An edge on the side wall of the cylinder.
+    CYLINDER_FEATURE_SIDE_EDGE,
+    // The edge/border of a cylinder cap.
+    CYLINDER_FEATURE_FACE_EDGE,
+};
+
 struct cylinder_shape {
     scalar radius;
     scalar half_length;
+
+    AABB aabb(const vector3 &pos, const quaternion &orn) const {
+        auto ptx = support_point(orn, vector3_x);
+        auto pty = support_point(orn, vector3_y);
+        auto ptz = support_point(orn, vector3_z);
+        auto v = vector3 {ptx.x, pty.y, ptz.z};
+
+        return {pos - v, pos + v};
+    }
+
+    vector3 inertia(scalar mass) const {
+        auto len = half_length * 2;
+        scalar xx = scalar(0.5) * mass * radius * radius;
+        scalar yy_zz =  scalar(1) / scalar(12) * mass * (scalar(3) * radius * radius + len * len);
+        return {xx, yy_zz, yy_zz};
+    }
 
     vector3 support_point(const vector3 &dir) const {
         // Squared length in yz plane.
@@ -32,21 +57,15 @@ struct cylinder_shape {
         return pos + support_point(orn, dir);
     }
 
-    AABB aabb(const vector3 &pos, const quaternion &orn) const {
-        auto ptx = support_point(orn, vector3_x);
-        auto pty = support_point(orn, vector3_y);
-        auto ptz = support_point(orn, vector3_z);
-        auto v = vector3 {ptx.x, pty.y, ptz.z};
+    void support_feature(const vector3 &dir, cylinder_feature &out_feature, 
+                         size_t &out_feature_index, vector3 &out_support_point, 
+                         scalar &out_projection, scalar threshold) const;
 
-        return {pos - v, pos + v};
-    }
-
-    vector3 inertia(scalar mass) const {
-        auto len = half_length * 2;
-        scalar xx = scalar(0.5) * mass * radius * radius;
-        scalar yy_zz =  scalar(1) / scalar(12) * mass * (scalar(3) * radius * radius + len * len);
-        return {xx, yy_zz, yy_zz};
-    }
+    void support_feature(const vector3 &pos, const quaternion &orn, 
+                         const vector3 &axis_pos, const vector3 &axis_dir,
+                         cylinder_feature &out_feature, size_t &out_feature_index,
+                         vector3 &out_support_point, scalar &out_projection,
+                         scalar threshold) const;
 };
 
 }

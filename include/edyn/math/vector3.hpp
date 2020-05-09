@@ -66,8 +66,13 @@ inline vector3& operator-=(vector3 &v, const vector3 &w) {
 }
 
 // Negation of a vector.
-inline vector3 operator-(const vector3& v) {
+inline vector3 operator-(const vector3 &v) {
     return {-v.x, -v.y, -v.z};
+}
+
+// Multiply vectors component-wise.
+inline vector3 operator*(const vector3 &v, const vector3 &w) {
+    return {v.x * w.x, v.y * w.y, v.z * w.z};
 }
 
 // Multiply vector by scalar.
@@ -140,13 +145,23 @@ inline vector3 cross(const vector3 &v, const vector3 &w) {
 }
 
 // Square length of a vector.
-inline scalar length2(const vector3 &v) {
+inline scalar length_sqr(const vector3 &v) {
     return dot(v, v);
 }
 
 // Length of a vector.
 inline scalar length(const vector3 &v) {
-    return std::sqrt(length2(v));
+    return std::sqrt(length_sqr(v));
+}
+
+// Distance between two points.
+inline scalar distance(const vector3 &p0, const vector3 &p1) {
+    return length(p0 - p1);
+}
+
+// Squared distance between two points.
+inline scalar distance2(const vector3 &p0, const vector3 &p1) {
+    return length_sqr(p0 - p1);
 }
 
 // Normalized vector (unit length). Asserts if the vector's length is zero.
@@ -154,6 +169,16 @@ inline vector3 normalize(const vector3 &v) {
     auto l = length(v);
     EDYN_ASSERT(l > EDYN_EPSILON);
     return v / l;
+}
+
+// Projects direction vector `v` onto plane with normal `n`.
+inline vector3 project_direction(const vector3 &v, const vector3 &n) {
+    return v - n * dot(v, n);
+}
+
+// Projects point `p` onto plane with origin `q` and normal `n`.
+inline vector3 project_plane(const vector3 &p, const vector3 &q, const vector3 &n) {
+    return p - n * dot(p - q, n);
 }
 
 inline vector3 min(const vector3 &v, const vector3 &w) {

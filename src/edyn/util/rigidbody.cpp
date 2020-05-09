@@ -11,6 +11,7 @@
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
+#include "edyn/comp/collision_filter.hpp"
 
 namespace edyn {
 
@@ -68,6 +69,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (auto opt = def.shape_opt) {
         registry.assign<shape>(entity, *opt);
+
+        auto &filter = registry.get<edyn::collision_filter>(entity);
+        filter.group = def.collision_group;
+        filter.mask = def.collision_mask;
     }
 }
 
@@ -75,6 +80,31 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
     auto ent = registry.create();
     make_rigidbody(ent, registry, def);
     return ent;
+}
+
+
+void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar mass) {
+    registry.replace<edyn::mass>(entity, mass);
+    rigidbody_update_inertia(registry, entity);
+}
+
+void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
+    auto &mass = registry.get<edyn::mass>(entity);
+
+    edyn::vector3 inertia;
+    auto& shape = registry.get<edyn::shape>(entity);
+    std::visit([&] (auto&& s) {
+        inertia = s.inertia(mass);
+    }, shape.var);
+    registry.replace<edyn::inertia>(entity, inertia);
+}
+
+void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity, 
+                             const vector3 &impulse, const vector3 &rel_location) {
+    auto &m_inv = registry.get<const mass_inv>(entity);
+    auto &i_inv = registry.get<const inertia_world_inv>(entity);
+    registry.get<linvel>(entity) += impulse * m_inv;
+    registry.get<angvel>(entity) += i_inv * cross(rel_location, impulse);
 }
 
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
@@ -88,7 +118,7 @@ void update_kinematic_position(entt::registry &registry, entt::entity entity, co
 void update_kinematic_orientation(entt::registry &registry, entt::entity entity, const quaternion &orn, scalar dt) {
     EDYN_ASSERT(registry.has<kinematic_tag>(entity));
     auto &curorn = registry.get<orientation>(entity);
-    auto q = orn * conjugate(curorn);
+    auto q = normalize(conjugate(curorn) * orn);
     auto &vel = registry.get<angvel>(entity);
     vel = (quaternion_axis(q) * quaternion_angle(q)) / dt;
     curorn = orn;
