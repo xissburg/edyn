@@ -15,6 +15,18 @@
 
 namespace edyn {
 
+void refresh_manifold(contact_manifold &manifold,
+                      const vector3 &posA, const quaternion &ornA, 
+                      const vector3 &posB, const quaternion &ornB) {
+    for (size_t i = 0; i < manifold.num_points; ++i) {
+        auto &pt = manifold.point[i];
+        auto pivotA_world = posA + rotate(ornA, pt.pivotA);
+        auto pivotB_world = posB + rotate(ornB, pt.pivotB);
+        auto normal_world = rotate(ornB, pt.normalB);
+        pt.distance = dot(normal_world, pivotA_world - pivotB_world);
+    }
+}
+
 narrowphase::narrowphase(entt::registry &reg)
     : registry(&reg)
 {
@@ -92,6 +104,7 @@ void narrowphase::update() {
             }, shapeB.var);
         }, shapeA.var);
 
+        refresh_manifold(manifold, posA, ornA, posB, ornB);
         process_collision(ent, manifold, rel, result);
         prune(ent, manifold, posA, ornA, posB, ornB);
     });
