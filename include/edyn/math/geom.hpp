@@ -25,6 +25,9 @@ namespace edyn {
 scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
                              const vector3 &p, scalar &t, vector3 &q);
 
+scalar distance_sqr_line(const vector3 &q0, const vector3 &dir,
+                         const vector3 &p);
+
 /**
  * @brief Computes the point in the line `q(t) = q0 + t*dir` closest
  * to point `p`.
@@ -109,10 +112,11 @@ scalar closest_point_circle_line(
 
 using closest_points_array = std::array<std::pair<vector3, vector3>, max_contacts>;
 
-scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scalar radiusA,
-                               const vector3 &posB, const quaternion &ornB, scalar radiusB,
-                               size_t &num_points, closest_points_array &, 
-                               vector3 &normal);
+scalar closest_point_circle_circle(
+    const vector3 &posA, const quaternion &ornA, scalar radiusA,
+    const vector3 &posB, const quaternion &ornB, scalar radiusB,
+    size_t &num_points, closest_points_array &, 
+    vector3 &normal);
 
 /**
  * Constructs an orthonomal basis given one vector. In other words, given a
@@ -136,6 +140,12 @@ size_t intersect_line_circle(scalar px, scalar py,
                              scalar qx, scalar qy, 
                              scalar radius, 
                              scalar &s0, scalar &s1);
+
+size_t intersect_circle_circle(scalar px, scalar py, 
+                               scalar qx, scalar qy, 
+                               scalar pr, scalar qr,
+                               scalar &ix, scalar &iy,
+                               scalar &jx, scalar &jy);
 
 vector3 support_point_circle(scalar radius, const vector3 &pos, 
                              const quaternion &orn, const vector3 &dir);

@@ -34,6 +34,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
     size_t axis_idx = 0;
 
+    // A's faces.
     for (size_t i = 0; i < 3; ++i) {
         auto &axisA = axesA[i];
         auto &axis = sep_axes[axis_idx++];
@@ -60,6 +61,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         axis.distance = -(shA.half_extents[i] + axis.distance);
     }
 
+    // B's faces.
     for (size_t i = 0; i < 3; ++i) {
         auto &axisB = axesB[i];
         auto &axis = sep_axes[axis_idx++];
@@ -79,6 +81,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         axis.distance = -(shB.half_extents[i] + axis.distance);
     }
 
+    // Edge-edge.
     for (size_t i = 0; i < 3; ++i) {
         auto &axisA = axesA[i];
 

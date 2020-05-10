@@ -16,6 +16,17 @@ scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
     return length_sqr(p - q);
 }
 
+scalar distance_sqr_line(const vector3 &q0, const vector3 &dir,
+                         const vector3 &p) {
+    auto w = p - q0;
+    auto a = dot(w, dir);
+    auto b = dot(dir, dir);
+    EDYN_ASSERT(b > EDYN_EPSILON);
+    auto t = a / b;
+    auto q = q0 + dir * t;
+    return length_sqr(p - q);
+}
+
 scalar closest_point_line(const vector3 &q0, const vector3 &dir,
                           const vector3 &p, scalar &t, vector3 &r) {
     auto w = p - q0; // Vector from initial point of line to point `p`.
@@ -127,8 +138,8 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
     return length_sqr(c1 - c2);
 }
 
-scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius, 
-                          const vector3 &p, vector3 &q) {
+scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, 
+                          scalar radius, const vector3 &p, vector3 &q) {
     // Project point onto disc's plane.
     const auto normal = rotate(dorn, vector3_x);
     const auto ln = dot(p - dpos, normal);
@@ -375,10 +386,12 @@ size_t intersect_circle_circle(scalar px, scalar py,
     return t > EDYN_EPSILON ? 2 : 1;
 }
 
-scalar closest_point_disc_disc(const vector3 &posA, const quaternion &ornA, scalar radiusA,
-                               const vector3 &posB, const quaternion &ornB, scalar radiusB,
-                               size_t &num_points, closest_points_array &closest, 
-                               vector3 &normal) {
+scalar closest_point_circle_circle(
+    const vector3 &posA, const quaternion &ornA, scalar radiusA,
+    const vector3 &posB, const quaternion &ornB, scalar radiusB,
+    size_t &num_points, closest_points_array &closest, 
+    vector3 &normal) {
+
     auto normalA = rotate(ornA, vector3_x);
     auto normalB = rotate(ornB, vector3_x);
 
