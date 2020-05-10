@@ -453,6 +453,18 @@ scalar closest_point_circle_circle(
         }
     }
 
+    // Let `q(θ) = [0, sin(θ) * r, cos(θ) * r]` be the parametrized circle of
+    // radius `r` in the yz plane, and `p(φ) = u * cos(φ) * s + v * sin(φ) * s` 
+    // be the other parametrized circle of radius `s` where `u` and `v` are
+    // unit orthogonal vectors. The `θ` which gives us the point in `q(θ)`
+    // closest to any point `a` is `atan(a_y / a_z)`, thus `θ` can be written
+    // as a function of `φ`: `θ(φ) = atan(p_y(φ) / p_z(φ))`. Then, a function
+    // which gives us the vector connecting the closest points can be written
+    // `d(φ) = p(φ) - q(θ(φ))` and a function that gives us a quantity proportinal
+    // to the distance between these points can be written `f(φ) = d(φ) · d(φ) / 2`.
+    // Minimizing `f(φ)` will result in the value of `φ` that gives us the closest
+    // points between the two circles.
+
     // Build ortho basis on B (in A's space).
     auto ornB_in_A = conjugate(ornA) * ornB;
     auto u = quaternion_z(ornB_in_A);
@@ -485,14 +497,14 @@ scalar closest_point_circle_circle(
         auto d_q_theta = vector3{0, cos_theta * radiusA, -sin_theta * radiusA};
         auto dd_q_theta = vector3{0, -sin_theta * radiusA, -cos_theta * radiusA};
 
-        // Function d(θ) is the vector connecting the closest points.
+        // Function d(φ) is the vector connecting the closest points.
         // First and second derivates follow.
         auto d_phi = p_phi - q_theta;
         auto d_d_phi = d_p_phi - d_q_theta;
         auto dd_d_phi = dd_p_phi - dd_q_theta;
 
-        // Function f(θ) = d · d / 2 gives us a scalar proportional to the 
-        // length of d(θ).
+        // Function f(φ) = d · d / 2 gives us a scalar proportional to the 
+        // length of d(φ).
         // First derivative f' = d'· d
         // Second derivative f" = d'· d + d"· d
         // auto f_theta = scalar(0.5) * dot(d_phi, d_phi);
