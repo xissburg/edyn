@@ -300,10 +300,11 @@ scalar closest_point_circle_line(
         auto d_d_theta = d_q_theta - d_c_theta;
         auto dd_d_theta = dd_q_theta - dd_c_theta;
 
-        // Function f(θ) gives a scalar proportional to the length of d(θ).
+        // Function f(θ) = d · d / 2 gives us a scalar proportional to the 
+        // length of d(θ).
         // First derivative f' = d'· d
         // Second derivative f" = d'· d + d"· d
-        auto f_theta = scalar(0.5) * dot(d_theta, d_theta);
+        // auto f_theta = scalar(0.5) * dot(d_theta, d_theta);
         auto d_f_theta = dot(d_theta, d_d_theta);
         auto dd_f_theta = dot(d_d_theta, d_d_theta) + dot(dd_d_theta, d_theta);
 
