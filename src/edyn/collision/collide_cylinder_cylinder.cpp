@@ -105,22 +105,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                 axis.featureB, axis.feature_indexB, 
                                 axis.pivotB, projB, threshold);
             axis.distance = -(projA + projB);
-        }/* else {
-            vector3 closest; scalar t;
-            auto dist_sqr = closest_point_line(posA, axisA, posB, t, closest);
-
-            auto dir = closest - posB;
-            auto dir_len_sqr = length_sqr(dir);
-
-            if (dir_len_sqr > EDYN_EPSILON) {
-                dir /= std::sqrt(dir_len_sqr);
-                auto &axis = sep_axes[axis_idx++];
-                axis.featureA = CYLINDER_FEATURE_SIDE_EDGE;
-                axis.featureB = CYLINDER_FEATURE_SIDE_EDGE;
-                axis.dir = dir;
-                axis.distance = std::sqrt(dist_sqr) - shA.radius - shB.radius;
-            }
-        }*/
+        }
     }
 
     // A's Face edges vs B's side edges.
@@ -233,7 +218,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                                   shA.radius, shB.radius, 
                                                   p[0].z, p[0].y, p[1].z, p[1].y);
         if (num_points > 0) {
-
             for (size_t i = 0; i < num_points; ++i) {
                 auto pivotB = p[i];
                 pivotB.x = shB.half_length * (sep_axis.feature_indexB == 0 ? 1 : -1);
@@ -248,8 +232,9 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             auto circle_pointA = posA + quaternion_z(ornA) * shA.radius;
             auto circle_pointB = posB + quaternion_z(ornB) * shB.radius;
 
+            const auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
+
             if (distance_sqr_line(posA, axisA, circle_pointB) < shA.radius * shA.radius) {
-                auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
                 auto posB_in_A = to_object_space(posB, posA, ornA);
                 auto ornB_in_A = conjugate(ornA) * ornB;
 
@@ -263,8 +248,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     result.maybe_add_point({pivotA, pivotB, normalB, sep_axis.distance});
                 }
             } else if (distance_sqr_line(posB, axisB, circle_pointA) < shB.radius * shB.radius) {
-                auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
-
                 for(size_t i = 0; i < 4; ++i) {
                     auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
                     auto pivotA = vector3{pivotA_x, 
@@ -320,7 +303,6 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         }
     } else if (sep_axis.featureA == CYLINDER_FEATURE_SIDE_EDGE && 
                sep_axis.featureB == CYLINDER_FEATURE_SIDE_EDGE) {
-
         scalar s[2], t[2];
         vector3 pA[2], pB[2];
         size_t num_points = 0;
