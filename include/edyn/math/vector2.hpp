@@ -100,6 +100,16 @@ inline scalar perp_product(const vector2 &v, const vector2 &w) {
     return v.x * w.y - v.y * w.x;
 }
 
+// Square length of a vector.
+inline scalar length_sqr(const vector2 &v) {
+    return dot(v, v);
+}
+
+// Length of a vector.
+inline scalar length(const vector2 &v) {
+    return std::sqrt(length_sqr(v));
+}
+
 }
 
 #endif // EDYN_MATH_VECTOR2_HPP

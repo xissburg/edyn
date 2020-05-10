@@ -169,8 +169,35 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
     // Face edges vs face edges.
     for (size_t i = 0; i < 2; ++i) {
-        for (size_t j = 0; j < 2; ++j) {
+        auto &circle_posA = i == 0 ? face_center_negA : face_center_posA;
 
+        for (size_t j = 0; j < 2; ++j) {
+            auto &circle_posB = i == 0 ? face_center_negB : face_center_posB;
+            size_t num_points;
+            vector3 closest0[2];
+            vector3 closest1[2];
+            vector3 normal;
+            closest_point_circle_circle(circle_posA, ornA, shA.radius, 
+                                        circle_posB, ornB, shB.radius, 
+                                        num_points, closest0[0], closest0[1],
+                                        closest1[0], closest1[1], normal);
+
+            auto &axis = sep_axes[axis_idx++];
+            axis.dir = normal;
+
+            if (dot(posA - posB, axis.dir) < 0) {
+                // Points towards A.
+                axis.dir *= -1;
+            }
+
+            scalar projA, projB;
+            shA.support_feature(posA, ornA, posB, -axis.dir, 
+                                axis.featureA, axis.feature_indexA, 
+                                axis.pivotA, projA, threshold);
+            shB.support_feature(posB, ornB, posB, axis.dir, 
+                                axis.featureB, axis.feature_indexB, 
+                                axis.pivotB, projB, threshold);
+            axis.distance = -(projA + projB);
         }
     }
 
@@ -330,6 +357,11 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             pivotB = to_object_space(pivotB + sep_axis.dir * shB.radius, posB, ornB);
             result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
         }
+    } else if (sep_axis.featureA == CYLINDER_FEATURE_FACE_EDGE &&
+               sep_axis.featureB == CYLINDER_FEATURE_FACE_EDGE) {
+        auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
+        auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
+        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
     }
 
     return result;

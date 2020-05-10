@@ -110,12 +110,10 @@ scalar closest_point_circle_line(
     scalar &s1, vector3 &rc1, vector3 &rl1, 
     vector3 &normal, scalar threshold = contact_breaking_threshold);
 
-using closest_points_array = std::array<std::pair<vector3, vector3>, max_contacts>;
-
 scalar closest_point_circle_circle(
     const vector3 &posA, const quaternion &ornA, scalar radiusA,
     const vector3 &posB, const quaternion &ornB, scalar radiusB,
-    size_t &num_points, closest_points_array &, 
+    size_t &num_points, vector3 &rA0, vector3 &rB0, vector3 &rA1, vector3 &rB1, 
     vector3 &normal);
 
 /**
@@ -180,7 +178,7 @@ size_t insert_index(std::array<vector3, N> points,
     auto closest_dist_sqr = EDYN_SCALAR_MAX;
 
     for (size_t i = 0; i < num_points; ++i) {
-        auto dist_sqr = distance2(new_point, points[i]);
+        auto dist_sqr = distance_sqr(new_point, points[i]);
         if (dist_sqr < closest_dist_sqr) {
             closest_dist_sqr = dist_sqr;
             closest_idx = i;

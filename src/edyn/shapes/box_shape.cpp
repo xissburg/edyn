@@ -58,7 +58,6 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
                                 size_t &feature_index, scalar &projection,
                                 scalar threshold) const {
     std::array<scalar, 8> projections;
-    size_t max_idx;
     projection = -EDYN_SCALAR_MAX;
 
     for (size_t i = 0; i < 8; ++i) {
@@ -68,7 +67,6 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
 
         if (proj > projection) {
             projection = proj;
-            max_idx = i;
         }
     }
 

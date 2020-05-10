@@ -61,7 +61,6 @@ void collide_cylinder_triangle(
 
     // Triangle face normal.
     {
-        const auto &v0 = vertices[0];
         auto axis = separating_axis_cyl_tri{};
         axis.tri_feature = TRIANGLE_FEATURE_FACE;
         axis.dir = tri_normal;
@@ -82,8 +81,8 @@ void collide_cylinder_triangle(
         const auto &v1 = vertices[(i + 1) % 3];
         scalar s, t;
         vector3 p0, p1;
-        auto dist_sqr = closest_point_segment_segment(disc_center_pos, disc_center_neg, 
-                                                        v0, v1, s, t, p0, p1);
+        closest_point_segment_segment(disc_center_pos, disc_center_neg, 
+                                      v0, v1, s, t, p0, p1);
 
         if (s > 0 && s < 1) {
             if (t > 0 && t < 1) {

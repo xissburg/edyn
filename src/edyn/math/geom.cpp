@@ -193,13 +193,10 @@ scalar closest_point_circle_line(
 
     // Line points in local disc space. The face of the disc points towards
     // the positive x-axis.
-    auto corn_conj = conjugate(corn);
     auto q0 = to_object_space(p0, cpos, corn);
     auto q1 = to_object_space(p1, cpos, corn);
     auto qv = q1 - q0;
     auto qv_len_sqr = length_sqr(qv);
-    auto qv_len = std::sqrt(qv_len_sqr);
-    auto diameter = scalar(2) * radius;
 
     // If the projection of a segment of the line of length `diameter` on the x axis
     // is smaller than threshold, the line is considered to be parallel to the circle. 
@@ -241,7 +238,7 @@ scalar closest_point_circle_line(
             // is the closest point on the line projected on the circle plane,
             // normalized and multiplied by radius.
             // Calculations done in world-space this time.
-            closest_point_segment(p0, p1, cpos, s0, rl0);
+            closest_point_line(p0, p1 - p0, cpos, s0, rl0);
             auto proj = project_plane(rl0, cpos, normal);
             auto dir = normalize(proj - cpos);
             rc0 = cpos + dir * radius;
@@ -272,13 +269,13 @@ scalar closest_point_circle_line(
     // initial value.
     const auto q_yz_plane = q0 - (q0.x / qv.x) * qv;
     const auto initial_theta = std::atan2(q_yz_plane.y, q_yz_plane.z);
+    const auto qv_len_sqr_inv = scalar(1) / qv_len_sqr;
 
     // Newton-Raphson iterations.
     auto theta = initial_theta;
     size_t max_iterations = 3;
 
     for (size_t i = 0; i < max_iterations; ++i) {
-        auto qv_len_sqr_inv = scalar(1) / qv_len_sqr;
         auto sin_theta = std::sin(theta);
         auto cos_theta = std::cos(theta);
 
@@ -390,207 +387,163 @@ size_t intersect_circle_circle(scalar px, scalar py,
 scalar closest_point_circle_circle(
     const vector3 &posA, const quaternion &ornA, scalar radiusA,
     const vector3 &posB, const quaternion &ornB, scalar radiusB,
-    size_t &num_points, closest_points_array &closest, 
+    size_t &num_points, vector3 &rA0, vector3 &rB0, vector3 &rA1, vector3 &rB1,
     vector3 &normal) {
 
     auto normalA = rotate(ornA, vector3_x);
     auto normalB = rotate(ornB, vector3_x);
+    auto posB_in_A = to_object_space(posB, posA, ornA);
 
-    auto ornA_conj = conjugate(ornA);
-    auto ornB_conj = conjugate(ornB);
-
-    // If discs have their normals in the same plane as their centers, the 
-    // problem can be handled as segment-segment closest point.
-    auto tangentA = cross(posA - posB, normalB);
-    auto tangentB = cross(posA - posB, normalA);
-    auto tangent = length_sqr(tangentA) > length_sqr(tangentB) ? tangentA : tangentB;
-
-    if (std::abs(dot(tangent, normalA)) < 0.01 &&
-        std::abs(dot(tangent, normalB)) < 0.01) {
-        normal = normalB;
-
-        auto bitangentA = cross(tangent, normalA);
-        bitangentA -= normalA * dot(tangent, normalA);
-        bitangentA = normalize(bitangentA);
-        auto p0A = posA + bitangentA * radiusA;
-        auto p1A = posA - bitangentA * radiusA;
-
-        auto bitangentB = cross(tangent, normalB);
-        bitangentB -= normalB * dot(tangent, normalB);
-        bitangentB = normalize(bitangentB);
-        auto p0B = posB + bitangentB * radiusB;
-        auto p1B = posB - bitangentB * radiusB;
-
-        scalar s0, s1, t0, t1;
-        vector3 c0, c1, c2, c3;
-        auto dist2 = closest_point_segment_segment(p0A, p1A, p0B, p1B, 
-                                                   s0, t0, c0, c1, 
-                                                   &num_points, 
-                                                   &s1, &t1, &c2, &c3);
-        size_t idx = 0;
-        closest[idx].first = c0;
-        closest[idx].second = c1;
-        ++idx;
-
-        if (num_points > 1) {
-            closest[idx].first = c2;
-            closest[idx].second = c3;
-            ++idx;
-        }
-
-        if (std::abs(scalar(1) - dot(normalA, normalB)) < 0.01) {
-            auto posBA = rotate(ornA_conj, posB - posA);
-            auto np = intersect_circle_circle(0, 0,
-                                              posBA.y, posBA.z,
-                                              radiusA, radiusB,
-                                              c0.y, c0.z,
-                                              c1.y, c1.z);
-            if (np > 0) {
-                num_points += np;
-                closest[idx].first = posA + rotate(ornA, vector3 {0, c0.y, c0.z});
-                closest[idx].second = posA + rotate(ornA, vector3 {posBA.x , c0.y, c0.z});
-                ++idx;
-
-                if (np > 1) {
-                    closest[idx].first = posA + rotate(ornA, vector3 {0, c1.y, c1.z});
-                    closest[idx].second = posA + rotate(ornA, vector3 {posBA.x , c1.y, c1.z});
-                    ++idx;
-                }
-            }
-        }
-
-        return dist2;
-    }
-
-    if (std::abs(scalar(1) - dot(normalA, normalB)) < 0.01) {
-        auto posBA = rotate(ornA_conj, posB - posA);
-        vector3 c0, c1;
-        auto np = intersect_circle_circle(0, 0,
-                                            posBA.y, posBA.z,
-                                            radiusA, radiusB,
-                                            c0.y, c0.z,
-                                            c1.y, c1.z);
+    // Check if parallel.
+    if (std::abs(dot(normalA, normalB)) > scalar(1) - EDYN_EPSILON) {
+        vector2 c0, c1;
+        auto np = intersect_circle_circle(0, 0, // A is in the origin.
+                                          posB_in_A.z, posB_in_A.y,
+                                          radiusA, radiusB,
+                                          c0.x, c0.y,
+                                          c1.x, c1.y);
         if (np > 0) {
             num_points = np;
-            closest[0].first = posA + rotate(ornA, vector3 {0, c0.y, c0.z});
-            closest[0].second = posA + rotate(ornA, vector3 {posBA.x , c0.y, c0.z});
+            rA0 = posA + rotate(ornA, vector3 {0, c0.y, c0.x});
+            rB0 = posA + rotate(ornA, vector3 {posB_in_A.x , c0.y, c0.x});
 
             if (np > 1) {
-                closest[1].first = posA + rotate(ornA, vector3 {0, c1.y, c1.z});
-                closest[1].second = posA + rotate(ornA, vector3 {posBA.x , c1.y, c1.z});
+                rA1 = posA + rotate(ornA, vector3 {0, c1.y, c1.x});
+                rB1 = posA + rotate(ornA, vector3 {posB_in_A.x , c1.y, c1.x});
             }
 
-            return posBA.x * posBA.x;
-        }
-    }
+            return posB_in_A.x * posB_in_A.x;
+        } else {
+            // One circle could be contained within the other.
+            // If the circles do not intersect and any point of one of them is
+            // contained in the other, then the entire circle is contained in
+            // the other.
 
-    // If the projection of the point on the disc closest to the plane of the
-    // other disc is contained within the other disc, then that should be the
-    // closest point.
-
-    // Find closest point on disc A to plane of B.
-    // B's normal in A's space.
-    {
-        auto normalBA = rotate(ornA_conj, normalB);
-        // Squared length in yz plane.
-        auto len2_normalBA_yz = normalBA.y * normalBA.y + normalBA.z * normalBA.z;
-        auto closestA = vector3 {0, 0, radiusA};
-
-        // No need to check if `len2_normalAB_yz` is zero since the discs are
-        // deemed non-parallel at this point.
-        auto normBA = radiusA / std::sqrt(len2_normalBA_yz);
-        closestA.y = normalBA.y * normBA;
-        closestA.z = normalBA.z * normBA;
-
-        closestA = rotate(ornA, closestA);
-
-        // Project on plane and check if distance is smaller than radius.
-        auto distA = dot(closestA - posB, normalB);
-        auto closestA_projB = closestA - normalB * distA;
-
-        if (length_sqr(closestA_projB - posB) < radiusB) {
             num_points = 1;
-            closest[0].first = closestA;
-            closest[0].second = closestA_projB;
-            normal = normalB;
-            return distA * distA;
+            auto dir = vector2{posB_in_A.z, posB_in_A.y};
+            auto dir_len_sqr = length_sqr(dir);
+
+            if (dir_len_sqr > EDYN_EPSILON) {
+                dir /= std::sqrt(dir_len_sqr);
+                auto pointB_in_A = posB_in_A + vector3_y * radiusB;
+                auto pointA = vector3_y * radiusA;
+
+                if (length_sqr(vector2{pointB_in_A.z, pointB_in_A.y}) < radiusA * radiusA) {
+                    // B contained in A.
+                    rA0 = posA + rotate(ornA, vector3{0, dir.y * radiusA, dir.x * radiusA});
+                    rB0 = posA + rotate(ornA, posB_in_A + vector3{0, dir.y * radiusB, dir.x * radiusB});
+                    return distance_sqr(rA0, rB0);
+                } else if (length_sqr(vector2{pointA.z, pointA.y}) < radiusB * radiusB) {
+                    // A contained in B.
+                    rA0 = posA + rotate(ornA, vector3{0, -dir.y * radiusA, -dir.x * radiusA});
+                    rB0 = posA + rotate(ornA, posB_in_A + vector3{0, -dir.y * radiusB, -dir.x * radiusB});
+                    return distance_sqr(rA0, rB0);
+                } else {
+                    // Circles don't intersect nor are contained in one another.
+                    rA0 = posA + rotate(ornA, vector3{0, dir.y * radiusA, dir.x * radiusA});
+                    rB0 = posA + rotate(ornA, posB_in_A + vector3{0, -dir.y * radiusB, -dir.x * radiusB});
+                    return distance_sqr(rA0, rB0);
+                }
+            } else {
+                // Concentric.
+                rA0 = posA + rotate(ornA, vector3_y * radiusA);
+                rB0 = posB + rotate(ornB, vector3_y * radiusB);
+                return distance_sqr(rA0, rB0);
+            }
         }
     }
-
-    // Find closest point on disc B to plane of A.
-    // A's normal in B's space.
-    {
-        auto normalAB = rotate(ornB_conj, normalA);
-        // Squared length in yz plane.
-        auto len2_normalAB_yz = normalAB.y * normalAB.y + normalAB.z * normalAB.z;
-        auto closestB = vector3 {0, 0, radiusB};
-
-        // No need to check if `len2_normalAB_yz` is zero since the discs are
-        // deemed non-parallel at this point.
-        auto normAB = radiusA / std::sqrt(len2_normalAB_yz);
-        closestB.y = normalAB.y * normAB;
-        closestB.z = normalAB.z * normAB;
-
-        closestB = rotate(ornB, closestB);
-
-        // Project on plane and check if distance is smaller than radius.
-        auto distB = dot(closestB - posA, normalA);
-        auto closestB_projA = closestB - normalA * distB;
-
-        if (length_sqr(closestB_projA - posA) < radiusA) {
-            num_points = 1;
-            closest[0].first = closestB;
-            closest[0].second = closestB_projA;
-            normal = -normalA;
-            return distB * distB;
-        }
-    }
-
-    // Transform disc A onto disc B's space.
-    auto posAB = rotate(ornB_conj, posA - posB);
 
     // Build ortho basis on B (in A's space).
-    auto ornAB = ornB_conj * ornA;
-    auto u = rotate(ornAB, vector3_y) * radiusA;
-    auto v = rotate(ornAB, vector3_z) * radiusA;
+    auto ornB_in_A = conjugate(ornA) * ornB;
+    auto u = quaternion_z(ornB_in_A);
+    auto v = quaternion_y(ornB_in_A);
 
-    scalar s = 0;
-    scalar ds = pi / 18;
-    auto dist2 = EDYN_SCALAR_MAX;
+    // Use angle of support point of B closest on A's plane as initial angle.
+    vector3 sup_pos = support_point_circle(radiusB, posB_in_A, ornB_in_A, vector3_x);
+    vector3 sup_neg = support_point_circle(radiusB, posB_in_A, ornB_in_A, -vector3_x);
+    vector3 sup = std::abs(sup_pos.x) < std::abs(sup_neg.x) ? sup_pos : sup_neg;
+    auto sup_in_B = to_object_space(sup, posB_in_A, ornB_in_A);
+    auto initial_phi = std::atan2(sup_in_B.y, sup_in_B.z);
 
-    for (;;) {
-        auto q = posAB + u * std::cos(s) + v * std::sin(s);
-        auto r = q;
-        vector3 d;
-        scalar l2;
+    // Newton-Raphson iterations.
+    auto phi = initial_phi;
+    size_t max_iterations = 10;
 
-        if (q.y * q.y + q.z * q.z > radiusB * radiusB) {
-            r.x = 0;
-            r = normalize(r) * radiusB;
-            d = q - r;
-            l2 = length_sqr(d);
-        } else {
-            r = {0, q.y, q.z};
-            d = {q.x, 0, 0};
-            l2 = q.x * q.x;
+    for (size_t i = 0; i < max_iterations; ++i) {
+        auto cos_phi = std::cos(phi);
+        auto sin_phi = std::sin(phi);
+
+        auto p_phi = posB_in_A + (u * cos_phi + v * sin_phi) * radiusB;
+        auto d_p_phi = (u * -sin_phi + v * cos_phi) * radiusB;
+        auto dd_p_phi = (u * -cos_phi + v * -sin_phi) * radiusB;
+
+        auto theta = atan2(p_phi.y, p_phi.z);
+        auto cos_theta = std::cos(theta);
+        auto sin_theta = std::sin(theta);
+
+        auto q_theta = vector3{0, sin_theta * radiusA, cos_theta * radiusA};
+        auto d_q_theta = vector3{0, cos_theta * radiusA, -sin_theta * radiusA};
+        auto dd_q_theta = vector3{0, -sin_theta * radiusA, -cos_theta * radiusA};
+
+        // Function d(θ) is the vector connecting the closest points.
+        // First and second derivates follow.
+        auto d_phi = p_phi - q_theta;
+        auto d_d_phi = d_p_phi - d_q_theta;
+        auto dd_d_phi = dd_p_phi - dd_q_theta;
+
+        // Function f(θ) = d · d / 2 gives us a scalar proportional to the 
+        // length of d(θ).
+        // First derivative f' = d'· d
+        // Second derivative f" = d'· d + d"· d
+        // auto f_theta = scalar(0.5) * dot(d_phi, d_phi);
+        auto d_f_phi = dot(d_phi, d_d_phi);
+        auto dd_f_phi = dot(d_d_phi, d_d_phi) + dot(dd_d_phi, d_phi);
+
+        auto delta = d_f_phi / dd_f_phi;
+        phi -= delta;
+
+        // Stop when the delta is smaller than a degree.
+        if (std::abs(delta) < pi * scalar(1) / scalar(180)) {
+            break;
         }
+    }
 
-        if (l2 < dist2) {
-            dist2 = l2;
-            closest[0].first = posB + rotate(ornB, q);
-            closest[0].second = posB + rotate(ornB, r);
-            normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_x;
-            //if (normal.x < 0) normal = -normal;
-            normal = rotate(ornB, normal);
-        }
+    auto cos_phi = std::cos(phi);
+    auto sin_phi = std::sin(phi);
+    rB0 = posB_in_A + (u * cos_phi + v * sin_phi) * radiusB;
 
-        if (s >= 2 * pi) { break; }
-        s = std::min(s + ds, 2 * pi);
+    auto theta = atan2(rB0.y, rB0.z);
+    auto cos_theta = std::cos(theta);
+    auto sin_theta = std::sin(theta);
+    rA0 = vector3{0, sin_theta * radiusA, cos_theta * radiusA};
+
+    rA0 = posA + rotate(ornA, rA0);
+    rB0 = posA + rotate(ornA, rB0);
+    auto dir = rA0 - rB0;
+    auto dist_sqr = length_sqr(dir);
+
+    // Get tangents and use cross product to calculate normal.
+    auto tangentA = vector3{0, cos_theta, -sin_theta};
+    auto tangentB = u * -sin_phi + v * cos_phi;
+    normal = cross(tangentA, tangentB);
+
+    auto normal_len_sqr = length_sqr(normal);
+
+    if (normal_len_sqr > EDYN_EPSILON) {
+        normal /= std::sqrt(normal_len_sqr);
+        normal = rotate(ornA, normal);
+    } else if (dist_sqr > EDYN_EPSILON) {
+        // If line is parallel to tangent and closest points do not coincide.
+        normal = dir / std::sqrt(dist_sqr);
+    } else {
+        // If points coincide, take a vector at an angle θ.
+        normal = vector3{0, sin_theta, cos_theta};
+        normal = rotate(ornA, normal);
     }
 
     num_points = 1;
 
-    return dist2;
+    return dist_sqr;
 }
 
 void plane_space(const vector3 &n, vector3 &p, vector3 &q) {

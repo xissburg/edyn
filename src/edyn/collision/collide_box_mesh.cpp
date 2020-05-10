@@ -123,7 +123,6 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // Triangle face normal.
         {
-            const auto &v0 = vertices[0];
             auto &axis = sep_axes[axis_idx++];
             axis.featureB = TRIANGLE_FEATURE_FACE;
             axis.dir = tri_normal;
@@ -249,10 +248,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             // Continue if not all box's face vertices are contained in the triangle.
             // Perform edge intersection tests.
             if (num_box_vert_in_tri_face < 4) {
-                for (int i = 0; i < 4; ++i) {
-                    auto &a0_in_B = face_vertices_in_B[i];
-                    auto &a1_in_B = face_vertices_in_B[(i + 1) % 4];
-                    
+                for (int i = 0; i < 4; ++i) {                    
                     auto &a0 = face_vertices[i];
                     auto &a1 = face_vertices[(i + 1) % 4];
 
@@ -418,7 +414,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                                         s[0], t[0], p0[0], p1[0], &num_points, 
                                         &s[1], &t[1], &p0[1], &p1[1]);
 
-            for (int i = 0; i < num_points; ++i) {
+            for (size_t i = 0; i < num_points; ++i) {
                 if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
                     auto pivotA = to_object_space(p0[i], posA, ornA);
                     auto pivotB = to_object_space(p1[i], posB, ornB);
@@ -434,8 +430,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
             if (point_in_quad(vertex, face_vertices, face_normal)) {
                 auto vertex_proj = vertex - sep_axis.dir * sep_axis.distance;
-                auto vertex_proj_world = posB + rotate(ornB, vertex);
-                auto pivotA = to_object_space(vertex_proj_world, posA, ornA);
+                auto pivotA = to_object_space(vertex_proj, posA_in_B, ornA_in_B);
                 auto pivotB = vertex;
                 result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
             }

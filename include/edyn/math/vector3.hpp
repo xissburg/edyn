@@ -160,7 +160,7 @@ inline scalar distance(const vector3 &p0, const vector3 &p1) {
 }
 
 // Squared distance between two points.
-inline scalar distance2(const vector3 &p0, const vector3 &p1) {
+inline scalar distance_sqr(const vector3 &p0, const vector3 &p1) {
     return length_sqr(p0 - p1);
 }
 
