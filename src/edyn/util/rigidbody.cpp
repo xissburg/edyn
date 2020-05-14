@@ -112,7 +112,6 @@ void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
     registry.replace<edyn::inertia>(entity, inertia);
 }
 
-
 void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity, 
                              const vector3 &impulse, const vector3 &rel_location) {
     auto &m_inv = registry.get<const mass_inv>(entity);

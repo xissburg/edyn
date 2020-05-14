@@ -1,167 +1,349 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
+#include "edyn/math/math.hpp"
 #include <array>
 
 namespace edyn {
 
+struct cyl_cyl_separating_axis {
+    vector3 dir;
+    cylinder_feature featureA;
+    cylinder_feature featureB;
+    size_t feature_indexA;
+    size_t feature_indexB;
+    vector3 pivotA;
+    vector3 pivotB;
+    scalar distance;
+};
+
 collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const cylinder_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    // Half-length vector in world-space.
-    const auto hlA = rotate(ornA, vector3_x * shA.half_length);
-    const auto hlB = rotate(ornB, vector3_x * shB.half_length);
+    // Cylinder-cylinder SAT.
+    std::array<cyl_cyl_separating_axis, 11> sep_axes;
+    size_t axis_idx = 0;
 
-    // Center of discs on cylinder's ends.
-    const auto p0A = posA - hlA;
-    const auto p1A = posA + hlA;
+    const auto axisA = quaternion_x(ornA);
+    const auto axisB = quaternion_x(ornB);
 
-    const auto p0B = posB - hlB;
-    const auto p1B = posB + hlB;
-
-    scalar s0, t0, s1, t1;
-    vector3 cA0, cB0, cA1, cB1;
-
-    size_t num_points;
-
-    auto l2 = closest_point_segment_segment(p0A, p1A, p0B, p1B, s0, t0, 
-                                            cA0, cB0, 
-                                            &num_points, &s1, &t1, 
-                                            &cA1, &cB1);
-
-    // Minimum distance between segments to move forward, i.e. the cylinder
-    // is bounded by a capsule.
-    const auto min_dist = shA.radius + shB.radius + threshold;
+    const auto half_axisA = axisA * shA.half_length;
+    const auto face_center_posA = posA + half_axisA;
+    const auto face_center_negA = posA - half_axisA;
     
-    if (l2 > min_dist * min_dist) {
+    const auto half_axisB = axisB * shB.half_length;
+    const auto face_center_posB = posB + half_axisB;
+    const auto face_center_negB = posB - half_axisB;
+
+    // A's faces.
+    {
+        auto &axis = sep_axes[axis_idx++];
+        axis.featureA = CYLINDER_FEATURE_FACE;
+        vector3 face_center;
+
+        // Make dir point towards A.
+        if (dot(posA - posB, axisA) < 0) {
+            axis.dir = -axisA;
+            axis.feature_indexA = 0;
+            face_center = face_center_posA;
+        } else {
+            axis.dir = axisA;
+            axis.feature_indexA = 1;
+            face_center = face_center_negA;
+        }
+
+        shB.support_feature(posB, ornB, posA, axis.dir, 
+                            axis.featureB, axis.feature_indexB, 
+                            axis.pivotB, axis.distance, threshold);
+        axis.distance = -(shA.half_length + axis.distance);
+        axis.pivotA = project_plane(axis.pivotB, face_center, axis.dir);
+    }
+
+    // B's faces.
+    {
+        auto &axis = sep_axes[axis_idx++];
+        axis.featureB = CYLINDER_FEATURE_FACE;
+        vector3 face_center;
+
+        // Make dir point towards A.
+        if (dot(posA - posB, axisB) < 0) {
+            axis.dir = -axisB;
+            axis.feature_indexB = 1;
+            face_center = face_center_negB;
+        } else {
+            axis.dir = axisB;
+            axis.feature_indexB = 0;
+            face_center = face_center_posB;
+        }
+
+        shA.support_feature(posA, ornA, posB, -axis.dir, 
+                            axis.featureA, axis.feature_indexA, 
+                            axis.pivotA, axis.distance, threshold);
+        axis.distance = -(shB.half_length + axis.distance);
+        axis.pivotB = project_plane(axis.pivotA, face_center, axis.dir);
+    }
+
+    // Axis vs axis.
+    {
+        auto dir = cross(axisA, axisB);
+        auto dir_len_sqr = length_sqr(dir);
+
+        if (dir_len_sqr > EDYN_EPSILON) {
+            dir /= std::sqrt(dir_len_sqr);
+
+            if (dot(posA - posB, dir) < 0) {
+                dir *= -1;
+            }
+
+            auto &axis = sep_axes[axis_idx++];
+            axis.dir = dir;
+            
+            scalar projA, projB;
+            shA.support_feature(posA, ornA, posB, -axis.dir, 
+                                axis.featureA, axis.feature_indexA, 
+                                axis.pivotA, projA, threshold);
+            shB.support_feature(posB, ornB, posB, axis.dir, 
+                                axis.featureB, axis.feature_indexB, 
+                                axis.pivotB, projB, threshold);
+            axis.distance = -(projA + projB);
+        }
+    }
+
+    // A's Face edges vs B's side edges.
+    for (size_t i = 0; i < 2; ++i) {
+        const auto is_faceA = i == 0;
+        const auto &v0 = is_faceA ? face_center_negB : face_center_negA;
+        const auto &v1 = is_faceA ? face_center_posB : face_center_posA;
+        const auto &orn = is_faceA ? ornA : ornB;
+        const auto radius = is_faceA ? shA.radius : shB.radius;
+
+        for (size_t j = 0; j < 2; ++j) {
+            auto circle_pos = is_faceA ? (j == 0 ? face_center_negA : face_center_posA) :
+                                         (j == 0 ? face_center_negB : face_center_posB);
+            size_t num_points;
+            scalar s[2];
+            vector3 p_circle[2];
+            vector3 p_line[2];
+            vector3 normal;
+            closest_point_circle_line(circle_pos, orn, radius, v0, v1, num_points, 
+                                      s[0], p_circle[0], p_line[0], 
+                                      s[1], p_circle[1], p_line[1], normal, threshold);
+
+            auto &axis = sep_axes[axis_idx++];
+            axis.dir = normal;
+
+            if (dot(posA - posB, axis.dir) < 0) {
+                // Points towards A.
+                axis.dir *= -1;
+            }
+
+            if (is_faceA) {
+                axis.featureB = CYLINDER_FEATURE_SIDE_EDGE;
+                shA.support_feature(posA, ornA, posB, -axis.dir, 
+                                    axis.featureA, axis.feature_indexA, 
+                                    axis.pivotA, axis.distance, threshold);
+                axis.distance = -(shB.radius + axis.distance);
+            } else {
+                axis.featureA = CYLINDER_FEATURE_SIDE_EDGE;
+                shB.support_feature(posB, ornB, posA, axis.dir, 
+                                    axis.featureB, axis.feature_indexB, 
+                                    axis.pivotB, axis.distance, threshold);
+                axis.distance = -(shA.radius + axis.distance);
+            }
+        }
+    }
+
+    // Face edges vs face edges.
+    for (size_t i = 0; i < 2; ++i) {
+        auto &circle_posA = i == 0 ? face_center_negA : face_center_posA;
+
+        for (size_t j = 0; j < 2; ++j) {
+            auto &circle_posB = i == 0 ? face_center_negB : face_center_posB;
+            size_t num_points;
+            vector3 closest0[2];
+            vector3 closest1[2];
+            vector3 normal;
+            closest_point_circle_circle(circle_posA, ornA, shA.radius, 
+                                        circle_posB, ornB, shB.radius, 
+                                        num_points, closest0[0], closest0[1],
+                                        closest1[0], closest1[1], normal);
+
+            auto &axis = sep_axes[axis_idx++];
+            axis.dir = normal;
+
+            if (dot(posA - posB, axis.dir) < 0) {
+                // Points towards A.
+                axis.dir *= -1;
+            }
+
+            scalar projA, projB;
+            shA.support_feature(posA, ornA, posB, -axis.dir, 
+                                axis.featureA, axis.feature_indexA, 
+                                axis.pivotA, projA, threshold);
+            shB.support_feature(posB, ornB, posB, axis.dir, 
+                                axis.featureB, axis.feature_indexB, 
+                                axis.pivotB, projB, threshold);
+            axis.distance = -(projA + projB);
+        }
+    }
+
+    auto greatest_distance = -EDYN_SCALAR_MAX;
+    size_t sep_axis_idx;
+
+    for (size_t i = 0; i < axis_idx; ++i) {
+        auto &sep_axis = sep_axes[i];
+        
+        if (sep_axis.distance > greatest_distance) {
+            greatest_distance = sep_axis.distance;
+            sep_axis_idx = i;
+        }
+    }
+
+    auto &sep_axis = sep_axes[sep_axis_idx];
+
+    if (sep_axis.distance > threshold) {
         return {};
     }
 
-    auto dA = p0A - p1A;
-    auto dB = p0B - p1B;
-    auto d = cA0 - cB0;
+    auto result = collision_result{};
+    auto normalB = rotate(conjugate(ornB), sep_axis.dir);
 
-    // Check whether the closest points between segments are on the vertices
-    // using the angle between the segment connecting the closest points and
-    // the A and B segments.
-    auto ddA = dot(d, dA);
-    auto ddB = dot(-d, dB);
-    auto is_discA = std::abs(ddA) > EDYN_EPSILON;
-    auto is_discB = std::abs(ddB) > EDYN_EPSILON;
+    if (sep_axis.featureA == CYLINDER_FEATURE_FACE && 
+        sep_axis.featureB == CYLINDER_FEATURE_FACE) {
 
-    closest_points_array closest;
-    vector3 normal;
+        auto posA_in_B = to_object_space(posA, posB, ornB);
+        auto ornA_in_B = conjugate(ornB) * ornA;
 
-    if (!is_discA && !is_discB) {
-        // Closest points are on both cylindrical surfaces.
-        normal = l2 > EDYN_EPSILON ? d / std::sqrt(l2) : vector3_y;
-
-        closest[0].first = cA0 - normal * shA.radius;
-        closest[0].second = cB0 + normal * shB.radius;
-
-        if (num_points > 1) {
-            closest[1].first = cA1 - normal * shA.radius;
-            closest[1].second = cB1 + normal * shB.radius;
-        }
-    } else {
-        scalar sA0 = 0, sA1 = 0, sB0 = 0, sB1 = 0;
-        scalar dist2A = EDYN_SCALAR_MAX, dist2B = EDYN_SCALAR_MAX;
-        size_t num_pointsA = 0, num_pointsB = 0;
-        vector3 normalA, normalB;
-        vector3 cA0A, cA1A, cB0A, cB1A;
-        vector3 cA0B, cA1B, cB0B, cB1B;
-        scalar sideA = ddA > EDYN_EPSILON ? 1 : -1;
-        scalar sideB = ddB > EDYN_EPSILON ? 1 : -1;
-
-        if (is_discA) {
-            // Closest point might be on one of A's disc and on B's segment.
-            auto orn = ornA;
-            if (sideA < 0) {
-                orn *= quaternion_axis_angle(vector3_y, pi);
+        vector3 p[2];
+        auto num_points = intersect_circle_circle(posA_in_B.z, posA_in_B.y, 0, 0, 
+                                                  shA.radius, shB.radius, 
+                                                  p[0].z, p[0].y, p[1].z, p[1].y);
+        if (num_points > 0) {
+            for (size_t i = 0; i < num_points; ++i) {
+                auto pivotB = p[i];
+                pivotB.x = shB.half_length * (sep_axis.feature_indexB == 0 ? 1 : -1);
+                auto pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
+                pivotA.x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
+                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
-            // Find point in line closest to disc and later check if they're in
-            // the segment's [0,1] range.
-            dist2A = closest_point_circle_line(posA + hlA * sideA, orn, shA.radius,
-                                             p0B, p1B, num_pointsA, 
-                                             sA0, cA0A, cB0A,
-                                             sA1, cA1A, cB1A, normalA);
-            if (sA0 > 1) {
-                sideB = 1;
-            } else if (sA0 < 0) {
-                sideB = -1;
-            }
-        }
-
-        if (is_discB) {
-            // Closest point might be on one of B's disc and on A's segment.
-            auto orn = ornB;
-            if (sideB < 0) {
-                orn *= quaternion_axis_angle(vector3_y, pi);
-            }
-            dist2B = closest_point_circle_line(posB + hlB * sideB, orn, shB.radius,
-                                             p0A, p1A, num_pointsB,
-                                             sB0, cB0B, cA0B,
-                                             sB1, cB1B, cA1B, normalB);
-            if (sB0 > 1) {
-                sideA = 1;
-            } else if (sB0 < 0) {
-                sideA = -1;
-            }
-        }
-
-        // If A's disc is closer to B's segment than B's disc is to A's segment,
-        // and the parameters `sA0` or `sA1` are within the segment's range 
-        // [0,1], then this should be the closest features. 
-        // The same is done the other way around in the next if-statement.
-        if (dist2A < dist2B && ((sA0 > 0 && sA0 < 1) || (num_pointsA > 1 && sA1 > 0 && sA1 < 1))) {
-            if (dist2A > (threshold + shB.radius) * (threshold + shB.radius)) {
-                return {};
-            }
-
-            num_points = num_pointsA;
-            normal = -normalA;
-            closest[0].first = cA0A;
-            closest[0].second = cB0A + normal * shB.radius;
-
-            if (num_points > 1) {
-                closest[1].first = cA1A;
-                closest[1].second = cB1A + normal * shB.radius;
-            }
-        } else if (dist2A >= dist2B && ((sB0 > 0 && sB0 < 1) || (num_pointsB > 1 && sB1 > 0 && sB1 < 1))) {
-            if (dist2B > (threshold + shA.radius) * (threshold + shA.radius)) {
-                return {};
-            }
-
-            num_points = num_pointsB;
-            normal = normalB;
-            closest[0].first = cA0B - normal * shA.radius;
-            closest[0].second = cB0B;
-
-            if (num_points > 1) {
-                closest[1].first = cA1B - normal * shA.radius;
-                closest[1].second = cB1B;
-            }
+        // Check for containment.
         } else {
-            // Closest points are on the discs.
-            auto ccl2 = closest_point_disc_disc(posA + hlA * sideA, ornA, shA.radius,
-                                                posB + hlB * sideB, ornB, shB.radius,
-                                                num_points, closest, normal);
+            // If any point on a circle of B is within the prism of A, then the face of B
+            // is contained in the face of A, and vice-versa.
+            auto circle_pointA = posA + quaternion_z(ornA) * shA.radius;
+            auto circle_pointB = posB + quaternion_z(ornB) * shB.radius;
 
-            if (ccl2 > threshold * threshold) {
-                return {};
+            const auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
+
+            if (distance_sqr_line(posA, axisA, circle_pointB) < shA.radius * shA.radius) {
+                auto posB_in_A = to_object_space(posB, posA, ornA);
+                auto ornB_in_A = conjugate(ornA) * ornB;
+
+                for(size_t i = 0; i < 4; ++i) {
+                    auto pivotB_x = shB.half_length * (sep_axis.feature_indexB == 0 ? 1 : -1);
+                    auto pivotB = vector3{pivotB_x, 
+                                        shB.radius * multipliers[i], 
+                                        shB.radius * multipliers[(i + 1) % 4]};
+                    auto pivotA = posB_in_A + rotate(ornB_in_A, pivotB);
+                    pivotA.x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
+                    result.maybe_add_point({pivotA, pivotB, normalB, sep_axis.distance});
+                }
+            } else if (distance_sqr_line(posB, axisB, circle_pointA) < shB.radius * shB.radius) {
+                for(size_t i = 0; i < 4; ++i) {
+                    auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
+                    auto pivotA = vector3{pivotA_x, 
+                                        shA.radius * multipliers[i], 
+                                        shA.radius * multipliers[(i + 1) % 4]};
+                    auto pivotB = posA_in_B + rotate(ornA_in_B, pivotA);
+                    pivotB.x = shB.half_length * (sep_axis.feature_indexB == 0 ? 1 : -1);
+                    result.maybe_add_point({pivotA, pivotB, normalB, sep_axis.distance});
+                }
+            } 
+        }
+    } else if ((sep_axis.featureA == CYLINDER_FEATURE_FACE && 
+                sep_axis.featureB == CYLINDER_FEATURE_FACE_EDGE) ||
+               (sep_axis.featureB == CYLINDER_FEATURE_FACE && 
+                sep_axis.featureA == CYLINDER_FEATURE_FACE_EDGE)) {
+        auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
+        auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
+        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+    } else if (sep_axis.featureA == CYLINDER_FEATURE_FACE &&
+               sep_axis.featureB == CYLINDER_FEATURE_SIDE_EDGE) {
+        // Transform vertices to cylinder space.
+        auto v0 = to_object_space(face_center_negB, posA, ornA);
+        auto v1 = to_object_space(face_center_posB, posA, ornA);
+
+        scalar s[2];
+        auto num_points = intersect_line_circle(v0.z, v0.y, v1.z, v1.y, 
+                                                shA.radius, s[0], s[1]);
+
+        for (size_t i = 0; i < num_points; ++i) {
+            s[i] = clamp_unit(s[i]);
+            auto pivotA = lerp(v0, v1, s[i]);
+            pivotA.x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
+            auto pivotB = vector3_x * shB.half_length * (2 * s[i] - 1) + normalB * shB.radius;
+            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+        }
+    } else if (sep_axis.featureB == CYLINDER_FEATURE_FACE &&
+               sep_axis.featureA == CYLINDER_FEATURE_SIDE_EDGE) {
+        // Transform vertices to cylinder space.
+        auto v0 = to_object_space(face_center_negA, posB, ornB);
+        auto v1 = to_object_space(face_center_posA, posB, ornB);
+
+        scalar s[2];
+        auto num_points = intersect_line_circle(v0.z, v0.y, v1.z, v1.y, 
+                                                shB.radius, s[0], s[1]);
+
+        for (size_t i = 0; i < num_points; ++i) {
+            s[i] = clamp_unit(s[i]);
+            auto pivotB = lerp(v0, v1, s[i]);
+            pivotB.x = shB.half_length * (sep_axis.feature_indexB == 0 ? 1 : -1);
+            auto normalA = rotate(conjugate(ornA), sep_axis.dir);
+            auto pivotA = vector3_x * shA.half_length * (2 * s[i] - 1) - normalA * shA.radius;
+            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+        }
+    } else if (sep_axis.featureA == CYLINDER_FEATURE_SIDE_EDGE && 
+               sep_axis.featureB == CYLINDER_FEATURE_SIDE_EDGE) {
+        scalar s[2], t[2];
+        vector3 pA[2], pB[2];
+        size_t num_points = 0;
+        closest_point_segment_segment(face_center_negA, face_center_posA,
+                                      face_center_negB, face_center_posB,
+                                      s[0], t[0], pA[0], pB[0], &num_points,
+                                      &s[1], &t[1], &pA[1], &pB[1]);
+        for (size_t i = 0; i < num_points; ++i) {
+            if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
+                auto pivotA_world = pA[i] - sep_axis.dir * shA.radius;
+                auto pivotB_world = pB[i] + sep_axis.dir * shB.radius;
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                auto pivotB = to_object_space(pivotB_world, posB, ornB);
+                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
         }
-    }
+    } else if (sep_axis.featureA == CYLINDER_FEATURE_SIDE_EDGE &&
+               sep_axis.featureB == CYLINDER_FEATURE_FACE_EDGE) {
+        vector3 pivotA; scalar t;
+        closest_point_segment(face_center_negA, face_center_posA, sep_axis.pivotB, t, pivotA);
 
-    auto result = collision_result {};
-    result.num_points = num_points;
+        if (t > 0 && t < 1) {
+            auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
+            pivotA = to_object_space(pivotA - sep_axis.dir * shA.radius, posA, ornA);
+            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+        }
+    } else if (sep_axis.featureB == CYLINDER_FEATURE_SIDE_EDGE &&
+               sep_axis.featureA == CYLINDER_FEATURE_FACE_EDGE) {
+        vector3 pivotB; scalar t;
+        closest_point_segment(face_center_negB, face_center_posB, sep_axis.pivotA, t, pivotB);
 
-    for (size_t i = 0; i < num_points; ++i) {
-        auto rA = closest[i].first - posA;
-        auto rB = closest[i].second - posB;
-        result.point[i].pivotA = rotate(conjugate(ornA), rA);
-        result.point[i].pivotB = rotate(conjugate(ornB), rB);
-        result.point[i].normalB = rotate(conjugate(ornB), normal);
-        result.point[i].distance = dot(closest[i].first - closest[i].second, normal);
+        if (t > 0 && t < 1) {
+            auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
+            pivotB = to_object_space(pivotB + sep_axis.dir * shB.radius, posB, ornB);
+            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+        }
+    } else if (sep_axis.featureA == CYLINDER_FEATURE_FACE_EDGE &&
+               sep_axis.featureB == CYLINDER_FEATURE_FACE_EDGE) {
+        auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
+        auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
+        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
     }
 
     return result;

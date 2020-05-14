@@ -198,7 +198,7 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
                             normal_row.restitution = cp.restitution;
 
                         } else {
-                            // One of the existing contacts has been replaced by the new. 
+                            // One of the existing contacts has been replaced by the new.
                             // Update its rows.
                             auto &normal_row = registry->get<constraint_row>(cp.normal_row_entity);
                             auto &friction_row = registry->get<constraint_row>(cp.friction_row_entity);

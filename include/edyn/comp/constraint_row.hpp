@@ -35,7 +35,6 @@ struct constraint_row {
 
     // Applied impulse.
     scalar impulse {0};
-
     int priority {0};
 };
 
