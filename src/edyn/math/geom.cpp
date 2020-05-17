@@ -614,6 +614,13 @@ scalar signed_triangle_area(const vector2 &a, const vector2 &b, const vector2 &c
     return (a.x - c.x) * (b.y - c.y) - (a.y - c.y) * (b.x - c.x);
 }
 
+vector3 intersect_line_plane(const vector3 &p0, const vector3 &dir, 
+                             const vector3 &q0, const vector3 &normal) {
+    auto d = q0 - p0;
+    auto t = dot(d, dir) / dot(dir, dir);
+    return p0 + t * dir;
+}
+
 size_t intersect_segments(const vector2 &p0, const vector2 &p1,
                           const vector2 &q0, const vector2 &q1,
                           scalar &s0, scalar &t0,

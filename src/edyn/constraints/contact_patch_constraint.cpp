@@ -13,6 +13,7 @@
 #include "edyn/comp/spin.hpp"
 #include "edyn/util/tire.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/math.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -98,35 +99,33 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     
     const auto normal = rotate(ornB, manifold.point[pt_idx].normalB);
 
-    // Determine contact patch extremities.
+    // Calculate contact patch width.
+    auto sin_camber = dot(axis, normal);
+    auto camber_angle = std::asin(sin_camber);
+    auto contact_width = cyl.half_length * 2 * std::cos(std::atan(std::pow(std::abs(camber_angle), std::log(-deepest_distance * 300 + 1))));
+
+    // Calculate center of pressure.
     const auto axis_hl = axis * cyl.half_length;
-    auto p0 = support_point_circle(posA + axis_hl, ornA, cyl.radius, -normal);
-    auto p1 = p0 - axis_hl * 2; // because circles are parallel
+    auto pivotA = posA + rotate(ornA, manifold.point[pt_idx].pivotA);
+    auto pivot_center = project_plane(pivotA, posA, axis);
+    auto center_offset = -std::sin(std::atan(camber_angle));
+
+    auto circle_center0 = posA - axis_hl;
+    auto circle_center1 = posA + axis_hl;
+    auto sup0 = support_point_circle(posA - axis_hl, ornA, cyl.radius, -normal);
+    auto sup1 = sup0 + axis_hl * 2; // because circles are parallel
 
     // A point on the contact plane.
-    auto pB = posB + rotate(ornB, manifold.point[pt_idx].pivotB);
+    auto pivotB = posB + rotate(ornB, manifold.point[pt_idx].pivotB);
 
-    auto proj0 = dot(p0 - pB, normal);
-    auto proj1 = dot(p1 - pB, normal);
+    // Intersect lines going from the circle center to the support point with the
+    // contact plane to find the initial contact extent.
+    auto contact_point0 = intersect_line_plane(circle_center0, sup0 - circle_center0, pivotB, normal);
+    auto contact_point1 = intersect_line_plane(circle_center1, sup1 - circle_center1, pivotB, normal);
+    auto contact_center = lerp(contact_point0, contact_point1, center_offset);
 
     // Where the row starts in the x-axis in object space.
-    auto row_start = -cyl.half_length;
-    
-    // Intersect segment between `p0` and `p1` with contact plane to find
-    // the extreme points along the width of the contact patch.
-    auto d = dot(axis_hl, normal);
-
-    if (std::abs(d) > EDYN_EPSILON) {
-        if (proj0 > 0) {
-            // `p0` is above the plane.
-            p0 -= axis_hl * proj0 / d;
-        } else if (proj1 > 0) {
-            // `p1` is above the plane.
-            auto s = proj1 / d;
-            p1 -= axis_hl * s;
-            row_start -= cyl.half_length * s;
-        }
-    }
+    auto row_start = 
 
     // Create constraint rows if needed.
     if (con.num_rows == 0) {
@@ -147,12 +146,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         }
     }
 
-    // The center of the contact patch on the contact plane.
-    auto tire_patch_center = (p0 + p1) * 0.5;
-    auto patch_center_on_axis = posA + axis * dot(tire_patch_center - posA, axis);
-    auto patch_center_dir = tire_patch_center - patch_center_on_axis;
-    auto patch_center_param = dot(pB - patch_center_on_axis, normal) / dot(patch_center_dir, normal);
-    m_patch_center = posA + patch_center_dir * patch_center_param;
+    m_patch_center = contact_center;
 
     // Setup non-penetration constraint.
     auto rA = m_patch_center - posA;
@@ -213,7 +207,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         m_lat_dir = cross(normal, m_lon_dir);
     }
 
-    auto contact_width = length(p0 - p1);
     auto tread_width = contact_width / num_tread_rows;
     auto r0_inv = scalar(1) / cyl.radius;
 
@@ -223,9 +216,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const uint16_t num_bristles = std::floor(perimeter / desired_spacing);
     const scalar bristle_spacing = perimeter / num_bristles;
     const scalar bristle_angle_delta = bristle_spacing * r0_inv;
-
-    // Support point in object space.
-    auto p0_obj = rotate(conjugate(ornA), p0 - posA);
 
     // Support point angle in circle space where z points forward and y is up.
     // It allows us to observe the contact point location with respect to the
