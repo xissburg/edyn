@@ -143,6 +143,9 @@ void plane_space(const vector3 &n, vector3 &p, vector3 &q);
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1);
 
+vector3 intersect_line_plane(const vector3 &p0, const vector3 &dir, 
+                             const vector3 &q0, const vector3 &normal);
+
 size_t intersect_segments(const vector2 &p0, const vector2 &p1,
                           const vector2 &q0, const vector2 &q1,
                           scalar &s0, scalar &t0,
