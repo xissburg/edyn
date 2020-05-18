@@ -42,16 +42,28 @@ void triangle_mesh::calculate_adjacency() {
         // Pointer to first element of the i-th triangle's 3 indices.
         auto i_idx = &indices[i * 3];
         // Normal vector of i-th triangle.
-        auto i_normal = normalize(cross(vertices[i_idx[1]] - vertices[i_idx[0]], 
-                                        vertices[i_idx[2]] - vertices[i_idx[1]]));
+        auto i_edge0 = vertices[i_idx[1]] - vertices[i_idx[0]];
+        auto i_edge1 = vertices[i_idx[2]] - vertices[i_idx[1]];
+        auto i_normal = cross(i_edge0, i_edge1);
+        auto i_normal_len_sqr = length_sqr(i_normal);
+
+        if (i_normal_len_sqr > EDYN_EPSILON) {
+            i_normal /= std::sqrt(i_normal_len_sqr);
+        }
 
         // Check all other triangles for shared pairs of vertices.
         for (size_t k = i + 1; k < num_triangles(); ++k) {
             // Pointer to first element of the k-th triangle's 3 indices.
             auto k_idx = &indices[k * 3];
             // Normal vector of k-th triangle.
-            auto k_normal = normalize(cross(vertices[k_idx[1]] - vertices[k_idx[0]], 
-                                            vertices[k_idx[2]] - vertices[k_idx[1]]));
+            auto k_edge0 = vertices[k_idx[1]] - vertices[k_idx[0]];
+            auto k_edge1 = vertices[k_idx[2]] - vertices[k_idx[1]];
+            auto k_normal = cross(k_edge0, k_edge1);
+            auto k_normal_len_sqr = length_sqr(k_normal);
+
+            if (k_normal_len_sqr > EDYN_EPSILON) {
+                k_normal /= std::sqrt(k_normal_len_sqr);
+            }
 
             // Check which vertices are shared.
             bool shared_idx[] = {false, false, false};
