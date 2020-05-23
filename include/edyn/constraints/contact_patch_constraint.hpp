@@ -45,7 +45,8 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
 
     vector3 m_lon_dir;
     vector3 m_lat_dir;
-    vector3 m_patch_center;
+    vector3 m_pivot;
+    vector3 m_normal;
 
     scalar m_normal_relspd;
     scalar m_lon_damping;

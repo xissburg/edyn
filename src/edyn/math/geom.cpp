@@ -619,7 +619,7 @@ vector3 intersect_line_plane(const vector3 &p0, const vector3 &dir,
     auto d = q0 - p0;
     auto denom = dot(dir, normal);
     
-    if (denom > EDYN_EPSILON) {
+    if (std::abs(denom) > EDYN_EPSILON) {
         auto t = dot(d, normal) / denom;
         return p0 + t * dir;
     }
