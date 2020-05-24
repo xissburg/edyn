@@ -197,7 +197,15 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         m_normal_relspd = normal_relspd;
     }
 
-    auto forward = normalize(cross(axis, normal));
+    auto forward = cross(axis, normal);
+    auto forward_len_sqr = length_sqr(forward);
+
+    if (forward_len_sqr > EDYN_EPSILON) {
+        forward /= std::sqrt(forward_len_sqr);
+    } else {
+        forward = quaternion_z(ornA);        
+    }
+
     auto up = cross(forward, axis);
 
     // Calculate longitudinal and lateral friction directions.
