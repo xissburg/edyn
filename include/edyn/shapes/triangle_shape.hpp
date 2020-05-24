@@ -2,6 +2,7 @@
 #define EDYN_SHAPES_TRIANGLE_SHAPE_HPP
 
 #include "edyn/math/vector3.hpp"
+#include "edyn/comp/aabb.hpp"
 #include <array>
 #include <cstdint>
 
@@ -28,13 +29,13 @@ bool point_in_triangle(const triangle_vertices &,
                        const vector3 &normal, 
                        const vector3 &p);
 
-triangle_edges get_triangle_edges(const triangle_vertices &vertices);
+triangle_edges get_triangle_edges(const triangle_vertices &);
 
 /**
  * Gets the greatest projection of the triangle onto the given axis
  * along with the feature present at the extreme.
  */
-void get_triangle_support_feature(const triangle_vertices &vertices, 
+void get_triangle_support_feature(const triangle_vertices &, 
                                   const vector3 &axis_pos, const vector3 &axis_dir,
                                   triangle_feature &tri_feature,
                                   size_t &tri_feature_index,
@@ -43,6 +44,8 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
 size_t get_triangle_feature_num_vertices(triangle_feature feature);
 
 size_t get_triangle_feature_num_edges(triangle_feature feature);
+
+AABB get_triangle_aabb(const triangle_vertices &vertices);
 
 }
 

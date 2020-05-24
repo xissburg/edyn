@@ -94,4 +94,10 @@ size_t get_triangle_feature_num_edges(triangle_feature feature) {
     return 0;
 }
 
+AABB get_triangle_aabb(const triangle_vertices &vertices) {
+    auto tri_min = min(min(vertices[0], vertices[1]), vertices[2]);
+    auto tri_max = max(max(vertices[0], vertices[1]), vertices[2]);
+    return {tri_min, tri_max};
+}
+
 }
