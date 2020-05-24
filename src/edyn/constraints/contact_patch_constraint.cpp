@@ -264,7 +264,10 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         // Normal deflection and length for this row of bristles.
         const auto row_proportion = (row_x - row_start) / contact_width;
         const auto defl = lerp(deflection0, deflection1, row_proportion);
-        const auto row_half_length = scalar(0.4) * cyl.radius * (defl * r0_inv + scalar(2.25) * std::sqrt(defl * r0_inv));
+        const auto row_half_length = std::min(scalar(0.4) * cyl.radius * 
+                                              (defl * r0_inv + scalar(2.25) * 
+                                              std::sqrt(defl * r0_inv)),
+                                              cyl.radius * scalar(0.9));
         const auto row_half_angle = std::asin(row_half_length / cyl.radius);
 
         tread_row.tread_width = tread_width;
