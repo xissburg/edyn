@@ -7,24 +7,8 @@ void triangle_mesh::calculate_aabb() {
     aabb.max = -vector3_max;
 
     for (auto &v : vertices) {
-        if (v.x < aabb.min.x) {
-            aabb.min.x = v.x;
-        }
-        if (v.y < aabb.min.y) {
-            aabb.min.y = v.y;
-        }
-        if (v.z < aabb.min.z) {
-            aabb.min.z = v.z;
-        }
-        if (v.x > aabb.max.x) {
-            aabb.max.x = v.x;
-        }
-        if (v.y > aabb.max.y) {
-            aabb.max.y = v.y;
-        }
-        if (v.z > aabb.max.z) {
-            aabb.max.z = v.z;
-        }
+        aabb.min = min(aabb.min, v);
+        aabb.max = max(aabb.max, v);
     }
 }
 
@@ -55,6 +39,25 @@ void triangle_mesh::calculate_adjacency() {
         for (size_t k = i + 1; k < num_triangles(); ++k) {
             // Pointer to first element of the k-th triangle's 3 indices.
             auto k_idx = &indices[k * 3];
+            
+            // Check which vertices are shared.
+            bool shared_idx[] = {false, false, false};
+            auto has_shared_vertex = false;
+
+            for (size_t m = 0; m < 3; ++m) {
+                for (size_t n = 0; n < 3; ++n) {
+                    if (i_idx[m] == k_idx[n]) {
+                        shared_idx[m] = true;
+                        has_shared_vertex = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!has_shared_vertex) {
+                continue;
+            }
+
             // Normal vector of k-th triangle.
             auto k_edge0 = vertices[k_idx[1]] - vertices[k_idx[0]];
             auto k_edge1 = vertices[k_idx[2]] - vertices[k_idx[1]];
@@ -63,13 +66,6 @@ void triangle_mesh::calculate_adjacency() {
 
             if (k_normal_len_sqr > EDYN_EPSILON) {
                 k_normal /= std::sqrt(k_normal_len_sqr);
-            }
-
-            // Check which vertices are shared.
-            bool shared_idx[] = {false, false, false};
-
-            for (size_t j = 0; j < 3; ++j) {
-                shared_idx[j] = i_idx[j] == k_idx[0] || i_idx[j] == k_idx[1] || i_idx[j] == k_idx[2];
             }
 
             // Look for pairs of shared indices which translates to a shared edge.
