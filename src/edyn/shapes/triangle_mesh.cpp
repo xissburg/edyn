@@ -117,4 +117,24 @@ void triangle_mesh::calculate_adjacency() {
     }
 }
 
+void triangle_mesh::build_tree() {
+    std::vector<AABB> aabbs;
+    aabbs.reserve(num_triangles());
+
+    for (size_t i = 0; i < num_triangles(); ++i) {
+        auto verts = triangle_vertices{
+            vertices[indices[i * 3 + 0]],
+            vertices[indices[i * 3 + 1]],
+            vertices[indices[i * 3 + 2]]
+        };
+
+        auto tri_min = min(min(verts[0], verts[1]), verts[2]);
+        auto tri_max = max(max(verts[0], verts[1]), verts[2]);
+
+        aabbs.emplace_back(AABB{tri_min, tri_max});
+    }
+
+    tree.build(aabbs.begin(), aabbs.end());
+}
+
 }

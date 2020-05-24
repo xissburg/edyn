@@ -181,12 +181,32 @@ inline vector3 project_plane(const vector3 &p, const vector3 &q, const vector3 &
     return p - n * dot(p - q, n);
 }
 
+// Performs element-wise minimum.
 inline vector3 min(const vector3 &v, const vector3 &w) {
     return {std::min(v.x, w.x), std::min(v.y, w.y), std::min(v.z, w.z)};
 }
 
+// Performs element-wise maximum.
 inline vector3 max(const vector3 &v, const vector3 &w) {
     return {std::max(v.x, w.x), std::max(v.y, w.y), std::max(v.z, w.z)};
+}
+
+// Returns the index of the axis with greatest value.
+inline size_t max_index(const vector3 &v) {
+    auto max_val = v.x;
+    size_t max_idx = 0;
+
+    if (v.y > max_val) {
+        max_val = v.y;
+        max_idx = 1;
+    }
+
+    if (v.z > max_val) {
+        max_val = v.z;
+        max_idx = 2;
+    }
+
+    return max_idx;
 }
 
 }
