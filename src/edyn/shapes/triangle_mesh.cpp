@@ -2,6 +2,12 @@
 
 namespace edyn {
 
+void triangle_mesh::initialize() {
+    calculate_aabb();
+    build_tree();
+    calculate_adjacency();
+}
+
 void triangle_mesh::calculate_aabb() {
     aabb.min = vector3_max;
     aabb.max = -vector3_max;
