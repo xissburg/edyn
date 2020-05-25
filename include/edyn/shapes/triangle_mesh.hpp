@@ -44,6 +44,7 @@ struct triangle_mesh {
         });
     }
 
+    void initialize();
     void calculate_aabb();
     void calculate_adjacency();
     void build_tree();
