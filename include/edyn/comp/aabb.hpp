@@ -16,10 +16,21 @@ struct AABB {
 	inline AABB inset(const vector3 &v) const {
 		return {min + v, max - v};
 	}
+
+    inline vector3 center() const {
+        return (min + max) * scalar(0.5);
+    }
 };
 
 inline bool intersect(const AABB &b0, const AABB &b1) {
     return intersect_aabb(b0.min, b0.max, b1.min, b1.max);
+}
+
+inline AABB enclosing_aabb(const AABB &b0, const AABB &b1) {
+    return {
+        min(b0.min, b1.min),
+        max(b0.max, b1.max)
+    };
 }
 
 }

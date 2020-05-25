@@ -25,9 +25,15 @@ void triangle_mesh::calculate_adjacency() {
     for (size_t i = 0; i < num_triangles(); ++i) {
         // Pointer to first element of the i-th triangle's 3 indices.
         auto i_idx = &indices[i * 3];
+        // Triangle vertices.
+        auto i_vertex = triangle_vertices{
+            vertices[i_idx[0]],
+            vertices[i_idx[1]],
+            vertices[i_idx[2]]
+        };
         // Normal vector of i-th triangle.
-        auto i_edge0 = vertices[i_idx[1]] - vertices[i_idx[0]];
-        auto i_edge1 = vertices[i_idx[2]] - vertices[i_idx[1]];
+        auto i_edge0 = i_vertex[1] - i_vertex[0];
+        auto i_edge1 = i_vertex[2] - i_vertex[1];
         auto i_normal = cross(i_edge0, i_edge1);
         auto i_normal_len_sqr = length_sqr(i_normal);
 
@@ -35,8 +41,14 @@ void triangle_mesh::calculate_adjacency() {
             i_normal /= std::sqrt(i_normal_len_sqr);
         }
 
-        // Check all other triangles for shared pairs of vertices.
-        for (size_t k = i + 1; k < num_triangles(); ++k) {
+        // Find shared pairs of vertices with other triangles.        
+        auto tri_aabb = get_triangle_aabb(i_vertex);
+        auto inset = vector3 {-EDYN_EPSILON, -EDYN_EPSILON, -EDYN_EPSILON};
+        tree.visit(tri_aabb.inset(inset), [&] (auto k) {
+            if (k == i) {
+                return;
+            }
+
             // Pointer to first element of the k-th triangle's 3 indices.
             auto k_idx = &indices[k * 3];
             
@@ -55,17 +67,7 @@ void triangle_mesh::calculate_adjacency() {
             }
 
             if (!has_shared_vertex) {
-                continue;
-            }
-
-            // Normal vector of k-th triangle.
-            auto k_edge0 = vertices[k_idx[1]] - vertices[k_idx[0]];
-            auto k_edge1 = vertices[k_idx[2]] - vertices[k_idx[1]];
-            auto k_normal = cross(k_edge0, k_edge1);
-            auto k_normal_len_sqr = length_sqr(k_normal);
-
-            if (k_normal_len_sqr > EDYN_EPSILON) {
-                k_normal /= std::sqrt(k_normal_len_sqr);
+                return;
             }
 
             // Look for pairs of shared indices which translates to a shared edge.
@@ -90,6 +92,16 @@ void triangle_mesh::calculate_adjacency() {
                     auto concave = dot(i_normal, vertices[other_idx] - vertices[i_idx[m]]) > -EDYN_EPSILON;
                     is_concave_edge[i * 3 + m] = concave;
 
+                    // Normal vector of k-th triangle.
+                    auto k_edge0 = vertices[k_idx[1]] - vertices[k_idx[0]];
+                    auto k_edge1 = vertices[k_idx[2]] - vertices[k_idx[1]];
+                    auto k_normal = cross(k_edge0, k_edge1);
+                    auto k_normal_len_sqr = length_sqr(k_normal);
+
+                    if (k_normal_len_sqr > EDYN_EPSILON) {
+                        k_normal /= std::sqrt(k_normal_len_sqr);
+                    }
+
                     // Get edge angle from the cross product of normals and use 
                     // the sign to classify it as a convex or concave edge.
                     auto cos_angle = dot(i_normal, k_normal);
@@ -113,8 +125,26 @@ void triangle_mesh::calculate_adjacency() {
                     break;
                 }
             }
-        }
+        });
     }
+}
+
+void triangle_mesh::build_tree() {
+    std::vector<AABB> aabbs;
+    aabbs.reserve(num_triangles());
+
+    for (size_t i = 0; i < num_triangles(); ++i) {
+        auto verts = triangle_vertices{
+            vertices[indices[i * 3 + 0]],
+            vertices[indices[i * 3 + 1]],
+            vertices[indices[i * 3 + 2]]
+        };
+
+        auto tri_aabb = get_triangle_aabb(verts);
+        aabbs.push_back(tri_aabb);
+    }
+
+    tree.build(aabbs.begin(), aabbs.end());
 }
 
 }

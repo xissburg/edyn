@@ -7,6 +7,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/collision/static_tree.hpp"
 
 namespace edyn {
 
@@ -17,6 +18,7 @@ struct triangle_mesh {
     std::vector<scalar> cos_angles;
     std::vector<bool> is_concave_edge;
     AABB aabb;
+    static_tree tree;
 
     size_t num_triangles() const {
         EDYN_ASSERT(indices.size() % 3 == 0);
@@ -25,31 +27,26 @@ struct triangle_mesh {
 
     template<typename Func>
     void visit(const AABB &aabb, Func func) const {
-        constexpr auto offset = vector3 {
-            contact_breaking_threshold, 
-            contact_breaking_threshold, 
-            contact_breaking_threshold
+        constexpr auto inset = vector3 {
+            -contact_breaking_threshold, 
+            -contact_breaking_threshold, 
+            -contact_breaking_threshold
         };
         
-        // TODO: use bounding volume hierarchy tree.
-        for (size_t i = 0; i < num_triangles(); ++i) {
+        tree.visit(aabb.inset(inset), [&] (auto tri_idx) {
             auto verts = triangle_vertices{
-                vertices[indices[i * 3 + 0]],
-                vertices[indices[i * 3 + 1]],
-                vertices[indices[i * 3 + 2]]
+                vertices[indices[tri_idx * 3 + 0]],
+                vertices[indices[tri_idx * 3 + 1]],
+                vertices[indices[tri_idx * 3 + 2]]
             };
-            auto tri_min = min(min(verts[0], verts[1]), verts[2]);
-            auto tri_max = max(max(verts[0], verts[1]), verts[2]);
 
-            if (intersect_aabb(aabb.min - offset, aabb.max + offset, 
-                               tri_min - offset, tri_max + offset)) {
-                func(i, verts);
-            }
-        }
+            func(tri_idx, verts);
+        });
     }
 
     void calculate_aabb();
     void calculate_adjacency();
+    void build_tree();
 };
 
 }
