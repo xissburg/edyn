@@ -1,6 +1,5 @@
 #include "../common/common.hpp"
 #include <random>
-#include <edyn/math/vector3.hpp>
 
 class vector3_test: public ::testing::Test {
 protected:

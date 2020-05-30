@@ -35,3 +35,4 @@
 #include "util/constraint.hpp"
 #include "util/shape_util.hpp"
 #include "dynamics/island_util.hpp"
+#include "serialization/file_archive.hpp"

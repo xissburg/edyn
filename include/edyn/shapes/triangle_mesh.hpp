@@ -14,7 +14,6 @@ namespace edyn {
 struct triangle_mesh {
     std::vector<vector3> vertices;
     std::vector<uint16_t> indices;
-    std::vector<uint16_t> adjacency;
     std::vector<scalar> cos_angles;
     std::vector<bool> is_concave_edge;
     AABB aabb;
@@ -46,7 +45,7 @@ struct triangle_mesh {
 
     void initialize();
     void calculate_aabb();
-    void calculate_adjacency();
+    void calculate_edge_angles();
     void build_tree();
 };
 
