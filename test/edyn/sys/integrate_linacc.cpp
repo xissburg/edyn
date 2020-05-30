@@ -1,5 +1,4 @@
 #include "../common/common.hpp"
-#include <edyn/math/constants.hpp>
 #include <edyn/sys/integrate_linacc.hpp>
 
 TEST(integrate_linacc, test) {

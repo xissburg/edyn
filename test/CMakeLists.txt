@@ -9,5 +9,6 @@ macro(SETUP_AND_ADD_TEST TEST_NAME TEST_SOURCE)
 endmacro()
 
 SETUP_AND_ADD_TEST(vector3 edyn/math/vector3.cpp)
+SETUP_AND_ADD_TEST(triangle_mesh_serialization edyn/serialization/test_triangle_mesh_s11n.cpp)
 SETUP_AND_ADD_TEST(integrate_linvel edyn/sys/integrate_linvel.cpp)
 SETUP_AND_ADD_TEST(integrate_linacc edyn/sys/integrate_linacc.cpp)

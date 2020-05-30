@@ -98,7 +98,6 @@ public:
         EDYN_ASSERT(m_nodes.size() == node_capacity);
     }
 
-private:
     struct tree_node {
         AABB aabb;
         uint32_t child1;
@@ -149,7 +148,6 @@ private:
         }
     }
 
-    uint32_t m_root_id;
     std::vector<tree_node> m_nodes;
 };
 
