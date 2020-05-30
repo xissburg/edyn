@@ -24,7 +24,10 @@ public:
     file_input_archive(const std::string &path)
         : m_file(path, std::ios::binary | std::ios::in)
     {
-        EDYN_ASSERT(m_file.is_open());
+    }
+
+    bool is_file_open() const {
+        return m_file.is_open();
     }
 
     template<typename... Ts>
@@ -87,7 +90,7 @@ public:
 
     template<typename T>
     void read_bytes(T &t) {
-        EDYN_ASSERT(!m_file.eof());
+        EDYN_ASSERT(m_file.is_open() && !m_file.eof());
         m_file.read(reinterpret_cast<char *>(&t), sizeof t);
     }
 
