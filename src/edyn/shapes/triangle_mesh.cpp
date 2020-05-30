@@ -5,7 +5,7 @@ namespace edyn {
 void triangle_mesh::initialize() {
     calculate_aabb();
     build_tree();
-    calculate_adjacency();
+    calculate_edge_angles();
 }
 
 void triangle_mesh::calculate_aabb() {
@@ -18,13 +18,10 @@ void triangle_mesh::calculate_aabb() {
     }
 }
 
-void triangle_mesh::calculate_adjacency() {
-    adjacency.resize(indices.size());
+void triangle_mesh::calculate_edge_angles() {
     cos_angles.resize(indices.size());
     is_concave_edge.resize(indices.size());
 
-    // Reset adjacency and angles.
-    std::fill(adjacency.begin(), adjacency.end(), UINT16_MAX);
     std::fill(cos_angles.begin(), cos_angles.end(), scalar(-1));
     std::fill(is_concave_edge.begin(), is_concave_edge.end(), false);
 
@@ -80,9 +77,6 @@ void triangle_mesh::calculate_adjacency() {
             for (size_t m = 0; m < 3; ++m) {
                 auto next_m = (m + 1) % 3;
                 if (shared_idx[m] && shared_idx[next_m]) {
-                    // Assign triangle k as adjacent to i via edge m.
-                    adjacency[i * 3 + m] = k;
-
                     // Find index of the vertex in triangle k not in edge m.
                     uint16_t other_idx;
 
@@ -122,8 +116,6 @@ void triangle_mesh::calculate_adjacency() {
                         }
                     }
 
-                    // Assign triangle i as adjacent to k via edge n.
-                    adjacency[k * 3 + n] = i;
                     cos_angles[k * 3 + n] = cos_angle;
                     is_concave_edge[k * 3 + n] = concave;
 

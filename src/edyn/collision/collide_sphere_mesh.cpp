@@ -61,20 +61,6 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
                 auto edge_dist_sqr = closest_point_segment(v0, v1, posA_in_B, t, edge_point);
 
                 if (edge_dist_sqr < dist_sqr) {
-                    // Get adjacent triangle normal.
-                    auto adj_idx = shB.trimesh->adjacency[tri_idx * 3 + i];
-                    auto adj_normal = -normal;
-
-                    if (adj_idx != UINT16_MAX) {
-                        auto adj_vertices = triangle_vertices{
-                            shB.trimesh->vertices[shB.trimesh->indices[adj_idx * 3 + 0]],
-                            shB.trimesh->vertices[shB.trimesh->indices[adj_idx * 3 + 1]],
-                            shB.trimesh->vertices[shB.trimesh->indices[adj_idx * 3 + 2]]
-                        };
-                        adj_normal = normalize(cross(adj_vertices[1] - adj_vertices[0], 
-                                                     adj_vertices[2] - adj_vertices[1]));
-                    }
-
                     // Check Voronoi region.
                     auto edge_normal = posA_in_B - edge_point;
                     auto edge_dist = std::sqrt(edge_dist_sqr);
