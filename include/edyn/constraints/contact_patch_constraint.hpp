@@ -47,6 +47,12 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     vector3 m_lat_dir;
     vector3 m_pivot;
     vector3 m_normal;
+    scalar m_deflection;
+    scalar m_sin_camber;
+    scalar m_sliding_spd_avg;
+    scalar m_contact_len_avg;
+    scalar m_contact_width;
+    size_t m_manifold_point_index;
 
     scalar m_normal_relspd;
     scalar m_lon_damping;

@@ -48,7 +48,8 @@ void narrowphase::on_construct_broadphase_relation(entt::entity entity, entt::re
 
         if (tire0 || tire1) {
             auto contact = contact_patch_constraint();
-            // Contact patch is always a soft contact since it needs deflection.
+            // Contact patch is always a soft contact since it needs deflection
+            // to generate friction forces.
             EDYN_ASSERT(m0->stiffness < large_scalar || m1->stiffness < large_scalar);
             contact.m_normal_stiffness = stiffness;
             contact.m_normal_damping = damping;

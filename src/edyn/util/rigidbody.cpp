@@ -14,6 +14,7 @@
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
+#include "edyn/comp/tire_state.hpp"
 
 namespace edyn {
 
@@ -72,6 +73,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
             registry.assign<tire_material>(entity, def.lon_tread_stiffness,
                                            def.lat_tread_stiffness, 
                                            def.speed_sensitivity, def.load_sensitivity);
+            registry.assign<tire_state>(entity);
         }
     }
 
