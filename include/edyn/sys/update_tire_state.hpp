@@ -48,13 +48,15 @@ void update_tire_state(entt::registry &registry, scalar dt) {
             auto velB = linvelB + cross(angvelB, contact_patch->m_pivot - posB);
             auto relvel = velA - velB;
             auto tan_relvel = project_direction(relvel, contact_patch->m_normal);
-            auto linvel_rel = linvelA - linvelB;
+            auto linvel_rel = project_direction(linvelA - linvelB, contact_patch->m_normal);
+            auto linspd_rel = length(linvel_rel);
+            auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : contact_patch->m_lon_dir;
 
             ts.vertical_deflection = contact_patch->m_deflection;
-            ts.speed = length(linvel_rel);
+            ts.speed = linspd_rel;
             ts.friction_coefficient = contact_patch->m_friction_coefficient;
             ts.sin_camber = contact_patch->m_sin_camber;
-            ts.slip_angle = std::acos(dot(contact_patch->m_lon_dir, linvel_rel));
+            ts.slip_angle = std::asin(dot(contact_patch->m_lat_dir, direction));
             auto vx = dot(linvel_rel, contact_patch->m_lon_dir);
             auto vsx = dot(tan_relvel, contact_patch->m_lon_dir);
             ts.slip_ratio = std::abs(vx) > 0.001 ? -vsx/vx : -vsx;
