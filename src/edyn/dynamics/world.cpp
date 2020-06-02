@@ -91,6 +91,7 @@ world::world(entt::registry &reg)
     connections.push_back(reg.on_destroy<dynamic_tag>().connect<&on_destroy_dynamic_tag>());
 
     connections.push_back(bphase.construct_relation_sink().connect<&narrowphase::on_construct_broadphase_relation>(nphase));
+    connections.push_back(bphase.destroy_relation_sink().connect<&narrowphase::on_destroy_broadphase_relation>(nphase));
 }
 
 world::~world() {

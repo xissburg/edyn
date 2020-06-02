@@ -63,6 +63,7 @@ void broadphase::update() {
     });
 
     for (auto ent : destroy_rel) {
+        destroy_relation_signal.publish(ent, *registry);
         registry->destroy(ent);
     }
 

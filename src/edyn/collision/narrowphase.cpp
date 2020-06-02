@@ -14,6 +14,7 @@
 
 namespace edyn {
 
+static
 void refresh_manifold(contact_manifold &manifold,
                       const vector3 &posA, const quaternion &ornA, 
                       const vector3 &posB, const quaternion &ornB) {
@@ -50,6 +51,16 @@ void narrowphase::on_construct_broadphase_relation(entt::entity entity, entt::re
     }
 }
 
+void narrowphase::on_destroy_broadphase_relation(entt::entity entity, entt::registry &registry) {
+    auto &manifold = registry.get<contact_manifold>(entity);
+    auto &rel = registry.get<relation>(entity);
+
+    for (size_t i = manifold.num_points - 1; i >= 0; --i) {
+        contact_ended_signal.publish(entity, registry, rel, manifold, i);
+        --manifold.num_points;
+    }
+}
+
 void narrowphase::update() {
     auto view = registry->view<relation, contact_manifold>();
 
@@ -75,7 +86,7 @@ void narrowphase::update() {
 
         refresh_manifold(manifold, posA, ornA, posB, ornB);
         process_collision(ent, manifold, rel, result);
-        prune(ent, manifold, posA, ornA, posB, ornB);
+        prune(ent, manifold, rel, posA, ornA, posB, ornB);
     });
 }
 
@@ -182,11 +193,13 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
                     ++manifold.num_points;
                 }
             }
+
+            contact_started_signal.publish(entity, *registry, rel, manifold, idx);
         }
     }
 }
 
-void narrowphase::prune(entt::entity entity, contact_manifold &manifold,
+void narrowphase::prune(entt::entity entity, contact_manifold &manifold, const relation &rel,
                         const vector3 &posA, const quaternion &ornA, 
                         const vector3 &posB, const quaternion &ornB) {
     // Remove separating contact points.
@@ -219,6 +232,8 @@ void narrowphase::prune(entt::entity entity, contact_manifold &manifold,
                 }
             }
 
+            contact_ended_signal.publish(entity, *registry, rel, manifold, k);
+
             // Swap with last element.
             size_t last_idx = manifold.num_points - 1;
             
@@ -227,6 +242,7 @@ void narrowphase::prune(entt::entity entity, contact_manifold &manifold,
             }
 
             --manifold.num_points;
+
         }
     }
 }
