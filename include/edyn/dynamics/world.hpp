@@ -42,11 +42,11 @@ public:
 
     scalar fixed_dt {1.0/60};
     solver sol;
+    broadphase bphase;
+    narrowphase nphase;
 
 private:
     entt::registry* registry;
-    broadphase bphase;
-    narrowphase nphase;
     std::vector<entt::scoped_connection> connections;
     scalar residual_dt {0};
     std::atomic<uint64_t> step_ {0};
