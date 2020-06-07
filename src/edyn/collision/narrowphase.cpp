@@ -111,6 +111,9 @@ void create_contact_constraint(entt::entity manifold_entity, entt::entity contac
     auto is_tire = tire0 || tire1;
 
     if (is_tire) {
+        // For tires a `contact_patch_constraint` is assigned to the manifold
+        // entity. It creates constraints internally if the number of points
+        // is greater than zero.
         if (!registry.has<constraint>(manifold_entity)) {
             auto contact = contact_patch_constraint();
             // Contact patch is always a soft contact since it needs deflection
@@ -136,10 +139,15 @@ void create_contact_constraint(entt::entity manifold_entity, entt::entity contac
             }
         }
     } else {
+        // For regular contacts one `contact_constraint` is assigned to every 
+        // new point.
         auto contact = contact_constraint();
         contact.stiffness = stiffness;
         contact.damping = damping;
 
+        // A new and identical relation is created for every contact point
+        // because every constraint needs a corresponding relation to refer
+        // to the constrained entities. 
         // Referring to `rel.entity` below is not safe because a new relation
         // is being created. Thus, make a copy of its entity array. 
         auto rel_entity = rel.entity;
