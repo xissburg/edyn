@@ -85,6 +85,10 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
 
 void narrowphase::process_collision(entt::entity entity, contact_manifold &manifold, 
                                     const relation &rel, const collision_result &result) {
+    // Referring to `rel.entity` below is not safe because relations are being
+    // manipulated. Thus, make a copy of its entity array. 
+    auto rel_entity = rel.entity;
+
     auto cp_view = registry->view<contact_point>();
     // Merge new with existing contact points.
     for (size_t i = 0; i < result.num_points; ++i) {
@@ -132,13 +136,23 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
                     // New contact point.
                     auto contact_entity = registry->create();
                     manifold.point_entity[idx] = contact_entity;
-                    auto &cp = registry->assign<contact_point>(contact_entity);
-                    cp.parent = entity;
-                    cp.lifetime = 0;
                     ++manifold.num_points;
 
-                    auto *materialA = registry->try_get<const material>(rel.entity[0]);
-                    auto *materialB = registry->try_get<const material>(rel.entity[1]);
+                    auto &cp = registry->assign<contact_point>(
+                        contact_entity, 
+                        entity, // parent
+                        rp.pivotA, // pivotA
+                        rp.pivotB, // pivotB
+                        rp.normalB, // normalB
+                        0, // friction
+                        0, // restitution
+                        0, // lifetime
+                        rp.distance, // distance
+                        0 // impulse
+                    );
+
+                    auto *materialA = registry->try_get<const material>(rel_entity[0]);
+                    auto *materialB = registry->try_get<const material>(rel_entity[1]);
 
                     if (materialA && materialB) {
                         cp.restitution = materialA->restitution * materialB->restitution;
@@ -150,8 +164,8 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
                             contact.damping = 1 / (1 / materialA->damping + 1 / materialB->damping);
                         }
 
+                        registry->assign<relation>(contact_entity, rel_entity[0], rel_entity[1]);
                         auto &con = registry->assign<constraint>(contact_entity, contact);
-                        registry->assign<relation>(contact_entity, rel);
 
                         auto normal_row_entity = registry->create();
                         con.row[con.num_rows++] = normal_row_entity;
@@ -160,11 +174,11 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
 
                         // Assign row component and associate entities.
                         auto &normal_row = registry->assign<constraint_row>(normal_row_entity);
-                        normal_row.entity = rel.entity;
+                        normal_row.entity = rel_entity;
                         normal_row.restitution = cp.restitution;
                         normal_row.priority = 0;
                         auto &friction_row = registry->assign<constraint_row>(friction_row_entity);
-                        friction_row.entity = rel.entity;
+                        friction_row.entity = rel_entity;
                         friction_row.priority = 1;
                     }
                 } else {
