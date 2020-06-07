@@ -2,14 +2,14 @@
 #define EDYN_COLLISION_CONTACT_MANIFOLD_HPP
 
 #include <array>
-#include "edyn/collision/contact_point.hpp"
+#include <entt/fwd.hpp>
 #include "edyn/math/constants.hpp"
 
 namespace edyn {
 
 struct contact_manifold {
     size_t num_points {0};
-    std::array<contact_point, max_contacts> point;
+    std::array<entt::entity, max_contacts> point_entity;
 };
 
 }

@@ -12,6 +12,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/collision_filter.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 
 namespace edyn {
 
@@ -90,8 +91,8 @@ world::world(entt::registry &reg)
     connections.push_back(reg.on_construct<dynamic_tag>().connect<&on_construct_dynamic_tag>());
     connections.push_back(reg.on_destroy<dynamic_tag>().connect<&on_destroy_dynamic_tag>());
 
-    connections.push_back(bphase.construct_relation_sink().connect<&narrowphase::on_construct_broadphase_relation>(nphase));
-    connections.push_back(bphase.destroy_relation_sink().connect<&narrowphase::on_destroy_broadphase_relation>(nphase));
+    // Associate a `contact_manifold` to every broadphase relation that's created.
+    connections.push_back(bphase.construct_relation_sink().connect<&entt::registry::assign<contact_manifold>>(reg));
 }
 
 world::~world() {

@@ -6,7 +6,6 @@
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/collision_filter.hpp"
-#include "edyn/util/constraint.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/dynamics/island_util.hpp"
 #include <entt/entt.hpp>
@@ -67,7 +66,7 @@ void broadphase::update() {
         registry->destroy(ent);
     }
 
-    // Search for new AABB intersections and create contact constraints.
+    // Search for new AABB intersections and create relations.
     auto it = aabb_view.begin();
     const auto it_end = aabb_view.end();
 
