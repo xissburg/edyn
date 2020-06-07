@@ -123,6 +123,7 @@ void world::step(scalar dt) {
     nphase.update();
     sol.update(step_, dt);
     ++step_;
+    step_signal.publish(step_);
 }
 
 void world::run() {
