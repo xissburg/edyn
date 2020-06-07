@@ -1,5 +1,6 @@
 #include "edyn/constraints/contact_patch_constraint.hpp"
-#include "edyn/comp/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/relation.hpp"
@@ -57,12 +58,15 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         return;
     }
 
+    auto cp_view = registry.view<contact_point>();
+
     // Use largest penetration for normal deflection force calculation.
     auto deepest_distance = EDYN_SCALAR_MAX;
     
     for (size_t i = 0; i < manifold.num_points; ++i) {
-        if (manifold.point[i].distance < deepest_distance) {
-            deepest_distance = manifold.point[i].distance;
+        auto &cp = cp_view.get(manifold.point_entity[i]);
+        if (cp.distance < deepest_distance) {
+            deepest_distance = cp.distance;
             m_manifold_point_index = i;
         }
     }
@@ -71,6 +75,8 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         clear(registry, con);
         return;
     }
+
+    auto &contact_point = cp_view.get(manifold.point_entity[m_manifold_point_index]);
 
     const auto &posA = registry.get<position>(rel.entity[0]);
     const auto &ornA = registry.get<orientation>(rel.entity[0]);
@@ -97,7 +103,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const auto &shapeA = registry.get<shape>(rel.entity[0]);
     const auto &cyl = std::get<cylinder_shape>(shapeA.var);
     
-    const auto normal = rotate(ornB, manifold.point[m_manifold_point_index].normalB);
+    const auto normal = rotate(ornB, contact_point.normalB);
 
     // Calculate contact patch width.
     m_sin_camber = dot(axis, normal);
@@ -113,7 +119,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto row_start = m_sin_camber < 0 ? -cyl.half_length : cyl.half_length - m_contact_width;
     
     // A point on the contact plane.
-    auto pivotB = posB + rotate(ornB, manifold.point[m_manifold_point_index].pivotB);
+    auto pivotB = posB + rotate(ornB, contact_point.pivotB);
 
     // Intersect lines going from the circle center to the support point with the
     // contact plane to find the initial contact extent.
@@ -475,7 +481,9 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         }
     }
 
-    m_sliding_spd_avg /= total_bristles;
+    if (total_bristles > 0) {
+        m_sliding_spd_avg /= total_bristles;
+    }
 
     // Longitudinal stiffness.
     {

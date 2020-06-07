@@ -6,7 +6,8 @@
 #include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_point.hpp"
 
 namespace edyn {
 
@@ -51,6 +52,8 @@ void update_tire_state(entt::registry &registry, scalar dt) {
             auto linvel_rel = project_direction(linvelA - linvelB, contact_patch->m_normal);
             auto linspd_rel = length(linvel_rel);
             auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : contact_patch->m_lon_dir;
+            auto cp_ent = manifold.point_entity[contact_patch->m_manifold_point_index];
+            auto &cp = registry.get<contact_point>(cp_ent);
 
             ts.vertical_deflection = contact_patch->m_deflection;
             ts.speed = linspd_rel;
@@ -64,7 +67,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
             ts.slide_factor = contact_patch->m_sliding_spd_avg;
             ts.contact_patch_length = contact_patch->m_contact_len_avg;
             ts.contact_patch_width = contact_patch->m_contact_width;
-            ts.contact_lifetime = manifold.point[contact_patch->m_manifold_point_index].lifetime;
+            ts.contact_lifetime = cp.lifetime;
             ts.lat_dir = contact_patch->m_lat_dir;
             ts.lon_dir = contact_patch->m_lon_dir;
             ts.normal = contact_patch->m_normal;

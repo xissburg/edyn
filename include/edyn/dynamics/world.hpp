@@ -35,24 +35,38 @@ public:
     void quit();
 
     using update_signal_func_t = void(scalar);
+    using step_signal_func_t = void(uint64_t);
 
     entt::sink<update_signal_func_t> update_sink() {
         return {update_signal};
     }
 
+    entt::sink<step_signal_func_t> step_sink() {
+        return {step_signal};
+    }
+
+    broadphase &get_broaphase() {
+        return bphase;
+    }
+
+    narrowphase &get_narrowphase() {
+        return nphase;
+    }
+
     scalar fixed_dt {1.0/60};
     solver sol;
-    broadphase bphase;
-    narrowphase nphase;
 
 private:
     entt::registry* registry;
+    broadphase bphase;
+    narrowphase nphase;
     std::vector<entt::scoped_connection> connections;
     scalar residual_dt {0};
     std::atomic<uint64_t> step_ {0};
     std::atomic<double> local_time_;
     std::atomic_bool running {false};
     entt::sigh<update_signal_func_t> update_signal;
+    entt::sigh<step_signal_func_t> step_signal;
 };
 
 }
