@@ -16,7 +16,6 @@ struct contact_point {
     scalar restitution;
     uint32_t lifetime {0};
     scalar distance;
-    scalar impulse;
 };
 
 }

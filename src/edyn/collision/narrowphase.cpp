@@ -21,8 +21,10 @@ namespace edyn {
 static
 void refresh_contact_points(entt::registry &registry) {
     auto tr_view = registry.view<position, orientation>();
-    auto cp_view = registry.view<relation, contact_point>();
-    cp_view.each([&] (auto, relation &rel, contact_point &cp) {
+    auto cp_view = registry.view<contact_point>();
+    auto rel_view = registry.view<relation>();
+    cp_view.each([&] (auto, contact_point &cp) {
+        auto &rel = rel_view.get(cp.parent);
         auto [posA, ornA] = tr_view.get<position, orientation>(rel.entity[0]);
         auto [posB, ornB] = tr_view.get<position, orientation>(rel.entity[1]);
         auto pivotA_world = posA + rotate(ornA, cp.pivotA);
@@ -248,8 +250,7 @@ void narrowphase::process_collision(entt::entity entity, contact_manifold &manif
                         0, // friction
                         0, // restitution
                         0, // lifetime
-                        rp.distance, // distance
-                        0 // impulse
+                        rp.distance // distance
                     );
 
                     create_contact_constraint(entity, contact_entity, *registry, cp, rel);
