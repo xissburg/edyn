@@ -74,7 +74,15 @@ void narrowphase::update() {
             }, shapeB.var);
         }, shapeA.var);
 
-        process_collision(ent, manifold, rel, result);
+        auto tire0 = registry->try_get<tire_material>(rel.entity[0]);
+        auto tire1 = registry->try_get<tire_material>(rel.entity[1]);
+        auto is_tire = tire0 || tire1;
+
+        if (is_tire) {
+            process_tire_collision(ent, *registry, manifold, rel, result);
+        } else {
+            process_collision(ent, manifold, rel, result);
+        }
         prune(ent, manifold, rel, posA, ornA, posB, ornB);
     });
 }
@@ -186,6 +194,42 @@ void update_contact_constraint(entt::entity entity, entt::entity contact_entity,
         // Zero out warm-starting impulses.
         normal_row.impulse = 0;
         friction_row.impulse = 0;
+    }
+}
+
+void process_tire_collision(entt::entity entity, entt::registry &registry, contact_manifold &manifold, 
+                            relation &rel, const collision_result &result) {
+    auto cp_view = registry.view<contact_point>();
+    auto &tire_shape = registry.get<shape>(rel.entity[0]);
+    auto &tire_cyl = std::get<cylinder_shape>(tire_shape.var);
+
+    for (size_t i = 0; i < result.num_points; ++i) {
+        // Find point closest to the same angle along the plane orthogonal to
+        // the cylinder axis.
+        auto &rp = result.point[i];
+        auto rp_angle = std::atan2(rp.pivotA.y, rp.pivotA.z);
+
+        auto shortest_dist = contact_caching_threshold;
+        auto nearest_idx = max_contacts;
+
+        for (size_t k = 0; k < manifold.num_points; ++k) {
+            auto &cp = cp_view.get(manifold.point_entity[k]);
+            auto cp_angle = std::atan2(cp.pivotA.y, cp.pivotA.z);
+            auto dist = std::abs(cp_angle - rp_angle) * tire_cyl.radius;
+
+            if (dist < shortest_dist) {
+                shortest_dist = dist;
+                nearest_idx = k;
+            }
+        }
+
+        if (nearest_idx < max_contacts) {
+            auto &cp = cp_view.get(manifold.point_entity[nearest_idx]);
+            ++cp.lifetime;
+            merge_point(rp, cp);
+        } else {
+
+        }
     }
 }
 
