@@ -162,8 +162,8 @@ size_t intersect_circle_circle(scalar px, scalar py,
                                scalar &ix, scalar &iy,
                                scalar &jx, scalar &jy);
 
-vector3 support_point_circle(scalar radius, const vector3 &pos, 
-                             const quaternion &orn, const vector3 &dir);
+vector3 support_point_circle(const vector3 &pos, const quaternion &orn, 
+                             scalar radius, const vector3 &dir);
 
 template<size_t N>
 void support_point_vertices(const std::array<vector3, N> &vertices, 
@@ -203,12 +203,7 @@ size_t insert_index(std::array<vector3, N> points,
     }
     
     if (closest_dist_sqr < contact_breaking_threshold * contact_breaking_threshold) {
-        // Replace with new point if it's deeper.
-        if (new_point_depth < depths[closest_idx]) {
-            return closest_idx;
-        }
-        // Else, ignore new point.
-        return N;
+        return closest_idx;
     }
 
     // Return the index after last to signal the insertion of a new point.

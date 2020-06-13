@@ -36,7 +36,6 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
 
     scalar m_normal_stiffness {100000};
     scalar m_normal_damping {400};
-    scalar m_friction_coefficient {1};
     scalar m_speed_sensitivity {0.05};
     scalar m_load_sensitivity {0.03};
     scalar m_lon_tread_stiffness {3000000};
@@ -52,7 +51,6 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     scalar m_sliding_spd_avg;
     scalar m_contact_len_avg;
     scalar m_contact_width;
-    size_t m_manifold_point_index;
 
     scalar m_normal_relspd;
     scalar m_lon_damping;
@@ -62,8 +60,9 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     static constexpr size_t num_tread_rows = 3;
     std::array<tread_row, num_tread_rows> m_tread_rows{};
 
-    void clear(entt::registry &, constraint &);
+    void clear(constraint &, entt::registry &);
 
+    void init(entt::entity, constraint &, const relation &, entt::registry &);
     void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
     void iteration(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
 };

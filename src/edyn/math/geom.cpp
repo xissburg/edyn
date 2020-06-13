@@ -471,8 +471,8 @@ scalar closest_point_circle_circle(
     auto v = quaternion_y(ornB_in_A);
 
     // Use angle of support point of B closest on A's plane as initial angle.
-    vector3 sup_pos = support_point_circle(radiusB, posB_in_A, ornB_in_A, vector3_x);
-    vector3 sup_neg = support_point_circle(radiusB, posB_in_A, ornB_in_A, -vector3_x);
+    vector3 sup_pos = support_point_circle(posB_in_A, ornB_in_A, radiusB, vector3_x);
+    vector3 sup_neg = support_point_circle(posB_in_A, ornB_in_A, radiusB, -vector3_x);
     vector3 sup = std::abs(sup_pos.x) < std::abs(sup_neg.x) ? sup_pos : sup_neg;
     auto sup_in_B = to_object_space(sup, posB_in_A, ornB_in_A);
     auto initial_phi = std::atan2(sup_in_B.y, sup_in_B.z);
@@ -594,20 +594,18 @@ bool intersect_aabb(const vector3 &min0, const vector3 &max0,
 		   (max0.z >= min1.z);
 }
 
-vector3 support_point_circle(scalar radius, const vector3 &pos, const quaternion &orn, const vector3 &dir) {
-    auto local_dir = rotate(conjugate(orn), dir);
-    // Squared length in yz plane.
-    auto len_yz_sqr = local_dir.y * local_dir.y + local_dir.z * local_dir.z;
-    vector3 sup;
+vector3 support_point_circle(const vector3 &pos, const quaternion &orn, 
+                             scalar radius, const vector3 &dir) {
+    auto normal = rotate(orn, vector3_x);
+    auto proj = dir - normal * dot(dir, normal);
+    auto l2 = length_sqr(proj);
 
-    if (len_yz_sqr > EDYN_EPSILON) {
-        auto d = radius / std::sqrt(len_yz_sqr);
-        sup = {0, local_dir.y * d, local_dir.z * d};
-    } else {
-        sup = {0, radius, 0};
+    if (l2 > EDYN_EPSILON) {
+        auto s = radius / std::sqrt(l2);
+        return pos + proj * s;
     }
 
-    return pos + rotate(orn, sup);
+    return pos + rotate(orn, vector3_y * radius);
 }
 
 scalar signed_triangle_area(const vector2 &a, const vector2 &b, const vector2 &c) {

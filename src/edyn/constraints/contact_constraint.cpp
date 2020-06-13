@@ -18,6 +18,24 @@
 
 namespace edyn {
 
+void contact_constraint::init(entt::entity entity, constraint &con, const relation &rel, entt::registry &registry) {
+    auto normal_row_entity = registry.create();
+    con.row[con.num_rows++] = normal_row_entity;
+    auto friction_row_entity = registry.create();
+    con.row[con.num_rows++] = friction_row_entity;
+
+    auto &cp = registry.get<contact_point>(entity);
+
+    auto &normal_row = registry.assign<constraint_row>(normal_row_entity);
+    normal_row.entity = rel.entity;
+    normal_row.restitution = cp.restitution;
+    normal_row.priority = 0;
+
+    auto &friction_row = registry.assign<constraint_row>(friction_row_entity);
+    friction_row.entity = rel.entity;
+    friction_row.priority = 1;
+}
+
 void contact_constraint::prepare(entt::entity entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
     auto &posA = registry.get<const position   >(rel.entity[0]);
     auto &ornA = registry.get<const orientation>(rel.entity[0]);

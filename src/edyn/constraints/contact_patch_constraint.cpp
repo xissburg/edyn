@@ -12,71 +12,55 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/spin.hpp"
-#include "edyn/util/tire.hpp"
+#include "edyn/util/tire_util.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-static
-vector3 support_point_circle(const vector3 &pos, const quaternion &orn, scalar radius, const vector3 &dir) {
-    auto normal = rotate(orn, vector3_x);
-    auto proj = dir - normal * dot(dir, normal);
-    auto l2 = length_sqr(proj);
+void contact_patch_constraint::init(entt::entity entity, constraint &con, 
+                              const relation &rel, entt::registry &registry) {
+    // A spring row and a damper row for normal, longitudinal, lateral and 
+    // torsional directions.
+    con.num_rows = 8;
 
-    if (l2 > EDYN_EPSILON) {
-        auto s = radius / std::sqrt(l2);
-        return pos + proj * s;
+    for (size_t i = 0; i < con.num_rows; ++i) {
+        auto [row_entity, row] = registry.create<constraint_row>();
+        row.entity = rel.entity;
+        // Priority zero for normal constraint,
+        // priority one for friction constraints.
+        row.priority = i == 0 || i == 1 ? 0 : 1;
+        // Use spin only for longitudinal constraint.
+        row.use_spin[0] = i == 2 || i == 3;
+        row.use_spin[1] = i == 2 || i == 3;
+        con.row[i] = row_entity;
     }
-
-    return pos + rotate(orn, vector3_y * radius);
 }
 
-void contact_patch_constraint::clear(entt::registry &registry, constraint &con) {
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        registry.destroy(con.row[i]);
-        con.row[i] = entt::null;
-    }
-
-    con.num_rows = 0;
-
+void contact_patch_constraint::clear(constraint &con, entt::registry &registry) {
     for (size_t i = 0; i < num_tread_rows; ++i) {
         auto &tread_row = m_tread_rows[i];
         tread_row.bristles.clear();
+    }
+
+    for (size_t i = 0; i < con.num_rows; ++i) {
+        auto &row = registry.get<constraint_row>(con.row[i]);
+        row.error = 0;
+        row.lower_limit = row.upper_limit = 0;
+        row.J[0] = vector3_x;
     }
 }
 
 void contact_patch_constraint::prepare(entt::entity entity, constraint &con, 
                                        const relation &rel, entt::registry &registry,
                                        scalar dt) {
-    m_manifold_point_index = SIZE_MAX;
-    auto &manifold = registry.get<contact_manifold>(entity);
+    auto &cp = registry.get<contact_point>(entity);
 
-    if (manifold.num_points == 0) {
-        clear(registry, con);
+    if (cp.distance > 0) {
+        clear(con, registry);
         return;
     }
-
-    auto cp_view = registry.view<contact_point>();
-
-    // Use largest penetration for normal deflection force calculation.
-    auto deepest_distance = EDYN_SCALAR_MAX;
-    
-    for (size_t i = 0; i < manifold.num_points; ++i) {
-        auto &cp = cp_view.get(manifold.point_entity[i]);
-        if (cp.distance < deepest_distance) {
-            deepest_distance = cp.distance;
-            m_manifold_point_index = i;
-        }
-    }
-
-    if (deepest_distance > 0) {
-        clear(registry, con);
-        return;
-    }
-
-    auto &contact_point = cp_view.get(manifold.point_entity[m_manifold_point_index]);
 
     const auto &posA = registry.get<position>(rel.entity[0]);
     const auto &ornA = registry.get<orientation>(rel.entity[0]);
@@ -103,12 +87,12 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     const auto &shapeA = registry.get<shape>(rel.entity[0]);
     const auto &cyl = std::get<cylinder_shape>(shapeA.var);
     
-    const auto normal = rotate(ornB, contact_point.normalB);
+    const auto normal = rotate(ornB, cp.normalB);
 
     // Calculate contact patch width.
     m_sin_camber = dot(axis, normal);
     auto camber_angle = std::asin(m_sin_camber);
-    auto normalized_contact_width = std::cos(std::atan(std::pow(std::abs(camber_angle), std::log(-deepest_distance * 300 + 1))));
+    auto normalized_contact_width = std::cos(std::atan(std::pow(std::abs(camber_angle), std::log(-cp.distance * 300 + 1))));
     m_contact_width = cyl.half_length * 2 * normalized_contact_width;
 
     // Calculate center of pressure.
@@ -119,7 +103,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto row_start = m_sin_camber < 0 ? -cyl.half_length : cyl.half_length - m_contact_width;
     
     // A point on the contact plane.
-    auto pivotB = posB + rotate(ornB, contact_point.pivotB);
+    auto pivotB = posB + rotate(ornB, cp.pivotB);
 
     // Intersect lines going from the circle center to the support point with the
     // contact plane to find the initial contact extent.
@@ -139,25 +123,6 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto deflection0 = std::max(dot(intersection0 - sup0, tire_up), scalar(0));
     auto deflection1 = std::max(dot(intersection1 - sup1, tire_up), scalar(0));
 
-    // Create constraint rows if needed.
-    if (con.num_rows == 0) {
-        // A spring row and a damper row for normal, longitudinal, lateral and 
-        // torsional directions.
-        con.num_rows = 8;
-
-        for (size_t i = 0; i < con.num_rows; ++i) {
-            auto [row_entity, row] = registry.create<constraint_row>();
-            row.entity = rel.entity;
-            // Priority zero for normal constraint,
-            // priority one for friction constraints.
-            row.priority = i == 0 || i == 1 ? 0 : 1;
-            // Use spin only for longitudinal constraint.
-            row.use_spin[0] = i == 2 || i == 3;
-            row.use_spin[1] = i == 2 || i == 3;
-            con.row[i] = row_entity;
-        }
-    }
-
     m_pivot = contact_center;
     m_normal = normal;
 
@@ -170,7 +135,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     
     auto &normal_damping_row = registry.get<constraint_row>(con.row[1]);
     normal_damping_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-    m_deflection = -deepest_distance;
+    m_deflection = -cp.distance;
 
     // Normal spring.
     {
@@ -378,7 +343,7 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
                                    (normal_force / num_tread_rows) / 
                                    (tread_width * 2 * row_half_length) : 
                                    scalar(0);
-            auto mu0 = m_friction_coefficient * std::exp(scalar(-0.001) * m_load_sensitivity * normal_force);
+            auto mu0 = cp.friction * std::exp(scalar(-0.001) * m_load_sensitivity * normal_force);
             bristle->friction = mu0 / (1 + m_speed_sensitivity * bristle->sliding_spd);
 
             auto spring_force = vector3_zero;

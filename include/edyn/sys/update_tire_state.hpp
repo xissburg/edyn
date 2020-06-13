@@ -13,79 +13,81 @@ namespace edyn {
 
 inline
 void update_tire_state(entt::registry &registry, scalar dt) {
-    auto view = registry.view<const relation_container, tire_state>();
-    view.each([&] (auto ent, const relation_container &rels, tire_state &ts) {
-        ts.in_contact = false;
+    auto ts_view = registry.view<const relation_container, tire_state>();
+    auto orn_view = registry.view< orientation>();
+    auto vel_view = registry.view<linvel, angvel>();
+    auto con_row_view = registry.view<constraint_row>();
+
+    ts_view.each([&] (auto entity, const relation_container &rels, tire_state &ts) {
         ts.other_entity = entt::null;
 
-        const auto &posA = registry.get<position>(ent);
-        const auto &ornA = registry.get<orientation>(ent);
-
-        const auto &linvelA = registry.get<linvel>(ent);
-        const auto &angvelA = registry.get<angvel>(ent);
+        auto &ornA = orn_view.get(entity);
+        auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(entity);
         
-        const auto &spinA = registry.get<spin>(ent);
+        const auto &spinA = registry.get<spin>(entity);
         const auto spin_angvelA = angvelA + quaternion_x(ornA) * spinA;
 
         for (auto rel_ent : rels.entities) {
-            auto con = registry.try_get<constraint>(rel_ent);
-            if (!con) continue;
+            auto *manifold = registry.try_get<contact_manifold>(rel_ent);
+            if (!manifold) {
+                continue;
+            }
 
-            auto contact_patch = std::get_if<contact_patch_constraint>(&con->var);
-            if (!contact_patch) continue;
+            auto manifold_rel = registry.get<relation>(rel_ent);
+            ts.other_entity = manifold_rel.entity[1];
+            ts.num_contacts = manifold->num_points;
+            
+            if (ts.num_contacts == 0) continue;
 
-            auto &manifold = registry.get<contact_manifold>(rel_ent);
-            ts.in_contact = manifold.num_points > 0;
-            if (!ts.in_contact) continue;
+            auto ornB = orn_view.get(manifold_rel.entity[1]);
+            auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(manifold_rel.entity[1]);
 
-            auto &rel = registry.get<relation>(rel_ent);
-            ts.other_entity = rel.entity[1];
+            for (size_t i = 0; i < manifold->num_points; ++i) {
+                auto [con, cp] = registry.get<constraint, contact_point>(manifold->point_entity[i]);
+                auto &contact_patch = std::get<contact_patch_constraint>(con.var);
 
-            const auto &posB = registry.get<position>(rel.entity[1]);
-            const auto &linvelB = registry.get<linvel>(rel.entity[1]);
-            const auto &angvelB = registry.get<angvel>(rel.entity[1]);
+                auto velA = linvelA + cross(spin_angvelA, rotate(ornA, cp.pivotA));
+                auto velB = linvelB + cross(angvelB, rotate(ornB, cp.pivotB));
+                auto relvel = velA - velB;
+                auto tan_relvel = project_direction(relvel, contact_patch.m_normal);
+                auto linvel_rel = project_direction(linvelA - linvelB, contact_patch.m_normal);
+                auto linspd_rel = length(linvel_rel);
+                auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : contact_patch.m_lon_dir;
 
-            auto velA = linvelA + cross(spin_angvelA, contact_patch->m_pivot - posA);
-            auto velB = linvelB + cross(angvelB, contact_patch->m_pivot - posB);
-            auto relvel = velA - velB;
-            auto tan_relvel = project_direction(relvel, contact_patch->m_normal);
-            auto linvel_rel = project_direction(linvelA - linvelB, contact_patch->m_normal);
-            auto linspd_rel = length(linvel_rel);
-            auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : contact_patch->m_lon_dir;
-            auto cp_ent = manifold.point_entity[contact_patch->m_manifold_point_index];
-            auto &cp = registry.get<contact_point>(cp_ent);
+                auto &tire_cs = ts.contact_state[i];
+                tire_cs.vertical_deflection = contact_patch.m_deflection;
+                tire_cs.speed = linspd_rel;
+                tire_cs.friction_coefficient = cp.friction;
+                tire_cs.sin_camber = contact_patch.m_sin_camber;
+                auto sin_slip_angle = std::clamp(dot(contact_patch.m_lat_dir, direction), scalar(-1), scalar(1));
+                tire_cs.slip_angle = std::asin(sin_slip_angle);
+                auto vx = dot(linvel_rel, contact_patch.m_lon_dir);
+                auto vsx = dot(tan_relvel, contact_patch.m_lon_dir);
+                tire_cs.slip_ratio = std::abs(vx) > 0.001 ? -vsx/vx : -vsx;
+                tire_cs.yaw_rate = dot(angvelA, contact_patch.m_normal);
+                tire_cs.slide_factor = contact_patch.m_sliding_spd_avg;
+                tire_cs.contact_patch_length = contact_patch.m_contact_len_avg;
+                tire_cs.contact_patch_width = contact_patch.m_contact_width;
+                tire_cs.contact_lifetime = cp.lifetime;
+                tire_cs.lat_dir = contact_patch.m_lat_dir;
+                tire_cs.lon_dir = contact_patch.m_lon_dir;
+                tire_cs.normal = contact_patch.m_normal;
+                tire_cs.position = contact_patch.m_pivot;
+                tire_cs.lin_vel = linvel_rel;
 
-            ts.vertical_deflection = contact_patch->m_deflection;
-            ts.speed = linspd_rel;
-            ts.friction_coefficient = contact_patch->m_friction_coefficient;
-            ts.sin_camber = contact_patch->m_sin_camber;
-            ts.slip_angle = std::asin(dot(contact_patch->m_lat_dir, direction));
-            auto vx = dot(linvel_rel, contact_patch->m_lon_dir);
-            auto vsx = dot(tan_relvel, contact_patch->m_lon_dir);
-            ts.slip_ratio = std::abs(vx) > 0.001 ? -vsx/vx : -vsx;
-            ts.yaw_rate = dot(angvelA, contact_patch->m_normal);
-            ts.slide_factor = contact_patch->m_sliding_spd_avg;
-            ts.contact_patch_length = contact_patch->m_contact_len_avg;
-            ts.contact_patch_width = contact_patch->m_contact_width;
-            ts.contact_lifetime = cp.lifetime;
-            ts.lat_dir = contact_patch->m_lat_dir;
-            ts.lon_dir = contact_patch->m_lon_dir;
-            ts.normal = contact_patch->m_normal;
-            ts.position = contact_patch->m_pivot;
-            ts.lin_vel = linvel_rel;
+                auto &normal_row = con_row_view.get(con.row[0]);
+                auto &lon_row = con_row_view.get(con.row[1]);
+                auto &lat_row = con_row_view.get(con.row[2]);
+                auto &align_row = con_row_view.get(con.row[3]);
 
-            if (con->num_rows == 0) continue;
+                tire_cs.Fz = normal_row.impulse / dt;
+                tire_cs.Fx = lon_row.impulse / dt;
+                tire_cs.Fy = lat_row.impulse / dt;
+                tire_cs.Mz = align_row.impulse / dt;
+            }
 
-            auto &normal_row = registry.get<constraint_row>(con->row[0]);
-            auto &lon_row = registry.get<constraint_row>(con->row[1]);
-            auto &lat_row = registry.get<constraint_row>(con->row[2]);
-            auto &align_row = registry.get<constraint_row>(con->row[3]);
-
-            ts.Fz = normal_row.impulse / dt;
-            ts.Fx = lon_row.impulse / dt;
-            ts.Fy = lat_row.impulse / dt;
-            ts.Mz = align_row.impulse / dt;
-
+            // Only process one manifold. The tire state is a component of the
+            // tire, not the relation.
             break;
         }
     });

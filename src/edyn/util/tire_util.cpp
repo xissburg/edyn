@@ -1,4 +1,4 @@
-#include "edyn/util/tire.hpp"
+#include "edyn/util/tire_util.hpp"
 #include "edyn/math/constants.hpp"
 
 namespace edyn {

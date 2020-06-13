@@ -19,12 +19,6 @@ public:
     void update();
 
 private:
-    void process_collision(entt::entity, contact_manifold &, 
-                           relation &, const collision_result &);
-    void prune(entt::entity, contact_manifold &, const relation &rel,
-               const vector3 &posA, const quaternion &ornA, 
-               const vector3 &posB, const quaternion &ornB);
-
     entt::registry *registry;
     std::vector<entt::scoped_connection> connections;
 };

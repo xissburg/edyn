@@ -104,7 +104,7 @@ set(EDyn_SOURCES
     src/edyn/util/rigidbody.cpp
     src/edyn/util/constraint.cpp
     src/edyn/util/spring_util.cpp
-    src/edyn/util/tire.cpp
+    src/edyn/util/tire_util.cpp
     src/edyn/util/shape_util.cpp
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/triangle_shape.cpp
