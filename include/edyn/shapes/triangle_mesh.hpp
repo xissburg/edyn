@@ -43,6 +43,19 @@ struct triangle_mesh {
         });
     }
 
+    template<typename Func>
+    void visit_all(Func func) const {
+        for (size_t i = 0; i < num_triangles(); ++i) {
+            auto verts = triangle_vertices{
+                vertices[indices[i * 3 + 0]],
+                vertices[indices[i * 3 + 1]],
+                vertices[indices[i * 3 + 2]]
+            };
+
+            func(i, verts);
+        }
+    }
+
     void initialize();
     void calculate_aabb();
     void calculate_edge_angles();

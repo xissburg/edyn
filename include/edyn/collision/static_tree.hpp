@@ -71,15 +71,14 @@ public:
         }
     }
 
-    template<typename Iterator>
-    void build(Iterator aabb_begin, Iterator aabb_end) {
+    template<typename Iterator, typename Func>
+    void build(Iterator aabb_begin, Iterator aabb_end, Func report_leaf, uint32_t max_obj_per_leaf = 1) {
         EDYN_ASSERT(aabb_begin != aabb_end);
 
         auto count = std::distance(aabb_begin, aabb_end);
         std::vector<uint32_t> ids(count);
         std::iota(ids.begin(), ids.end(), 0);
 
-        const uint32_t min_obj_per_leaf = 1;
         const uint32_t inner_capacity = count - 1;
         const uint32_t leaf_capacity = count;
         const uint32_t node_capacity = 2 * count - 1;
@@ -91,7 +90,7 @@ public:
         auto &root_node = m_nodes.emplace_back();
 
         recurse_build(aabb_begin, aabb_end, ids.begin(), ids.end(), root_node, 
-                      min_obj_per_leaf, leaf_count, inner_count);
+                      report_leaf, max_obj_per_leaf, leaf_count, inner_count);
 
         EDYN_ASSERT(leaf_count == leaf_capacity);
         EDYN_ASSERT(inner_count == inner_capacity);
@@ -111,11 +110,12 @@ public:
         }
     };
 
-    template<typename Iterator_AABB, typename Iterator_ids>
+    template<typename Iterator_AABB, typename Iterator_ids, typename Func>
     void recurse_build(Iterator_AABB aabb_begin, Iterator_AABB aabb_end,
                        Iterator_ids ids_begin, Iterator_ids ids_end,
-                       tree_node &node, uint32_t min_obj_per_leaf,
-                       uint32_t &leaf_count, uint32_t &inner_count) {
+                       tree_node &node, Func report_leaf,
+                       uint32_t max_obj_per_leaf, uint32_t &leaf_count,
+                       uint32_t &inner_count) {
         EDYN_ASSERT(aabb_begin != aabb_end);
 
         AABB set_aabb = *(aabb_begin + *ids_begin);
@@ -128,10 +128,10 @@ public:
 
         auto count = std::distance(ids_begin, ids_end);
 
-        if (count <= min_obj_per_leaf) {
+        if (count <= max_obj_per_leaf) {
             ++leaf_count;
             node.child1 = EDYN_NULL_NODE;
-            node.id = *ids_begin;
+            report_leaf(node, ids_begin, ids_end);
         } else {
             ++inner_count;
 
@@ -143,8 +143,10 @@ public:
             node.child2 = m_nodes.size();
             auto &child_node2 = m_nodes.emplace_back();
 
-            recurse_build(aabb_begin, aabb_end, ids_begin , ids_middle, child_node1, min_obj_per_leaf, leaf_count, inner_count);
-            recurse_build(aabb_begin, aabb_end, ids_middle, ids_end   , child_node2, min_obj_per_leaf, leaf_count, inner_count);
+            recurse_build(aabb_begin, aabb_end, ids_begin, ids_middle, child_node1, 
+                          report_leaf, max_obj_per_leaf, leaf_count, inner_count);
+            recurse_build(aabb_begin, aabb_end, ids_middle, ids_end, child_node2, 
+                          report_leaf, max_obj_per_leaf, leaf_count, inner_count);
         }
     }
 

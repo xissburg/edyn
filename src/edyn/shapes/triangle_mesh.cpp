@@ -142,7 +142,10 @@ void triangle_mesh::build_tree() {
         aabbs.push_back(tri_aabb);
     }
 
-    tree.build(aabbs.begin(), aabbs.end());
+    auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
+        node.id = *ids_begin;
+    };
+    tree.build(aabbs.begin(), aabbs.end(), report_leaf);
 }
 
 }
