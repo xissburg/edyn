@@ -74,6 +74,7 @@ void contact_constraint::prepare(entt::entity entity, constraint &con, const rel
     auto &normal_row = registry.get<constraint_row>(con.row[0]);
     normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
     normal_row.lower_limit = 0;
+    normal_row.restitution = cp.restitution;
 
     if (stiffness < large_scalar) {
         auto spring_force = cp.distance * stiffness;

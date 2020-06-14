@@ -23,11 +23,9 @@ namespace edyn {
 static
 void update_contact_distances(entt::registry &registry) {
     auto tr_view = registry.view<position, orientation>();
-    auto cp_view = registry.view<contact_point>();
-    auto rel_view = registry.view<relation>();
+    auto cp_view = registry.view<contact_point, relation>();
 
-    cp_view.each([&] (auto, contact_point &cp) {
-        auto &rel = rel_view.get(cp.parent);
+    cp_view.each([&] (auto, contact_point &cp, relation &rel) {
         auto [posA, ornA] = tr_view.get<position, orientation>(rel.entity[0]);
         auto [posB, ornB] = tr_view.get<position, orientation>(rel.entity[1]);
         auto pivotA_world = posA + rotate(ornA, cp.pivotA);
@@ -49,22 +47,18 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
 static
 void create_contact_constraint(entt::entity entity, entt::registry &registry, 
                                contact_point &cp, relation &rel, tire_material *tire) {
-    auto *materialA = registry.try_get<const material>(rel.entity[0]);
-    auto *materialB = registry.try_get<const material>(rel.entity[1]);
-    
-    if (!materialA || !materialB) {
-        return;
-    }
+    auto &materialA = registry.get<material>(rel.entity[0]);
+    auto &materialB = registry.get<material>(rel.entity[1]);
 
-    cp.restitution = materialA->restitution * materialB->restitution;
-    cp.friction = materialA->friction * materialB->friction;
+    cp.restitution = materialA.restitution * materialB.restitution;
+    cp.friction = materialA.friction * materialB.friction;
 
     auto stiffness = large_scalar;
     auto damping = large_scalar;
 
-    if (materialA->stiffness < large_scalar || materialB->stiffness < large_scalar) {
-        stiffness = 1 / (1 / materialA->stiffness + 1 / materialB->stiffness);
-        damping = 1 / (1 / materialA->damping + 1 / materialB->damping);
+    if (materialA.stiffness < large_scalar || materialB.stiffness < large_scalar) {
+        stiffness = 1 / (1 / materialA.stiffness + 1 / materialB.stiffness);
+        damping = 1 / (1 / materialA.damping + 1 / materialB.damping);
     }
 
     // A new relation identical to the manifold's relation is created
@@ -105,9 +99,9 @@ void create_contact_constraint(entt::entity entity, entt::registry &registry,
 }
 
 static
-void contact_point_changed(entt::entity entity, entt::entity contact_entity,
-                           entt::registry &registry, contact_point &cp, relation &rel) {
-    auto *con = registry.try_get<constraint>(contact_entity);
+void contact_point_changed(entt::entity entity, entt::registry &registry, 
+                           contact_point &cp, relation &rel) {
+    auto *con = registry.try_get<constraint>(entity);
     if (!con) {
         return;
     }
@@ -117,11 +111,6 @@ void contact_point_changed(entt::entity entity, entt::entity contact_entity,
     for (size_t i = 0; i < con->num_rows; ++i) {
         auto &row = registry.get<constraint_row>(con->row[i]);
         row.impulse = 0;
-    }
-    
-    if (std::holds_alternative<contact_constraint>(con->var)) {
-        auto &normal_row = registry.get<constraint_row>(con->row[0]);
-        normal_row.restitution = cp.restitution;
     }
 }
 
@@ -183,8 +172,6 @@ static
 void process_collision(entt::registry &registry, entt::entity entity, 
                        contact_manifold &manifold, relation &rel, 
                        const collision_result &result) {
-    auto cp_view = registry.view<contact_point>();
-
     auto *tire0 = registry.try_get<tire_material>(rel.entity[0]);
     auto *tire1 = registry.try_get<tire_material>(rel.entity[1]);
     auto *tire = tire0 ? tire0 : tire1;
@@ -195,6 +182,18 @@ void process_collision(entt::registry &registry, entt::entity entity,
         auto &tire_cyl = std::get<cylinder_shape>(tire_shape.var);
         tire_radius = tire_cyl.radius;
     }
+
+    // A new relation identical to the manifold's relation is created
+    // for every contact point because every constraint needs a corresponding
+    // relation to refer to the constrained entities. 
+    // Make a copy of the `rel.entity` because `rel` will become an
+    // invalid reference.
+    auto rel_entity = rel.entity;
+
+    // WARNING: referring to `rel` below is not safe because new
+    // relations will be created.
+
+    auto cp_view = registry.view<contact_point>();
 
     // Merge new with existing contact points.
     for (size_t i = 0; i < result.num_points; ++i) {
@@ -246,14 +245,18 @@ void process_collision(entt::registry &registry, entt::entity entity,
                         rp.distance // distance
                     );
 
-                    create_contact_constraint(contact_entity, registry, cp, rel, tire);
+                    auto &cp_rel = registry.assign<relation>(contact_entity, rel_entity[0], rel_entity[1]);
+
+                    if (registry.has<material>(rel_entity[0]) && registry.has<material>(rel_entity[1])) {
+                        create_contact_constraint(contact_entity, registry, cp, cp_rel, tire);
+                    }
                 } else {
                     // Replace existing contact point.
                     auto contact_entity = manifold.point_entity[idx];
                     auto &cp = cp_view.get(contact_entity);
                     cp.lifetime = 0;
                     merge_point(rp, cp);
-                    contact_point_changed(entity, contact_entity, registry, cp, rel);
+                    contact_point_changed(contact_entity, registry, cp, rel);
                 }
             }
         }

@@ -6,13 +6,6 @@
 
 namespace edyn {
 
-struct relation;
-struct contact_point;
-struct contact_manifold;
-struct collision_result;
-struct vector3;
-struct quaternion;
-
 class narrowphase {
 public:
     narrowphase(entt::registry &);

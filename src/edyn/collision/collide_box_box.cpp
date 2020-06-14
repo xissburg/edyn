@@ -217,7 +217,8 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                                                   s[0], t[0], p0[0], p1[0], &num_points, 
                                                   &s[1], &t[1], &p0[1], &p1[1]);
                     for (size_t k = 0; k < num_points; ++k) {
-                        if (s[k] > 0 && s[k] < 1 && t[k] > 0 && t[k] < 1) {
+                        if (result.num_points < max_contacts && 
+                            s[k] > 0 && s[k] < 1 && t[k] > 0 && t[k] < 1) {
                             auto pivotA = to_object_space(p0[k], posA, ornA);
                             auto pivotB = to_object_space(p1[k], posB, ornB);
                             result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
