@@ -18,6 +18,10 @@ public:
         std::unique_ptr<triangle_mesh> trimesh;
     };
 
+    paged_triangle_mesh(std::map<size_t, memory_input_archive::buffer_type> &buffer)
+        : m_input_archive_source(buffer)
+    {}
+
     template<typename Func>
     void visit(const AABB &aabb, Func func) {
         constexpr auto inset = vector3 {
@@ -29,7 +33,7 @@ public:
         m_tree.visit(aabb.inset(inset), [&] (auto trimesh_idx) {
             auto &node = m_cache[trimesh_idx];
 
-            if (!node.is_loaded) {
+            if (!node.trimesh) {
                 // Load triangle mesh into cache. Clear cache if it would go
                 // above limits.
                 while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
@@ -37,10 +41,13 @@ public:
                 }
 
                 auto input = m_input_archive_source(trimesh_idx);
+                node.trimesh = std::make_unique<triangle_mesh>();
                 serialize(input, *node.trimesh);
             }
 
-            node.trimesh->visit(aabb, func);
+            node.trimesh->visit(aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
+                func(trimesh_idx, tri_idx, vertices);
+            });
             mark_recent_visit(trimesh_idx);
         });
     }
@@ -57,7 +64,9 @@ public:
             auto &node = m_cache[i];
 
             if (node.trimesh) {
-                node.trimesh->visit(aabb, func);
+                node.trimesh->visit(aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
+                    func(i, tri_idx, vertices);
+                });
             }
         }
     }
@@ -68,7 +77,9 @@ public:
             auto &node = m_cache[i];
 
             if (node.trimesh) {
-                node.trimesh->visit_all(func);
+                node.trimesh->visit_all( [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
+                    func(i, tri_idx, vertices);
+                });
             }
         }
     }
@@ -106,6 +117,10 @@ public:
         node.trimesh.reset();
     }
 
+    triangle_mesh *get_submesh(size_t idx) {
+        return m_cache[idx].trimesh.get();
+    }
+
     size_t m_max_cache_num_vertices = 1 << 16;
 
     AABB m_aabb;
@@ -117,11 +132,11 @@ public:
 
 template<typename VertexIterator, typename IndexIterator,
          typename InputArchiveSource, typename OutputArchiveSource>
-void make_paged_triangle_mesh(VertexIterator vertex_begin, VertexIterator vertex_end,
+void load_paged_triangle_mesh(paged_triangle_mesh<InputArchiveSource> &mesh,
+                              VertexIterator vertex_begin, VertexIterator vertex_end,
                               IndexIterator index_begin, IndexIterator index_end,
-                              OutputArchiveSource output_archive_source,
+                              OutputArchiveSource &output_archive_source,
                               uint32_t max_obj_per_leaf = 1024) {
-    paged_triangle_mesh<InputArchiveSource> mesh;
     mesh.m_aabb.min = vector3_max;
     mesh.m_aabb.max = -vector3_max;
 
@@ -136,11 +151,11 @@ void make_paged_triangle_mesh(VertexIterator vertex_begin, VertexIterator vertex
     std::vector<AABB> aabbs;
     aabbs.reserve(num_triangles);
 
-    for (size_t i = 0; i < num_triangles(); ++i) {
+    for (size_t i = 0; i < num_triangles; ++i) {
         auto verts = triangle_vertices{
-            vertex_begin + (index_begin + (i * 3 + 0)),
-            vertex_begin + (index_begin + (i * 3 + 1)),
-            vertex_begin + (index_begin + (i * 3 + 2))
+            *(vertex_begin + *(index_begin + (i * 3 + 0))),
+            *(vertex_begin + *(index_begin + (i * 3 + 1))),
+            *(vertex_begin + *(index_begin + (i * 3 + 2)))
         };
 
         auto tri_aabb = get_triangle_aabb(verts);
@@ -150,11 +165,12 @@ void make_paged_triangle_mesh(VertexIterator vertex_begin, VertexIterator vertex
     auto report_leaf = [&] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
         // Transform triangle indices into vertex indices.
         auto local_num_triangles = std::distance(ids_begin, ids_end);
-        auto global_indices = std::vector<size_t>(local_num_triangles * 3);
+        auto global_indices = std::vector<size_t>();
+        global_indices.reserve(local_num_triangles * 3);
         
         for (auto it = ids_begin; it != ids_end; ++it) {
             for (size_t i = 0; i < 3; ++i) {
-                auto index = index_begin + (*it / 3 + i);
+                auto index = *(index_begin + (*it / 3 + i));
                 global_indices.push_back(index);
             }
         }
@@ -170,13 +186,14 @@ void make_paged_triangle_mesh(VertexIterator vertex_begin, VertexIterator vertex
         trimesh.indices.reserve(global_indices.size());
 
         for (auto idx : local_indices) {
-            trimesh.vertices.push_back(vertex_begin + (index_begin + idx));
+            trimesh.vertices.push_back(*(vertex_begin + *(index_begin + idx)));
         }
 
-        // Obtain local indices from global indices for triangles.
+        // Obtain local indices from global indices.
         for (auto idx : global_indices) {
             auto it = std::find(local_indices.begin(), local_indices.end(), idx);
-            trimesh.indices.push_back(*it);
+            auto local_idx = std::distance(local_indices.begin(), it);
+            trimesh.indices.push_back(local_idx);
         }
 
         trimesh.calculate_aabb();
@@ -190,7 +207,7 @@ void make_paged_triangle_mesh(VertexIterator vertex_begin, VertexIterator vertex
         auto output = output_archive_source(node.id);
         serialize(output, trimesh);
     };
-    
+
     mesh.m_tree.build(aabbs.begin(), aabbs.end(), report_leaf, max_obj_per_leaf);
 }
 

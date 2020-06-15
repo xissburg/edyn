@@ -268,7 +268,7 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
                          const paged_mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold);
 
-// Page dMesh-Sphere
+// Paged Mesh-Sphere
 inline
 collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
@@ -316,9 +316,12 @@ collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const
 }
 
 // Mesh-Paged Mesh
+inline
 collision_result collide(const mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const paged_mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold);
+                         scalar threshold) {
+    return {}; // collision between triangle meshes still undefined.
+}
 
 // Paged Mesh-Mesh
 inline
@@ -327,6 +330,13 @@ collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const
                          scalar threshold) {
     return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
 }
+
+// Sphere-Triangle
+
+void collide_sphere_triangle(
+    const sphere_shape &sphere, const vector3 &sphere_pos, const quaternion &sphere_orn,
+    const triangle_vertices &vertices, const std::array<bool, 3> &is_concave_edge, 
+    const std::array<scalar, 3> &cos_angles, scalar threshold, collision_result &result);
 
 // Cylinder-Triangle
 void collide_cylinder_triangle(
