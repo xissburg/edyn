@@ -58,6 +58,7 @@ struct triangle_mesh {
 
     void initialize();
     void calculate_aabb();
+    void initialize_edge_angles();
     void calculate_edge_angles();
     void build_tree();
 };

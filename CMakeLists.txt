@@ -100,6 +100,7 @@ set(EDyn_SOURCES
     src/edyn/util/constraint.cpp
     src/edyn/util/shape_util.cpp
     src/edyn/shapes/triangle_mesh.cpp
+    src/edyn/shapes/paged_triangle_mesh.cpp
     src/edyn/shapes/triangle_shape.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp

@@ -5,6 +5,7 @@ namespace edyn {
 void triangle_mesh::initialize() {
     calculate_aabb();
     build_tree();
+    initialize_edge_angles();
     calculate_edge_angles();
 }
 
@@ -18,13 +19,15 @@ void triangle_mesh::calculate_aabb() {
     }
 }
 
-void triangle_mesh::calculate_edge_angles() {
+void triangle_mesh::initialize_edge_angles() {
     cos_angles.resize(indices.size());
     is_concave_edge.resize(indices.size());
 
     std::fill(cos_angles.begin(), cos_angles.end(), scalar(-1));
     std::fill(is_concave_edge.begin(), is_concave_edge.end(), false);
+}
 
+void triangle_mesh::calculate_edge_angles() {
     for (size_t i = 0; i < num_triangles(); ++i) {
         // Pointer to first element of the i-th triangle's 3 indices.
         auto i_idx = &indices[i * 3];
