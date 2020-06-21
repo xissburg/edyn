@@ -12,10 +12,10 @@
 namespace edyn {
 
 struct paged_mesh_shape {
-    std::shared_ptr<paged_triangle_mesh<memory_input_archive_source>> trimesh;
+    std::shared_ptr<paged_triangle_mesh> trimesh;
 
     AABB aabb(const vector3 &pos, const quaternion &orn) const {
-        return {trimesh->m_aabb.min + pos, trimesh->m_aabb.max + pos};
+        return {trimesh->get_aabb().min + pos, trimesh->get_aabb().max + pos};
     }
 
     vector3 inertia(scalar mass) const {
