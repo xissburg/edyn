@@ -8,6 +8,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
 
 namespace edyn {
 
