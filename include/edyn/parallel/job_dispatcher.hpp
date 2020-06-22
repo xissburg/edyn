@@ -22,11 +22,16 @@ public:
 
     void start() {
         for (auto &wt : m_worker_threads) {
+            m_thief.add_queue(&wt.w.get_queue());
+            wt.w.set_thief(&m_thief);
+        }
+
+        for (auto &wt : m_worker_threads) {
             wt.t = std::thread(&worker::run, &wt.w);
         }
     }
 
-    void async(job &j) {
+    void async(std::shared_ptr<job> j) {
         auto best_idx = SIZE_MAX;
         auto min_num_jobs = SIZE_MAX;
         for (size_t i = 0; i < m_worker_threads.size(); ++i) {
@@ -37,11 +42,12 @@ public:
             }
         }
 
-        m_worker_threads[best_idx].w.append(j);
+        m_worker_threads[best_idx].w.push_job(j);
     }
 
 private:
     std::array<worker_thread, g_num_worker_threads> m_worker_threads;
+    job_thief m_thief;
 };
 
 }

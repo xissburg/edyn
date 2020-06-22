@@ -3,6 +3,7 @@
 
 #include <mutex>
 #include <vector>
+#include <memory>
 #include <functional>
 #include <condition_variable>
 
@@ -10,17 +11,18 @@ namespace edyn {
 
 class job {
 public:
-    job(const std::function<void(void)> &f)
-        : function(f)
-        , m_cv(std::make_unique<std::condition_variable>())
+    job()
+        : m_cv(std::make_unique<std::condition_variable>())
         , m_mutex(std::make_unique<std::mutex>())
         , m_done(false)
     {}
 
+    virtual void run() = 0;
+
     void operator()() {
         std::lock_guard<std::mutex> lock(*m_mutex);
         EDYN_ASSERT(!m_done);
-        function();
+        run();
         m_done = true;
         m_cv->notify_one();
     }
@@ -33,42 +35,55 @@ public:
     }
 
 private:
-    std::function<void(void)> function;
     std::unique_ptr<std::condition_variable> m_cv;
     std::unique_ptr<std::mutex> m_mutex;
     bool m_done;
 };
 
+class std_function_job : public job {
+public:
+    std_function_job(const std::function<void(void)> &f)
+        : m_function(f)
+    {}
+
+    void run() override {
+        m_function();
+    }
+
+private:
+    std::function<void(void)> m_function;
+};
+
 class job_queue {
 public:
-    void push(job &j) {
+    void push(std::shared_ptr<job> j) {
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            m_jobs.push_back(std::move(j));
+            m_jobs.push_back(j);
         }
         m_cv.notify_one();
     }
 
-    job pop() {
+    std::shared_ptr<job> pop() {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_cv.wait(lock, [&] () {
             return !m_jobs.empty();
         });
 
-        auto j = std::move(m_jobs.back());
+        auto j = m_jobs.back();
         m_jobs.pop_back();
         return j;
     }
 
-    bool maybe_pop(job &j) {
+    std::shared_ptr<job> try_pop() {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_jobs.empty()) {
-            return false;
+            return {};
         }
 
-        j = std::move(m_jobs.back());
+        auto j = m_jobs.back();
         m_jobs.pop_back();
-        return true;
+        return j;
     }
 
     size_t size() {
@@ -78,7 +93,7 @@ public:
 
 private:
     std::mutex m_mutex;
-    std::vector<job> m_jobs;
+    std::vector<std::shared_ptr<job>> m_jobs;
     std::condition_variable m_cv;
 };
 
