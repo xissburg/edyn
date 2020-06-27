@@ -1,6 +1,7 @@
 #ifndef EDYN_PARALLEL_WORKER_HPP
 #define EDYN_PARALLEL_WORKER_HPP
 
+#include <atomic>
 #include <memory>
 #include "edyn/parallel/job_queue.hpp"
 #include "edyn/parallel/job_thief.hpp"
@@ -14,6 +15,8 @@ public:
     }
 
     void run() {
+        m_running = true;
+
         for (;;) {
             for (;;) {
                 once();
@@ -34,7 +37,14 @@ public:
             }
 
             auto j = m_queue.pop();
-            j->operator()();
+
+            if (j) {
+                j->operator()();
+            }
+
+            if (!m_running) {
+                break;
+            }
         }
     }
 
@@ -42,6 +52,11 @@ public:
         while (auto j = m_queue.try_pop()) {
             j->operator()();
         }
+    }
+
+    void stop() {
+        m_running = false;
+        m_queue.unblock();
     }
 
     size_t size() {
@@ -57,6 +72,7 @@ public:
     }
 
 private:
+    std::atomic_bool m_running {false};
     job_queue m_queue;
     job_thief *m_thief { nullptr };
 };

@@ -104,6 +104,8 @@ set(EDyn_SOURCES
     src/edyn/shapes/triangle_shape.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
+    src/edyn/parallel/job_queue.cpp
+    src/edyn/parallel/job_dispatcher.cpp
     src/edyn/edyn.cpp
 )
 

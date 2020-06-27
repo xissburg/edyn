@@ -36,3 +36,4 @@
 #include "serialization/file_archive.hpp"
 #include "serialization/memory_archive.hpp"
 #include "parallel/job_dispatcher.hpp"
+#include "parallel/parallel_for.hpp"
