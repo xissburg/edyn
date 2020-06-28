@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 #include <memory>
+#include <iterator>
 #include <entt/entt.hpp>
 #include "edyn/math/constants.hpp"
 #include "edyn/shapes/triangle_mesh.hpp"
@@ -185,19 +186,17 @@ public:
         auto num_triangles = num_indices / 3;
         
         // Calculate AABB of all triangles.
-        std::vector<AABB> aabbs;
-        aabbs.reserve(num_triangles);
+        std::vector<AABB> aabbs(num_triangles);
 
-        for (size_t i = 0; i < num_triangles; ++i) {
+        parallel_for(size_t{0}, size_t{num_triangles}, [&] (size_t i) {
             auto verts = triangle_vertices{
                 *(vertex_begin + *(index_begin + (i * 3 + 0))),
                 *(vertex_begin + *(index_begin + (i * 3 + 1))),
                 *(vertex_begin + *(index_begin + (i * 3 + 2)))
             };
 
-            auto tri_aabb = get_triangle_aabb(verts);
-            aabbs.push_back(tri_aabb);
-        }
+            aabbs[i] = get_triangle_aabb(verts);
+        });
 
         auto report_leaf = [&] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
             // Transform triangle indices into vertex indices.
