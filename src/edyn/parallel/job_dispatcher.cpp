@@ -12,6 +12,16 @@ job_dispatcher::~job_dispatcher() {
     stop();
 }
 
+void job_dispatcher::start() {
+    auto num_threads = std::thread::hardware_concurrency();
+
+    if (num_threads == 0) {
+        num_threads = 8;
+    }
+
+    start(num_threads);
+}
+
 void job_dispatcher::start(size_t num_worker_threads) {
     EDYN_ASSERT(m_worker_threads.empty());
     m_worker_threads.resize(num_worker_threads);
@@ -40,6 +50,8 @@ void job_dispatcher::stop() {
 }
 
 void job_dispatcher::async(std::shared_ptr<job> j) {
+    EDYN_ASSERT(!m_worker_threads.empty());
+
     auto best_idx = SIZE_MAX;
     auto min_num_jobs = SIZE_MAX;
     for (size_t i = 0; i < m_worker_threads.size(); ++i) {

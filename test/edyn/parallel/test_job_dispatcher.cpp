@@ -2,19 +2,6 @@
 
 #include <array>
 
-/*template<typename Ret, typename... Args>
-struct graph_job: public edyn::job {
-    edyn::scalar m_start;
-    edyn::scalar m_step;
-    size_t m_num_steps;
-    std::vector<Ret> m_result;
-     m_func;
-
-    void run() override {
-        
-    }
-};*/
-
 struct nop_job: public edyn::job {
     int m_i {0};
 
@@ -25,7 +12,7 @@ struct nop_job: public edyn::job {
 
 TEST(job_dispatcher_test, async) {
     auto dispatcher = edyn::job_dispatcher();
-    dispatcher.start(2);
+    dispatcher.start();
 
     auto job0 = std::make_shared<nop_job>();
     auto job1 = std::make_shared<nop_job>();
@@ -42,9 +29,9 @@ TEST(job_dispatcher_test, async) {
 
 TEST(job_dispatcher_test, parallel_for) {
     auto dispatcher = edyn::job_dispatcher();
-    dispatcher.start(8);
+    dispatcher.start();
 
-    constexpr size_t num_samples = 3600000;
+    constexpr size_t num_samples = 3591833;
     std::vector<edyn::scalar> radians(num_samples);
     std::vector<edyn::scalar> cosines(num_samples);
 
@@ -57,4 +44,5 @@ TEST(job_dispatcher_test, parallel_for) {
     ASSERT_SCALAR_EQ(cosines[45], std::cos(radians[45]));
     ASSERT_SCALAR_EQ(cosines[5095], std::cos(radians[5095]));
     ASSERT_SCALAR_EQ(cosines[2990190], std::cos(radians[2990190]));
+    ASSERT_SCALAR_EQ(cosines[num_samples - 1], std::cos(radians[num_samples - 1]));
 }
