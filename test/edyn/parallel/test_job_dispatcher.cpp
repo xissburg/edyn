@@ -1,12 +1,19 @@
 #include "../common/common.hpp"
 
 #include <array>
+#include <future>
 
 struct nop_job: public edyn::job {
     int m_i {0};
+    std::promise<void> m_promise;
+
+    auto get_future() { 
+        return m_promise.get_future();
+    }
 
     void run() override {
         ++m_i;
+        m_promise.set_value();
     }
 };
 
@@ -20,8 +27,8 @@ TEST(job_dispatcher_test, async) {
     dispatcher.async(job0);
     dispatcher.async(job1);
 
-    job0->join();
-    job1->join();
+    job0->get_future().get();
+    job1->get_future().get();
 
     ASSERT_EQ(job0->m_i, 1);
     ASSERT_EQ(job1->m_i, 1);

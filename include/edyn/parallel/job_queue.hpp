@@ -17,13 +17,6 @@ public:
     virtual void run() = 0;
 
     void operator()();
-
-    void join();
-
-private:
-    std::condition_variable m_cv;
-    std::mutex m_mutex;
-    bool m_done {false};
 };
 
 class std_function_job : public job {

@@ -1,7 +1,10 @@
 #ifndef EDYN_PARALLEL_PARALLEL_FOR_HPP
 #define EDYN_PARALLEL_PARALLEL_FOR_HPP
 
+#include <mutex>
+#include <numeric>
 #include <iterator>
+#include <future>
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/config/config.h"
 
@@ -13,8 +16,10 @@ struct parallel_for_job: public job {
     IndexType m_last;
     IndexType m_step;
     const Function *m_func;
+    std::promise<void> m_promise;
 
-    parallel_for_job(IndexType first, IndexType last, IndexType step, const Function *func)
+    parallel_for_job(IndexType first, IndexType last, 
+                     IndexType step, const Function *func)
         : m_first(first)
         , m_last(last)
         , m_step(step)
@@ -25,6 +30,11 @@ struct parallel_for_job: public job {
         for (auto i = m_first; i < m_last; i += m_step) {
             (*m_func)(i);
         }
+        m_promise.set_value();
+    }
+
+    std::future<void> get_future() {
+        return m_promise.get_future();
     }
 };
 
@@ -34,19 +44,21 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
     auto count = (last - first) / step;
     auto num_workers = dispatcher.num_workers();
     auto items_per_worker = count / num_workers;
-    std::vector<std::shared_ptr<job>> jobs;
+
+    using job_type = parallel_for_job<IndexType, Function>;
+    std::vector<std::shared_ptr<job_type>> jobs;
     jobs.reserve(num_workers);
 
     for (size_t i = 0; i < num_workers; ++i) {
         auto i_first = IndexType{i} * step * items_per_worker;
         auto i_last = i == num_workers - 1 ? last : IndexType{i + 1} * step * items_per_worker;
-        auto j = std::make_shared<parallel_for_job<IndexType, Function>>(i_first, i_last, step, &func);
+        auto j = std::make_shared<job_type>(i_first, i_last, step, &func);
         jobs.push_back(j);
         dispatcher.async(j);
     }
 
     for (auto &j : jobs) {
-        j->join();
+        j->get_future().wait();
     }
 }
 
@@ -65,6 +77,7 @@ struct parallel_for_each_job: public job {
     Iterator m_first;
     Iterator m_last;
     const Function *m_func;
+    std::promise<void> m_promise;
 
     parallel_for_each_job(Iterator first, Iterator last, const Function *func)
         : m_first(first)
@@ -76,6 +89,11 @@ struct parallel_for_each_job: public job {
         for (auto it = m_first; it != m_last; ++it) {
             (*m_func)(*it);
         }
+        m_promise.set_value();
+    }
+
+    std::future<void> get_future() {
+        return m_promise.get_future();
     }
 };
 
@@ -84,19 +102,21 @@ void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last
     auto count = std::distance(first, last);
     auto num_workers = dispatcher.num_workers();
     auto items_per_worker = count / num_workers;
-    std::vector<std::shared_ptr<job>> jobs;
+
+    using job_type = parallel_for_each_job<Iterator, Function>;
+    std::vector<std::shared_ptr<job_type>> jobs;
     jobs.reserve(num_workers);
 
     for (size_t i = 0; i < num_workers; ++i) {
         auto i_first = first + (i * items_per_worker);
         auto i_last = i == num_workers - 1 ? last : first + ((i + 1) * items_per_worker);
-        auto j = std::make_shared<parallel_for_each_job>(i_first, i_last, &func);
+        auto j = std::make_shared<job_type>(i_first, i_last, &func);
         jobs.push_back(j);
         dispatcher.async(j);
     }
 
     for (auto &j : jobs) {
-        j->join();
+        j->get_future().wait();
     }
 }
 

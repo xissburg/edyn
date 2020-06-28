@@ -4,18 +4,7 @@
 namespace edyn {
 
 void job::operator()() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    EDYN_ASSERT(!m_done);
     run();
-    m_done = true;
-    m_cv.notify_one();
-}
-
-void job::join() {
-    std::unique_lock<std::mutex> lock(m_mutex);
-    m_cv.wait(lock, [&] () {
-        return m_done;
-    });
 }
 
 void job_queue::push(std::shared_ptr<job> j) {
