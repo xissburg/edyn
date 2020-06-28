@@ -3,41 +3,48 @@
 #include <array>
 #include <future>
 
+class job_dispatcher_test: public ::testing::Test {
+protected:
+    void SetUp() override {
+        dispatcher.start();
+    }
+
+    void TearDown() override {
+        dispatcher.stop();
+    }
+
+    edyn::job_dispatcher dispatcher;
+};
+
 struct nop_job: public edyn::job {
     int m_i {0};
     std::promise<void> m_promise;
-
-    auto get_future() { 
-        return m_promise.get_future();
-    }
 
     void run() override {
         ++m_i;
         m_promise.set_value();
     }
+
+    auto join() { 
+        m_promise.get_future().get();
+    }
 };
 
-TEST(job_dispatcher_test, async) {
-    auto dispatcher = edyn::job_dispatcher();
-    dispatcher.start();
-
+TEST_F(job_dispatcher_test, async) {
     auto job0 = std::make_shared<nop_job>();
     auto job1 = std::make_shared<nop_job>();
 
     dispatcher.async(job0);
     dispatcher.async(job1);
 
-    job0->get_future().get();
-    job1->get_future().get();
+    job0->join();
+    job1->join();
 
     ASSERT_EQ(job0->m_i, 1);
     ASSERT_EQ(job1->m_i, 1);
 }
 
-TEST(job_dispatcher_test, parallel_for) {
-    auto dispatcher = edyn::job_dispatcher();
-    dispatcher.start();
-
+TEST_F(job_dispatcher_test, parallel_for) {
     constexpr size_t num_samples = 3591833;
     std::vector<edyn::scalar> radians(num_samples);
     std::vector<edyn::scalar> cosines(num_samples);
