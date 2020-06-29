@@ -9,9 +9,16 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
-#include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/parallel_for.hpp"
 
 namespace edyn {
+
+// Forward declaration of `detail::submesh_builder` needed by `friend` 
+// declaration in `paged_triangle_mesh`.
+namespace detail {
+    template<typename VertexIterator, typename IndexIterator, typename IdIterator>
+    struct submesh_builder;
+}
 
 class paged_triangle_mesh {
 public:
@@ -170,113 +177,6 @@ public:
 
     triangle_mesh *get_submesh(size_t idx);
 
-    template<typename VertexIterator, typename IndexIterator, typename OutputArchiveSource>
-    void load(VertexIterator vertex_begin, VertexIterator vertex_end,
-              IndexIterator index_begin, IndexIterator index_end,
-              OutputArchiveSource &output_archive_source,
-              uint32_t max_obj_per_leaf) {
-        // Do not limit cache size when building the triangle mesh. Keep all submeshes
-        // in memory to later calculate edge angles (adjacency).
-        auto original_max_cache_size = m_max_cache_num_vertices;
-        m_max_cache_num_vertices = SIZE_MAX;
-
-        calculate_aabb(vertex_begin, vertex_end);
-
-        auto num_indices = std::distance(index_begin, index_end);
-        auto num_triangles = num_indices / 3;
-        
-        // Calculate AABB of all triangles.
-        std::vector<AABB> aabbs(num_triangles);
-
-        parallel_for(size_t{0}, size_t{num_triangles}, [&] (size_t i) {
-            auto verts = triangle_vertices{
-                *(vertex_begin + *(index_begin + (i * 3 + 0))),
-                *(vertex_begin + *(index_begin + (i * 3 + 1))),
-                *(vertex_begin + *(index_begin + (i * 3 + 2)))
-            };
-
-            aabbs[i] = get_triangle_aabb(verts);
-        });
-
-        auto report_leaf = [&] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
-            // Transform triangle indices into vertex indices.
-            auto local_num_triangles = std::distance(ids_begin, ids_end);
-            auto global_indices = std::vector<size_t>();
-            global_indices.reserve(local_num_triangles * 3);
-            
-            for (auto it = ids_begin; it != ids_end; ++it) {
-                for (size_t i = 0; i < 3; ++i) {
-                    auto index = *(index_begin + ((*it) * 3 + i));
-                    global_indices.push_back(index);
-                }
-            }
-
-            // Transform global indices into local indices by removing duplicates.
-            // `local_indices` maps local indices to global indices.
-            auto local_indices = global_indices;
-            std::sort(local_indices.begin(), local_indices.end());
-            auto local_indices_erase_begin = std::unique(local_indices.begin(), local_indices.end());
-            local_indices.erase(local_indices_erase_begin, local_indices.end());
-
-            // Create triangle mesh for this leaf and allocate vertices and indices.
-            auto trimesh = std::make_unique<triangle_mesh>();
-            trimesh->vertices.reserve(local_indices.size());
-            trimesh->indices.reserve(global_indices.size());
-
-            // Insert vertices into triangle mesh.
-            for (auto idx : local_indices) {
-                trimesh->vertices.push_back(*(vertex_begin + idx));
-            }
-
-            // Obtain local indices from global indices and add to triangle mesh.
-            for (auto idx : global_indices) {
-                auto it = std::find(local_indices.begin(), local_indices.end(), idx);
-                auto local_idx = std::distance(local_indices.begin(), it);
-                trimesh->indices.push_back(local_idx);
-            }
-
-            // Initialize triangle mesh.
-            trimesh->calculate_aabb();
-            trimesh->build_tree();
-
-            // Edge-angles are calculated after the entire tree is ready so that
-            // neighboring triangles that reside in another submesh are also 
-            // considered. Thus, only allocate space for edge angle info.
-            trimesh->initialize_edge_angles();
-
-            // Create node.
-            node.id = m_cache.size();
-            auto &paged_node = m_cache.emplace_back();
-            paged_node.num_vertices = trimesh->vertices.size();
-            paged_node.num_indices = trimesh->indices.size();
-            paged_node.trimesh = std::move(trimesh);
-        };
-
-        m_tree.build(aabbs.begin(), aabbs.end(), report_leaf, max_obj_per_leaf);
-
-        // Resize LRU queue to have the number of leaves.
-        m_lru_indices.resize(m_cache.size());
-        std::iota(m_lru_indices.begin(), m_lru_indices.end(), 0);
-        
-        // Calculate edge angles.
-        constexpr scalar merge_distance = 0.01;
-        calculate_edge_angles(merge_distance);
-
-        // Serialize all triangle meshes.
-        for (size_t i = 0; i < m_cache.size(); ++i) {
-            auto output = output_archive_source(i);
-            auto &node = m_cache[i];
-            serialize(output, *node.trimesh);
-        }
-
-        // Unload all triangle meshes.
-        for (auto &node : m_cache) {
-            node.trimesh.reset();
-        }
-
-        m_max_cache_num_vertices = original_max_cache_size;
-    }
-
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
      *      is loaded, if the number of vertices would exceed this number, the 
@@ -285,22 +185,22 @@ public:
      */
     size_t m_max_cache_num_vertices = 1 << 13;
 
+    template<typename VertexIterator, typename IndexIterator, typename OutputArchiveSource>
+    friend void create_paged_triangle_mesh(
+        paged_triangle_mesh &,
+        VertexIterator, VertexIterator,
+        IndexIterator, IndexIterator,
+        OutputArchiveSource &,
+        size_t);
+
+    template<typename VertexIterator, typename IndexIterator, typename IdIterator>
+    friend struct detail::submesh_builder;
+
 private:
     void mark_recent_visit(size_t trimesh_idx);
     void unload_least_recently_visited_node();
     void unload_node(triangle_mesh_node &node);
     void calculate_edge_angles(scalar merge_distance);
-
-    template<typename VertexIterator>
-    void calculate_aabb(VertexIterator vertex_begin, VertexIterator vertex_end) {
-        m_aabb.min = vector3_max;
-        m_aabb.max = -vector3_max;
-
-        for (auto it = vertex_begin; it != vertex_end; ++it) {
-            m_aabb.min = min(m_aabb.min, *it);
-            m_aabb.max = max(m_aabb.max, *it);
-        }
-    }
 
     AABB m_aabb;
     static_tree m_tree;

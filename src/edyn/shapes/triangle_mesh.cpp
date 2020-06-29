@@ -10,13 +10,7 @@ void triangle_mesh::initialize() {
 }
 
 void triangle_mesh::calculate_aabb() {
-    aabb.min = vector3_max;
-    aabb.max = -vector3_max;
-
-    for (auto &v : vertices) {
-        aabb.min = min(aabb.min, v);
-        aabb.max = max(aabb.max, v);
-    }
+    aabb = edyn::calculate_aabb(vertices.begin(), vertices.end());
 }
 
 void triangle_mesh::initialize_edge_angles() {

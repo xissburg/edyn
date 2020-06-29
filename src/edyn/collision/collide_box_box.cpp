@@ -200,8 +200,6 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // If not all vertices are contained in a face, perform edge intersection tests.
         if (result.num_points < 4) {
-            auto face_normalB = shB.get_face_normal(sep_axis.feature_indexB);
-
             for (size_t i = 0; i < 4; ++i) {
                 auto &a0 = face_verticesA[i];
                 auto &a1 = face_verticesA[(i + 1) % 4];

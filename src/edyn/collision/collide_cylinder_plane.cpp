@@ -19,7 +19,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         auto r = n_proj * shA.radius;
 
         for (int i = 0; i < 2; ++i) {
-            auto disc_center_dist = dot(disc_pos[i] - center, normal);
+            //auto disc_center_dist = dot(disc_pos[i] - center, normal);
             // Project the negated plane normal onto disc and scale it to make its
             // length equals to the disc radius to obtain the closest point to the
             // plane.
