@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <cstdint>
+#include <memory>
+#include <type_traits>
 
 namespace edyn {
 
@@ -48,6 +50,29 @@ void serialize(Archive &archive, std::vector<bool> &vector) {
             }
         }
     }
+}
+
+template<typename T> inline
+size_t serialization_sizeof(const std::vector<T> &vec) {
+    return vec.size() * sizeof(typename std::vector<T>::value_type);
+}
+
+inline
+size_t serialization_sizeof(const std::vector<bool> &vec) {
+    using set_type = uint32_t;
+    constexpr auto set_num_bits = sizeof(set_type) * 8;
+    const auto num_sets = vec.size() / set_num_bits + (vec.size() % set_num_bits != 0); 
+    return num_sets * sizeof(set_type);
+}
+
+template<typename Archive, typename T>
+void serialize(Archive &archive, std::unique_ptr<T> &ptr) {
+    archive(*ptr);
+}
+
+template<typename Archive, typename T>
+void serialize(Archive &archive, std::shared_ptr<T> &ptr) {
+    archive(*ptr);
 }
 
 }

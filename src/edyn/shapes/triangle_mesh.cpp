@@ -3,14 +3,9 @@
 namespace edyn {
 
 void triangle_mesh::initialize() {
-    calculate_aabb();
     build_tree();
     initialize_edge_angles();
     calculate_edge_angles();
-}
-
-void triangle_mesh::calculate_aabb() {
-    aabb = edyn::calculate_aabb(vertices.begin(), vertices.end());
 }
 
 void triangle_mesh::initialize_edge_angles() {

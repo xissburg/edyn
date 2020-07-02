@@ -79,7 +79,6 @@ struct submesh_builder {
             }
 
             // Initialize triangle mesh.
-            trimesh->calculate_aabb();
             trimesh->build_tree();
 
             // Edge-angles are calculated after the entire tree is ready so that
@@ -99,23 +98,19 @@ struct submesh_builder {
 
 /**
  * Creates a paged triangle mesh from a list of vertices and indices.
- * Outputs each submesh to an archive obtained from `output_archive_source`.
  * @tparam VertexIterator Vertex iterator type.
  * @tparam IndexIterator Index iterator type.
- * @tparam OutputArchiveSource Output archive source type.
  * @param vertex_begin Begin iterator for the vertex list.
  * @param vertex_end End iterator for the vertex list.
  * @param index_begin Begin iterator for the index list.
  * @param index_end End iterator for the index list.
- * @param output_archive_source Provides archives for each generated submesh.
  * @param max_tri_per_submesh Maximum number of triangles for submeshes.
  */
-template<typename VertexIterator, typename IndexIterator, typename OutputArchiveSource>
+template<typename VertexIterator, typename IndexIterator>
 void create_paged_triangle_mesh(
         paged_triangle_mesh &paged_tri_mesh,
         VertexIterator vertex_begin, VertexIterator vertex_end,
         IndexIterator index_begin, IndexIterator index_end,
-        OutputArchiveSource &output_archive_source,
         size_t max_tri_per_submesh) {
 
     // Only allowed to create a mesh if this instance is empty.
@@ -125,8 +120,6 @@ void create_paged_triangle_mesh(
     // in memory to later calculate edge angles (adjacency).
     auto original_max_cache_size = paged_tri_mesh.m_max_cache_num_vertices;
     paged_tri_mesh.m_max_cache_num_vertices = SIZE_MAX;
-
-    paged_tri_mesh.m_aabb = calculate_aabb(vertex_begin, vertex_end);
 
     auto num_indices = std::distance(index_begin, index_end);
     auto num_triangles = num_indices / 3;
@@ -158,18 +151,6 @@ void create_paged_triangle_mesh(
     // Calculate edge angles.
     constexpr scalar merge_distance = 0.01;
     paged_tri_mesh.calculate_edge_angles(merge_distance);
-
-    // Serialize all triangle meshes.
-    for (size_t i = 0; i < paged_tri_mesh.m_cache.size(); ++i) {
-        auto output = output_archive_source(i);
-        auto &node = paged_tri_mesh.m_cache[i];
-        serialize(output, *node.trimesh);
-    }
-
-    // Unload all triangle meshes.
-    for (auto &node : paged_tri_mesh.m_cache) {
-        node.trimesh.reset();
-    }
 
     // Reset cache settings.
     paged_tri_mesh.m_max_cache_num_vertices = original_max_cache_size;

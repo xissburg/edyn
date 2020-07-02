@@ -44,12 +44,12 @@ TEST(triangle_mesh_serialization, test) {
     ASSERT_EQ(trimesh.tree.m_nodes.size()   , input_trimesh.tree.m_nodes.size());
 
     // Check AABBs.
-    ASSERT_SCALAR_EQ(trimesh.aabb.min.x, input_trimesh.aabb.min.x);
-    ASSERT_SCALAR_EQ(trimesh.aabb.min.y, input_trimesh.aabb.min.y);
-    ASSERT_SCALAR_EQ(trimesh.aabb.min.z, input_trimesh.aabb.min.z);
-    ASSERT_SCALAR_EQ(trimesh.aabb.max.x, input_trimesh.aabb.max.x);
-    ASSERT_SCALAR_EQ(trimesh.aabb.max.y, input_trimesh.aabb.max.y);
-    ASSERT_SCALAR_EQ(trimesh.aabb.max.z, input_trimesh.aabb.max.z);
+    ASSERT_SCALAR_EQ(trimesh.get_aabb().min.y, input_trimesh.get_aabb().min.y);
+    ASSERT_SCALAR_EQ(trimesh.get_aabb().min.x, input_trimesh.get_aabb().min.x);
+    ASSERT_SCALAR_EQ(trimesh.get_aabb().min.z, input_trimesh.get_aabb().min.z);
+    ASSERT_SCALAR_EQ(trimesh.get_aabb().max.x, input_trimesh.get_aabb().max.x);
+    ASSERT_SCALAR_EQ(trimesh.get_aabb().max.y, input_trimesh.get_aabb().max.y);
+    ASSERT_SCALAR_EQ(trimesh.get_aabb().max.z, input_trimesh.get_aabb().max.z);
 
     // Check vertices, indices, edge angles...
     for (size_t i = 0; i < trimesh.vertices.size(); ++i) {

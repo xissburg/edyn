@@ -34,7 +34,6 @@
 #include "collision/contact_manifold.hpp"
 #include "collision/contact_point.hpp"
 #include "shapes/create_paged_triangle_mesh.hpp"
-#include "serialization/file_archive.hpp"
-#include "serialization/memory_archive.hpp"
+#include "serialization/s11n.hpp"
 #include "parallel/job_dispatcher.hpp"
 #include "parallel/parallel_for.hpp"

@@ -17,7 +17,7 @@ public:
 
     memory_input_archive(buffer_type &buffer)
         : m_buffer(&buffer)
-        , m_offset(0)
+        , m_position(0)
     {}
 
     template<typename... Ts>
@@ -79,14 +79,14 @@ public:
 
     template<typename T>
     void read_bytes(T &t) {
-        auto* buff = reinterpret_cast<const T*>(&(*m_buffer)[m_offset]);
+        auto* buff = reinterpret_cast<const T*>(&(*m_buffer)[m_position]);
         t = *buff;
-        m_offset += sizeof(T);
+        m_position += sizeof(T);
     }
 
-private:
+protected:
     buffer_type *m_buffer;
-    size_t m_offset;
+    size_t m_position;
 };
 
 class memory_output_archive {
@@ -165,41 +165,7 @@ public:
         *dest = t;
     }
 
-private:
-    buffer_type *m_buffer;
-};
-
-class memory_input_archive_source {
-public:
-    using buffer_type = std::map<size_t, memory_input_archive::buffer_type>;
-
-    memory_input_archive_source(buffer_type &buffer)
-        : m_buffer(&buffer)
-    {}
-
-    memory_input_archive operator()(size_t idx) {
-        auto input = memory_input_archive((*m_buffer)[idx]);
-        return input;
-    }
-
-private:
-    buffer_type *m_buffer;
-};
-
-class memory_output_archive_source {
-public:
-    using buffer_type = std::map<size_t, memory_output_archive::buffer_type>;
-
-    memory_output_archive_source(buffer_type &buffer) 
-        : m_buffer(&buffer)
-    {}
-
-    memory_output_archive operator()(size_t idx) {
-        auto output = memory_output_archive((*m_buffer)[idx]);
-        return output;
-    }
-
-private:
+protected:
     buffer_type *m_buffer;
 };
 

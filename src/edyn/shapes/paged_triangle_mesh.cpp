@@ -162,4 +162,10 @@ triangle_mesh *paged_triangle_mesh::get_submesh(size_t idx) {
     return m_cache[idx].trimesh.get();
 }
 
+void paged_triangle_mesh::clear_cache() {
+    for (auto &node : m_cache) {
+        node.trimesh.reset();
+    }
+}
+
 }

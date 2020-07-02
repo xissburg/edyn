@@ -6,10 +6,6 @@
 #include <type_traits>
 
 #include "edyn/config/config.h"
-#include "math_s11n.hpp"
-#include "std_s11n.hpp"
-#include "static_tree_s11n.hpp"
-#include "triangle_mesh_s11n.hpp"
 
 namespace edyn {
 
@@ -174,39 +170,6 @@ public:
 
 private:
     std::ofstream m_file;
-};
-
-class file_input_archive_source {
-public:
-    file_input_archive_source(const std::string &base_path)
-        : m_base_path(base_path)
-    {}
-
-    file_input_archive operator()(size_t idx) {
-        auto path = m_base_path + std::to_string(idx);
-        auto input = file_input_archive(path);
-        EDYN_ASSERT(input.is_file_open());
-        return input;
-    }
-
-private:
-    std::string m_base_path;
-};
-
-class file_output_archive_source {
-public:
-    file_output_archive_source(const std::string &base_path)
-        : m_base_path(base_path)
-    {}
-
-    file_output_archive operator()(size_t idx) {
-        auto path = m_base_path + std::to_string(idx);
-        auto output = file_output_archive(path);
-        return output;
-    }
-
-private:
-    std::string m_base_path;
 };
 
 }

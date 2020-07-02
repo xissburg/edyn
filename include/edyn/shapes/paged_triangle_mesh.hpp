@@ -166,7 +166,8 @@ public:
     }
 
     const AABB &get_aabb() const {
-        return m_aabb;
+        EDYN_ASSERT(!m_tree.m_nodes.empty());
+        return m_tree.m_nodes.front().aabb;
     }
 
     /**
@@ -177,6 +178,8 @@ public:
 
     triangle_mesh *get_submesh(size_t idx);
 
+    void clear_cache();
+
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
      *      is loaded, if the number of vertices would exceed this number, the 
@@ -185,16 +188,18 @@ public:
      */
     size_t m_max_cache_num_vertices = 1 << 13;
 
-    template<typename VertexIterator, typename IndexIterator, typename OutputArchiveSource>
+    template<typename VertexIterator, typename IndexIterator>
     friend void create_paged_triangle_mesh(
-        paged_triangle_mesh &,
-        VertexIterator, VertexIterator,
-        IndexIterator, IndexIterator,
-        OutputArchiveSource &,
-        size_t);
+        paged_triangle_mesh &paged_tri_mesh,
+        VertexIterator vertex_begin, VertexIterator vertex_end,
+        IndexIterator index_begin, IndexIterator index_end,
+        size_t max_tri_per_submesh);
 
     template<typename VertexIterator, typename IndexIterator, typename IdIterator>
     friend struct detail::submesh_builder;
+
+    friend class paged_triangle_mesh_memory_input_archive;
+    friend class paged_triangle_mesh_memory_output_archive;
 
 private:
     void mark_recent_visit(size_t trimesh_idx);
@@ -202,7 +207,6 @@ private:
     void unload_node(triangle_mesh_node &node);
     void calculate_edge_angles(scalar merge_distance);
 
-    AABB m_aabb;
     static_tree m_tree;
     std::vector<triangle_mesh_node> m_cache;
     std::vector<size_t> m_lru_indices;
