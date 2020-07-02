@@ -5,33 +5,10 @@
 #include <atomic>
 #include <vector>
 #include <memory>
-#include <functional>
 #include <condition_variable>
+#include "edyn/parallel/job.hpp"
 
 namespace edyn {
-
-class job {
-public:
-    virtual ~job() {}
-
-    virtual void run() = 0;
-
-    void operator()();
-};
-
-class std_function_job : public job {
-public:
-    std_function_job(const std::function<void(void)> &f)
-        : m_function(f)
-    {}
-
-    void run() override {
-        m_function();
-    }
-
-private:
-    std::function<void(void)> m_function;
-};
 
 class job_queue {
 public:

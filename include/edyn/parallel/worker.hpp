@@ -12,13 +12,14 @@ class worker {
 public:
     void push_job(std::shared_ptr<job> j) {
         m_queue.push(j);
+        ++m_size;
     }
 
     void run() {
         m_running = true;
 
         for (;;) {
-            for (;;) {
+            /* for (;;) {
                 once();
 
                 auto did_steal = false;
@@ -34,13 +35,15 @@ public:
                 if (!did_steal) {
                     break;
                 }
-            }
+            } */
 
             auto j = m_queue.pop();
 
             if (j) {
                 j->operator()();
+                --m_size;
             }
+
 
             if (!m_running) {
                 break;
@@ -51,6 +54,7 @@ public:
     void once() {
         while (auto j = m_queue.try_pop()) {
             j->operator()();
+            --m_size;
         }
     }
 
@@ -60,7 +64,7 @@ public:
     }
 
     size_t size() {
-        return m_queue.size();
+        return m_size.load();
     }
 
     void set_thief(job_thief *thief) {
@@ -75,6 +79,7 @@ private:
     std::atomic_bool m_running {false};
     job_queue m_queue;
     job_thief *m_thief { nullptr };
+    std::atomic<size_t> m_size;
 };
 
 }

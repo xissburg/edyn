@@ -46,17 +46,17 @@ TEST_F(job_dispatcher_test, async) {
 
 TEST_F(job_dispatcher_test, parallel_for) {
     constexpr size_t num_samples = 3591833;
-    std::vector<edyn::scalar> radians(num_samples);
-    std::vector<edyn::scalar> cosines(num_samples);
+    std::vector<int> values(num_samples);
 
     edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {
-        auto unit = edyn::scalar(i) - edyn::scalar(num_samples) * edyn::scalar(0.5);
-        radians[i] = unit * edyn::pi;
-        cosines[i] = std::cos(radians[i]);
+        values[i] = 3;
     });
 
-    ASSERT_SCALAR_EQ(cosines[45], std::cos(radians[45]));
-    ASSERT_SCALAR_EQ(cosines[5095], std::cos(radians[5095]));
-    ASSERT_SCALAR_EQ(cosines[2990190], std::cos(radians[2990190]));
-    ASSERT_SCALAR_EQ(cosines[num_samples - 1], std::cos(radians[num_samples - 1]));
+    edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {
+        values[i] = values[i] + 11;
+    });
+
+    edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {
+        ASSERT_EQ(values[i], 14);
+    });
 }
