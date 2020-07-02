@@ -113,33 +113,6 @@ private:
     std::promise<void> m_promise;
 };
 
-template<typename Iterator, typename Function>
-class parallel_for_each_job: public job {
-public:
-    parallel_for_each_job(Iterator first, Iterator last, const Function *func)
-        : m_first(first)
-        , m_last(last)
-        , m_func(func)
-    {}
-
-    void run() override {
-        for (auto it = m_first; it != m_last; ++it) {
-            (*m_func)(*it);
-        }
-        m_promise.set_value();
-    }
-
-    void join() {
-        m_promise.get_future().get();
-    }
-
-private:
-    Iterator m_first;
-    Iterator m_last;
-    const Function *m_func;
-    std::promise<void> m_promise;
-};
-
 }
 
 #endif // EDYN_PARALLEL_PARALLEL_FOR_JOB_HPP
