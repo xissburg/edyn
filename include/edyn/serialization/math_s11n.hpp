@@ -2,6 +2,7 @@
 #define EDYN_SERIALIZATION_MATH_S11N_HPP
 
 #include "edyn/math/vector3.hpp"
+#include "edyn/serialization/s11n_util.hpp"
 
 namespace edyn {
 

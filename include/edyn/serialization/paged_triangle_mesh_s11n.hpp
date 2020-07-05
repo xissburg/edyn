@@ -1,75 +1,114 @@
 #ifndef EDYN_SERIALIZATION_PAGED_TRIANGLE_MESH_S11N_HPP
 #define EDYN_SERIALIZATION_PAGED_TRIANGLE_MESH_S11N_HPP
 
+#include <type_traits>
 #include "edyn/shapes/paged_triangle_mesh.hpp"
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
-#include "edyn/serialization/memory_archive.hpp"
 #include "edyn/serialization/file_archive.hpp"
 
 namespace edyn {
 
-class paged_triangle_mesh_memory_output_archive: public memory_output_archive {
-public:
-    using super = memory_output_archive;
+class paged_triangle_mesh_file_output_archive;
+class paged_triangle_mesh_file_input_archive;
 
-    paged_triangle_mesh_memory_output_archive(super::buffer_type& buffer)
-        : super(buffer)
-    {}
+void serialize(paged_triangle_mesh_file_output_archive &archive, 
+               paged_triangle_mesh &paged_tri_mesh);
 
-    void operator()(paged_triangle_mesh &paged_tri_mesh) {
-        super::operator()(paged_tri_mesh.m_tree);
-        super::operator()(paged_tri_mesh.m_cache.size());
-        size_t tri_mesh_offset = 0;
+void serialize(paged_triangle_mesh_file_input_archive &archive, 
+               paged_triangle_mesh &paged_tri_mesh);
 
-        for (auto &entry : paged_tri_mesh.m_cache) {
-            super::operator()(entry.num_vertices);
-            super::operator()(entry.num_indices);
+/**
+ * A `paged_triangle_mesh` can have each of its submeshes serialized into separate
+ * files or have everything inside a single file.
+ */
+enum class paged_triangle_mesh_serialization_mode: uint8_t {
+    /**
+     * Embeds submeshes inside the same file as the `paged_triangle_mesh` and 
+     * uses offsets within this file to load submeshes on demand.
+     */
+    embedded,
 
-            super::operator()(tri_mesh_offset);
-            auto tri_mesh_size = serialization_sizeof(*entry.trimesh);
-            tri_mesh_offset += tri_mesh_size;
-        }
-
-        for (auto &entry : paged_tri_mesh.m_cache) {
-            super::operator()(*entry.trimesh);
-        }
-    }
+    /**
+     * Writes to/reads from separate individual files for each submesh as needed.
+     */ 
+    external
 };
 
-class paged_triangle_mesh_memory_input_archive: public memory_input_archive, public triangle_mesh_page_loader_base {
-public:
-    using super = memory_input_archive;
+template<typename Archive>
+void serialize(Archive &archive, paged_triangle_mesh_serialization_mode &mode) {
+    archive(*reinterpret_cast<std::underlying_type<paged_triangle_mesh_serialization_mode>::type*>(&mode));
+}
 
-    paged_triangle_mesh_memory_input_archive(super::buffer_type& buffer)
-        : super(buffer)
+/**
+ * Get the filename of a submesh for a `paged_triangle_mesh` created with
+ * `external` serialization mode. 
+ * @param paged_triangle_mesh_path Path of the `paged_triangle_mesh`.
+ * @param index Index of submesh.
+ * @return Path of submesh file which can be loaded into a `triangle_mesh`
+ *      instance.
+ */
+std::string get_submesh_path(const std::string &paged_triangle_mesh_path, size_t index);
+
+/**
+ * Specialized archive to write a `paged_triangle_mesh` to file.
+ */
+class paged_triangle_mesh_file_output_archive: public file_output_archive {
+public:
+    using super = file_output_archive;
+
+    paged_triangle_mesh_file_output_archive(const std::string &path, 
+                                            paged_triangle_mesh_serialization_mode mode)
+        : super(path)
+        , m_path(path)
+        , m_triangle_mesh_index(0)
+        , m_mode(mode)
     {}
 
-    void operator()(paged_triangle_mesh &paged_tri_mesh) {
-        super::operator()(paged_tri_mesh.m_tree);
-
-        size_t size;
-        memory_input_archive::operator()(size);
-        paged_tri_mesh.m_cache.resize(size);
-        m_offsets.resize(size);
-
-        for (size_t i = 0; i < size; ++i) {
-            auto &entry = paged_tri_mesh.m_cache[i];
-            memory_input_archive::operator()(entry.num_vertices);
-            memory_input_archive::operator()(entry.num_indices);
-            memory_input_archive::operator()(m_offsets[i]);
-        }
-
-        m_base_offset = m_position;
+    template<typename... Ts>
+    void operator()(Ts&&... t) {
+        super::operator()(t...);
     }
 
-    void load(size_t i, triangle_mesh &mesh) override {
-        m_position = m_offsets[i];
-        memory_input_archive::operator()(mesh);
+    void operator()(triangle_mesh &tri_mesh);
+
+    auto get_serialization_mode() const {
+        return m_mode;
     }
+
+    friend void serialize(paged_triangle_mesh_file_output_archive &archive, 
+                          paged_triangle_mesh &paged_tri_mesh);
 
 private:
+    std::string m_path;
+    size_t m_triangle_mesh_index;
+    const paged_triangle_mesh_serialization_mode m_mode;
+};
+
+/**
+ * Specialized archive to read a `paged_triangle_mesh` from file. It can also be
+ * used as a page loader in the `paged_triangle_mesh`.
+ */
+class paged_triangle_mesh_file_input_archive: public file_input_archive, public triangle_mesh_page_loader_base {
+public:
+    using super = file_input_archive;
+
+    paged_triangle_mesh_file_input_archive() {}
+
+    paged_triangle_mesh_file_input_archive(const std::string &path)
+        : super(path)
+        , m_path(path)
+    {}
+
+    void load(size_t index, triangle_mesh &mesh) override;
+
+    friend void serialize(paged_triangle_mesh_file_input_archive &archive, 
+                          paged_triangle_mesh &paged_tri_mesh);
+
+private:
+    std::string m_path;
     size_t m_base_offset;
     std::vector<size_t> m_offsets;
+    paged_triangle_mesh_serialization_mode m_mode;
 };
 
 }

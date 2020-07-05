@@ -13,6 +13,9 @@
 
 namespace edyn {
 
+class paged_triangle_mesh_file_input_archive;
+class paged_triangle_mesh_file_output_archive;
+
 // Forward declaration of `detail::submesh_builder` needed by `friend` 
 // declaration in `paged_triangle_mesh`.
 namespace detail {
@@ -198,8 +201,14 @@ public:
     template<typename VertexIterator, typename IndexIterator, typename IdIterator>
     friend struct detail::submesh_builder;
 
-    friend class paged_triangle_mesh_memory_input_archive;
-    friend class paged_triangle_mesh_memory_output_archive;
+    friend class paged_triangle_mesh_file_input_archive;
+    friend class paged_triangle_mesh_file_output_archive;
+
+    friend void serialize(paged_triangle_mesh_file_output_archive &archive, 
+                          paged_triangle_mesh &paged_tri_mesh);
+
+    friend void serialize(paged_triangle_mesh_file_input_archive &archive, 
+                          paged_triangle_mesh &paged_tri_mesh);
 
 private:
     void mark_recent_visit(size_t trimesh_idx);

@@ -2,6 +2,8 @@
 #define EDYN_SERIALIZATION_TRIANGLE_MESH_S11N_HPP
 
 #include "edyn/shapes/triangle_mesh.hpp"
+#include "edyn/serialization/std_s11n.hpp"
+#include "edyn/serialization/static_tree_s11n.hpp"
 
 namespace edyn {
 

@@ -7,7 +7,7 @@ class triangle_mesh;
 
 class triangle_mesh_page_loader_base {
 public:
-    virtual void load(size_t i, triangle_mesh &mesh) = 0;
+    virtual void load(size_t index, triangle_mesh &mesh) = 0;
 };
 
 
