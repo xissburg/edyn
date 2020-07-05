@@ -15,6 +15,7 @@ namespace edyn {
 
 class paged_triangle_mesh_file_input_archive;
 class paged_triangle_mesh_file_output_archive;
+class finish_load_mesh_job;
 
 // Forward declaration of `detail::submesh_builder` needed by `friend` 
 // declaration in `paged_triangle_mesh`.
@@ -34,7 +35,9 @@ public:
 
     paged_triangle_mesh(std::shared_ptr<triangle_mesh_page_loader_base> loader)
         : m_page_loader(loader)
-    {}
+    {
+        m_page_loader->loaded_mesh_sink().connect<&paged_triangle_mesh::assign_mesh>(*this);
+    }
 
     /**
      * @brief Visits all triangles that intersect the given AABB.
@@ -57,25 +60,15 @@ public:
         auto inset_aabb = aabb.inset(inset);
         
         m_tree.visit(inset_aabb, [&] (auto trimesh_idx) {
+            load_node_if_needed(trimesh_idx);
             auto &node = m_cache[trimesh_idx];
 
-            if (!node.trimesh) {
-                // Load triangle mesh into cache. Clear cache if it would go
-                // above limits.
-                while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
-                    unload_least_recently_visited_node();
-                }
-
-                node.trimesh = std::make_unique<triangle_mesh>();
-                m_page_loader->load(trimesh_idx, *node.trimesh);
+            if (node.trimesh) {
+                node.trimesh->visit(inset_aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
+                    func(trimesh_idx, tri_idx, vertices);
+                });
+                mark_recent_visit(trimesh_idx);
             }
-
-            EDYN_ASSERT(node.trimesh);
-
-            node.trimesh->visit(inset_aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                func(trimesh_idx, tri_idx, vertices);
-            });
-            mark_recent_visit(trimesh_idx);
         });
     }
 
@@ -92,24 +85,14 @@ public:
     template<typename Func>
     void visit_all(Func func) {        
         for (size_t i = 0; i < m_cache.size(); ++i) {
+            load_node_if_needed(i);
             auto &node = m_cache[i];
 
-            if (!node.trimesh) {
-                // Load triangle mesh into cache. Clear cache if it would go
-                // above limits.
-                while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
-                    unload_least_recently_visited_node();
-                }
-
-                node.trimesh = std::make_unique<triangle_mesh>();
-                m_page_loader->load(i, *node.trimesh);
+            if (node.trimesh) {
+                node.trimesh->visit_all([=] (uint32_t tri_idx, const triangle_vertices &vertices) {
+                    func(i, tri_idx, vertices);
+                });
             }
-
-            EDYN_ASSERT(node.trimesh);
-
-            node.trimesh->visit_all([=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                func(i, tri_idx, vertices);
-            });
         }
     }
 
@@ -183,6 +166,8 @@ public:
 
     void clear_cache();
 
+    void assign_mesh(size_t index, std::unique_ptr<triangle_mesh> &);
+
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
      *      is loaded, if the number of vertices would exceed this number, the 
@@ -211,6 +196,7 @@ public:
                           paged_triangle_mesh &paged_tri_mesh);
 
 private:
+    void load_node_if_needed(size_t trimesh_idx);
     void mark_recent_visit(size_t trimesh_idx);
     void unload_least_recently_visited_node();
     void unload_node(triangle_mesh_node &node);
@@ -219,6 +205,7 @@ private:
     static_tree m_tree;
     std::vector<triangle_mesh_node> m_cache;
     std::vector<size_t> m_lru_indices;
+    std::vector<bool> m_is_loading_submesh;
     std::shared_ptr<triangle_mesh_page_loader_base> m_page_loader;
 };
 

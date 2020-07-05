@@ -16,6 +16,22 @@ size_t paged_triangle_mesh::cache_num_vertices() const {
     return count;
 }
 
+void paged_triangle_mesh::load_node_if_needed(size_t trimesh_idx) {
+    auto &node = m_cache[trimesh_idx];
+
+    if (!node.trimesh && !m_is_loading_submesh[trimesh_idx]) {
+        EDYN_ASSERT(node.num_vertices < m_max_cache_num_vertices);
+        // Load triangle mesh into cache. Clear cache if it would go
+        // above limits.
+        while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
+            unload_least_recently_visited_node();
+        }
+
+        m_is_loading_submesh[trimesh_idx] = true;
+        m_page_loader->load(trimesh_idx);
+    }
+}
+
 void paged_triangle_mesh::mark_recent_visit(size_t trimesh_idx) {
     auto it = std::find(m_lru_indices.begin(), m_lru_indices.end(), trimesh_idx);
     std::rotate(m_lru_indices.begin(), it, it + 1);
@@ -166,6 +182,11 @@ void paged_triangle_mesh::clear_cache() {
     for (auto &node : m_cache) {
         node.trimesh.reset();
     }
+}
+
+void paged_triangle_mesh::assign_mesh(size_t index, std::unique_ptr<triangle_mesh> &mesh) {
+    m_cache[index].trimesh = std::move(mesh);
+    m_is_loading_submesh[index] = false;
 }
 
 }

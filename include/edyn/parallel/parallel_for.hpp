@@ -23,7 +23,7 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
 
 template<typename IndexType, typename Function>
 void parallel_for(IndexType first, IndexType last, IndexType step, const Function &func) {
-    parallel_for(job_dispatcher::shared(), first, last, step, func);
+    parallel_for(job_dispatcher::global(), first, last, step, func);
 }
 
 template<typename IndexType, typename Function>
@@ -42,7 +42,7 @@ void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last
 
 template<typename Iterator, typename Function>
 void parallel_for_each(Iterator first, Iterator last, const Function &func) {
-    parallel_for_each(job_dispatcher::shared(), first, last, func);
+    parallel_for_each(job_dispatcher::global(), first, last, func);
 }
 
 }

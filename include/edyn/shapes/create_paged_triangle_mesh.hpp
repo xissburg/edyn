@@ -147,6 +147,8 @@ void create_paged_triangle_mesh(
     paged_tri_mesh.m_lru_indices.resize(paged_tri_mesh.m_cache.size());
     std::iota(paged_tri_mesh.m_lru_indices.begin(), 
               paged_tri_mesh.m_lru_indices.end(), 0);
+
+    paged_tri_mesh.m_is_loading_submesh.resize(paged_tri_mesh.m_cache.size(), false);
     
     // Calculate edge angles.
     constexpr scalar merge_distance = 0.01;

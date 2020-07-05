@@ -3,6 +3,7 @@
 #include "edyn/serialization/static_tree_s11n.hpp"
 #include "edyn/serialization/math_s11n.hpp"
 #include "edyn/serialization/std_s11n.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
 
 namespace edyn {
 
@@ -32,21 +33,6 @@ void paged_triangle_mesh_file_output_archive::operator()(triangle_mesh &tri_mesh
     }
     }
     ++m_triangle_mesh_index;
-}
-
-void paged_triangle_mesh_file_input_archive::load(size_t index, triangle_mesh &mesh) {
-    switch(m_mode) {
-    case paged_triangle_mesh_serialization_mode::embedded:
-        seek_position(m_base_offset + m_offsets[index]);
-        serialize(*this, mesh);
-        break;
-    case paged_triangle_mesh_serialization_mode::external: {
-        auto tri_mesh_path = get_submesh_path(m_path, index);
-        auto archive = file_input_archive(tri_mesh_path);
-        serialize(archive, mesh);
-        break;
-    }
-    }
 }
 
 void serialize(paged_triangle_mesh_file_output_archive &archive, 
@@ -102,6 +88,54 @@ void serialize(paged_triangle_mesh_file_input_archive &archive,
         archive.m_base_offset = archive.tell_position();
         archive.m_mode = paged_triangle_mesh_serialization_mode::embedded;
     }
+
+    // Resize LRU queue to have the number of submeshes.
+    paged_tri_mesh.m_lru_indices.resize(num_submeshes);
+    std::iota(paged_tri_mesh.m_lru_indices.begin(), 
+              paged_tri_mesh.m_lru_indices.end(), 0);
+
+    paged_tri_mesh.m_is_loading_submesh.resize(num_submeshes, false);
+}
+
+void paged_triangle_mesh_file_input_archive::load(size_t index) {
+    auto j = std::make_shared<load_mesh_job>(*this, index);
+    job_dispatcher::global().async(j);
+}
+
+finish_load_mesh_job::finish_load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index, 
+                   std::unique_ptr<triangle_mesh> &mesh)
+    : m_input(&input)
+    , m_index(index)
+    , m_mesh(std::move(mesh))
+{}
+
+void finish_load_mesh_job::run() {
+    m_input->m_loaded_mesh_signal.publish(m_index, m_mesh);
+}
+
+load_mesh_job::load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index)
+    : m_input(&input)
+    , m_index(index)
+    , m_mesh(std::make_unique<triangle_mesh>())
+    , m_source_id(std::this_thread::get_id())
+{}
+
+void load_mesh_job::run() {
+    switch(m_input->m_mode) {
+    case paged_triangle_mesh_serialization_mode::embedded:
+        m_input->seek_position(m_input->m_base_offset + m_input->m_offsets[m_index]);
+        serialize(*m_input, *m_mesh);
+        break;
+    case paged_triangle_mesh_serialization_mode::external: {
+        auto tri_mesh_path = get_submesh_path(m_input->m_path, m_index);
+        auto archive = file_input_archive(tri_mesh_path);
+        serialize(archive, *m_mesh);
+        break;
+    }
+    }
+
+    auto j = std::make_shared<finish_load_mesh_job>(*m_input, m_index, m_mesh);
+    job_dispatcher::global().async(m_source_id, j);
 }
 
 }

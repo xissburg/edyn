@@ -6,10 +6,14 @@
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
 #include "edyn/serialization/file_archive.hpp"
 
+#include <entt/signal/sigh.hpp>
+
 namespace edyn {
 
 class paged_triangle_mesh_file_output_archive;
 class paged_triangle_mesh_file_input_archive;
+class load_mesh_job;
+class finish_load_mesh_job;
 
 void serialize(paged_triangle_mesh_file_output_archive &archive, 
                paged_triangle_mesh &paged_tri_mesh);
@@ -99,8 +103,14 @@ public:
         , m_path(path)
     {}
 
-    void load(size_t index, triangle_mesh &mesh) override;
+    void load(size_t index) override;
 
+    virtual entt::sink<loaded_mesh_func_t> loaded_mesh_sink() override {
+        return {m_loaded_mesh_signal};
+    }
+
+    friend class load_mesh_job;
+    friend class finish_load_mesh_job;
     friend void serialize(paged_triangle_mesh_file_input_archive &archive, 
                           paged_triangle_mesh &paged_tri_mesh);
 
@@ -109,6 +119,32 @@ private:
     size_t m_base_offset;
     std::vector<size_t> m_offsets;
     paged_triangle_mesh_serialization_mode m_mode;
+    entt::sigh<loaded_mesh_func_t> m_loaded_mesh_signal;
+};
+
+class load_mesh_job: public job {
+public:
+    load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index);
+    void run() override;
+
+private:
+    paged_triangle_mesh_file_input_archive *m_input;
+    size_t m_index;
+    std::unique_ptr<triangle_mesh> m_mesh;
+    std::thread::id m_source_id;
+};
+
+class finish_load_mesh_job: public job {
+public:
+    finish_load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index, 
+                   std::unique_ptr<triangle_mesh> &mesh);
+
+    void run() override;
+
+private:
+    paged_triangle_mesh_file_input_archive *m_input;
+    size_t m_index;
+    std::unique_ptr<triangle_mesh> m_mesh;
 };
 
 }

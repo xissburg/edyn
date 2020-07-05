@@ -3,7 +3,7 @@
 
 namespace edyn {
 
-job_dispatcher &job_dispatcher::shared() {
+job_dispatcher &job_dispatcher::global() {
     static job_dispatcher singleton;
     return singleton;
 }
@@ -23,50 +23,78 @@ void job_dispatcher::start() {
 }
 
 void job_dispatcher::start(size_t num_worker_threads) {
-    EDYN_ASSERT(m_worker_threads.empty());
-    m_worker_threads.resize(num_worker_threads);
+    EDYN_ASSERT(m_workers.empty());
 
-    for (auto &wt : m_worker_threads) {
-        wt.w = std::make_unique<worker>();
-        m_thief.add_queue(&wt.w->get_queue());
-        wt.w->set_thief(&m_thief);
-    }
+    for (size_t i = 0; i < num_worker_threads; ++i) {
+        auto w = std::make_unique<worker>();
+        m_thief.add_queue(&w->get_queue());
+        w->set_thief(&m_thief);
 
-    for (auto &wt : m_worker_threads) {
-        wt.t = std::make_unique<std::thread>(&worker::run, wt.w.get());
+        auto t = std::make_unique<std::thread>(&worker::run, w.get());
+        auto id = t->get_id();
+
+        m_threads.push_back(std::move(t));
+        m_workers[id] = std::move(w);
     }
 }
 
 void job_dispatcher::stop() {
-    for (auto &wt : m_worker_threads) {
-        wt.w->stop();
+    for (auto &pair : m_workers) {
+        pair.second->stop();
     }
 
-    for (auto &wt : m_worker_threads) {
-        wt.t->join();
+    for (auto &t : m_threads) {
+        t->join();
     }
 
-    m_worker_threads.clear();
+    m_workers.clear();
+    m_threads.clear();
 }
 
 void job_dispatcher::async(std::shared_ptr<job> j) {
-    EDYN_ASSERT(!m_worker_threads.empty());
+    EDYN_ASSERT(!m_workers.empty());
 
-    auto best_idx = SIZE_MAX;
+    auto best_id = std::thread::id();
     auto min_num_jobs = SIZE_MAX;
-    for (size_t i = 0; i < m_worker_threads.size(); ++i) {
-        auto s = m_worker_threads[i].w->size();
+    for (auto &pair : m_workers) {
+        auto s = pair.second->size();
         if (s < min_num_jobs) {
             min_num_jobs = s;
-            best_idx = i;
+            best_id = pair.first;
         }
     }
 
-    m_worker_threads[best_idx].w->push_job(j);
+    EDYN_ASSERT(m_workers.count(best_id));
+
+    m_workers[best_id]->push_job(j);
+}
+
+void job_dispatcher::async(std::thread::id id, std::shared_ptr<job> j) {
+    std::lock_guard<std::mutex> lock(m_other_workers_mutex);
+    EDYN_ASSERT(m_other_workers.count(id));
+    m_other_workers[id]->push_job(j);
+}
+
+void job_dispatcher::assure_current_worker() {
+    std::lock_guard<std::mutex> lock(m_other_workers_mutex);
+    auto id = std::this_thread::get_id();
+
+    if (m_other_workers.count(id)) {
+        return;
+    }
+
+    m_other_workers[id] = std::make_unique<worker>();
+}
+
+void job_dispatcher::once_current_worker() {
+    std::lock_guard<std::mutex> lock(m_other_workers_mutex);
+    auto id = std::this_thread::get_id();
+    EDYN_ASSERT(m_other_workers.count(id));
+    m_other_workers[id]->once();
 }
 
 size_t job_dispatcher::num_workers() const {
-    return m_worker_threads.size();
+    return m_workers.size();
 }
 
 }
