@@ -122,6 +122,10 @@ private:
     entt::sigh<loaded_mesh_func_t> m_loaded_mesh_signal;
 };
 
+/**
+ * Job used to load submeshes in the background. It schedules a `finish_load_mesh_job`
+ * in the calling thread once finished. 
+ */
 class load_mesh_job: public job {
 public:
     load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index);
@@ -131,13 +135,17 @@ private:
     paged_triangle_mesh_file_input_archive *m_input;
     size_t m_index;
     std::unique_ptr<triangle_mesh> m_mesh;
-    std::thread::id m_source_id;
+    std::thread::id m_source_thread_id;
 };
 
+/**
+ * Delivers the loaded submesh in the calling thread after a `load_mesh_job` is
+ * done loading.
+ */
 class finish_load_mesh_job: public job {
 public:
     finish_load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index, 
-                   std::unique_ptr<triangle_mesh> &mesh);
+                         std::unique_ptr<triangle_mesh> &mesh);
 
     void run() override;
 

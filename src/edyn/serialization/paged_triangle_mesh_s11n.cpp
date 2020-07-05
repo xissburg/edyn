@@ -102,22 +102,11 @@ void paged_triangle_mesh_file_input_archive::load(size_t index) {
     job_dispatcher::global().async(j);
 }
 
-finish_load_mesh_job::finish_load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index, 
-                   std::unique_ptr<triangle_mesh> &mesh)
-    : m_input(&input)
-    , m_index(index)
-    , m_mesh(std::move(mesh))
-{}
-
-void finish_load_mesh_job::run() {
-    m_input->m_loaded_mesh_signal.publish(m_index, m_mesh);
-}
-
 load_mesh_job::load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index)
     : m_input(&input)
     , m_index(index)
     , m_mesh(std::make_unique<triangle_mesh>())
-    , m_source_id(std::this_thread::get_id())
+    , m_source_thread_id(std::this_thread::get_id())
 {}
 
 void load_mesh_job::run() {
@@ -135,7 +124,18 @@ void load_mesh_job::run() {
     }
 
     auto j = std::make_shared<finish_load_mesh_job>(*m_input, m_index, m_mesh);
-    job_dispatcher::global().async(m_source_id, j);
+    job_dispatcher::global().async(m_source_thread_id, j);
+}
+
+finish_load_mesh_job::finish_load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index, 
+                   std::unique_ptr<triangle_mesh> &mesh)
+    : m_input(&input)
+    , m_index(index)
+    , m_mesh(std::move(mesh))
+{}
+
+void finish_load_mesh_job::run() {
+    m_input->m_loaded_mesh_signal.publish(m_index, m_mesh);
 }
 
 }

@@ -21,12 +21,32 @@ public:
 
     void stop();
 
+    /**
+     * Schedules a job to run asynchronously in a worker thread.
+     */
     void async(std::shared_ptr<job> j);
+
+    /**
+     * Schedules a job to run in a worker in a specific thread.
+     */
     void async(std::thread::id, std::shared_ptr<job> j);
 
+    /**
+     * Instantiates a worker for the current thread internally if it hasn't
+     * been instantiated yet. Must be called before jobs are scheduled in that
+     * thread.
+     */
     void assure_current_worker();
+
+    /**
+     * Runs the current worker once, thus executing all pending jobs in the
+     * current thread.
+     */
     void once_current_worker();
 
+    /**
+     * Number of background workers.
+     */
     size_t num_workers() const;
 
 private:
@@ -35,8 +55,8 @@ private:
     job_thief m_thief;
 
     // Workers for external threads.
-    std::map<std::thread::id, std::unique_ptr<worker>> m_other_workers;
-    std::mutex m_other_workers_mutex;
+    std::map<std::thread::id, std::unique_ptr<worker>> m_external_workers;
+    std::mutex m_external_workers_mutex;
 };
 
 }
