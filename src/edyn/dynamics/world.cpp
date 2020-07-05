@@ -13,6 +13,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
 
 namespace edyn {
 
@@ -93,6 +94,8 @@ world::world(entt::registry &reg)
 
     // Associate a `contact_manifold` to every broadphase relation that's created.
     connections.push_back(bphase.construct_relation_sink().connect<&entt::registry::assign<contact_manifold>>(reg));
+
+    job_dispatcher::global().assure_current_worker();
 }
 
 world::~world() {
@@ -100,6 +103,9 @@ world::~world() {
 }
 
 void world::update(scalar dt) {
+    // Run jobs scheduled in physics thread.
+    job_dispatcher::global().once_current_worker();
+
     // Current elapsed time plus residual from previous update.
     auto total_dt = residual_dt + dt;
     // Number of steps for this update.

@@ -5,6 +5,26 @@
 
 namespace edyn {
 
+// Separating-axis test. Find axis with greatest distance between projection
+// intervals.
+// Axes to be tested:
+// - Cylinder cap normals. Simply find the triangle vertices that are 
+//   further down in both directions.
+// - Triangle face normal. The cylinder could be laying sideways onto the
+//   triangle face, or it could be erect above the triangle face thus having
+//   one of its caps sitting on it, or else the axis projections can be 
+//   found via the support points of the caps along the negative triangle
+//   normal.
+// - Cylinder sidewall faces and the cross product between sidewall edges and
+//   triangle edges. The sidewalls are thought to have infinitely thin faces 
+//   and edges running straight from one cap to the other. They're handled 
+//   together using the cross product between the cylinder axis and each
+//   triangle axis as a separating axis.
+// - Cylinder face edges against triangle edges. The closest point between
+//   the circle and edge segment are calculated. The vector connecting them
+//   is taken as the separating axis. The projections must then be calculated
+//   using support points. 
+
 struct separating_axis_cyl_tri {
     vector3 dir;
     scalar distance;
@@ -70,6 +90,7 @@ void collide_cylinder_triangle(
         case TRIANGLE_FEATURE_FACE:
             return false;
         }
+        return false;
     };
 
     // Cylinder cap normal. Test both directions of the cylinder axis to
@@ -430,11 +451,9 @@ void collide_cylinder_triangle(
                                             &s[1], &t[1], &p0[1], &p1[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
-                if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                    auto pA_in_B = p0[i] - sep_axis.dir * cylinder.radius;
-                    auto pA = to_object_space(pA_in_B, posA, ornA);
-                    result.maybe_add_point({pA, p1[i], sep_axis.dir, sep_axis.distance});
-                }
+                auto pA_in_B = p0[i] - sep_axis.dir * cylinder.radius;
+                auto pA = to_object_space(pA_in_B, posA, ornA);
+                result.maybe_add_point({pA, p1[i], sep_axis.dir, sep_axis.distance});
             }
             break;
         }

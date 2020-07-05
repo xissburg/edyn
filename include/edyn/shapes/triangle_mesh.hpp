@@ -16,12 +16,16 @@ struct triangle_mesh {
     std::vector<uint16_t> indices;
     std::vector<scalar> cos_angles;
     std::vector<bool> is_concave_edge;
-    AABB aabb;
     static_tree tree;
 
     size_t num_triangles() const {
         EDYN_ASSERT(indices.size() % 3 == 0);
         return indices.size() / 3;
+    }
+
+    const AABB &get_aabb() const {
+        EDYN_ASSERT(!tree.m_nodes.empty());
+        return tree.m_nodes.front().aabb;
     }
 
     template<typename Func>
@@ -43,8 +47,21 @@ struct triangle_mesh {
         });
     }
 
+    template<typename Func>
+    void visit_all(Func func) const {
+        for (size_t i = 0; i < num_triangles(); ++i) {
+            auto verts = triangle_vertices{
+                vertices[indices[i * 3 + 0]],
+                vertices[indices[i * 3 + 1]],
+                vertices[indices[i * 3 + 2]]
+            };
+
+            func(i, verts);
+        }
+    }
+
     void initialize();
-    void calculate_aabb();
+    void initialize_edge_angles();
     void calculate_edge_angles();
     void build_tree();
 };

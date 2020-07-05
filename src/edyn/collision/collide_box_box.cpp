@@ -200,8 +200,6 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // If not all vertices are contained in a face, perform edge intersection tests.
         if (result.num_points < 4) {
-            auto face_normalB = shB.get_face_normal(sep_axis.feature_indexB);
-
             for (size_t i = 0; i < 4; ++i) {
                 auto &a0 = face_verticesA[i];
                 auto &a1 = face_verticesA[(i + 1) % 4];
@@ -274,7 +272,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 closest_point_segment_segment(v0, v1, edge_vertices[0], edge_vertices[1], 
                                               s[0], t[0], p0[0], p1[0], &num_points, 
                                               &s[1], &t[1], &p0[1], &p1[1]);
-                for (int i = 0; i < num_points; ++i) {
+                for (size_t i = 0; i < num_points; ++i) {
                     if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
                         auto pivotA = is_faceA ? to_object_space(p0[i], posA, ornA) :
                                                  to_object_space(p1[i], posA, ornA);

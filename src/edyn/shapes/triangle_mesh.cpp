@@ -3,28 +3,20 @@
 namespace edyn {
 
 void triangle_mesh::initialize() {
-    calculate_aabb();
     build_tree();
+    initialize_edge_angles();
     calculate_edge_angles();
 }
 
-void triangle_mesh::calculate_aabb() {
-    aabb.min = vector3_max;
-    aabb.max = -vector3_max;
-
-    for (auto &v : vertices) {
-        aabb.min = min(aabb.min, v);
-        aabb.max = max(aabb.max, v);
-    }
-}
-
-void triangle_mesh::calculate_edge_angles() {
+void triangle_mesh::initialize_edge_angles() {
     cos_angles.resize(indices.size());
     is_concave_edge.resize(indices.size());
 
     std::fill(cos_angles.begin(), cos_angles.end(), scalar(-1));
     std::fill(is_concave_edge.begin(), is_concave_edge.end(), false);
+}
 
+void triangle_mesh::calculate_edge_angles() {
     for (size_t i = 0; i < num_triangles(); ++i) {
         // Pointer to first element of the i-th triangle's 3 indices.
         auto i_idx = &indices[i * 3];
@@ -142,7 +134,10 @@ void triangle_mesh::build_tree() {
         aabbs.push_back(tri_aabb);
     }
 
-    tree.build(aabbs.begin(), aabbs.end());
+    auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
+        node.id = *ids_begin;
+    };
+    tree.build(aabbs.begin(), aabbs.end(), report_leaf);
 }
 
 }

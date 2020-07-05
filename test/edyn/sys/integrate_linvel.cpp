@@ -33,7 +33,7 @@ TEST(integrate_linvel, test) {
     auto& v1 = registry.get<edyn::linvel>(e1);
 
     ASSERT_EQ(p0_1, p0_0); // e0 has no velocity, thus unchanged
-    ASSERT_DOUBLE_EQ(p1_1.x, (p1_0 + v1 * dt * n).x);
-    ASSERT_DOUBLE_EQ(p1_1.y, (p1_0 + v1 * dt * n).y);
-    ASSERT_DOUBLE_EQ(p1_1.z, (p1_0 + v1 * dt * n).z);
+    ASSERT_SCALAR_EQ(p1_1.x, (p1_0 + v1 * dt * n).x);
+    ASSERT_SCALAR_EQ(p1_1.y, (p1_0 + v1 * dt * n).y);
+    ASSERT_SCALAR_EQ(p1_1.z, (p1_0 + v1 * dt * n).z);
 }

@@ -74,13 +74,18 @@ set(EDyn_SOURCES
     src/edyn/collision/collide_sphere_mesh.cpp
     src/edyn/collision/collide_capsule_mesh.cpp
     src/edyn/collision/collide_cylinder_mesh.cpp
+    src/edyn/collision/collide_sphere_paged_mesh.cpp
+    src/edyn/collision/collide_capsule_paged_mesh.cpp
+    src/edyn/collision/collide_cylinder_paged_mesh.cpp
     src/edyn/collision/collide_box_box.cpp
     src/edyn/collision/collide_box_mesh.cpp
+    src/edyn/collision/collide_box_paged_mesh.cpp
     src/edyn/collision/collide_box_plane.cpp
     src/edyn/collision/collide_capsule_box.cpp
     src/edyn/collision/collide_cylinder_box.cpp
     src/edyn/collision/collide_sphere_box.cpp
     src/edyn/collision/collide_cylinder_triangle.cpp
+    src/edyn/collision/collide_sphere_triangle.cpp
     src/edyn/collision/collision_result.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/contact_patch_constraint.cpp
@@ -107,9 +112,13 @@ set(EDyn_SOURCES
     src/edyn/util/tire_util.cpp
     src/edyn/util/shape_util.cpp
     src/edyn/shapes/triangle_mesh.cpp
+    src/edyn/shapes/paged_triangle_mesh.cpp
     src/edyn/shapes/triangle_shape.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
+    src/edyn/parallel/job_queue.cpp
+    src/edyn/parallel/job_dispatcher.cpp
+    src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/edyn.cpp
 )
 
@@ -143,6 +152,12 @@ target_compile_features(EDyn PUBLIC cxx_std_17)
 if(EDYN_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
+
+#
+# Command-line tool
+#
+
+
 
 #
 # Tests
