@@ -103,6 +103,11 @@ public:
         , m_path(path)
     {}
 
+    void open(const std::string &path) {
+        super::open(path);
+        m_path = path;
+    }
+
     void load(size_t index) override;
 
     virtual entt::sink<loaded_mesh_func_t> loaded_mesh_sink() override {
