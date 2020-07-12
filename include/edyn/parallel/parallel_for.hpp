@@ -3,10 +3,10 @@
 
 #include <mutex>
 #include <atomic>
-#include <future>
 #include <numeric>
 #include <iterator>
 #include "edyn/config/config.h"
+#include "edyn/parallel/mutex_counter.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 
@@ -24,17 +24,37 @@ public:
     using atomic_index_type = std::atomic<IndexType>;
     using job_type = parallel_for_job<IndexType, Function>;
 
+    /**
+     * Constructor for root job.
+     */
     parallel_for_job(job_dispatcher &dispatcher, 
-                     job_type *parent, 
                      IndexType first, IndexType last, 
                      IndexType step, const Function *func)
         : m_dispatcher(&dispatcher)
-        , m_parent(parent)
+        , m_parent(nullptr)
         , m_first(first)
         , m_last(last)
         , m_step(step)
         , m_current(first)
         , m_func(func)
+        , m_counter(std::make_shared<mutex_counter>())
+    {}
+
+    /**
+     * Constructor for child jobs.
+     */
+    parallel_for_job(job_dispatcher &dispatcher, 
+                     job_type *parent,
+                     std::shared_ptr<mutex_counter> counter,
+                     IndexType step, const Function *func)
+        : m_dispatcher(&dispatcher)
+        , m_parent(parent)
+        , m_first(0)
+        , m_last(0)
+        , m_step(step)
+        , m_current(0)
+        , m_func(func)
+        , m_counter(counter)
     {}
 
     void run() override {
@@ -70,7 +90,6 @@ public:
             // If the parent job with the biggest amount of work remaining is
             // nearly done, do nothing and return.
             if (target_remaining * 6 < target_total) {
-                m_promise.set_value();
                 return;
             }
 
@@ -88,23 +107,22 @@ public:
             // Child jobs don't need to start with a range, it will be
             // stolen from a parent when it runs. This ensures no attempt
             // will be made to steal a range from this child job.
-            m_child = std::make_shared<job_type>(*m_dispatcher, this, 0, 0, m_step, m_func);
+            m_child = std::make_shared<job_type>(*m_dispatcher, this, m_counter, m_step, m_func);
             m_dispatcher->async(m_child);
         }
+
+        m_counter->increment();
 
         for (auto i = m_first.load(); i < m_last.load(); i += m_step) {
             m_current = i;
             (*m_func)(i);
         }
 
-        m_promise.set_value();
+        m_counter->decrement();
     }
 
     void join() {
-        auto j = this;
-        while ((j = j->m_child.get())) {
-            j->m_promise.get_future().get();
-        }
+        m_counter->wait();
     }
 
 private:
@@ -116,7 +134,7 @@ private:
     parallel_for_job *m_parent;
     std::shared_ptr<job_type> m_child;
     job_dispatcher *m_dispatcher;
-    std::promise<void> m_promise;
+    std::shared_ptr<mutex_counter> m_counter;
 };
 
 } // namespace detail
@@ -127,7 +145,7 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
 
     using job_type = detail::parallel_for_job<IndexType, Function>;
 
-    auto root_job = job_type(dispatcher, nullptr, first, last, step, &func);
+    auto root_job = job_type(dispatcher, first, last, step, &func);
     root_job.run();
     root_job.join();
 }

@@ -111,12 +111,6 @@ public:
      */
     template<typename Func>
     void visit_cache(const AABB &aabb, Func func) const {
-        constexpr auto inset = vector3 {
-            -contact_breaking_threshold, 
-            -contact_breaking_threshold, 
-            -contact_breaking_threshold
-        };
-
         for (size_t i = 0; i < m_cache.size(); ++i) {
             auto &node = m_cache[i];
 
