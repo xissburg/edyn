@@ -64,8 +64,8 @@ void create_contact_constraint(entt::entity entity, entt::registry &registry,
     // A new relation identical to the manifold's relation is created
     // for every contact point because every constraint needs a corresponding
     // relation to refer to the constrained entities.
-    auto &cp_rel = registry.assign<relation>(entity, rel.entity[0], rel.entity[1]);
-    
+    auto &cp_rel = registry.get_or_assign<relation>(entity, rel.entity[0], rel.entity[1]);
+
     // WARNING: referring to `rel.entity` below is not safe because a new
     // relation was just created.
 
