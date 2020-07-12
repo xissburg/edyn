@@ -26,10 +26,27 @@ entt::entity make_constraint(entt::registry &registry, T&& c, entt::entity ent0,
     return ent;
 }
 
+/**
+ * Gets the constraint of type `T` in the `constraint` component assigned
+ * to `entity`.
+ */
 template<typename T> inline
-T& get_constraint(entt::entity entity, entt::registry &registry) {
+T & get_constraint(entt::entity entity, entt::registry &registry) {
     auto& con = registry.get<constraint>(entity);
     return std::get<T>(con.var);
+}
+
+/**
+ * Attempts to get a constraint of type `T` in the `constraint` component
+ * assigned to `entity`.
+ */
+template<typename T> inline
+T * try_get_constraint(entt::entity entity, entt::registry &registry) {
+    auto *con = registry.try_get<constraint>(entity);
+    if (con && std::holds_alternative<T>(con->var)) {
+        return &std::get<T>(con->var);
+    }
+    return nullptr;
 }
 
 /**
