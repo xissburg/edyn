@@ -5,6 +5,7 @@
 #include <atomic>
 #include <numeric>
 #include <iterator>
+#include <forward_list>
 #include "edyn/config/config.h"
 #include "edyn/parallel/mutex_counter.hpp"
 #include "edyn/parallel/job.hpp"
@@ -15,125 +16,151 @@ namespace edyn {
 namespace detail {
 
 /**
- * Job class used in `parallel_for`. It creates a chain of jobs of the same type.
- * At the time of execution, it steals a range of the remaining work of a parent.
+ * A for-loop with an atomic editable range.
  */
 template<typename IndexType, typename Function>
-class parallel_for_job: public job {
-public:
+struct ranged_for_loop {
     using atomic_index_type = std::atomic<IndexType>;
-    using job_type = parallel_for_job<IndexType, Function>;
 
-    /**
-     * Constructor for root job.
-     */
-    parallel_for_job(job_dispatcher &dispatcher, 
-                     IndexType first, IndexType last, 
-                     IndexType step, const Function *func)
-        : m_dispatcher(&dispatcher)
-        , m_parent(nullptr)
-        , m_first(first)
+    ranged_for_loop(IndexType first, IndexType last, 
+                    IndexType step, const Function *func)
+        : m_first(first)
         , m_last(last)
         , m_step(step)
         , m_current(first)
         , m_func(func)
-        , m_counter(std::make_shared<mutex_counter>())
     {}
 
-    /**
-     * Constructor for child jobs.
-     */
-    parallel_for_job(job_dispatcher &dispatcher, 
-                     job_type *parent,
-                     std::shared_ptr<mutex_counter> counter,
-                     IndexType step, const Function *func)
-        : m_dispatcher(&dispatcher)
-        , m_parent(parent)
-        , m_first(0)
-        , m_last(0)
-        , m_step(step)
-        , m_current(0)
-        , m_func(func)
-        , m_counter(counter)
-    {}
-
-    void run() override {
-        // Target job to steal a range from.
-        job_type *target_job = nullptr;
-        IndexType target_first = 0;
-        IndexType target_last = 0;
-        IndexType target_remaining = 0;
-        IndexType target_total = 0;
-
-        size_t num_jobs = 0;
-
-        // Look for parent job with the biggest number of work remaining.
-        auto parent = this;
-
-        while ((parent = parent->m_parent)) {
-            ++num_jobs;
-            auto last = parent->m_last.load();
-            auto current = parent->m_current.load();
-            auto remaining = last - current;
-
-            if (remaining > target_remaining) {
-                target_job = parent;
-                target_last = last;
-                target_first = current + remaining / 2; // Steal half.
-                target_remaining = remaining;
-                auto first = parent->m_first.load();
-                target_total = last - first;
-            }
-        }
-
-        if (target_job) {
-            // If the parent job with the biggest amount of work remaining is
-            // nearly done, do nothing and return.
-            if (target_remaining * 6 < target_total) {
-                return;
-            }
-
-            m_first = target_first;
-            m_last = target_last;
-            m_current = target_first;
-            // Effectively steal a range of work from parent by moving its last
-            // index to the left.
-            target_job->m_last = target_first;
-        }
-
-        // Only create child job if the total number of jobs is still lower
-        // than the number of workers available.
-        if (num_jobs < m_dispatcher->num_workers()) {
-            // Child jobs don't need to start with a range, it will be
-            // stolen from a parent when it runs. This ensures no attempt
-            // will be made to steal a range from this child job.
-            m_child = std::make_shared<job_type>(*m_dispatcher, this, m_counter, m_step, m_func);
-            m_dispatcher->async(m_child);
-        }
-
-        m_counter->increment();
-
+    void run() {
         for (auto i = m_first.load(); i < m_last.load(); i += m_step) {
             m_current = i;
             (*m_func)(i);
         }
-
-        m_counter->decrement();
     }
 
-    void join() {
-        m_counter->wait();
-    }
-
-private:
     atomic_index_type m_first;
     atomic_index_type m_last;
     atomic_index_type m_step;
     atomic_index_type m_current;
     const Function *m_func;
-    parallel_for_job *m_parent;
-    std::shared_ptr<job_type> m_child;
+};
+
+/**
+ * A pool of ranged for-loops where new loops can be created by stealing a
+ * range from an existing one.
+ */
+template<typename IndexType, typename Function>
+class ranged_for_loop_pool {
+public:
+    using ranged_for_loop_type = ranged_for_loop<IndexType, Function>;
+
+    ranged_for_loop_pool(IndexType first, IndexType last, 
+                         IndexType step, const Function *func)
+        : m_first(first)
+        , m_last(last)
+        , m_step(step)
+        , m_func(func)
+        , m_size(0)
+    {}
+
+    ranged_for_loop_type *steal() {
+        if (m_loops.empty()) {
+            // Create the first loop with the entire range.
+            auto &loop = m_loops.emplace_front(m_first, m_last, m_step, m_func);
+            ++m_size;
+            return &loop;
+        }
+
+        // Store values for the candidate loop so they won't have to be recalculated.
+        IndexType candidate_mid = 0;
+        IndexType candidate_last = 0;
+        IndexType candidate_remaining = 0;
+        IndexType candidate_total = 0;
+        ranged_for_loop_type *candidate_loop = nullptr;
+
+        // Find loop with the largest number of remaining work.
+        for (auto &curr_loop : m_loops) {
+            auto last = curr_loop.m_last.load();
+            auto current = curr_loop.m_current.load();
+            auto remaining = last - current;
+
+            if (remaining > candidate_remaining) {
+                candidate_loop = &curr_loop;
+                candidate_last = last;
+                candidate_mid = current + remaining / 2; // Steal ~ half.
+                candidate_remaining = remaining;
+                auto first = curr_loop.m_first.load();
+                candidate_total = last - first;
+            }
+        }
+
+        // Return null if the loop with the biggest amount of remaining work is
+        // nearly done (i.e. the remaining work is under a percentage of the total)
+        if (candidate_remaining * 100 < candidate_total * 6) {
+            return nullptr;
+        }
+
+        // Effectively steal a range of work from candidate by moving its last
+        // index to the middle.
+        candidate_loop->m_last = candidate_mid;
+
+        auto &loop = m_loops.emplace_front(candidate_mid, candidate_last, m_step, m_func);
+        ++m_size;
+        return &loop;
+    }
+
+    auto size() const {
+        return m_size;
+    }
+
+private:
+    const IndexType m_first;
+    const IndexType m_last;
+    const IndexType m_step;
+    const Function *m_func;
+    std::forward_list<ranged_for_loop_type> m_loops;
+    size_t m_size;
+};
+
+/**
+ * Steals a range from the pool and runs it at time of execution.
+ */
+template<typename IndexType, typename Function>
+class parallel_for_job: public job {
+public:
+    using ranged_for_loop_pool_type = ranged_for_loop_pool<IndexType, Function>;
+
+    parallel_for_job(job_dispatcher &dispatcher,
+                     std::shared_ptr<ranged_for_loop_pool_type> loop_pool,
+                     std::shared_ptr<mutex_counter> counter)
+        : m_dispatcher(&dispatcher)
+        , m_loop_pool(loop_pool)
+        , m_counter(counter)
+    {}
+
+    void run() override {
+        // Only steal a range and create a new job if the total number of
+        // loops is still lower than the number of workers available.
+        if (m_loop_pool->size() >= m_dispatcher->num_workers()) {
+            return;
+        }
+        
+        auto *loop = m_loop_pool->steal();
+        if (!loop) {
+            return;
+        }
+
+        auto child_job = std::make_shared<parallel_for_job>(*m_dispatcher, m_loop_pool, m_counter);
+        m_dispatcher->async(std::static_pointer_cast<job>(child_job));
+
+        m_counter->increment();
+        loop->run();
+        m_counter->decrement();
+    }
+
+private:
     job_dispatcher *m_dispatcher;
+    std::shared_ptr<ranged_for_loop_pool_type> m_loop_pool;
     std::shared_ptr<mutex_counter> m_counter;
 };
 
@@ -142,12 +169,18 @@ private:
 template<typename IndexType, typename Function>
 void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, IndexType step, const Function &func) {
     EDYN_ASSERT(step > IndexType{0});
-
     using job_type = detail::parallel_for_job<IndexType, Function>;
+    using loop_pool_type = detail::ranged_for_loop_pool<IndexType, Function>;
 
-    auto root_job = job_type(dispatcher, first, last, step, &func);
-    root_job.run();
-    root_job.join();
+    auto loop_pool = std::make_shared<loop_pool_type>(first, last, step, &func);
+    auto *loop = loop_pool->steal();
+    
+    auto counter = std::make_shared<mutex_counter>();
+    auto child_job = std::make_shared<job_type>(dispatcher, loop_pool, counter);
+    dispatcher.async(child_job);
+
+    loop->run();
+    counter->wait();
 }
 
 template<typename IndexType, typename Function>
