@@ -2,7 +2,6 @@
 #define EDYN_SHAPES_BOX_SHAPE_HPP
 
 #include "edyn/math/vector3.hpp"
-#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
 #include <tuple>

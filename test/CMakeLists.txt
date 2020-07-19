@@ -1,9 +1,9 @@
-include_directories($<TARGET_PROPERTY:EDyn,INCLUDE_DIRECTORIES>)
-add_compile_options($<TARGET_PROPERTY:EDyn,COMPILE_OPTIONS>)
+include_directories($<TARGET_PROPERTY:Edyn,INCLUDE_DIRECTORIES>)
+add_compile_options($<TARGET_PROPERTY:Edyn,COMPILE_OPTIONS>)
 
 macro(SETUP_AND_ADD_TEST TEST_NAME TEST_SOURCE)
     add_executable(${TEST_NAME} ${TEST_SOURCE})
-    target_link_libraries(${TEST_NAME} PRIVATE EDyn GTest::Main)
+    target_link_libraries(${TEST_NAME} PRIVATE Edyn GTest::Main)
     set_property(TARGET ${TEST_NAME} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin/test)
     gtest_discover_tests(${TEST_NAME})
 endmacro()

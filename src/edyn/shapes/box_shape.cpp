@@ -1,4 +1,5 @@
 #include "edyn/shapes/box_shape.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include <map>
 #include <unordered_set>
 

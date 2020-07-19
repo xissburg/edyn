@@ -1,9 +1,9 @@
-include_directories($<TARGET_PROPERTY:EDyn,INCLUDE_DIRECTORIES>)
-add_compile_options($<TARGET_PROPERTY:EDyn,COMPILE_OPTIONS>)
+include_directories($<TARGET_PROPERTY:Edyn,INCLUDE_DIRECTORIES>)
+add_compile_options($<TARGET_PROPERTY:Edyn,COMPILE_OPTIONS>)
 
 macro(SETUP_AND_ADD_EXAMPLE EXAMPLE_NAME EXAMPLE_SOURCES)
     add_executable(${EXAMPLE_NAME} ${EXAMPLE_SOURCES})
-    target_link_libraries(${EXAMPLE_NAME} PRIVATE EDyn)
+    target_link_libraries(${EXAMPLE_NAME} PRIVATE Edyn)
 
     if (UNIX AND NOT APPLE)
         target_link_libraries(${EXAMPLE_NAME} PRIVATE
