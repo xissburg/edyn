@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.7.2)
 
-project(EDyn VERSION 0.0.0 LANGUAGES CXX)
+project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
 #
 # Explicit debug build by default
@@ -56,7 +56,7 @@ conan_basic_setup()
 # Library
 #
 
-set(EDyn_SOURCES
+set(Edyn_SOURCES
     src/edyn/math/geom.cpp
     src/edyn/math/quaternion.cpp
     src/edyn/collision/broadphase.cpp
@@ -111,27 +111,27 @@ set(EDyn_SOURCES
 )
 
 if(UNIX)
-    set(EDyn_SOURCES
-        ${EDyn_SOURCES}
+    set(Edyn_SOURCES
+        ${Edyn_SOURCES}
         src/edyn/time/unix/time.cpp
     )
 endif()
 
-add_library(EDyn STATIC ${EDyn_SOURCES})
+add_library(Edyn STATIC ${Edyn_SOURCES})
 
-configure_file(${EDyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${EDyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
-install(FILES ${EDyn_BINARY_DIR}/include/build_settings.h DESTINATION include/edyn)
+configure_file(${Edyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${Edyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
+install(FILES ${Edyn_BINARY_DIR}/include/build_settings.h DESTINATION include/edyn)
 
-target_include_directories(EDyn 
-    PUBLIC ${EDyn_SOURCE_DIR}/include
-    PUBLIC ${EDyn_BINARY_DIR}/include
+target_include_directories(Edyn 
+    PUBLIC ${Edyn_SOURCE_DIR}/include
+    PUBLIC ${Edyn_BINARY_DIR}/include
 )
 
-target_include_directories(EDyn SYSTEM 
+target_include_directories(Edyn SYSTEM 
     PUBLIC ${CONAN_INCLUDE_DIRS_ENTT}
 )
 
-target_compile_features(EDyn PUBLIC cxx_std_17)
+target_compile_features(Edyn PUBLIC cxx_std_17)
 
 #
 # Examples
