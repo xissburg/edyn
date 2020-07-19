@@ -29,7 +29,6 @@ struct rigidbody_def {
     // Initial position and orientation.
     vector3 position {vector3_zero};
     quaternion orientation {quaternion_identity};
-    scalar spin_angle {0};
 
     // Mass properties for dynamic entities.
     scalar mass {1};
@@ -38,7 +37,6 @@ struct rigidbody_def {
     // Initial linear and angular velocity.
     vector3 linvel {vector3_zero};
     vector3 angvel {vector3_zero};
-    scalar spin {0};
 
     // Gravity acceleration.
     vector3 gravity {gravity_earth};
@@ -53,9 +51,6 @@ struct rigidbody_def {
 
     bool sensor {false};
 
-    bool spin_enabled {false};
-
-    bool is_tire {false};
     scalar lon_tread_stiffness {3000000};
     scalar lat_tread_stiffness {1800000};
     scalar speed_sensitivity {0.03};

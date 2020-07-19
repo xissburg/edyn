@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 
 namespace edyn {
