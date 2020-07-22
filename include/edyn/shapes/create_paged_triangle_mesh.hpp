@@ -1,6 +1,7 @@
 #ifndef EDYN_SHAPES_CREATE_PAGED_TRIANGLE_MESH_HPP
 #define EDYN_SHAPES_CREATE_PAGED_TRIANGLE_MESH_HPP
 
+#include <cstdint>
 #include "edyn/shapes/paged_triangle_mesh.hpp"
 
 namespace edyn {

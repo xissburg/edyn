@@ -1,5 +1,6 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/config/config.h"
+#include <cstdint>
 
 namespace edyn {
 

@@ -107,7 +107,6 @@ void broadphase::update() {
     }
 }
 
-
 bool broadphase::should_collide(entt::entity e0, entt::entity e1) const {
     if ((registry->has<static_tag>(e0) || registry->has<kinematic_tag>(e0)) &&
         (registry->has<static_tag>(e1) || registry->has<kinematic_tag>(e1))) {

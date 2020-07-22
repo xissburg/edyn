@@ -2,6 +2,7 @@
 #include "edyn/shapes/triangle_shape.hpp"
 #include "edyn/math/math.hpp"
 #include <algorithm>
+#include <cstdint>
 
 namespace edyn {
 
