@@ -2,6 +2,7 @@
 #define EDYN_MATH_VECTOR3_HPP
 
 #include <cmath>
+#include <algorithm>
 #include "scalar.hpp"
 #include "edyn/config/config.h"
 
