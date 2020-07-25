@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7.2)
+cmake_minimum_required(VERSION 3.12.4)
 
 project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
