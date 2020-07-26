@@ -10,8 +10,6 @@ public:
     virtual ~job() {}
 
     virtual void run() = 0;
-
-    void operator()();
 };
 
 class std_function_job : public job {
