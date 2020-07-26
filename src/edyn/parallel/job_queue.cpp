@@ -3,10 +3,6 @@
 
 namespace edyn {
 
-void job::operator()() {
-    run();
-}
-
 void job_queue::push(std::shared_ptr<job> j) {
     {
         std::lock_guard<std::mutex> lock(m_mutex);

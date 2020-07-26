@@ -27,7 +27,7 @@ public:
                 if (m_thief) {
                     auto j = m_thief->try_steal();
                     if (j) {
-                        j->operator()();
+                        j->run();
                         did_steal = true;
                     }
                 }
@@ -40,7 +40,7 @@ public:
             auto j = m_queue.pop();
 
             if (j) {
-                j->operator()();
+                j->run();
                 --m_size;
             }
 
@@ -53,7 +53,7 @@ public:
 
     void once() {
         while (auto j = m_queue.try_pop()) {
-            j->operator()();
+            j->run();
             --m_size;
         }
     }

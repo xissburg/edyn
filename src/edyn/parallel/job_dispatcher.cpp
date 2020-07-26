@@ -70,38 +70,42 @@ void job_dispatcher::async(std::shared_ptr<job> j) {
 }
 
 void job_dispatcher::async(std::thread::id id, std::shared_ptr<job> j) {
-    std::lock_guard<std::mutex> lock(m_external_workers_mutex);
-    EDYN_ASSERT(m_external_workers.count(id));
-
     // Must not be called from a worker thread.
     EDYN_ASSERT(!m_workers.count(id));
-    
-    m_external_workers[id]->push_job(j);
+
+    worker *w;
+    {
+        std::lock_guard<std::mutex> lock(m_external_workers_mutex);
+        EDYN_ASSERT(m_external_workers.count(id));    
+        w = m_external_workers[id].get();
+    }
+    w->push_job(j);
 }
 
 void job_dispatcher::assure_current_worker() {
-    std::lock_guard<std::mutex> lock(m_external_workers_mutex);
     auto id = std::this_thread::get_id();
-
     // Must not be called from a worker thread.
     EDYN_ASSERT(!m_workers.count(id));
 
-    if (m_external_workers.count(id)) {
-        return;
-    }
+    std::lock_guard<std::mutex> lock(m_external_workers_mutex);
 
-    m_external_workers[id] = std::make_unique<worker>();
+    if (!m_external_workers.count(id)) {
+        m_external_workers[id] = std::make_unique<worker>();
+    }
 }
 
 void job_dispatcher::once_current_worker() {
-    std::lock_guard<std::mutex> lock(m_external_workers_mutex);
     auto id = std::this_thread::get_id();
-
     // Must not be called from a worker thread.
     EDYN_ASSERT(!m_workers.count(id));
 
-    EDYN_ASSERT(m_external_workers.count(id));
-    m_external_workers[id]->once();
+    worker *w;
+    {
+        std::lock_guard<std::mutex> lock(m_external_workers_mutex);
+        EDYN_ASSERT(m_external_workers.count(id));
+        w = m_external_workers[id].get();
+    }
+    w->once();
 }
 
 size_t job_dispatcher::num_workers() const {
