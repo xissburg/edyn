@@ -61,15 +61,15 @@ struct time_start_info {
 
     time_start_info() {
         /* Set first ticks value */
-    #if HAVE_CLOCK_GETTIME
-        if (clock_gettime(EDYN_MONOTONIC_CLOCK, &start_ts) == 0) {
-            has_monotonic_time = true;
-        } else
-    #elif defined(__APPLE__)
+    #if defined(__APPLE__)
         kern_return_t ret = mach_timebase_info(&mach_base_info);
         if (ret == 0) {
             has_monotonic_time = true;
             start_mach = mach_absolute_time();
+        } else
+    #elif HAVE_CLOCK_GETTIME
+        if (clock_gettime(EDYN_MONOTONIC_CLOCK, &start_ts) == 0) {
+            has_monotonic_time = true;
         } else
     #endif
         {
@@ -85,14 +85,14 @@ uint32_t ticks()
     uint32_t ticks;
 
     if (info.has_monotonic_time) {
-#if HAVE_CLOCK_GETTIME
+#if defined(__APPLE__)
+        uint64_t now = mach_absolute_time();
+        ticks = (uint32_t)((((now - info.start_mach) * info.mach_base_info.numer) / info.mach_base_info.denom) / 1e6);
+#elif HAVE_CLOCK_GETTIME
         struct timespec now;
         clock_gettime(EDYN_MONOTONIC_CLOCK, &now);
         ticks = (now.tv_sec - info.start_ts.tv_sec) * 1e3 + (now.tv_nsec -
                                                  info.start_ts.tv_nsec) / 1e6;
-#elif defined(__APPLE__)
-        uint64_t now = mach_absolute_time();
-        ticks = (uint32_t)((((now - start_mach) * mach_base_info.numer) / mach_base_info.denom) / 1e6);
 #else
         EDYN_ASSERT(false);
         ticks = 0;

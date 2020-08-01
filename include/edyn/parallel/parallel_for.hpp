@@ -32,10 +32,12 @@ struct ranged_for_loop {
     {}
 
     void run() {
-        for (auto i = m_first.load(); i < m_last.load(); i += m_step) {
+        auto i = m_first.load();
+        for (; i < m_last.load(); i += m_step) {
             m_current = i;
             (*m_func)(i);
         }
+        m_current = m_last.load();
     }
 
     atomic_index_type m_first;
@@ -82,6 +84,7 @@ public:
         for (auto &curr_loop : m_loops) {
             auto last = curr_loop.m_last.load();
             auto current = curr_loop.m_current.load();
+            EDYN_ASSERT(current <= last);
             auto remaining = last - current;
 
             if (remaining > candidate_remaining) {
@@ -92,6 +95,10 @@ public:
                 auto first = curr_loop.m_first.load();
                 candidate_total = last - first;
             }
+        }
+
+        if (candidate_remaining <= 2) { 
+            return nullptr;
         }
 
         // Return null if the loop with the biggest amount of remaining work is
@@ -150,10 +157,11 @@ public:
             return;
         }
 
+        m_counter->increment();
+
         auto child_job = std::make_shared<parallel_for_job>(*m_dispatcher, m_loop_pool, m_counter);
         m_dispatcher->async(std::static_pointer_cast<job>(child_job));
 
-        m_counter->increment();
         loop->run();
         m_counter->decrement();
     }

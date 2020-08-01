@@ -1,6 +1,7 @@
 #ifndef EDYN_MATH_GEOM_HPP
 #define EDYN_MATH_GEOM_HPP
 
+#include <cstdint>
 #include "constants.hpp"
 #include "quaternion.hpp"
 #include "vector2.hpp"

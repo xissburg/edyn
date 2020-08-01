@@ -2,6 +2,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include <map>
 #include <unordered_set>
+#include <cstdint>
 
 namespace edyn {
 
