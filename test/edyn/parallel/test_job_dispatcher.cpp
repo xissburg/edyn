@@ -77,3 +77,20 @@ TEST_F(job_dispatcher_test, parallel_for_each) {
         ASSERT_EQ(*it, 91);
     });
 }
+
+TEST_F(job_dispatcher_test, parallel_for_small) {
+    constexpr size_t num_samples = 113;
+    std::vector<int> values(num_samples);
+
+    edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {
+        values[i] = 27;
+    });
+
+    edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {
+        values[i] = values[i] + 18;
+    });
+
+    edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {
+        ASSERT_EQ(values[i], 27 + 18);
+    });
+}

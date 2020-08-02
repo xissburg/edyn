@@ -32,12 +32,11 @@ struct ranged_for_loop {
     {}
 
     void run() {
-        auto i = m_first.load();
-        for (; i < m_last.load(); i += m_step) {
-            m_current = i;
+        auto i = m_current.load(std::memory_order_relaxed);
+        while (i < m_last.load(std::memory_order_acquire)) {
             (*m_func)(i);
+            i = m_current.fetch_add(m_step, std::memory_order_release) + m_step;
         }
-        m_current = m_last.load();
     }
 
     atomic_index_type m_first;
@@ -66,6 +65,9 @@ public:
     {}
 
     ranged_for_loop_type *steal() {
+        // Key observation: this function is never called in parallel because
+        // each `parallel_for_job` spawns another `parallel_for_job` and this 
+        // function is called before a new job of this kind is scheduled.
         if (m_loops.empty()) {
             // Create the first loop with the entire range.
             auto &loop = m_loops.emplace_front(m_first, m_last, m_step, m_func);
@@ -73,45 +75,46 @@ public:
             return &loop;
         }
 
-        // Store values for the candidate loop so they won't have to be recalculated.
-        IndexType candidate_mid = 0;
-        IndexType candidate_last = 0;
         IndexType candidate_remaining = 0;
-        IndexType candidate_total = 0;
         ranged_for_loop_type *candidate_loop = nullptr;
 
         // Find loop with the largest number of remaining work.
         for (auto &curr_loop : m_loops) {
-            auto last = curr_loop.m_last.load();
-            auto current = curr_loop.m_current.load();
+            auto last = curr_loop.m_last.load(std::memory_order_acquire);
+            auto current = curr_loop.m_current.load(std::memory_order_acquire);
             EDYN_ASSERT(current <= last);
             auto remaining = last - current;
 
-            if (remaining > candidate_remaining) {
+            if (remaining >= candidate_remaining) {
                 candidate_loop = &curr_loop;
-                candidate_last = last;
-                candidate_mid = current + remaining / 2; // Steal ~ half.
                 candidate_remaining = remaining;
-                auto first = curr_loop.m_first.load();
-                candidate_total = last - first;
             }
         }
 
-        if (candidate_remaining <= 2) { 
+        auto last = candidate_loop->m_last.load(std::memory_order_acquire);
+        auto current = candidate_loop->m_current.load(std::memory_order_acquire);
+
+        // No work left to be stolen.
+        if (!(current + 1 < last)) { 
             return nullptr;
         }
 
+        auto remaining = last - current;
+        auto first = candidate_loop->m_first.load(std::memory_order_relaxed);
+        auto total = last - first;
+
         // Return null if the loop with the biggest amount of remaining work is
         // nearly done (i.e. the remaining work is under a percentage of the total)
-        if (candidate_remaining * 100 < candidate_total * 6) {
+        if (remaining * 100 < total * 6) {
             return nullptr;
         }
 
         // Effectively steal a range of work from candidate by moving its last
         // index to the middle.
-        candidate_loop->m_last = candidate_mid;
+        auto middle = current + remaining / 2;
+        candidate_loop->m_last.store(middle, std::memory_order_release);
 
-        auto &loop = m_loops.emplace_front(candidate_mid, candidate_last, m_step, m_func);
+        auto &loop = m_loops.emplace_front(middle, last, m_step, m_func);
         ++m_size;
         return &loop;
     }
@@ -146,6 +149,9 @@ public:
     {}
 
     void run() override {
+        m_counter->increment();
+        auto defer = std::shared_ptr<void>(nullptr, [&] (...) { m_counter->decrement(); });
+
         // Only steal a range and create a new job if the total number of
         // loops is still lower than the number of workers available.
         if (m_loop_pool->size() >= m_dispatcher->num_workers()) {
@@ -157,13 +163,10 @@ public:
             return;
         }
 
-        m_counter->increment();
-
         auto child_job = std::make_shared<parallel_for_job>(*m_dispatcher, m_loop_pool, m_counter);
         m_dispatcher->async(std::static_pointer_cast<job>(child_job));
 
         loop->run();
-        m_counter->decrement();
     }
 
 private:
