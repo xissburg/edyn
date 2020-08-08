@@ -13,13 +13,13 @@ struct spin_angle_constraint : public constraint_base<spin_angle_constraint> {
     scalar m_ratio {1};
     scalar m_stiffness {1e5};
     scalar m_damping {1e2};
-    scalar m_offset {0};
+    scalar m_offset_origin {0};
 
     void init(entt::entity, constraint &, const relation &, entt::registry &);
     void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
 
     void set_ratio(scalar, const relation &, entt::registry &);
-    scalar get_error(const relation &, entt::registry &) const;
+    scalar calculate_offset(const relation &, entt::registry &) const;
 };
 
 }
