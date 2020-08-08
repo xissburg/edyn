@@ -6,9 +6,7 @@ This document describes the general engine architecture. It is a bit of a brains
 
 _Edyn_ (pronounced like "eh-dyin'") stands for _Entity Dynamics_ and it is a real-time physics engine focused on multi-threaded, networked and distributed simulation of massive dynamic worlds. It is organized as an _entity-component system_ (ECS) using the amazing [EnTT](https://github.com/skypjack/entt) library.
 
-**Warning**: This library is still in an early stage of development and is not yet ready for most use cases. The information provided below is more of a design document and does not reflect the current state of the library.
-
-# The ECS approach
+## The ECS approach
 
 Typical physics engines will offer explicit means to create objects such as rigid bodies, whereas in _Edyn_ object creation is implicit due to the entity-component design. A rigid body is created from the bottom up, by associating its parts to a single entity, such as:
 
