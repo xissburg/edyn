@@ -84,3 +84,7 @@ def.friction = 0.9;
 def.gravity = edyn::gravity_earth;
 auto entity = edyn::make_rigidbody(registry, def);
 ```
+
+## Documentation
+
+See [docs/Design.md](https://github.com/xissburg/edyn/blob/master/docs/Design.md) to learn more about the engine's planned architecture.
