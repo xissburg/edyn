@@ -2,11 +2,11 @@
 
 This document describes the general engine architecture. It is a bit of a brainstorming document and does not reflect the current state of the library. The ideas presented here are planned to be implemented in the near future.
 
-# Introduction
+## Introduction
 
 _Edyn_ (pronounced like "eh-dyin'") stands for _Entity Dynamics_ and it is a real-time physics engine focused on multi-threaded, networked and distributed simulation of massive dynamic worlds. It is organized as an _entity-component system_ (ECS) using the amazing [EnTT](https://github.com/skypjack/entt) library.
 
-## The ECS approach
+### The ECS approach
 
 Typical physics engines will offer explicit means to create objects such as rigid bodies, whereas in _Edyn_ object creation is implicit due to the entity-component design. A rigid body is created from the bottom up, by associating its parts to a single entity, such as:
 
@@ -69,7 +69,7 @@ auto entity = edyn::make_rigidbody(registry, def);
 
 It is not necessary to assign a shape to a rigid body. That enables the simulation to contain implicit rigid bodies (not to be confused with the meaning of implicit from above) which are not visually present in the simulation and don't participate in collision detection, but instead are connected to other bodies via constraints and are used to generate forces that affect the primary entities that users interact with. As an example, this can be useful to simulate drivetrain components in a vehicle.
 
-# Foundation
+## Foundation
 
 The library can be built with single- or double-precision floating point. `edyn::scalar` is simply a `using` declaration equals to `float` or `double` which is set according to the `EDYN_DOUBLE_PRECISION` compilation option. _build_settings.hpp_ is generated during build from _cmake/build_settings.h.in_ so that invocations are linked to the correct definition.
 
@@ -81,11 +81,11 @@ The library can be built with single- or double-precision floating point. `edyn:
 
 _SIMD_ implementations are planned.
 
-# Relations
+## Relations
 
 If one entity could have its motion immediately influenced by another entity, a `edyn::relation` must be setup in a separate entity, which stores the entity ids of the related entities. This will ensure both will be in the same _island_ (more on that later) and the solver will apply impulses between them.
 
-# Constraints
+## Constraints
 
 Constraints are components of the type `edyn::constraint` which stores the actual constraint in `std::variant`. Different constraint types have different data and logic, thus the `std::variant`, which by default contains all the fundamental constraint implementations provided by the library. To add custom constraints to the library it is necessary to fork the project and modify the code to insert these into the variant.
 
@@ -97,7 +97,7 @@ Constraints are derived from `edyn::constraint_base` and can implement some of t
 
 A Sequential Impulse constraint solver is used.
 
-# Collision detection and response
+## Collision detection and response
 
 Many physics engines give special treatment to _contact constraints_ (aka _non-penetration constraints_). In _Edyn_ they are no different of other types of constraints. The `edyn::contact_constraint` is simply part of the `std::variant` in the `edyn::constraint` component.
 
@@ -113,11 +113,11 @@ To enable collision response for an entity, a `edyn::material` component must be
 
 Collision events can be observed by listening to `on_construct<entt::contact_point>` or `on_destroy<entt::contact_point>` in the `entt::registry`. It's important to note that when the `on_construct<entt::contact_point>` event is triggered, the contact was just created and thus its associated constraint has not yet been solved thus it has a zero impulse. If the impulse is required (e.g. to play sounds based on the intensity of the collision), it is possible to observe step signals in `edyn::world::step_sink` and look for `entt::contact_point`s that have `lifetime == 0`, which is only true for new contacts, and at this point they will have the collision impulse assigned.
 
-# Shapes
+## Shapes
 
 Similarly to constraints, `edyn::shape` also holds a `std::variant` with all shape types in its parameter pack. It's necessary to fork the project and modify the code to add custom shapes. It is also necessary to provide a `edyn::collide` function for every permutation of the custom shape with all existing shapes.
 
-## Paged triangle mesh shape
+### Paged triangle mesh shape
 
 For the shape of the world's terrain, a triangle mesh shape is usually the best choice. For larger worlds, it is interesting to split up this terrain in smaller chunks and load them in and out of the world as needed. The `edyn::paged_triangle_mesh` offers a deferred loading mechanism that will load chunks of a concave triangle mesh as dynamic objects enter their bounding boxes. It must be initialized with a set of entities with a `edyn::AABB` assigned and an `Archive` (which is templated).
 
@@ -127,21 +127,23 @@ When there are no dynamic entities in the AABB of the chunk, it becomes a candid
 
 Edge adjacency and Voronoi regions are used to prevent internal edge collisions.
 
-# Multi-threading
+## Multi-threading
 
-## Job System
+Multi-threading is implemented on top of a job system where jobs are scheduled to be run in worker threads. As such, unlike a typical physics engine, there's no main loop where the simulation steps are performed. Instead, the simulation steps are performed in a number of jobs that are scheduled to run in any of the worker threads, and after stepping the simulation to the current time they reschedule themselves to be run again at a later time and perform more steps. The results are synchronized into the main registry in every iteration of the application's main loop, usually in the graphics thread.
+
+### Job System
 
 _Edyn_ has its own job system it uses for parallelizing tasks and running background jobs. The `edyn::job_dispatcher` manages a set of workers which are each associated with a background thread. When a job is scheduled it pushes it into the queue of the least busy worker.
 
 External workers can also exist in non-worker threads. This allows scheduling tasks to run in specific threads which is particularly useful in asynchronous invocations that need to return a response in the thread that initiated the asynchronous task. To schedule a job to run in a specific thread, the `std::thread::id` must be passed as the first argument of `edyn::job_dispatcher::async`. It is necessary to allocate a worker for the thread by calling `edyn::job_dispatcher::assure_current_worker` and then also call `edyn::job_dispatcher::once_current_worker` periodically to execute the pending jobs scheduled to run in the current thread.
 
-Jobs are a central part of the multi-threaded aspects of the engine and thus are expected to be small and quick to run, and they should **never** wait or sleep. The goal is to keep the worker queues always moving at a fast pace and avoid hogging the queue thus making any subsequent job wait for too long, or having a situation where one queue is backed up by a couple jobs while others are empty (_job stealing_ is a possibility in this case but it introduces additional complexity which makes it unfeasible to use a lockfree queue). Thus, if a job has to perform too much work, it should split it up and use a technique where the job stores its progress state and reschedules itself and then continues execution in the next run. If a job needs to run a for loop, it should invoke `edyn::parallel_for_async` and set itself to be rescheduled to run when the returned `edyn::atomic_counter` reaches zero and then immediately return, allowing the next job in the queue to run. When the `edyn::atomic_counter` reaches zero, the same job instance will be scheduled and when it runs again, its important to know where it was left at thus it's necessary to store a progress state and continue from where the work was left at.
+Jobs are a central part of the multi-threaded aspects of the engine and thus are expected to be small and quick to run, and they should **never** wait or sleep. The goal is to keep the worker queues always moving at a fast pace and avoid hogging the queue thus making any subsequent job wait for too long, or having a situation where one queue is backed up by a couple jobs while others are empty. _Job stealing_ is a possibility in this case but it introduces additional complexity which makes it unfeasible to model it as a lockfree queue. Thus, if a job has to perform too much work, it should split it up and use a technique where the job stores its progress state and reschedules itself and then continues execution in the next run. If a job needs to run a for-loop, it should invoke `edyn::parallel_for_async` and set itself to be rescheduled to run when the returned `edyn::atomic_counter` reaches zero and then immediately return, allowing the next job in the queue to run. When the `edyn::atomic_counter` reaches zero, the same job instance will be scheduled and when it runs again, it's important to know where it was left at thus it's necessary to store a progress state and continue from there.
 
 A job is comprised of a fixed size data buffer and a function pointer that takes that buffer as its single parameter. The worker simply calls the job's function with the data buffer as a parameter. It is responsibility of the job's function to deserialize the buffer into the expected data format and then execute the actual logic. This is to keep things simple and lightweight and to support lockfree queues in the future.
 
 Using `edyn::timed_job_dispatcher` it is possible to schedule a job to run at a specific timestamp. The `edyn::timed_job_dispatcher` keeps a queue of waiting jobs sorted by desired execution time and it uses a `std::condition_variable` to block execution until the next timed job is ready invoking `std::condition_variable::wait_for` and then schedules it using `edyn::job_dispatcher`. To create a repeating job that is executed every _t_ seconds, it's necessary to have the job reschedule itself to run again at a later time once it finishes processing. This technique is used for running periodic tasks such as the physics simulation updates, which are executed in isolated simulation islands.
 
-## Simulation Islands
+### Simulation Islands
 
 Dynamic entities that cannot immediately affect the motion of others can be simulated in isolation. More precisely, two dynamic entities _A_ and _B_ which are not connected via constraints are not capable of immediately affecting the motion of each other. That means, the motion of _A_ and _B_ is independent and thus could be performed in two separate threads.
 
@@ -177,7 +179,21 @@ Another function of islands is to allow entities to _sleep_ when they're inactiv
 
 Changes that happen in the main registry must be propagated to the islands. Those could be changes introduced by users of the library, such as applying a force to an entity or changing a constraint parameter. To perform changes to components in the multi-threaded setup, it's necessary to _replace_ components instead of modifying them (using `entt::registry::replace`) so that the coordinator can delegate these changes to the right island in its `on_replace` delegate {or, maybe, there could be a manual _notify_ kind of function that forces the coordinator to push that entity/component to the island}. In the single-threaded setup, components can be modified directly.
 
-# Networking
+### Parallel-for
+
+A naïve parallel-for implementation would split the range of work into _N_ nearly equally sized subranges (where _N_ is the number of cores or workers) and dispatch these into simple jobs that iterate over that subrange, calling a function on each iteration which takes the index as its single parameter. The `edyn::parallel_for` behaves quite differently. It initially dispatches a specialized parallel-for job and then starts running the for-loop right after, in the calling thread. The parallel-for job has a reference to a structure that holds the state of the for-loop that's currently running in the calling thread. It first checks if there's enough work left to do and then proceeds to _steal_ a subrange of that loop while it's still running, by subtracting a value from its upper bound, which is an atomic integer. It then repeats the same initial steps where it schedules another parallel-for job and starts iterating of the range it has taken for itself. When the next parallel-for job runs, it will do the same, though now it has to choose which subrange to steal from, which should be the one with the largest amount of work left. This splitting continues until the number of parallel-for jobs reaches a limit, usually the number of workers available. 
+
+This technique is superior in that it's naturally adaptive to the current conditions where in the naïve implementation, the call to `edyn::parallel_for` could block waiting for a subrange that is waiting in a busy queue to be actually run. It ensures that the for-loop is always making progress.
+
+In the asynchronous form, `edyn::parallel_for_async` does not execute a subrange of the for-loop in the calling thread. It instead dispatches a parallel-for job and immediatelly returns an `edyn::atomic_counter` which allows the caller to assign a job to be scheduled when the for-loop is done, i.e. when the counter reaches zero. **Never** use `edyn::parallel_for` inside a job, that is, when running in a worker thread, to avoid piling up work in the respective queue. Always use `edyn::parallel_for_async` in that case and use the `edyn::atomic_counter` to continue the work later when the fo-loop is done.
+
+Really big for-loops could still cause the worker thread to be blocked for too long executing a long range of work. In this case it's possible to specify a maximum number of iterations per execution. The parallel-for job will reschedule itself and return once the maximum number of iterations is reached and when it's picked for execution again, it continues from where the work was left at.
+
+### Parallel-reduce
+
+_TODO_
+
+## Networking
 
 The networking model follows a client-server architecture where the server is authoritative but gives the client freedom to directly set the state of the entities it owns in some situations. The goal is to synchronize the simulation on both ends, accounting for network latency and jitter.
 
@@ -193,7 +209,7 @@ All data shared between client and server is generated using registry snapshots 
 
 The issues above will be discussed in greater detail in the following subsections.
 
-## Server receives data from client
+### Server receives data from client
 
 The server expects users to send the dynamic state of the entities the client owns frequently. This state will be applied to the server registry at the right time if the client has permission do so at the moment.
 
@@ -223,7 +239,7 @@ In the case where the server takes ownership of an island, none of the physics c
 
 The server will hand ownership back to the client when the dynamic state sent by the client converges towards that of the server {this sounds complex}.
 
-## Server sends data to client
+### Server sends data to client
 
 The server will periodically capture snapshots of relevant islands and send them out to clients. Which islands will be sent and how often is determined by the client's _points of interest_.
 
@@ -231,13 +247,13 @@ The point of interest is simply an entity that has a `edyn::position` component.
 
 All entities in a radius around the point of interest will be included in the snapshot. Not all entities are necessarily included in one snapshot. If the server is multi-threaded, this will be done separately per island, which will result in a bunch of smaller snapshot packets being sent for the same step number. These packets don't need to be reliably delivered.
 
-## Client sends data to server
+### Client sends data to server
 
 Clients will periodically send snapshots of its owned entities to the server. Dynamic components will be sent often in a stream (unreliable packets). Steady components will be sent when they change (reliable packets).
 
 One important piece that has to be managed by the user of the library are user inputs which will be also applied in the server. It's important that an input history is sent so that the chance of an input not reaching the server is lowered in case of packet loss.
 
-## Client receives data from server
+### Client receives data from server
 
 Snapshots sent by the server in the snapshot stream do not contain all components of each entity in it. These snapshots only contain the dynamic components that change very often, such as position and velocity. However, entities often have more components which are necessary to correctly simulate them. Thus, the client must check whether it already has obtained the full information of those entities and if not, query the server for the full thing. The server should respond with a snapshot containing the requested data and this can be loaded into the local registry which will instantiate the full entity and now it's ready to be properly updated.
 
@@ -251,10 +267,10 @@ The server snapshot will usually contain a single island. If the extrapolation i
 
 Extrapolation will introduce visible errors and disturbances when the extrapolate result doesn't match the previous local state very closely. A discontinuity error is calculated before the components are replaced by the extrapolated version and that is provided in a `edyn::discontinuity` component which can be used by the graphics engine to smooth out these errors by adding them to the next future states. The discontinuity decays towards zero over time.
 
-# Clusters
+## Clusters
 
 Multiple server instances can run in different machines in the same local area network (LAN) and balance load. The principles of distributing work among all machine are similar to that of multi-threading.
 
-# Distributed simulation
+## Distributed simulation
 
 Several server clusters can exist in different geographical locations to allow for better network performance for local users. Clusters communicate among themselves to synchronize the redundant simulation of the persistent world.
