@@ -72,7 +72,8 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.lat_dir = contact_patch.m_lat_dir;
                 tire_cs.lon_dir = contact_patch.m_lon_dir;
                 tire_cs.normal = contact_patch.m_normal;
-                tire_cs.position = contact_patch.m_pivot;
+                tire_cs.pivot = contact_patch.m_pivot;
+                tire_cs.position = contact_patch.m_center;
                 tire_cs.lin_vel = linvel_rel;
 
                 auto &normal_row = con_row_view.get(con.row[0]);
@@ -84,6 +85,17 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.Fx = lon_row.impulse / dt;
                 tire_cs.Fy = lat_row.impulse / dt;
                 tire_cs.Mz = align_row.impulse / dt;
+
+                for (size_t i = 0; i < contact_patch.m_tread_rows.size(); ++i) {
+                    tire_cs.tread_states[i].clear();
+
+                    for (auto &pair : contact_patch.m_tread_rows[i].bristles) {
+                        auto &bristle = pair.second;
+                        tire_cs.tread_states[i].emplace_back(tire_tread_state{
+                            bristle.root, bristle.tip, 
+                            bristle.friction, bristle.sliding_spd});
+                    }
+                }
             }
 
             // Only process one manifold. The tire state is a component of the

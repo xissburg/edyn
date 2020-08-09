@@ -2,11 +2,20 @@
 #define EDYN_COMP_TIRE_STATE_HPP
 
 #include <array>
+#include <vector>
 #include <cstdint>
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
+#include "edyn/constraints/contact_patch_constraint.hpp"
 
 namespace edyn {
+
+struct tire_tread_state {
+    vector3 root;
+    vector3 tip;
+    scalar friction;
+    scalar sliding_spd;
+};
 
 struct tire_contact_state {
     scalar vertical_deflection {0};
@@ -24,8 +33,12 @@ struct tire_contact_state {
     vector3 lon_dir;
     vector3 lat_dir;
     vector3 normal;
+    vector3 pivot;
     vector3 position;
     vector3 lin_vel;
+
+    std::array<std::vector<tire_tread_state>, 
+        contact_patch_constraint::num_tread_rows> tread_states;
 };
 
 struct tire_state {

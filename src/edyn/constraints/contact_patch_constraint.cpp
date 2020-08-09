@@ -118,11 +118,13 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
     auto plane_point1 = lerp(intersection0, intersection1, (row_start + cyl.half_length + m_contact_width) * cyl_len_inv);
     auto center_lerp_param = (normalized_center_offset + scalar(1)) * scalar(0.5);
     auto contact_center = lerp(plane_point0, plane_point1, center_lerp_param);
+    auto geometric_center = lerp(plane_point0, plane_point1, scalar(0.5));
     const auto tire_y = quaternion_y(ornA);
     const auto tire_up = dot(tire_y, normal) > 0 ? tire_y : -tire_y;
     auto deflection0 = std::max(dot(intersection0 - sup0, tire_up), scalar(0));
     auto deflection1 = std::max(dot(intersection1 - sup1, tire_up), scalar(0));
 
+    m_center = geometric_center;
     m_pivot = contact_center;
     m_normal = normal;
 
