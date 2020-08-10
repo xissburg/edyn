@@ -7,7 +7,6 @@
 #include <iterator>
 #include <forward_list>
 #include "edyn/config/config.h"
-#include "edyn/parallel/atomic_counter.hpp"
 #include "edyn/parallel/mutex_counter.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
@@ -142,13 +141,14 @@ struct parallel_for_job_data {
     job_dispatcher *m_dispatcher;
     ranged_for_loop_pool_type m_loop_pool;
     mutex_counter m_counter;
-    atomic_counter m_jobs_counter;
+    std::atomic<int> m_num_jobs;
 
     parallel_for_job_data(IndexType first, IndexType last, 
                           IndexType step, const Function *func,
                           job_dispatcher &dispatcher)
         : m_loop_pool(first, last, step, func)
         , m_dispatcher(&dispatcher)
+        , m_num_jobs(0)
     {}
 };
 
@@ -159,15 +159,20 @@ void parallel_for_job_func(job::data_type &data) {
     archive(job_data_intptr);
     auto *job_data = reinterpret_cast<parallel_for_job_data<IndexType, Function> *>(job_data_intptr);
 
+    auto defer_delete = std::shared_ptr<void>(nullptr, [&] (void *) {
+        auto num_jobs = job_data->m_num_jobs.fetch_sub(1, std::memory_order_relaxed) - 1;
+        if (num_jobs == 0) {
+            delete job_data;
+        }
+    });
+
     if (job_data->m_counter.count() == 0) {
-        delete job_data;
         return;
     }
 
     job_data->m_counter.increment();
-    auto defer = std::shared_ptr<void>(nullptr, [&] (void *) { 
+    auto defer_decrement = std::shared_ptr<void>(nullptr, [&] (void *) { 
         job_data->m_counter.decrement();
-        job_data->m_jobs_counter.decrement(); // will deallocate jobs_data if it reaches zero.
     });
     
     auto *loop = job_data->m_loop_pool.steal();
@@ -175,7 +180,7 @@ void parallel_for_job_func(job::data_type &data) {
         return;
     }
 
-    job_data->m_jobs_counter.increment();
+    job_data->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
 
     auto child_job = job();
     child_job.data = data;
@@ -183,15 +188,6 @@ void parallel_for_job_func(job::data_type &data) {
     job_data->m_dispatcher->async(child_job);
 
     loop->run();
-}
-
-template<typename IndexType, typename Function>
-void delete_parallel_for_job_data(job::data_type &data) {
-    auto archive = memory_input_archive(data.data(), data.size());
-    intptr_t job_data_intptr;
-    archive(job_data_intptr);
-    auto *job_data = reinterpret_cast<parallel_for_job_data<IndexType, Function> *>(job_data_intptr);
-    delete job_data;
 }
 
 } // namespace detail
@@ -206,21 +202,12 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
 
     auto *loop = job_data->m_loop_pool.steal();
 
-    auto job_data_intptr = reinterpret_cast<intptr_t>(job_data);
-
-    job_data->m_jobs_counter.m_dispatcher = &dispatcher;
-    
-    auto delete_archive = fixed_memory_output_archive(job_data->m_jobs_counter.m_job.data.data(), 
-                                                      job_data->m_jobs_counter.m_job.data.size());
-    delete_archive(job_data_intptr);
-
-    job_data->m_jobs_counter.m_job.func = &detail::delete_parallel_for_job_data<IndexType, Function>;
-
-    job_data->m_jobs_counter.increment();
+    job_data->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
     
     auto child_job = job();
     child_job.func = &detail::parallel_for_job_func<IndexType, Function>;
     auto archive = fixed_memory_output_archive(child_job.data.data(), child_job.data.size());
+    auto job_data_intptr = reinterpret_cast<intptr_t>(job_data);
     archive(job_data_intptr);
     dispatcher.async(child_job);
 

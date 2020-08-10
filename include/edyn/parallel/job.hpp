@@ -1,7 +1,8 @@
 #ifndef EDYN_PARALLEL_JOB_HPP
 #define EDYN_PARALLEL_JOB_HPP
 
-#include <functional>
+#include <array>
+#include <cstdint>
 
 namespace edyn {
 
@@ -16,8 +17,7 @@ struct job {
     data_type data;
     function_type *func;
 
-    void operator()()
-    {
+    void operator()() {
         (*func)(data);
     }
 
