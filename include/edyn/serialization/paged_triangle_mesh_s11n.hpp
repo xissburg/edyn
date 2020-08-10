@@ -118,6 +118,8 @@ public:
     friend class finish_load_mesh_job;
     friend void serialize(paged_triangle_mesh_file_input_archive &archive, 
                           paged_triangle_mesh &paged_tri_mesh);
+    friend void load_mesh_job_func(job::data_type &);
+    friend void finish_load_mesh_job_func(job::data_type &);
 
 private:
     std::string m_path;
@@ -131,34 +133,26 @@ private:
  * Job used to load submeshes in the background. It schedules a `finish_load_mesh_job`
  * in the calling thread once finished. 
  */
-class load_mesh_job: public job {
-public:
-    load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index);
-    void run() override;
-
-private:
+struct load_mesh_job_data {
     paged_triangle_mesh_file_input_archive *m_input;
     size_t m_index;
-    std::unique_ptr<triangle_mesh> m_mesh;
+    triangle_mesh *m_mesh;
     std::thread::id m_source_thread_id;
 };
+
+void load_mesh_job_func(job::data_type &);
 
 /**
  * Delivers the loaded submesh in the calling thread after a `load_mesh_job` is
  * done loading.
  */
-class finish_load_mesh_job: public job {
-public:
-    finish_load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index, 
-                         std::unique_ptr<triangle_mesh> &mesh);
-
-    void run() override;
-
-private:
+struct finish_load_mesh_job_data {
     paged_triangle_mesh_file_input_archive *m_input;
     size_t m_index;
-    std::unique_ptr<triangle_mesh> m_mesh;
+    triangle_mesh *m_mesh;
 };
+
+void finish_load_mesh_job_func(job::data_type &);
 
 }
 

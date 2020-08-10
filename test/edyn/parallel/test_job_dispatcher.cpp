@@ -16,34 +16,6 @@ protected:
     edyn::job_dispatcher dispatcher;
 };
 
-struct nop_job: public edyn::job {
-    int m_i {0};
-    std::promise<void> m_promise;
-
-    void run() override {
-        ++m_i;
-        m_promise.set_value();
-    }
-
-    auto join() { 
-        m_promise.get_future().get();
-    }
-};
-
-TEST_F(job_dispatcher_test, async) {
-    auto job0 = std::make_shared<nop_job>();
-    auto job1 = std::make_shared<nop_job>();
-
-    dispatcher.async(job0);
-    dispatcher.async(job1);
-
-    job0->join();
-    job1->join();
-
-    ASSERT_EQ(job0->m_i, 1);
-    ASSERT_EQ(job1->m_i, 1);
-}
-
 TEST_F(job_dispatcher_test, parallel_for) {
     constexpr size_t num_samples = 3591833;
     std::vector<int> values(num_samples);
@@ -79,7 +51,7 @@ TEST_F(job_dispatcher_test, parallel_for_each) {
 }
 
 TEST_F(job_dispatcher_test, parallel_for_small) {
-    constexpr size_t num_samples = 113;
+    constexpr size_t num_samples = 1139;
     std::vector<int> values(num_samples);
 
     edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {

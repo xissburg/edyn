@@ -7,9 +7,11 @@
 #include <iterator>
 #include <forward_list>
 #include "edyn/config/config.h"
+#include "edyn/parallel/atomic_counter.hpp"
 #include "edyn/parallel/mutex_counter.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/serialization/memory_archive.hpp"
 
 namespace edyn {
 
@@ -82,7 +84,9 @@ public:
         for (auto &curr_loop : m_loops) {
             auto last = curr_loop.m_last.load(std::memory_order_acquire);
             auto current = curr_loop.m_current.load(std::memory_order_acquire);
-            EDYN_ASSERT(current <= last);
+            
+            if (current > last) continue;
+
             auto remaining = last - current;
 
             if (remaining >= candidate_remaining) {
@@ -105,7 +109,7 @@ public:
 
         // Return null if the loop with the biggest amount of remaining work is
         // nearly done (i.e. the remaining work is under a percentage of the total)
-        if (remaining * 100 < total * 6) {
+        if (remaining * 100 < total * 10) {
             return nullptr;
         }
 
@@ -132,66 +136,72 @@ private:
     size_t m_size;
 };
 
-/**
- * Steals a range from the pool and runs it at time of execution.
- */
 template<typename IndexType, typename Function>
-class parallel_for_job: public job {
-public:
+struct parallel_for_job_data {
     using ranged_for_loop_pool_type = ranged_for_loop_pool<IndexType, Function>;
+    job_dispatcher *m_dispatcher;
+    ranged_for_loop_pool_type m_loop_pool;
+    mutex_counter m_counter;
 
-    parallel_for_job(job_dispatcher &dispatcher,
-                     std::shared_ptr<ranged_for_loop_pool_type> loop_pool,
-                     std::shared_ptr<mutex_counter> counter)
-        : m_dispatcher(&dispatcher)
-        , m_loop_pool(loop_pool)
-        , m_counter(counter)
+    parallel_for_job_data(IndexType first, IndexType last, 
+                          IndexType step, const Function *func,
+                          job_dispatcher &dispatcher)
+        : m_loop_pool(first, last, step, func)
+        , m_dispatcher(&dispatcher)
     {}
+};
 
-    void run() override {
-        m_counter->increment();
-        auto defer = std::shared_ptr<void>(nullptr, [&] (...) { m_counter->decrement(); });
+template<typename IndexType, typename Function>
+void parallel_for_job_func(job::data_type &data) {
+    auto archive = memory_input_archive(data.data(), data.size());
+    intptr_t job_data_intptr;
+    archive(job_data_intptr);
+    auto *job_data = reinterpret_cast<parallel_for_job_data<IndexType, Function> *>(job_data_intptr);
 
-        // Only steal a range and create a new job if the total number of
-        // loops is still lower than the number of workers available.
-        if (m_loop_pool->size() >= m_dispatcher->num_workers()) {
-            return;
-        }
-        
-        auto *loop = m_loop_pool->steal();
-        if (!loop) {
-            return;
-        }
-
-        auto child_job = std::make_shared<parallel_for_job>(*m_dispatcher, m_loop_pool, m_counter);
-        m_dispatcher->async(std::static_pointer_cast<job>(child_job));
-
-        loop->run();
+    if (job_data->m_counter.count() == 0) {
+        delete job_data;
+        return;
     }
 
-private:
-    job_dispatcher *m_dispatcher;
-    std::shared_ptr<ranged_for_loop_pool_type> m_loop_pool;
-    std::shared_ptr<mutex_counter> m_counter;
-};
+    job_data->m_counter.increment();
+    auto defer = std::shared_ptr<void>(nullptr, [&] (...) { job_data->m_counter.decrement(); });
+    
+    auto *loop = job_data->m_loop_pool.steal();
+    if (!loop) {
+        return;
+    }
+
+    auto child_job = job();
+    child_job.data = data;
+    child_job.func = &parallel_for_job_func<IndexType, Function>;
+    job_data->m_dispatcher->async(child_job);
+
+    loop->run();
+}
 
 } // namespace detail
 
 template<typename IndexType, typename Function>
 void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, IndexType step, const Function &func) {
     EDYN_ASSERT(step > IndexType{0});
-    using job_type = detail::parallel_for_job<IndexType, Function>;
-    using loop_pool_type = detail::ranged_for_loop_pool<IndexType, Function>;
 
-    auto loop_pool = std::make_shared<loop_pool_type>(first, last, step, &func);
-    auto *loop = loop_pool->steal();
+    // The last job to run will delete `job_data`.
+    auto *job_data = new detail::parallel_for_job_data<IndexType, Function>(first, last, step, &func, dispatcher);
+    job_data->m_counter.increment();
+
+    auto *loop = job_data->m_loop_pool.steal();
     
-    auto counter = std::make_shared<mutex_counter>();
-    auto child_job = std::make_shared<job_type>(dispatcher, loop_pool, counter);
+    auto child_job = job();
+    child_job.func = &detail::parallel_for_job_func<IndexType, Function>;
+    auto archive = fixed_memory_output_archive(child_job.data.data(), child_job.data.size());
+    auto job_data_intptr = reinterpret_cast<intptr_t>(job_data);
+    archive(job_data_intptr);
     dispatcher.async(child_job);
 
     loop->run();
-    counter->wait();
+    job_data->m_counter.decrement();
+    
+    job_data->m_counter.wait();
 }
 
 template<typename IndexType, typename Function>

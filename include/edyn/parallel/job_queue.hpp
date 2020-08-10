@@ -3,7 +3,7 @@
 
 #include <mutex>
 #include <atomic>
-#include <vector>
+#include <deque>
 #include <memory>
 #include <condition_variable>
 #include "edyn/parallel/job.hpp"
@@ -12,21 +12,18 @@ namespace edyn {
 
 class job_queue {
 public:
-    void push(std::shared_ptr<job> j);
+    void push(const job &);
 
-    std::shared_ptr<job> pop();
+    job pop();
 
-    std::shared_ptr<job> try_pop();
-
-    void unblock();
+    bool try_pop(job &);
 
     size_t size();
 
 private:
     std::mutex m_mutex;
-    std::vector<std::shared_ptr<job>> m_jobs;
+    std::deque<job> m_jobs;
     std::condition_variable m_cv;
-    std::atomic_bool m_unblock {false};
 };
 
 }

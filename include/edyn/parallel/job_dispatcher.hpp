@@ -24,12 +24,12 @@ public:
     /**
      * Schedules a job to run asynchronously in a worker thread.
      */
-    void async(std::shared_ptr<job> j);
+    void async(const job &);
 
     /**
      * Schedules a job to run in a worker in a specific thread.
      */
-    void async(std::thread::id, std::shared_ptr<job> j);
+    void async(std::thread::id, const job &);
 
     /**
      * Instantiates a worker for the current thread internally if it hasn't
@@ -52,7 +52,6 @@ public:
 private:
     std::vector<std::unique_ptr<std::thread>> m_threads;
     std::map<std::thread::id, std::unique_ptr<worker>> m_workers;
-    job_thief m_thief;
 
     // Workers for external threads.
     std::map<std::thread::id, std::unique_ptr<worker>> m_external_workers;

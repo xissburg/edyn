@@ -28,9 +28,6 @@ void job_dispatcher::start(size_t num_worker_threads) {
 
     for (size_t i = 0; i < num_worker_threads; ++i) {
         auto w = std::make_unique<worker>();
-        m_thief.add_queue(&w->get_queue());
-        w->set_thief(&m_thief);
-
         auto t = std::make_unique<std::thread>(&worker::run, w.get());
         auto id = t->get_id();
 
@@ -52,7 +49,7 @@ void job_dispatcher::stop() {
     m_threads.clear();
 }
 
-void job_dispatcher::async(std::shared_ptr<job> j) {
+void job_dispatcher::async(const job &j) {
     EDYN_ASSERT(!m_workers.empty());
 
     auto best_id = std::thread::id();
@@ -70,7 +67,7 @@ void job_dispatcher::async(std::shared_ptr<job> j) {
     m_workers[best_id]->push_job(j);
 }
 
-void job_dispatcher::async(std::thread::id id, std::shared_ptr<job> j) {
+void job_dispatcher::async(std::thread::id id, const job &j) {
     // Must not be called from a worker thread.
     EDYN_ASSERT(!m_workers.count(id));
 
