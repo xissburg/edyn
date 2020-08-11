@@ -2,7 +2,6 @@
 #define EDYN_SERIALIZATION_FILE_ARCHIVE_HPP
 
 #include <fstream>
-#include <cstdint>
 #include <type_traits>
 
 #include "edyn/serialization/s11n_util.hpp"
@@ -42,43 +41,47 @@ public:
         }
     }
 
-    void operator()(char &t) {
-        read_bytes(t);
-    }
-
     void operator()(bool &t) {
         read_bytes(t);
     }
 
-    void operator()(int8_t &t) {
+    void operator()(char &t) {
         read_bytes(t);
     }
 
-    void operator()(uint8_t &t) {
+    void operator()(unsigned char &t) {
         read_bytes(t);
     }
 
-    void operator()(int16_t &t) {
+    void operator()(short &t) {
         read_bytes(t);
     }
 
-    void operator()(uint16_t &t) {
+    void operator()(unsigned short &t) {
         read_bytes(t);
     }
 
-    void operator()(int32_t &t) {
+    void operator()(int &t) {
         read_bytes(t);
     }
 
-    void operator()(uint32_t &t) {
+    void operator()(unsigned int &t) {
         read_bytes(t);
     }
 
-    void operator()(int64_t &t) {
+    void operator()(long &t) {
         read_bytes(t);
     }
 
-    void operator()(uint64_t &t) {
+    void operator()(unsigned long &t) {
+        read_bytes(t);
+    }
+
+    void operator()(long long &t) {
+        read_bytes(t);
+    }
+
+    void operator()(unsigned long long &t) {
         read_bytes(t);
     }
 
@@ -127,47 +130,50 @@ public:
             (operator()(t), ...);
         }
     }
-    
-    void operator()(char &t) {
-        write_bytes(t);
-    }
 
     void operator()(bool &t) {
         write_bytes(t);
     }
 
-    void operator()(int8_t &t) {
+    void operator()(char &t) {
         write_bytes(t);
     }
 
-    void operator()(uint8_t &t) {
+    void operator()(unsigned char &t) {
         write_bytes(t);
     }
 
-    void operator()(int16_t &t) {
+    void operator()(short &t) {
         write_bytes(t);
     }
 
-    void operator()(uint16_t &t) {
+    void operator()(unsigned short &t) {
         write_bytes(t);
     }
 
-    void operator()(int32_t &t) {
+    void operator()(int &t) {
         write_bytes(t);
     }
 
-    void operator()(uint32_t &t) {
+    void operator()(unsigned int &t) {
         write_bytes(t);
     }
 
-    void operator()(int64_t &t) {
+    void operator()(long &t) {
         write_bytes(t);
     }
 
-    void operator()(uint64_t &t) {
+    void operator()(unsigned long &t) {
         write_bytes(t);
     }
 
+    void operator()(long long &t) {
+        write_bytes(t);
+    }
+
+    void operator()(unsigned long long &t) {
+        write_bytes(t);
+    }
     void operator()(float &t) {
         write_bytes(t);
     }

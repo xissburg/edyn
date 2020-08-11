@@ -159,20 +159,13 @@ void parallel_for_job_func(job::data_type &data) {
     archive(job_data_intptr);
     auto *job_data = reinterpret_cast<parallel_for_job_data<IndexType, Function> *>(job_data_intptr);
 
-    auto defer_delete = std::shared_ptr<void>(nullptr, [&] (void *) {
+    job_data->m_counter.increment();
+    auto defer = std::shared_ptr<void>(nullptr, [&] (void *) { 
+        job_data->m_counter.decrement();
         auto num_jobs = job_data->m_num_jobs.fetch_sub(1, std::memory_order_relaxed) - 1;
         if (num_jobs == 0) {
             delete job_data;
         }
-    });
-
-    if (job_data->m_counter.count() == 0) {
-        return;
-    }
-
-    job_data->m_counter.increment();
-    auto defer_decrement = std::shared_ptr<void>(nullptr, [&] (void *) { 
-        job_data->m_counter.decrement();
     });
     
     auto *loop = job_data->m_loop_pool.steal();
@@ -180,12 +173,14 @@ void parallel_for_job_func(job::data_type &data) {
         return;
     }
 
-    job_data->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
+    {
+        job_data->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
 
-    auto child_job = job();
-    child_job.data = data;
-    child_job.func = &parallel_for_job_func<IndexType, Function>;
-    job_data->m_dispatcher->async(child_job);
+        auto child_job = job();
+        child_job.data = data;
+        child_job.func = &parallel_for_job_func<IndexType, Function>;
+        job_data->m_dispatcher->async(child_job);
+    }
 
     loop->run();
 }
@@ -198,22 +193,20 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
 
     // The last job to run will delete `job_data`.
     auto *job_data = new detail::parallel_for_job_data<IndexType, Function>(first, last, step, &func, dispatcher);
-    job_data->m_counter.increment();
-
     auto *loop = job_data->m_loop_pool.steal();
 
-    job_data->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
-    
-    auto child_job = job();
-    child_job.func = &detail::parallel_for_job_func<IndexType, Function>;
-    auto archive = fixed_memory_output_archive(child_job.data.data(), child_job.data.size());
-    auto job_data_intptr = reinterpret_cast<intptr_t>(job_data);
-    archive(job_data_intptr);
-    dispatcher.async(child_job);
+    {
+        job_data->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
+
+        auto child_job = job();
+        child_job.func = &detail::parallel_for_job_func<IndexType, Function>;
+        auto archive = fixed_memory_output_archive(child_job.data.data(), child_job.data.size());
+        auto job_data_intptr = reinterpret_cast<intptr_t>(job_data);
+        archive(job_data_intptr);
+        dispatcher.async(child_job);
+    }
 
     loop->run();
-    job_data->m_counter.decrement();
-    
     job_data->m_counter.wait();
 }
 
@@ -231,7 +224,7 @@ template<typename Iterator, typename Function>
 void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last, const Function &func) {
     auto count = std::distance(first, last);
 
-    parallel_for(dispatcher, size_t{0}, size_t{count}, size_t{1}, [&] (size_t index) {
+    parallel_for(dispatcher, size_t{0}, static_cast<size_t>(count), size_t{1}, [&] (size_t index) {
         func(first + index);
     });
 }
