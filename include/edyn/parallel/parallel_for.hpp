@@ -24,12 +24,14 @@ struct ranged_for_loop {
     using atomic_index_type = std::atomic<IndexType>;
 
     ranged_for_loop(IndexType first, IndexType last, 
-                    IndexType step, const Function *func)
+                    IndexType step, const Function *func,
+                    mutex_counter &counter)
         : m_first(first)
         , m_last(last)
         , m_step(step)
         , m_current(first)
         , m_func(func)
+        , m_counter(&counter)
     {}
 
     void run() {
@@ -38,6 +40,7 @@ struct ranged_for_loop {
             (*m_func)(i);
             i = m_current.fetch_add(m_step, std::memory_order_release) + m_step;
         }
+        m_counter->decrement();
     }
 
     atomic_index_type m_first;
@@ -45,6 +48,7 @@ struct ranged_for_loop {
     atomic_index_type m_step;
     atomic_index_type m_current;
     const Function *m_func;
+    mutex_counter *m_counter;
 };
 
 /**
@@ -62,7 +66,6 @@ public:
         , m_last(last)
         , m_step(step)
         , m_func(func)
-        , m_size(0)
     {}
 
     ranged_for_loop_type *steal() {
@@ -71,8 +74,8 @@ public:
         // function is called before a new job of this kind is scheduled.
         if (m_loops.empty()) {
             // Create the first loop with the entire range.
-            auto &loop = m_loops.emplace_front(m_first, m_last, m_step, m_func);
-            ++m_size;
+            m_counter.increment();
+            auto &loop = m_loops.emplace_front(m_first, m_last, m_step, m_func, m_counter);
             return &loop;
         }
 
@@ -117,13 +120,13 @@ public:
         auto middle = current + remaining / 2;
         candidate_loop->m_last.store(middle, std::memory_order_release);
 
-        auto &loop = m_loops.emplace_front(middle, last, m_step, m_func);
-        ++m_size;
+        m_counter.increment();
+        auto &loop = m_loops.emplace_front(middle, last, m_step, m_func, m_counter);
         return &loop;
     }
 
-    auto size() const {
-        return m_size;
+    void wait() {
+        m_counter.wait();
     }
 
 private:
@@ -132,7 +135,7 @@ private:
     const IndexType m_step;
     const Function *m_func;
     std::forward_list<ranged_for_loop_type> m_loops;
-    size_t m_size;
+    mutex_counter m_counter;
 };
 
 template<typename IndexType, typename Function>
@@ -140,7 +143,6 @@ struct parallel_for_job_data {
     using ranged_for_loop_pool_type = ranged_for_loop_pool<IndexType, Function>;
     job_dispatcher *m_dispatcher;
     ranged_for_loop_pool_type m_loop_pool;
-    mutex_counter m_counter;
     std::atomic<int> m_num_jobs;
 
     parallel_for_job_data(IndexType first, IndexType last, 
@@ -159,13 +161,10 @@ void parallel_for_job_func(job::data_type &data) {
     archive(job_data_intptr);
     auto *job_data = reinterpret_cast<parallel_for_job_data<IndexType, Function> *>(job_data_intptr);
 
-    job_data->m_counter.increment();
-    auto defer = std::shared_ptr<void>(nullptr, [&] (void *) { 
-        job_data->m_counter.decrement();
+    // Decrement job count and if zero delete job_data on exit.
+    auto defer = std::shared_ptr<void>(nullptr, [job_data] (void *) { 
         auto num_jobs = job_data->m_num_jobs.fetch_sub(1, std::memory_order_relaxed) - 1;
-        if (num_jobs == 0) {
-            delete job_data;
-        }
+        if (num_jobs == 0) delete job_data;
     });
     
     auto *loop = job_data->m_loop_pool.steal();
@@ -173,6 +172,7 @@ void parallel_for_job_func(job::data_type &data) {
         return;
     }
 
+    // Dispatch child job.
     {
         job_data->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
 
@@ -193,8 +193,21 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
 
     // The last job to run will delete `job_data`.
     auto *job_data = new detail::parallel_for_job_data<IndexType, Function>(first, last, step, &func, dispatcher);
+    
+    // Get the first loop subrange which will run in this thread.
     auto *loop = job_data->m_loop_pool.steal();
 
+    // Increment job count so the this execution unit is accounted for.
+    job_data->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
+
+    // On exit decrement job count and if zero delete job_data.
+    auto defer = std::shared_ptr<void>(nullptr, [job_data] (void *) { 
+        auto num_jobs = job_data->m_num_jobs.fetch_sub(1, std::memory_order_relaxed) - 1;
+        if (num_jobs == 0) delete job_data;
+    });
+
+    // Create child job which will steal a range of the for-loop if it gets a
+    // chance to be executed.
     {
         job_data->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
 
@@ -207,7 +220,9 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
     }
 
     loop->run();
-    job_data->m_counter.wait();
+
+    // Wait for all for-loops to complete.
+    job_data->m_loop_pool.wait();
 }
 
 template<typename IndexType, typename Function>
