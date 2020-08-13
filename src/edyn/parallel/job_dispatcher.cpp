@@ -5,8 +5,8 @@
 namespace edyn {
 
 job_dispatcher &job_dispatcher::global() {
-    static job_dispatcher singleton;
-    return singleton;
+    static job_dispatcher instance;
+    return instance;
 }
 
 job_dispatcher::~job_dispatcher() {
