@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <cstdint>
+#include <tuple>
 #include <type_traits>
 
 #include "edyn/serialization/s11n_util.hpp"
@@ -34,60 +35,16 @@ public:
     }
 
     template<typename... Ts>
-    void operator()(Ts&&... t) {
+    void operator()(Ts&... t) {
         if constexpr(sizeof...(Ts) == 1) {
-            (serialize(*this, t), ...);
+            if constexpr(has_type<Ts..., archive_fundamental_types>::value) {
+                (read_bytes(t), ...);
+            } else {
+                (serialize(*this, t), ...);
+            }
         } else {
             (operator()(t), ...);
         }
-    }
-
-    void operator()(char &t) {
-        read_bytes(t);
-    }
-
-    void operator()(bool &t) {
-        read_bytes(t);
-    }
-
-    void operator()(int8_t &t) {
-        read_bytes(t);
-    }
-
-    void operator()(uint8_t &t) {
-        read_bytes(t);
-    }
-
-    void operator()(int16_t &t) {
-        read_bytes(t);
-    }
-
-    void operator()(uint16_t &t) {
-        read_bytes(t);
-    }
-
-    void operator()(int32_t &t) {
-        read_bytes(t);
-    }
-
-    void operator()(uint32_t &t) {
-        read_bytes(t);
-    }
-
-    void operator()(int64_t &t) {
-        read_bytes(t);
-    }
-
-    void operator()(uint64_t &t) {
-        read_bytes(t);
-    }
-
-    void operator()(float &t) {
-        read_bytes(t);
-    }
-
-    void operator()(double &t) {
-        read_bytes(t);
     }
 
     template<typename T>
@@ -120,60 +77,16 @@ public:
     }
 
     template<typename... Ts>
-    void operator()(Ts&&... t) {
+    void operator()(Ts&... t) {
         if constexpr(sizeof...(Ts) == 1) {
-            (serialize(*this, const_cast<std::add_lvalue_reference_t<std::remove_const_t<std::remove_reference_t<Ts>>>>(t)), ...);
+            if constexpr(has_type<Ts..., archive_fundamental_types>::value) {
+                (write_bytes(t), ...);
+            } else {
+                (serialize(*this, const_cast<std::add_lvalue_reference_t<std::remove_const_t<std::remove_reference_t<Ts>>>>(t)), ...);
+            }
         } else {
             (operator()(t), ...);
         }
-    }
-    
-    void operator()(char &t) {
-        write_bytes(t);
-    }
-
-    void operator()(bool &t) {
-        write_bytes(t);
-    }
-
-    void operator()(int8_t &t) {
-        write_bytes(t);
-    }
-
-    void operator()(uint8_t &t) {
-        write_bytes(t);
-    }
-
-    void operator()(int16_t &t) {
-        write_bytes(t);
-    }
-
-    void operator()(uint16_t &t) {
-        write_bytes(t);
-    }
-
-    void operator()(int32_t &t) {
-        write_bytes(t);
-    }
-
-    void operator()(uint32_t &t) {
-        write_bytes(t);
-    }
-
-    void operator()(int64_t &t) {
-        write_bytes(t);
-    }
-
-    void operator()(uint64_t &t) {
-        write_bytes(t);
-    }
-
-    void operator()(float &t) {
-        write_bytes(t);
-    }
-
-    void operator()(double &t) {
-        write_bytes(t);
     }
 
     template<typename T>
