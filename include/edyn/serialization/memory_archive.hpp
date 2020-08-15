@@ -6,6 +6,8 @@
 #include <vector>
 #include <array>
 #include <map>
+#include "edyn/util/tuple.hpp"
+#include "edyn/serialization/s11n_util.hpp"
 
 namespace edyn {
 
@@ -22,67 +24,21 @@ public:
         , m_position(0)
     {}
 
-    template<typename... Ts>
-    void operator()(Ts&&... t) {
-        if constexpr(sizeof...(Ts) == 1) {
-            (serialize(*this, t), ...);
+    template<typename T>
+    void operator()(T& t) {
+        if constexpr(has_type<T, archive_fundamental_types>::value) {
+            read_bytes(t);
         } else {
-            (operator()(t), ...);
+            serialize(*this, t);
         }
     }
 
-    void operator()(bool &t) {
-        read_bytes(t);
+    template<typename... Ts>
+    void operator()(Ts&... t) {
+        (operator()(t), ...);
     }
 
-    void operator()(char &t) {
-        read_bytes(t);
-    }
-
-    void operator()(unsigned char &t) {
-        read_bytes(t);
-    }
-
-    void operator()(short &t) {
-        read_bytes(t);
-    }
-
-    void operator()(unsigned short &t) {
-        read_bytes(t);
-    }
-
-    void operator()(int &t) {
-        read_bytes(t);
-    }
-
-    void operator()(unsigned int &t) {
-        read_bytes(t);
-    }
-
-    void operator()(long &t) {
-        read_bytes(t);
-    }
-
-    void operator()(unsigned long &t) {
-        read_bytes(t);
-    }
-
-    void operator()(long long &t) {
-        read_bytes(t);
-    }
-
-    void operator()(unsigned long long &t) {
-        read_bytes(t);
-    }
-
-    void operator()(float &t) {
-        read_bytes(t);
-    }
-
-    void operator()(double &t) {
-        read_bytes(t);
-    }
-
+protected:
     template<typename T>
     void read_bytes(T &t) {
         EDYN_ASSERT(m_position + sizeof(T) < m_size);
@@ -108,67 +64,21 @@ public:
         : m_buffer(&buffer) 
     {}
 
-    template<typename... Ts>
-    void operator()(Ts&&... t) {
-        if constexpr(sizeof...(Ts) == 1) {
-            (serialize(*this, const_cast<std::add_lvalue_reference_t<std::remove_const_t<std::remove_reference_t<Ts>>>>(t)), ...);
+    template<typename T>
+    void operator()(T& t) {
+        if constexpr(has_type<T, archive_fundamental_types>::value) {
+            write_bytes(t);
         } else {
-            (operator()(t), ...);
+            serialize(*this, t);
         }
     }
 
-    void operator()(bool &t) {
-        write_bytes(t);
+    template<typename... Ts>
+    void operator()(Ts&... t) {
+        (operator()(t), ...);
     }
 
-    void operator()(char &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned char &t) {
-        write_bytes(t);
-    }
-
-    void operator()(short &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned short &t) {
-        write_bytes(t);
-    }
-
-    void operator()(int &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned int &t) {
-        write_bytes(t);
-    }
-
-    void operator()(long &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned long &t) {
-        write_bytes(t);
-    }
-
-    void operator()(long long &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned long long &t) {
-        write_bytes(t);
-    }
-
-    void operator()(float &t) {
-        write_bytes(t);
-    }
-
-    void operator()(double &t) {
-        write_bytes(t);
-    }
-
+protected:
     template<typename T>
     void write_bytes(T &t) { 
         auto idx = m_buffer->size();
@@ -177,7 +87,6 @@ public:
         *dest = t;
     }
 
-protected:
     buffer_type *m_buffer;
 };
 
@@ -194,67 +103,21 @@ public:
         , m_position(0)
     {}
 
-    template<typename... Ts>
-    void operator()(Ts&&... t) {
-        if constexpr(sizeof...(Ts) == 1) {
-            (serialize(*this, const_cast<std::add_lvalue_reference_t<std::remove_const_t<std::remove_reference_t<Ts>>>>(t)), ...);
+    template<typename T>
+    void operator()(T& t) {
+        if constexpr(has_type<T, archive_fundamental_types>::value) {
+            write_bytes(t);
         } else {
-            (operator()(t), ...);
+            serialize(*this, t);
         }
     }
 
-    void operator()(bool &t) {
-        write_bytes(t);
+    template<typename... Ts>
+    void operator()(Ts&... t) {
+        (operator()(t), ...);
     }
 
-    void operator()(char &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned char &t) {
-        write_bytes(t);
-    }
-
-    void operator()(short &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned short &t) {
-        write_bytes(t);
-    }
-
-    void operator()(int &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned int &t) {
-        write_bytes(t);
-    }
-
-    void operator()(long &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned long &t) {
-        write_bytes(t);
-    }
-
-    void operator()(long long &t) {
-        write_bytes(t);
-    }
-
-    void operator()(unsigned long long &t) {
-        write_bytes(t);
-    }
-
-    void operator()(float &t) {
-        write_bytes(t);
-    }
-
-    void operator()(double &t) {
-        write_bytes(t);
-    }
-
+protected:
     template<typename T>
     void write_bytes(T &t) { 
         EDYN_ASSERT(m_position + sizeof(T) < m_size);
@@ -263,7 +126,6 @@ public:
         m_position += sizeof(T);
     }
 
-protected:
     buffer_type m_buffer;
     size_t m_size;
     size_t m_position;
