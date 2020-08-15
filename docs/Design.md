@@ -273,4 +273,4 @@ Multiple server instances can run in different machines in the same local area n
 
 ## Distributed simulation
 
-Several server clusters can exist in different geographical locations to allow for better network performance for local users. Clusters communicate among themselves to synchronize the redundant simulation of the persistent world.
+Several server clusters can exist in different geographical locations to allow for better network performance for local clients. Clusters communicate among themselves to synchronize the redundant simulation of the persistent world.

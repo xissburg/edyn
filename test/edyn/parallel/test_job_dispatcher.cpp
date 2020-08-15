@@ -66,3 +66,25 @@ TEST_F(job_dispatcher_test, parallel_for_small) {
         ASSERT_EQ(values[i], 27 + 18);
     });
 }
+
+TEST_F(job_dispatcher_test, nested_parallel_for) {
+    constexpr size_t rows = 2012;
+    constexpr size_t columns = 2459;
+    using matrix_type = std::array<std::array<edyn::scalar, columns>, rows>;
+
+    auto A = std::make_unique<matrix_type>();
+    auto B = std::make_unique<matrix_type>();
+    auto C = std::make_unique<matrix_type>();
+
+    edyn::parallel_for(dispatcher, size_t{0}, A->size(), size_t{1}, [&] (size_t i) {
+        edyn::parallel_for(dispatcher, size_t{0}, (*A)[i].size(), size_t{1}, [&] (size_t j) {
+            (*C)[i][j] = (*A)[i][j] + (*B)[i][j];
+        });
+    });
+
+    for (size_t i = 0; i < A->size(); ++i) {
+        for (size_t j = 0; j < (*A)[i].size(); ++j) {
+            ASSERT_EQ((*C)[i][j], (*A)[i][j] + (*B)[i][j]);
+        }
+    }
+}
