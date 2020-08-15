@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <vector>
 #include <map>
+#include "edyn/util/tuple.hpp"
 
 namespace edyn {
 
@@ -20,19 +21,21 @@ public:
         , m_position(0)
     {}
 
-    template<typename... Ts>
-    void operator()(Ts&... t) {
-        if constexpr(sizeof...(Ts) == 1) {
-            if constexpr(has_type<Ts..., archive_fundamental_types>::value) {
-                (read_bytes(t), ...);
-            } else {
-                (serialize(*this, t), ...);
-            }
+    template<typename T>
+    void operator()(T& t) {
+        if constexpr(has_type<T, archive_fundamental_types>::value) {
+            read_bytes(t);
         } else {
-            (operator()(t), ...);
+            serialize(*this, t);
         }
     }
 
+    template<typename... Ts>
+    void operator()(Ts&... t) {
+        (operator()(t), ...);
+    }
+
+protected:
     template<typename T>
     void read_bytes(T &t) {
         auto* buff = reinterpret_cast<const T*>(&(*m_buffer)[m_position]);
@@ -40,7 +43,6 @@ public:
         m_position += sizeof(T);
     }
 
-protected:
     buffer_type *m_buffer;
     size_t m_position;
 };
@@ -56,19 +58,21 @@ public:
         : m_buffer(&buffer) 
     {}
 
-    template<typename... Ts>
-    void operator()(Ts&... t) {
-        if constexpr(sizeof...(Ts) == 1) {
-            if constexpr(has_type<Ts..., archive_fundamental_types>::value) {
-                (write_bytes(t), ...);
-            } else {
-                (serialize(*this, const_cast<std::add_lvalue_reference_t<std::remove_const_t<std::remove_reference_t<Ts>>>>(t)), ...);
-            }
+    template<typename T>
+    void operator()(T& t) {
+        if constexpr(has_type<T, archive_fundamental_types>::value) {
+            write_bytes(t);
         } else {
-            (operator()(t), ...);
+            serialize(*this, t);
         }
     }
 
+    template<typename... Ts>
+    void operator()(Ts&... t) {
+        (operator()(t), ...);
+    }
+
+protected:
     template<typename T>
     void write_bytes(T &t) { 
         auto idx = m_buffer->size();
@@ -77,7 +81,6 @@ public:
         *dest = t;
     }
 
-protected:
     buffer_type *m_buffer;
 };
 
