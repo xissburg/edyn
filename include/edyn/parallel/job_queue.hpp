@@ -2,9 +2,7 @@
 #define EDYN_PARALLEL_JOB_QUEUE_HPP
 
 #include <mutex>
-#include <atomic>
-#include <deque>
-#include <memory>
+#include <queue>
 #include <condition_variable>
 #include "edyn/parallel/job.hpp"
 
@@ -22,7 +20,7 @@ public:
 
 private:
     std::mutex m_mutex;
-    std::deque<job> m_jobs;
+    std::queue<job> m_jobs;
     std::condition_variable m_cv;
 };
 

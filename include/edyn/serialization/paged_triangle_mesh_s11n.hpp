@@ -5,6 +5,7 @@
 #include "edyn/shapes/paged_triangle_mesh.hpp"
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
 #include "edyn/serialization/file_archive.hpp"
+#include "edyn/parallel/job_queue_scheduler.hpp"
 
 #include <entt/signal/sigh.hpp>
 
@@ -141,7 +142,7 @@ struct load_mesh_context {
     intptr_t m_input;
     size_t m_index;
     intptr_t m_mesh;
-    std::thread::id m_source_thread_id;
+    job_queue_scheduler m_scheduler;
 };
 
 void load_mesh_job_func(job::data_type &);

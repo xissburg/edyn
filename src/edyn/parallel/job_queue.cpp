@@ -6,7 +6,7 @@ namespace edyn {
 void job_queue::push(const job &j) {
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_jobs.push_back(j);
+        m_jobs.push(j);
     }
     m_cv.notify_one();
 }
@@ -17,8 +17,8 @@ job job_queue::pop() {
         return !m_jobs.empty();
     });
 
-    auto j = m_jobs.back();
-    m_jobs.pop_back();
+    auto j = m_jobs.front();
+    m_jobs.pop();
     return j;
 }
 
@@ -28,8 +28,8 @@ bool job_queue::try_pop(job &j) {
         return false;
     }
 
-    j = m_jobs.back();
-    m_jobs.pop_back();
+    j = m_jobs.front();
+    m_jobs.pop();
     return true;
 }
 
