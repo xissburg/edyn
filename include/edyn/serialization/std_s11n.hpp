@@ -4,9 +4,22 @@
 #include <vector>
 #include <cstdint>
 #include <memory>
+#include <thread>
+#include <sstream>
 #include <type_traits>
 
 namespace edyn {
+
+template<typename Archive>
+void serialize(Archive &archive, std::string& str) {
+    auto size = str.size();
+    archive(size);
+    str.resize(size);
+
+    for (size_t i = 0; i < size; ++i) {
+        archive(str[i]);
+    }
+}
 
 template<typename Archive, typename T>
 void serialize(Archive &archive, std::vector<T> &vector) {
@@ -73,6 +86,23 @@ void serialize(Archive &archive, std::unique_ptr<T> &ptr) {
 template<typename Archive, typename T>
 void serialize(Archive &archive, std::shared_ptr<T> &ptr) {
     archive(*ptr);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, std::thread::id &id) {
+    if constexpr(Archive::is_output::value) {
+        auto ss = std::ostringstream();
+        ss << id;
+        auto id_str = ss.str(); 
+        archive(id_str);
+    } else {
+        std::string id_str;
+        archive(id_str);
+        auto ss = std::istringstream(id_str);
+        std::thread::native_handle_type handle;
+        ss >> handle;
+        id = std::thread::id(handle);
+    }
 }
 
 }

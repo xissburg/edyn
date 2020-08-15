@@ -87,7 +87,6 @@ void serialize(paged_triangle_mesh_file_input_archive &archive,
         }
 
         archive.m_base_offset = archive.tell_position();
-        archive.m_mode = paged_triangle_mesh_serialization_mode::embedded;
     }
 
     // Resize LRU queue to have the number of submeshes.
@@ -99,41 +98,44 @@ void serialize(paged_triangle_mesh_file_input_archive &archive,
 }
 
 template<typename Archive>
-void serialize(Archive &archive, load_mesh_job_data &data) {
-    archive(data.m_index);
-    archive(data.m_input);
-    archive(data.m_mesh);
-    archive(data.m_source_thread_id);
+void serialize(Archive &archive, load_mesh_context &ctx) {
+    archive(ctx.m_index);
+    archive(ctx.m_input);
+    archive(ctx.m_mesh);
+    archive(ctx.m_source_thread_id);
 }
 
 void paged_triangle_mesh_file_input_archive::load(size_t index) {
-    auto job_data = load_mesh_job_data();
-    job_data.m_index = index;
-    job_data.m_input = this;
-    job_data.m_mesh = nullptr;
-    job_data.m_source_thread_id = std::this_thread::get_id();
+    auto ctx = load_mesh_context();
+    ctx.m_index = index;
+    ctx.m_input = reinterpret_cast<intptr_t>(this);
+    ctx.m_mesh = reinterpret_cast<intptr_t>(new triangle_mesh);
+    ctx.m_source_thread_id = std::this_thread::get_id();
 
     auto j = job();
     j.func = &load_mesh_job_func;
     auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
-    serialize(archive, job_data);
+    serialize(archive, ctx);
     job_dispatcher::global().async(j);
 }
 
 void load_mesh_job_func(job::data_type &data) {
-    load_mesh_job_data job_data;
+    load_mesh_context ctx;
     auto archive = memory_input_archive(data.data(), data.size());
-    serialize(archive, job_data);
+    serialize(archive, ctx);
 
-    switch(job_data.m_input->m_mode) {
+    auto *input = reinterpret_cast<paged_triangle_mesh_file_input_archive *>(ctx.m_input);
+    auto *mesh = reinterpret_cast<triangle_mesh *>(ctx.m_mesh);
+
+    switch(input->m_mode) {
     case paged_triangle_mesh_serialization_mode::embedded:
-        job_data.m_input->seek_position(job_data.m_input->m_base_offset + job_data.m_input->m_offsets[job_data.m_index]);
-        serialize(*job_data.m_input, *job_data.m_mesh);
+        input->seek_position(input->m_base_offset + input->m_offsets[ctx.m_index]);
+        serialize(*input, *mesh);
         break;
     case paged_triangle_mesh_serialization_mode::external: {
-        auto tri_mesh_path = get_submesh_path(job_data.m_input->m_path, job_data.m_index);
+        auto tri_mesh_path = get_submesh_path(input->m_path, ctx.m_index);
         auto tri_mesh_archive = file_input_archive(tri_mesh_path);
-        serialize(tri_mesh_archive, *job_data.m_mesh);
+        serialize(tri_mesh_archive, *mesh);
         break;
     }
     }
@@ -141,16 +143,19 @@ void load_mesh_job_func(job::data_type &data) {
     auto finish_job = job();
     std::copy(data.begin(), data.end(), finish_job.data.begin());
     finish_job.func = &finish_load_mesh_job_func;
-    job_dispatcher::global().async(job_data.m_source_thread_id, finish_job);
+    job_dispatcher::global().async(ctx.m_source_thread_id, finish_job);
 }
 
 void finish_load_mesh_job_func(job::data_type &data) {
-    load_mesh_job_data job_data;
+    load_mesh_context ctx;
     auto archive = memory_input_archive(data.data(), data.size());
-    serialize(archive, job_data);
+    serialize(archive, ctx);
 
-    auto mesh_ptr = std::unique_ptr<triangle_mesh>(job_data.m_mesh);
-    job_data.m_input->m_loaded_mesh_signal.publish(job_data.m_index, mesh_ptr);
+    auto *mesh = reinterpret_cast<triangle_mesh *>(ctx.m_mesh);
+    auto mesh_ptr = std::unique_ptr<triangle_mesh>(mesh);
+    
+    auto *input = reinterpret_cast<paged_triangle_mesh_file_input_archive *>(ctx.m_input);
+    input->m_loaded_mesh_signal.publish(ctx.m_index, mesh_ptr);
 }
 
 }

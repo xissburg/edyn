@@ -69,8 +69,13 @@ public:
     {}
 
     template<typename... Ts>
-    void operator()(Ts&&... t) {
+    void operator()(Ts&... t) {
         super::operator()(t...);
+    }
+
+    template<typename T>
+    void operator()(T& t) {
+        super::operator()(t);
     }
 
     void operator()(triangle_mesh &tri_mesh);
@@ -85,7 +90,7 @@ public:
 private:
     std::string m_path;
     size_t m_triangle_mesh_index;
-    const paged_triangle_mesh_serialization_mode m_mode;
+    paged_triangle_mesh_serialization_mode m_mode;
 };
 
 /**
@@ -114,8 +119,6 @@ public:
         return {m_loaded_mesh_signal};
     }
 
-    friend class load_mesh_job;
-    friend class finish_load_mesh_job;
     friend void serialize(paged_triangle_mesh_file_input_archive &archive, 
                           paged_triangle_mesh &paged_tri_mesh);
     friend void load_mesh_job_func(job::data_type &);
@@ -130,27 +133,18 @@ private:
 };
 
 /**
- * Job used to load submeshes in the background. It schedules a `finish_load_mesh_job`
- * in the calling thread once finished. 
+ * Job used to load submeshes in the background. It schedules a job with 
+ * `finish_load_mesh_job_func` in the calling thread once finished with the
+ * same context and a loaded `triangle_mesh`. 
  */
-struct load_mesh_job_data {
-    paged_triangle_mesh_file_input_archive *m_input;
+struct load_mesh_context {
+    intptr_t m_input;
     size_t m_index;
-    triangle_mesh *m_mesh;
+    intptr_t m_mesh;
     std::thread::id m_source_thread_id;
 };
 
 void load_mesh_job_func(job::data_type &);
-
-/**
- * Delivers the loaded submesh in the calling thread after a `load_mesh_job` is
- * done loading.
- */
-struct finish_load_mesh_job_data {
-    paged_triangle_mesh_file_input_archive *m_input;
-    size_t m_index;
-    triangle_mesh *m_mesh;
-};
 
 void finish_load_mesh_job_func(job::data_type &);
 

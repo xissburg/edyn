@@ -35,7 +35,7 @@ void make_plane_mesh(scalar extent_x, scalar extent_z,
 bool load_mesh_from_obj(const std::string &path, 
                         std::vector<vector3> &vertices, 
                         std::vector<uint16_t> &indices) {
-auto file = std::ifstream(path);
+    auto file = std::ifstream(path);
 
     if (!file.is_open()) {
         return false;
