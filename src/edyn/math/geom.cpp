@@ -701,4 +701,61 @@ bool point_in_quad(const vector3 &p,
            dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON;
 }
 
+vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p) {
+    auto closest = p;
+    closest.x = std::min(half_extent.x, closest.x);
+    closest.x = std::max(-half_extent.x, closest.x);
+    closest.y = std::min(half_extent.y, closest.y);
+    closest.y = std::max(-half_extent.y, closest.y);
+    closest.z = std::min(half_extent.z, closest.z);
+    closest.z = std::max(-half_extent.z, closest.z);
+    return closest;
+}
+
+scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, vector3 &closest, vector3 &normal) {
+    EDYN_ASSERT(p >= -half_extent && p <= half_extent);
+
+    auto dist = half_extent.x - p.x;
+    auto min_dist = dist;
+    closest = vector3{half_extent.x, p.y, p.z};
+    normal = vector3{1, 0, 0};
+
+    dist = half_extent.x + p.x;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{-half_extent.x, p.y, p.z};
+        normal = vector3{-1, 0, 0};
+    }
+
+    dist = half_extent.y - p.y;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{p.x, half_extent.y, p.z};
+        normal = vector3{0, 1, 0};
+    }
+
+    dist = half_extent.y + p.y;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{p.x, -half_extent.y, p.z};
+        normal = vector3{0, -1, 0};
+    }
+
+    dist = half_extent.z - p.z;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{p.x, p.y, half_extent.z};
+        normal = vector3{0, 0, 1};
+    }
+
+    dist = half_extent.z + p.z;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{p.x, p.y, -half_extent.z};
+        normal = vector3{0, 0, -1};
+    }
+
+    return dist;
+}
+
 }

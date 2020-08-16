@@ -247,6 +247,28 @@ bool point_in_quad(const vector3 &p,
                    const std::array<vector3, 4> &quad_vertices, 
                    const vector3 &quad_normal);
 
+/** 
+ * Finds the point closest to `p` on the surface of the axis-aligned box
+ * with the given half extent if `p` is outside the box.
+ * @param half_extent Half the extent on the box along each axis.
+ * @param p The query point.
+ * @return Point on the box surface closest to `p`, or `p` if `p` is contained
+ *         in the box.
+ */
+vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p);
+
+/**
+ * Finds the point closest to the internal point `p` on the surface of the
+ * axis-aligned box with the given half extent. `p` must be contained within
+ * the box.
+ * @param half_extent Half the extent on the box along each axis.
+ * @param p The query point.
+ * @param closest Outputs the closest point on the surface of the box.
+ * @param normal Outputs the normal of the face where `closest` is located.
+ * @return Distance between closest points.
+ */
+scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, 
+                                vector3 &closest, vector3 &normal);
 }
 
 #endif // EDYN_MATH_GEOM_HPP

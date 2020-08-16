@@ -133,6 +133,16 @@ inline bool operator<(const vector3 &v, const vector3 &w) {
     return v.x < w.x && v.y < w.y && v.z < w.z;
 }
 
+// Check if a vector is greater than or equal to another component-wise.
+inline bool operator>=(const vector3 &v, const vector3 &w) {
+    return v.x >= w.x && v.y >= w.y && v.z >= w.z;
+}
+
+// Check if a vector is less than or equal to another component-wise.
+inline bool operator<=(const vector3 &v, const vector3 &w) {
+    return v.x <= w.x && v.y <= w.y && v.z <= w.z;
+}
+
 // Dot product between vectors.
 inline scalar dot(const vector3 &v, const vector3 &w) {
     return v.x * w.x + v.y * w.y + v.z * w.z;
