@@ -119,8 +119,16 @@ public:
             return nullptr;
         }
 
+        // Increment loop counter. Will be decremented by the new loop when
+        // it finishes running. It is important to increment it before range
+        // stealing below, since it might terminate the `candidate_loop` right
+        // after and cause `m_counter` to be decremented to zero thus causing
+        // a wait on the counter to return prematurely resulting in an incomplete
+        // run of the entire for-loop range.
+        m_counter.increment();
+
         // Effectively steal a range of work from candidate by moving its last
-        // index to the middle.
+        // index to the halfway point between current and last.
         auto middle = current + remaining / 2;
         candidate_loop->m_last.store(middle, std::memory_order_release);
 
@@ -129,13 +137,10 @@ public:
         // is running while this range stealing is taking place. To prevent calling
         // `m_func` more than once for the elements between `middle` and 
         // `candidate_loop->m_current`, load `candidate_loop->m_current` and check
-        // if it's greater than or equals to `middle` and if so, return an empty loop.
+        // if it's greater than or equals to `middle` and if so, start from there instead.
         current = candidate_loop->m_current.load(std::memory_order_acquire);
-        auto new_first = current >= middle ? last : middle;
+        auto new_first = current >= middle ? current : middle;
 
-        // Increment loop counter. Will be decremented by the new loop when
-        // it finishes running.
-        m_counter.increment();
         auto &loop = m_loops.emplace_front(new_first, last, m_step, m_func, m_counter);
         return &loop;
     }
