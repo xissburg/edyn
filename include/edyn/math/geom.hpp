@@ -243,6 +243,10 @@ size_t insert_index(std::array<vector3, N> points,
     return N;
 }
 
+bool point_in_quad(const vector3 &p, 
+                   const std::array<vector3, 4> &quad_vertices, 
+                   const vector3 &quad_normal);
+
 }
 
 #endif // EDYN_MATH_GEOM_HPP

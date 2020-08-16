@@ -489,7 +489,7 @@ scalar closest_point_circle_circle(
         auto d_p_phi = (u * -sin_phi + v * cos_phi) * radiusB;
         auto dd_p_phi = (u * -cos_phi + v * -sin_phi) * radiusB;
 
-        auto theta = atan2(p_phi.y, p_phi.z);
+        auto theta = std::atan2(p_phi.y, p_phi.z);
         auto cos_theta = std::cos(theta);
         auto sin_theta = std::sin(theta);
 
@@ -524,7 +524,7 @@ scalar closest_point_circle_circle(
     auto sin_phi = std::sin(phi);
     rB0 = posB_in_A + (u * cos_phi + v * sin_phi) * radiusB;
 
-    auto theta = atan2(rB0.y, rB0.z);
+    auto theta = std::atan2(rB0.y, rB0.z);
     auto cos_theta = std::cos(theta);
     auto sin_theta = std::sin(theta);
     rA0 = vector3{0, sin_theta * radiusA, cos_theta * radiusA};
@@ -679,6 +679,26 @@ scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, co
 	vector3 tmp2 = cross(a[2], b[2]);
 
 	return std::max(std::max(length_sqr(tmp0), length_sqr(tmp1)), length_sqr(tmp2));
+}
+
+bool point_in_quad(const vector3 &p, 
+                   const std::array<vector3, 4> &quad_vertices, 
+                   const vector3 &quad_normal) {
+
+    std::array<vector3, 4> quad_tangents;
+    for (int i = 0; i < 4; ++i) {
+        auto &v0 = quad_vertices[i];
+        auto &v1 = quad_vertices[(i + 1) % 4];
+        quad_tangents[i] = cross(quad_normal, v1 - v0);
+    }
+
+    scalar dots[4];
+    for (int i = 0; i < 4; ++i) {
+        dots[i] = dot(p - quad_vertices[i], quad_tangents[i]);
+    }
+
+    return dots[0] > -EDYN_EPSILON && dots[1] > -EDYN_EPSILON &&
+           dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON;
 }
 
 }

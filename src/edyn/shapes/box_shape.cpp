@@ -100,11 +100,11 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
         auto proj1 = projections[indices[1]];
         auto proj2 = projections[indices[2]];
 
-        if (proj0 < proj1 && proj0 < proj2) {
+        if (proj0 <= proj1 && proj0 <= proj2) {
             feature_index = get_edge_index(indices[1], indices[2]);
-        } else if (proj1 < proj0 && proj1 < proj2) {
+        } else if (proj1 <= proj0 && proj1 <= proj2) {
             feature_index = get_edge_index(indices[0], indices[2]);
-        } else { // if (proj2 < proj0 && proj2 < proj1) {
+        } else { // if (proj2 <= proj0 && proj2 <= proj1) {
             feature_index = get_edge_index(indices[0], indices[1]);
         }
     } else {

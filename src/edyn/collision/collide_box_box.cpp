@@ -17,7 +17,8 @@ struct box_box_separating_axis {
 collision_result collide(const box_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const box_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    // Box-Box SAT.
+    // Box-Box SAT. Normal of 3 faces of A, normal of 3 faces of B, 3 * 3 edge
+    // cross-products.
     std::array<box_box_separating_axis, 3 + 3 + 3 * 3> sep_axes;
 
     auto axesA = std::array<vector3, 3>{
