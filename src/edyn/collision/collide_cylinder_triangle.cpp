@@ -313,7 +313,7 @@ void collide_cylinder_triangle(
         }
 
         // Check if circle and triangle edges intersect.
-        for(size_t i = 0; i < num_edges_to_check; ++i) {
+        for (size_t i = 0; i < num_edges_to_check; ++i) {
             auto k = (sep_axis.tri_feature_index + i) % 3;
             if (ignore_edge(k, sep_axis.dir)) {
                 continue;
@@ -331,7 +331,7 @@ void collide_cylinder_triangle(
                                                     v1_A.z, v1_A.y, 
                                                     cylinder.radius, s0, s1);
 
-            if(num_points > 0) {
+            if (num_points > 0) {
                 ++num_edge_intersections;
                 last_edge_index = k;
 

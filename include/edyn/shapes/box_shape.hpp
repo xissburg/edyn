@@ -188,6 +188,8 @@ struct box_shape {
                           size_t v2_idx, size_t v3_idx) const;
 };
 
+size_t get_box_feature_num_vertices(box_feature);
+
 }
 
 #endif // EDYN_SHAPES_BOX_SHAPE_HPP

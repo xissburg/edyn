@@ -228,4 +228,16 @@ size_t box_shape::get_face_index(size_t v0_idx, size_t v1_idx,
     return SIZE_MAX;
 }
 
+size_t get_box_feature_num_vertices(box_feature feature) {
+    switch (feature) {
+    case BOX_FEATURE_FACE:
+        return 4;
+    case BOX_FEATURE_EDGE:
+        return 2;
+    case BOX_FEATURE_VERTEX:
+        return 1;
+    }
+}
+
+
 }
