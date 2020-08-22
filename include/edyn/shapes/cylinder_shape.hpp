@@ -6,13 +6,13 @@
 
 namespace edyn {
 
-enum cylinder_feature {
+enum class cylinder_feature {
     // Either of the two cylinder caps.
-    CYLINDER_FEATURE_FACE,
+    face,
     // An edge on the side wall of the cylinder.
-    CYLINDER_FEATURE_SIDE_EDGE,
+    edge,
     // The edge/border of a cylinder cap.
-    CYLINDER_FEATURE_FACE_EDGE,
+    cap_edge,
 };
 
 struct cylinder_shape {

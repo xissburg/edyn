@@ -39,7 +39,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     for (size_t i = 0; i < 3; ++i) {
         auto &axisA = axesA[i];
         auto &axis = sep_axes[axis_idx++];
-        axis.featureA = BOX_FEATURE_FACE;
+        axis.featureA = box_feature::face;
 
         if (dot(posB - posA, axisA) > 0) {
             axis.feature_indexA = i * 2; // Positive face along axis.
@@ -66,7 +66,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     for (size_t i = 0; i < 3; ++i) {
         auto &axisB = axesB[i];
         auto &axis = sep_axes[axis_idx++];
-        axis.featureB = BOX_FEATURE_FACE;
+        axis.featureB = box_feature::face;
 
         if (dot(posA - posB, axisB) > 0) {
             axis.feature_indexB = i * 2; // Positive face along axis.
@@ -137,7 +137,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis.dir);
 
-    if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == BOX_FEATURE_FACE) {
+    if (sep_axis.featureA == box_feature::face && sep_axis.featureB == box_feature::face) {
         // Face-Face.
         auto face_verticesA = shA.get_face(sep_axis.feature_indexA, posA, ornA);
         auto face_normalA = shA.get_face_normal(sep_axis.feature_indexA, ornA);
@@ -226,10 +226,10 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 }
             }
         }
-    } else if ((sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == BOX_FEATURE_EDGE) ||
-               (sep_axis.featureB == BOX_FEATURE_FACE && sep_axis.featureA == BOX_FEATURE_EDGE)) {
+    } else if ((sep_axis.featureA == box_feature::face && sep_axis.featureB == box_feature::edge) ||
+               (sep_axis.featureB == box_feature::face && sep_axis.featureA == box_feature::edge)) {
         // Face vs Edge.
-        auto is_faceA = sep_axis.featureA == BOX_FEATURE_FACE;
+        auto is_faceA = sep_axis.featureA == box_feature::face;
 
         auto face_normal = is_faceA ? shA.get_face_normal(sep_axis.feature_indexA, ornA) :
                                       shB.get_face_normal(sep_axis.feature_indexB, ornB);
@@ -284,7 +284,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 }
             }
         }        
-    } else if (sep_axis.featureA == BOX_FEATURE_EDGE && sep_axis.featureB == BOX_FEATURE_EDGE) {
+    } else if (sep_axis.featureA == box_feature::edge && sep_axis.featureB == box_feature::edge) {
         // Edge-Edge.
         scalar s[2], t[2];
         vector3 p0[2], p1[2];
@@ -302,13 +302,13 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
         }
-    } else if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == BOX_FEATURE_VERTEX) {
+    } else if (sep_axis.featureA == box_feature::face && sep_axis.featureB == box_feature::vertex) {
         // Face A, Vertex B.
         auto pivotB = shB.get_vertex(sep_axis.feature_indexB);
         auto pivotA = (posB + rotate(ornB, pivotB)) + sep_axis.dir * sep_axis.distance;
         pivotA = to_object_space(pivotA, posA, ornA);
         result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-    } else if (sep_axis.featureB == BOX_FEATURE_FACE && sep_axis.featureA == BOX_FEATURE_VERTEX) {
+    } else if (sep_axis.featureB == box_feature::face && sep_axis.featureA == box_feature::vertex) {
         // Face B, Vertex A.
         auto pivotA = shA.get_vertex(sep_axis.feature_indexA);
         auto pivotB = (posA + rotate(ornA, pivotA)) - sep_axis.dir * sep_axis.distance;

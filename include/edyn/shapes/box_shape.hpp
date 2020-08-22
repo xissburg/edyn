@@ -9,10 +9,10 @@
 
 namespace edyn {
 
-enum box_feature {
-    BOX_FEATURE_VERTEX,
-    BOX_FEATURE_EDGE,
-    BOX_FEATURE_FACE
+enum class box_feature {
+    vertex,
+    edge,
+    face
 };
 
 struct box_shape {

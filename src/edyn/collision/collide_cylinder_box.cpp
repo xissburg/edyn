@@ -35,7 +35,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     for (size_t i = 0; i < 3; ++i) {
         auto &axisB = box_axes[i];
         auto &axis = sep_axes[axis_idx++];
-        axis.featureB = BOX_FEATURE_FACE;
+        axis.featureB = box_feature::face;
 
         // Make dir point towards A.
         if (dot(posA - posB, axisB) > 0) {
@@ -75,26 +75,28 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     auto normalB = rotate(conjugate(ornB), sep_axis.dir);
 
     switch (sep_axis.featureA) {
-    case CYLINDER_FEATURE_FACE: {
+    case cylinder_feature::face: {
         size_t num_vertices_in_face = 0;
         auto num_feature_vertices = get_box_feature_num_vertices(sep_axis.featureB);
         std::array<vector3, 4> vertices;
 
         switch (sep_axis.featureB) {
-        case BOX_FEATURE_FACE: {
+        case box_feature::face: {
             auto vs = shB.get_face(sep_axis.feature_indexB);
             std::copy(vs.begin(), vs.end(), vertices.begin());
         }
         break;
-        case BOX_FEATURE_EDGE: {
+        case box_feature::edge: {
             auto vs = shB.get_edge(sep_axis.feature_indexB);
             std::copy(vs.begin(), vs.end(), vertices.begin());
         }
         break;
-        case BOX_FEATURE_VERTEX:
+        case box_feature::vertex:
             vertices[0] = shB.get_vertex(sep_axis.feature_indexB);
         }            
 
+        // Check if box feature vertices are inside a cylinder cap face (by checking
+        // if its distance from the cylinder axis is smaller than the cylinder radius).
         for (size_t i = 0; i < num_feature_vertices; ++i) {
             auto &vertex = vertices[i];
             vector3 closest; scalar t;
@@ -109,21 +111,25 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 ++num_vertices_in_face;
             }
         }
-        
+    
+        // If not all vertices of the box feature are contained in the cylinder
+        // cap face, there could be edge intersections or if it is a `box_feature::face`
+        // then the cap face could be contained within the box face.
         size_t num_edge_intersections = 0;
         size_t num_edges_to_check = 0;
 
-        if (sep_axis.featureB == BOX_FEATURE_EDGE && 
+        if (sep_axis.featureB == box_feature::edge && 
             num_vertices_in_face < 2) {
             num_edges_to_check = 1;
-        } else if (sep_axis.featureB == BOX_FEATURE_FACE && 
+        } else if (sep_axis.featureB == box_feature::face && 
                     num_vertices_in_face < 4) {
             num_edges_to_check = 4;
         }
 
         // Check if circle and box edges intersect.
         for (size_t i = 0; i < num_edges_to_check; ++i) {
-            // Transform vertices to shA space.
+            // Transform vertices to `shA` (cylinder) space. The cylinder axis
+            // is the x-axis.
             auto v0 = vertices[i];
             auto v0_A = to_object_space(v0, posA, ornA);
 
@@ -153,23 +159,24 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                     result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
                 }
             }
+        }
 
-            if (sep_axis.featureB == BOX_FEATURE_FACE) {
-                // If no vertex is contained in the circular face nor there is
-                // any edge intersection, it means the circle could be contained
-                // in the box face.
-                if (num_vertices_in_face == 0 && num_edge_intersections == 0) {
-                    if (point_in_quad(posA, vertices, sep_axis.dir)) {
-                        auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
-                        for(int i = 0; i < 4; ++i) {
-                            auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
-                            auto pivotA = vector3{pivotA_x, 
-                                                  shA.radius * multipliers[i], 
-                                                  shA.radius * multipliers[(i + 1) % 4]};
-                            auto pivotB = posA + rotate(ornA, pivotA);
-                            pivotB = project_plane(pivotB, vertices[0], sep_axis.dir);
-                            result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
-                        }
+        if (sep_axis.featureB == box_feature::face) {
+            // If no vertex is contained in the circular face nor there is
+            // any edge intersection, it means the circle could be contained
+            // in the box face.
+            if (num_vertices_in_face == 0 && num_edge_intersections == 0) {
+                // Check if face center is in quad.
+                if (point_in_quad(posA, vertices, sep_axis.dir)) {
+                    auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
+                    for(int i = 0; i < 4; ++i) {
+                        auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
+                        auto pivotA = vector3{pivotA_x, 
+                                              shA.radius * multipliers[i], 
+                                              shA.radius * multipliers[(i + 1) % 4]};
+                        auto pivotB = posA + rotate(ornA, pivotA);
+                        pivotB = project_plane(pivotB, vertices[0], sep_axis.dir);
+                        result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
                     }
                 }
             } else if (num_edge_intersections == 1) {
@@ -192,14 +199,14 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     }
     break;
 
-    case CYLINDER_FEATURE_SIDE_EDGE: {
+    case cylinder_feature::edge: {
 
     }
     break;
 
-    case CYLINDER_FEATURE_FACE_EDGE: {
+    case cylinder_feature::cap_edge: {
         switch (sep_axis.featureB) {
-        case BOX_FEATURE_FACE: {
+        case box_feature::face: {
             auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
             auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
             result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});

@@ -88,13 +88,13 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
     EDYN_ASSERT(count > 0);
 
     if (count == 1) {
-        feature = BOX_FEATURE_VERTEX;
+        feature = box_feature::vertex;
         feature_index = indices[0];
     } else if (count == 2) {
-        feature = BOX_FEATURE_EDGE;
+        feature = box_feature::edge;
         feature_index = get_edge_index(indices[0], indices[1]);
     } else if (count == 3) {
-        feature = BOX_FEATURE_EDGE;
+        feature = box_feature::edge;
         // Select 2 points among the 3 with the higher projections.
         auto proj0 = projections[indices[0]];
         auto proj1 = projections[indices[1]];
@@ -108,7 +108,7 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
             feature_index = get_edge_index(indices[0], indices[1]);
         }
     } else {
-        feature = BOX_FEATURE_FACE;
+        feature = box_feature::face;
         feature_index = get_face_index(indices[0], indices[1], indices[2], indices[3]);
     }
 }
@@ -230,11 +230,11 @@ size_t box_shape::get_face_index(size_t v0_idx, size_t v1_idx,
 
 size_t get_box_feature_num_vertices(box_feature feature) {
     switch (feature) {
-    case BOX_FEATURE_FACE:
+    case box_feature::face:
         return 4;
-    case BOX_FEATURE_EDGE:
+    case box_feature::edge:
         return 2;
-    case BOX_FEATURE_VERTEX:
+    case box_feature::vertex:
         return 1;
     }
 }

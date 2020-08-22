@@ -37,7 +37,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     // A's faces.
     {
         auto &axis = sep_axes[axis_idx++];
-        axis.featureA = CYLINDER_FEATURE_FACE;
+        axis.featureA = cylinder_feature::face;
         vector3 face_center;
 
         // Make dir point towards A.
@@ -61,7 +61,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     // B's faces.
     {
         auto &axis = sep_axes[axis_idx++];
-        axis.featureB = CYLINDER_FEATURE_FACE;
+        axis.featureB = cylinder_feature::face;
         vector3 face_center;
 
         // Make dir point towards A.
@@ -137,13 +137,13 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             }
 
             if (is_faceA) {
-                axis.featureB = CYLINDER_FEATURE_SIDE_EDGE;
+                axis.featureB = cylinder_feature::edge;
                 shA.support_feature(posA, ornA, posB, -axis.dir, 
                                     axis.featureA, axis.feature_indexA, 
                                     axis.pivotA, axis.distance, threshold);
                 axis.distance = -(shB.radius + axis.distance);
             } else {
-                axis.featureA = CYLINDER_FEATURE_SIDE_EDGE;
+                axis.featureA = cylinder_feature::edge;
                 shB.support_feature(posB, ornB, posA, axis.dir, 
                                     axis.featureB, axis.feature_indexB, 
                                     axis.pivotB, axis.distance, threshold);
@@ -207,8 +207,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis.dir);
 
-    if (sep_axis.featureA == CYLINDER_FEATURE_FACE && 
-        sep_axis.featureB == CYLINDER_FEATURE_FACE) {
+    if (sep_axis.featureA == cylinder_feature::face && 
+        sep_axis.featureB == cylinder_feature::face) {
 
         auto posA_in_B = to_object_space(posA, posB, ornB);
         auto ornA_in_B = conjugate(ornB) * ornA;
@@ -259,15 +259,15 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 }
             } 
         }
-    } else if ((sep_axis.featureA == CYLINDER_FEATURE_FACE && 
-                sep_axis.featureB == CYLINDER_FEATURE_FACE_EDGE) ||
-               (sep_axis.featureB == CYLINDER_FEATURE_FACE && 
-                sep_axis.featureA == CYLINDER_FEATURE_FACE_EDGE)) {
+    } else if ((sep_axis.featureA == cylinder_feature::face && 
+                sep_axis.featureB == cylinder_feature::cap_edge) ||
+               (sep_axis.featureB == cylinder_feature::face && 
+                sep_axis.featureA == cylinder_feature::cap_edge)) {
         auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
         auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
         result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-    } else if (sep_axis.featureA == CYLINDER_FEATURE_FACE &&
-               sep_axis.featureB == CYLINDER_FEATURE_SIDE_EDGE) {
+    } else if (sep_axis.featureA == cylinder_feature::face &&
+               sep_axis.featureB == cylinder_feature::edge) {
         // Transform vertices to cylinder space.
         auto v0 = to_object_space(face_center_negB, posA, ornA);
         auto v1 = to_object_space(face_center_posB, posA, ornA);
@@ -283,8 +283,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             auto pivotB = vector3_x * shB.half_length * (2 * s[i] - 1) + normalB * shB.radius;
             result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
         }
-    } else if (sep_axis.featureB == CYLINDER_FEATURE_FACE &&
-               sep_axis.featureA == CYLINDER_FEATURE_SIDE_EDGE) {
+    } else if (sep_axis.featureB == cylinder_feature::face &&
+               sep_axis.featureA == cylinder_feature::edge) {
         // Transform vertices to cylinder space.
         auto v0 = to_object_space(face_center_negA, posB, ornB);
         auto v1 = to_object_space(face_center_posA, posB, ornB);
@@ -301,8 +301,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             auto pivotA = vector3_x * shA.half_length * (2 * s[i] - 1) - normalA * shA.radius;
             result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
         }
-    } else if (sep_axis.featureA == CYLINDER_FEATURE_SIDE_EDGE && 
-               sep_axis.featureB == CYLINDER_FEATURE_SIDE_EDGE) {
+    } else if (sep_axis.featureA == cylinder_feature::edge && 
+               sep_axis.featureB == cylinder_feature::edge) {
         scalar s[2], t[2];
         vector3 pA[2], pB[2];
         size_t num_points = 0;
@@ -319,8 +319,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
         }
-    } else if (sep_axis.featureA == CYLINDER_FEATURE_SIDE_EDGE &&
-               sep_axis.featureB == CYLINDER_FEATURE_FACE_EDGE) {
+    } else if (sep_axis.featureA == cylinder_feature::edge &&
+               sep_axis.featureB == cylinder_feature::cap_edge) {
         vector3 pivotA; scalar t;
         closest_point_segment(face_center_negA, face_center_posA, sep_axis.pivotB, t, pivotA);
 
@@ -329,8 +329,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             pivotA = to_object_space(pivotA - sep_axis.dir * shA.radius, posA, ornA);
             result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
         }
-    } else if (sep_axis.featureB == CYLINDER_FEATURE_SIDE_EDGE &&
-               sep_axis.featureA == CYLINDER_FEATURE_FACE_EDGE) {
+    } else if (sep_axis.featureB == cylinder_feature::edge &&
+               sep_axis.featureA == cylinder_feature::cap_edge) {
         vector3 pivotB; scalar t;
         closest_point_segment(face_center_negB, face_center_posB, sep_axis.pivotA, t, pivotB);
 
@@ -339,8 +339,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             pivotB = to_object_space(pivotB + sep_axis.dir * shB.radius, posB, ornB);
             result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
         }
-    } else if (sep_axis.featureA == CYLINDER_FEATURE_FACE_EDGE &&
-               sep_axis.featureB == CYLINDER_FEATURE_FACE_EDGE) {
+    } else if (sep_axis.featureA == cylinder_feature::cap_edge &&
+               sep_axis.featureB == cylinder_feature::cap_edge) {
         auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
         auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
         result.add_point({pivotA, pivotB, normalB, sep_axis.distance});

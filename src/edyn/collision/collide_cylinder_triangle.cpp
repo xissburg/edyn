@@ -98,7 +98,7 @@ void collide_cylinder_triangle(
     // cover both caps.
     {
         auto axis = separating_axis_cyl_tri{};
-        axis.cyl_feature = CYLINDER_FEATURE_FACE;
+        axis.cyl_feature = cylinder_feature::face;
 
         // Triangle is single-sided thus choose the cylinder cap that faces the
         // triangle.
@@ -148,7 +148,7 @@ void collide_cylinder_triangle(
             if (t > 0 && t < 1) {
                 // Within segment.
                 auto axis = separating_axis_cyl_tri{};
-                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                axis.cyl_feature = cylinder_feature::edge;
                 axis.dir = cross(edges[i], cylinder_axis);
 
                 if (length_sqr(axis.dir) <= EDYN_EPSILON) {
@@ -186,7 +186,7 @@ void collide_cylinder_triangle(
                 // Ignore points at the extremes.
                 if (r > 0 && r < 1 && dist_sqr > EDYN_EPSILON) {
                     auto axis = separating_axis_cyl_tri{};
-                    axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                    axis.cyl_feature = cylinder_feature::edge;
                     auto dist = std::sqrt(dist_sqr);
                     axis.dir = (closest - v0) / dist;
 
@@ -273,7 +273,7 @@ void collide_cylinder_triangle(
     auto &sep_axis = sep_axes[sep_axis_idx];
 
     switch (sep_axis.cyl_feature) {
-    case CYLINDER_FEATURE_FACE: {
+    case cylinder_feature::face: {
         // Check if vertices are inside the circular face.
         size_t num_vertices_in_face = 0;
         auto num_vertices_to_check = get_triangle_feature_num_vertices(sep_axis.tri_feature);
@@ -390,7 +390,7 @@ void collide_cylinder_triangle(
     }
     break;
 
-    case CYLINDER_FEATURE_SIDE_EDGE:
+    case cylinder_feature::edge:
         switch (sep_axis.tri_feature) {
         case TRIANGLE_FEATURE_FACE: {
             // Cylinder is on its side laying on the triangle face.
@@ -471,7 +471,7 @@ void collide_cylinder_triangle(
         }
     break;
 
-    case CYLINDER_FEATURE_FACE_EDGE: {
+    case cylinder_feature::cap_edge: {
         switch (sep_axis.tri_feature) {
         case TRIANGLE_FEATURE_FACE: {
             if (point_in_triangle(vertices, tri_normal, sep_axis.pivotA)) {
