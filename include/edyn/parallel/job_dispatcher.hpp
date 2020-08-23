@@ -11,6 +11,8 @@
 
 namespace edyn {
 
+struct job;
+class job_queue;
 class job_queue_scheduler;
 
 class job_dispatcher {

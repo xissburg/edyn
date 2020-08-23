@@ -2,14 +2,17 @@
 #define EDYN_COMP_ISLAND_HPP
 
 #include <vector>
+#include <memory>
 #include <entt/fwd.hpp>
 
 namespace edyn {
 
 /**
- * @brief An _island_ is a set of entities that are connected via a relation.
+ * @brief An _island_ is a set of entities that are connected through relations.
  */
 struct island {
+    std::unique_ptr<island_worker_context> worker;
+
     // All entities in this island.
     std::vector<entt::entity> entities;
 

@@ -1,5 +1,7 @@
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/job_queue.hpp"
 #include "edyn/parallel/job_queue_scheduler.hpp"
+#include "edyn/parallel/worker.hpp"
 #include "edyn/config/config.h"
 #include <cstdint>
 

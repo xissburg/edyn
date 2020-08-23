@@ -56,6 +56,29 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
 
     auto &node = registry.assign<island_node>(entity);
     node.island_entity = island_ent;
+
+    auto main_msg_queue = message_queue();
+    auto worker_msg_queue = message_queue();
+
+    isle.worker = std::make_unique<island_worker_context>(buffer_sync.second, 
+                                                          message_queue_in_out(
+                                                              main_msg_queue.input(),
+                                                              worker_msg_queue.output(),
+                                                          ));
+    isle.buffer_reader = buffer_sync.first;
+    isle.message_queue = message_queue_in_out(
+                            worker_msg_queue.input(),
+                            main_msg_queue.output(),
+                         );
+
+    isle.message_queue.sink<entity_created>.connect<&world::entity_created>(*this);
+    
+    auto j = job();
+    child_job.func = &island_worker_func;
+    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
+    auto ctx_intptr = reinterpret_cast<intptr_t>(isle.worker.get());
+    archive(ctx_intptr);
+    dispatcher.async(j);
 }
 
 void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
@@ -106,20 +129,22 @@ void world::update(scalar dt) {
     // Run jobs scheduled in physics thread.
     job_dispatcher::global().once_current_queue();
 
-    // Current elapsed time plus residual from previous update.
-    auto total_dt = residual_dt + dt;
-    // Number of steps for this update.
-    int n = std::floor(total_dt / fixed_dt);
-    // Store remainder to be accumulated on the next update.
-    residual_dt = total_dt - n * fixed_dt;
+    auto view = m_registry->view<island>();
+    view.each([&] (auto, island &isle) {
+        isle.message_queue.update();
 
-    for (int i = 0; i < n; ++i) {
-        step(fixed_dt);
-    }
+        buffer_sync_context::data_type data;
+        isle.buffer_reader.read(data);
+        auto input = memory_input_archive(data);
+        load_into_registry(input);
 
-    const auto present_dt = residual_dt - fixed_dt;
-    update_present_position(*registry, present_dt);
-    update_present_orientation(*registry, present_dt);
+        // Update visual representation for this island to reflect the state
+        // at the current time.
+        /* const auto present_dt = residual_dt - fixed_dt;
+        update_present_position(*registry, present_dt);
+        update_present_orientation(*registry, present_dt); */
+    });
+
 
     update_signal.publish(dt);
 }
