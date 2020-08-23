@@ -6,7 +6,7 @@
 #include <memory>
 #include <cstdint>
 
-namespace {
+namespace edyn {
 
 struct buffer_sync_context {
     using data_type = std::vector<uint8_t>;

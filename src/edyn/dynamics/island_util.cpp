@@ -6,6 +6,7 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/parallel/island_worker.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {

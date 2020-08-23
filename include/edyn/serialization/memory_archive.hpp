@@ -6,6 +6,7 @@
 #include <vector>
 #include <array>
 #include <map>
+#include "edyn/config/config.h"
 #include "edyn/util/tuple.hpp"
 #include "edyn/serialization/s11n_util.hpp"
 
@@ -60,12 +61,12 @@ public:
     using is_input = std::false_type;
     using is_output = std::true_type;
 
-    memory_output_archive(buffer_type& buffer) 
+    memory_output_archive(buffer_type &buffer) 
         : m_buffer(&buffer) 
     {}
 
     template<typename T>
-    void operator()(T& t) {
+    void operator()(T &t) {
         if constexpr(has_type<T, archive_fundamental_types>::value) {
             write_bytes(t);
         } else {
@@ -74,7 +75,21 @@ public:
     }
 
     template<typename... Ts>
-    void operator()(Ts&... t) {
+    void operator()(Ts &... t) {
+        (operator()(t), ...);
+    }
+
+    template<typename T>
+    void operator()(T &&t) {
+        if constexpr(has_type<T, archive_fundamental_types>::value) {
+            write_bytes(t);
+        } else {
+            serialize(*this, t);
+        }
+    }
+
+    template<typename... Ts>
+    void operator()(Ts &&... t) {
         (operator()(t), ...);
     }
 

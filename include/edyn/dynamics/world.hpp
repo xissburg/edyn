@@ -20,8 +20,6 @@ public:
 
     void update(scalar dt);
 
-    void step(scalar dt);
-
     uint64_t current_step() const {
         return step_;
     }
@@ -39,10 +37,6 @@ public:
 
     entt::sink<update_signal_func_t> update_sink() {
         return {update_signal};
-    }
-
-    entt::sink<step_signal_func_t> step_sink() {
-        return {step_signal};
     }
 
     broadphase &get_broaphase() {
@@ -66,7 +60,6 @@ private:
     std::atomic<double> local_time_;
     std::atomic_bool running {false};
     entt::sigh<update_signal_func_t> update_signal;
-    entt::sigh<step_signal_func_t> step_signal;
 };
 
 }

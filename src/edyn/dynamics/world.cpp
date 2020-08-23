@@ -12,8 +12,19 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/collision_filter.hpp"
+#include "edyn/comp/constraint.hpp"
+#include "edyn/comp/gravity.hpp"
+#include "edyn/comp/linacc.hpp"
+#include "edyn/comp/linvel.hpp"
+#include "edyn/comp/position.hpp"
+#include "edyn/comp/orientation.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/serialization/memory_archive.hpp"
+#include "edyn/parallel/buffer_sync.hpp"
+#include "edyn/parallel/message_queue.hpp"
+#include "edyn/parallel/island_worker.hpp"
 
 namespace edyn {
 
@@ -57,28 +68,48 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     auto &node = registry.assign<island_node>(entity);
     node.island_entity = island_ent;
 
-    auto main_msg_queue = message_queue();
-    auto worker_msg_queue = message_queue();
+    auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
+    auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
+    auto buffer_sync = make_buffer_sync();
 
-    isle.worker = std::make_unique<island_worker_context>(buffer_sync.second, 
-                                                          message_queue_in_out(
-                                                              main_msg_queue.input(),
-                                                              worker_msg_queue.output(),
-                                                          ));
-    isle.buffer_reader = buffer_sync.first;
-    isle.message_queue = message_queue_in_out(
-                            worker_msg_queue.input(),
-                            main_msg_queue.output(),
-                         );
+    isle.worker = new island_worker_context<
+            AABB, angvel, collision_filter, constraint, constraint_row, 
+            gravity, inertia, inertia_inv, inertia_world_inv,
+            island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
+            position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+            sleeping_tag, sleeping_disabled_tag, disabled_tag
+        >(buffer_sync.second, message_queue_in_out(main_queue_input, isle_queue_output));
 
-    isle.message_queue.sink<entity_created>.connect<&world::entity_created>(*this);
-    
+    // Leaking
+    isle.reader = new buffer_sync_reader(buffer_sync.first);
+    isle.message_queue = new message_queue_in_out(isle_queue_input, main_queue_output);
+
+    std::vector<entt::entity> entities;
+    entities.push_back(island_ent);
+    entities.push_back(entity);
+
+    auto buffer = memory_output_archive::buffer_type();
+    auto output = memory_output_archive(buffer);
+    registry.snapshot()
+        .component<
+            AABB, angvel, collision_filter, constraint, constraint_row, 
+            gravity, inertia, inertia_inv, inertia_world_inv,
+            island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
+            position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+            sleeping_tag, sleeping_disabled_tag, disabled_tag
+        >(output, entities.begin(), entities.end());
+    isle.message_queue->send(msg::registry_snapshot{buffer});
+
+    isle.timestamp = (double)performance_counter() / (double)performance_frequency();
+
+    //isle.message_queue.sink<msg::entity_created>.connect<&world::on_entity_created>(*this);
+
     auto j = job();
-    child_job.func = &island_worker_func;
+    j.func = &island_worker_func;
     auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
-    auto ctx_intptr = reinterpret_cast<intptr_t>(isle.worker.get());
+    auto ctx_intptr = reinterpret_cast<intptr_t>(isle.worker);
     archive(ctx_intptr);
-    dispatcher.async(j);
+    job_dispatcher::global().async(j);
 }
 
 void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
@@ -129,14 +160,23 @@ void world::update(scalar dt) {
     // Run jobs scheduled in physics thread.
     job_dispatcher::global().once_current_queue();
 
-    auto view = m_registry->view<island>();
+    auto view = registry->view<island>();
     view.each([&] (auto, island &isle) {
-        isle.message_queue.update();
+        isle.message_queue->update();
 
         buffer_sync_context::data_type data;
-        isle.buffer_reader.read(data);
-        auto input = memory_input_archive(data);
-        load_into_registry(input);
+        isle.reader->read(data);
+        auto input = memory_input_archive(data.data(), data.size());
+        registry->loader()
+            .entities(input)
+            .destroyed(input)
+            .component<
+                AABB, angvel, collision_filter, constraint, constraint_row, 
+                gravity, inertia, inertia_inv, inertia_world_inv,
+                island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
+                position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+                sleeping_tag, sleeping_disabled_tag, disabled_tag
+            >(input);
 
         // Update visual representation for this island to reflect the state
         // at the current time.
@@ -145,16 +185,7 @@ void world::update(scalar dt) {
         update_present_orientation(*registry, present_dt); */
     });
 
-
     update_signal.publish(dt);
-}
-
-void world::step(scalar dt) {
-    bphase.update();
-    nphase.update();
-    sol.update(step_, dt);
-    ++step_;
-    step_signal.publish(step_);
 }
 
 void world::run() {

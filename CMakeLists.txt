@@ -49,8 +49,8 @@ endif()
 # Conan dependencies
 #
 
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
+#include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+#conan_basic_setup()
 
 #
 # Library
@@ -130,8 +130,14 @@ target_include_directories(Edyn
     PUBLIC ${Edyn_BINARY_DIR}/include
 )
 
+#target_include_directories(Edyn SYSTEM 
+#    PUBLIC ${CONAN_INCLUDE_DIRS_ENTT}
+#)
+
+set(EnTT_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../entt/src" CACHE PATH "EnTT include directory.")
+
 target_include_directories(Edyn SYSTEM 
-    PUBLIC ${CONAN_INCLUDE_DIRS_ENTT}
+    PUBLIC ${EnTT_INCLUDE_DIR}
 )
 
 target_compile_features(Edyn PUBLIC cxx_std_17)

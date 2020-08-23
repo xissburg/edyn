@@ -7,11 +7,18 @@
 
 namespace edyn {
 
+class island_worker_context_base;
+class buffer_sync_reader;
+class message_queue_in_out;
+
 /**
  * @brief An _island_ is a set of entities that are connected through relations.
  */
 struct island {
-    std::unique_ptr<island_worker_context> worker;
+    island_worker_context_base *worker;
+    buffer_sync_reader *reader;
+    message_queue_in_out *message_queue;
+    double timestamp;
 
     // All entities in this island.
     std::vector<entt::entity> entities;
