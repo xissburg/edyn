@@ -4,7 +4,9 @@
 #include <vector>
 #include <cstdint>
 #include <memory>
+#include <variant>
 #include <type_traits>
+#include <entt/core/ident.hpp>
 
 namespace edyn {
 
@@ -76,14 +78,44 @@ size_t serialization_sizeof(const std::vector<bool> &vec) {
     return sizeof(size_t) + num_sets * sizeof(set_type);
 }
 
-template<typename Archive, typename T>
-void serialize(Archive &archive, std::unique_ptr<T> &ptr) {
-    archive(*ptr);
+namespace internal {
+    template<typename T, typename Archive, typename... Ts>
+    void read_variant(Archive& archive, std::variant<Ts...>& var) {
+        auto t = T{};
+        archive(t);
+        var = std::variant<Ts...>{t};
+    }
+
+    template<typename Archive, typename... Ts, std::size_t... Indexes>
+    void read_variant(Archive& archive, typename entt::identifier<Ts...>::identifier_type id, std::variant<Ts...>& var, std::index_sequence<Indexes...>)
+    {
+        ((id == Indexes ? read_variant<std::tuple_element_t<Indexes, typename entt::identifier<Ts...>::tuple_type>>(archive, var) : (void)0), ...);
+    }
+
+    template<typename Archive, typename... Ts>
+    void read_variant(Archive& archive, typename entt::identifier<Ts...>::identifier_type id, std::variant<Ts...>& var)
+    {
+        read_variant(archive, id, var, std::make_index_sequence<std::tuple_size_v<typename entt::identifier<Ts...>::tuple_type>>{});
+    }
 }
 
-template<typename Archive, typename T>
-void serialize(Archive &archive, std::shared_ptr<T> &ptr) {
-    archive(*ptr);
+template<typename Archive, typename... Ts>
+void serialize(Archive& archive, std::variant<Ts...>& var)
+{
+    using ID = entt::identifier<Ts...>;
+
+    if constexpr(Archive::is_input::value) {
+        typename ID::identifier_type id;
+        archive(id);
+        internal::read_variant(archive, id, var);
+    } else {
+        std::visit([&archive] (auto &&t) {
+            using T = std::decay_t<decltype(t)>;
+            auto id = ID::template type<T>;
+            archive(id);
+            archive(t);
+        }, var);
+    }
 }
 
 }
