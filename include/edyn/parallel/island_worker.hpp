@@ -2,7 +2,6 @@
 #define EDYN_PARALLEL_ISLAND_WORKER_HPP
 
 #include <entt/entt.hpp>
-#include "edyn/parallel/buffer_sync.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/message.hpp"
@@ -29,10 +28,8 @@ public:
 template<typename... Component>
 class island_worker_context: public island_worker_context_base {
 public:
-    island_worker_context(buffer_sync_writer writer, 
-                          message_queue_in_out message_queue)
+    island_worker_context(message_queue_in_out message_queue)
         : m_loader(m_registry)
-        , m_buffer_sync_writer(writer)
         , m_message_queue(message_queue)
         , m_bphase(m_registry)
         , m_nphase(m_registry)
@@ -53,7 +50,7 @@ public:
         auto buffer = memory_output_archive::buffer_type();
         auto output = memory_output_archive(buffer);
         m_loader.snapshot().component<Component...>(output, &relation::entity);
-        m_buffer_sync_writer.write(buffer);
+        m_message_queue.send<msg::registry_snapshot>(buffer);
     }
 
     void update() override {
@@ -93,7 +90,6 @@ private:
     broadphase m_bphase;
     narrowphase m_nphase;
     solver m_sol;
-    buffer_sync_writer m_buffer_sync_writer;
     message_queue_in_out m_message_queue;
     double fixed_dt;
 };

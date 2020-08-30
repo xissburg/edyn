@@ -9,15 +9,13 @@
 #include <cstdint>
 #include <algorithm>
 
-#include <entt/core/family.hpp>
-#include <entt/signal/sigh.hpp>
-#include <entt/core/type_traits.hpp>
+#include <entt/entt.hpp>
 
 namespace edyn {
 
 /**
  * @brief A message queue intended for single-producer single-consumer usage
- * accross different threads.
+ * between two threads.
  */
 class message_queue {
     // Based on `entt::dispatcher`.
@@ -63,7 +61,7 @@ class message_queue {
 
     struct typed_wrapper {
         std::unique_ptr<base_wrapper> wrapper;
-        uint16_t runtime_type;
+        ENTT_ID_TYPE runtime_type;
     };
 
     template<typename Message>
@@ -89,6 +87,8 @@ class message_queue {
             if (it == m_wrappers.cend()) {
                 auto lock = std::lock_guard(m_mutex);
                 typedw = &m_wrappers.emplace_back();
+                typedw->wrapper = std::make_unique<signal_wrapper<Message>>();
+                typedw->runtime_type = wtype;
             } else {
                 typedw = &(*it);
             }
@@ -106,11 +106,12 @@ class message_queue {
                 std::swap(m_wrappers[wtype], m_wrappers.back());
                 typedw = &m_wrappers[wtype];
             }
-        }
 
-        if (!typedw->wrapper) {
-            typedw->wrapper = std::make_unique<signal_wrapper<Message>>();
-            typedw->runtime_type = wtype;
+            if (!typedw->wrapper) {
+                auto lock = std::lock_guard(m_mutex);
+                typedw->wrapper = std::make_unique<signal_wrapper<Message>>();
+                typedw->runtime_type = wtype;
+            }
         }
 
         return static_cast<signal_wrapper<Message> &>(*typedw->wrapper);
@@ -124,17 +125,19 @@ class message_queue {
         return assure<Message>().sink();
     }
 
-    template<typename Message>
-    void push(Message &&msg) {
+    template<typename Message, typename... Args>
+    void push(Args &&... args) {
         // Expected to be called from the producer thread only.
-        assure<std::decay_t<Message>>().push(std::forward<Message>(msg));
+        assure<std::decay_t<Message>>().push(std::forward<Args>(args)...);
     }
 
     void update() const {
         // Expected to be called from the consumer thread only.
         auto lock = std::shared_lock(m_mutex);
         for (auto &w : m_wrappers) {
-            w.wrapper->publish();
+            if (w.wrapper) {
+                w.wrapper->publish();
+            }
         }
     }
 
@@ -148,10 +151,11 @@ class message_queue {
 class message_queue_input {
 public:
     message_queue_input(std::shared_ptr<message_queue> queue) : m_queue(queue) {}
+    message_queue_input(const message_queue_input &) = default;
 
-    template<typename T>
-    void send(T &&msg) {
-        m_queue->push(std::forward<T>(msg));
+    template<typename Message, typename... Args>
+    void send(Args &&... args) {
+        m_queue->push<Message>(std::forward<Args>(args)...);
     }
 private:
     std::shared_ptr<message_queue> m_queue;
@@ -160,7 +164,8 @@ private:
 class message_queue_output {
 public:
     message_queue_output(std::shared_ptr<message_queue> queue) : m_queue(queue) {}
-
+    message_queue_output(const message_queue_output &) = default;
+    
     void update() const {
         m_queue->update();
     }
@@ -174,6 +179,7 @@ private:
     std::shared_ptr<message_queue> m_queue;
 };
 
+inline
 auto make_message_queue_input_output() {
     auto queue = std::make_shared<message_queue>();
     return std::make_pair(message_queue_input(queue), message_queue_output(queue));
@@ -188,9 +194,9 @@ public:
 
     message_queue_in_out(const message_queue_in_out &) = default;
 
-    template<typename T>
-    void send(T &&msg) {
-        m_input.send(std::forward<T>(msg));
+    template<typename Message, typename... Args>
+    void send(Args &&... args) {
+        m_input.send<Message>(std::forward<Args>(args)...);
     }
 
     void update() const {

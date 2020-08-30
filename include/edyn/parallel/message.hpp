@@ -8,6 +8,7 @@ namespace edyn::msg {
 
 struct registry_snapshot {
     std::vector<uint8_t> data;
+    registry_snapshot(std::vector<uint8_t> &d) : data(d) {}
 };
 
 }

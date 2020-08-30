@@ -20,6 +20,8 @@ using buffer_sync_reader_writer_pair = std::pair<buffer_sync_reader, buffer_sync
 
 class buffer_sync_writer {
 public:
+    buffer_sync_writer(const buffer_sync_writer &) = default;
+
     void write(const buffer_sync_context::data_type &data) {
         std::lock_guard lock(m_ctx->mutex);
         m_ctx->data = data;
@@ -37,6 +39,8 @@ private:
 
 class buffer_sync_reader {
 public:
+    buffer_sync_reader(const buffer_sync_reader &) = default;
+
     void read(buffer_sync_context::data_type &data) {
         std::lock_guard lock(m_ctx->mutex);
         data = m_ctx->data;
@@ -52,6 +56,7 @@ private:
     std::shared_ptr<buffer_sync_context> m_ctx;
 };
 
+inline
 buffer_sync_reader_writer_pair make_buffer_sync() {
     auto ctx = std::make_shared<buffer_sync_context>();
     return std::make_pair(buffer_sync_reader(ctx), buffer_sync_writer(ctx));

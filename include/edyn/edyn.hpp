@@ -37,3 +37,4 @@
 #include "serialization/s11n.hpp"
 #include "parallel/job_dispatcher.hpp"
 #include "parallel/parallel_for.hpp"
+#include "parallel/message_queue.hpp"

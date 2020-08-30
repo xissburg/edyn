@@ -26,8 +26,6 @@ int main(int argc, char** argv) {
     entt::registry registry;
 
     const auto ent = registry.create();
-    // This is a dynamic entity which will be affected by forces and impulses.
-    registry.assign<edyn::dynamic_tag>(ent);
     // This entity has a position in space.
     registry.assign<edyn::position>(ent, 0, 3, 0);
     // Current position used for presentation. See `current_pos.cpp` for details.
@@ -36,6 +34,8 @@ int main(int argc, char** argv) {
     registry.assign<edyn::linvel>(ent, 0, 10, 0);
     // Gravity linear acceleration.
     registry.assign<edyn::linacc>(ent, edyn::gravity_earth);
+    // This is a dynamic entity which will be affected by forces and impulses.
+    registry.assign<edyn::dynamic_tag>(ent);
 
     // Create an `edyn::world` into the registry's context.
     auto& world = registry.set<edyn::world>(registry);
