@@ -95,7 +95,7 @@ namespace internal {
     template<typename Archive, typename... Ts>
     void read_variant(Archive& archive, typename entt::identifier<Ts...>::identifier_type id, std::variant<Ts...>& var)
     {
-        read_variant(archive, id, var, std::make_index_sequence<std::tuple_size_v<typename entt::identifier<Ts...>::tuple_type>>{});
+        read_variant(archive, id, var, std::make_index_sequence<sizeof...(Ts)>{});
     }
 }
 
