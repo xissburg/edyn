@@ -52,24 +52,20 @@ TEST(registry_serialization_test, test_registry_export_import) {
     auto importer = edyn::registry_snapshot_importer<int, edyn::vector3>(reg1, map);
     edyn::serialize(input, importer);
 
-    ASSERT_EQ(reg1.get<int>(map[ent0]), 665);
-    ASSERT_EQ(reg1.get<edyn::vector3>(map[ent0]), (edyn::vector3{3, 2, -1}));
-    ASSERT_EQ(reg1.get<edyn::vector3>(map[ent1]), (edyn::vector3{1, 2, 3}));
+    ASSERT_EQ(reg1.get<int>(map.remloc(ent0)), 665);
+    ASSERT_EQ(reg1.get<edyn::vector3>(map.remloc(ent0)), (edyn::vector3{3, 2, -1}));
+    ASSERT_EQ(reg1.get<edyn::vector3>(map.remloc(ent1)), (edyn::vector3{1, 2, 3}));
 
     // Replace some entities in `reg1`, export it and load it into `reg0`.
-    reg1.replace<edyn::vector3>(map[ent1], 4, 5, 6);
-    reg1.replace<int>(map[ent0], 1023);
+    reg1.replace<edyn::vector3>(map.remloc(ent1), 4, 5, 6);
+    reg1.replace<int>(map.remloc(ent0), 1023);
 
-    edyn::entity_map unmap;
-    for (auto &pair : map) {
-        unmap[pair.second] = pair.first;
-    }
     auto buffer1 = edyn::memory_output_archive::buffer_type{};
     auto output1 = edyn::memory_output_archive(buffer1);
-    auto exporter = edyn::registry_snapshot_exporter<int, edyn::vector3>(reg1, unmap);
+    auto exporter = edyn::registry_snapshot_exporter<int, edyn::vector3>(reg1, map);
     auto entities1 = std::vector<entt::entity>();
-    entities1.push_back(map[ent0]);
-    entities1.push_back(map[ent1]);
+    entities1.push_back(map.remloc(ent0));
+    entities1.push_back(map.remloc(ent1));
     exporter.component<int, edyn::vector3>(entities1.begin(), entities1.end());
     edyn::serialize(output1, exporter); 
 

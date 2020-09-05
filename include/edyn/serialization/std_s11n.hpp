@@ -1,6 +1,7 @@
 #ifndef EDYN_SERIALIZATION_STD_S11N_HPP
 #define EDYN_SERIALIZATION_STD_S11N_HPP
 
+#include <array>
 #include <vector>
 #include <cstdint>
 #include <memory>
@@ -76,6 +77,13 @@ size_t serialization_sizeof(const std::vector<bool> &vec) {
     constexpr auto set_num_bits = sizeof(set_type) * 8;
     const auto num_sets = vec.size() / set_num_bits + (vec.size() % set_num_bits != 0); 
     return sizeof(size_t) + num_sets * sizeof(set_type);
+}
+
+template<typename Archive, typename T, size_t N>
+void serialize(Archive &archive, std::array<T, N> &arr) {
+    for (size_t i = 0; i < arr.size(); ++i) {
+        archive(arr[i]);
+    }
 }
 
 namespace internal {

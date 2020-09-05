@@ -13,6 +13,7 @@
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/relation.hpp"
+#include "edyn/serialization/registry_s11n.hpp"
 
 namespace edyn {
 
@@ -29,8 +30,7 @@ template<typename... Component>
 class island_worker_context: public island_worker_context_base {
 public:
     island_worker_context(message_queue_in_out message_queue)
-        : m_loader(m_registry)
-        , m_message_queue(message_queue)
+        : m_message_queue(message_queue)
         , m_bphase(m_registry)
         , m_nphase(m_registry)
         , m_sol(m_registry)
@@ -39,17 +39,21 @@ public:
     }
 
     void on_registry_snapshot(const msg::registry_snapshot &snapshot) {
-        auto input = memory_input_archive(snapshot.data.data(), snapshot.data.size());
-        m_loader
-            .entities(input)
-            .destroyed(input)
-            .component<Component...>(input);
+        auto input = memory_input_archive(snapshot.data);
+        auto importer = registry_snapshot_importer<Component...>(m_registry, m_entity_map);
+        serialize(input, importer);
     }
 
     void sync() {
+        auto &isle = m_registry.get<island>(m_island_entity);
+        auto entities = isle.entities;
+        entities.push_back(m_island_entity);
+        
         auto buffer = memory_output_archive::buffer_type();
         auto output = memory_output_archive(buffer);
-        m_loader.snapshot().component<Component...>(output, &relation::entity);
+        auto exporter = registry_snapshot_exporter<Component...>(m_registry, m_entity_map);
+        exporter.template component<Component...>(entities.begin(), entities.end());//, &relation::entity);
+        serialize(output, exporter);
         m_message_queue.send<msg::registry_snapshot>(buffer);
     }
 
@@ -61,32 +65,30 @@ public:
         auto timestamp = (double)performance_counter() / (double)performance_frequency();
         auto dt = timestamp - isle.timestamp;
 
-        if (dt < fixed_dt) {
-            auto j = job();
-            j.func = &island_worker_func;
-            auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
-            auto ctx_intptr = reinterpret_cast<intptr_t>(this);
-            archive(ctx_intptr);
+        if (dt >= fixed_dt) {
+            m_bphase.update();
+            m_nphase.update();
+            m_sol.update(0, dt);
 
-            //job_dispatcher::global()::async_after(isle.timestamp + fixed_dt - timestamp, j);
-            job_dispatcher::global().async(j);
-            
-            return;
+            isle.timestamp += dt;
+
+            sync();
         }
 
-        m_bphase.update();
-        m_nphase.update();
-        m_sol.update(0, dt);
+        auto j = job();
+        j.func = &island_worker_func;
+        auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
+        auto ctx_intptr = reinterpret_cast<intptr_t>(this);
+        archive(ctx_intptr);
 
-        isle.timestamp += dt;
-
-        sync();
+        //job_dispatcher::global()::async_after(isle.timestamp + fixed_dt - timestamp, j);
+        job_dispatcher::global().async(j);
     }
 
 private:
     entt::registry m_registry;
-    entt::continuous_loader m_loader;
     entt::entity m_island_entity;
+    entity_map m_entity_map;
     broadphase m_bphase;
     narrowphase m_nphase;
     solver m_sol;

@@ -71,7 +71,6 @@ private:
     broadphase bphase;
     narrowphase nphase;
     std::vector<entt::scoped_connection> connections;
-    entt::identity_loader m_loader;
 
     scalar residual_dt {0};
     std::atomic<uint64_t> step_ {0};

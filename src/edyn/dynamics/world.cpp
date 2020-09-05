@@ -3,22 +3,7 @@
 #include "edyn/sys/update_present_position.hpp"
 #include "edyn/sys/update_present_orientation.hpp"
 #include "edyn/time/time.hpp"
-#include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/angvel.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
-#include "edyn/comp/shape.hpp"
-#include "edyn/comp/aabb.hpp"
-#include "edyn/comp/island.hpp"
-#include "edyn/comp/tag.hpp"
-#include "edyn/comp/collision_filter.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/gravity.hpp"
-#include "edyn/comp/linacc.hpp"
-#include "edyn/comp/linvel.hpp"
-#include "edyn/comp/position.hpp"
-#include "edyn/comp/orientation.hpp"
-#include "edyn/comp/material.hpp"
+#include "edyn/comp.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/s11n.hpp"
@@ -69,32 +54,41 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
     auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
 
-    auto *worker = new island_worker_context/* <
-            AABB, angvel, collision_filter, constraint, constraint_row, 
-            gravity, inertia, inertia_inv, inertia_world_inv,
-            island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
-            position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
-            sleeping_tag, sleeping_disabled_tag, disabled_tag
-        > */(message_queue_in_out(main_queue_input, isle_queue_output));
+    auto *worker = new island_worker_context<
+        AABB, angvel, collision_filter, constraint/*, constraint_row, 
+        gravity, inertia, inertia_inv, inertia_world_inv,
+        island, island_node, linacc*/, linvel/*, mass, mass_inv, material*/, orientation,
+        position/*, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+        sleeping_tag, sleeping_disabled_tag, disabled_tag*/
+    >(message_queue_in_out(main_queue_input, isle_queue_output));
 
     auto info = island_info(worker, message_queue_in_out(isle_queue_input, main_queue_output));
     auto &w = registry.ctx<world>();
-    w.m_island_info_map.insert(std::make_pair(entity, info));
+    w.m_island_info_map.insert(std::make_pair(island_ent, info));
 
     std::vector<entt::entity> entities;
     entities.push_back(island_ent);
     entities.push_back(entity);
 
+    auto writer = registry_snapshot_writer<
+        AABB, angvel, collision_filter, constraint/*, constraint_row, 
+        gravity, inertia, inertia_inv, inertia_world_inv,
+        island, island_node, linacc*/, linvel/*, mass, mass_inv, material*/, orientation,
+        position/*, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+        sleeping_tag, sleeping_disabled_tag, disabled_tag*/
+    >(registry);
+
+    writer.component<
+        AABB, angvel, collision_filter, constraint/*, constraint_row, 
+        gravity, inertia, inertia_inv, inertia_world_inv,
+        island, island_node, linacc*/, linvel/*, mass, mass_inv, material*/, orientation,
+        position/*, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+        sleeping_tag, sleeping_disabled_tag, disabled_tag*/
+    >(entities.begin(), entities.end());
+
     auto buffer = memory_output_archive::buffer_type();
     auto output = memory_output_archive(buffer);
-    registry.snapshot()
-        /* .component<
-            AABB, angvel, collision_filter, constraint, constraint_row, 
-            gravity, inertia, inertia_inv, inertia_world_inv,
-            island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
-            position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
-            sleeping_tag, sleeping_disabled_tag, disabled_tag
-        >(output, entities.begin(), entities.end()) */;
+    serialize(output, writer);
     info.m_message_queue.send<msg::registry_snapshot>(buffer);
 
     //info.m_message_queue.sink<msg::entity_created>.connect<&world::on_entity_created>(*this);
@@ -126,7 +120,6 @@ world::world(entt::registry &reg)
     , sol(reg)
     , bphase(reg)
     , nphase(reg)
-    , m_loader(reg)
 {
     connections.push_back(reg.on_construct<mass>().connect<&on_construct_or_replace_mass>());
     connections.push_back(reg.on_replace<mass>().connect<&on_construct_or_replace_mass>());
@@ -199,7 +192,5 @@ void world::run() {
 void world::quit() {
     running = false;
 }
-
-
 
 }

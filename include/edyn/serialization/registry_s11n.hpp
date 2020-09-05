@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <entt/entt.hpp>
 #include "edyn/util/tuple.hpp"
+#include "edyn/util/entity_map.hpp"
 
 namespace edyn {
 
@@ -134,6 +135,7 @@ public:
 
 protected:
     entt::registry *m_registry;
+    //std::unordered_map<entt::entity, entt::entity> *m_entity_map;
 };
 
 /**
@@ -167,11 +169,40 @@ void serialize(Archive &archive, registry_snapshot_reader<Component...> &snapsho
             });
         }
     }
+
+    // Read "unmapped" entities which are encoded separately.
+    /*size_t num_unmapped_entities;
+    archive(num_unmapped_entities);
+
+    for (size_t i = 0; i < num_unmapped_entities; ++i) {
+        entt::entity remote_entity;
+        archive(remote_entity);
+        entt::entity local_entity;
+
+        if (snapshot.m_entity_map.count(remote_entity)) {
+            local_entity = snapshot.m_entity_map.at(remote_entity);
+        } else {
+            local_entity = snapshot.m_registry->template create();
+            snapshot.m_entity_map[remote_entity] = local_entity;
+        }
+
+        size_t num_components;
+        archive(num_components);
+
+        for (size_t j = 0; j < num_components; ++j) {
+            size_t comp_id;
+            archive(comp_id);
+            snapshot.visit(local_entity, comp_id, [&snapshot, &archive, &local_entity] (auto &&comp) {
+                archive(comp);
+                if (snapshot.m_registry->template valid(local_entity)) {
+                    snapshot.m_registry->template assign_or_replace<std::decay_t<decltype(comp)>>(local_entity, comp);
+                }
+            });
+        }
+    }*/
 }
 
 //-----------------------------------------------------------------------------
-
-using entity_map = std::unordered_map<entt::entity, entt::entity>;
 
 /**
  * @brief Exports data from the registry mapping entities into the corresponding
@@ -198,12 +229,18 @@ template<typename Archive, typename... Component>
 void serialize(Archive &archive, registry_snapshot_exporter<Component...> &snapshot) {
     static_assert(Archive::is_output::value, "Output archive expected.");
     
-    archive(snapshot.m_entities.size());
+    size_t num_entities = 0;
+    for (auto entity : snapshot.m_entities) {
+        if (snapshot.m_map->has_loc(entity)) {
+            ++num_entities;
+        }
+    }
+    archive(num_entities);
 
     for (auto entity : snapshot.m_entities) {
-        if (!snapshot.m_map->count(entity)) continue;
+        if (!snapshot.m_map->has_loc(entity)) continue;
 
-        archive(snapshot.m_map->at(entity));
+        archive(snapshot.m_map->locrem(entity));
 
         size_t count = 0;
         for (auto comp_id : snapshot.m_component_ids) {
@@ -222,6 +259,33 @@ void serialize(Archive &archive, registry_snapshot_exporter<Component...> &snaps
             });
         }
     }
+
+    // Write entities not present in the entity map separately.
+    /* auto num_unmapped_entities = snapshot.m_entities.size() - num_entities;
+    archive(num_unmapped_entities);
+
+    for (auto entity : snapshot.m_entities) {
+        if (snapshot.m_map->has_loc(entity)) continue;
+
+        archive(entity);
+
+        size_t count = 0;
+        for (auto comp_id : snapshot.m_component_ids) {
+            if (snapshot.has(entity, comp_id)) {
+                ++count;
+            }
+        }
+        archive(count);
+
+        for (auto comp_id : snapshot.m_component_ids) {
+            snapshot.try_visit(entity, comp_id, [&archive, &comp_id] (auto *comp) {
+                if (comp) {
+                    archive(comp_id);
+                    archive(*comp);
+                }
+            });
+        }
+    } */
 }
 
 //-----------------------------------------------------------------------------
@@ -256,15 +320,15 @@ void serialize(Archive &archive, registry_snapshot_importer<Component...> &snaps
     archive(num_entities);
 
     for (size_t i = 0; i < num_entities; ++i) {
-        entt::entity ext_entity;
-        archive(ext_entity);
+        entt::entity remote_entity;
+        archive(remote_entity);
         
         entt::entity entity;
-        if (!snapshot.m_map->count(ext_entity)) {
+        if (!snapshot.m_map->has_rem(remote_entity)) {
             entity = snapshot.m_registry->template create();
-            snapshot.m_map->emplace(std::make_pair(ext_entity, entity));
+            snapshot.m_map->insert(remote_entity, entity);
         } else {
-            entity = snapshot.m_map->at(ext_entity);
+            entity = snapshot.m_map->remloc(remote_entity);
         }
 
         size_t num_components;
