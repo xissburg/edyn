@@ -75,6 +75,7 @@ public:
             sync();
         }
 
+        // Reschedule this job.
         auto j = job();
         j.func = &island_worker_func;
         auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
