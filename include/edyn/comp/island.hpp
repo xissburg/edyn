@@ -11,10 +11,10 @@ namespace edyn {
  * @brief An _island_ is a set of entities that are connected through relations.
  */
 struct island {
-    double timestamp;
-
     // All entities in this island.
     std::vector<entt::entity> entities;
+    
+    double timestamp;
 
     // The step when all entities in this island reached a speed lower than the
     // threshold. If the speed continues below the threshold for more than a
