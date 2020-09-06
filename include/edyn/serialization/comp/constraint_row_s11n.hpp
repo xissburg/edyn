@@ -6,7 +6,7 @@
 namespace edyn {
 
 template<typename Archive>
-void serialization(Archive &archive, constraint_row &r) {
+void serialize(Archive &archive, constraint_row &r) {
     archive(r.entity);
     archive(r.J);
     archive(r.error);

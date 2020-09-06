@@ -55,11 +55,11 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
 
     auto *worker = new island_worker_context<
-        AABB, angvel, collision_filter, constraint/*, constraint_row, 
+        AABB, angvel, collision_filter, constraint, constraint_row, 
         gravity, inertia, inertia_inv, inertia_world_inv,
-        island, island_node, linacc*/, linvel/*, mass, mass_inv, material*/, orientation,
-        position/*, relation, shape, dynamic_tag, kinematic_tag, static_tag,
-        sleeping_tag, sleeping_disabled_tag, disabled_tag*/
+        island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
+        position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+        sleeping_tag, sleeping_disabled_tag, disabled_tag
     >(message_queue_in_out(main_queue_input, isle_queue_output));
 
     auto info = island_info(worker, message_queue_in_out(isle_queue_input, main_queue_output));
@@ -71,19 +71,19 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     entities.push_back(entity);
 
     auto writer = registry_snapshot_writer<
-        AABB, angvel, collision_filter, constraint/*, constraint_row, 
+        AABB, angvel, collision_filter, constraint, constraint_row, 
         gravity, inertia, inertia_inv, inertia_world_inv,
-        island, island_node, linacc*/, linvel/*, mass, mass_inv, material*/, orientation,
-        position/*, relation, shape, dynamic_tag, kinematic_tag, static_tag,
-        sleeping_tag, sleeping_disabled_tag, disabled_tag*/
+        island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
+        position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+        sleeping_tag, sleeping_disabled_tag, disabled_tag
     >(registry);
 
     writer.component<
-        AABB, angvel, collision_filter, constraint/*, constraint_row, 
+        AABB, angvel, collision_filter, constraint, constraint_row, 
         gravity, inertia, inertia_inv, inertia_world_inv,
-        island, island_node, linacc*/, linvel/*, mass, mass_inv, material*/, orientation,
-        position/*, relation, shape, dynamic_tag, kinematic_tag, static_tag,
-        sleeping_tag, sleeping_disabled_tag, disabled_tag*/
+        island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
+        position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+        sleeping_tag, sleeping_disabled_tag, disabled_tag
     >(entities.begin(), entities.end());
 
     auto buffer = memory_output_archive::buffer_type();

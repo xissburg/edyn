@@ -29,9 +29,23 @@ protected:
         return has(entity, comp_id, std::make_index_sequence<sizeof...(Component)>{});
     }
 
+    template<typename Comp, typename Func>
+    void try_visit(entt::entity entity, Func f) {
+        if constexpr(std::is_empty_v<Comp>) {
+            if (m_registry->has<Comp>(entity)) {
+                auto comp = Comp{};
+                f(&comp);
+            } else {
+                f(static_cast<Comp *>(nullptr));
+            }
+        } else {
+            f(m_registry->try_get<Comp>(entity));
+        }
+    }
+
     template<typename Func, size_t... Indexes>
     void try_visit(entt::entity entity, size_t comp_id, Func f, std::index_sequence<Indexes...>) {
-        ((comp_id == Indexes ? f(m_registry->try_get<std::tuple_element_t<Indexes, tuple_type>>(entity)) : (void)0), ...);
+        ((comp_id == Indexes ? try_visit<std::tuple_element_t<Indexes, tuple_type>>(entity, f) : (void)0), ...);
     }
 
     template<typename Func>
