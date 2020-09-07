@@ -41,7 +41,7 @@ public:
     void on_registry_snapshot(const msg::registry_snapshot &snapshot) {
         auto input = memory_input_archive(snapshot.data);
         auto importer = registry_snapshot_importer<Component...>(m_registry, m_entity_map);
-        serialize(input, importer);
+        importer.template serialize(input, &relation::entity, &island::entities);
     }
 
     void sync() {
@@ -52,8 +52,7 @@ public:
         auto buffer = memory_output_archive::buffer_type();
         auto output = memory_output_archive(buffer);
         auto exporter = registry_snapshot_exporter<Component...>(m_registry, m_entity_map);
-        exporter.template component<Component...>(entities.begin(), entities.end());//, &relation::entity);
-        serialize(output, exporter);
+        exporter.template serialize<Component...>(output, entities.begin(), entities.end(), &relation::entity, &island::entities);
         m_message_queue.send<msg::registry_snapshot>(buffer);
     }
 

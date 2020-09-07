@@ -11,7 +11,7 @@ void print_entities(entt::registry& registry, edyn::scalar dt) {
     printf("================================\n");
     printf("step %lu, dt %.6f, time %.2f\n", step, dt, time);
 
-    auto view = registry.view<const edyn::present_position, const edyn::linvel>();
+    auto view = registry.view<const edyn::position, const edyn::linvel>();
     view.each([] (auto ent, const auto &pos, const auto &vel) {
         printf("pos (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), pos.x, pos.y, pos.z);
         printf("vel (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), vel.x, vel.y, vel.z);
@@ -24,22 +24,24 @@ void print_entities(entt::registry& registry, edyn::scalar dt) {
 
 int main(int argc, char** argv) {
     entt::registry registry;
-
-    const auto ent = registry.create();
-    // This entity has a position in space.
-    registry.assign<edyn::position>(ent, 0, 3, 0);
-    // Current position used for presentation. See `current_pos.cpp` for details.
-    registry.assign<edyn::present_position>(ent);
-    // Linear velocity.
-    registry.assign<edyn::linvel>(ent, 0, 10, 0);
-    // Gravity linear acceleration.
-    registry.assign<edyn::linacc>(ent, edyn::gravity_earth);
-    // This is a dynamic entity which will be affected by forces and impulses.
-    registry.assign<edyn::dynamic_tag>(ent);
-
-    // Create an `edyn::world` into the registry's context.
+    // Create an `edyn::world` into the registry's context. THe `edyn::world`
+    // must be created before any rigid bodies are added to the registry.
     auto& world = registry.set<edyn::world>(registry);
     world.update_sink().connect<&print_entities>(registry);
+
+    edyn::job_dispatcher::global().start();
+
+    auto def = edyn::rigidbody_def();
+    def.presentation = true;
+    def.friction = 0.8;
+    def.mass = 10;
+    def.restitution = 0;
+    def.position = {0, 3, 0};
+    def.orientation = edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi * 0.7);
+    def.shape_opt = {edyn::cylinder_shape{0.2, 0.5}};
+    def.update_inertia();
+    edyn::make_rigidbody(registry, def);
+
     // Run physics main loop. Could also simply call `world.update(dt)` in
     // your own main loop.
     world.run();

@@ -42,6 +42,18 @@ void on_destroy_shape(entt::entity entity, entt::registry &registry) {
     registry.reset<collision_filter>(entity);
 }
 
+void on_registry_snapshot(entt::registry &registry, const msg::registry_snapshot &snapshot) {
+    auto input = memory_input_archive(snapshot.data);
+    auto reader = registry_snapshot_reader<
+        AABB, angvel, collision_filter, constraint, constraint_row, 
+        gravity, inertia, inertia_inv, inertia_world_inv,
+        island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
+        position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
+        sleeping_tag, sleeping_disabled_tag, disabled_tag
+    >(registry);
+    reader.serialize(input);
+}
+
 void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dynamic_tag) {
     auto island_ent = registry.create();
     auto &isle = registry.assign<island>(island_ent);
@@ -70,6 +82,8 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     entities.push_back(island_ent);
     entities.push_back(entity);
 
+    auto buffer = memory_output_archive::buffer_type();
+    auto output = memory_output_archive(buffer);
     auto writer = registry_snapshot_writer<
         AABB, angvel, collision_filter, constraint, constraint_row, 
         gravity, inertia, inertia_inv, inertia_world_inv,
@@ -77,21 +91,18 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
         position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
         sleeping_tag, sleeping_disabled_tag, disabled_tag
     >(registry);
-
-    writer.component<
+    writer.serialize<
         AABB, angvel, collision_filter, constraint, constraint_row, 
         gravity, inertia, inertia_inv, inertia_world_inv,
         island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
         position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
         sleeping_tag, sleeping_disabled_tag, disabled_tag
-    >(entities.begin(), entities.end());
+    >(output, entities.begin(), entities.end());
 
-    auto buffer = memory_output_archive::buffer_type();
-    auto output = memory_output_archive(buffer);
-    serialize(output, writer);
     info.m_message_queue.send<msg::registry_snapshot>(buffer);
 
-    //info.m_message_queue.sink<msg::entity_created>.connect<&world::on_entity_created>(*this);
+    info.m_message_queue.sink<msg::registry_snapshot>().connect<&on_registry_snapshot>(registry);
+    //info.m_message_queue.sink<msg::entity_created>().connect<&world::on_entity_created>(*this);
 
     auto j = job();
     j.func = &island_worker_func;

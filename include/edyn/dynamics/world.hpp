@@ -17,6 +17,10 @@
 
 namespace edyn {
 
+namespace msg {
+    struct registry_snapshot;
+}
+
 struct island_info {
     island_worker_context_base *m_worker;
     message_queue_in_out m_message_queue;

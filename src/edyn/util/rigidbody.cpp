@@ -21,19 +21,7 @@ void rigidbody_def::update_inertia() {
     }, *shape_opt);
 }
 
-void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {
-    switch (def.kind) {
-    case rigidbody_kind::rb_dynamic:
-        registry.assign<dynamic_tag>(entity);
-        break;
-    case rigidbody_kind::rb_kinematic:
-        registry.assign<kinematic_tag>(entity);
-        break;
-    case rigidbody_kind::rb_static:
-        registry.assign<static_tag>(entity);
-        break;
-    }
-    
+void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {    
     registry.assign<position>(entity, def.position);
     registry.assign<orientation>(entity, def.orientation);
 
@@ -73,6 +61,18 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         auto &filter = registry.get<edyn::collision_filter>(entity);
         filter.group = def.collision_group;
         filter.mask = def.collision_mask;
+    }
+
+    switch (def.kind) {
+    case rigidbody_kind::rb_dynamic:
+        registry.assign<dynamic_tag>(entity);
+        break;
+    case rigidbody_kind::rb_kinematic:
+        registry.assign<kinematic_tag>(entity);
+        break;
+    case rigidbody_kind::rb_static:
+        registry.assign<static_tag>(entity);
+        break;
     }
 }
 

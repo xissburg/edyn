@@ -1,8 +1,9 @@
 #ifndef EDYN_SERIALIZATION_REGISTRY_S11N_HPP
 #define EDYN_SERIALIZATION_REGISTRY_S11N_HPP
 
-#include <unordered_map>
 #include <cstdint>
+#include <numeric>
+#include <unordered_map>
 #include <entt/entt.hpp>
 #include "edyn/util/tuple.hpp"
 #include "edyn/util/entity_map.hpp"
@@ -19,38 +20,23 @@ namespace edyn {
  */
 template<typename... Component>
 class registry_snapshot_writer {
-protected:
-    template<size_t... Indexes>
-    bool has(entt::entity entity, size_t comp_id, std::index_sequence<Indexes...>) {
-        return ((comp_id == Indexes ? m_registry->has<std::tuple_element_t<Indexes, tuple_type>>(entity) : false) || ...);
-    }
 
-    bool has(entt::entity entity, size_t comp_id) {
-        return has(entity, comp_id, std::make_index_sequence<sizeof...(Component)>{});
-    }
-
-    template<typename Comp, typename Func>
-    void try_visit(entt::entity entity, Func f) {
+    template<typename Comp, typename Archive>
+    void serialize_component(Archive &archive, entt::entity entity) {
         if constexpr(std::is_empty_v<Comp>) {
             if (m_registry->has<Comp>(entity)) {
-                auto comp = Comp{};
-                f(&comp);
-            } else {
-                f(static_cast<Comp *>(nullptr));
+                archive(entity);
+                size_t comp_id = index_of_v<Comp, Component...>;
+                archive(comp_id);
             }
         } else {
-            f(m_registry->try_get<Comp>(entity));
+            if (auto comp = m_registry->try_get<Comp>(entity)) {
+                archive(entity);
+                size_t comp_id = index_of_v<Comp, Component...>;
+                archive(comp_id);
+                archive(*comp);
+            }
         }
-    }
-
-    template<typename Func, size_t... Indexes>
-    void try_visit(entt::entity entity, size_t comp_id, Func f, std::index_sequence<Indexes...>) {
-        ((comp_id == Indexes ? try_visit<std::tuple_element_t<Indexes, tuple_type>>(entity, f) : (void)0), ...);
-    }
-
-    template<typename Func>
-    void try_visit(entt::entity entity, size_t comp_id, Func f) {
-        try_visit(entity, comp_id, f, std::make_index_sequence<sizeof...(Component)>{});
     }
 
 public:
@@ -67,54 +53,32 @@ public:
      * @param first Iterator in the beginning of the list of entities.
      * @param last Iterator in the end of the list of entities.
      */
-    template<typename... Comp, typename It>
-    void component(It first, It last) {
-        m_entities.resize(std::distance(first, last));
-        std::copy(first, last, m_entities.begin());
-        (m_component_ids.push_back(index_of_v<Comp, Component...>), ...);
-    }
+    template<typename... Comp, typename Archive, typename It>
+    void serialize(Archive &archive, It first, It last) {
+        static_assert(Archive::is_output::value, "Output archive expected.");
+    
+        size_t num_entities = std::distance(first, last);
+        archive(num_entities);
 
-    template<typename Archive, typename... Ts>
-    friend void serialize(Archive &, registry_snapshot_writer<Ts...> &);
+        size_t num_components = 0;
+
+        for (auto it = first; it != last; ++it) {
+            auto entity = *it;
+            archive(entity);
+            num_components += (m_registry->has<Comp>(entity) + ...);
+        }
+
+        archive(num_components);
+
+        for (auto it = first; it != last; ++it) {
+            auto entity = *it;
+            (serialize_component<Comp>(archive, entity), ...);
+        }
+    }
 
 protected:
     entt::registry *m_registry;
-    std::vector<entt::entity> m_entities;
-    std::vector<size_t> m_component_ids;
 };
-
-/**
- * @brief Writes the selected registry data into the archive.
- * @param archive An output archive.
- * @param snapshot The snapshot writer.
- */
-template<typename Archive, typename... Component>
-void serialize(Archive &archive, registry_snapshot_writer<Component...> &snapshot) {
-    static_assert(Archive::is_output::value, "Output archive expected.");
-    
-    archive(snapshot.m_entities.size());
-
-    for (auto entity : snapshot.m_entities) {
-        archive(entity);
-
-        size_t count = 0;
-        for (auto comp_id : snapshot.m_component_ids) {
-            if (snapshot.has(entity, comp_id)) {
-                ++count;
-            }
-        }
-        archive(count);
-
-        for (auto comp_id : snapshot.m_component_ids) {
-            snapshot.try_visit(entity, comp_id, [&archive, &comp_id] (auto *comp) {
-                if (comp) {
-                    archive(comp_id);
-                    archive(*comp);
-                }
-            });
-        }
-    }
-}
 
 //-----------------------------------------------------------------------------
 
@@ -144,77 +108,70 @@ public:
         : m_registry(&reg)
     {}
 
-    template<typename Archive, typename... Ts>
-    friend void serialize(Archive &, registry_snapshot_reader<Ts...> &);
+    template<typename Archive>
+    void serialize(Archive &archive) {
+        static_assert(Archive::is_input::value, "Input archive expected.");
+
+        size_t num_entities;
+        archive(num_entities);
+
+        for (size_t i = 0; i < num_entities; ++i) {
+            entt::entity entity;
+            archive(entity);
+        }
+
+        size_t num_components;
+        archive(num_components);
+
+        for (size_t i = 0; i < num_components; ++i) {
+            entt::entity entity;
+            archive(entity);
+            size_t comp_id;
+            archive(comp_id);
+            visit(entity, comp_id, [&] (auto &&comp) {
+                archive(comp);
+                if (m_registry->valid(entity)) {
+                    m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(entity, std::move(comp));
+                }
+            });
+        }
+
+        // Read "unmapped" entities which are encoded separately.
+        /*size_t num_unmapped_entities;
+        archive(num_unmapped_entities);
+
+        for (size_t i = 0; i < num_unmapped_entities; ++i) {
+            entt::entity remote_entity;
+            archive(remote_entity);
+            entt::entity local_entity;
+
+            if (m_entity_map.count(remote_entity)) {
+                local_entity = m_entity_map.at(remote_entity);
+            } else {
+                local_entity = m_registry->create();
+                m_entity_map[remote_entity] = local_entity;
+            }
+
+            size_t num_components;
+            archive(num_components);
+
+            for (size_t j = 0; j < num_components; ++j) {
+                size_t comp_id;
+                archive(comp_id);
+                visit(local_entity, comp_id, [&] (auto &&comp) {
+                    archive(comp);
+                    if (m_registry->valid(local_entity)) {
+                        m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(local_entity, comp);
+                    }
+                });
+            }
+        }*/
+    }
 
 protected:
     entt::registry *m_registry;
     //std::unordered_map<entt::entity, entt::entity> *m_entity_map;
 };
-
-/**
- * @brief Reads data from the archive into the registry. Only assigns/replaces
- *      components for entities that exist in the target registry.
- * @param archive An input archive.
- * @param snapshot The snapshot reader which loads data into the registry.
- */
-template<typename Archive, typename... Component>
-void serialize(Archive &archive, registry_snapshot_reader<Component...> &snapshot) {
-    static_assert(Archive::is_input::value, "Input archive expected.");
-
-    size_t num_entities;
-    archive(num_entities);
-
-    for (size_t i = 0; i < num_entities; ++i) {
-        entt::entity entity;
-        archive(entity);
-
-        size_t num_components;
-        archive(num_components);
-
-        for (size_t j = 0; j < num_components; ++j) {
-            size_t comp_id;
-            archive(comp_id);
-            snapshot.visit(entity, comp_id, [&snapshot, &archive, &entity] (auto &&comp) {
-                archive(comp);
-                if (snapshot.m_registry->template valid(entity)) {
-                    snapshot.m_registry->template assign_or_replace<std::decay_t<decltype(comp)>>(entity, comp);
-                }
-            });
-        }
-    }
-
-    // Read "unmapped" entities which are encoded separately.
-    /*size_t num_unmapped_entities;
-    archive(num_unmapped_entities);
-
-    for (size_t i = 0; i < num_unmapped_entities; ++i) {
-        entt::entity remote_entity;
-        archive(remote_entity);
-        entt::entity local_entity;
-
-        if (snapshot.m_entity_map.count(remote_entity)) {
-            local_entity = snapshot.m_entity_map.at(remote_entity);
-        } else {
-            local_entity = snapshot.m_registry->template create();
-            snapshot.m_entity_map[remote_entity] = local_entity;
-        }
-
-        size_t num_components;
-        archive(num_components);
-
-        for (size_t j = 0; j < num_components; ++j) {
-            size_t comp_id;
-            archive(comp_id);
-            snapshot.visit(local_entity, comp_id, [&snapshot, &archive, &local_entity] (auto &&comp) {
-                archive(comp);
-                if (snapshot.m_registry->template valid(local_entity)) {
-                    snapshot.m_registry->template assign_or_replace<std::decay_t<decltype(comp)>>(local_entity, comp);
-                }
-            });
-        }
-    }*/
-}
 
 //-----------------------------------------------------------------------------
 
@@ -225,82 +182,110 @@ void serialize(Archive &archive, registry_snapshot_reader<Component...> &snapsho
  *      that are also present in the map.
  */
 template<typename... Component>
-class registry_snapshot_exporter: public registry_snapshot_writer<Component...> {
+class registry_snapshot_exporter {
+    
+    template<typename Other, typename Type, typename Member>
+    void update_child_entity(Other &instance, Member Type:: *member) const {
+        if constexpr(!std::is_same_v<Other, Type>) {
+            return;
+        } else if constexpr(std::is_same_v<Member, entt::entity>) {
+            instance.*member = m_map->locrem(instance.*member);
+        } else {
+            // Attempt to use member as a container of entities.
+            for(auto &ent : instance.*member) {
+                ent = m_map->locrem(ent);
+            }
+        }
+    }
+
+    template<typename Comp, typename Archive, typename... Type, typename... Member>
+    void serialize_component(Archive &archive, entt::entity entity, Member Type:: *...member) const {
+
+        if constexpr(std::is_empty_v<Comp>) {
+            if (m_registry->has<Comp>(entity)) {
+                archive(m_map->locrem(entity));
+                auto comp_id = index_of_v<Comp, Component...>;
+                archive(comp_id);
+            }
+        } else {
+            if (auto comp = m_registry->try_get<Comp>(entity)) {
+                archive(m_map->locrem(entity));
+                auto comp_id = index_of_v<Comp, Component...>;
+                archive(comp_id);
+                
+                auto remote_comp = *comp;
+                (update_child_entity(remote_comp, member), ...);
+                archive(remote_comp);
+            }
+        }
+    }
+    
 public:
+    using tuple_type = std::tuple<Component...>;
+
     registry_snapshot_exporter(entt::registry &reg, entity_map &map) 
-        : registry_snapshot_writer<Component...>(reg)
+        : m_registry(&reg)
         , m_map(&map)
     {}
 
-    template<typename Archive, typename... Ts>
-    friend void serialize(Archive &, registry_snapshot_exporter<Ts...> &);
+    template<typename... Comp, typename Archive, typename It, typename... Type, typename... Member>
+    void serialize(Archive &archive, It first, It last, Member Type:: *...member) {
+        static_assert(Archive::is_output::value, "Output archive expected.");
+
+        auto num_entities = std::accumulate(first, last, size_t{0}, [&] (size_t count, entt::entity e) { return count + m_map->has_loc(e); });
+        archive(num_entities);
+
+        size_t num_components = 0;
+
+        for (auto it = first; it != last; ++it) {
+            auto entity = *it;
+            if (!m_map->has_loc(entity)) continue;
+
+            archive(m_map->locrem(entity));
+            num_components += (m_registry->has<Comp>(entity) + ...);
+        }
+
+        archive(num_components);
+
+        for (auto it = first; it != last; ++it) {
+            auto entity = *it;
+            (serialize_component<Comp>(archive, entity, member...), ...);
+        }
+
+        // Write entities not present in the entity map separately.
+        /* 
+        auto total_entities = std::distance(first, last);
+        auto num_unmapped_entities = total_entities - num_entities;
+        archive(num_unmapped_entities);
+
+        for (auto entity : m_entities) {
+            if (snapshot.m_map->has_loc(entity)) continue;
+
+            archive(entity);
+
+            size_t count = 0;
+            for (auto comp_id : m_component_ids) {
+                if (has(entity, comp_id)) {
+                    ++count;
+                }
+            }
+            archive(count);
+
+            for (auto comp_id : m_component_ids) {
+                try_visit(entity, comp_id, [&archive, &comp_id] (auto *comp) {
+                    if (comp) {
+                        archive(comp_id);
+                        archive(*comp);
+                    }
+                });
+            }
+        } */
+    }
 
 private:
+    entt::registry *m_registry;
     entity_map *m_map;
 };
-
-template<typename Archive, typename... Component>
-void serialize(Archive &archive, registry_snapshot_exporter<Component...> &snapshot) {
-    static_assert(Archive::is_output::value, "Output archive expected.");
-    
-    size_t num_entities = 0;
-    for (auto entity : snapshot.m_entities) {
-        if (snapshot.m_map->has_loc(entity)) {
-            ++num_entities;
-        }
-    }
-    archive(num_entities);
-
-    for (auto entity : snapshot.m_entities) {
-        if (!snapshot.m_map->has_loc(entity)) continue;
-
-        archive(snapshot.m_map->locrem(entity));
-
-        size_t count = 0;
-        for (auto comp_id : snapshot.m_component_ids) {
-            if (snapshot.has(entity, comp_id)) {
-                ++count;
-            }
-        }
-        archive(count);
-
-        for (auto comp_id : snapshot.m_component_ids) {
-            snapshot.try_visit(entity, comp_id, [&archive, &comp_id] (auto *comp) {
-                if (comp) {
-                    archive(comp_id);
-                    archive(*comp);
-                }
-            });
-        }
-    }
-
-    // Write entities not present in the entity map separately.
-    /* auto num_unmapped_entities = snapshot.m_entities.size() - num_entities;
-    archive(num_unmapped_entities);
-
-    for (auto entity : snapshot.m_entities) {
-        if (snapshot.m_map->has_loc(entity)) continue;
-
-        archive(entity);
-
-        size_t count = 0;
-        for (auto comp_id : snapshot.m_component_ids) {
-            if (snapshot.has(entity, comp_id)) {
-                ++count;
-            }
-        }
-        archive(count);
-
-        for (auto comp_id : snapshot.m_component_ids) {
-            snapshot.try_visit(entity, comp_id, [&archive, &comp_id] (auto *comp) {
-                if (comp) {
-                    archive(comp_id);
-                    archive(*comp);
-                }
-            });
-        }
-    } */
-}
 
 //-----------------------------------------------------------------------------
 
@@ -312,52 +297,87 @@ void serialize(Archive &archive, registry_snapshot_exporter<Component...> &snaps
  *      to extenal entity. The same map should be reused in subsequent imports.
  */
 template<typename... Component>
-class registry_snapshot_importer: public registry_snapshot_reader<Component...> {
+class registry_snapshot_importer {
+
+    template<typename Func, size_t... Indexes>
+    void visit(entt::entity entity, size_t comp_id, Func f, std::index_sequence<Indexes...>) {
+        ((comp_id == Indexes ? f(std::tuple_element_t<Indexes, tuple_type>{}) : (void)0), ...);
+    }
+
+    template<typename Func>
+    void visit(entt::entity entity, size_t comp_id, Func f) {
+        visit(entity, comp_id, f, std::make_index_sequence<sizeof...(Component)>{});
+    }
+
+    template<typename Other, typename Type, typename Member>
+    void update_child_entity(Other &instance, Member Type:: *member) const {
+        if constexpr(!std::is_same_v<Other, Type>) {
+            return;
+        } else if constexpr(std::is_same_v<Member, entt::entity>) {
+            instance.*member = m_map->remloc(instance.*member);
+        } else {
+            // Attempt to use member as a container of entities.
+            for(auto &ent : instance.*member) {
+                ent = m_map->remloc(ent);
+            }
+        }
+    }
+    
+
 public:
+    using tuple_type = std::tuple<Component...>;
+
     registry_snapshot_importer(entt::registry &reg, entity_map &map) 
-        : registry_snapshot_reader<Component...>(reg)
+        : m_registry(&reg)
         , m_map(&map)
     {}
 
-    template<typename Archive, typename... Ts>
-    friend void serialize(Archive &, registry_snapshot_importer<Ts...> &);
+    template<typename Archive, typename... Type, typename... Member>
+    void serialize(Archive &archive, Member Type:: *...member) {
+        static_assert(Archive::is_input::value, "Input archive expected.");
 
-private:
-    entity_map *m_map;
-};
+        size_t num_entities;
+        archive(num_entities);
 
-template<typename Archive, typename... Component>
-void serialize(Archive &archive, registry_snapshot_importer<Component...> &snapshot) {
-    static_assert(Archive::is_input::value, "Input archive expected.");
+        for (size_t i = 0; i < num_entities; ++i) {
+            entt::entity remote_entity;
+            archive(remote_entity);
 
-    size_t num_entities;
-    archive(num_entities);
-
-    for (size_t i = 0; i < num_entities; ++i) {
-        entt::entity remote_entity;
-        archive(remote_entity);
-        
-        entt::entity entity;
-        if (!snapshot.m_map->has_rem(remote_entity)) {
-            entity = snapshot.m_registry->template create();
-            snapshot.m_map->insert(remote_entity, entity);
-        } else {
-            entity = snapshot.m_map->remloc(remote_entity);
+            entt::entity entity;
+            if (m_map->has_rem(remote_entity)) {
+                entity = m_map->remloc(remote_entity);
+            } else {
+                entity = m_registry->create();
+                m_map->insert(remote_entity, entity);
+            }
         }
 
         size_t num_components;
         archive(num_components);
 
-        for (size_t j = 0; j < num_components; ++j) {
+        for (size_t i = 0; i < num_components; ++i) {
+            entt::entity remote_entity;
+            archive(remote_entity);
+            auto entity = m_map->remloc(remote_entity);
+
             size_t comp_id;
             archive(comp_id);
-            snapshot.visit(entity, comp_id, [&snapshot, &archive, &entity] (auto &&comp) {
+
+            visit(entity, comp_id, [&] (auto &&comp) {
                 archive(comp);
-                snapshot.m_registry->template assign_or_replace<std::decay_t<decltype(comp)>>(entity, comp);
+                (update_child_entity(comp, member), ...);
+
+                if (m_registry->valid(entity)) {
+                    m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(entity, comp);
+                }
             });
         }
     }
-}
+
+private:
+    entt::registry *m_registry;
+    entity_map *m_map;
+};
 
 }
 
