@@ -29,7 +29,9 @@ public:
 template<typename... Component>
 class island_worker_context: public island_worker_context_base {
 public:
-    island_worker_context(message_queue_in_out message_queue)
+    using components_tuple = std::tuple<Component...>;
+
+    island_worker_context(message_queue_in_out message_queue, [[maybe_unused]] components_tuple t)
         : m_message_queue(message_queue)
         , m_bphase(m_registry)
         , m_nphase(m_registry)

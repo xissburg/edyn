@@ -44,13 +44,7 @@ void on_destroy_shape(entt::entity entity, entt::registry &registry) {
 
 void on_registry_snapshot(entt::registry &registry, const msg::registry_snapshot &snapshot) {
     auto input = memory_input_archive(snapshot.data);
-    auto reader = registry_snapshot_reader<
-        AABB, angvel, collision_filter, constraint, constraint_row, 
-        gravity, inertia, inertia_inv, inertia_world_inv,
-        island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
-        position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
-        sleeping_tag, sleeping_disabled_tag, disabled_tag
-    >(registry);
+    auto reader = registry_snapshot_reader(registry, all_components{});
     reader.serialize(input);
 }
 
@@ -66,13 +60,8 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
     auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
 
-    auto *worker = new island_worker_context<
-        AABB, angvel, collision_filter, constraint, constraint_row, 
-        gravity, inertia, inertia_inv, inertia_world_inv,
-        island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
-        position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
-        sleeping_tag, sleeping_disabled_tag, disabled_tag
-    >(message_queue_in_out(main_queue_input, isle_queue_output));
+    auto *worker = new island_worker_context(message_queue_in_out(main_queue_input, isle_queue_output),
+                                             all_components{});
 
     auto info = island_info(worker, message_queue_in_out(isle_queue_input, main_queue_output));
     auto &w = registry.ctx<world>();
@@ -84,20 +73,8 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
 
     auto buffer = memory_output_archive::buffer_type();
     auto output = memory_output_archive(buffer);
-    auto writer = registry_snapshot_writer<
-        AABB, angvel, collision_filter, constraint, constraint_row, 
-        gravity, inertia, inertia_inv, inertia_world_inv,
-        island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
-        position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
-        sleeping_tag, sleeping_disabled_tag, disabled_tag
-    >(registry);
-    writer.serialize<
-        AABB, angvel, collision_filter, constraint, constraint_row, 
-        gravity, inertia, inertia_inv, inertia_world_inv,
-        island, island_node, linacc, linvel, mass, mass_inv, material, orientation,
-        position, relation, shape, dynamic_tag, kinematic_tag, static_tag,
-        sleeping_tag, sleeping_disabled_tag, disabled_tag
-    >(output, entities.begin(), entities.end());
+    auto writer = registry_snapshot_writer(registry, all_components{});
+    writer.serialize(output, entities.begin(), entities.end(), all_components{});
 
     info.m_message_queue.send<msg::registry_snapshot>(buffer);
 

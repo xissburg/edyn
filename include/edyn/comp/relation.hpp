@@ -2,10 +2,11 @@
 #define EDYN_COMP_RELATION_HPP
 
 #include <entt/entt.hpp>
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
-inline constexpr size_t max_relations = 3;
+inline constexpr size_t max_relations = 2;
 
 /**
  * @brief A relation between entities ensures that they'll be kept in the same
@@ -13,12 +14,8 @@ inline constexpr size_t max_relations = 3;
  * entities (e.g. `edyn::constraint`) require a relation to exist as well.
  */
 struct relation {
-    std::array<entt::entity, max_relations> entity;
-
-    relation() = default;
-    relation(entt::entity ent0, entt::entity ent1, entt::entity ent2 = entt::null)
-        : entity{ent0, ent1, ent2}
-    {}
+    std::array<entt::entity, max_relations> entity =
+        make_array<max_relations>(entt::entity{entt::null});
 };
 
 /**

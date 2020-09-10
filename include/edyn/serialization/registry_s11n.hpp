@@ -46,6 +46,10 @@ public:
         : m_registry(&reg)
     {}
 
+    registry_snapshot_writer(entt::registry &reg, [[maybe_unused]] tuple_type t) 
+        : m_registry(&reg)
+    {}
+
     /**
      * @brief Specifies which entities and components should be serialized.
      * @tparam Comp Component types to be serialized.
@@ -74,6 +78,11 @@ public:
             auto entity = *it;
             (serialize_component<Comp>(archive, entity), ...);
         }
+    }
+
+    template<typename... Comp, typename Archive, typename It>
+    void serialize(Archive &archive, It first, It last, [[maybe_unused]] std::tuple<Comp...> t) {
+        serialize<Comp...>(archive, first, last);
     }
 
 protected:
@@ -105,6 +114,10 @@ public:
     using tuple_type = std::tuple<Component...>;
 
     registry_snapshot_reader(entt::registry &reg) 
+        : m_registry(&reg)
+    {}
+
+    registry_snapshot_reader(entt::registry &reg, [[maybe_unused]] tuple_type t) 
         : m_registry(&reg)
     {}
 
