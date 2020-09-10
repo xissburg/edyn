@@ -10,6 +10,8 @@
 
 namespace edyn {
 
+using entity_comp_id_pair = std::pair<entt::entity, size_t>;
+
 /**
  * @brief The `registry_snapshot_writer` stores a reference to a registry and a
  * list of entities and component types to be serialized. It must be serialized
@@ -179,6 +181,20 @@ public:
                 });
             }
         }*/
+
+        // Read destroyed components.
+        size_t num_destroyed;
+        archive(num_destroyed);
+
+        for (size_t i = 0; i < num_destroyed; ++i) {
+            entt::entity entity;
+            archive(entity);
+            size_t comp_id;
+            archive(comp_id);
+            visit(entity, comp_id, [&] (auto &&comp) {
+                m_registry->remove<std::decay_t<decltype(comp)>>(entity);
+            });
+        }
     }
 
 protected:
@@ -209,6 +225,32 @@ class registry_snapshot_exporter {
                 ent = m_map->locrem(ent);
             }
         }
+    }
+
+    template<typename Func, size_t... Indexes>
+    void visit(entt::entity entity, size_t comp_id, Func func, std::index_sequence<Indexes...>) const {
+        ((comp_id == Indexes && m_registry->has<std::tuple_element_t<Indexes, tuple_type>>(entity) ? 
+            func(m_registry->get<std::tuple_element_t<Indexes, tuple_type>>(entity)) : (void)0), ...);
+    }
+
+    template<typename Func>
+    void visit(entt::entity entity, size_t comp_id, Func func) const {
+        visit(entity, comp_id, func, std::make_index_sequence<sizeof...(Component)>{});
+    }
+
+    template<typename Archive, typename... Type, typename... Member>
+    void serialize_component(Archive &archive, entt::entity entity, size_t comp_id, Member Type:: *...member) const {
+        visit(entity, comp_id, [&] (auto &&comp) {
+            archive(m_map->locrem(entity));
+            archive(comp_id);
+
+            using Comp = std::decay_t<decltype(comp)>;
+            if constexpr(!std::is_empty_v<Comp>) {
+                auto remote_comp = comp;
+                (update_child_entity(remote_comp, member), ...);
+                archive(remote_comp);
+            }
+        });
     }
 
     template<typename Comp, typename Archive, typename... Type, typename... Member>
@@ -293,6 +335,45 @@ public:
                 });
             }
         } */
+    }
+
+    template<typename Archive, typename ItEntity, typename ItPair, typename... Type, typename... Member>
+    void updated(Archive &archive, ItEntity entity_first, ItEntity entity_last, 
+                 ItPair pair_first, ItPair pair_last, Member Type:: *...member) {
+        static_assert(Archive::is_output::value, "Output archive expected.");
+
+        size_t num_entities = std::accumulate(entity_first, entity_last, size_t{0}, [&] (size_t count, entt::entity e) { return count + m_map->has_loc(e); });
+        archive(num_entities);
+
+        for (auto it = entity_first; it != entity_last; ++it) {
+            auto entity = *it;
+            if (!m_map->has_loc(entity)) continue;
+
+            archive(m_map->locrem(entity));
+        }
+
+        size_t num_components = std::accumulate(pair_first, pair_last, size_t{0}, [&] (size_t count, entity_comp_id_pair pair) { return count + m_map->has_loc(pair.first); });
+        archive(num_components);
+
+        for (auto it = pair_first; it != pair_last; ++it) {
+            auto entity = it->first;
+            auto comp_id = it->second;
+            serialize_component(archive, entity, comp_id, member...);
+        }
+    }
+
+    template<typename Archive, typename It>
+    void destroyed(Archive &archive, It first, It last) {
+        static_assert(Archive::is_output::value, "Output archive expected.");
+
+        size_t num_destroyed = std::distance(first, last);
+        archive(num_destroyed);
+
+        for (auto it = first; it != last; ++it) {
+            entity_comp_id_pair pair = *it;
+            archive(pair.first);
+            archive(pair.second);
+        }
     }
 
 private:

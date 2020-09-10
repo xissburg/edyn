@@ -14,6 +14,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/relation.hpp"
 #include "edyn/serialization/registry_s11n.hpp"
+#include "edyn/util/tuple.hpp"
 
 namespace edyn {
 
@@ -38,6 +39,9 @@ public:
         , m_sol(m_registry)
     {
         m_message_queue.sink<msg::registry_snapshot>().template connect<&island_worker_context::on_registry_snapshot>(*this);
+
+        (m_registry.on_destroy<Component>().template connect<&island_worker_context<Component...>::on_destroy_component<Component>>(*this), ...);
+        (m_registry.on_replace<Component>().template connect<&island_worker_context<Component...>::on_replace_component<Component>>(*this), ...);
     }
 
     void on_registry_snapshot(const msg::registry_snapshot &snapshot) {
@@ -54,8 +58,10 @@ public:
         auto buffer = memory_output_archive::buffer_type();
         auto output = memory_output_archive(buffer);
         auto exporter = registry_snapshot_exporter<Component...>(m_registry, m_entity_map);
-        exporter.template serialize<Component...>(output, entities.begin(), entities.end(), &relation::entity, &island::entities);
+        exporter.template updated(output, entities.begin(), entities.end(), m_updated_components.begin(), m_updated_components.end(), &relation::entity, &island::entities);
+        exporter.template destroyed(output, m_destroyed_components.begin(), m_destroyed_components.end());
         m_message_queue.send<msg::registry_snapshot>(buffer);
+        m_destroyed_components.clear();
     }
 
     void update() override {
@@ -87,6 +93,18 @@ public:
         job_dispatcher::global().async(j);
     }
 
+    template<typename Comp>
+    void on_destroy_component(entt::entity entity, entt::registry &registry) {
+        auto comp_id = index_of_v<Comp, Component...>;
+        m_destroyed_components.emplace_back(entity, comp_id);
+    }
+
+    template<typename Comp>
+    void on_replace_component(entt::entity entity, entt::registry &registry) {
+        auto comp_id = index_of_v<Comp, Component...>;
+        m_updated_components.emplace_back(entity, comp_id);
+    }
+
 private:
     entt::registry m_registry;
     entt::entity m_island_entity;
@@ -96,6 +114,8 @@ private:
     solver m_sol;
     message_queue_in_out m_message_queue;
     double fixed_dt;
+    std::vector<entity_comp_id_pair> m_destroyed_components;
+    std::vector<entity_comp_id_pair> m_updated_components;
 };
 
 }
