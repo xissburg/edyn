@@ -30,6 +30,7 @@
 #include "util/rigidbody.hpp"
 #include "util/constraint.hpp"
 #include "util/shape_util.hpp"
+#include "util/tuple.hpp"
 #include "dynamics/island_util.hpp"
 #include "collision/contact_manifold.hpp"
 #include "collision/contact_point.hpp"

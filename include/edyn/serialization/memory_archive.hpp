@@ -41,7 +41,7 @@ public:
 protected:
     template<typename T>
     void read_bytes(T &t) {
-        EDYN_ASSERT(m_position + sizeof(T) < m_size);
+        EDYN_ASSERT(m_position + sizeof(T) <= m_size);
         auto* buff = reinterpret_cast<const T*>(m_buffer + m_position);
         t = *buff;
         m_position += sizeof(T);
@@ -120,7 +120,7 @@ public:
 protected:
     template<typename T>
     void write_bytes(T &t) { 
-        EDYN_ASSERT(m_position + sizeof(T) < m_size);
+        EDYN_ASSERT(m_position + sizeof(T) <= m_size);
         auto *dest = reinterpret_cast<T*>(m_buffer + m_position);
         *dest = t;
         m_position += sizeof(T);
