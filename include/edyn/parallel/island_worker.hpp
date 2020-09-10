@@ -35,7 +35,7 @@ public:
         , m_nphase(m_registry)
         , m_sol(m_registry)
     {
-        m_message_queue.sink<msg::registry_snapshot>().connect<&island_worker_context::on_registry_snapshot>(*this);
+        m_message_queue.sink<msg::registry_snapshot>().template connect<&island_worker_context::on_registry_snapshot>(*this);
     }
 
     void on_registry_snapshot(const msg::registry_snapshot &snapshot) {
