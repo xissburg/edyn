@@ -33,7 +33,7 @@ bool job_queue::try_pop(job &j) {
     return true;
 }
 
-size_t job_queue::size() {
+size_t job_queue::size() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_jobs.size();
 }
