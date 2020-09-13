@@ -85,8 +85,8 @@ TEST(registry_serialization_test, test_registry_export_import) {
     auto buffer1 = edyn::memory_output_archive::buffer_type{};
     auto output1 = edyn::memory_output_archive(buffer1);
     auto exporter = edyn::registry_snapshot_exporter<component_with_child, component_with_children>(reg1, map);
-    exporter.updated<component_with_child>(ent0);
-    exporter.updated<component_with_children>(ent1);
+    exporter.updated<component_with_child>(map.remloc(ent0));
+    exporter.updated<component_with_children>(map.remloc(ent1));
     exporter.serialize(output1, &component_with_child::child, &component_with_children::children);
 
     auto input0 = edyn::memory_input_archive(buffer1);

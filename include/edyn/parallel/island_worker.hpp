@@ -11,8 +11,7 @@
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/comp/island.hpp"
-#include "edyn/comp/relation.hpp"
+#include "edyn/comp.hpp"
 #include "edyn/serialization/registry_s11n.hpp"
 #include "edyn/util/tuple.hpp"
 
@@ -58,6 +57,9 @@ public:
         auto buffer = memory_output_archive::buffer_type();
         auto output = memory_output_archive(buffer);
         auto exporter = registry_snapshot_exporter<Component...>(m_registry, m_entity_map);
+        for (auto entity : entities) {
+            exporter.template updated(entity, transient_components{});
+        }
         exporter.template updated(m_updated_components.begin(), m_updated_components.end());
         exporter.template destroyed(m_destroyed_components.begin(), m_destroyed_components.end());
         exporter.template serialize(output, &relation::entity, &island::entities);
