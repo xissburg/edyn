@@ -67,7 +67,11 @@ public:
 
     template<typename... Comp>
     void updated(entt::entity entity) {
-        (m_updated_components.push_back(entity_comp_id_pair{entity, component_identifier<Component...>::template value<Comp>}), ...);
+        if constexpr(sizeof...(Comp) > 0) {
+            (m_updated_components.push_back(entity_comp_id_pair{entity, component_identifier<Component...>::template value<Comp>}), ...);
+        } else {
+            m_updated_entities.push_back(entity);
+        }
     }
 
     template<typename... Comp>
@@ -103,6 +107,9 @@ public:
     void serialize(Archive &archive) {
         static_assert(Archive::is_output::value, "Output archive expected.");
 
+        // Updated entities.
+        archive(m_updated_entities);
+
         // Updated components.
         archive(m_updated_components.size());
 
@@ -123,6 +130,7 @@ public:
     }
 
 protected:
+    std::vector<entt::entity> m_updated_entities;
     std::vector<entity_comp_id_pair> m_updated_components;
     std::vector<entity_comp_id_pair> m_destroyed_components;
     entt::registry *m_registry;
@@ -162,6 +170,15 @@ public:
     template<typename Archive>
     void serialize(Archive &archive) {
         static_assert(Archive::is_input::value, "Input archive expected.");
+
+        // Updated entities;
+        size_t num_entities;
+        archive(num_entities);
+
+        for (size_t i = 0; i < num_entities; ++i) {
+            entt::entity entity;
+            archive(entity);
+        }
 
         // Updated components.
         size_t num_components;
@@ -298,7 +315,11 @@ public:
 
     template<typename... Comp>
     void updated(entt::entity entity) {
-        (m_updated_components.push_back(entity_comp_id_pair{entity, component_identifier<Component...>::template value<Comp>}), ...);
+        if constexpr(sizeof...(Comp) > 0) {
+            (m_updated_components.push_back(entity_comp_id_pair{entity, component_identifier<Component...>::template value<Comp>}), ...);
+        } else {
+            m_updated_entities.push_back(entity);
+        }
     }
 
     template<typename It>
@@ -324,6 +345,9 @@ public:
     void serialize(Archive &archive, Member Type:: *...member) {
         static_assert(Archive::is_output::value, "Output archive expected.");
 
+        // Updated entities.
+        archive(m_updated_entities);
+        
         // Updated components.
         size_t num_updated_components = std::accumulate(m_updated_components.begin(), m_updated_components.end(), 
             size_t{0}, [&] (auto count, auto pair) { return count + m_map->has_loc(pair.first); });
@@ -381,6 +405,7 @@ public:
 private:
     entt::registry *m_registry;
     entity_map *m_map;
+    std::vector<entt::entity> m_updated_entities;
     std::vector<entity_comp_id_pair> m_updated_components;
     std::vector<entity_comp_id_pair> m_destroyed_components;
 };
@@ -432,6 +457,23 @@ public:
     template<typename Archive, typename... Type, typename... Member>
     void serialize(Archive &archive, Member Type:: *...member) {
         static_assert(Archive::is_input::value, "Input archive expected.");
+
+        // Updated entities.
+        size_t num_updated_entities;
+        archive(num_updated_entities);
+
+        for (size_t i = 0; i < num_updated_entities; ++i) {
+            entt::entity remote_entity;
+            archive(remote_entity);
+            
+            entt::entity entity;
+            if (m_map->has_rem(remote_entity)) {
+                entity = m_map->remloc(remote_entity);
+            } else {
+                entity = m_registry->create();
+                m_map->insert(remote_entity, entity);
+            }
+        }
 
         // Updated components.
         size_t num_updated_components;
