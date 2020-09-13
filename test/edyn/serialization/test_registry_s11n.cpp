@@ -11,10 +11,9 @@ TEST(registry_serialization_test, test_registry_writer_reader) {
     auto buffer = edyn::memory_output_archive::buffer_type{};
     auto output = edyn::memory_output_archive(buffer);
     auto writer = edyn::registry_snapshot_writer<int, edyn::vector3>(reg0);
-    auto entities = std::vector<entt::entity>();
-    entities.push_back(ent0);
-    entities.push_back(ent1);
-    writer.serialize<int, edyn::vector3>(output, entities.begin(), entities.end());
+    writer.updated<int, edyn::vector3>(ent0);
+    writer.updated<edyn::vector3>(ent1);
+    writer.serialize(output);
 
     reg0.replace<int>(ent0, 335);
     reg0.replace<edyn::vector3>(ent1, edyn::vector3_zero);
@@ -60,12 +59,11 @@ TEST(registry_serialization_test, test_registry_export_import) {
     auto buffer = edyn::memory_output_archive::buffer_type{};
     auto output = edyn::memory_output_archive(buffer);
     auto writer = edyn::registry_snapshot_writer<component_with_child, component_with_children>(reg0);
-    auto entities = std::vector<entt::entity>();
-    entities.push_back(ent0);
-    entities.push_back(ent1);
-    entities.push_back(child0);
-    entities.push_back(child1);
-    writer.serialize<component_with_child, component_with_children>(output, entities.begin(), entities.end());
+    writer.updated<component_with_child>(ent0);
+    writer.updated<component_with_children>(ent1);
+    writer.updated(child0);
+    writer.updated(child1);
+    writer.serialize(output);
 
     entt::registry reg1;
     edyn::entity_map map;
@@ -87,10 +85,9 @@ TEST(registry_serialization_test, test_registry_export_import) {
     auto buffer1 = edyn::memory_output_archive::buffer_type{};
     auto output1 = edyn::memory_output_archive(buffer1);
     auto exporter = edyn::registry_snapshot_exporter<component_with_child, component_with_children>(reg1, map);
-    auto entities1 = std::vector<entt::entity>();
-    entities1.push_back(map.remloc(ent0));
-    entities1.push_back(map.remloc(ent1));
-    exporter.serialize<component_with_child, component_with_children>(output1, entities1.begin(), entities1.end(), &component_with_child::child, &component_with_children::children);
+    exporter.updated<component_with_child>(ent0);
+    exporter.updated<component_with_children>(ent1);
+    exporter.serialize(output1, &component_with_child::child, &component_with_children::children);
 
     auto input0 = edyn::memory_input_archive(buffer1);
     auto reader = edyn::registry_snapshot_reader<component_with_child, component_with_children>(reg0);

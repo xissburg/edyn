@@ -67,14 +67,12 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     auto &w = registry.ctx<world>();
     w.m_island_info_map.insert(std::make_pair(island_ent, info));
 
-    std::vector<entt::entity> entities;
-    entities.push_back(island_ent);
-    entities.push_back(entity);
-
     auto buffer = memory_output_archive::buffer_type();
     auto output = memory_output_archive(buffer);
     auto writer = registry_snapshot_writer(registry, all_components{});
-    writer.serialize(output, entities.begin(), entities.end(), all_components{});
+    writer.updated<island>(island_ent);
+    writer.updated(entity, all_components{});
+    writer.serialize(output);
 
     info.m_message_queue.send<msg::registry_snapshot>(buffer);
 

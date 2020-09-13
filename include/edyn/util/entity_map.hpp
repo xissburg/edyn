@@ -7,6 +7,9 @@
 
 namespace edyn {
 
+/**
+ * Maps entities from one registry to another and back.
+ */
 class entity_map {
 public:
     void insert(entt::entity remote_entity, entt::entity local_entity) {

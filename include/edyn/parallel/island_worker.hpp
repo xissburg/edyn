@@ -32,7 +32,7 @@ class island_worker_context: public island_worker_context_base {
 public:
     using components_tuple = std::tuple<Component...>;
 
-    island_worker_context(message_queue_in_out message_queue, [[maybe_unused]] components_tuple t)
+    island_worker_context(message_queue_in_out message_queue, [[maybe_unused]] components_tuple)
         : m_message_queue(message_queue)
         , m_bphase(m_registry)
         , m_nphase(m_registry)
@@ -58,8 +58,9 @@ public:
         auto buffer = memory_output_archive::buffer_type();
         auto output = memory_output_archive(buffer);
         auto exporter = registry_snapshot_exporter<Component...>(m_registry, m_entity_map);
-        exporter.template updated(output, entities.begin(), entities.end(), m_updated_components.begin(), m_updated_components.end(), &relation::entity, &island::entities);
-        exporter.template destroyed(output, m_destroyed_components.begin(), m_destroyed_components.end());
+        exporter.template updated(m_updated_components.begin(), m_updated_components.end());
+        exporter.template destroyed(m_destroyed_components.begin(), m_destroyed_components.end());
+        exporter.template serialize(output, &relation::entity, &island::entities);
         m_message_queue.send<msg::registry_snapshot>(buffer);
         m_destroyed_components.clear();
     }
@@ -95,13 +96,13 @@ public:
 
     template<typename Comp>
     void on_destroy_component(entt::entity entity, entt::registry &registry) {
-        auto comp_id = index_of_v<Comp, Component...>;
+        auto comp_id = index_of_v<size_t, Comp, Component...>;
         m_destroyed_components.emplace_back(entity, comp_id);
     }
 
     template<typename Comp>
     void on_replace_component(entt::entity entity, entt::registry &registry) {
-        auto comp_id = index_of_v<Comp, Component...>;
+        auto comp_id = index_of_v<size_t, Comp, Component...>;
         m_updated_components.emplace_back(entity, comp_id);
     }
 
