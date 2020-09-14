@@ -148,7 +148,8 @@ void island_on_construct_relation(entt::entity entity, entt::registry &registry,
         new_isle.entities.insert(new_isle.entities.end(), isle.entities.begin(), isle.entities.end());
     }
 
-    // Destroy smaller islands.
+    // Destroy smaller islands. Triggers `on_destroy<island>` which finishes
+    // the island worker.
     registry.destroy(island_ents.begin(), island_ents.end());
 
     // Send snapshot containing all entities in the new island to its associated
@@ -236,51 +237,59 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
         std::sort(connected_entities[i].begin(), connected_entities[i].end());
     }
 
-    size_t biggest_idx = 0;
-    size_t biggest_size = 0;
-
+    auto different = false;
+    
     for (size_t i = 0; i < max_relations; ++i) {
-        if (connected_entities[i].size() > biggest_size) {
-            biggest_size = connected_entities[i].size();
-            biggest_idx = i;
+        for (size_t j = i; j < max_relations; ++j) {
+            if (connected_entities[i] != connected_entities[j]) {
+                different = true;
+                break;
+            }
         }
     }
 
-    auto &node = registry.get<island_node>(rel.entity[biggest_idx]);
-    auto biggest_ent = node.island_entity;
+    if (!different) {
+        return;
+    }
 
+    // Split into two islands.
     for (size_t i = 0; i < max_relations; ++i) {
-        if (i == biggest_idx) { continue; }
-        if (rel.entity[i] == entt::null) { continue; }
-        if (connected_entities[biggest_idx] == connected_entities[i]) { continue; }
+        auto new_island_ent = registry.create();
+        auto &new_isle = registry.assign<island>(new_island_ent);
 
-        // Remove entities from the biggest island and move them to a new
-        // island.
-        auto &isle = registry.get<island>(biggest_ent);
-        // TODO: minor optimization: swap with last then pop.
-        auto erase_it = std::remove_if(isle.entities.begin(), isle.entities.end(), [&] (auto &ent) {
-            return std::find(connected_entities[i].begin(), 
-                             connected_entities[i].end(), ent) 
-                != connected_entities[i].end();
-        });
-        isle.entities.erase(erase_it, isle.entities.end());
+        for (auto isle_ent : connected_entities[i]) {
+            auto isle = registry.get<island>(isle_ent);
+            new_isle.entities.insert(new_isle.entities.end(), isle.entities.begin(), isle.entities.end());
+        }
 
-        // Create new island.
-        auto [other_island_ent, other_isle] = registry.create<island>();    
-        other_isle.entities = std::move(connected_entities[i]);
-
-        // Update all nodes in the other set.
-        for (auto ent : other_isle.entities) {
+        // Update all nodes.
+        for (auto ent : connected_entities[i]) {
             auto &node = registry.get<island_node>(ent);
-            node.island_entity = other_island_ent;
+            node.island_entity = new_island_ent;
         }
 
         // Wake up all entities in the new island.
-        wakeup_island(other_island_ent, registry);
+        wakeup_island(new_island_ent, registry);
+
+        // Send snapshot containing all entities in the new island to its associated
+        // `island_worker`, which is created at the moment the `island` component is
+        // assigned to `new_island_ent`.
+        auto buffer = memory_output_archive::buffer_type();
+        auto output = memory_output_archive(buffer);
+        auto writer = registry_snapshot_writer(registry, all_components{});
+        writer.updated<island>(new_island_ent);
+        for (auto entity : new_isle.entities) {
+            writer.updated(entity, all_components{});
+        }
+        writer.serialize(output);
+
+        auto &wrld = registry.ctx<world>();
+        wrld.m_island_info_map.at(new_island_ent).m_message_queue.send<msg::registry_snapshot>(buffer);
     }
 
-    // Wake up the biggest island either way since something has changed in it.
-    wakeup_island(biggest_ent, registry);
+    // Destroy original island.
+    auto &node = registry.get<island_node>(entity);
+    registry.destroy(node.island_entity);
 }
 
 }
