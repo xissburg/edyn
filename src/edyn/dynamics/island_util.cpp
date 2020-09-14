@@ -7,6 +7,8 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/dynamics/world.hpp"
+#include "edyn/parallel/message.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -138,43 +140,31 @@ void island_on_construct_relation(entt::entity entity, entt::registry &registry,
     }
 
     // Merge all into one island.
-    size_t biggest_idx = 0;
-    size_t biggest_size = 0;
+    auto new_island_ent = registry.create();
+    auto &new_isle = registry.assign<island>(new_island_ent);
 
-    for (size_t i = 0; i < island_ents.size(); ++i) {
-        auto &isle = registry.get<island>(island_ents[i]);
-        if (isle.entities.size() > biggest_size) {
-            biggest_size = isle.entities.size();
-            biggest_idx = i;
-        }
+    for (auto isle_ent : island_ents) {
+        auto isle = registry.get<island>(isle_ent);
+        new_isle.entities.insert(new_isle.entities.end(), isle.entities.begin(), isle.entities.end());
     }
 
-    auto biggest_ent = island_ents[biggest_idx];
-    auto &biggest_isle = registry.get<island>(biggest_ent);
+    // Destroy smaller islands.
+    registry.destroy(island_ents.begin(), island_ents.end());
 
-    for (size_t i = 0; i < island_ents.size(); ++i) {
-        if (i != biggest_idx) {
-            auto other_ent = island_ents[i];
-            auto &other_isle = registry.get<island>(other_ent);
-
-            for (auto ent : other_isle.entities) {
-                biggest_isle.entities.push_back(ent);
-
-                auto &node = registry.get<island_node>(ent);
-                node.island_entity = biggest_ent;
-            }
-        }
+    // Send snapshot containing all entities in the new island to its associated
+    // `island_worker`, which is created at the moment the `island` component is
+    // assigned to `new_island_ent`.
+    auto buffer = memory_output_archive::buffer_type();
+    auto output = memory_output_archive(buffer);
+    auto writer = registry_snapshot_writer(registry, all_components{});
+    writer.updated<island>(new_island_ent);
+    for (auto entity : new_isle.entities) {
+        writer.updated(entity, all_components{});
     }
+    writer.serialize(output);
 
-    // Destroy other islands after to ensure the `biggest_isle` reference won't
-    // be invalidated during the previous loop.
-    for (size_t i = 0; i < island_ents.size(); ++i) {
-        if (i != biggest_idx) {
-            registry.destroy(island_ents[i]);
-        }
-    }
-
-    wakeup_island(biggest_ent, registry);
+    auto &wrld = registry.ctx<world>();
+    wrld.m_island_info_map.at(new_island_ent).m_message_queue.send<msg::registry_snapshot>(buffer);
 }
 
 void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
