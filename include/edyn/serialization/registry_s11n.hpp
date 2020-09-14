@@ -244,7 +244,7 @@ public:
                 visit(local_entity, comp_id, [&] (auto &&comp) {
                     archive(comp);
                     if (m_registry->valid(local_entity)) {
-                        m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(local_entity, comp);
+                        m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(local_entity, std::move(comp));
                     }
                 });
             }
@@ -287,7 +287,9 @@ class registry_snapshot_exporter {
             auto comp_id = index_of_v<component_identifier_t, Comp, Component...>;
             archive(comp_id);
             if constexpr(!std::is_empty_v<Comp>) {
-                auto &comp = m_registry->get<Comp>(entity);
+                // Note that a copy component is obtained instead of a reference,
+                // thus the original component is not affected.
+                auto comp = m_registry->get<Comp>(entity);
                 (update_child_entity(comp, member), ...);
                 archive(comp);
             }
@@ -512,7 +514,7 @@ public:
                 (update_child_entity(comp, member), ...);
 
                 if (m_registry->valid(entity)) {
-                    m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(entity, comp);
+                    m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(entity, std::move(comp));
                 }
             });
         }

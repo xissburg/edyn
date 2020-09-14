@@ -1,6 +1,7 @@
 #ifndef EDYN_PARALLEL_ISLAND_WORKER_HPP
 #define EDYN_PARALLEL_ISLAND_WORKER_HPP
 
+#include <atomic>
 #include <entt/entt.hpp>
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/message_queue.hpp"
@@ -24,6 +25,17 @@ void island_worker_func(job::data_type &);
 class island_worker_context_base {
 public:
     virtual void update() = 0;
+
+    bool is_finished() const {
+        return m_finished.load(std::memory_order_relaxed);
+    }
+
+    void finish() {
+        m_finished.store(true, std::memory_order_relaxed);
+    }
+
+private:
+    std::atomic<bool> m_finished {false};
 };
 
 template<typename... Component>
@@ -50,16 +62,17 @@ public:
     }
 
     void sync() {
-        auto &isle = m_registry.get<island>(m_island_entity);
-        auto entities = isle.entities;
-        entities.push_back(m_island_entity);
-        
         auto buffer = memory_output_archive::buffer_type();
         auto output = memory_output_archive(buffer);
         auto exporter = registry_snapshot_exporter<Component...>(m_registry, m_entity_map);
-        for (auto entity : entities) {
+
+        auto &isle = m_registry.get<island>(m_island_entity);
+        exporter.template updated<island>(m_island_entity);
+
+        for (auto entity : isle.entities) {
             exporter.template updated(entity, transient_components{});
         }
+
         exporter.template updated(m_updated_components.begin(), m_updated_components.end());
         exporter.template destroyed(m_destroyed_components.begin(), m_destroyed_components.end());
         exporter.template serialize(output, &relation::entity, &island::entities);
@@ -80,6 +93,9 @@ public:
             m_nphase.update();
             m_sol.update(0, dt);
 
+            // Do not use the same `isle` instance because component references
+            // are not stable.
+            auto &isle = m_registry.get<island>(m_island_entity);
             isle.timestamp += dt;
 
             sync();

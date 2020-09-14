@@ -41,7 +41,7 @@ class message_queue {
         void publish() override {
             // Expected to be called from the consumer thread only.
             auto lock = std::unique_lock(m_mutex);
-            auto messages = std::vector<Message>(std::move(m_messages));
+            auto messages = std::move(m_messages);
             lock.unlock();
 
             for (auto &msg : messages) {

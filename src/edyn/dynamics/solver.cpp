@@ -16,7 +16,6 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/dynamics/solver_stage.hpp"
-#include "edyn/dynamics/island_util.hpp"
 #include "edyn/util/array.hpp"
 #include "edyn/util/rigidbody.hpp"
 
@@ -149,9 +148,6 @@ solver::solver(entt::registry &reg)
 {
     connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
     connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
-
-    connections.push_back(reg.on_construct<relation>().connect<&island_on_construct_relation>());
-    connections.push_back(reg.on_destroy<relation>().connect<&island_on_destroy_relation>());
 
     connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
     connections.push_back(reg.on_destroy<linvel>().

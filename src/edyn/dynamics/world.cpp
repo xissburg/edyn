@@ -7,6 +7,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/s11n.hpp"
+#include "edyn/dynamics/island_util.hpp"
 
 namespace edyn {
 
@@ -49,23 +50,13 @@ void on_registry_snapshot(entt::registry &registry, const msg::registry_snapshot
 }
 
 void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dynamic_tag) {
+    // Dynamic entities are initially created with their own island.
     auto island_ent = registry.create();
     auto &isle = registry.assign<island>(island_ent);
     isle.entities.push_back(entity);
-    isle.timestamp = (double)performance_counter() / (double)performance_frequency();
 
     auto &node = registry.assign<island_node>(entity);
     node.island_entity = island_ent;
-
-    auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
-    auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
-
-    auto *worker = new island_worker_context(message_queue_in_out(main_queue_input, isle_queue_output),
-                                             all_components{});
-
-    auto info = island_info(worker, message_queue_in_out(isle_queue_input, main_queue_output));
-    auto &w = registry.ctx<world>();
-    w.m_island_info_map.insert(std::make_pair(island_ent, info));
 
     auto buffer = memory_output_archive::buffer_type();
     auto output = memory_output_archive(buffer);
@@ -74,17 +65,8 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     writer.updated(entity, all_components{});
     writer.serialize(output);
 
-    info.m_message_queue.send<msg::registry_snapshot>(buffer);
-
-    info.m_message_queue.sink<msg::registry_snapshot>().connect<&on_registry_snapshot>(registry);
-    //info.m_message_queue.sink<msg::entity_created>().connect<&world::on_entity_created>(*this);
-
-    auto j = job();
-    j.func = &island_worker_func;
-    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
-    auto ctx_intptr = reinterpret_cast<intptr_t>(worker);
-    archive(ctx_intptr);
-    job_dispatcher::global().async(j);
+    auto &wrld = registry.ctx<world>();
+    wrld.m_island_info_map.at(island_ent).m_message_queue.send<msg::registry_snapshot>(buffer);
 }
 
 void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
@@ -101,11 +83,54 @@ void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
     registry.remove<island_node>(entity);
 }
 
+void on_construct_island(entt::entity entity, entt::registry &registry, island &isle) {
+    isle.timestamp = (double)performance_counter() / (double)performance_frequency();
+
+    auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
+    auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
+
+    // The `island_worker_context` is dynamically allocated and kept alive while
+    // the associated island lives. The job that's created for it calls its
+    // `update` function which reschedules itself to be run over and over again.
+    // After the `finish` function is called on it (when the island is destroyed),
+    // it will be deallocated on the next run.
+    auto *worker = new island_worker_context(message_queue_in_out(main_queue_input, isle_queue_output),
+                                             all_components{});
+
+    auto info = island_info(worker, message_queue_in_out(isle_queue_input, main_queue_output));
+    auto &wrld = registry.ctx<world>();
+    wrld.m_island_info_map.insert(std::make_pair(entity, info));
+
+    auto buffer = memory_output_archive::buffer_type();
+    auto output = memory_output_archive(buffer);
+    auto writer = registry_snapshot_writer(registry, all_components{});
+    writer.updated<island>(entity);
+    writer.serialize(output);
+
+    info.m_message_queue.send<msg::registry_snapshot>(buffer);
+
+    info.m_message_queue.sink<msg::registry_snapshot>().connect<&on_registry_snapshot>(registry);
+    //info.m_message_queue.sink<msg::entity_created>().connect<&world::on_entity_created>(*this);
+
+    auto j = job();
+    j.func = &island_worker_func;
+    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
+    auto ctx_intptr = reinterpret_cast<intptr_t>(worker);
+    archive(ctx_intptr);
+    job_dispatcher::global().async(j);
+}
+
+void on_destroy_island(entt::entity entity, entt::registry &registry) {
+    auto &wrld = registry.ctx<world>();
+    auto &info = wrld.m_island_info_map.at(entity);
+    info.m_worker->finish();
+    wrld.m_island_info_map.erase(entity);
+}
+
 world::world(entt::registry &reg) 
     : registry(&reg)
     , sol(reg)
     , bphase(reg)
-    , nphase(reg)
 {
     connections.push_back(reg.on_construct<mass>().connect<&on_construct_or_replace_mass>());
     connections.push_back(reg.on_replace<mass>().connect<&on_construct_or_replace_mass>());
@@ -120,6 +145,12 @@ world::world(entt::registry &reg)
 
     connections.push_back(reg.on_construct<dynamic_tag>().connect<&on_construct_dynamic_tag>());
     connections.push_back(reg.on_destroy<dynamic_tag>().connect<&on_destroy_dynamic_tag>());
+
+    connections.push_back(reg.on_construct<island>().connect<&on_construct_island>());
+    connections.push_back(reg.on_destroy<island>().connect<&on_destroy_island>());
+
+    connections.push_back(reg.on_construct<relation>().connect<&island_on_construct_relation>());
+    connections.push_back(reg.on_destroy<relation>().connect<&island_on_destroy_relation>());
 
     // Associate a `contact_manifold` to every broadphase relation that's created.
     connections.push_back(bphase.construct_relation_sink().connect<&entt::registry::assign<contact_manifold>>(reg));
@@ -144,6 +175,8 @@ void world::update(scalar dt) {
         update_present_position(*registry, present_dt);
         update_present_orientation(*registry, present_dt); */
     }
+
+    bphase.update();
 
     update_signal.publish(dt);
 }
