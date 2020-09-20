@@ -137,9 +137,19 @@ public:
      * Adds a component to be updated by the snapshot.
      */
     template<typename... Comp>
-    void updated(entt::entity entity, const Comp&... comp) {
+    void updated(entt::entity entity, const Comp &... comp) {
         m_updated_entities.insert(entity);
         (std::get<std::vector<std::pair<entt::entity, Comp>>>(m_updated_components).push_back(std::make_pair(entity, comp)), ...);
+    }
+
+    template<typename... Comp>
+    void maybe_updated(entt::entity entity, const entt::registry &registry) {
+        ((registry.has<Comp>(entity) ? updated(entity, registry.get<Comp>(entity)) : (void)0), ...);
+    }
+
+    template<typename... Comp>
+    void maybe_updated(entt::entity entity, const entt::registry &registry, [[maybe_unused]] std::tuple<Comp...>) {
+        maybe_updated<Comp...>(entity, registry);
     }
 
     /**
@@ -148,6 +158,11 @@ public:
     template<typename... Comp>
     void destroyed(entt::entity entity) {
         (std::get<destroyed_components<Comp>>(m_destroyed_components).value.insert(entity), ...);
+    }
+
+    template<typename... Comp>
+    void destroyed(entt::entity entity, [[maybe_unused]] std::tuple<Comp...>) {
+        destroyed<Comp...>(entity);
     }
 
     /**

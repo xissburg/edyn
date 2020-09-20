@@ -1,7 +1,6 @@
 #include <type_traits>
 #include "edyn/dynamics/world.hpp"
-#include "edyn/sys/update_present_position.hpp"
-#include "edyn/sys/update_present_orientation.hpp"
+#include "edyn/sys/update_presentation.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/comp.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -89,22 +88,48 @@ void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
     registry.remove<island_node>(entity);
 }
 
+void on_construct_static_tag(entt::entity entity, entt::registry &registry, static_tag) {
+    // Static entities must be shared with all island workers.
+    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
+    auto &wrld = registry.ctx<world>();
+
+    for (auto &pair : wrld.m_island_info_map) {
+        auto snapshot = registry_snapshot(all_components{});
+        snapshot.maybe_updated(entity, registry, all_components{});
+        auto &info = pair.second;
+        info.m_message_queue.send<registry_snapshot_type>(snapshot);
+    }
+}
+
+void on_destroy_static_tag(entt::entity entity, entt::registry &registry) {
+    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
+    auto &wrld = registry.ctx<world>();
+
+    for (auto &pair : wrld.m_island_info_map) {
+        auto snapshot = registry_snapshot(all_components{});
+        snapshot.destroyed(entity, all_components{});
+        auto &info = pair.second;
+        info.m_message_queue.send<registry_snapshot_type>(snapshot);
+    }
+}
+
 void on_construct_island(entt::entity entity, entt::registry &registry, island &isle) {
     isle.timestamp = (double)performance_counter() / (double)performance_frequency();
 
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
     auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
 
+    auto &wrld = registry.ctx<world>();
+
     // The `island_worker_context` is dynamically allocated and kept alive while
     // the associated island lives. The job that's created for it calls its
     // `update` function which reschedules itself to be run over and over again.
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
-    auto *worker = new island_worker_context(message_queue_in_out(main_queue_input, isle_queue_output),
+    auto *worker = new island_worker_context(entity, wrld.fixed_dt, message_queue_in_out(main_queue_input, isle_queue_output),
                                              all_components{});
 
     auto info = island_info(worker, message_queue_in_out(isle_queue_input, main_queue_output));
-    auto &wrld = registry.ctx<world>();
     wrld.m_island_info_map.insert(std::make_pair(entity, info));
 
     // Send over a snapshot containing this island entity to the island worker
@@ -112,6 +137,13 @@ void on_construct_island(entt::entity entity, entt::registry &registry, island &
     using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
     auto snapshot = registry_snapshot(all_components{});
     snapshot.updated(entity, isle);
+
+    // Also include all static and kinematic entities in the snapshot.
+    auto static_kinematic_view = registry.view<static_tag>();
+    static_kinematic_view.each([&snapshot, &registry] (entt::entity ent, static_tag) {
+        snapshot.maybe_updated(ent, registry, all_components{});
+    });
+
     info.m_message_queue.send<registry_snapshot_type>(snapshot);
 
     info.m_message_queue.sink<registry_snapshot_type>()
@@ -127,10 +159,7 @@ void on_construct_island(entt::entity entity, entt::registry &registry, island &
 }
 
 void on_destroy_island(entt::entity entity, entt::registry &registry) {
-    auto &wrld = registry.ctx<world>();
-    auto &info = wrld.m_island_info_map.at(entity);
-    info.m_worker->finish();
-    wrld.m_island_info_map.erase(entity);
+    
 }
 
 world::world(entt::registry &reg) 
@@ -152,14 +181,17 @@ world::world(entt::registry &reg)
     connections.push_back(reg.on_construct<dynamic_tag>().connect<&on_construct_dynamic_tag>());
     connections.push_back(reg.on_destroy<dynamic_tag>().connect<&on_destroy_dynamic_tag>());
 
+    connections.push_back(reg.on_construct<static_tag>().connect<&on_construct_static_tag>());
+    connections.push_back(reg.on_destroy<static_tag>().connect<&on_destroy_static_tag>());
+
     connections.push_back(reg.on_construct<island>().connect<&on_construct_island>());
     connections.push_back(reg.on_destroy<island>().connect<&on_destroy_island>());
 
-    connections.push_back(reg.on_construct<relation>().connect<&island_on_construct_relation>());
-    connections.push_back(reg.on_destroy<relation>().connect<&island_on_destroy_relation>());
+    //connections.push_back(reg.on_construct<relation>().connect<&island_on_construct_relation>());
+    //connections.push_back(reg.on_destroy<relation>().connect<&island_on_destroy_relation>());
 
     // Associate a `contact_manifold` to every broadphase relation that's created.
-    connections.push_back(bphase.construct_relation_sink().connect<&entt::registry::assign<contact_manifold>>(reg));
+    connections.push_back(bphase.intersect_sink().connect<&world::on_broadphase_intersect>(*this));
 
     job_dispatcher::global().assure_current_queue();
 }
@@ -168,19 +200,61 @@ world::~world() {
     
 }
 
+void world::on_broadphase_intersect(entt::entity e0, entt::entity e1) {
+    if (!registry->has<dynamic_tag>(e0) || !registry->has<dynamic_tag>(e1)) {
+        return;
+    }
+    
+    auto &node0 = registry->get<island_node>(e0);
+    auto &node1 = registry->get<island_node>(e1);
+
+    auto island_entity0 = node0.island_entity;
+    auto island_entity1 = node1.island_entity;
+
+    if (island_entity0 == island_entity1) {
+        // Entities are in the same island, nothing needs to be done.
+        return;
+    }
+
+    // Merge islands.
+    auto &island0 = registry->get<island>(island_entity0);
+    auto &island1 = registry->get<island>(island_entity1);
+
+    for (auto ent : island1.entities) {
+        island0.entities.push_back(ent);
+        auto &node = registry->get<island_node>(ent);
+        node.island_entity = island_entity0;
+    }
+
+    // Send snapshot containing moved entities to the first island.
+    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
+    auto snapshot = registry_snapshot(all_components{});
+    snapshot.updated(island_entity0, island0);
+
+    for (auto ent : island1.entities) {
+        snapshot.maybe_updated(ent, *registry, all_components{});
+    }
+
+    auto &info0 = m_island_info_map.at(island_entity0);
+    info0.m_message_queue.send<registry_snapshot_type>(snapshot);
+
+    // Destroy empty island.
+    auto &info1 = m_island_info_map.at(island_entity1);
+    info1.m_worker->finish();
+    m_island_info_map.erase(island_entity1);
+    registry->destroy(island_entity1);
+}
+
 void world::update(scalar dt) {
     // Run jobs scheduled in physics thread.
     job_dispatcher::global().once_current_queue();
 
     for (auto &pair : m_island_info_map) {
         pair.second.m_message_queue.update();
-
-        // Update visual representation for this island to reflect the state
-        // at the current time.
-        /* const auto present_dt = residual_dt - fixed_dt;
-        update_present_position(*registry, present_dt);
-        update_present_orientation(*registry, present_dt); */
     }
+
+    auto time = (double)performance_counter() / (double)performance_frequency();
+    update_presentation(*registry, time);
 
     bphase.update();
 

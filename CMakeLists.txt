@@ -59,6 +59,7 @@ conan_basic_setup()
 set(Edyn_SOURCES
     src/edyn/math/geom.cpp
     src/edyn/math/quaternion.cpp
+    src/edyn/collision/simple_broadphase.cpp
     src/edyn/collision/broadphase.cpp
     src/edyn/collision/narrowphase.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
