@@ -13,8 +13,8 @@
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/comp.hpp"
-#include "edyn/serialization/registry_s11n.hpp"
 #include "edyn/util/tuple.hpp"
+#include "edyn/parallel/registry_snapshot.hpp"
 
 namespace edyn {
 
@@ -49,35 +49,38 @@ public:
         , m_nphase(m_registry)
         , m_sol(m_registry)
     {
-        m_message_queue.sink<msg::registry_snapshot>().template connect<&island_worker_context::on_registry_snapshot>(*this);
+        m_message_queue.sink<registry_snapshot<Component...>>().template connect<&island_worker_context<Component...>::on_registry_snapshot>(*this);
 
         (m_registry.on_destroy<Component>().template connect<&island_worker_context<Component...>::on_destroy_component<Component>>(*this), ...);
         (m_registry.on_replace<Component>().template connect<&island_worker_context<Component...>::on_replace_component<Component>>(*this), ...);
     }
 
-    void on_registry_snapshot(const msg::registry_snapshot &snapshot) {
-        auto input = memory_input_archive(snapshot.data);
-        auto importer = registry_snapshot_importer<Component...>(m_registry, m_entity_map);
-        importer.template serialize(input, &relation::entity, &island::entities);
+    virtual ~island_worker_context() {}
+
+    void on_registry_snapshot(const registry_snapshot<Component...> &snapshot) {
+        // Import components from main registry.
+        snapshot.template import(m_registry, m_entity_map, &relation::entity, &island::entities);
     }
 
     void sync() {
-        auto buffer = memory_output_archive::buffer_type();
-        auto output = memory_output_archive(buffer);
-        auto exporter = registry_snapshot_exporter<Component...>(m_registry, m_entity_map);
-
+        // Add island and transient components to snapshot before sending it over
+        // to the main registry.
         auto &isle = m_registry.get<island>(m_island_entity);
-        exporter.template updated<island>(m_island_entity);
+        m_snapshot.template updated(m_island_entity, isle);
 
         for (auto entity : isle.entities) {
-            exporter.template updated(entity, transient_components{});
+            std::apply([&] (auto &&... args) {
+                ((m_registry.has<std::decay_t<decltype(args)>>(entity) ? 
+                    m_snapshot.template updated(entity, m_registry.get<std::decay_t<decltype(args)>>(entity)) : (void)0), ...);
+            }, transient_components{});
         }
 
-        exporter.template updated(m_updated_components.begin(), m_updated_components.end());
-        exporter.template destroyed(m_destroyed_components.begin(), m_destroyed_components.end());
-        exporter.template serialize(output, &relation::entity, &island::entities);
-        m_message_queue.send<msg::registry_snapshot>(buffer);
-        m_destroyed_components.clear();
+        // Map entities into the domain of the main registry.
+        auto snapshot = m_snapshot.template map_entities(m_entity_map, &relation::entity, &island::entities);
+        m_message_queue.send<decltype(snapshot)>(snapshot);
+
+        // Clear snapshot for the next run.
+        m_snapshot = {};
     }
 
     void update() override {
@@ -114,14 +117,12 @@ public:
 
     template<typename Comp>
     void on_destroy_component(entt::entity entity, entt::registry &registry) {
-        auto comp_id = index_of_v<size_t, Comp, Component...>;
-        m_destroyed_components.emplace_back(entity, comp_id);
+        m_snapshot.template destroyed<Comp>(entity);
     }
 
     template<typename Comp>
-    void on_replace_component(entt::entity entity, entt::registry &registry) {
-        auto comp_id = index_of_v<size_t, Comp, Component...>;
-        m_updated_components.emplace_back(entity, comp_id);
+    void on_replace_component(entt::entity entity, entt::registry &registry, const Comp &comp) {
+        m_snapshot.template updated(entity, comp);
     }
 
 private:
@@ -133,8 +134,7 @@ private:
     solver m_sol;
     message_queue_in_out m_message_queue;
     double fixed_dt;
-    std::vector<entity_comp_id_pair> m_destroyed_components;
-    std::vector<entity_comp_id_pair> m_updated_components;
+    registry_snapshot<Component...> m_snapshot;
 };
 
 }

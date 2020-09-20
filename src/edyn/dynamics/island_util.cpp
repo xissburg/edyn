@@ -1,11 +1,5 @@
 #include "edyn/dynamics/island_util.hpp"
-#include "edyn/comp/tag.hpp"
-#include "edyn/comp/island.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/linvel.hpp"
-#include "edyn/comp/angvel.hpp"
-#include "edyn/comp/orientation.hpp"
+#include "edyn/comp.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/dynamics/world.hpp"
 #include "edyn/parallel/message.hpp"
@@ -155,17 +149,19 @@ void island_on_construct_relation(entt::entity entity, entt::registry &registry,
     // Send snapshot containing all entities in the new island to its associated
     // `island_worker`, which is created at the moment the `island` component is
     // assigned to `new_island_ent`.
-    auto buffer = memory_output_archive::buffer_type();
-    auto output = memory_output_archive(buffer);
-    auto writer = registry_snapshot_writer(registry, all_components{});
-    writer.updated<island>(new_island_ent);
-    for (auto entity : new_isle.entities) {
-        writer.updated(entity, all_components{});
+    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
+    auto snapshot = registry_snapshot(all_components{});
+    snapshot.updated(new_island_ent, new_isle);
+
+    for (auto child_entity : new_isle.entities) {
+        std::apply([&] (auto &&... comp) {
+            ((registry.has<std::decay_t<decltype(comp)>>(child_entity) ?
+                snapshot.updated(child_entity, registry.get<std::decay_t<decltype(comp)>>(child_entity)) : (void)0), ...);
+        }, all_components{});
     }
-    writer.serialize(output);
 
     auto &wrld = registry.ctx<world>();
-    wrld.m_island_info_map.at(new_island_ent).m_message_queue.send<msg::registry_snapshot>(buffer);
+    wrld.m_island_info_map.at(new_island_ent).m_message_queue.send<registry_snapshot_type>(snapshot);
 }
 
 void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
@@ -274,17 +270,19 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
         // Send snapshot containing all entities in the new island to its associated
         // `island_worker`, which is created at the moment the `island` component is
         // assigned to `new_island_ent`.
-        auto buffer = memory_output_archive::buffer_type();
-        auto output = memory_output_archive(buffer);
-        auto writer = registry_snapshot_writer(registry, all_components{});
-        writer.updated<island>(new_island_ent);
-        for (auto entity : new_isle.entities) {
-            writer.updated(entity, all_components{});
+        using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
+        auto snapshot = registry_snapshot(all_components{});
+        snapshot.updated(new_island_ent, new_isle);
+
+        for (auto child_entity : new_isle.entities) {
+            std::apply([&] (auto &&... comp) {
+                ((registry.has<std::decay_t<decltype(comp)>>(child_entity) ?
+                    snapshot.updated(child_entity, registry.get<std::decay_t<decltype(comp)>>(child_entity)) : (void)0), ...);
+            }, all_components{});
         }
-        writer.serialize(output);
 
         auto &wrld = registry.ctx<world>();
-        wrld.m_island_info_map.at(new_island_ent).m_message_queue.send<msg::registry_snapshot>(buffer);
+        wrld.m_island_info_map.at(new_island_ent).m_message_queue.send<registry_snapshot_type>(snapshot);
     }
 
     // Destroy original island.

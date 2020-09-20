@@ -8,6 +8,7 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/s11n.hpp"
 #include "edyn/dynamics/island_util.hpp"
+#include "edyn/parallel/registry_snapshot.hpp"
 
 namespace edyn {
 
@@ -43,14 +44,16 @@ void on_destroy_shape(entt::entity entity, entt::registry &registry) {
     registry.reset<collision_filter>(entity);
 }
 
-void on_registry_snapshot(entt::registry &registry, const msg::registry_snapshot &snapshot) {
-    auto input = memory_input_archive(snapshot.data);
-    auto reader = registry_snapshot_reader(registry, all_components{});
-    reader.serialize(input);
+template<typename Snapshot>
+void on_registry_snapshot(entt::registry &registry, const Snapshot &snapshot) {
+    // Load snapshot from island. It is already mapped into the main
+    // registry's domain.
+    snapshot.load(registry);
 }
 
 void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dynamic_tag) {
-    // Dynamic entities are initially created with their own island.
+    // For each new dynamic entity, a new island is created and the dynamic entity
+    // is inserted into the new island.
     auto island_ent = registry.create();
     auto &isle = registry.assign<island>(island_ent);
     isle.entities.push_back(entity);
@@ -58,15 +61,18 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     auto &node = registry.assign<island_node>(entity);
     node.island_entity = island_ent;
 
-    auto buffer = memory_output_archive::buffer_type();
-    auto output = memory_output_archive(buffer);
-    auto writer = registry_snapshot_writer(registry, all_components{});
-    writer.updated<island>(island_ent);
-    writer.updated(entity, all_components{});
-    writer.serialize(output);
+    // Send a snapshot containing the new entity and its components to the island
+    // worker.
+    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
+    auto snapshot = registry_snapshot(all_components{});
+    snapshot.updated(island_ent, isle);
+    std::apply([&] (auto &&... comp) {
+        ((registry.has<std::decay_t<decltype(comp)>>(entity) ?
+                snapshot.updated(entity, registry.get<std::decay_t<decltype(comp)>>(entity)) : (void)0), ...);
+    }, all_components{});
 
     auto &wrld = registry.ctx<world>();
-    wrld.m_island_info_map.at(island_ent).m_message_queue.send<msg::registry_snapshot>(buffer);
+    wrld.m_island_info_map.at(island_ent).m_message_queue.send<registry_snapshot_type>(snapshot);
 }
 
 void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
@@ -101,15 +107,15 @@ void on_construct_island(entt::entity entity, entt::registry &registry, island &
     auto &wrld = registry.ctx<world>();
     wrld.m_island_info_map.insert(std::make_pair(entity, info));
 
-    auto buffer = memory_output_archive::buffer_type();
-    auto output = memory_output_archive(buffer);
-    auto writer = registry_snapshot_writer(registry, all_components{});
-    writer.updated<island>(entity);
-    writer.serialize(output);
+    // Send over a snapshot containing this island entity to the island worker
+    // before it even starts.
+    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
+    auto snapshot = registry_snapshot(all_components{});
+    snapshot.updated(entity, isle);
+    info.m_message_queue.send<registry_snapshot_type>(snapshot);
 
-    info.m_message_queue.send<msg::registry_snapshot>(buffer);
-
-    info.m_message_queue.sink<msg::registry_snapshot>().connect<&on_registry_snapshot>(registry);
+    info.m_message_queue.sink<registry_snapshot_type>()
+        .connect<&on_registry_snapshot<registry_snapshot_type>>(registry);
     //info.m_message_queue.sink<msg::entity_created>().connect<&world::on_entity_created>(*this);
 
     auto j = job();

@@ -3,12 +3,13 @@
 
 #include <vector>
 #include <cstdint>
+#include "edyn/comp.hpp"
+#include "edyn/parallel/registry_snapshot.hpp"
 
 namespace edyn::msg {
 
 struct registry_snapshot {
-    std::vector<uint8_t> data;
-    registry_snapshot(std::vector<uint8_t> &d) : data(d) {}
+    decltype(edyn::registry_snapshot(all_components{})) snapshot;
 };
 
 }
