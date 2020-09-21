@@ -204,7 +204,7 @@ void world::on_broadphase_intersect(entt::entity e0, entt::entity e1) {
     if (!registry->has<dynamic_tag>(e0) || !registry->has<dynamic_tag>(e1)) {
         return;
     }
-    
+
     auto &node0 = registry->get<island_node>(e0);
     auto &node1 = registry->get<island_node>(e1);
 
@@ -253,8 +253,12 @@ void world::update(scalar dt) {
         pair.second.m_message_queue.update();
     }
 
-    auto time = (double)performance_counter() / (double)performance_frequency();
-    update_presentation(*registry, time);
+    if (m_paused) {
+        snap_presentation(*registry);
+    } else {
+        auto time = (double)performance_counter() / (double)performance_frequency();
+        update_presentation(*registry, time);
+    }
 
     bphase.update();
 
@@ -290,6 +294,20 @@ void world::run() {
 
 void world::quit() {
     running = false;
+}
+
+void world::set_paused(bool paused) {
+    m_paused = paused;
+    
+    for (auto &pair : m_island_info_map) {
+        pair.second.m_message_queue.send<msg::set_paused>(msg::set_paused{paused});
+    }
+}
+
+void world::step() {
+    for (auto &pair : m_island_info_map) {
+        pair.second.m_message_queue.send<msg::step_simulation>();
+    }
 }
 
 }

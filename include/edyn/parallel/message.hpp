@@ -12,6 +12,14 @@ struct registry_snapshot {
     decltype(edyn::registry_snapshot(all_components{})) snapshot;
 };
 
+struct set_paused {
+    bool paused;
+};
+
+struct step_simulation {
+
+};
+
 }
 
 #endif // EDYN_PARALLEL_MESSAGE_HPP

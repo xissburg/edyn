@@ -48,6 +48,7 @@ public:
     island_worker_context(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue, [[maybe_unused]] components_tuple)
         : m_message_queue(message_queue)
         , m_fixed_dt(fixed_dt)
+        , m_paused(false)
         , m_bphase(m_registry)
         , m_nphase(m_registry)
         , m_sol(m_registry)
@@ -56,6 +57,8 @@ public:
         m_entity_map.insert(island_entity, m_island_entity);
 
         m_message_queue.sink<registry_snapshot<Component...>>().template connect<&island_worker_context<Component...>::on_registry_snapshot>(*this);
+        m_message_queue.sink<msg::set_paused>().template connect<&island_worker_context<Component...>::on_set_paused>(*this);
+        m_message_queue.sink<msg::step_simulation>().template connect<&island_worker_context<Component...>::on_step_simulation>(*this);
 
         (m_registry.on_destroy<Component>().template connect<&island_worker_context<Component...>::on_destroy_component<Component>>(*this), ...);
         (m_registry.on_replace<Component>().template connect<&island_worker_context<Component...>::on_replace_component<Component>>(*this), ...);
@@ -104,30 +107,37 @@ public:
         // Process messages.
         m_message_queue.update();
 
-        auto &isle = m_registry.get<island>(m_island_entity);
-        auto timestamp = (double)performance_counter() / (double)performance_frequency();
-        auto dt = timestamp - isle.timestamp;
-
-        if (dt >= m_fixed_dt) {
-            m_bphase.update();
-            m_nphase.update();
-            m_sol.update(0, dt);
-
-            // Do not use the same `isle` instance because component references
-            // are not stable.
+        if (!m_paused) {
             auto &isle = m_registry.get<island>(m_island_entity);
-            isle.timestamp += dt;
+            auto timestamp = (double)performance_counter() / (double)performance_frequency();
+            auto dt = timestamp - isle.timestamp;
 
-            sync();
+            if (dt >= m_fixed_dt) {
+                step();
+            }
         }
 
         // Reschedule this job.
+        reschedule();
+    }
+
+    void step() {
+        m_bphase.update();
+        m_nphase.update();
+        m_sol.update(0, m_fixed_dt);
+
+        auto &isle = m_registry.get<island>(m_island_entity);
+        isle.timestamp += m_fixed_dt;
+
+        sync();
+    }
+
+    void reschedule() {
         auto j = job();
         j.func = &island_worker_func;
         auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
         auto ctx_intptr = reinterpret_cast<intptr_t>(this);
         archive(ctx_intptr);
-
         //job_dispatcher::global()::async_after(isle.timestamp + m_fixed_dt - timestamp, j);
         job_dispatcher::global().async(j);
     }
@@ -142,6 +152,17 @@ public:
         m_snapshot.template updated(entity, comp);
     }
 
+    void on_set_paused(const msg::set_paused &msg) {
+        m_paused = msg.paused;
+        auto &isle = m_registry.get<island>(m_island_entity);
+        auto timestamp = (double)performance_counter() / (double)performance_frequency();
+        isle.timestamp = timestamp;
+    }
+
+    void on_step_simulation(const msg::step_simulation &msg) {
+        step();
+    }
+
 private:
     entt::registry m_registry;
     entt::entity m_island_entity;
@@ -151,6 +172,7 @@ private:
     solver m_sol;
     message_queue_in_out m_message_queue;
     double m_fixed_dt;
+    bool m_paused;
     registry_snapshot<Component...> m_snapshot;
 };
 

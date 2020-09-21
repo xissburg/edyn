@@ -34,6 +34,14 @@ inline void update_presentation(entt::registry &registry, double time) {
     });
 }
 
+inline void snap_presentation(entt::registry &registry) {
+    auto view = registry.view<position, orientation, present_position, present_orientation>();
+    view.each([] (auto, position &pos, orientation &orn, present_position &p_pos, present_orientation &p_orn) {
+        p_pos = pos;
+        p_orn = orn;
+    });
+}
+
 }
 
 #endif // EDYN_SYS_UPDATE_PRESENTATION_HPP

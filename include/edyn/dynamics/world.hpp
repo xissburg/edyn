@@ -46,6 +46,9 @@ public:
 
     void quit();
 
+    void set_paused(bool);
+    void step();
+
     using update_signal_func_t = void(scalar);
     using step_signal_func_t = void(uint64_t);
 
@@ -72,6 +75,7 @@ private:
     std::atomic<uint64_t> step_ {0};
     std::atomic<double> local_time_;
     std::atomic_bool running {false};
+    bool m_paused {false};
     entt::sigh<update_signal_func_t> update_signal;
 };
 
