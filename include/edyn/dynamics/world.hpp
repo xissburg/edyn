@@ -49,6 +49,7 @@ public:
     void set_paused(bool);
     void step();
 
+    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
     using update_signal_func_t = void(scalar);
     using step_signal_func_t = void(uint64_t);
 
@@ -60,7 +61,10 @@ public:
         return bphase;
     } */
 
+    void refresh(entt::entity);
     void on_broadphase_intersect(entt::entity, entt::entity);
+    void on_construct_relation(entt::entity, entt::registry &, relation &);
+    void merge_entities(entt::entity, entt::entity, entt::entity rel_entity);
 
     scalar fixed_dt {1.0/60};
     solver sol;

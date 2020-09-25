@@ -58,7 +58,7 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
     isle.entities.push_back(entity);
 
     auto &node = registry.assign<island_node>(entity);
-    node.island_entity = island_ent;
+    node.island_entities.push_back(island_ent);
 
     // Send a snapshot containing the new entity and its components to the island
     // worker.
@@ -76,41 +76,17 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
 
 void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
     auto &node = registry.get<island_node>(entity);
-    auto &isle = registry.get<island>(node.island_entity);
+    auto island_entity = node.island_entities.front();
+    auto &isle = registry.get<island>(island_entity);
     auto it = std::find(isle.entities.begin(), isle.entities.end(), entity);
     std::swap(*it, *(isle.entities.end() - 1));
     isle.entities.pop_back();
 
     if (isle.entities.empty()) {
-        registry.destroy(node.island_entity);
+        registry.destroy(island_entity);
     }
 
     registry.remove<island_node>(entity);
-}
-
-void on_construct_static_tag(entt::entity entity, entt::registry &registry, static_tag) {
-    // Static entities must be shared with all island workers.
-    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
-    auto &wrld = registry.ctx<world>();
-
-    for (auto &pair : wrld.m_island_info_map) {
-        auto snapshot = registry_snapshot(all_components{});
-        snapshot.maybe_updated(entity, registry, all_components{});
-        auto &info = pair.second;
-        info.m_message_queue.send<registry_snapshot_type>(snapshot);
-    }
-}
-
-void on_destroy_static_tag(entt::entity entity, entt::registry &registry) {
-    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
-    auto &wrld = registry.ctx<world>();
-
-    for (auto &pair : wrld.m_island_info_map) {
-        auto snapshot = registry_snapshot(all_components{});
-        snapshot.destroyed(entity, all_components{});
-        auto &info = pair.second;
-        info.m_message_queue.send<registry_snapshot_type>(snapshot);
-    }
 }
 
 void on_construct_island(entt::entity entity, entt::registry &registry, island &isle) {
@@ -181,14 +157,13 @@ world::world(entt::registry &reg)
     connections.push_back(reg.on_construct<dynamic_tag>().connect<&on_construct_dynamic_tag>());
     connections.push_back(reg.on_destroy<dynamic_tag>().connect<&on_destroy_dynamic_tag>());
 
-    connections.push_back(reg.on_construct<static_tag>().connect<&on_construct_static_tag>());
-    connections.push_back(reg.on_destroy<static_tag>().connect<&on_destroy_static_tag>());
+    connections.push_back(reg.on_construct<kinematic_tag>().connect<&entt::registry::assign<island_node>>(reg));
+    connections.push_back(reg.on_construct<static_tag>().connect<&entt::registry::assign<island_node>>(reg));
 
     connections.push_back(reg.on_construct<island>().connect<&on_construct_island>());
     connections.push_back(reg.on_destroy<island>().connect<&on_destroy_island>());
 
-    //connections.push_back(reg.on_construct<relation>().connect<&island_on_construct_relation>());
-    //connections.push_back(reg.on_destroy<relation>().connect<&island_on_destroy_relation>());
+    connections.push_back(reg.on_construct<relation>().connect<&world::on_construct_relation>(*this));
 
     // Associate a `contact_manifold` to every broadphase relation that's created.
     connections.push_back(bphase.intersect_sink().connect<&world::on_broadphase_intersect>(*this));
@@ -200,21 +175,127 @@ world::~world() {
     
 }
 
+void world::refresh(entt::entity entity) {
+    auto snapshot = registry_snapshot(all_components{});
+    snapshot.maybe_updated(entity, *registry, all_components{});
+    auto &node = registry->get<island_node>(entity);
+
+    for (auto island_entity : node.island_entities) {
+        auto &info = m_island_info_map.at(island_entity);
+        info.m_message_queue.send<registry_snapshot_type>(snapshot);
+    }
+}
+
 void world::on_broadphase_intersect(entt::entity e0, entt::entity e1) {
-    if (!registry->has<dynamic_tag>(e0) || !registry->has<dynamic_tag>(e1)) {
+    merge_entities(e0, e1, entt::null);
+}
+
+void world::on_construct_relation(entt::entity entity, entt::registry &registry, relation &rel) {
+    registry.assign<island_node>(entity);
+    merge_entities(rel.entity[0], rel.entity[1], entity);
+}
+
+void world::merge_entities(entt::entity e0, entt::entity e1, entt::entity rel_entity) {
+    // If both entities are static or kinematic nothing needs to be done.
+    if ((registry->has<static_tag>(e0) || registry->has<kinematic_tag>(e0)) &&
+        (registry->has<static_tag>(e1) || registry->has<kinematic_tag>(e1))) {
         return;
     }
 
     auto &node0 = registry->get<island_node>(e0);
     auto &node1 = registry->get<island_node>(e1);
 
-    auto island_entity0 = node0.island_entity;
-    auto island_entity1 = node1.island_entity;
+    // Check if entities are already in the same island.
+    // One of the entities has to be dynamic, which means it must be contained
+    // in one and only one island at all times.
+    if (registry->has<dynamic_tag>(e0)) {
+        auto island_entity0 = node0.island_entities.front();
+        for (auto island_entity1 : node1.island_entities) {
+            if (island_entity0 == island_entity1) {
+                // Entities are in the same island, nothing needs to be done.
+                return;
+            }
+        }
+    } else if (registry->has<dynamic_tag>(e1)) {
+        auto island_entity1 = node1.island_entities.front();
+        for (auto island_entity0 : node0.island_entities) {
+            if (island_entity0 == island_entity1) {
+                // Entities are in the same island, nothing needs to be done.
+                return;
+            }
+        }
+    }
 
-    if (island_entity0 == island_entity1) {
-        // Entities are in the same island, nothing needs to be done.
+    // When a dynamic and a static or kinematic entity intersect, the static/
+    // kinematic entity is added to the same island where the dynamic entity
+    // resides.
+    if (registry->has<dynamic_tag>(e0) && 
+        (registry->has<static_tag>(e1) || registry->has<kinematic_tag>(e1))) {
+        auto island_entity = node0.island_entities.front();
+        node1.island_entities.push_back(island_entity);
+        auto &isle = registry->get<island>(island_entity);
+        isle.entities.push_back(e1);
+
+        if (rel_entity != entt::null) {
+            // Create association between island and relation.
+            auto rel_node = registry->get<island_node>(rel_entity);
+            rel_node.island_entities.push_back(island_entity);
+            isle.entities.push_back(rel_entity);
+        }
+
+        // Include static/kinematic entity into the island worker.
+        auto snapshot = registry_snapshot(all_components{});
+        snapshot.updated(island_entity, isle);
+        snapshot.maybe_updated(e1, *registry, all_components{});
+        
+        if (rel_entity != entt::null) {
+            snapshot.maybe_updated(rel_entity, *registry, all_components{});
+        }
+        
+        auto &info0 = m_island_info_map.at(island_entity);
+        info0.m_message_queue.send<registry_snapshot_type>(snapshot);
+
         return;
     }
+
+    // Do it the other way around also.
+    if (registry->has<dynamic_tag>(e1) && 
+        (registry->has<static_tag>(e0) || registry->has<kinematic_tag>(e0))) {
+        auto island_entity = node1.island_entities.front();
+        node1.island_entities.push_back(island_entity);
+        auto &isle = registry->get<island>(island_entity);
+        isle.entities.push_back(e0);
+
+        if (rel_entity != entt::null) {
+            // Create association between island and relation.
+            auto rel_node = registry->get<island_node>(rel_entity);
+            rel_node.island_entities.push_back(island_entity);
+            isle.entities.push_back(rel_entity);
+        }
+
+        // Include static/kinematic entity into the island worker.
+        auto snapshot = registry_snapshot(all_components{});
+        snapshot.updated(island_entity, isle);
+        snapshot.maybe_updated(e0, *registry, all_components{});
+
+        if (rel_entity != entt::null) {
+            snapshot.maybe_updated(rel_entity, *registry, all_components{});
+        }
+
+        auto &info1 = m_island_info_map.at(island_entity);
+        info1.m_message_queue.send<registry_snapshot_type>(snapshot);
+
+        return;
+    }
+
+    // For dynamic entities, if they are in different islands, the islands have
+    // to be merged into one.
+    if (!registry->has<dynamic_tag>(e0) || !registry->has<dynamic_tag>(e1)) {
+        return;
+    }
+
+    auto island_entity0 = node0.island_entities.front();
+    auto island_entity1 = node1.island_entities.front();
 
     // Merge islands.
     auto &island0 = registry->get<island>(island_entity0);
@@ -223,11 +304,11 @@ void world::on_broadphase_intersect(entt::entity e0, entt::entity e1) {
     for (auto ent : island1.entities) {
         island0.entities.push_back(ent);
         auto &node = registry->get<island_node>(ent);
-        node.island_entity = island_entity0;
+        node.island_entities.clear();
+        node.island_entities.push_back(island_entity0);
     }
 
     // Send snapshot containing moved entities to the first island.
-    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
     auto snapshot = registry_snapshot(all_components{});
     snapshot.updated(island_entity0, island0);
 

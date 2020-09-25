@@ -25,6 +25,8 @@ struct vector3 {
 // Zero vector.
 inline constexpr vector3 vector3_zero {0, 0, 0};
 
+inline constexpr vector3 vector3_one {1, 1, 1};
+
 // Unit vector pointing in the x direction.
 inline constexpr vector3 vector3_x {1, 0, 0};
 

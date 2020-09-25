@@ -23,11 +23,11 @@ struct island {
 };
 
 /**
- * @brief An _island node_ is an entity that belongs in an island.
+ * @brief An _island node_ is an entity that belongs in one or more islands.
  */
 struct island_node {
     // The entity where the `island` component can be found.
-    entt::entity island_entity;
+    std::vector<entt::entity> island_entities;
 };
 
 }

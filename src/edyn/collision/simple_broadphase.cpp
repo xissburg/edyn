@@ -32,11 +32,7 @@ void simple_broadphase::update() {
     auto it = aabb_view.begin();
     const auto it_end = aabb_view.end();
 
-    constexpr auto offset = vector3 {
-        -contact_breaking_threshold, 
-        -contact_breaking_threshold, 
-        -contact_breaking_threshold
-    };
+    constexpr auto offset = vector3{-0.1, -0.1, -0.1};
 
     for (; it != it_end; ++it) {
         auto e0 = *it;

@@ -27,9 +27,9 @@ void wakeup_island(entt::entity, entt::registry &);
 
 void put_islands_to_sleep(entt::registry &, uint64_t step, scalar dt);
 
-void island_on_construct_relation(entt::entity, entt::registry &, relation &);
+//void island_on_construct_relation(entt::entity, entt::registry &, relation &);
 
-void island_on_destroy_relation(entt::entity, entt::registry &);
+//void island_on_destroy_relation(entt::entity, entt::registry &);
 
 }
 

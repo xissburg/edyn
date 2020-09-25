@@ -9,7 +9,9 @@ namespace edyn {
 
 void wakeup(entt::entity entity, entt::registry &registry) {
     auto &node = registry.get<island_node>(entity);
-    wakeup_island(node.island_entity, registry);
+    for (auto entity : node.island_entities) {
+        wakeup_island(entity, registry);
+    }
 }
 
 void wakeup_island(entt::entity island_ent, entt::registry &registry) {
@@ -55,11 +57,11 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
                 break;
             }
 
-            const auto &v = vel_view.get<linvel>(e);
-            const auto &w = vel_view.get<angvel>(e);
+            const auto *v = registry.try_get<linvel>(e);
+            const auto *w = registry.try_get<angvel>(e);
 
-            if (length_sqr(v) > island_linear_sleep_threshold * island_linear_sleep_threshold || 
-                length_sqr(w) > island_angular_sleep_threshold * island_angular_sleep_threshold) {
+            if ((v && length_sqr(*v) > island_linear_sleep_threshold * island_linear_sleep_threshold) || 
+                (w && length_sqr(*w) > island_angular_sleep_threshold * island_angular_sleep_threshold)) {
                 sleep = false;
                 break;
             }
@@ -102,68 +104,7 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
         }
     });
 }
-
-void island_on_construct_relation(entt::entity entity, entt::registry &registry, relation &rel) {
-    EDYN_ASSERT(rel.entity[0] != entt::null);
-    EDYN_ASSERT(rel.entity[1] != entt::null);
-
-    // Allow the related entities to refer to their relations.
-    registry.get_or_assign<relation_container>(rel.entity[0]).entities.push_back(entity);
-    registry.get_or_assign<relation_container>(rel.entity[1]).entities.push_back(entity);
-
-    // Find all islands involved in this new relation.
-    std::vector<entt::entity> island_ents;
-
-    for (auto ent : rel.entity) {
-        if (ent == entt::null) { continue; }
-
-        auto node = registry.try_get<island_node>(ent);
-        if (node && 
-            std::find(island_ents.begin(), island_ents.end(), 
-                      node->island_entity) == island_ents.end()) {
-            island_ents.push_back(node->island_entity);
-        }
-    }
-
-    // All entities are in the same island. Nothing needs to be done.
-    if (island_ents.size() < 2) {
-        if (!island_ents.empty()) {
-            wakeup_island(island_ents[0], registry);
-        }
-        return;
-    }
-
-    // Merge all into one island.
-    auto new_island_ent = registry.create();
-    auto &new_isle = registry.assign<island>(new_island_ent);
-
-    for (auto isle_ent : island_ents) {
-        auto isle = registry.get<island>(isle_ent);
-        new_isle.entities.insert(new_isle.entities.end(), isle.entities.begin(), isle.entities.end());
-    }
-
-    // Destroy smaller islands. Triggers `on_destroy<island>` which finishes
-    // the island worker.
-    registry.destroy(island_ents.begin(), island_ents.end());
-
-    // Send snapshot containing all entities in the new island to its associated
-    // `island_worker`, which is created at the moment the `island` component is
-    // assigned to `new_island_ent`.
-    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
-    auto snapshot = registry_snapshot(all_components{});
-    snapshot.updated(new_island_ent, new_isle);
-
-    for (auto child_entity : new_isle.entities) {
-        std::apply([&] (auto &&... comp) {
-            ((registry.has<std::decay_t<decltype(comp)>>(child_entity) ?
-                snapshot.updated(child_entity, registry.get<std::decay_t<decltype(comp)>>(child_entity)) : (void)0), ...);
-        }, all_components{});
-    }
-
-    auto &wrld = registry.ctx<world>();
-    wrld.m_island_info_map.at(new_island_ent).m_message_queue.send<registry_snapshot_type>(snapshot);
-}
-
+/*
 void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
     // Perform graph-walks using the entities in the destroyed relation as the
     // starting point (ignoring this destroyed relation, of course). Store the 
@@ -288,6 +229,6 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
     // Destroy original island.
     auto &node = registry.get<island_node>(entity);
     registry.destroy(node.island_entity);
-}
+}*/
 
 }
