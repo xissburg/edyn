@@ -61,9 +61,22 @@ public:
         return bphase;
     } */
 
-    void refresh(entt::entity);
+    template<typename... Component>
+    void refresh(entt::entity entity) {
+        auto snapshot = registry_snapshot(all_components{});
+        (snapshot.updated(entity, registry->get<Component>(entity)), ...);
+        auto &node = registry->get<island_node>(entity);
+
+        for (auto island_entity : node.island_entities) {
+            auto &info = m_island_info_map.at(island_entity);
+            info.m_message_queue.send<registry_snapshot_type>(snapshot);
+        }
+    }
+
+    void refresh_all(entt::entity);
     void on_broadphase_intersect(entt::entity, entt::entity);
     void on_construct_relation(entt::entity, entt::registry &, relation &);
+    void on_destroy_relation(entt::entity, entt::registry &);
     void merge_entities(entt::entity, entt::entity, entt::entity rel_entity);
 
     scalar fixed_dt {1.0/60};

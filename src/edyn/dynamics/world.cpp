@@ -22,7 +22,8 @@ void on_destroy_mass(entt::entity entity, entt::registry &registry) {
 
 void on_construct_or_replace_inertia(entt::entity entity, entt::registry &registry, inertia &i) {
     EDYN_ASSERT(i > vector3_zero);
-    auto &invI = registry.assign_or_replace<inertia_inv>(entity, i.x < EDYN_SCALAR_MAX ? 1 / i.x : 0, 
+    auto &invI = registry.assign_or_replace<inertia_inv>(entity, 
+                                                         i.x < EDYN_SCALAR_MAX ? 1 / i.x : 0, 
                                                          i.y < EDYN_SCALAR_MAX ? 1 / i.y : 0, 
                                                          i.z < EDYN_SCALAR_MAX ? 1 / i.z : 0);
     registry.assign_or_replace<inertia_world_inv>(entity, diagonal(invI));
@@ -75,6 +76,7 @@ void on_construct_dynamic_tag(entt::entity entity, entt::registry &registry, dyn
 }
 
 void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
+    // Remove from island.
     auto &node = registry.get<island_node>(entity);
     auto island_entity = node.island_entities.front();
     auto &isle = registry.get<island>(island_entity);
@@ -82,6 +84,7 @@ void on_destroy_dynamic_tag(entt::entity entity, entt::registry &registry) {
     std::swap(*it, *(isle.entities.end() - 1));
     isle.entities.pop_back();
 
+    // Destroy island if empty.
     if (isle.entities.empty()) {
         registry.destroy(island_entity);
     }
@@ -113,12 +116,6 @@ void on_construct_island(entt::entity entity, entt::registry &registry, island &
     using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
     auto snapshot = registry_snapshot(all_components{});
     snapshot.updated(entity, isle);
-
-    // Also include all static and kinematic entities in the snapshot.
-    auto static_kinematic_view = registry.view<static_tag>();
-    static_kinematic_view.each([&snapshot, &registry] (entt::entity ent, static_tag) {
-        snapshot.maybe_updated(ent, registry, all_components{});
-    });
 
     info.m_message_queue.send<registry_snapshot_type>(snapshot);
 
@@ -164,6 +161,7 @@ world::world(entt::registry &reg)
     connections.push_back(reg.on_destroy<island>().connect<&on_destroy_island>());
 
     connections.push_back(reg.on_construct<relation>().connect<&world::on_construct_relation>(*this));
+    connections.push_back(reg.on_destroy<relation>().connect<&world::on_destroy_relation>(*this));
 
     // Associate a `contact_manifold` to every broadphase relation that's created.
     connections.push_back(bphase.intersect_sink().connect<&world::on_broadphase_intersect>(*this));
@@ -175,7 +173,7 @@ world::~world() {
     
 }
 
-void world::refresh(entt::entity entity) {
+void world::refresh_all(entt::entity entity) {
     auto snapshot = registry_snapshot(all_components{});
     snapshot.maybe_updated(entity, *registry, all_components{});
     auto &node = registry->get<island_node>(entity);
@@ -193,6 +191,17 @@ void world::on_broadphase_intersect(entt::entity e0, entt::entity e1) {
 void world::on_construct_relation(entt::entity entity, entt::registry &registry, relation &rel) {
     registry.assign<island_node>(entity);
     merge_entities(rel.entity[0], rel.entity[1], entity);
+}
+
+void world::on_destroy_relation(entt::entity entity, entt::registry &registry) {
+    auto snapshot = registry_snapshot(all_components{});
+    snapshot.destroyed<relation>(entity);
+    auto &node = registry.get<island_node>(entity);
+
+    for (auto island_entity : node.island_entities) {
+        auto &info = m_island_info_map.at(island_entity);
+        info.m_message_queue.send<registry_snapshot_type>(snapshot);
+    }
 }
 
 void world::merge_entities(entt::entity e0, entt::entity e1, entt::entity rel_entity) {
@@ -238,7 +247,7 @@ void world::merge_entities(entt::entity e0, entt::entity e1, entt::entity rel_en
 
         if (rel_entity != entt::null) {
             // Create association between island and relation.
-            auto rel_node = registry->get<island_node>(rel_entity);
+            auto &rel_node = registry->get<island_node>(rel_entity);
             rel_node.island_entities.push_back(island_entity);
             isle.entities.push_back(rel_entity);
         }
@@ -268,7 +277,7 @@ void world::merge_entities(entt::entity e0, entt::entity e1, entt::entity rel_en
 
         if (rel_entity != entt::null) {
             // Create association between island and relation.
-            auto rel_node = registry->get<island_node>(rel_entity);
+            auto &rel_node = registry->get<island_node>(rel_entity);
             rel_node.island_entities.push_back(island_entity);
             isle.entities.push_back(rel_entity);
         }
