@@ -109,6 +109,7 @@ struct registry_snapshot {
 
         for (auto &pair : pairs) {
             auto entity = pair.first;
+            if (!registry.valid(entity)) continue;
             auto &comp = pair.second;
             registry.assign_or_replace<Comp>(entity, comp);
         }
@@ -120,9 +121,8 @@ struct registry_snapshot {
         const auto &entities = std::get<element_type>(m_destroyed_components).value;
 
         for (auto entity : entities) {
-            if (registry.valid(entity)) {
-                registry.remove<Comp>(entity);
-            }
+            if (!registry.valid(entity)) continue;
+            registry.remove<Comp>(entity);
         }
     }
 
