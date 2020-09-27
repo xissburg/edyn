@@ -28,6 +28,13 @@ struct island_info {
 };
 
 class world final {
+    void process_pending_events();
+
+    template<typename Message, typename... Args>
+    void send_message(entt::entity island_entity, Args &&... args) {
+        m_island_info_map.at(island_entity).m_message_queue.send<Message>(std::forward<Args>(args)...);
+    }
+
 public:
     world(entt::registry &);
     ~world();
@@ -64,8 +71,8 @@ public:
     template<typename... Component>
     void refresh(entt::entity entity) {
         auto snapshot = registry_snapshot(all_components{});
-        (snapshot.updated(entity, registry->get<Component>(entity)), ...);
-        auto &node = registry->get<island_node>(entity);
+        (snapshot.updated(entity, m_registry->get<Component>(entity)), ...);
+        auto &node = m_registry->get<island_node>(entity);
 
         for (auto island_entity : node.island_entities) {
             auto &info = m_island_info_map.at(island_entity);
@@ -75,8 +82,21 @@ public:
 
     void refresh_all(entt::entity);
     void on_broadphase_intersect(entt::entity, entt::entity);
+    
+    void on_construct_dynamic_tag(entt::entity, entt::registry &, dynamic_tag);
+    void on_destroy_dynamic_tag(entt::entity, entt::registry &);
+    
+    void on_construct_static_tag(entt::entity, entt::registry &, static_tag);
+    void on_destroy_static_tag(entt::entity, entt::registry &);
+    
+    void on_construct_kinematic_tag(entt::entity, entt::registry &, kinematic_tag);
+    void on_destroy_kinematic_tag(entt::entity, entt::registry &);
+
+    void on_construct_rigidbody(entt::entity);
+
     void on_construct_relation(entt::entity, entt::registry &, relation &);
     void on_destroy_relation(entt::entity, entt::registry &);
+
     void merge_entities(entt::entity, entt::entity, entt::entity rel_entity);
 
     scalar fixed_dt {1.0/60};
@@ -84,9 +104,13 @@ public:
     std::unordered_map<entt::entity, island_info> m_island_info_map;
 
 private:
-    entt::registry* registry;
+    entt::registry* m_registry;
     simple_broadphase bphase;
     std::vector<entt::scoped_connection> connections;
+
+    std::vector<entt::entity> m_constructed_dynamic_entities;
+    std::vector<entt::entity> m_destroyed_rigidbody_entities;
+    std::vector<entt::entity> m_new_relations;
 
     scalar residual_dt {0};
     std::atomic<uint64_t> step_ {0};
