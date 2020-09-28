@@ -19,11 +19,11 @@ struct registry_snapshot {
         if constexpr(!std::is_same_v<Other, Type>) {
             return;
         } else if constexpr(std::is_same_v<Member, entt::entity>) {
-            instance.*member = map.locrem(instance.*member);
+            instance.*member = map.has_loc(instance.*member) ? map.locrem(instance.*member) : entt::null;
         } else {
             // Attempt to use member as a container of entities.
             for(auto &ent : instance.*member) {
-                ent = map.locrem(ent);
+                ent = map.has_loc(ent) ? map.locrem(ent) : entt::null;
             }
         }
     }
@@ -33,11 +33,11 @@ struct registry_snapshot {
         if constexpr(!std::is_same_v<Other, Type>) {
             return;
         } else if constexpr(std::is_same_v<Member, entt::entity>) {
-            instance.*member = map.remloc(instance.*member);
+            instance.*member = map.has_rem(instance.*member) ? map.remloc(instance.*member) : entt::null;
         } else {
             // Attempt to use member as a container of entities.
             for(auto &ent : instance.*member) {
-                ent = map.remloc(ent);
+                ent = map.has_rem(ent) ? map.remloc(ent) : entt::null;
             }
         }
     }
@@ -157,7 +157,11 @@ public:
      */
     template<typename... Comp>
     void destroyed(entt::entity entity) {
-        (std::get<destroyed_components<Comp>>(m_destroyed_components).value.insert(entity), ...);
+        if constexpr(sizeof...(Comp) == 0) {
+            m_destroyed_entities.insert(entity);
+        } else {
+            (std::get<destroyed_components<Comp>>(m_destroyed_components).value.insert(entity), ...);
+        }
     }
 
     template<typename... Comp>
@@ -199,6 +203,16 @@ public:
 
         (import_updated<Component>(registry, map, member...), ...);
         (import_destroyed<Component>(registry, map), ...);
+
+        for (auto entity : m_destroyed_entities) {
+            if (!map.has_rem(entity)) continue;
+            auto local_entity = map.remloc(entity);
+            map.erase_rem(entity);
+
+            if (registry.valid(local_entity)) {
+                registry.destroy(local_entity);
+            }
+        }
     }
 
     /**
@@ -207,10 +221,15 @@ public:
     void load(entt::registry &registry) const {
         (load_updated<Component>(registry), ...);
         (load_destroyed<Component>(registry), ...);
+
+        for (auto entity : m_destroyed_entities) {
+            registry.destroy(entity);
+        }
     }
 
 private:
     std::unordered_set<entt::entity> m_updated_entities;
+    std::unordered_set<entt::entity> m_destroyed_entities;
     std::tuple<std::vector<std::pair<entt::entity, Component>>...> m_updated_components;
 
     template<typename Comp>

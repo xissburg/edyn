@@ -41,6 +41,18 @@ public:
         }
     }
 
+    void erase_rem(entt::entity remote_entity) {
+        auto local_entity = remloc(remote_entity);
+        m_remloc.erase(remote_entity);
+        m_locrem.erase(local_entity);
+    }
+
+    void erase_loc(entt::entity local_entity) {
+        auto remote_entity = locrem(local_entity);
+        m_remloc.erase(remote_entity);
+        m_locrem.erase(local_entity);
+    }
+
 private:
     std::unordered_map<entt::entity, entt::entity> m_remloc; // Maps remote to local entities.
     std::unordered_map<entt::entity, entt::entity> m_locrem; // Maps local to remote entities.

@@ -62,6 +62,8 @@ public:
 
         (m_registry.on_destroy<Component>().template connect<&island_worker_context<Component...>::on_destroy_component<Component>>(*this), ...);
         (m_registry.on_replace<Component>().template connect<&island_worker_context<Component...>::on_replace_component<Component>>(*this), ...);
+        
+        m_registry.on_destroy<relation>().template connect<&island_worker_context<Component...>::on_destroy_relation>(*this);
 
         // Associate a `contact_manifold` to every broadphase relation that's created.
         m_bphase.construct_relation_sink().connect<&entt::registry::assign<contact_manifold>>(m_registry);
@@ -161,6 +163,22 @@ public:
 
     void on_step_simulation(const msg::step_simulation &msg) {
         step();
+    }
+
+    void on_destroy_relation(entt::entity entity, entt::registry &registry) {
+        // Remove it from containers.
+        auto &rel = registry.get<relation>(entity);
+
+        for (auto e : rel.entity) {
+            if (e == entt::null) continue;
+            if (auto *container = registry.try_get<relation_container>(e)) {
+                container->entities.erase(
+                    std::remove(
+                        container->entities.begin(),
+                        container->entities.end(), entity), 
+                    container->entities.end());
+            }
+        }
     }
 
 private:

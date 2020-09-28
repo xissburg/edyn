@@ -28,7 +28,16 @@ struct island_info {
 };
 
 class world final {
-    void process_pending_events();
+    struct destroyed_rigidbody_info {
+        entt::entity entity;
+        std::vector<entt::entity> island_entities;
+    };
+
+    struct destroyed_relation_info {
+        entt::entity entity;
+        relation rel;
+        std::unordered_set<entt::entity> island_entities;
+    };
 
     template<typename Message, typename... Args>
     void send_message(entt::entity island_entity, Args &&... args) {
@@ -81,6 +90,16 @@ public:
     }
 
     void refresh_all(entt::entity);
+
+    void init_new_dynamic_entities();
+    void init_new_static_kinematic_entities();
+    void init_new_relations();
+    void init_new_entities();
+
+    void destroy_pending_rigidbodies();
+    void destroy_pending_relations();
+    void destroy_pending_entities();
+
     void on_broadphase_intersect(entt::entity, entt::entity);
     
     void on_construct_dynamic_tag(entt::entity, entt::registry &, dynamic_tag);
@@ -93,11 +112,17 @@ public:
     void on_destroy_kinematic_tag(entt::entity, entt::registry &);
 
     void on_construct_rigidbody(entt::entity);
+    void on_destroy_rigidbody(entt::entity);
 
     void on_construct_relation(entt::entity, entt::registry &, relation &);
     void on_destroy_relation(entt::entity, entt::registry &);
 
+    void on_destroy_relation_container(entt::entity, entt::registry &);
+    void on_destroy_island_node(entt::entity, entt::registry &);
+
     void merge_entities(entt::entity, entt::entity, entt::entity rel_entity);
+    void merge_dynamic_with_static_or_kinematic(entt::entity, entt::entity, entt::entity rel_entity);
+    void merge_islands(entt::entity, entt::entity);
 
     scalar fixed_dt {1.0/60};
     solver sol;
@@ -108,9 +133,11 @@ private:
     simple_broadphase bphase;
     std::vector<entt::scoped_connection> connections;
 
-    std::vector<entt::entity> m_constructed_dynamic_entities;
-    std::vector<entt::entity> m_destroyed_rigidbody_entities;
+    std::vector<entt::entity> m_new_dynamic_entities;
+    std::vector<entt::entity> m_new_static_kinematic_entities;
     std::vector<entt::entity> m_new_relations;
+    std::vector<destroyed_rigidbody_info> m_destroyed_rigidbodies;
+    std::vector<destroyed_relation_info> m_destroyed_relations;
 
     scalar residual_dt {0};
     std::atomic<uint64_t> step_ {0};
