@@ -44,14 +44,7 @@ void on_destroy_shape(entt::entity entity, entt::registry &registry) {
     registry.reset<collision_filter>(entity);
 }
 
-template<typename Snapshot>
-void on_registry_snapshot(entt::registry &registry, const Snapshot &snapshot) {
-    // Load snapshot from island. It is already mapped into the main
-    // registry's domain.
-    snapshot.load(registry);
-}
-
-void on_construct_island(entt::entity entity, entt::registry &registry, island &isle) {
+void world::on_construct_island(entt::entity entity, entt::registry &registry, island &isle) {
     isle.timestamp = (double)performance_counter() / (double)performance_frequency();
 
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
@@ -72,14 +65,15 @@ void on_construct_island(entt::entity entity, entt::registry &registry, island &
 
     // Send over a snapshot containing this island entity to the island worker
     // before it even starts.
-    using registry_snapshot_type = decltype(registry_snapshot(all_components{}));
-    auto snapshot = registry_snapshot(all_components{});
-    snapshot.updated(entity, isle);
+    auto builder = registry_snapshot_builder(m_entity_map, all_components{});
+    using builder_t = decltype(builder);
 
-    info.m_message_queue.send<registry_snapshot_type>(snapshot);
+    builder.updated<island>(entity, isle, &island::entities);
 
-    info.m_message_queue.sink<registry_snapshot_type>()
-        .connect<&on_registry_snapshot<registry_snapshot_type>>(registry);
+    info.m_message_queue.send<builder_t::registry_snapshot_t>(builder.get_snapshot());
+
+    info.m_message_queue.sink<builder_t::registry_snapshot_t>()
+        .connect<&world::on_registry_snapshot<builder_t::registry_snapshot_t>>(*this);
 
     auto j = job();
     j.func = &island_worker_func;
@@ -118,7 +112,7 @@ world::world(entt::registry &reg)
     connections.push_back(reg.on_construct<kinematic_tag>().connect<&world::on_construct_kinematic_tag>(*this));
     connections.push_back(reg.on_destroy<kinematic_tag>().connect<&world::on_destroy_kinematic_tag>(*this));
 
-    connections.push_back(reg.on_construct<island>().connect<&on_construct_island>());
+    connections.push_back(reg.on_construct<island>().connect<&world::on_construct_island>(*this));
     connections.push_back(reg.on_destroy<island>().connect<&on_destroy_island>());
 
     connections.push_back(reg.on_construct<relation>().connect<&world::on_construct_relation>(*this));
@@ -213,15 +207,23 @@ void world::init_new_dynamic_entities() {
         }
 
         // Send a snapshot containing the new entities to the island worker.
-        auto snapshot = registry_snapshot(all_components{});
-        snapshot.updated(island_entity, isle);
+        auto builder = registry_snapshot_builder(m_entity_map, all_components{});
+        builder.updated<island>(island_entity, isle, &island::entities);
         for (auto entity : connected) {
-            snapshot.maybe_updated(entity, *m_registry, all_components{});
+            builder.maybe_updated(entity, *m_registry, all_components{},
+                &relation::entity, 
+                &island::entities, 
+                &contact_manifold::point_entity, 
+                &contact_point::parent);
         }
         for (auto entity : relations) {
-            snapshot.maybe_updated(entity, *m_registry, all_components{});
+            builder.maybe_updated(entity, *m_registry, all_components{},
+                &relation::entity, 
+                &island::entities, 
+                &contact_manifold::point_entity, 
+                &contact_point::parent);
         }
-        send_message<registry_snapshot_type>(island_entity, snapshot);
+        send_message<decltype(builder)::registry_snapshot_t>(island_entity, builder.get_snapshot());
     }
 }
 
@@ -248,15 +250,19 @@ void world::init_new_static_kinematic_entities() {
         }
         
         if (!island_entities.empty()) {
-            auto snapshot = registry_snapshot(all_components{});
-            snapshot.maybe_updated(entity, *m_registry, all_components{});
+            auto builder = registry_snapshot_builder(m_entity_map, all_components{});
+            builder.maybe_updated(entity, *m_registry, all_components{},
+                &relation::entity, 
+                &island::entities, 
+                &contact_manifold::point_entity, 
+                &contact_point::parent);
             
             for (auto island_entity : island_entities) {
-                snapshot.updated(island_entity, m_registry->get<island>(island_entity));
+                builder.updated<island>(island_entity, m_registry->get<island>(island_entity), &island::entities);
             }
 
             for (auto island_entity : island_entities) {
-                send_message<registry_snapshot_type>(island_entity, snapshot);
+                send_message<decltype(builder)::registry_snapshot_t>(island_entity, builder.get_snapshot());
             }
         }
     }
@@ -280,9 +286,13 @@ void world::init_new_relations() {
 
         if (island_entities.size() == 1) {
             auto island_entity = *island_entities.begin();
-            auto snapshot = registry_snapshot(all_components{});
-            snapshot.maybe_updated(entity, *m_registry, all_components{});   
-            send_message<registry_snapshot_type>(island_entity, snapshot);
+            auto builder = registry_snapshot_builder(m_entity_map, all_components{});
+            builder.maybe_updated(entity, *m_registry, all_components{},
+                &relation::entity, 
+                &island::entities, 
+                &contact_manifold::point_entity, 
+                &contact_point::parent);   
+            send_message<decltype(builder)::registry_snapshot_t>(island_entity, builder.get_snapshot());
         } else if (island_entities.size() > 1) {
             // Islands must be merged into one.
             auto island_entity0 = *island_entities.begin();
@@ -303,10 +313,10 @@ void world::init_new_entities() {
 void world::destroy_pending_rigidbodies() {
     if (!m_destroyed_rigidbodies.empty()) {
         for (auto &info : m_destroyed_rigidbodies) {
-            auto snapshot = registry_snapshot(all_components{});
-            snapshot.destroyed(info.entity);
+            auto builder = registry_snapshot_builder(m_entity_map, all_components{});
+            builder.destroyed(info.entity);
             for (auto island_entity : info.island_entities) {
-                send_message<registry_snapshot_type>(island_entity, snapshot);
+                send_message<decltype(builder)::registry_snapshot_t>(island_entity, builder.get_snapshot());
             }
         }
 
@@ -320,13 +330,18 @@ void world::destroy_pending_entities() {
 }
 
 void world::refresh_all(entt::entity entity) {
-    auto snapshot = registry_snapshot(all_components{});
-    snapshot.maybe_updated(entity, *m_registry, all_components{});
+    auto builder = registry_snapshot_builder(m_entity_map, all_components{});
+    builder.maybe_updated(entity, *m_registry, all_components{},
+        &relation::entity, 
+        &island::entities, 
+        &contact_manifold::point_entity, 
+        &contact_point::parent);
+
     auto &node = m_registry->get<island_node>(entity);
 
     for (auto island_entity : node.island_entities) {
         auto &info = m_island_info_map.at(island_entity);
-        info.m_message_queue.send<registry_snapshot_type>(snapshot);
+        info.m_message_queue.send<decltype(builder)::registry_snapshot_t>(builder.get_snapshot());
     }
 }
 
@@ -404,16 +419,15 @@ void world::on_destroy_relation(entt::entity entity, entt::registry &registry) {
 
     for (auto e : rel.entity) {
         if (e == entt::null) continue;
-        if (auto *container = registry.try_get<relation_container>(e)) {
-            container->entities.erase(
-                std::remove(
-                    container->entities.begin(),
-                    container->entities.end(), entity), 
-                container->entities.end());
-        }
-        if (auto *node = registry.try_get<island_node>(e)) {
-            island_entities.insert(node->island_entities.begin(), node->island_entities.end());
-        }
+        auto &container = registry.get<relation_container>(e);
+        container.entities.erase(
+            std::remove(
+                container.entities.begin(),
+                container.entities.end(), entity), 
+            container.entities.end());
+
+        auto node = registry.get<island_node>(e);
+        island_entities.insert(node.island_entities.begin(), node.island_entities.end());
     }
 
     m_destroyed_relations.emplace_back(destroyed_relation_info{entity, rel, island_entities});
@@ -439,10 +453,10 @@ void world::destroy_pending_relations() {
     // relation containers on destruction) because the island worker will remove
     // the relation from their containers when it processes this message and
     // destroy these relations as well.
-    auto snapshot = registry_snapshot(all_components{});
+    auto builder = registry_snapshot_builder(m_entity_map, all_components{});
 
     for (auto &info : m_destroyed_relations) {
-        snapshot.destroyed(info.entity);
+        builder.destroyed(info.entity);
     }
 
     // Send snapshot to all islands related to each destroyed relation.
@@ -453,7 +467,7 @@ void world::destroy_pending_relations() {
     }
 
     for (auto island_entity : island_entities) {
-        send_message<registry_snapshot_type>(island_entity, snapshot);
+        send_message<decltype(builder)::registry_snapshot_t>(island_entity, builder.get_snapshot());
     }
 }
 
@@ -540,15 +554,19 @@ void world::merge_dynamic_with_static_or_kinematic(entt::entity entity_dyn, entt
     }
 
     // Insert static/kinematic entity into the island worker.
-    auto snapshot = registry_snapshot(all_components{});
-    snapshot.updated(island_entity, isle);
-    snapshot.maybe_updated(entity_sk, *m_registry, all_components{});
-    
+    auto builder = registry_snapshot_builder(m_entity_map, all_components{});
+    builder.updated<island>(island_entity, isle, &island::entities);
+    builder.maybe_updated(entity_sk, *m_registry, all_components{},
+        &relation::entity, 
+        &island::entities, 
+        &contact_manifold::point_entity, 
+        &contact_point::parent);
+
     if (rel_entity != entt::null) {
-        snapshot.maybe_updated(rel_entity, *m_registry, all_components{});
+        builder.maybe_updated(rel_entity, *m_registry, all_components{});
     }
-    
-    send_message<registry_snapshot_type>(island_entity, snapshot);
+
+    send_message<decltype(builder)::registry_snapshot_t>(island_entity, builder.get_snapshot());
 }
 
 void world::merge_islands(entt::entity island_entity0, entt::entity island_entity1) {
@@ -564,15 +582,19 @@ void world::merge_islands(entt::entity island_entity0, entt::entity island_entit
     }
 
     // Send snapshot containing moved entities to the first island.
-    auto snapshot = registry_snapshot(all_components{});
-    snapshot.updated(island_entity0, island0);
+    auto builder = registry_snapshot_builder(m_entity_map, all_components{});
+    builder.updated<island>(island_entity0, island0, &island::entities);
 
     for (auto ent : island1.entities) {
-        snapshot.maybe_updated(ent, *m_registry, all_components{});
+        builder.maybe_updated(ent, *m_registry, all_components{},
+            &relation::entity, 
+            &island::entities, 
+            &contact_manifold::point_entity, 
+            &contact_point::parent);
     }
 
     auto &info0 = m_island_info_map.at(island_entity0);
-    info0.m_message_queue.send<registry_snapshot_type>(snapshot);
+    info0.m_message_queue.send<decltype(builder)::registry_snapshot_t>(builder.get_snapshot());
 
     // Destroy empty island.
     auto &info1 = m_island_info_map.at(island_entity1);

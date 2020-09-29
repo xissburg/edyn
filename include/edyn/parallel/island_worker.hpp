@@ -52,6 +52,7 @@ public:
         , m_bphase(m_registry)
         , m_nphase(m_registry)
         , m_sol(m_registry)
+        , m_snapshot_builder(m_entity_map)
     {
         m_island_entity = m_registry.create();
         m_entity_map.insert(island_entity, m_island_entity);
@@ -84,25 +85,16 @@ public:
         // Add island and transient components to snapshot before sending it over
         // to the main registry.
         auto &isle = m_registry.get<island>(m_island_entity);
-        m_snapshot.template updated(m_island_entity, isle);
+        m_snapshot_builder.template updated<island>(m_island_entity, isle, &island::entities);
 
         for (auto entity : isle.entities) {
-            std::apply([&] (auto &&... args) {
-                ((m_registry.has<std::decay_t<decltype(args)>>(entity) ? 
-                    m_snapshot.template updated(entity, m_registry.get<std::decay_t<decltype(args)>>(entity)) : (void)0), ...);
-            }, transient_components{});
+            m_snapshot_builder.template maybe_updated(entity, m_registry, transient_components{});
         }
 
-        // Map entities into the domain of the main registry.
-        auto snapshot = m_snapshot.template map_entities(m_entity_map, 
-            &relation::entity, 
-            &island::entities, 
-            &contact_manifold::point_entity, 
-            &contact_point::parent);
-        m_message_queue.send<decltype(snapshot)>(snapshot);
+        m_message_queue.send<decltype(m_snapshot_builder)::registry_snapshot_t>(m_snapshot_builder.template get_snapshot());
 
         // Clear snapshot for the next run.
-        m_snapshot = {};
+        m_snapshot_builder.clear();
     }
 
     void update() override {
@@ -146,12 +138,16 @@ public:
 
     template<typename Comp>
     void on_destroy_component(entt::entity entity, entt::registry &registry) {
-        m_snapshot.template destroyed<Comp>(entity);
+        m_snapshot_builder.template destroyed<Comp>(entity);
     }
 
     template<typename Comp>
     void on_replace_component(entt::entity entity, entt::registry &registry, const Comp &comp) {
-        m_snapshot.template updated(entity, comp);
+        m_snapshot_builder.template updated<Comp>(entity, comp,
+            &relation::entity, 
+            &island::entities, 
+            &contact_manifold::point_entity, 
+            &contact_point::parent);
     }
 
     void on_set_paused(const msg::set_paused &msg) {
@@ -191,7 +187,7 @@ private:
     message_queue_in_out m_message_queue;
     double m_fixed_dt;
     bool m_paused;
-    registry_snapshot<Component...> m_snapshot;
+    registry_snapshot_builder<Component...> m_snapshot_builder;
 };
 
 }

@@ -26,19 +26,13 @@ public:
     }
 
     entt::entity remloc(entt::entity remote_entity) const {
-        if (has_rem(remote_entity)) {
-            return m_remloc.at(remote_entity);
-        } else {
-            return entt::null;
-        }
+        EDYN_ASSERT(has_rem(remote_entity));
+        return m_remloc.at(remote_entity);
     }
     
     entt::entity locrem(entt::entity local_entity) const {
-        if (has_loc(local_entity)) {
-            return m_locrem.at(local_entity);
-        } else {
-            return entt::null;
-        }
+        EDYN_ASSERT(has_loc(local_entity));
+        return m_locrem.at(local_entity);
     }
 
     void erase_rem(entt::entity remote_entity) {
