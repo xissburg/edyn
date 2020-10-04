@@ -91,7 +91,7 @@ public:
             m_snapshot_builder.template maybe_updated(entity, m_registry, transient_components{});
         }
 
-        m_message_queue.send<decltype(m_snapshot_builder)::registry_snapshot_t>(m_snapshot_builder.template get_snapshot());
+        m_message_queue.send<registry_snapshot<Component...>>(m_snapshot_builder.template get_snapshot());
 
         // Clear snapshot for the next run.
         m_snapshot_builder.clear();

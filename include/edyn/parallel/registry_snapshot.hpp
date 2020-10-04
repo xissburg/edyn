@@ -173,7 +173,7 @@ public:
 
     template<typename... Comp, typename... Type, typename... Member>
     void maybe_updated(entt::entity entity, const entt::registry &registry, Member Type:: *...member) {
-        ((registry.has<Comp>(entity) ? updated(entity, registry.get<Comp>(entity), member...) : (void)0), ...);
+        ((registry.has<Comp>(entity) ? updated<Comp>(entity, registry.get<Comp>(entity), member...) : (void)0), ...);
     }
 
     template<typename... Comp, typename... Type, typename... Member>
