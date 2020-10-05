@@ -42,10 +42,12 @@ class registry_snapshot {
         const auto &pairs = std::get<element_type>(m_updated_components);
 
         for (auto &pair : pairs) {
-            auto entity = pair.first;
+            auto remote_entity = pair.first;
+            auto local_entity = map.remloc(remote_entity);
+            if (!registry.valid(local_entity)) continue;
             auto comp = pair.second;
             (import_child_entity(map, comp, member), ...);
-            registry.assign_or_replace<Comp>(map.remloc(entity), comp);
+            registry.assign_or_replace<Comp>(local_entity, comp);
         }
     }
 
@@ -57,7 +59,7 @@ class registry_snapshot {
         for (auto remote_entity : entities) {
             auto local_entity = map.locrem(remote_entity);
 
-            if (registry.valid(local_entity)) {
+            if (registry.valid(local_entity) && registry.has<Comp>(local_entity)) {
                 registry.remove<Comp>(local_entity);
             }
         }
@@ -103,6 +105,13 @@ public:
         }
     }
 
+    template<typename... Type, typename... Member>
+    void import(entt::registry &registry, entity_map &map, std::tuple<Member Type:: *...> members) const {
+        std::apply([&] (auto &&... member) {
+            import(registry, map, member...);
+        }, members);
+    }
+
     friend class registry_snapshot_builder<Component...>;
 
 private:
@@ -116,6 +125,15 @@ private:
 template<typename... Component>
 class registry_snapshot_builder {
     void insert_entity_mapping(entt::entity entity) {
+        auto found_it = std::find_if(
+            m_snapshot.m_remloc_entity_pairs.begin(), 
+            m_snapshot.m_remloc_entity_pairs.end(), 
+            [entity] (auto &pair) { return entity == pair.first; });
+
+        if (found_it != m_snapshot.m_remloc_entity_pairs.end()) {
+            return;
+        }
+        
         if (m_entity_map->has_loc(entity)) {
             auto remote_entity = m_entity_map->locrem(entity);
             m_snapshot.m_remloc_entity_pairs.emplace_back(entity, remote_entity);
@@ -170,6 +188,13 @@ public:
         m_snapshot.m_updated_entities.insert(entity);
         (std::get<std::vector<std::pair<entt::entity, Comp>>>(m_snapshot.m_updated_components).push_back(std::make_pair(entity, comp)), ...);
     }
+    
+    template<typename... Comp, typename... Type, typename... Member>
+    void updated(entt::entity entity, const Comp &... comp, std::tuple<Member Type:: *...> members) {
+        std::apply([&] (auto &&... member) {
+            updated<Comp...>(entity, comp..., member...);
+        }, members);
+    }
 
     template<typename... Comp, typename... Type, typename... Member>
     void maybe_updated(entt::entity entity, const entt::registry &registry, Member Type:: *...member) {
@@ -179,6 +204,20 @@ public:
     template<typename... Comp, typename... Type, typename... Member>
     void maybe_updated(entt::entity entity, const entt::registry &registry, [[maybe_unused]] std::tuple<Comp...>, Member Type:: *...member) {
         maybe_updated<Comp...>(entity, registry, member...);
+    }
+
+    template<typename... Comp, typename... Type, typename... Member>
+    void maybe_updated(entt::entity entity, const entt::registry &registry, std::tuple<Member Type:: *...> members) {
+        std::apply([&] (auto &&... member) {
+            maybe_updated<Comp...>(entity, registry, member...);
+        }, members);
+    }
+
+    template<typename... Comp, typename... Type, typename... Member>
+    void maybe_updated(entt::entity entity, const entt::registry &registry, std::tuple<Comp...> comp_tuple, std::tuple<Member Type:: *...> members) {
+        std::apply([&] (auto &&... member) {
+            maybe_updated<Comp...>(entity, registry, comp_tuple, member...);
+        }, members);
     }
 
     /**

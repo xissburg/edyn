@@ -21,26 +21,6 @@
 
 namespace edyn {
 
-static 
-void on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
-    auto &rel = registry.get<relation>(entity);
-
-    std::visit([&] (auto &&c) {
-        // Initialize actual constraint.
-        c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, rel, registry, 0);
-    }, con.var);
-}
-
-static 
-void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
-    auto &con = registry.get<constraint>(entity);
-
-    // Destroy all constraint rows.
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        registry.destroy(con.row[i]);
-    }
-}
-
 static
 scalar restitution_curve(scalar restitution, scalar relvel) {
     // TODO: figure out how to adjust the restitution when resting.
@@ -146,9 +126,6 @@ void update_inertia(entt::registry &registry) {
 solver::solver(entt::registry &reg) 
     : registry(&reg)
 {
-    connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
-    connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
-
     connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
     connections.push_back(reg.on_destroy<linvel>().
         connect<entt::overload<void(entt::entity)>(&entt::registry::reset<delta_linvel>)>(reg));

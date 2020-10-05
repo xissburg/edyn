@@ -53,6 +53,7 @@ public:
         , m_nphase(m_registry)
         , m_sol(m_registry)
         , m_snapshot_builder(m_entity_map)
+        , m_importing_snapshot(false)
     {
         m_island_entity = m_registry.create();
         m_entity_map.insert(island_entity, m_island_entity);
@@ -65,6 +66,12 @@ public:
         (m_registry.on_replace<Component>().template connect<&island_worker_context<Component...>::on_replace_component<Component>>(*this), ...);
         
         m_registry.on_destroy<relation>().template connect<&island_worker_context<Component...>::on_destroy_relation>(*this);
+        m_registry.on_destroy<relation_container>().template connect<&island_worker_context<Component...>::on_destroy_relation_container>(*this);
+        
+        m_registry.on_destroy<island_node>().template connect<&island_worker_context<Component...>::on_destroy_island_node>(*this);
+
+        m_registry.on_construct<constraint>().connect<&island_worker_context<Component...>::on_construct_constraint>(*this);
+        m_registry.on_destroy<constraint>().connect<&island_worker_context<Component...>::on_destroy_constraint>(*this);
 
         // Associate a `contact_manifold` to every broadphase relation that's created.
         m_bphase.construct_relation_sink().connect<&entt::registry::assign<contact_manifold>>(m_registry);
@@ -74,11 +81,9 @@ public:
 
     void on_registry_snapshot(const registry_snapshot<Component...> &snapshot) {
         // Import components from main registry.
-        snapshot.template import(m_registry, m_entity_map, 
-            &relation::entity, 
-            &island::entities, 
-            &contact_manifold::point_entity, 
-            &contact_point::parent);
+        m_importing_snapshot = true;
+        snapshot.template import(m_registry, m_entity_map, all_components_entity_pointer_to_member);
+        m_importing_snapshot = false;
     }
 
     void sync() {
@@ -138,16 +143,14 @@ public:
 
     template<typename Comp>
     void on_destroy_component(entt::entity entity, entt::registry &registry) {
+        if (m_importing_snapshot) return;
         m_snapshot_builder.template destroyed<Comp>(entity);
     }
 
     template<typename Comp>
     void on_replace_component(entt::entity entity, entt::registry &registry, const Comp &comp) {
-        m_snapshot_builder.template updated<Comp>(entity, comp,
-            &relation::entity, 
-            &island::entities, 
-            &contact_manifold::point_entity, 
-            &contact_point::parent);
+        if (m_importing_snapshot) return;
+        m_snapshot_builder.template updated<Comp>(entity, comp, all_components_entity_pointer_to_member);
     }
 
     void on_set_paused(const msg::set_paused &msg) {
@@ -177,6 +180,47 @@ public:
         }
     }
 
+    void on_destroy_relation_container(entt::entity entity, entt::registry &registry) {
+        // Destroy relations.
+        auto &container = registry.get<relation_container>(entity);
+        // Make a copy to prevent modification to the vector during iteration since
+        // `on_destroy_relation` will be called.
+        auto relation_entities = container.entities;
+        for (auto rel_entity : relation_entities) {
+            registry.destroy(rel_entity);
+        }
+    }
+
+    void on_destroy_island_node(entt::entity entity, entt::registry &registry) {
+        // Remove from island.
+        auto &node = registry.get<island_node>(entity);
+        auto island_entity = node.island_entities.front();
+        auto &isle = registry.get<island>(island_entity);
+        auto it = std::find(isle.entities.begin(), isle.entities.end(), entity);
+        std::swap(*it, *(isle.entities.end() - 1));
+        isle.entities.pop_back();
+    }
+
+    void on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
+        if (m_importing_snapshot) return;
+
+        auto &rel = registry.get<relation>(entity);
+
+        std::visit([&] (auto &&c) {
+            // Initialize actual constraint.
+            c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, rel, registry, 0);
+        }, con.var);
+    }
+
+    void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
+        auto &con = registry.get<constraint>(entity);
+
+        // Destroy all constraint rows.
+        for (size_t i = 0; i < con.num_rows; ++i) {
+            registry.destroy(con.row[i]);
+        }
+    }
+
 private:
     entt::registry m_registry;
     entt::entity m_island_entity;
@@ -188,6 +232,7 @@ private:
     double m_fixed_dt;
     bool m_paused;
     registry_snapshot_builder<Component...> m_snapshot_builder;
+    bool m_importing_snapshot;
 };
 
 }

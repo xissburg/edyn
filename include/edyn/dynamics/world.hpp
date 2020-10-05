@@ -16,6 +16,13 @@
 
 namespace edyn {
 
+class world;
+
+struct snapshot_context {
+    world *m_world;
+    entt::entity m_island_entity;
+};
+
 struct island_info {
     island_worker_context_base *m_worker;
     message_queue_in_out m_message_queue;
@@ -75,13 +82,13 @@ public:
 
     template<typename... Component, typename... Type, typename... Member>
     void refresh(entt::entity entity, Member Type:: *...member) {
-        auto builder = registry_snapshot_builder(m_entity_map, all_components{});
-        (builder.updated(entity, m_registry->get<Component>(entity), member...), ...);
         auto &node = m_registry->get<island_node>(entity);
 
         for (auto island_entity : node.island_entities) {
             auto &info = m_island_info_map.at(island_entity);
-            info.m_message_queue.send<builder.registry_snapshot_t>(builder.get_snapshot());
+            auto builder = registry_snapshot_builder(info.m_entity_map, all_components{});
+            (builder.template updated<Component>(entity, m_registry->get<Component>(entity), member...), ...);
+            info.m_message_queue.send<typename decltype(builder)::registry_snapshot_t>(builder.template get_snapshot());
         }
     }
 
@@ -97,6 +104,9 @@ public:
     void destroy_pending_entities();
 
     void on_broadphase_intersect(entt::entity, entt::entity);
+
+    void on_construct_constraint(entt::entity, entt::registry &, constraint &);
+    void on_destroy_constraint(entt::entity, entt::registry &);
 
     void on_construct_island(entt::entity entity, entt::registry &registry, island &isle);
     
@@ -119,14 +129,11 @@ public:
     void on_destroy_island_node(entt::entity, entt::registry &);
 
     template<typename Snapshot>
-    void on_registry_snapshot(const Snapshot &snapshot) {
+    void import_snapshot(entt::entity island_entity, const Snapshot &snapshot) {
         // Load snapshot from island. It is already mapped into the main
         // registry's domain.
-        snapshot.import(*m_registry, m_entity_map,
-            &relation::entity, 
-            &island::entities, 
-            &contact_manifold::point_entity, 
-            &contact_point::parent);
+        auto &info = m_island_info_map.at(island_entity);
+        snapshot.import(*m_registry, info.m_entity_map, all_components_entity_pointer_to_member);
     }
 
     void merge_entities(entt::entity, entt::entity, entt::entity rel_entity);
@@ -139,7 +146,6 @@ public:
 
 private:
     entt::registry* m_registry;
-    entity_map m_entity_map;
     simple_broadphase bphase;
     std::vector<entt::scoped_connection> connections;
 
@@ -148,6 +154,7 @@ private:
     std::vector<entt::entity> m_new_relations;
     std::vector<destroyed_rigidbody_info> m_destroyed_rigidbodies;
     std::vector<destroyed_relation_info> m_destroyed_relations;
+    bool m_importing_snapshot {false};
 
     scalar residual_dt {0};
     std::atomic<uint64_t> step_ {0};
