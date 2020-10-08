@@ -26,11 +26,19 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     registry.assign<orientation>(entity, def.orientation);
 
     if (def.kind == rigidbody_kind::rb_dynamic) {
+        EDYN_ASSERT(def.mass > 0);
         registry.assign<mass>(entity, def.mass);
+        registry.assign<mass_inv>(entity, 1 / def.mass);
         registry.assign<inertia>(entity, def.inertia);
+        EDYN_ASSERT(def.inertia > vector3_zero);
+        auto &invI = registry.assign<inertia_inv>(entity, 1 / def.inertia);
+        registry.assign<inertia_world_inv>(entity, diagonal(invI));
     } else {
         registry.assign<mass>(entity, EDYN_SCALAR_MAX);
+        registry.assign<mass_inv>(entity, 0);
         registry.assign<inertia>(entity, vector3_max);
+        registry.assign<inertia_inv>(entity, vector3_zero);
+        registry.assign<inertia_world_inv>(entity, matrix3x3_zero);
     }
 
     if (def.kind == rigidbody_kind::rb_static) {
@@ -57,8 +65,8 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (auto opt = def.shape_opt) {
         registry.assign<shape>(entity, *opt);
-
-        auto &filter = registry.get<edyn::collision_filter>(entity);
+        registry.assign<AABB>(entity);
+        auto &filter = registry.assign<collision_filter>(entity);
         filter.group = def.collision_group;
         filter.mask = def.collision_mask;
     }

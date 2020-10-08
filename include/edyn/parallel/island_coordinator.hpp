@@ -1,0 +1,12 @@
+#ifndef EDYN_PARALLEL_ISLAND_COORDINATOR_HPP
+#define EDYN_PARALLEL_ISLAND_COORDINATOR_HPP
+
+namespace edyn {
+
+class island_coordinator {
+
+};
+
+}
+
+#endif // EDYN_PARALLEL_ISLAND_COORDINATOR_HPP

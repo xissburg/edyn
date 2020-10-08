@@ -5,7 +5,6 @@
 #include "edyn/sys/integrate_angvel.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/mass.hpp"
@@ -145,10 +144,10 @@ void solver::update(uint64_t step, scalar dt) {
     auto vel_view = registry->view<const linvel, const angvel>(exclude_global);
     auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_global);
 
-    auto con_view = registry->view<const relation, constraint>(exclude_global);
-    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
+    auto con_view = registry->view<constraint>(exclude_global);
+    con_view.each([&] (auto entity, constraint &con) {
         std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *registry, dt);
         }, con.var);
     });
 
@@ -156,9 +155,9 @@ void solver::update(uint64_t step, scalar dt) {
         return lhs.priority > rhs.priority;
     });
 
-    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
+    con_view.each([&] (auto entity, constraint &con) {
         std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *registry, dt);
         }, con.var);
     });
 
@@ -166,14 +165,14 @@ void solver::update(uint64_t step, scalar dt) {
         return lhs.priority > rhs.priority;
     });
 
-    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
-        auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[0]);
-        auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(rel.entity[0]);
-        auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[0]);
+    con_view.each([&] (auto entity, constraint &con) {
+        auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(con.bodies[0]);
+        auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(con.bodies[0]);
+        auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(con.bodies[0]);
 
-        auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[1]);
-        auto [linvelB, angvelB] = vel_view.get<const linvel, const angvel>(rel.entity[1]);
-        auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[1]);
+        auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(con.bodies[1]);
+        auto [linvelB, angvelB] = vel_view.get<const linvel, const angvel>(con.bodies[1]);
+        auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(con.bodies[1]);
 
         for (size_t i = 0; i < con.num_rows; ++i) {
             auto &row = registry->get<constraint_row>(con.row[i]);
@@ -195,9 +194,9 @@ void solver::update(uint64_t step, scalar dt) {
 
     for (uint32_t i = 0; i < iterations; ++i) {
         // Prepare constraints for iteration.
-        con_view.each([&] (auto entity, const relation &rel, constraint &con) {
+        con_view.each([&] (auto entity, constraint &con) {
             std::visit([&] (auto &&c) {
-                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, rel, *registry, dt);
+                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *registry, dt);
             }, con.var);
         });
 

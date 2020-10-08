@@ -11,39 +11,6 @@
 
 namespace edyn {
 
-void on_construct_or_replace_mass(entt::entity entity, entt::registry &registry, mass &m) {
-    EDYN_ASSERT(m > 0);
-    registry.assign_or_replace<mass_inv>(entity, m < EDYN_SCALAR_MAX ? 1 / m : 0);
-}
-
-void on_destroy_mass(entt::entity entity, entt::registry &registry) {
-    registry.reset<mass_inv>(entity);
-}
-
-void on_construct_or_replace_inertia(entt::entity entity, entt::registry &registry, inertia &i) {
-    EDYN_ASSERT(i > vector3_zero);
-    auto &invI = registry.assign_or_replace<inertia_inv>(entity, 
-                                                         i.x < EDYN_SCALAR_MAX ? 1 / i.x : 0, 
-                                                         i.y < EDYN_SCALAR_MAX ? 1 / i.y : 0, 
-                                                         i.z < EDYN_SCALAR_MAX ? 1 / i.z : 0);
-    registry.assign_or_replace<inertia_world_inv>(entity, diagonal(invI));
-}
-
-void on_destroy_inertia(entt::entity entity, entt::registry &registry) {
-    registry.reset<inertia_inv>(entity);
-    registry.reset<inertia_world_inv>(entity);
-}
-
-void on_construct_shape(entt::entity entity, entt::registry &registry, shape &) {
-    registry.assign<AABB>(entity);
-    registry.assign<collision_filter>(entity);
-}
-
-void on_destroy_shape(entt::entity entity, entt::registry &registry) {
-    registry.reset<AABB>(entity);
-    registry.reset<collision_filter>(entity);
-}
-
 void world::on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
     if (m_importing_snapshot) return;
 
@@ -112,26 +79,11 @@ void world::on_construct_island(entt::entity entity, entt::registry &registry, i
     job_dispatcher::global().async(j);
 }
 
-void on_destroy_island(entt::entity entity, entt::registry &registry) {
-    
-}
-
 world::world(entt::registry &reg) 
     : m_registry(&reg)
     , sol(reg)
     , bphase(reg)
 {
-    connections.push_back(reg.on_construct<mass>().connect<&on_construct_or_replace_mass>());
-    connections.push_back(reg.on_replace<mass>().connect<&on_construct_or_replace_mass>());
-    connections.push_back(reg.on_destroy<mass>().connect<&on_destroy_mass>());
-
-    connections.push_back(reg.on_construct<inertia>().connect<&on_construct_or_replace_inertia>());
-    connections.push_back(reg.on_replace<inertia>().connect<&on_construct_or_replace_inertia>());
-    connections.push_back(reg.on_destroy<inertia>().connect<&on_destroy_inertia>());
-
-    connections.push_back(reg.on_construct<shape>().connect<&on_construct_shape>());
-    connections.push_back(reg.on_destroy<shape>().connect<&on_destroy_shape>());
-
     connections.push_back(reg.on_construct<constraint>().connect<&world::on_construct_constraint>(*this));
     connections.push_back(reg.on_destroy<constraint>().connect<&world::on_destroy_constraint>(*this));
 
@@ -145,7 +97,6 @@ world::world(entt::registry &reg)
     connections.push_back(reg.on_destroy<kinematic_tag>().connect<&world::on_destroy_kinematic_tag>(*this));
 
     connections.push_back(reg.on_construct<island>().connect<&world::on_construct_island>(*this));
-    connections.push_back(reg.on_destroy<island>().connect<&on_destroy_island>());
 
     connections.push_back(reg.on_construct<relation>().connect<&world::on_construct_relation>(*this));
     connections.push_back(reg.on_destroy<relation>().connect<&world::on_destroy_relation>(*this));

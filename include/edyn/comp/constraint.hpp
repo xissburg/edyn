@@ -16,6 +16,7 @@ namespace edyn {
 inline constexpr size_t max_constraint_rows = 16;
 
 struct constraint {
+    std::array<entt::entity, 2> bodies;
     std::variant<contact_constraint, 
                  point_constraint, 
                  distance_constraint,
