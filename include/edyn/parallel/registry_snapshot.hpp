@@ -11,7 +11,6 @@
 
 namespace edyn {
 
-template<typename... Component>
 class registry_snapshot_builder;
 
 template<typename Comp>
@@ -19,7 +18,6 @@ struct destroyed_components {
     std::unordered_set<entt::entity> value;
 };
 
-template<typename... Component>
 class registry_snapshot {
 
     template<typename Other, typename Type, typename Member>
@@ -66,12 +64,6 @@ class registry_snapshot {
     }
 
 public:
-    using component_tuple_t = std::tuple<Component...>;
-
-    registry_snapshot() {}
-    registry_snapshot([[maybe_unused]] component_tuple_t) {}
-    registry_snapshot(const registry_snapshot<Component...> &) = default;
-
     /**
      * Imports this snapshot into a registry by mapping the entities into the domain
      * of the target registry according to the provided `entity_map`.
@@ -114,6 +106,8 @@ public:
 
     friend class registry_snapshot_builder<Component...>;
 
+    double m_timestamp;
+
 private:
     std::vector<std::pair<entt::entity, entt::entity>> m_remloc_entity_pairs;
     std::unordered_set<entt::entity> m_updated_entities;
@@ -122,7 +116,6 @@ private:
     std::tuple<destroyed_components<Component>...> m_destroyed_components;
 };
 
-template<typename... Component>
 class registry_snapshot_builder {
     void insert_entity_mapping(entt::entity entity) {
         auto found_it = std::find_if(
@@ -162,18 +155,9 @@ class registry_snapshot_builder {
     }
 
 public:
-    using component_tuple_t = std::tuple<Component...>;
-    using registry_snapshot_t = registry_snapshot<Component...>;
-
     registry_snapshot_builder(entity_map &map)
         : m_entity_map(&map)
     {}
-
-    registry_snapshot_builder(entity_map &map, [[maybe_unused]] component_tuple_t)
-        : m_entity_map(&map)
-    {}
-
-    registry_snapshot_builder(const registry_snapshot_builder<Component...> &) = default;
 
     /**
      * Adds a component to be updated by the snapshot.
@@ -249,7 +233,7 @@ public:
 
 private:
     entity_map *m_entity_map;
-    registry_snapshot<Component...> m_snapshot;
+    registry_snapshot m_snapshot;
 };
 
 }

@@ -2,12 +2,12 @@
 #define EDYN_UTIL_CONSTRAINT_HPP
 
 #include <entt/entt.hpp>
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
+#include "edyn/comp/island.hpp"
 
 namespace edyn {
 
@@ -15,6 +15,13 @@ template<typename T> inline
 void make_constraint(entt::entity entity, entt::registry &registry, T&& c, 
                      entt::entity ent0, entt::entity ent1) {
     registry.assign<constraint>(entity, std::array<entt::entity, 2>{ent0, ent1}, std::forward<T>(c));
+    registry.assign<island_node>(entity, ent0, ent1);
+    
+    auto &node0 = registry.get<island_node>(ent0);
+    node0.siblings.push_back(entity);
+    
+    auto &node1 = registry.get<island_node>(ent1);
+    node1.siblings.push_back(entity);
 }
 
 template<typename T> inline

@@ -24,10 +24,25 @@ struct island {
 
 /**
  * @brief An _island node_ is an entity that belongs in one or more islands.
+ * It contains a list of the entities it is connected with. A procedural
+ * node has its state calculated by the physics simulation (e.g. a dynamic
+ * rigid body) and thus can only be present in one island, plus if there is
+ * a path connecting two procedural nodes in the graph, they have to be in
+ * the same island. A non-procedural node does not have its state affected by
+ * the physics simulation (i.e. a static or kinematic rigid body or any 
+ * external entity), and that means it can be present in multiple islands
+ * at the same time, which means that islands can intersect at non-procedural
+ * nodes. Also, when calculating procedural node connectivity, non-procedural
+ * nodes do not generate paths, i.e. it acts as a wall that you cannot walk
+ * through when generating islands.
  */
 struct island_node {
-    // The entity where the `island` component can be found.
-    std::vector<entt::entity> island_entities;
+    bool procedural;
+    std::vector<entt::entity> entities;
+};
+
+struct island_container {
+    std::vector<entt::entity> entities;
 };
 
 }

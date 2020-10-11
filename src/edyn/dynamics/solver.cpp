@@ -166,13 +166,13 @@ void solver::update(uint64_t step, scalar dt) {
     });
 
     con_view.each([&] (auto entity, constraint &con) {
-        auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(con.bodies[0]);
-        auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(con.bodies[0]);
-        auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(con.bodies[0]);
+        auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(con.body[0]);
+        auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(con.body[0]);
+        auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(con.body[0]);
 
-        auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(con.bodies[1]);
-        auto [linvelB, angvelB] = vel_view.get<const linvel, const angvel>(con.bodies[1]);
-        auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(con.bodies[1]);
+        auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(con.body[1]);
+        auto [linvelB, angvelB] = vel_view.get<const linvel, const angvel>(con.body[1]);
+        auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(con.body[1]);
 
         for (size_t i = 0; i < con.num_rows; ++i) {
             auto &row = registry->get<constraint_row>(con.row[i]);

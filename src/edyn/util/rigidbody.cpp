@@ -12,6 +12,7 @@
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
+#include "edyn/comp/island.hpp"
 
 namespace edyn {
 
@@ -82,6 +83,9 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.assign<static_tag>(entity);
         break;
     }
+
+    bool procedural = def.kind == rigidbody_kind::rb_dynamic;
+    registry.assign<island_node>(entity, procedural);
 }
 
 entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) {
@@ -89,7 +93,6 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
     make_rigidbody(ent, registry, def);
     return ent;
 }
-
 
 void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar mass) {
     registry.replace<edyn::mass>(entity, mass);
@@ -138,6 +141,10 @@ void clear_kinematic_velocities(entt::registry &registry) {
         v = vector3_zero;
         w = vector3_zero;
     });
+}
+
+bool validate_rigidbody(entt::entity entity, entt::registry &registry) {
+    return registry.has<position, orientation, linvel, angvel>(entity);
 }
 
 }
