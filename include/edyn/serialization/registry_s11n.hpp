@@ -119,7 +119,8 @@ public:
         archive(m_updated_entities);
 
         // Updated components.
-        archive(m_updated_components.size());
+        auto num_updated = m_updated_components.size();
+        archive(num_updated);
 
         for (auto pair : m_updated_components) {
             auto entity = pair.first;
@@ -130,7 +131,8 @@ public:
         }
 
         // Destroyed components.
-        archive(m_destroyed_components.size());
+        auto num_destroyed = m_destroyed_components.size();
+        archive(num_destroyed);
 
         for (auto pair : m_destroyed_components) {
             archive(pair.first, pair.second);
@@ -283,7 +285,8 @@ class registry_snapshot_exporter {
     template<typename Comp, typename Archive, typename... Type, typename... Member>
     void serialize_component(Archive &archive, entt::entity entity, Member Type:: *...member) const {
         if (m_registry->has<Comp>(entity) && m_map->has_loc(entity)) {
-            archive(m_map->locrem(entity));
+            auto remote_entity = m_map->locrem(entity);
+            archive(remote_entity);
             auto comp_id = index_of_v<component_identifier_t, Comp, Component...>;
             archive(comp_id);
             if constexpr(!std::is_empty_v<Comp>) {
@@ -361,7 +364,8 @@ public:
 
         for (auto local_entity : m_updated_entities) {
             if (m_map->has_loc(local_entity)) {
-                archive(m_map->locrem(local_entity));
+                auto remote_entity = m_map->locrem(local_entity);
+                archive(remote_entity);
             }
         }
         
