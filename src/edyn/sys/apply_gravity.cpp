@@ -1,6 +1,5 @@
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/comp/gravity.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/mass.hpp"
@@ -12,13 +11,13 @@
 namespace edyn {
 
 void apply_gravity(entt::registry &registry, scalar dt) {
-    auto view = registry.view<relation, gravity>(exclude_global);
-    auto inner_view = registry.view<const position, const mass, linvel>(exclude_global);
+    auto view = registry.view<gravity>(exclude_global);
+    auto inner_view = registry.view<position, mass, linvel>(exclude_global);
 
-    view.each([&] (auto, relation &rel, auto g) {
-        auto [posA, mA, linvelA] = inner_view.get<const position, const mass, linvel>(rel.entity[0]);
-        auto [posB, mB, linvelB] = inner_view.get<const position, const mass, linvel>(rel.entity[1]);
-        
+    view.each([&] (auto, gravity &g) {
+        auto [posA, mA, linvelA] = inner_view.get<position, mass, linvel>(g.body[0]);
+        auto [posB, mB, linvelB] = inner_view.get<position, mass, linvel>(g.body[1]);
+
         auto d = posA - posB;
         auto l2 = length_sqr(d);
         l2 = std::max(l2, EDYN_EPSILON);

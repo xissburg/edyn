@@ -6,7 +6,7 @@
         {
             "label": "build library",
             "type": "shell",
-            "command": "reset && cmake --build ${workspaceFolder}/build -- -j24",
+            "command": "reset && cmake --build ${workspaceFolder}/build",// -- -j24",
             "args": [],
             "group": "build",
             "presentation": {

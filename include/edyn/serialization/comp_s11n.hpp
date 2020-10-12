@@ -11,7 +11,6 @@
 #include "edyn/serialization/comp/linacc_s11n.hpp"
 #include "edyn/serialization/comp/mass_s11n.hpp"
 #include "edyn/serialization/comp/material_s11n.hpp"
-#include "edyn/serialization/comp/relation_s11n.hpp"
 #include "edyn/serialization/comp/tag_s11n.hpp"
 #include "edyn/serialization/comp/gravity_s11n.hpp"
 #include "edyn/serialization/comp/shape_s11n.hpp"

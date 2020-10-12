@@ -200,7 +200,7 @@ public:
             visit(entity, comp_id, [&] (auto &&comp) {
                 archive(comp);
                 if (m_registry->valid(entity)) {
-                    m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(entity, std::move(comp));
+                    m_registry->emplace_or_replace<std::decay_t<decltype(comp)>>(entity, std::move(comp));
                 }
             });
         }
@@ -244,7 +244,7 @@ public:
                 visit(local_entity, comp_id, [&] (auto &&comp) {
                     archive(comp);
                     if (m_registry->valid(local_entity)) {
-                        m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(local_entity, std::move(comp));
+                        m_registry->emplace_or_replace<std::decay_t<decltype(comp)>>(local_entity, std::move(comp));
                     }
                 });
             }
@@ -514,7 +514,7 @@ public:
                 (update_child_entity(comp, member), ...);
 
                 if (m_registry->valid(entity)) {
-                    m_registry->assign_or_replace<std::decay_t<decltype(comp)>>(entity, std::move(comp));
+                    m_registry->emplace_or_replace<std::decay_t<decltype(comp)>>(entity, std::move(comp));
                 }
             });
         }

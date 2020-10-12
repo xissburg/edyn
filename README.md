@@ -31,17 +31,17 @@ Typical physics engines will offer explicit means to create objects such as rigi
 ```cpp
 entt::registry registry;
 auto entity = registry.create();
-registry.assign<edyn::dynamic_tag>(entity);
-registry.assign<edyn::position>(entity, 0, 3, 0);
-registry.assign<edyn::orientation>(entity, edyn::quaternion_axis_angle({0, 1, 0}, edyn::to_radians(30)));
-registry.assign<edyn::linvel>(entity, edyn::vector3_zero);
-registry.assign<edyn::angvel>(entity, 0, 0.314, 0);
+registry.emplace<edyn::dynamic_tag>(entity);
+registry.emplace<edyn::position>(entity, 0, 3, 0);
+registry.emplace<edyn::orientation>(entity, edyn::quaternion_axis_angle({0, 1, 0}, edyn::to_radians(30)));
+registry.emplace<edyn::linvel>(entity, edyn::vector3_zero);
+registry.emplace<edyn::angvel>(entity, 0, 0.314, 0);
 auto mass = edyn::scalar{50};
-registry.assign<edyn::mass>(entity, mass);
-auto &shape = registry.assign<edyn::shape>(entity, edyn::box_shape{0.5, 0.2, 0.4});
-registry.assign<edyn::inertia>(entity, shape.inertia(mass));
-registry.assign<edyn::material>(entity, 0.2, 0.9); // Restitution and friction.
-registry.assign<edyn::linacc>(entity, edyn::gravity_earth);
+registry.emplace<edyn::mass>(entity, mass);
+auto &shape = registry.emplace<edyn::shape>(entity, edyn::box_shape{0.5, 0.2, 0.4});
+registry.emplace<edyn::inertia>(entity, shape.inertia(mass));
+registry.emplace<edyn::material>(entity, 0.2, 0.9); // Restitution and friction.
+registry.emplace<edyn::linacc>(entity, edyn::gravity_earth);
 ```
 
 There's no explicit mention of a rigid body in the code, but during the physics update all entities that have a combination of the components assigned above will be treated as a rigid body and their state will be update over time as expected. The update may be carried as follows:

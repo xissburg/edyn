@@ -11,13 +11,10 @@
  * to the current global time. It's calculated by translating the physics
  * position backwards using `linvel`.
  */
-void print_entities(entt::registry& registry, edyn::scalar dt) {
+void print_entities(entt::registry& registry) {
     auto& world = registry.ctx<edyn::world>();
-    auto step = world.current_step();
-    auto time = step * world.fixed_dt;
 
     printf("================================\n");
-    printf("step %lu, dt %.6f, time %.2f\n", world.current_step(), dt, time);
 
     auto view = registry.view<const edyn::position, const edyn::present_position>();
     view.each([] (auto ent, const auto& pos, const auto& curpos) {
@@ -27,29 +24,29 @@ void print_entities(entt::registry& registry, edyn::scalar dt) {
         // taken is `floor(dt / fixed_dt)`, which could be zero sometimes as well. The
         // presentation position `curpos` should change linearly with dt (because
         // `linvel` is constant in this example).
-        printf("pos    (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), pos.x, pos.y, pos.z);
-        printf("curpos (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), curpos.x, curpos.y, curpos.z);
+        printf("pos    (%d): %.3f, %.3f, %.3f\n", entt::to_integral(ent), pos.x, pos.y, pos.z);
+        printf("curpos (%d): %.3f, %.3f, %.3f\n", entt::to_integral(ent), curpos.x, curpos.y, curpos.z);
     });
-
-    if (time >= 10) {
-        world.quit();
-    }
 }
 
 int main(int argc, char** argv) {
     entt::registry registry;
 
     const auto ent = registry.create();
-    registry.assign<edyn::dynamic_tag>(ent);
-    registry.assign<edyn::position>(ent, 0, 0, 0);
-    registry.assign<edyn::present_position>(ent);
+    registry.emplace<edyn::dynamic_tag>(ent);
+    registry.emplace<edyn::position>(ent, 0, 0, 0);
+    registry.emplace<edyn::present_position>(ent);
     // Set a constant speed that will move the entity 1 unit per step.
-    registry.assign<edyn::linvel>(ent, 0, 1/0.041, 0);
+    registry.emplace<edyn::linvel>(ent, 0, 1/0.041, 0);
 
     auto& world = registry.set<edyn::world>(registry);
-    world.fixed_dt = 0.041;
-    world.update_sink().connect<&print_entities>(registry);
-    world.run();
+    world.m_fixed_dt = 0.041;
+
+    for (;;) {
+        world.update();
+        print_entities(registry);
+        edyn::delay(100);
+    }
 
     return 0;
 }

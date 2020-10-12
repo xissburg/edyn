@@ -2,20 +2,42 @@
 
 namespace edyn {
 
+entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::registry &registry, int priority) {
+    EDYN_ASSERT(con.num_rows + 1 < max_constraint_rows);
+
+    auto row_entity = registry.create();
+    con.row[con.num_rows++] = row_entity;
+    
+    auto &row = registry.emplace<constraint_row>(row_entity);
+    row.entity = con.body;
+    row.priority = priority;
+
+    // Add island node and make it reference the constraint and vice-versa.
+    auto &row_node = registry.emplace<island_node>(row_entity, true);
+    row_node.entities.push_back(entity);
+
+    auto &con_node = registry.get<island_node>(entity);
+    con_node.entities.push_back(row_entity);
+
+    registry.emplace_or_replace<island_node_dirty_flag>(entity);
+
+    return entity;
+}
+
 void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {
     auto& con = registry.get<constraint>(entity);
     
     if (enabled) {
-        registry.reset<disabled_tag>(entity);
+        registry.remove<disabled_tag>(entity);
 
         for (size_t i = 0; i < con.num_rows; ++i) {
-            registry.reset<disabled_tag>(con.row[i]);
+            registry.remove<disabled_tag>(con.row[i]);
         }
     } else {
-        registry.assign_or_replace<disabled_tag>(entity);
+        registry.emplace_or_replace<disabled_tag>(entity);
 
         for (size_t i = 0; i < con.num_rows; ++i) {
-            registry.assign_or_replace<disabled_tag>(con.row[i]);
+            registry.emplace_or_replace<disabled_tag>(con.row[i]);
         }
     }
 }

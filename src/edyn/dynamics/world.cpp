@@ -13,12 +13,10 @@ namespace edyn {
 
 world::world(entt::registry &reg) 
     : m_registry(&reg)
-    , m_sol(reg)
+    , m_solver(reg)
     , m_bphase(reg)
     , m_island_coordinator(reg)
 {
-    m_connections.push_back(bphase.intersect_sink().connect<&world::on_broadphase_intersect>(*this));
-
     job_dispatcher::global().assure_current_queue();
 }
 
@@ -26,11 +24,7 @@ world::~world() {
     
 }
 
-void world::on_broadphase_intersect(entt::entity e0, entt::entity e1) {
-    merge_entities(e0, e1, entt::null);
-}
-
-void world::update(scalar dt) {
+void world::update() {
     // Run jobs scheduled in physics thread.
     job_dispatcher::global().once_current_queue();
 
@@ -43,39 +37,6 @@ void world::update(scalar dt) {
         auto time = (double)performance_counter() / (double)performance_frequency();
         update_presentation(*m_registry, time);
     }
-
-    m_update_signal.publish(dt);
-}
-
-void world::run() {
-    m_running = true;
-
-    const auto freq = performance_frequency();
-    const auto timescale = 1.0 / freq;
-    const auto t0 = performance_counter();
-    auto ti = t0;
-
-    // Use an Integral Controller to calculate the right amount of delay to
-    // keep `dt` as close as possible to `fixed_dt`.
-    const scalar I = 0.5;
-    scalar delay_dt = 0;
-
-    while (running) {
-        const auto t = performance_counter();
-        const auto dt = (t - ti) * timescale;
-        update(dt);
-        ti = t;
-        local_time_ = t * timescale - residual_dt;
-
-        auto err_dt = fixed_dt - dt;
-        delay_dt += err_dt * I;
-
-        delay(delay_dt * 1000);
-    }
-}
-
-void world::quit() {
-    m_running = false;
 }
 
 void world::set_paused(bool paused) {

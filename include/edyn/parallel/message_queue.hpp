@@ -66,11 +66,7 @@ class message_queue {
 
     template<typename Message>
     static auto type() {
-        if constexpr(entt::is_named_type_v<Message>) {
-            return entt::named_type_traits<Message>::value;
-        } else {
-            return message_family::type<Message>;
-        }
+        return entt::type_info<Message>::id();
     }
 
     template<typename Message>
@@ -78,40 +74,18 @@ class message_queue {
         auto wtype = type<Message>();
         typed_wrapper *typedw = nullptr;
 
-        if constexpr(entt::is_named_type_v<Message>) {
-            const auto it = std::find_if(m_wrappers.begin(), m_wrappers.end(), 
-                [wtype] (const auto &candidate) {
-                return candidate.wrapper && candidate.runtime_type == wtype;
-            });
+        const auto it = std::find_if(m_wrappers.begin(), m_wrappers.end(), 
+            [wtype] (const auto &candidate) {
+            return candidate.wrapper && candidate.runtime_type == wtype;
+        });
 
-            if (it == m_wrappers.cend()) {
-                auto lock = std::lock_guard(m_mutex);
-                typedw = &m_wrappers.emplace_back();
-                typedw->wrapper = std::make_unique<signal_wrapper<Message>>();
-                typedw->runtime_type = wtype;
-            } else {
-                typedw = &(*it);
-            }
+        if (it == m_wrappers.cend()) {
+            auto lock = std::lock_guard(m_mutex);
+            typedw = &m_wrappers.emplace_back();
+            typedw->wrapper = std::make_unique<signal_wrapper<Message>>();
+            typedw->runtime_type = wtype;
         } else {
-            if (!(wtype < m_wrappers.size())) {
-                auto lock = std::lock_guard(m_mutex);
-                m_wrappers.resize(wtype + 1);
-            }
-
-            typedw = &m_wrappers[wtype];
-
-            if (typedw->wrapper && typedw->runtime_type != wtype) {
-                auto lock = std::lock_guard(m_mutex);
-                m_wrappers.emplace_back();
-                std::swap(m_wrappers[wtype], m_wrappers.back());
-                typedw = &m_wrappers[wtype];
-            }
-
-            if (!typedw->wrapper) {
-                auto lock = std::lock_guard(m_mutex);
-                typedw->wrapper = std::make_unique<signal_wrapper<Message>>();
-                typedw->runtime_type = wtype;
-            }
+            typedw = &(*it);
         }
 
         return static_cast<signal_wrapper<Message> &>(*typedw->wrapper);

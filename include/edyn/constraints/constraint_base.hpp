@@ -55,7 +55,7 @@ struct constraint_base {
                 constraint &con,
                 entt::registry &reg,
                 scalar dt) -> decltype(std::declval<Target>().init(ent, con, reg)) {
-        static_cast<Target *>(this)->init(ent, con, rel, reg);
+        static_cast<Target *>(this)->init(ent, con, reg);
     }
     
     // Called before the solver iterations start.
@@ -65,7 +65,7 @@ struct constraint_base {
                 constraint &con,
                 entt::registry &reg,
                 scalar dt) -> decltype(std::declval<Target>().prepare(ent, con, reg, dt)) {
-        static_cast<Target *>(this)->prepare(ent, con, rel, reg, dt);
+        static_cast<Target *>(this)->prepare(ent, con, reg, dt);
     }
 
     // Called before solving each iteration.

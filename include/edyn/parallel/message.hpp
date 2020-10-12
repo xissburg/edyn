@@ -8,10 +8,6 @@
 
 namespace edyn::msg {
 
-struct registry_snapshot {
-    decltype(edyn::registry_snapshot(all_components{})) snapshot;
-};
-
 struct set_paused {
     bool paused;
 };

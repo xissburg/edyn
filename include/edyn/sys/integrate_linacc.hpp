@@ -10,8 +10,8 @@
 namespace edyn {
 
 inline void integrate_linacc(entt::registry &registry, scalar dt) {
-    auto view = registry.view<linvel, const linacc, const dynamic_tag>(exclude_global);
-    view.each([&] (auto, linvel &vel, const linacc &acc, [[maybe_unused]] auto) {
+    auto view = registry.view<linvel, linacc, dynamic_tag>(exclude_global);
+    view.each([&] (entt::entity, linvel &vel, linacc &acc) {
         vel += acc * dt;
     });
 }

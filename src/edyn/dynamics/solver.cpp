@@ -115,8 +115,8 @@ scalar solve(constraint_row &row,
 }
 
 void update_inertia(entt::registry &registry) {
-    auto view = registry.view<dynamic_tag, const orientation, const inertia_inv, inertia_world_inv>(exclude_global);
-    view.each([] (auto, auto, const orientation& orn, const inertia_inv &inv_I, inertia_world_inv &inv_IW) {
+    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(exclude_global);
+    view.each([] (auto, orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
     });
@@ -125,13 +125,8 @@ void update_inertia(entt::registry &registry) {
 solver::solver(entt::registry &reg) 
     : registry(&reg)
 {
-    connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
-    connections.push_back(reg.on_destroy<linvel>().
-        connect<entt::overload<void(entt::entity)>(&entt::registry::reset<delta_linvel>)>(reg));
-
-    connections.push_back(reg.on_construct<angvel>().connect<&entt::registry::assign<delta_angvel>>(reg));
-    connections.push_back(reg.on_destroy<angvel>().
-        connect<entt::overload<void(entt::entity)>(&entt::registry::reset<delta_angvel>)>(reg));
+    reg.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
+    reg.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
 }
 
 void solver::update(uint64_t step, scalar dt) {
@@ -140,8 +135,8 @@ void solver::update(uint64_t step, scalar dt) {
     apply_gravity(*registry, dt);
 
     // Setup constraints.
-    auto mass_inv_view = registry->view<const mass_inv, const inertia_world_inv>(exclude_global);
-    auto vel_view = registry->view<const linvel, const angvel>(exclude_global);
+    auto mass_inv_view = registry->view<mass_inv, inertia_world_inv>(exclude_global);
+    auto vel_view = registry->view<linvel, angvel>(exclude_global);
     auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_global);
 
     auto con_view = registry->view<constraint>(exclude_global);
@@ -166,12 +161,12 @@ void solver::update(uint64_t step, scalar dt) {
     });
 
     con_view.each([&] (auto entity, constraint &con) {
-        auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(con.body[0]);
-        auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(con.body[0]);
+        auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(con.body[0]);
+        auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(con.body[0]);
         auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(con.body[0]);
 
-        auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(con.body[1]);
-        auto [linvelB, angvelB] = vel_view.get<const linvel, const angvel>(con.body[1]);
+        auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(con.body[1]);
+        auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(con.body[1]);
         auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(con.body[1]);
 
         for (size_t i = 0; i < con.num_rows; ++i) {
@@ -201,11 +196,11 @@ void solver::update(uint64_t step, scalar dt) {
         });
 
         // Solve rows.
-        row_view.each([&] (auto, auto &row) {
-            auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(row.entity[0]);
+        row_view.each([&] (auto, constraint_row &row) {
+            auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(row.entity[0]);
             auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(row.entity[0]);
 
-            auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(row.entity[1]);
+            auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(row.entity[1]);
             auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(row.entity[1]);
 
             auto delta_impulse = solve(row, dvA, dvB, dwA, dwB);
@@ -216,14 +211,14 @@ void solver::update(uint64_t step, scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    auto linvel_view = registry->view<dynamic_tag, linvel, delta_linvel>(exclude_global);
-    linvel_view.each([] (auto, auto, linvel &vel, delta_linvel &delta) {
+    auto linvel_view = registry->view<linvel, delta_linvel, dynamic_tag>(exclude_global);
+    linvel_view.each([] (auto, linvel &vel, delta_linvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
-    auto angvel_view = registry->view<dynamic_tag, angvel, delta_angvel>(exclude_global);
-    angvel_view.each([] (auto, auto, angvel &vel, delta_angvel &delta) {
+    auto angvel_view = registry->view<angvel, delta_angvel, dynamic_tag>(exclude_global);
+    angvel_view.each([] (auto, angvel &vel, delta_angvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });

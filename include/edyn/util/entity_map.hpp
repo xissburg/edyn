@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <entt/fwd.hpp>
 #include <entt/entity/entity.hpp>
+#include "edyn/config/config.h"
 
 namespace edyn {
 

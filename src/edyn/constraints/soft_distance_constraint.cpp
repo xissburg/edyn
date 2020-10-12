@@ -12,22 +12,18 @@
 
 namespace edyn {
 
-void soft_distance_constraint::init(entt::entity, constraint &con, entt::registry &registry) {
-    con.num_rows = 2;
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        con.row[i] = registry.create();
-        auto &row = registry.assign<constraint_row>(con.row[i]);
-        row.entity = con.body;
-        row.priority = 400;
+void soft_distance_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
+    for (size_t i = 0; i < 2; ++i) {
+        add_constraint_row(entity, con, registry, 400);
     }
 }
 
 void soft_distance_constraint::prepare(entt::entity, constraint &con, 
                                        entt::registry &registry, scalar dt) {
-    auto &posA = registry.get<const position>(con.body[0]);
-    auto &ornA = registry.get<const orientation>(con.body[0]);
-    auto &posB = registry.get<const position>(con.body[1]);
-    auto &ornB = registry.get<const orientation>(con.body[1]);
+    auto &posA = registry.get<position>(con.body[0]);
+    auto &ornA = registry.get<orientation>(con.body[0]);
+    auto &posB = registry.get<position>(con.body[1]);
+    auto &ornB = registry.get<orientation>(con.body[1]);
 
     auto rA = rotate(ornA, pivot[0]);
     auto rB = rotate(ornB, pivot[1]);

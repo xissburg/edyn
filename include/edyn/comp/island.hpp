@@ -45,6 +45,8 @@ struct island_container {
     std::vector<entt::entity> entities;
 };
 
+struct island_node_dirty_flag {};
+
 }
 
 #endif // EDYN_COMP_ISLAND_HPP

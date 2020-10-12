@@ -45,19 +45,20 @@ public:
     void reschedule();
 
     template<typename Comp>
-    void on_destroy_component(entt::entity entity, entt::registry &registry) {
+    void on_destroy_component(entt::registry &registry, entt::entity entity) {
         if (m_importing_snapshot) return;
         m_snapshot_builder.template destroyed<Comp>(entity);
     }
 
     template<typename Comp>
-    void on_replace_component(entt::entity entity, entt::registry &registry, const Comp &comp) {
+    void on_replace_component(entt::registry &registry, entt::entity entity) {
         if (m_importing_snapshot) return;
-        m_snapshot_builder.template updated<Comp>(entity, comp, all_components_entity_pointer_to_member);
+        auto &comp = registry.get<Comp>(entity);
+        m_snapshot_builder.template updated<Comp>(entity, comp);
     }
 
-    void on_construct_constraint(entt::entity, entt::registry &, constraint &);
-    void on_destroy_constraint(entt::entity, entt::registry &);
+    void on_construct_constraint(entt::registry &, entt::entity);
+    void on_destroy_constraint(entt::registry &, entt::entity);
 
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);

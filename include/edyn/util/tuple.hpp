@@ -31,6 +31,17 @@ struct index_of<IndexType, T, U, Ts...> : std::integral_constant<IndexType, Inde
 template<typename IndexType, typename T, typename... Ts>
 static constexpr auto index_of_v = index_of<IndexType, T, Ts...>::value;
 
+/**
+ * Map a `std::tuple<Us...>` to `std::tuple<T<Us>...>`.
+ */
+template<template<typename> class T, typename U>
+struct map_tuple;
+
+template<template<typename> class T, typename... Us>
+struct map_tuple<T, std::tuple<Us...>> {
+    using type = std::tuple<T<Us>...>;
+};
+
 }
 
 #endif // EDYN_UTIL_TUPLE_HPP

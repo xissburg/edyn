@@ -4,11 +4,11 @@
 TEST(integrate_linacc, test) {
     entt::registry registry;
     auto ent = registry.create();
-    registry.assign<edyn::linacc>(ent, edyn::gravity_earth);
-    registry.assign<edyn::linvel>(ent, edyn::vector3_zero);
+    registry.emplace<edyn::linacc>(ent, edyn::gravity_earth);
+    registry.emplace<edyn::linvel>(ent, edyn::vector3_zero);
 
     // Only dynamic entities have their velocity updated.
-    registry.assign<edyn::dynamic_tag>(ent);
+    registry.emplace<edyn::dynamic_tag>(ent);
 
     const edyn::scalar dt = 0.1666;
     const size_t n = 10;

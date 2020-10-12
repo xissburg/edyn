@@ -2,7 +2,7 @@
 #define EDYN_DYNAMICS_ISLAND_UTIL_HPP
 
 #include <entt/fwd.hpp>
-#include "edyn/comp/relation.hpp"
+#include <entt/entity/utility.hpp>
 #include "edyn/math/scalar.hpp"
 #include "edyn/comp/tag.hpp"
 
@@ -13,7 +13,7 @@ namespace edyn {
  * take part in any step of the simulation update, e.g. sleeping and disabled
  * entities.
  */
-constexpr auto exclude_global = entt::exclude_t<sleeping_tag, disabled_tag>{};
+constexpr auto exclude_global = entt::exclude<sleeping_tag, disabled_tag>;
 
 /**
  * Wake up one entity. It wakes up the island where the entity is in.

@@ -3,10 +3,10 @@
 TEST(registry_serialization_test, test_registry_writer_reader) {
     entt::registry reg0;
     auto ent0 = reg0.create();
-    reg0.assign<int>(ent0, 665);
-    reg0.assign<edyn::vector3>(ent0, 3, 2, -1);
+    reg0.emplace<int>(ent0, 665);
+    reg0.emplace<edyn::vector3>(ent0, 3, 2, -1);
     auto ent1 = reg0.create();
-    reg0.assign<edyn::vector3>(ent1, 1, 2, 3);
+    reg0.emplace<edyn::vector3>(ent1, 1, 2, 3);
 
     auto buffer = edyn::memory_output_archive::buffer_type{};
     auto output = edyn::memory_output_archive(buffer);
@@ -52,9 +52,9 @@ TEST(registry_serialization_test, test_registry_export_import) {
     auto child0 = reg0.create();
     auto child1 = reg0.create();
     auto ent0 = reg0.create();
-    reg0.assign<component_with_child>(ent0, child0, 665);
+    reg0.emplace<component_with_child>(ent0, child0, 665);
     auto ent1 = reg0.create();
-    reg0.assign<component_with_children>(ent1, child0, child1, ent0);
+    reg0.emplace<component_with_children>(ent1, child0, child1, ent0);
 
     auto buffer = edyn::memory_output_archive::buffer_type{};
     auto output = edyn::memory_output_archive(buffer);

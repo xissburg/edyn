@@ -1,6 +1,5 @@
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/comp/constraint.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -20,11 +19,12 @@ namespace edyn {
 static
 void update_contact_distances(entt::registry &registry) {
     auto tr_view = registry.view<position, orientation>();
-    auto cp_view = registry.view<contact_point, relation>();
+    auto cp_view = registry.view<contact_point>();
 
-    cp_view.each([&] (auto, contact_point &cp, relation &rel) {
-        auto [posA, ornA] = tr_view.get<position, orientation>(rel.entity[0]);
-        auto [posB, ornB] = tr_view.get<position, orientation>(rel.entity[1]);
+    cp_view.each([&] (auto, contact_point &cp) {
+        auto &manifold = registry.get<contact_manifold>(cp.parent);
+        auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
+        auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
         auto pivotA_world = posA + rotate(ornA, cp.pivotA);
         auto pivotB_world = posB + rotate(ornB, cp.pivotB);
         auto normal_world = rotate(ornB, cp.normalB);
@@ -43,9 +43,9 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
 
 static
 void create_contact_constraint(entt::entity entity, entt::registry &registry, 
-                               contact_point &cp, relation &rel) {
-    auto &materialA = registry.get<material>(rel.entity[0]);
-    auto &materialB = registry.get<material>(rel.entity[1]);
+                               contact_manifold &manifold, contact_point &cp) {
+    auto &materialA = registry.get<material>(manifold.body[0]);
+    auto &materialB = registry.get<material>(manifold.body[1]);
 
     cp.restitution = materialA.restitution * materialB.restitution;
     cp.friction = materialA.friction * materialB.friction;
@@ -62,21 +62,17 @@ void create_contact_constraint(entt::entity entity, entt::registry &registry,
     contact.stiffness = stiffness;
     contact.damping = damping;
 
-    registry.assign<constraint>(entity, contact);
+    registry.emplace<constraint>(entity, manifold.body[0], manifold.body[1], contact);
 }
 
 static
 void contact_point_changed(entt::entity entity, entt::registry &registry, 
-                           contact_point &cp, relation &rel) {
-    auto *con = registry.try_get<constraint>(entity);
-    if (!con) {
-        return;
-    }
-
+                           contact_point &cp) {
+    auto &con = registry.get<constraint>(entity);
     // One of the existing contacts has been replaced. Update its rows.
     // Zero out warm-starting impulses.
-    for (size_t i = 0; i < con->num_rows; ++i) {
-        auto &row = registry.get<constraint_row>(con->row[i]);
+    for (size_t i = 0; i < con.num_rows; ++i) {
+        auto &row = registry.get<constraint_row>(con.row[i]);
         row.impulse = 0;
     }
 }
@@ -110,18 +106,7 @@ size_t find_nearest_contact(const contact_manifold &manifold,
 
 static
 void process_collision(entt::registry &registry, entt::entity entity, 
-                       contact_manifold &manifold, relation &rel, 
-                       const collision_result &result) {
-    // A new relation identical to the manifold's relation is created
-    // for every contact point because every constraint needs a corresponding
-    // relation to refer to the constrained entities. 
-    // Make a copy of the `rel.entity` because `rel` will become an
-    // invalid reference.
-    auto rel_entity = rel.entity;
-
-    // WARNING: referring to `rel` below is not safe because new
-    // relations will be created.
-
+                       contact_manifold &manifold, const collision_result &result) {
     auto cp_view = registry.view<contact_point>();
 
     // Merge new with existing contact points.
@@ -156,7 +141,7 @@ void process_collision(entt::registry &registry, entt::entity entity,
                     manifold.point_entity[idx] = contact_entity;
                     ++manifold.num_points;
 
-                    auto &cp = registry.assign<contact_point>(
+                    auto &cp = registry.emplace<contact_point>(
                         contact_entity, 
                         entity, // parent
                         rp.pivotA, // pivotA
@@ -168,10 +153,8 @@ void process_collision(entt::registry &registry, entt::entity entity,
                         rp.distance // distance
                     );
 
-                    auto &cp_rel = registry.assign<relation>(contact_entity, rel_entity[0], rel_entity[1]);
-
-                    if (registry.has<material>(rel_entity[0]) && registry.has<material>(rel_entity[1])) {
-                        create_contact_constraint(contact_entity, registry, cp, cp_rel);
+                    if (registry.has<material>(manifold.body[0]) && registry.has<material>(manifold.body[1])) {
+                        create_contact_constraint(contact_entity, registry, manifold, cp);
                     }
                 } else {
                     // Replace existing contact point.
@@ -179,7 +162,7 @@ void process_collision(entt::registry &registry, entt::entity entity,
                     auto &cp = cp_view.get(contact_entity);
                     cp.lifetime = 0;
                     merge_point(rp, cp);
-                    contact_point_changed(contact_entity, registry, cp, rel);
+                    contact_point_changed(contact_entity, registry, cp);
                 }
             }
         }
@@ -188,7 +171,7 @@ void process_collision(entt::registry &registry, entt::entity entity,
 
 static
 void prune(entt::registry &registry, entt::entity entity, 
-           contact_manifold &manifold, const relation &rel,
+           contact_manifold &manifold,
            const vector3 &posA, const quaternion &ornA, 
            const vector3 &posB, const quaternion &ornB) {
     constexpr auto threshold_sqr = contact_breaking_threshold * contact_breaking_threshold;
@@ -222,7 +205,7 @@ void prune(entt::registry &registry, entt::entity entity,
 }
 
 static
-void on_destroy_manifold(entt::entity entity, entt::registry &registry) {
+void on_destroy_manifold(entt::registry &registry, entt::entity entity) {
     auto &manifold = registry.get<contact_manifold>(entity);
 
     // Destroy child entities, i.e. contact points.
@@ -234,25 +217,25 @@ void on_destroy_manifold(entt::entity entity, entt::registry &registry) {
 narrowphase::narrowphase(entt::registry &reg)
     : registry(&reg)
 {
-    connections.push_back(registry->on_destroy<contact_manifold>().connect<&on_destroy_manifold>());
+    registry->on_destroy<contact_manifold>().connect<&on_destroy_manifold>();
 }
 
 void narrowphase::update() {
     update_contact_distances(*registry);
 
-    auto view = registry->view<relation, contact_manifold>();
-    view.each([&] (entt::entity ent, relation &rel, contact_manifold &manifold) {
-        if (registry->has<sleeping_tag>(rel.entity[0]) && 
-            registry->has<sleeping_tag>(rel.entity[1])) {
+    auto view = registry->view<contact_manifold>();
+    view.each([&] (entt::entity entity, contact_manifold &manifold) {
+        if (registry->has<sleeping_tag>(manifold.body[0]) && 
+            registry->has<sleeping_tag>(manifold.body[1])) {
             return;
         }
 
-        auto &posA   = registry->get<const position   >(rel.entity[0]);
-        auto &ornA   = registry->get<const orientation>(rel.entity[0]);
-        auto &shapeA = registry->get<const shape      >(rel.entity[0]);
-        auto &posB   = registry->get<const position   >(rel.entity[1]);
-        auto &ornB   = registry->get<const orientation>(rel.entity[1]);
-        auto &shapeB = registry->get<const shape      >(rel.entity[1]);
+        auto &posA   = registry->get<position   >(manifold.body[0]);
+        auto &ornA   = registry->get<orientation>(manifold.body[0]);
+        auto &shapeA = registry->get<shape      >(manifold.body[0]);
+        auto &posB   = registry->get<position   >(manifold.body[1]);
+        auto &ornB   = registry->get<orientation>(manifold.body[1]);
+        auto &shapeB = registry->get<shape      >(manifold.body[1]);
 
         auto result = collision_result{};
         std::visit([&] (auto &&sA) {
@@ -262,8 +245,8 @@ void narrowphase::update() {
             }, shapeB.var);
         }, shapeA.var);
 
-        process_collision(*registry, ent, manifold, rel, result);
-        prune(*registry, ent, manifold, rel, posA, ornA, posB, ornB);
+        process_collision(*registry, entity, manifold, result);
+        prune(*registry, entity, manifold, posA, ornA, posB, ornB);
     });
 }
 

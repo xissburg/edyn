@@ -1,5 +1,6 @@
 #include "edyn/parallel/island_coordinator.hpp"
-#include "edyn/comp/constraint.hpp"
+#include "edyn/parallel/registry_snapshot.hpp"
+#include "edyn/parallel/island_worker.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -7,14 +8,15 @@ namespace edyn {
 island_coordinator::island_coordinator(entt::registry &registry)
     : m_registry(&registry)
 {
-    m_connections.push_back(registry.on_construct<island_node>().connect<&island_coordinator::on_construct_island_node>(*this));
-    m_connections.push_back(registry.on_destroy<island_node>().connect<&island_coordinator::on_destroy_island_node>(*this));
+    registry.on_construct<island_node>().connect<&island_coordinator::on_construct_island_node>(*this);
+    registry.on_destroy<island_node>().connect<&island_coordinator::on_destroy_island_node>(*this);
+    registry.on_destroy<island_container>().connect<&island_coordinator::on_destroy_island_container>(*this);
 }
 
 island_coordinator::~island_coordinator() {
     for (auto &pair : m_island_info_map) {
         auto &info = pair.second;
-        info.m_worker->finish();
+        info.m_worker->terminate();
     }
 
     for (auto &pair : m_island_info_map) {
@@ -23,16 +25,14 @@ island_coordinator::~island_coordinator() {
     }
 }
 
-void island_coordinator::on_construct_island_node(entt::entity entity, entt::registry &registry, island_node &) {
+void island_coordinator::on_construct_island_node(entt::registry &registry, entt::entity entity) {
     if (m_importing_snapshot) return;
+    registry.emplace<island_container>(entity);
     m_new_island_nodes.push_back(entity);
 }
 
-void island_coordinator::on_destroy_island_node(entt::entity entity, entt::registry &registry) {
-    if (m_importing_snapshot) return;
-
+void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<island_node>(entity);
-    m_destroyed_island_nodes.emplace_back(entity, node);
 
     // Remove from connected nodes.
     for (auto other : node.entities) {
@@ -45,17 +45,22 @@ void island_coordinator::on_destroy_island_node(entt::entity entity, entt::regis
     }
 }
 
-void island_coordinator::on_destroy_island_container(entt::entity entity, entt::registry &registry) {
+void island_coordinator::on_destroy_island_container(entt::registry &registry, entt::entity entity) {
     auto &container = registry.get<island_container>(entity);
 
     // Remove from islands.
-    for (auto island_entity : container.entities)) {
+    for (auto island_entity : container.entities) {
         auto &isle = registry.get<island>(island_entity);
         isle.entities.erase(
             std::remove(
                 isle.entities.begin(),
                 isle.entities.end(), entity), 
             isle.entities.end());
+
+        auto &info = m_island_info_map.at(island_entity);
+        auto builder = registry_snapshot_builder(info.m_entity_map);
+        builder.destroyed(entity);
+        info.m_message_queue.send<registry_snapshot>(builder.get_snapshot());
     }
 }
 
@@ -94,8 +99,8 @@ void island_coordinator::init_new_island_nodes() {
             auto &curr_node = m_registry->get<island_node>(entity);
 
             for (auto other : curr_node.entities) {
-                auto already_visited = std::any_of(
-                    connected.begin(), connected.end(), other);
+                auto already_visited = std::find(
+                    connected.begin(), connected.end(), other) != connected.end();
                 if (already_visited) continue;
 
                 // If the other entity is procedural and is already in an island,
@@ -135,27 +140,12 @@ void island_coordinator::init_new_island_nodes() {
         // Send a snapshot containing the new entities to the new island worker.
         auto &info = m_island_info_map.at(island_entity);
         auto builder = registry_snapshot_builder(info.m_entity_map);
-        builder.updated<island>(island_entity, isle, &island::entities);
+        builder.updated<island>(island_entity, isle);
         for (auto entity : connected) {
-            builder.maybe_updated(entity, *m_registry, all_components{}, all_components_entity_pointer_to_member);
+            builder.maybe_updated(entity, *m_registry, all_components{});
         }
-        send_message<registry_snapshot>(island_entity, builder.get_snapshot());
+        info.m_message_queue.send<registry_snapshot>(builder.get_snapshot());
     }
-}
-
-void island_coordinator::destroy_pending_island_nodes() {
-    if (m_destroyed_island_nodes.empty()) return;
-
-    for (auto &node_info : m_destroyed_island_nodes) {
-        for (auto island_entity : node_info.node.island_entities) {
-            auto &info = m_island_info_map.at(island_entity);
-            auto builder = registry_snapshot_builder(info.m_entity_map, all_components{});
-            builder.destroyed(node_info.entity);
-            send_message<decltype(builder)::registry_snapshot_t>(island_entity, builder.get_snapshot());
-        }
-    }
-
-    m_destroyed_island_nodes.clear();
 }
 
 void island_coordinator::init_new_non_procedural_island_node(entt::entity node_entity) {
@@ -182,16 +172,16 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
 
     for (auto island_entity : island_entities) {
         auto &info = m_island_info_map.at(island_entity);
-        auto builder = registry_snapshot_builder(info.m_entity_map, all_components{});
-        builder.updated<island>(island_entity, m_registry->get<island>(island_entity), &island::entities);
-        builder.maybe_updated(node_entity, *m_registry, all_components{}, all_components_entity_pointer_to_member);
-        info.m_message_queue.send<decltype(builder)::registry_snapshot_t>(builder.get_snapshot());
+        auto builder = registry_snapshot_builder(info.m_entity_map);
+        builder.updated<island>(island_entity, m_registry->get<island>(island_entity));
+        builder.maybe_updated(node_entity, *m_registry, all_components{});
+        info.m_message_queue.send<registry_snapshot>(builder.get_snapshot());
     }
 }
 
 entt::entity island_coordinator::create_island() {
     auto entity = m_registry->create();
-    auto &isle = m_registry->assign<island>(entity);
+    auto &isle = m_registry->emplace<island>(entity);
 
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
     auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
@@ -201,19 +191,20 @@ entt::entity island_coordinator::create_island() {
     // `update` function which reschedules itself to be run over and over again.
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
-    auto *worker = new island_worker(entity, wrld.fixed_dt, message_queue_in_out(main_queue_input, isle_queue_output));
+    auto *worker = new island_worker(entity, m_fixed_dt, message_queue_in_out(main_queue_input, isle_queue_output));
 
-    auto info = island_info(worker, message_queue_in_out(isle_queue_input, main_queue_output));
-    m_island_info_map.insert(std::make_pair(entity, info));
+    auto insert_pair = m_island_info_map.emplace(std::make_pair(entity, 
+        island_info(entity, worker, message_queue_in_out(isle_queue_input, main_queue_output))));
+    auto &info = insert_pair.first->second;
 
     // Send over a snapshot containing this island entity to the island worker
     // before it even starts.
     auto builder = registry_snapshot_builder(info.m_entity_map);
-    builder.updated<island>(entity, isle, &island::entities);
+    builder.updated<island>(entity, isle);
     info.m_message_queue.send<registry_snapshot>(builder.get_snapshot());
 
     // Register to receive snapshots.
-    info.sink<registry_snapshot>().connect<&island_coordinator::on_registry_snapshot>(*this);
+    info.registry_snapshot_sink().connect<&island_coordinator::on_registry_snapshot>(*this);
 
     auto j = job();
     j.func = &island_worker_func;
@@ -249,10 +240,10 @@ void island_coordinator::connect_nodes(entt::entity ent0, entt::entity ent1) {
         if (island_entity0 == island_entity1) {
             // Just update nodes.
             auto &info = m_island_info_map.at(island_entity0);
-            auto builder = registry_snapshot_builder(info.m_entity_map, all_components{});
+            auto builder = registry_snapshot_builder(info.m_entity_map);
             builder.updated<island_node>(ent0, *m_registry);   
             builder.updated<island_node>(ent1, *m_registry);   
-            send_message<decltype(builder)::registry_snapshot_t>(island_entity0, builder.get_snapshot());
+            info.m_message_queue.send<registry_snapshot>(builder.get_snapshot());
         } else {
             merge_islands(island_entity0, island_entity1);
         }
@@ -272,13 +263,13 @@ void island_coordinator::connect_nodes(entt::entity ent0, entt::entity ent1) {
         auto island_entity = container.entities.front();
 
         auto &non_procedural_container = m_registry->get<island_container>(non_procedural_entity);
-        auto already_in_island = std::any_of(
+        auto already_in_island = std::find(
             non_procedural_container.entities.begin(),
             non_procedural_container.entities.end(),
-            island_entity);
+            island_entity) != non_procedural_container.entities.end();
 
         auto &info = m_island_info_map.at(island_entity);
-        auto builder = registry_snapshot_builder(info.m_entity_map, all_components{});
+        auto builder = registry_snapshot_builder(info.m_entity_map);
         builder.updated<island_node>(procedural_entity, *m_registry);   
 
         if (already_in_island) {
@@ -286,10 +277,10 @@ void island_coordinator::connect_nodes(entt::entity ent0, entt::entity ent1) {
             builder.updated<island_node>(non_procedural_entity, *m_registry);   
         } else {
             // Add non-procedural to island.
-            builder.maybe_updated(non_procedural_entity, *m_registry, all_components{}, all_components_entity_pointer_to_member);   
+            builder.maybe_updated(non_procedural_entity, *m_registry, all_components{});   
         }
 
-        send_message<decltype(builder)::registry_snapshot_t>(island_entity, builder.get_snapshot());
+        info.m_message_queue.send<registry_snapshot>(builder.get_snapshot());
     }
 }
 
@@ -307,25 +298,38 @@ void island_coordinator::merge_islands(entt::entity island_entity0, entt::entity
 
     // Send snapshot containing moved entities to the first island.
     auto &info0 = m_island_info_map.at(island_entity0);
-    auto builder = registry_snapshot_builder(info0.m_entity_map, all_components{});
-    builder.updated<island>(island_entity0, island0, &island::entities);
+    auto builder = registry_snapshot_builder(info0.m_entity_map);
+    builder.updated<island>(island_entity0, island0);
 
     for (auto ent : island1.entities) {
-        builder.maybe_updated(ent, *m_registry, all_components{}, all_components_entity_pointer_to_member);
+        builder.maybe_updated(ent, *m_registry, all_components{});
     }
 
-    info0.m_message_queue.send<decltype(builder)::registry_snapshot_t>(builder.get_snapshot());
+    info0.m_message_queue.send<registry_snapshot>(builder.get_snapshot());
 
     // Destroy empty island.
     auto &info1 = m_island_info_map.at(island_entity1);
-    info1.m_worker->finish();
+    info1.m_worker->terminate();
     m_island_info_map.erase(island_entity1);
     m_registry->destroy(island_entity1);
 }
 
+void island_coordinator::refresh_dirty_entities() {
+    auto view = m_registry->view<island_container, island_node, island_node_dirty_flag>();
+    view.each([&] (entt::entity entity, island_container &container, island_node &node) {
+        for (auto island_entity : container.entities) {
+            auto &info = m_island_info_map.at(island_entity);
+            auto builder = registry_snapshot_builder(info.m_entity_map);
+            builder.updated(entity, node);
+            info.m_message_queue.send<registry_snapshot>(builder.get_snapshot());
+        }
+    });
+    m_registry->clear<island_node_dirty_flag>();
+}
+
 void island_coordinator::on_registry_snapshot(entt::entity island_entity, const registry_snapshot &snapshot) {
     auto &info = m_island_info_map.at(island_entity);
-    snapshot.import(*m_registry, info.m_entity_map, all_components_entity_pointer_to_member);
+    snapshot.import(*m_registry, info.m_entity_map);
 }
 
 void island_coordinator::update() {
@@ -333,8 +337,8 @@ void island_coordinator::update() {
         pair.second.m_message_queue.update();
     }
 
+    refresh_dirty_entities();
     init_new_island_nodes();
-    destroy_pending_island_nodes();
 }
 
 void island_coordinator::set_paused(bool paused) {

@@ -14,14 +14,17 @@ namespace edyn {
 template<typename T> inline
 void make_constraint(entt::entity entity, entt::registry &registry, T&& c, 
                      entt::entity ent0, entt::entity ent1) {
-    registry.assign<constraint>(entity, std::array<entt::entity, 2>{ent0, ent1}, std::forward<T>(c));
-    registry.assign<island_node>(entity, ent0, ent1);
+    registry.emplace<constraint>(entity, std::array<entt::entity, 2>{ent0, ent1}, std::forward<T>(c));
+    registry.emplace<island_node>(entity, true, std::vector<entt::entity>{ent0, ent1});
     
     auto &node0 = registry.get<island_node>(ent0);
-    node0.siblings.push_back(entity);
+    node0.entities.push_back(entity);
     
     auto &node1 = registry.get<island_node>(ent1);
-    node1.siblings.push_back(entity);
+    node1.entities.push_back(entity);
+
+    registry.emplace_or_replace<island_node_dirty_flag>(ent0);
+    registry.emplace_or_replace<island_node_dirty_flag>(ent1);
 }
 
 template<typename T> inline
@@ -54,6 +57,8 @@ T * try_get_constraint(entt::entity entity, entt::registry &registry) {
     }
     return nullptr;
 }
+
+entt::entity add_constraint_row(entt::entity, constraint &, entt::registry &, int priority = 0);
 
 /**
  * Enables/disables a constraint and its rows.

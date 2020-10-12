@@ -3,23 +3,14 @@
 #include <entt/entt.hpp>
 #include <cstdio>
 
-void print_entities(entt::registry& registry, edyn::scalar dt) {
-    auto& world = registry.ctx<edyn::world>();
-    auto step = world.current_step();   
-    auto time = step * world.fixed_dt;
-
+void print_entities(entt::registry& registry) {
     printf("================================\n");
-    printf("step %lu, dt %.6f, time %.2f\n", step, dt, time);
 
     auto view = registry.view<const edyn::position, const edyn::linvel>();
     view.each([] (auto ent, const auto &pos, const auto &vel) {
-        printf("pos (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), pos.x, pos.y, pos.z);
-        printf("vel (%d): %.3f, %.3f, %.3f\n", entt::to_integer(ent), vel.x, vel.y, vel.z);
+        printf("pos (%d): %.3f, %.3f, %.3f\n", entt::to_integral(ent), pos.x, pos.y, pos.z);
+        printf("vel (%d): %.3f, %.3f, %.3f\n", entt::to_integral(ent), vel.x, vel.y, vel.z);
     });
-
-    if (time >= 10) {
-        world.quit();
-    }                                                                                                                                
 }
 
 int main(int argc, char** argv) {
@@ -27,7 +18,6 @@ int main(int argc, char** argv) {
     // Create an `edyn::world` into the registry's context. THe `edyn::world`
     // must be created before any rigid bodies are added to the registry.
     auto& world = registry.set<edyn::world>(registry);
-    world.update_sink().connect<&print_entities>(registry);
 
     edyn::job_dispatcher::global().start();
 
@@ -42,9 +32,11 @@ int main(int argc, char** argv) {
     def.update_inertia();
     edyn::make_rigidbody(registry, def);
 
-    // Run physics main loop. Could also simply call `world.update(dt)` in
-    // your own main loop.
-    world.run();
+    for (;;) {
+        world.update();
+        print_entities(registry);
+        edyn::delay(100);
+    }
 
     return 0;
 }

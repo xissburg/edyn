@@ -8,42 +8,26 @@
 namespace edyn {
 
 void wakeup(entt::entity entity, entt::registry &registry) {
-    auto &node = registry.get<island_node>(entity);
-    for (auto entity : node.island_entities) {
-        wakeup_island(entity, registry);
+    auto &container = registry.get<island_container>(entity);
+    for (auto island_entity : container.entities) {
+        wakeup_island(island_entity, registry);
     }
 }
 
 void wakeup_island(entt::entity island_ent, entt::registry &registry) {
     // Remove the `sleeping_tag` from all the entities associated with the
     // given island.
-    registry.reset<sleeping_tag>(island_ent);
+    registry.remove<sleeping_tag>(island_ent);
 
     auto &isle = registry.get<island>(island_ent);
     isle.sleep_step = UINT64_MAX;
 
     for (auto e : isle.entities) {
-        registry.reset<sleeping_tag>(e);
-
-        if (auto rel_con = registry.try_get<relation_container>(e)) {
-            for (auto rel_ent : rel_con->entities) {
-                registry.reset<sleeping_tag>(rel_ent);
-
-                // If this relation has an associated constraint, also wake up all
-                // its rows.
-                auto con = registry.try_get<constraint>(rel_ent);
-                if (con) {
-                    for (size_t i = 0; i < con->num_rows; ++i) {
-                        registry.reset<sleeping_tag>(con->row[i]);
-                    }
-                }
-            }
-        }
+        registry.remove<sleeping_tag>(e);
     }
 }
 
 void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
-    auto vel_view = registry.view<dynamic_tag, linvel, angvel>(exclude_global);
     auto island_view = registry.view<island>(exclude_global);
 
     island_view.each([&] (auto ent, auto &isle) {
@@ -76,30 +60,19 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
         if (isle.sleep_step == UINT64_MAX) {
             isle.sleep_step = step;
         } else if ((step - isle.sleep_step) * dt > island_time_to_sleep) {
-            registry.assign<sleeping_tag>(ent);
+            registry.emplace<sleeping_tag>(ent);
 
-            // Assign `sleeping_tag` to all entities in this island and also
-            // to all relations associated with them.
+            // Assign `sleeping_tag` to all entities in this island.
             for (auto e : isle.entities) {
-                auto [v, w] = vel_view.get<linvel, angvel>(e);
-                v = vector3_zero;
-                w = vector3_zero;
-
-                registry.assign<sleeping_tag>(e);
-
-                auto rel_con = registry.get<relation_container>(e);
-                for (auto rel_ent : rel_con.entities) {
-                    registry.assign_or_replace<sleeping_tag>(rel_ent);
-
-                    // If this relation has an associated constraint, assing a
-                    // `sleeping_tag` to all its rows.
-                    auto con = registry.try_get<constraint>(rel_ent);
-                    if (con) {
-                        for (size_t i = 0; i < con->num_rows; ++i) {
-                            registry.assign_or_replace<sleeping_tag>(con->row[i]);
-                        }
-                    }
+                if (auto *v = registry.try_get<linvel>(e)) {
+                    *v = vector3_zero;
                 }
+
+                if (auto *w = registry.try_get<angvel>(e)) {
+                    *w = vector3_zero;
+                }
+
+                registry.emplace<sleeping_tag>(e);
             }
         }
     });
@@ -192,7 +165,7 @@ void island_on_destroy_relation(entt::entity entity, entt::registry &registry) {
     // Split into two islands.
     for (size_t i = 0; i < max_relations; ++i) {
         auto new_island_ent = registry.create();
-        auto &new_isle = registry.assign<island>(new_island_ent);
+        auto &new_isle = registry.emplace<island>(new_island_ent);
 
         for (auto isle_ent : connected_entities[i]) {
             auto isle = registry.get<island>(isle_ent);

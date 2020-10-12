@@ -16,8 +16,8 @@ namespace edyn {
  * @param dt The amount of time that has passed since the last invocation.
  */
 inline void integrate_linvel(entt::registry &registry, scalar dt) {
-    auto view = registry.view<dynamic_tag, position, const linvel>(exclude_global);
-    view.each([&] (auto, auto, position &pos, const linvel &vel) {
+    auto view = registry.view<position, linvel, dynamic_tag>(exclude_global);
+    view.each([&] (entt::entity, position &pos, linvel &vel) {
         pos += vel * dt;
     });
 }

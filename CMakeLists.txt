@@ -59,7 +59,6 @@ conan_basic_setup()
 set(Edyn_SOURCES
     src/edyn/math/geom.cpp
     src/edyn/math/quaternion.cpp
-    src/edyn/collision/simple_broadphase.cpp
     src/edyn/collision/broadphase.cpp
     src/edyn/collision/narrowphase.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
@@ -110,6 +109,8 @@ set(Edyn_SOURCES
     src/edyn/parallel/job_dispatcher.cpp
     src/edyn/parallel/job_queue_scheduler.cpp
     src/edyn/parallel/island_worker.cpp
+    src/edyn/parallel/island_coordinator.cpp
+    src/edyn/parallel/registry_snapshot.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/edyn.cpp
 )

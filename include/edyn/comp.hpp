@@ -12,7 +12,6 @@
 #include "comp/orientation.hpp"
 #include "comp/present_position.hpp"
 #include "comp/present_orientation.hpp"
-#include "comp/relation.hpp"
 #include "comp/constraint.hpp"
 #include "comp/constraint_row.hpp"
 #include "comp/gravity.hpp"
@@ -27,8 +26,8 @@
 namespace edyn {
 
 using all_components = std::tuple<
-    AABB, angvel, collision_filter, relation, relation_container, constraint, constraint_row, 
-    gravity, inertia, inertia_inv, inertia_world_inv, island, island_node, linacc,
+    AABB, angvel, collision_filter, constraint, constraint_row, 
+    gravity, inertia, inertia_inv, inertia_world_inv, island, island_node, island_container, linacc,
     linvel, mass, mass_inv, material, orientation, position,
     shape, contact_manifold, contact_point, dynamic_tag, kinematic_tag, static_tag, sleeping_tag,
     sleeping_disabled_tag, disabled_tag
@@ -38,7 +37,7 @@ using transient_components = std::tuple<
     AABB, angvel, constraint_row, inertia_world_inv, linvel, orientation,
     position
 >;
-
+/* 
 static constexpr auto all_components_entity_pointer_to_member = std::make_tuple(
     &relation::entity, 
     &relation_container::entities,
@@ -48,7 +47,7 @@ static constexpr auto all_components_entity_pointer_to_member = std::make_tuple(
     &island_node::island_entities,
     &contact_manifold::point_entity,
     &contact_point::parent
-);
+); */
 
 }
 

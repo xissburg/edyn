@@ -42,28 +42,25 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
 
-    (m_registry.on_destroy<Component>().connect<&island_worker::on_destroy_component<Component>>(*this), ...);
-    (m_registry.on_replace<Component>().connect<&island_worker::on_replace_component<Component>>(*this), ...);
+    //(m_registry.on_destroy<Component>().connect<&island_worker::on_destroy_component<Component>>(*this), ...);
+    //(m_registry.on_replace<Component>().connect<&island_worker::on_replace_component<Component>>(*this), ...);
     
-    m_registry.on_destroy<island_node>().connect<&island_worker::on_destroy_island_node>(*this);
+    //m_registry.on_destroy<island_node>().connect<&island_worker::on_destroy_island_node>(*this);
 
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
     m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
-
-    // Associate a `contact_manifold` to every broadphase relation that's created.
-    m_bphase.construct_relation_sink().connect<&entt::registry::assign<contact_manifold>>(m_registry);
 }
 
-void island_worker::on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
-    if (m_importing_snapshot) return;
+void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
+    auto &con = registry.get<constraint>(entity);
 
+    // Initialize constraint.
     std::visit([&] (auto &&c) {
-        // Initialize actual constraint.
         c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, registry, 0);
     }, con.var);
 }
 
-void island_worker::on_destroy_constraint(entt::entity entity, entt::registry &registry) {
+void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
     auto &con = registry.get<constraint>(entity);
 
     // Destroy all constraint rows.
@@ -75,7 +72,7 @@ void island_worker::on_destroy_constraint(entt::entity entity, entt::registry &r
 void island_worker::on_registry_snapshot(const registry_snapshot &snapshot) {
     // Import components from main registry.
     m_importing_snapshot = true;
-    snapshot.import(m_registry, m_entity_map, all_components_entity_pointer_to_member);
+    snapshot.import(m_registry, m_entity_map);
     m_importing_snapshot = false;
 }
 
@@ -83,7 +80,7 @@ void island_worker::sync() {
     // Add island and transient components to snapshot before sending it over
     // to the main registry.
     auto &isle = m_registry.get<island>(m_island_entity);
-    m_snapshot_builder.updated<island>(m_island_entity, isle, &island::entities);
+    m_snapshot_builder.updated<island>(m_island_entity, isle);
 
     for (auto entity : isle.entities) {
         m_snapshot_builder.maybe_updated(entity, m_registry, transient_components{});
@@ -162,6 +159,7 @@ void island_worker::do_terminate() {
         auto lock = std::lock_guard(m_terminate_mutex);
         m_terminated.store(true, std::memory_order_relaxed);
     }
+    //m_message_queue.send<msg::island_worker_terminated>();
     m_terminate_cv.notify_one();
 }
 

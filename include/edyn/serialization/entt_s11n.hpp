@@ -12,7 +12,7 @@ void serialize(Archive &archive, entt::entity &entity) {
         archive(i);
         entity = entt::entity{i};
     } else {
-        auto i = entt::to_integer(entity);
+        auto i = entt::to_integral(entity);
         archive(i);
     }
 }
