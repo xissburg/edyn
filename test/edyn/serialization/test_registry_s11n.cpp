@@ -18,7 +18,7 @@ TEST(registry_serialization_test, test_registry_writer_reader) {
     reg0.replace<int>(ent0, 335);
     reg0.replace<edyn::vector3>(ent1, edyn::vector3_zero);
     
-    auto input = edyn::memory_input_archive(buffer);
+    auto input = edyn::memory_input_archive(buffer.data(), buffer.size());
     auto reader = edyn::registry_snapshot_reader<int, edyn::vector3>(reg0);
     reader.serialize(input);
 
@@ -67,7 +67,7 @@ TEST(registry_serialization_test, test_registry_export_import) {
 
     entt::registry reg1;
     edyn::entity_map map;
-    auto input = edyn::memory_input_archive(buffer);
+    auto input = edyn::memory_input_archive(buffer.data(), buffer.size());
     auto importer = edyn::registry_snapshot_importer<component_with_child, component_with_children>(reg1, map);
     importer.serialize(input, &component_with_child::child, &component_with_children::children);
 
@@ -89,7 +89,7 @@ TEST(registry_serialization_test, test_registry_export_import) {
     exporter.updated<component_with_children>(map.remloc(ent1));
     exporter.serialize(output1, &component_with_child::child, &component_with_children::children);
 
-    auto input0 = edyn::memory_input_archive(buffer1);
+    auto input0 = edyn::memory_input_archive(buffer1.data(), buffer1.size());
     auto reader = edyn::registry_snapshot_reader<component_with_child, component_with_children>(reg0);
     reader.serialize(input0);
 

@@ -7,7 +7,7 @@
 #include <memory>
 #include <variant>
 #include <type_traits>
-#include <entt/core/ident.hpp>
+#include "edyn/util/tuple.hpp"
 
 namespace edyn {
 
@@ -97,7 +97,7 @@ namespace internal {
     template<typename Archive, typename... Ts, std::size_t... Indexes>
     void read_variant(Archive& archive, typename entt::identifier<Ts...>::identifier_type id, std::variant<Ts...>& var, std::index_sequence<Indexes...>)
     {
-        ((id == Indexes ? read_variant<std::tuple_element_t<Indexes, typename entt::identifier<Ts...>::tuple_type>>(archive, var) : (void)0), ...);
+        ((id == Indexes ? read_variant<std::tuple_element_t<Indexes, std::tuple<Ts...>>>(archive, var) : (void)0), ...);
     }
 
     template<typename Archive, typename... Ts>
@@ -110,16 +110,14 @@ namespace internal {
 template<typename Archive, typename... Ts>
 void serialize(Archive& archive, std::variant<Ts...>& var)
 {
-    using ID = entt::identifier<Ts...>;
-
     if constexpr(Archive::is_input::value) {
-        typename ID::identifier_type id;
+        size_t id;
         archive(id);
         internal::read_variant(archive, id, var);
     } else {
         std::visit([&archive] (auto &&t) {
             using T = std::decay_t<decltype(t)>;
-            auto id = ID::template type<T>;
+            auto id = index_of_v<T, Ts...>;
             archive(id);
             archive(t);
         }, var);

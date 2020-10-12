@@ -5,7 +5,7 @@ TEST(std_serialization_test, test_variant) {
     auto buffer = edyn::memory_output_archive::buffer_type{};
     auto output = edyn::memory_output_archive(buffer);
     serialize(output, var);
-    auto input = edyn::memory_input_archive(buffer);
+    auto input = edyn::memory_input_archive(buffer.data(), buffer.size());
     auto var_in = std::variant<int, double, std::string>{};
     serialize(input, var_in);
     ASSERT_TRUE(std::holds_alternative<double>(var_in));

@@ -12,6 +12,48 @@
 
 namespace edyn {
 
+class memory_input_archive {
+public:
+    using data_type = uint8_t;
+    using buffer_type = const data_type*;
+    using is_input = std::true_type;
+    using is_output = std::false_type;
+
+    memory_input_archive(buffer_type buffer, size_t size)
+        : m_buffer(buffer)
+        , m_size(size)
+        , m_position(0)
+    {}
+
+    template<typename T>
+    void operator()(T& t) {
+        if constexpr(has_type<T, archive_fundamental_types>::value) {
+            read_bytes(t);
+        } else {
+            serialize(*this, t);
+        }
+    }
+
+    template<typename... Ts>
+    void operator()(Ts&... t) {
+        (operator()(t), ...);
+    }
+
+protected:
+    template<typename T>
+    void read_bytes(T &t) {
+        EDYN_ASSERT(m_position + sizeof(T) <= m_size);
+        auto* buff = reinterpret_cast<const T*>(m_buffer + m_position);
+        t = *buff;
+        m_position += sizeof(T);
+    }
+
+protected:
+    buffer_type m_buffer;
+    const size_t m_size;
+    size_t m_position;
+};
+
 class memory_output_archive {
 public:
     using data_type = uint8_t;
@@ -19,12 +61,12 @@ public:
     using is_input = std::false_type;
     using is_output = std::true_type;
 
-    memory_output_archive(buffer_type &buffer) 
+    memory_output_archive(buffer_type& buffer) 
         : m_buffer(&buffer) 
     {}
 
     template<typename T>
-    void operator()(T &t) {
+    void operator()(T& t) {
         if constexpr(has_type<T, archive_fundamental_types>::value) {
             write_bytes(t);
         } else {
@@ -33,21 +75,7 @@ public:
     }
 
     template<typename... Ts>
-    void operator()(Ts &... t) {
-        (operator()(t), ...);
-    }
-
-    template<typename T>
-    void operator()(T &&t) {
-        if constexpr(has_type<T, archive_fundamental_types>::value) {
-            write_bytes(t);
-        } else {
-            serialize(*this, t);
-        }
-    }
-
-    template<typename... Ts>
-    void operator()(Ts &&... t) {
+    void operator()(Ts&... t) {
         (operator()(t), ...);
     }
 
@@ -101,55 +129,6 @@ protected:
 
     buffer_type m_buffer;
     size_t m_size;
-    size_t m_position;
-};
-
-
-class memory_input_archive {
-public:
-    using data_type = uint8_t;
-    using buffer_type = const data_type*;
-    using is_input = std::true_type;
-    using is_output = std::false_type;
-
-    memory_input_archive(buffer_type buffer, size_t size)
-        : m_buffer(buffer)
-        , m_size(size)
-        , m_position(0)
-    {}
-
-    memory_input_archive(const memory_output_archive::buffer_type &buffer)
-        : m_buffer(buffer.data())
-        , m_size(buffer.size())
-        , m_position(0)
-    {}
-
-    template<typename T>
-    void operator()(T& t) {
-        if constexpr(has_type<T, archive_fundamental_types>::value) {
-            read_bytes(t);
-        } else {
-            serialize(*this, t);
-        }
-    }
-
-    template<typename... Ts>
-    void operator()(Ts&... t) {
-        (operator()(t), ...);
-    }
-
-protected:
-    template<typename T>
-    void read_bytes(T &t) {
-        EDYN_ASSERT(m_position + sizeof(T) <= m_size);
-        auto* buff = reinterpret_cast<const T*>(m_buffer + m_position);
-        t = *buff;
-        m_position += sizeof(T);
-    }
-
-protected:
-    buffer_type m_buffer;
-    const size_t m_size;
     size_t m_position;
 };
 
