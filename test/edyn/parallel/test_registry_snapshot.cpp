@@ -1,6 +1,8 @@
 #include "../common/common.hpp"
 
 TEST(registry_snapshot_test, test_registry_updated_and_import) {
+    edyn::init();
+
     entt::registry reg0;
     auto ent0 = reg0.create();
     reg0.emplace<edyn::orientation>(ent0, 665, 0, 0, 1);
@@ -27,12 +29,7 @@ TEST(registry_snapshot_test, test_registry_updated_and_import) {
 }
 
 TEST(registry_snapshot_test, test_registry_export_import) {
-    entt::meta<edyn::contact_point>().type()
-        .data<&edyn::contact_point::parent>("parent"_hs);
-
-    entt::meta<edyn::island_node>().type()
-        .data<&edyn::island_node::procedural>("procedural"_hs)
-        .data<&edyn::island_node::entities, entt::as_ref_t>("entities"_hs);
+    edyn::init();
 
     entt::registry reg0;
     auto child0 = reg0.create();

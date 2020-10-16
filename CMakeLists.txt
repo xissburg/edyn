@@ -113,6 +113,7 @@ set(Edyn_SOURCES
     src/edyn/parallel/registry_snapshot.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/edyn.cpp
+    src/edyn/init.cpp
 )
 
 if(UNIX)

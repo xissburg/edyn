@@ -45,7 +45,7 @@ static constexpr auto all_components_entity_pointer_to_member = std::make_tuple(
     &constraint_row::entity,
     &island::entities,
     &island_node::island_entities,
-    &contact_manifold::point_entity,
+    &contact_manifold::point,
     &contact_point::parent
 ); */
 

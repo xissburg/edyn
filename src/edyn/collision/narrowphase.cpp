@@ -86,7 +86,7 @@ size_t find_nearest_contact(const contact_manifold &manifold,
     auto nearest_idx = manifold.num_points;
 
     for (size_t i = 0; i < manifold.num_points; ++i) {
-        auto &cp = cp_view.get(manifold.point_entity[i]);
+        auto &cp = cp_view.get(manifold.point[i]);
         auto dA = length_sqr(coll_pt.pivotA - cp.pivotA);
         auto dB = length_sqr(coll_pt.pivotB - cp.pivotB);
 
@@ -117,7 +117,7 @@ void process_collision(entt::registry &registry, entt::entity entity,
         auto nearest_idx = find_nearest_contact(manifold, rp, cp_view);
 
         if (nearest_idx < manifold.num_points) {
-            auto &cp = cp_view.get(manifold.point_entity[nearest_idx]);
+            auto &cp = cp_view.get(manifold.point[nearest_idx]);
             ++cp.lifetime;
             merge_point(rp, cp);
         } else {
@@ -126,7 +126,7 @@ void process_collision(entt::registry &registry, entt::entity entity,
             std::array<vector3, max_contacts> pivots;
             std::array<scalar, max_contacts> distances;
             for (size_t i = 0; i < manifold.num_points; ++i) {
-                auto &cp = cp_view.get(manifold.point_entity[i]);
+                auto &cp = cp_view.get(manifold.point[i]);
                 pivots[i] = cp.pivotA;
                 distances[i] = cp.distance;
             }
@@ -138,7 +138,7 @@ void process_collision(entt::registry &registry, entt::entity entity,
 
                 if (is_new_contact) {
                     auto contact_entity = registry.create();
-                    manifold.point_entity[idx] = contact_entity;
+                    manifold.point[idx] = contact_entity;
                     ++manifold.num_points;
 
                     auto &cp = registry.emplace<contact_point>(
@@ -158,7 +158,7 @@ void process_collision(entt::registry &registry, entt::entity entity,
                     }
                 } else {
                     // Replace existing contact point.
-                    auto contact_entity = manifold.point_entity[idx];
+                    auto contact_entity = manifold.point[idx];
                     auto &cp = cp_view.get(contact_entity);
                     cp.lifetime = 0;
                     merge_point(rp, cp);
@@ -180,7 +180,7 @@ void prune(entt::registry &registry, entt::entity entity,
     // Remove separating contact points.
     for (size_t i = manifold.num_points; i > 0; --i) {
         size_t k = i - 1;
-        auto point_entity = manifold.point_entity[k];
+        auto point_entity = manifold.point[k];
         auto &cp = cp_view.get(point_entity);
         auto pA = posA + rotate(ornA, cp.pivotA);
         auto pB = posB + rotate(ornB, cp.pivotB);
@@ -196,7 +196,7 @@ void prune(entt::registry &registry, entt::entity entity,
             size_t last_idx = manifold.num_points - 1;
             
             if (last_idx != k) {
-                manifold.point_entity[k] = manifold.point_entity[last_idx];
+                manifold.point[k] = manifold.point[last_idx];
             }
 
             --manifold.num_points;
@@ -210,7 +210,7 @@ void on_destroy_manifold(entt::registry &registry, entt::entity entity) {
 
     // Destroy child entities, i.e. contact points.
     for (size_t i = 0; i < manifold.num_points; ++i) {
-        registry.destroy(manifold.point_entity[i]);
+        registry.destroy(manifold.point[i]);
     }
 }
 

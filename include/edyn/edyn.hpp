@@ -1,4 +1,5 @@
 #include "edyn/build_settings.h"
+#include "edyn/init.hpp"
 #include "comp.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
