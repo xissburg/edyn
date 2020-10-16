@@ -14,12 +14,11 @@ void print_entities(entt::registry& registry) {
 }
 
 int main(int argc, char** argv) {
+    edyn::init();
     entt::registry registry;
     // Create an `edyn::world` into the registry's context. THe `edyn::world`
     // must be created before any rigid bodies are added to the registry.
     auto& world = registry.set<edyn::world>(registry);
-
-    edyn::job_dispatcher::global().start();
 
     auto def = edyn::rigidbody_def();
     def.presentation = true;

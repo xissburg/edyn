@@ -19,23 +19,26 @@ namespace edyn {
  */
 class message_queue {
     // Based on `entt::dispatcher`.
-    using message_family = entt::family<struct internal_message_family>;
-
-    struct base_wrapper {
-        virtual ~base_wrapper() = default;
+    struct basic_pool {
+        virtual ~basic_pool() = default;
         virtual void publish() = 0;
+        virtual entt::id_type type_id() const = 0;
     };
 
     template<typename Message>
-    struct signal_wrapper: base_wrapper {
-        using signal_type = entt::sigh<void(const Message &)>;
+    struct pool_handler final: basic_pool {
+        using signal_type = entt::sigh<void(Message &)>;
         using sink_type = typename signal_type::sink_type;
 
         template<typename... Args>
         void push(Args &&... args) {
             // Expected to be called from the producer thread only.
             auto lock = std::lock_guard(m_mutex);
-            m_messages.emplace_back(std::forward<Args>(args)...);
+            if constexpr(std::is_aggregate_v<Message>) {
+                m_messages.push_back(Message{std::forward<Args>(args)...});
+            } else {
+                m_messages.emplace_back(std::forward<Args>(args)...);
+            }
         }
 
         void publish() override {
@@ -53,46 +56,28 @@ class message_queue {
             return entt::sink{m_signal};
         }
 
+        entt::id_type type_id() const ENTT_NOEXCEPT override {
+            return entt::type_info<Message>::id();
+        }
+
     private:
         std::mutex m_mutex;
         signal_type m_signal{};
         std::vector<Message> m_messages;
     };
 
-    struct typed_wrapper {
-        std::unique_ptr<base_wrapper> wrapper;
-        ENTT_ID_TYPE runtime_type;
-    };
-
     template<typename Message>
-    static auto type() {
-        return entt::type_info<Message>::id();
+    pool_handler<Message> & assure() {
+        static_assert(std::is_same_v<Message, std::decay_t<Message>>, "Invalid event type");
+        
+        auto it = std::find_if(m_pools.begin(), m_pools.end(), 
+            [id = entt::type_info<Message>::id()](const auto &cpool) { return id == cpool->type_id(); });
+        return static_cast<pool_handler<Message> &>(it == m_pools.cend() ? 
+            *m_pools.emplace_back(new pool_handler<Message>{}) : **it);
     }
 
     template<typename Message>
-    signal_wrapper<Message> & assure() {
-        auto wtype = type<Message>();
-        typed_wrapper *typedw = nullptr;
-
-        const auto it = std::find_if(m_wrappers.begin(), m_wrappers.end(), 
-            [wtype] (const auto &candidate) {
-            return candidate.wrapper && candidate.runtime_type == wtype;
-        });
-
-        if (it == m_wrappers.cend()) {
-            auto lock = std::lock_guard(m_mutex);
-            typedw = &m_wrappers.emplace_back();
-            typedw->wrapper = std::make_unique<signal_wrapper<Message>>();
-            typedw->runtime_type = wtype;
-        } else {
-            typedw = &(*it);
-        }
-
-        return static_cast<signal_wrapper<Message> &>(*typedw->wrapper);
-    }
-
-    template<typename Message>
-    using sink_type = typename signal_wrapper<Message>::sink_type;
+    using sink_type = typename pool_handler<Message>::sink_type;
 
     template<typename Message>
     sink_type<Message> sink() {
@@ -108,9 +93,9 @@ class message_queue {
     void update() const {
         // Expected to be called from the consumer thread only.
         auto lock = std::shared_lock(m_mutex);
-        for (auto &w : m_wrappers) {
-            if (w.wrapper) {
-                w.wrapper->publish();
+        for (auto &pool : m_pools) {
+            if (pool) {
+                pool->publish();
             }
         }
     }
@@ -119,7 +104,7 @@ class message_queue {
     friend class message_queue_output;
 
     mutable std::shared_mutex m_mutex;
-    std::vector<typed_wrapper> m_wrappers;
+    std::vector<std::unique_ptr<basic_pool>> m_pools;
 };
 
 class message_queue_input {

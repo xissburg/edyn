@@ -30,6 +30,7 @@ void print_entities(entt::registry& registry) {
 }
 
 int main(int argc, char** argv) {
+    edyn::init();
     entt::registry registry;
 
     const auto ent = registry.create();
