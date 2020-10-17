@@ -150,6 +150,8 @@ public:
         if constexpr(sizeof...(Component) <= 1) {
             if constexpr(std::conjunction_v<entt::is_eto_eligible<Component>...>) {
                 insert_entity_mapping(entity);
+                m_snapshot.m_updated_entities.insert(entity);
+                (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.push_back(std::make_pair(entity, Component{})), ...);
             } else {
                 (updated<Component>(entity, registry.get<Component>(entity)), ...);
             }
