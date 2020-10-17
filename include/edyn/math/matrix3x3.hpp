@@ -48,9 +48,9 @@ inline matrix3x3 operator-(const matrix3x3 &m, const matrix3x3 &n) {
 // Multiply two matrices.
 inline matrix3x3 operator*(const matrix3x3 &m, const matrix3x3 &n) {
     return {
-        n.column_dot(0, m.row[0]), n.column_dot(1, m.row[0]), n.column_dot(2, m.row[0]),
-        n.column_dot(0, m.row[1]), n.column_dot(1, m.row[1]), n.column_dot(2, m.row[1]),
-        n.column_dot(0, m.row[2]), n.column_dot(1, m.row[2]), n.column_dot(2, m.row[2])
+        vector3{n.column_dot(0, m.row[1]), n.column_dot(1, m.row[1]), n.column_dot(2, m.row[1])},
+        vector3{n.column_dot(0, m.row[0]), n.column_dot(1, m.row[0]), n.column_dot(2, m.row[0])},
+        vector3{n.column_dot(0, m.row[2]), n.column_dot(1, m.row[2]), n.column_dot(2, m.row[2])}
     };
 }
 
@@ -82,9 +82,9 @@ inline matrix3x3 diagonal(const vector3 &v) {
 // Equivalent to m * diagonal(v).
 inline matrix3x3 scale(const matrix3x3 &m, const vector3 &v) {
     return {
-        m.row[0].x * v.x, m.row[0].y * v.y, m.row[0].z * v.z,
-        m.row[1].x * v.x, m.row[1].y * v.y, m.row[1].z * v.z,
-        m.row[2].x * v.x, m.row[2].y * v.y, m.row[2].z * v.z
+        vector3{m.row[0].x * v.x, m.row[0].y * v.y, m.row[0].z * v.z},
+        vector3{m.row[1].x * v.x, m.row[1].y * v.y, m.row[1].z * v.z},
+        vector3{m.row[2].x * v.x, m.row[2].y * v.y, m.row[2].z * v.z}
     };
 }
 
@@ -101,9 +101,9 @@ inline matrix3x3 matrix3x3_columns(const vector3 &v0,
                                    const vector3 &v1, 
                                    const vector3 &v2) {
     return {
-        v0.x, v1.x, v2.x,
-        v0.y, v1.y, v2.y,
-        v0.z, v1.z, v2.z
+        vector3{v0.x, v1.x, v2.x},
+        vector3{v0.y, v1.y, v2.y},
+        vector3{v0.z, v1.z, v2.z}
     };
 }
 
@@ -116,9 +116,9 @@ inline matrix3x3 to_matrix3x3(const quaternion &q) {
     auto yy = q.y * ys, yz = q.y * zs, zz = q.z * zs;
 
     return {
-        1 - (yy + zz), xy - wz, xz + wy,
-        xy + wz, 1 - (xx + zz), yz - wx,
-        xz - wy, yz + wx, 1 - (xx + yy)
+        vector3{1 - (yy + zz), xy - wz, xz + wy},
+        vector3{xy + wz, 1 - (xx + zz), yz - wx},
+        vector3{xz - wy, yz + wx, 1 - (xx + yy)}
     };
 }
 
