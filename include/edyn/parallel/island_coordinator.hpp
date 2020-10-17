@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_ISLAND_COORDINATOR_HPP
 
 #include <vector>
+#include <memory>
 #include <unordered_map>
 #include <entt/fwd.hpp>
 #include "edyn/parallel/message_queue.hpp"
@@ -33,7 +34,11 @@ class island_coordinator final {
             , m_worker(worker)
             , m_message_queue(message_queue)
         {
-            message_queue.sink<registry_snapshot>().connect<&island_info::on_registry_snapshot>(*this);
+            m_message_queue.sink<registry_snapshot>().connect<&island_info::on_registry_snapshot>(*this);
+        }
+
+        ~island_info() {
+            m_message_queue.sink<registry_snapshot>().disconnect(*this);
         }
 
         auto registry_snapshot_sink() {
@@ -79,7 +84,7 @@ public:
 private:
     entt::registry *m_registry;
     std::vector<entt::scoped_connection> m_connections;
-    std::unordered_map<entt::entity, island_info> m_island_info_map;
+    std::unordered_map<entt::entity, std::unique_ptr<island_info>> m_island_info_map;
 
     std::vector<entt::entity> m_new_island_nodes;
     std::vector<destroyed_island_node_info> m_destroyed_island_nodes;
