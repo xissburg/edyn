@@ -24,8 +24,8 @@ TEST(registry_snapshot_test, test_registry_updated_and_import) {
     builder.get_snapshot().import(reg0, e_map);
 
     ASSERT_EQ(reg0.get<edyn::orientation>(ent0).x, 665);
-    ASSERT_EQ(reg0.get<edyn::position>(ent0), (edyn::position{3, 2, -1}));
-    ASSERT_EQ(reg0.get<edyn::position>(ent1), (edyn::position{1, 2, 3}));
+    ASSERT_EQ(reg0.get<edyn::position>(ent0), (edyn::position{{3, 2, -1}}));
+    ASSERT_EQ(reg0.get<edyn::position>(ent1), (edyn::position{{1, 2, 3}}));
 }
 
 TEST(registry_snapshot_test, test_registry_export_import) {
