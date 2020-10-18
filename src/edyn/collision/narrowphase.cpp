@@ -6,6 +6,8 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/aabb.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collide.hpp"
@@ -152,6 +154,7 @@ void process_collision(entt::registry &registry, entt::entity entity,
                         0, // lifetime
                         rp.distance // distance
                     );
+                    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.push_back(entt::type_index<contact_point>::value());
 
                     if (registry.has<material>(manifold.body[0]) && registry.has<material>(manifold.body[1])) {
                         create_contact_constraint(contact_entity, registry, manifold, cp);
@@ -223,10 +226,18 @@ narrowphase::narrowphase(entt::registry &reg)
 void narrowphase::update() {
     update_contact_distances(*registry);
 
-    auto view = registry->view<contact_manifold>();
-    view.each([&] (entt::entity entity, contact_manifold &manifold) {
+    auto aabb_view = registry->view<AABB>();
+    auto manifold_view = registry->view<contact_manifold>();
+    manifold_view.each([&] (entt::entity entity, contact_manifold &manifold) {
         if (registry->has<sleeping_tag>(manifold.body[0]) && 
             registry->has<sleeping_tag>(manifold.body[1])) {
+            return;
+        }
+
+        auto &aabb0 = registry->get<AABB>(manifold.body[0]);
+        auto &aabb1 = registry->get<AABB>(manifold.body[1]);
+
+        if (!intersect(aabb0, aabb1)) {
             return;
         }
 
