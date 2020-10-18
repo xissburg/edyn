@@ -48,8 +48,8 @@ inline matrix3x3 operator-(const matrix3x3 &m, const matrix3x3 &n) {
 // Multiply two matrices.
 inline matrix3x3 operator*(const matrix3x3 &m, const matrix3x3 &n) {
     return {
-        vector3{n.column_dot(0, m.row[1]), n.column_dot(1, m.row[1]), n.column_dot(2, m.row[1])},
         vector3{n.column_dot(0, m.row[0]), n.column_dot(1, m.row[0]), n.column_dot(2, m.row[0])},
+        vector3{n.column_dot(0, m.row[1]), n.column_dot(1, m.row[1]), n.column_dot(2, m.row[1])},
         vector3{n.column_dot(0, m.row[2]), n.column_dot(1, m.row[2]), n.column_dot(2, m.row[2])}
     };
 }
