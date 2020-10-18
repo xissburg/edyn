@@ -343,8 +343,10 @@ void island_coordinator::refresh_dirty_entities() {
 }
 
 void island_coordinator::on_registry_snapshot(entt::entity island_entity, const registry_snapshot &snapshot) {
+    m_importing_snapshot = true;
     auto &info = m_island_info_map.at(island_entity);
     snapshot.import(*m_registry, info->m_entity_map);
+    m_importing_snapshot = false;
 }
 
 void island_coordinator::update() {
