@@ -25,6 +25,8 @@ void make_constraint(entt::entity entity, entt::registry &registry, T&& con,
 
     registry.get_or_emplace<island_node_dirty>(ent0).indexes.push_back(entt::type_index<island_node>::value());
     registry.get_or_emplace<island_node_dirty>(ent1).indexes.push_back(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(entity).indexes.push_back(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(entity).indexes.push_back(entt::type_index<constraint>::value());
 }
 
 template<typename T> inline
