@@ -109,6 +109,8 @@ void island_worker::update() {
         }
     }
 
+    refresh_dirty_entities();
+
     // Reschedule this job.
     reschedule();
 }
@@ -122,6 +124,18 @@ void island_worker::step() {
     isle.timestamp += m_fixed_dt;
 
     sync();
+}
+
+void island_worker::refresh_dirty_entities() {
+    auto view = m_registry.view<island_node_dirty>();
+    view.each([&] (entt::entity entity, island_node_dirty &dirty) {
+        auto builder = registry_snapshot_builder(m_entity_map);
+        builder.updated(entity, m_registry, 
+            dirty.indexes.begin(), dirty.indexes.end(), 
+            all_components{});
+        m_message_queue.send<registry_snapshot>(builder.get_snapshot());
+    });
+    m_registry.clear<island_node_dirty>();
 }
 
 void island_worker::reschedule() {

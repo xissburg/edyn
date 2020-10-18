@@ -27,6 +27,7 @@ void island_worker_func(job::data_type &);
 
 class island_worker final {
 
+    void refresh_dirty_entities();
     void do_terminate();
 
 public:
