@@ -83,7 +83,10 @@ void island_worker::sync() {
     m_snapshot_builder.updated<island>(m_island_entity, isle);
 
     for (auto entity : isle.entities) {
-        m_snapshot_builder.maybe_updated(entity, m_registry, transient_components{});
+        auto &node = m_registry.get<island_node>(entity);
+        if (node.procedural) {
+            m_snapshot_builder.maybe_updated(entity, m_registry, transient_components{});
+        }
     }
 
     m_message_queue.send<registry_snapshot>(m_snapshot_builder.get_snapshot());
