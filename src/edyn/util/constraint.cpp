@@ -21,7 +21,7 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
 
     registry.get_or_emplace<island_node_dirty>(entity).indexes.push_back(entt::type_index<island_node>::value());
 
-    return entity;
+    return row_entity;
 }
 
 void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {
