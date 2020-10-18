@@ -10,7 +10,7 @@ namespace edyn {
 static constexpr size_t max_constrained_entities = 2;
 
 struct constraint_row {
-    std::array<entt::entity, max_constrained_entities> entity;;
+    std::array<entt::entity, max_constrained_entities> entity;
     std::array<vector3, max_constrained_entities * 2> J;
     scalar error;
     scalar lower_limit;
