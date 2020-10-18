@@ -79,7 +79,7 @@ inline vector3 operator*(const vector3 &v, const vector3 &w) {
 }
 
 // Multiply vector by scalar.
-inline vector3 operator*(const vector3& v, scalar s) {
+inline constexpr vector3 operator*(const vector3& v, scalar s) {
     return {v.x * s, v.y * s, v.z * s};
 }
 
