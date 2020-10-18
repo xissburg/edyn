@@ -129,7 +129,7 @@ solver::solver(entt::registry &reg)
     reg.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
 }
 
-void solver::update(uint64_t step, scalar dt) {
+void solver::update(scalar dt) {
     // Apply forces and acceleration.
     integrate_linacc(*registry, dt);
     apply_gravity(*registry, dt);
@@ -138,8 +138,9 @@ void solver::update(uint64_t step, scalar dt) {
     auto mass_inv_view = registry->view<mass_inv, inertia_world_inv>(exclude_global);
     auto vel_view = registry->view<linvel, angvel>(exclude_global);
     auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_global);
-
     auto con_view = registry->view<constraint>(exclude_global);
+    auto row_view = registry->view<constraint_row>(exclude_global);
+
     con_view.each([&] (auto entity, constraint &con) {
         std::visit([&] (auto &&c) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *registry, dt);
@@ -160,7 +161,7 @@ void solver::update(uint64_t step, scalar dt) {
         auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(con.body[1]);
 
         for (size_t i = 0; i < con.num_rows; ++i) {
-            auto &row = registry->get<constraint_row>(con.row[i]);
+            auto &row = row_view.get(con.row[i]);
             EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
             prepare(row, 
                     inv_mA, inv_mB, 
@@ -175,8 +176,6 @@ void solver::update(uint64_t step, scalar dt) {
     });
 
     // Solve constraints.
-    auto row_view = registry->view<constraint_row>(exclude_global);
-
     for (uint32_t i = 0; i < iterations; ++i) {
         // Prepare constraints for iteration.
         con_view.each([&] (auto entity, constraint &con) {
@@ -195,8 +194,8 @@ void solver::update(uint64_t step, scalar dt) {
 
             auto delta_impulse = solve(row, dvA, dvB, dwA, dwB);
             apply_impulse(delta_impulse, *registry, row, 
-                            inv_mA, inv_mB, inv_IA, inv_IB, 
-                            dvA, dvB, dwA, dwB);
+                          inv_mA, inv_mB, inv_IA, inv_IB, 
+                          dvA, dvB, dwA, dwB);
         });
     }
 

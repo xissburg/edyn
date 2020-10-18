@@ -10,7 +10,7 @@ class solver {
 public:
     solver(entt::registry &);
 
-    void update(uint64_t step, scalar dt);
+    void update(scalar dt);
 
     uint32_t iterations {10};
 

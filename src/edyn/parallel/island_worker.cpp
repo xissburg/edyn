@@ -31,7 +31,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_paused(false)
     , m_bphase(m_registry)
     , m_nphase(m_registry)
-    , m_sol(m_registry)
+    , m_solver(m_registry)
     , m_snapshot_builder(m_entity_map)
     , m_importing_snapshot(false)
 {
@@ -77,13 +77,13 @@ void island_worker::on_registry_snapshot(const registry_snapshot &snapshot) {
 }
 
 void island_worker::sync() {
-    // Add island and transient components to snapshot before sending it over
-    // to the main registry.
     auto &isle = m_registry.get<island>(m_island_entity);
     m_snapshot_builder.updated<island>(m_island_entity, isle);
 
+    // Add transient components of procedural nodes to snapshot.
     for (auto entity : isle.entities) {
         auto &node = m_registry.get<island_node>(entity);
+        // TODO: perhaps remove `island_node::procedural` and use a tag instead.
         if (node.procedural) {
             m_snapshot_builder.maybe_updated(entity, m_registry, transient_components{});
         }
@@ -116,7 +116,7 @@ void island_worker::update() {
 void island_worker::step() {
     m_bphase.update();
     m_nphase.update();
-    m_sol.update(0, m_fixed_dt);
+    m_solver.update(m_fixed_dt);
 
     auto &isle = m_registry.get<island>(m_island_entity);
     isle.timestamp += m_fixed_dt;

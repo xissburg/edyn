@@ -76,7 +76,7 @@ private:
     entity_map m_entity_map;
     broadphase m_bphase;
     narrowphase m_nphase;
-    solver m_sol;
+    solver m_solver;
     message_queue_in_out m_message_queue;
     double m_fixed_dt;
     bool m_paused;
