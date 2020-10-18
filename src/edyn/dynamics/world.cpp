@@ -1,13 +1,8 @@
-#include <type_traits>
 #include "edyn/dynamics/world.hpp"
 #include "edyn/sys/update_presentation.hpp"
-#include "edyn/time/time.hpp"
-#include "edyn/comp.hpp"
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
-#include "edyn/serialization/s11n.hpp"
-#include "edyn/dynamics/island_util.hpp"
-#include "edyn/parallel/registry_snapshot.hpp"
+#include "edyn/time/time.hpp"
+#include <entt/entt.hpp>
 
 namespace edyn {
 

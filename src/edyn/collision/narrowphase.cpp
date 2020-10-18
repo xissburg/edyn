@@ -62,7 +62,7 @@ void create_contact_constraint(entt::entity entity, entt::registry &registry,
     contact.stiffness = stiffness;
     contact.damping = damping;
 
-    registry.emplace<constraint>(entity, manifold.body[0], manifold.body[1], contact);
+    make_constraint(entity, registry, std::move(contact), manifold.body[0], manifold.body[1]);
 }
 
 static

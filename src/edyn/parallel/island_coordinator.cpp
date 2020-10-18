@@ -59,6 +59,7 @@ void island_coordinator::on_destroy_island_container(entt::registry &registry, e
 
         auto &info = m_island_info_map.at(island_entity);
         auto builder = registry_snapshot_builder(info->m_entity_map);
+        builder.updated(island_entity, isle);
         builder.destroyed(entity);
         info->m_message_queue.send<registry_snapshot>(builder.get_snapshot());
     }
@@ -315,16 +316,18 @@ void island_coordinator::merge_islands(entt::entity island_entity0, entt::entity
 }
 
 void island_coordinator::refresh_dirty_entities() {
-    auto view = m_registry->view<island_container, island_node, island_node_dirty_flag>();
-    view.each([&] (entt::entity entity, island_container &container, island_node &node) {
+    auto view = m_registry->view<island_container, island_node_dirty>();
+    view.each([&] (entt::entity entity, island_container &container, island_node_dirty &dirty) {
         for (auto island_entity : container.entities) {
             auto &info = m_island_info_map.at(island_entity);
             auto builder = registry_snapshot_builder(info->m_entity_map);
-            builder.updated(entity, node);
+            builder.updated(entity, *m_registry, 
+                dirty.indexes.begin(), dirty.indexes.end(), 
+                all_components{});
             info->m_message_queue.send<registry_snapshot>(builder.get_snapshot());
         }
     });
-    m_registry->clear<island_node_dirty_flag>();
+    m_registry->clear<island_node_dirty>();
 }
 
 void island_coordinator::on_registry_snapshot(entt::entity island_entity, const registry_snapshot &snapshot) {

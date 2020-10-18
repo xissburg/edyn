@@ -26,8 +26,8 @@
 namespace edyn {
 
 using all_components = std::tuple<
-    AABB, angvel, collision_filter, constraint, constraint_row, 
-    gravity, inertia, inertia_inv, inertia_world_inv, island, island_node, island_container, linacc,
+    island, island_node, island_container, AABB, angvel, collision_filter, constraint, constraint_row, 
+    gravity, inertia, inertia_inv, inertia_world_inv, linacc,
     linvel, mass, mass_inv, material, orientation, position,
     shape, contact_manifold, contact_point, dynamic_tag, kinematic_tag, static_tag, sleeping_tag,
     sleeping_disabled_tag, disabled_tag

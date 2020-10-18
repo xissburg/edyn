@@ -19,7 +19,7 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     auto &con_node = registry.get<island_node>(entity);
     con_node.entities.push_back(row_entity);
 
-    registry.emplace_or_replace<island_node_dirty_flag>(entity);
+    registry.get_or_emplace<island_node_dirty>(entity).indexes.push_back(entt::type_index<island_node>::value());
 
     return entity;
 }

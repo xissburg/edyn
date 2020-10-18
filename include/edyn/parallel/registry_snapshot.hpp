@@ -161,6 +161,23 @@ public:
     }
 
     template<typename... Component>
+    void updated(entt::entity entity, entt::registry &registry, entt::id_type id) {
+        ((entt::type_index<Component>::value() == id ? updated<Component>(entity, registry) : (void)0), ...);
+    }
+
+    template<typename... Component>
+    void updated(entt::entity entity, entt::registry &registry, entt::id_type id, std::tuple<Component...>) {
+        updated<Component...>(entity, registry, id);
+    }
+
+    template<typename... Component, typename It>
+    void updated(entt::entity entity, entt::registry &registry, It first, It last, std::tuple<Component...>) {
+        for (auto it = first; it != last; ++it) {
+            updated<Component...>(entity, registry, *it);
+        }
+    }
+
+    template<typename... Component>
     void maybe_updated(entt::entity entity, entt::registry &registry) {
         ((registry.has<Component>(entity) ? updated<Component>(entity, registry) : (void)0), ...);
     }

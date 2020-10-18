@@ -12,10 +12,10 @@
 namespace edyn {
 
 template<typename T> inline
-void make_constraint(entt::entity entity, entt::registry &registry, T&& c, 
+void make_constraint(entt::entity entity, entt::registry &registry, T&& con, 
                      entt::entity ent0, entt::entity ent1) {
-    registry.emplace<constraint>(entity, std::array<entt::entity, 2>{ent0, ent1}, std::forward<T>(c));
     registry.emplace<island_node>(entity, true, std::vector<entt::entity>{ent0, ent1});
+    registry.emplace<constraint>(entity, std::array<entt::entity, 2>{ent0, ent1}, std::forward<T>(con));
     
     auto &node0 = registry.get<island_node>(ent0);
     node0.entities.push_back(entity);
@@ -23,15 +23,15 @@ void make_constraint(entt::entity entity, entt::registry &registry, T&& c,
     auto &node1 = registry.get<island_node>(ent1);
     node1.entities.push_back(entity);
 
-    registry.emplace_or_replace<island_node_dirty_flag>(ent0);
-    registry.emplace_or_replace<island_node_dirty_flag>(ent1);
+    registry.get_or_emplace<island_node_dirty>(ent0).indexes.push_back(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(ent1).indexes.push_back(entt::type_index<island_node>::value());
 }
 
 template<typename T> inline
-entt::entity make_constraint(entt::registry &registry, T&& c, 
+entt::entity make_constraint(entt::registry &registry, T&& con, 
                              entt::entity ent0, entt::entity ent1) {
     auto ent = registry.create();
-    make_constraint<T>(ent, registry, std::forward<T>(c), ent0, ent1);
+    make_constraint<T>(ent, registry, std::forward<T>(con), ent0, ent1);
     return ent;
 }
 

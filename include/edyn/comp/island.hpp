@@ -45,7 +45,9 @@ struct island_container {
     std::vector<entt::entity> entities;
 };
 
-struct island_node_dirty_flag {};
+struct island_node_dirty {
+    std::vector<entt::id_type> indexes;
+};
 
 }
 

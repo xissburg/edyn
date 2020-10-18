@@ -5,12 +5,13 @@
 #include <mutex>
 #include <vector>
 #include <unordered_map>
-#include <entt/entt.hpp>
+#include <entt/fwd.hpp>
 
 #include "solver.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/parallel/registry_snapshot.hpp"
 
 namespace edyn {
 
@@ -25,6 +26,13 @@ public:
 
     void set_paused(bool);
     void step();
+
+    template<typename... Component>
+    void refresh(entt::entity entity) {
+        static_assert(sizeof...(Component) > 0);
+        auto &dirty = m_registry->get_or_emplace<island_node_dirty>(entity);
+        (dirty.indexes.push_back(entt::type_index<Component>::value()), ...);
+    }
 
     void on_broadphase_intersect(entt::entity, entt::entity);
 
