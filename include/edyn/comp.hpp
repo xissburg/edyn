@@ -35,7 +35,7 @@ using all_components = std::tuple<
 
 using transient_components = std::tuple<
     AABB, angvel, constraint_row, inertia_world_inv, linvel, orientation,
-    position
+    position, contact_point
 >;
 /* 
 static constexpr auto all_components_entity_pointer_to_member = std::make_tuple(
