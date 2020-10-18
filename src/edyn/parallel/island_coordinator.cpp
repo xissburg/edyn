@@ -77,7 +77,7 @@ void island_coordinator::init_new_island_nodes() {
         }
 
         // Find connected components to build new islands for procedural entities.
-        entt::entity island_entity = entt::null;
+        std::unordered_set<entt::entity> island_entities;
         std::vector<entt::entity> connected;
         std::vector<entt::entity> to_visit;
         to_visit.push_back(node_entity);
@@ -111,10 +111,8 @@ void island_coordinator::init_new_island_nodes() {
                 if (other_node.procedural && !other_container.entities.empty()) {
                     // Procedural entity must be in only one island.
                     EDYN_ASSERT(other_container.entities.size() == 1);
-                    // If another procedural entity that is already in an island is
-                    // found, it must be in the same island that was found earlier.
-                    EDYN_ASSERT(island_entity == entt::null || island_entity == other_container.entities.front());
-                    island_entity = other_container.entities.front();
+                    auto island_entity = other_container.entities.front();
+                    island_entities.insert(island_entity);
                     // This entity must not be visited because it is already in an
                     // island and thus would be added again, plus it'd be wasteful
                     // to visit the entire island here.
@@ -124,11 +122,17 @@ void island_coordinator::init_new_island_nodes() {
             }
         }
 
-        if (island_entity == entt::null) {
-            // Need to create a new island for the connected entities.
-            island_entity = create_island();
-        }
+        // If there's more than one island being connected through the new
+        // entities, they must be merged into one.
+        if (island_entities.size() > 1) {
+            // Merges all into the first island in `island_entities`.
+            merge_islands(island_entities);
+        } 
 
+        // If there were multiple islands, they have been merged into the first
+        // island in `island_entities` thus insert the new entities in it. Or 
+        // create a new island if there is none.
+        auto island_entity = island_entities.empty() ? create_island() : *island_entities.begin();
         auto &isle = m_registry->get<island>(island_entity);
 
         // Insert connected entities into island.
@@ -246,7 +250,7 @@ void island_coordinator::connect_nodes(entt::entity ent0, entt::entity ent1) {
             builder.updated<island_node>(ent1, *m_registry);   
             info->m_message_queue.send<registry_snapshot>(builder.get_snapshot());
         } else {
-            merge_islands(island_entity0, island_entity1);
+            merge_islands(std::unordered_set<entt::entity>{island_entity0, island_entity1});
         }
     } else {
         // Add non-procedural entity to island.
@@ -285,34 +289,42 @@ void island_coordinator::connect_nodes(entt::entity ent0, entt::entity ent1) {
     }
 }
 
-void island_coordinator::merge_islands(entt::entity island_entity0, entt::entity island_entity1) {
-    EDYN_ASSERT(island_entity0 != island_entity1);
-    auto &island0 = m_registry->get<island>(island_entity0);
-    auto &island1 = m_registry->get<island>(island_entity1);
+void island_coordinator::merge_islands(const std::unordered_set<entt::entity> &island_entities) {
+    EDYN_ASSERT(island_entities.size() > 1);
+    auto island_entity = *island_entities.begin();
+    auto &isle = m_registry->get<island>(island_entity);
+    std::vector<entt::entity> other_entities;
 
-    for (auto ent : island1.entities) {
-        island0.entities.push_back(ent);
-        auto &container = m_registry->get<island_container>(ent);
-        container.entities.clear();
-        container.entities.push_back(island_entity0);
+    for (auto it = std::next(island_entities.begin()); it != island_entities.end(); ++it) {
+        auto &other_isle = m_registry->get<island>(*it);
+        for (auto ent : other_isle.entities) {
+            other_entities.push_back(ent);
+            isle.entities.push_back(ent);
+            auto &container = m_registry->get<island_container>(ent);
+            container.entities.clear();
+            container.entities.push_back(island_entity);
+        }
     }
 
     // Send snapshot containing moved entities to the first island.
-    auto &info0 = m_island_info_map.at(island_entity0);
-    auto builder = registry_snapshot_builder(info0->m_entity_map);
-    builder.updated<island>(island_entity0, island0);
+    auto &info = m_island_info_map.at(island_entity);
+    auto builder = registry_snapshot_builder(info->m_entity_map);
+    builder.updated<island>(island_entity, isle);
 
-    for (auto ent : island1.entities) {
+    for (auto ent : other_entities) {
         builder.maybe_updated(ent, *m_registry, all_components{});
     }
 
-    info0->m_message_queue.send<registry_snapshot>(builder.get_snapshot());
+    info->m_message_queue.send<registry_snapshot>(builder.get_snapshot());
 
-    // Destroy empty island.
-    auto &info1 = m_island_info_map.at(island_entity1);
-    info1->m_worker->terminate();
-    m_island_info_map.erase(island_entity1);
-    m_registry->destroy(island_entity1);
+    // Destroy empty islands.
+    for (auto it = std::next(island_entities.begin()); it != island_entities.end(); ++it) {
+        auto other_isle_entity = *it;
+        auto &info1 = m_island_info_map.at(other_isle_entity);
+        info1->m_worker->terminate();
+        m_island_info_map.erase(other_isle_entity);
+        m_registry->destroy(other_isle_entity);
+    }
 }
 
 void island_coordinator::refresh_dirty_entities() {

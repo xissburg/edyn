@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <entt/fwd.hpp>
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/comp/island.hpp"
@@ -72,7 +73,7 @@ public:
 
     void connect_nodes(entt::entity, entt::entity);
     void disconnect_nodes(entt::entity, entt::entity);
-    void merge_islands(entt::entity, entt::entity);
+    void merge_islands(const std::unordered_set<entt::entity> &);
 
     void update();
 
