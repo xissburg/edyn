@@ -151,16 +151,6 @@ void solver::update(uint64_t step, scalar dt) {
     });
 
     con_view.each([&] (auto entity, constraint &con) {
-        std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *registry, dt);
-        }, con.var);
-    });
-
-    registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
-        return lhs.priority > rhs.priority;
-    });
-
-    con_view.each([&] (auto entity, constraint &con) {
         auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(con.body[0]);
         auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(con.body[0]);
         auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(con.body[0]);
@@ -230,7 +220,7 @@ void solver::update(uint64_t step, scalar dt) {
     // Update world-space moment of inertia.
     update_inertia(*registry);
 
-    put_islands_to_sleep(*registry, step, dt);
+    //put_islands_to_sleep(*registry, step, dt);
 
     //clear_kinematic_velocities(*registry);
 }
