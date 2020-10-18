@@ -1,11 +1,10 @@
 #ifndef EDYN_COLLISION_BROADPHASE_HPP
 #define EDYN_COLLISION_BROADPHASE_HPP
 
-#include <entt/fwd.hpp>
-#include <entt/signal/sigh.hpp>
 #include <map>
 #include <vector>
-#include <utility>
+#include <entt/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 
 namespace edyn {
 
