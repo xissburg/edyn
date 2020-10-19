@@ -27,7 +27,6 @@ void island_worker_func(job::data_type &);
 
 class island_worker final {
 
-    void refresh_dirty_entities();
     void do_terminate();
 
 public:
@@ -60,6 +59,9 @@ public:
 
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
+    
+    void on_construct_island_node(entt::registry &, entt::entity);
+    void on_destroy_island_node(entt::registry &, entt::entity);
 
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);

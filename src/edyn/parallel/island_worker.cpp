@@ -42,10 +42,8 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
 
-    //(m_registry.on_destroy<Component>().connect<&island_worker::on_destroy_component<Component>>(*this), ...);
-    //(m_registry.on_replace<Component>().connect<&island_worker::on_replace_component<Component>>(*this), ...);
-    
-    //m_registry.on_destroy<island_node>().connect<&island_worker::on_destroy_island_node>(*this);
+    m_registry.on_construct<island_node>().connect<&island_worker::on_construct_island_node>(*this);
+    m_registry.on_destroy<island_node>().connect<&island_worker::on_destroy_island_node>(*this);
 
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
     m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
@@ -69,6 +67,33 @@ void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity
     }
 }
 
+void island_worker::on_construct_island_node(entt::registry &registry, entt::entity entity) {
+    if (m_importing_snapshot) return;
+
+    auto &container = registry.emplace<island_container>(entity);
+    container.entities.push_back(m_island_entity);
+
+    auto &isle = registry.get<island>(m_island_entity);
+    isle.entities.push_back(entity);
+
+    m_snapshot_builder.maybe_updated(entity, registry, all_components{});
+    m_snapshot_builder.updated<island>(m_island_entity, isle);
+}
+
+void island_worker::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
+    if (m_importing_snapshot) return;
+
+    auto &isle = registry.get<island>(m_island_entity);
+    isle.entities.erase(
+        std::remove(
+            isle.entities.begin(),
+            isle.entities.end(), entity),
+        isle.entities.end());
+
+    m_snapshot_builder.destroyed(entity);
+    m_snapshot_builder.updated<island>(m_island_entity, isle);
+}
+
 void island_worker::on_registry_snapshot(const registry_snapshot &snapshot) {
     // Import components from main registry.
     m_importing_snapshot = true;
@@ -78,7 +103,6 @@ void island_worker::on_registry_snapshot(const registry_snapshot &snapshot) {
 
 void island_worker::sync() {
     auto &isle = m_registry.get<island>(m_island_entity);
-    m_snapshot_builder.updated<island>(m_island_entity, isle);
 
     // Add transient components of procedural nodes to snapshot.
     for (auto entity : isle.entities) {
@@ -89,10 +113,18 @@ void island_worker::sync() {
         }
     }
 
+    auto view = m_registry.view<island_node_dirty>();
+    view.each([&] (entt::entity entity, island_node_dirty &dirty) {
+        m_snapshot_builder.updated(entity, m_registry, 
+            dirty.indexes.begin(), dirty.indexes.end(), 
+            all_components{});
+    });
+
     m_message_queue.send<registry_snapshot>(m_snapshot_builder.get_snapshot());
 
     // Clear snapshot for the next run.
     m_snapshot_builder.clear();
+    m_registry.clear<island_node_dirty>();
 }
 
 void island_worker::update() {
@@ -109,8 +141,6 @@ void island_worker::update() {
         }
     }
 
-    refresh_dirty_entities();
-
     // Reschedule this job.
     reschedule();
 }
@@ -124,18 +154,6 @@ void island_worker::step() {
     isle.timestamp += m_fixed_dt;
 
     sync();
-}
-
-void island_worker::refresh_dirty_entities() {
-    auto view = m_registry.view<island_node_dirty>();
-    view.each([&] (entt::entity entity, island_node_dirty &dirty) {
-        auto builder = registry_snapshot_builder(m_entity_map);
-        builder.updated(entity, m_registry, 
-            dirty.indexes.begin(), dirty.indexes.end(), 
-            all_components{});
-        m_message_queue.send<registry_snapshot>(builder.get_snapshot());
-    });
-    m_registry.clear<island_node_dirty>();
 }
 
 void island_worker::reschedule() {

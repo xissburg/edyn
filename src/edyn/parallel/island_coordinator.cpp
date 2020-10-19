@@ -36,6 +36,9 @@ void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::
 
     // Remove from connected nodes.
     for (auto other : node.entities) {
+        // TODO: figure out why `other` could be invalid at this point.
+        if (!registry.valid(other)) continue;
+
         auto &other_node = registry.get<island_node>(other);
         other_node.entities.erase(
             std::remove(
