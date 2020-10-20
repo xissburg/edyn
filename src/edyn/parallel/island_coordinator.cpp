@@ -27,18 +27,18 @@ island_coordinator::~island_coordinator() {
 
 void island_coordinator::on_construct_island_node(entt::registry &registry, entt::entity entity) {
     if (m_importing_snapshot) return;
+
     registry.emplace<island_container>(entity);
     m_new_island_nodes.push_back(entity);
 }
 
 void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
+    if (m_importing_snapshot) return;
+
     auto &node = registry.get<island_node>(entity);
 
     // Remove from connected nodes.
     for (auto other : node.entities) {
-        // TODO: figure out why `other` could be invalid at this point.
-        if (!registry.valid(other)) continue;
-
         auto &other_node = registry.get<island_node>(other);
         other_node.entities.erase(
             std::remove(
@@ -49,6 +49,8 @@ void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::
 }
 
 void island_coordinator::on_destroy_island_container(entt::registry &registry, entt::entity entity) {
+    if (m_importing_snapshot) return;
+
     auto &container = registry.get<island_container>(entity);
 
     // Remove from islands.

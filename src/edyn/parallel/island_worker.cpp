@@ -115,8 +115,8 @@ void island_worker::sync() {
 
     auto view = m_registry.view<island_node_dirty>();
     view.each([&] (entt::entity entity, island_node_dirty &dirty) {
-        m_snapshot_builder.updated(entity, m_registry, 
-            dirty.indexes.begin(), dirty.indexes.end(), 
+        m_snapshot_builder.updated(entity, m_registry,
+            dirty.indexes.begin(), dirty.indexes.end(),
             all_components{});
     });
 
