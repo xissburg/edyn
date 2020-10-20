@@ -11,6 +11,9 @@ island_coordinator::island_coordinator(entt::registry &registry)
     registry.on_construct<island_node>().connect<&island_coordinator::on_construct_island_node>(*this);
     registry.on_destroy<island_node>().connect<&island_coordinator::on_destroy_island_node>(*this);
     registry.on_destroy<island_container>().connect<&island_coordinator::on_destroy_island_container>(*this);
+
+    registry.on_construct<constraint>().connect<&island_coordinator::on_construct_constraint>(*this);
+    registry.on_destroy<constraint>().connect<&island_coordinator::on_destroy_constraint>(*this);
 }
 
 island_coordinator::~island_coordinator() {
@@ -55,18 +58,7 @@ void island_coordinator::on_destroy_island_container(entt::registry &registry, e
 
     // Remove from islands.
     for (auto island_entity : container.entities) {
-        auto &isle = registry.get<island>(island_entity);
-        isle.entities.erase(
-            std::remove(
-                isle.entities.begin(),
-                isle.entities.end(), entity), 
-            isle.entities.end());
-
-        auto &info = m_island_info_map.at(island_entity);
-        auto builder = registry_snapshot_builder(info->m_entity_map);
-        builder.updated(island_entity, isle);
-        builder.destroyed(entity);
-        info->m_message_queue.send<registry_snapshot>(builder.get_snapshot());
+        m_destroyed_island_nodes[island_entity].push_back(entity);
     }
 }
 
@@ -332,6 +324,28 @@ void island_coordinator::merge_islands(const std::unordered_set<entt::entity> &i
     }
 }
 
+void island_coordinator::on_construct_constraint(entt::registry &registry, entt::entity entity) {
+    if (m_importing_snapshot) return;
+
+    auto &con = registry.get<constraint>(entity);
+
+    // Initialize constraint.
+    std::visit([&] (auto &&c) {
+        c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, registry, 0);
+    }, con.var);
+}
+
+void island_coordinator::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
+    if (m_importing_snapshot) return;
+
+    auto &con = registry.get<constraint>(entity);
+
+    // Destroy all constraint rows.
+    for (size_t i = 0; i < con.num_rows; ++i) {
+        registry.destroy(con.row[i]);
+    }
+}
+
 void island_coordinator::refresh_dirty_entities() {
     auto view = m_registry->view<island_container, island_node_dirty>();
     view.each([&] (entt::entity entity, island_container &container, island_node_dirty &dirty) {
@@ -354,6 +368,29 @@ void island_coordinator::on_registry_snapshot(entt::entity island_entity, const 
     m_importing_snapshot = false;
 }
 
+void island_coordinator::process_destroyed_nodes() {
+    for (auto &pair : m_destroyed_island_nodes) {
+        auto island_entity = pair.first;
+        auto &isle = m_registry->get<island>(island_entity);
+        auto &info = m_island_info_map.at(island_entity);
+        auto builder = registry_snapshot_builder(info->m_entity_map);
+
+        for (auto entity : pair.second) {
+            isle.entities.erase(
+                std::remove(
+                    isle.entities.begin(),
+                    isle.entities.end(), entity), 
+                isle.entities.end());
+            builder.destroyed(entity);
+        }
+
+        builder.updated(island_entity, isle);
+        info->m_message_queue.send<registry_snapshot>(builder.get_snapshot());
+    }
+
+    m_destroyed_island_nodes.clear();
+}
+
 void island_coordinator::update() {
     for (auto &pair : m_island_info_map) {
         pair.second->m_message_queue.update();
@@ -361,6 +398,7 @@ void island_coordinator::update() {
 
     refresh_dirty_entities();
     init_new_island_nodes();
+    process_destroyed_nodes();
 }
 
 void island_coordinator::set_paused(bool paused) {

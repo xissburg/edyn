@@ -50,6 +50,8 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 }
 
 void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
+    if (m_importing_snapshot) return;
+
     auto &con = registry.get<constraint>(entity);
 
     // Initialize constraint.
@@ -59,6 +61,8 @@ void island_worker::on_construct_constraint(entt::registry &registry, entt::enti
 }
 
 void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
+    if (m_importing_snapshot) return;
+
     auto &con = registry.get<constraint>(entity);
 
     // Destroy all constraint rows.
@@ -69,7 +73,7 @@ void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity
 
 void island_worker::on_construct_island_node(entt::registry &registry, entt::entity entity) {
     if (m_importing_snapshot) return;
-
+    
     auto &container = registry.emplace<island_container>(entity);
     container.entities.push_back(m_island_entity);
 

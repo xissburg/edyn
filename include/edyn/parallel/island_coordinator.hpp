@@ -59,7 +59,7 @@ class island_coordinator final {
     void init_new_island_nodes();
     void init_new_non_procedural_island_node(entt::entity);
     entt::entity create_island();
-
+    void process_destroyed_nodes();
     void refresh_dirty_entities();
 
 public:
@@ -70,6 +70,9 @@ public:
     void on_destroy_island_node(entt::registry &, entt::entity);
     void on_destroy_island_container(entt::registry &, entt::entity);
     void on_registry_snapshot(entt::entity, const registry_snapshot &);
+    
+    void on_construct_constraint(entt::registry &, entt::entity);
+    void on_destroy_constraint(entt::registry &, entt::entity);
 
     void connect_nodes(entt::entity, entt::entity);
     void disconnect_nodes(entt::entity, entt::entity);
@@ -88,7 +91,7 @@ private:
     std::unordered_map<entt::entity, std::unique_ptr<island_info>> m_island_info_map;
 
     std::vector<entt::entity> m_new_island_nodes;
-    std::vector<destroyed_island_node_info> m_destroyed_island_nodes;
+    std::map<entt::entity, std::vector<entt::entity>> m_destroyed_island_nodes;
     bool m_importing_snapshot {false};
 };
 
