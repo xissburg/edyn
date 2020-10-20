@@ -234,29 +234,28 @@ void narrowphase::update() {
             return;
         }
 
-        auto &aabb0 = registry->get<AABB>(manifold.body[0]);
-        auto &aabb1 = registry->get<AABB>(manifold.body[1]);
+        auto &aabbA = registry->get<AABB>(manifold.body[0]);
+        auto &aabbB = registry->get<AABB>(manifold.body[1]);
+        auto &posA = registry->get<position>(manifold.body[0]);
+        auto &posB = registry->get<position>(manifold.body[1]);
+        auto &ornA = registry->get<orientation>(manifold.body[0]);
+        auto &ornB = registry->get<orientation>(manifold.body[1]);
 
-        if (!intersect(aabb0, aabb1)) {
-            return;
+        if (intersect(aabbA, aabbB)) {
+            auto &shapeA = registry->get<shape>(manifold.body[0]);
+            auto &shapeB = registry->get<shape>(manifold.body[1]);
+
+            auto result = collision_result{};
+            std::visit([&] (auto &&sA) {
+                std::visit([&] (auto &&sB) {
+                    result = collide(sA, posA, ornA, sB, posB, ornB, 
+                                    contact_breaking_threshold);
+                }, shapeB.var);
+            }, shapeA.var);
+
+            process_collision(*registry, entity, manifold, result);
         }
 
-        auto &posA   = registry->get<position   >(manifold.body[0]);
-        auto &ornA   = registry->get<orientation>(manifold.body[0]);
-        auto &shapeA = registry->get<shape      >(manifold.body[0]);
-        auto &posB   = registry->get<position   >(manifold.body[1]);
-        auto &ornB   = registry->get<orientation>(manifold.body[1]);
-        auto &shapeB = registry->get<shape      >(manifold.body[1]);
-
-        auto result = collision_result{};
-        std::visit([&] (auto &&sA) {
-            std::visit([&] (auto &&sB) {
-                result = collide(sA, posA, ornA, sB, posB, ornB, 
-                                 contact_breaking_threshold);
-            }, shapeB.var);
-        }, shapeA.var);
-
-        process_collision(*registry, entity, manifold, result);
         prune(*registry, entity, manifold, posA, ornA, posB, ornB);
     });
 }
