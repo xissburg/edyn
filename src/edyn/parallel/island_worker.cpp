@@ -152,6 +152,7 @@ void island_worker::step() {
 
     auto &isle = m_registry.get<island>(m_island_entity);
     isle.timestamp += m_fixed_dt;
+    m_snapshot_builder.updated<island>(m_island_entity, isle);
 
     sync();
 }
