@@ -5,18 +5,24 @@
 #include <vector>
 #include <entt/fwd.hpp>
 #include <entt/signal/sigh.hpp>
+#include "edyn/math/constants.hpp"
 
 namespace edyn {
 
 struct contact_manifold;
 
 class broadphase {
+
+    void create_contact_manifold(entt::entity, entt::entity);
+
 public:
     broadphase(entt::registry &);
     void update();
 
     void on_construct_contact_manifold(entt::registry &, entt::entity);
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
+
+    scalar m_threshold { contact_breaking_threshold };
 
 private:
     entt::registry *m_registry;

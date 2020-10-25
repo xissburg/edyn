@@ -7,7 +7,6 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/math/constants.hpp"
 #include "edyn/dynamics/island_util.hpp"
 #include <entt/entt.hpp>
 #include <vector>
@@ -19,6 +18,25 @@ broadphase::broadphase(entt::registry &reg)
 {
     reg.on_construct<contact_manifold>().connect<&broadphase::on_construct_contact_manifold>(*this);
     reg.on_destroy<contact_manifold>().connect<&broadphase::on_destroy_contact_manifold>(*this);
+}
+
+void broadphase::create_contact_manifold(entt::entity e0, entt::entity e1) {
+    auto contact_entity = m_registry->create();
+    m_registry->emplace<island_node>(contact_entity, true, std::vector<entt::entity>{e0, e1});
+    m_registry->emplace<contact_manifold>(contact_entity, e0, e1, m_threshold * 1.5);
+
+    // Assign a reference to the contact entity in the body nodes.
+    auto &node0 = m_registry->get<island_node>(e0);
+    node0.entities.push_back(contact_entity);
+
+    auto &node1 = m_registry->get<island_node>(e1);
+    node1.entities.push_back(contact_entity);
+
+    // Mark stuff as dirty to schedule an update in the island worker.
+    m_registry->get_or_emplace<island_node_dirty>(e0).indexes.push_back(entt::type_index<island_node>::value());
+    m_registry->get_or_emplace<island_node_dirty>(e1).indexes.push_back(entt::type_index<island_node>::value());
+    m_registry->get_or_emplace<island_node_dirty>(contact_entity).indexes.push_back(entt::type_index<island_node>::value());
+    m_registry->get_or_emplace<island_node_dirty>(contact_entity).indexes.push_back(entt::type_index<contact_manifold>::value());
 }
 
 void broadphase::on_construct_contact_manifold(entt::registry &reg, entt::entity ent) {
@@ -47,32 +65,22 @@ void broadphase::update() {
         }, sh.var);
     });
 
-    auto aabb_view = m_registry->view<const AABB>();
+    auto aabb_view = m_registry->view<AABB>();
     auto manifold_view = m_registry->view<contact_manifold>();
-
-    constexpr auto offset = vector3 {
-        -contact_breaking_threshold, 
-        -contact_breaking_threshold, 
-        -contact_breaking_threshold
-    };
-
-    // Use slightly higher offset when looking for separation to avoid high
-    // frequency creation and destruction of pairs with slight movement.
-    constexpr scalar offset_scale = 2;
-    constexpr auto separation_offset = vector3 {
-        offset.x * offset_scale, offset.y * offset_scale, offset.z * offset_scale};
 
     // Destroy manifolds of pairs that are not intersecting anymore.
     manifold_view.each([&] (auto ent, contact_manifold &manifold) {
-        auto b0 = m_registry->try_get<AABB>(manifold.body[0]);
-        auto b1 = m_registry->try_get<AABB>(manifold.body[1]);
+        auto &b0 = m_registry->get<AABB>(manifold.body[0]);
+        auto &b1 = m_registry->get<AABB>(manifold.body[1]);
+        const auto separation_offset = vector3_one * -manifold.separation_threshold;
 
-        if (b0 && b1 && !intersect(b0->inset(separation_offset), b1->inset(separation_offset))) {
+        if (!intersect(b0.inset(separation_offset), b1.inset(separation_offset))) {
             m_registry->destroy(ent);
         }
     });
 
     // Search for new AABB intersections and create manifolds.
+    const auto offset = vector3_one * -m_threshold;
     auto it = aabb_view.begin();
     const auto it_end = aabb_view.end();
 
@@ -92,9 +100,7 @@ void broadphase::update() {
             if (intersect(b0.inset(offset), b1.inset(offset))) {
                 auto p = std::make_pair(e0, e1);
                 if (!m_manifold_map.count(p)) {
-                    auto ent = m_registry->create();
-                    m_registry->emplace<contact_manifold>(ent, e0, e1);
-                    m_registry->emplace<island_node>(ent, true, std::vector<entt::entity>{e0, e1});
+                    create_contact_manifold(e0, e1);
                 }
             }
         }

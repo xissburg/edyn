@@ -13,10 +13,16 @@ world::world(entt::registry &reg)
     , m_island_coordinator(reg)
 {
     job_dispatcher::global().assure_current_queue();
+
+    // A higher threshold is used in the main broadphase to create contact 
+    // manifolds between different islands a little earlier and decrease the
+    // probability they'll arrive in the corresponding island worker when the
+    // AABBs are already intersecting.
+    m_bphase.m_threshold *= 4;
 }
 
 world::~world() {
-    
+
 }
 
 void world::update() {
