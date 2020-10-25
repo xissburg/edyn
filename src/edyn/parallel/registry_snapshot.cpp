@@ -6,43 +6,32 @@ namespace edyn {
 void registry_snapshot::import_child_entity_sequence(entt::registry &registry, const entity_map &map, entt::meta_sequence_container &seq) const {
     if (seq.value_type() != entt::resolve<entt::entity>()) return;
 
-    // HACK: there's currently no other way to determine whether
-    // this is a dynamic or fixed container (i.e. std::vector or
-    // std::array). `resize` will return false if it's fixed.
-    auto is_dynamic = seq.resize(seq.size());
-
-    if (is_dynamic) {
-        // Only include valid entities.
-        std::vector<entt::entity> entities;
-        entities.reserve(seq.size());
-
-        for (size_t i = 0; i < seq.size(); ++i) {
-            auto remote_entity = seq[i].cast<entt::entity>();
-            if (map.has_rem(remote_entity)) {
-                auto local_entity = map.remloc(remote_entity);
-                if (registry.valid(local_entity)) {
-                    entities.push_back(local_entity);
-                }
-            }
-        }
-
-        seq.clear();
-        for (auto entity : entities) {
-            seq.insert(seq.end(), entity);
-        }
-    } else {
-        for (size_t i = 0; i < seq.size(); ++i) {
-            auto remote_entity = seq[i].cast<entt::entity>();
-            if (map.has_rem(remote_entity)) {
-                auto local_entity = map.remloc(remote_entity);
-                if (registry.valid(local_entity)) {
-                    seq[i].cast<entt::entity>() = local_entity;
-                } else {
-                    seq[i].cast<entt::entity>() = entt::null;
-                }
+    for (size_t i = 0; i < seq.size(); ++i) {
+        auto &entity_ref = seq[i].cast<entt::entity>();
+        if (map.has_rem(entity_ref)) {
+            auto local_entity = map.remloc(entity_ref);
+            if (registry.valid(local_entity)) {
+                entity_ref = local_entity;
             } else {
-                seq[i].cast<entt::entity>() = entt::null;
+                entity_ref = entt::null;
             }
+        } else {
+            entity_ref = entt::null;
+        }
+    }
+
+    // Remove null if container is dynamic.
+    for (auto it = seq.begin(); it != seq.end();) {
+        if ((*it).cast<entt::entity>() == entt::null) {
+            auto pair = seq.erase(it);
+            
+            if (!pair.second) { // Not a dynamic container.
+                break;
+            }
+
+            it = pair.first;
+        } else {
+            ++it;
         }
     }
 }
