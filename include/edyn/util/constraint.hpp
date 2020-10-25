@@ -62,6 +62,11 @@ T * try_get_constraint(entt::entity entity, entt::registry &registry) {
 
 entt::entity add_constraint_row(entt::entity, constraint &, entt::registry &, int priority = 0);
 
+entt::entity make_contact_manifold(entt::registry &, entt::entity body0, entt::entity body1,
+                                   scalar separation_threshold);
+void make_contact_manifold(entt::entity contact_entity, entt::registry &, 
+                           entt::entity body0, entt::entity body1, scalar separation_threshold);
+
 /**
  * Enables/disables a constraint and its rows.
  */

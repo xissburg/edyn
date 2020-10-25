@@ -11,7 +11,7 @@
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/time/time.hpp"
-#include "edyn/collision/broadphase.hpp"
+#include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/comp.hpp"
@@ -77,7 +77,7 @@ private:
     entt::registry m_registry;
     entt::entity m_island_entity;
     entity_map m_entity_map;
-    broadphase m_bphase;
+    broadphase_worker m_bphase;
     narrowphase m_nphase;
     solver m_solver;
     message_queue_in_out m_message_queue;

@@ -9,7 +9,7 @@
 
 #include "solver.hpp"
 #include "edyn/math/scalar.hpp"
-#include "edyn/collision/broadphase.hpp"
+#include "edyn/collision/broadphase_main.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/parallel/registry_snapshot.hpp"
 
@@ -41,7 +41,7 @@ public:
 
 private:
     entt::registry* m_registry;
-    broadphase m_bphase;
+    broadphase_main m_bphase;
     island_coordinator m_island_coordinator;
     std::vector<entt::scoped_connection> m_connections;
 

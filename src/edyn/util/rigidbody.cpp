@@ -1,6 +1,8 @@
 #include <entt/entt.hpp>
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/aabb.hpp"
+#include "edyn/comp/shape.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -65,8 +67,12 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     }
 
     if (auto opt = def.shape_opt) {
-        registry.emplace<shape>(entity, *opt);
-        registry.emplace<AABB>(entity);
+        auto &sh = registry.emplace<shape>(entity, *opt);
+
+        std::visit([&] (auto &&s) {
+            registry.emplace<AABB>(entity, s.aabb(def.position, def.orientation));
+        }, sh.var);
+
         auto &filter = registry.emplace<collision_filter>(entity);
         filter.group = def.collision_group;
         filter.mask = def.collision_mask;

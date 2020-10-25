@@ -1,4 +1,5 @@
 #include "edyn/util/constraint.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 
 namespace edyn {
 
@@ -22,6 +23,30 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     registry.get_or_emplace<island_node_dirty>(entity).indexes.push_back(entt::type_index<island_node>::value());
 
     return row_entity;
+}
+
+entt::entity make_contact_manifold(entt::registry &registry, entt::entity e0, entt::entity e1, scalar separation_threshold) {
+    auto contact_entity = registry.create();
+    make_contact_manifold(contact_entity, registry, e0, e1, separation_threshold);
+    return contact_entity;
+}
+
+void make_contact_manifold(entt::entity contact_entity, entt::registry &registry, entt::entity e0, entt::entity e1, scalar separation_threshold) {
+    registry.emplace<island_node>(contact_entity, true, std::vector<entt::entity>{e0, e1});
+    registry.emplace<contact_manifold>(contact_entity, e0, e1, separation_threshold);
+
+    // Assign a reference to the contact entity in the body nodes.
+    auto &node0 = registry.get<island_node>(e0);
+    node0.entities.push_back(contact_entity);
+
+    auto &node1 = registry.get<island_node>(e1);
+    node1.entities.push_back(contact_entity);
+
+    // Mark stuff as dirty to schedule an update in the island worker.
+    registry.get_or_emplace<island_node_dirty>(e0).indexes.push_back(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(e1).indexes.push_back(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.push_back(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.push_back(entt::type_index<contact_manifold>::value());
 }
 
 void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {

@@ -226,7 +226,8 @@ narrowphase::narrowphase(entt::registry &reg)
 void narrowphase::update() {
     update_contact_distances(*registry);
 
-    auto aabb_view = registry->view<AABB>();
+    auto body_view = registry->view<AABB, shape, position, orientation>();
+
     auto manifold_view = registry->view<contact_manifold>();
     manifold_view.each([&] (entt::entity entity, contact_manifold &manifold) {
         if (registry->has<sleeping_tag>(manifold.body[0]) && 
@@ -234,16 +235,12 @@ void narrowphase::update() {
             return;
         }
 
-        auto &aabbA = registry->get<AABB>(manifold.body[0]);
-        auto &aabbB = registry->get<AABB>(manifold.body[1]);
-        auto &posA = registry->get<position>(manifold.body[0]);
-        auto &posB = registry->get<position>(manifold.body[1]);
-        auto &ornA = registry->get<orientation>(manifold.body[0]);
-        auto &ornB = registry->get<orientation>(manifold.body[1]);
+        auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
+        auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
 
         if (intersect(aabbA, aabbB)) {
-            auto &shapeA = registry->get<shape>(manifold.body[0]);
-            auto &shapeB = registry->get<shape>(manifold.body[1]);
+            auto &shapeA = body_view.get<shape>(manifold.body[0]);
+            auto &shapeB = body_view.get<shape>(manifold.body[1]);
 
             auto result = collision_result{};
             std::visit([&] (auto &&sA) {
