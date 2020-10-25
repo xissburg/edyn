@@ -21,8 +21,8 @@ broadphase_worker::broadphase_worker(entt::registry &reg)
     reg.on_destroy<contact_manifold>().connect<&broadphase_worker::on_destroy_contact_manifold>(*this);
 }
 
-void broadphase_worker::on_construct_contact_manifold(entt::registry &reg, entt::entity ent) {
-    auto &manifold = reg.get<contact_manifold>(ent);
+void broadphase_worker::on_construct_contact_manifold(entt::registry &registry, entt::entity ent) {
+    auto &manifold = registry.get<contact_manifold>(ent);
     // Cache the pair for quick look up.
     auto p = std::make_pair(manifold.body[0], manifold.body[1]);
     auto q = std::make_pair(manifold.body[1], manifold.body[0]);
@@ -30,15 +30,17 @@ void broadphase_worker::on_construct_contact_manifold(entt::registry &reg, entt:
     m_manifold_map[q] = ent;
 }
 
-void broadphase_worker::on_destroy_contact_manifold(entt::registry &reg, entt::entity ent) {
-    auto &manifold = reg.get<contact_manifold>(ent);
+void broadphase_worker::on_destroy_contact_manifold(entt::registry &registry, entt::entity ent) {
+    auto &manifold = registry.get<contact_manifold>(ent);
     // Cleanup cached info.
     auto p = std::make_pair(manifold.body[0], manifold.body[1]);
     auto q = std::make_pair(manifold.body[1], manifold.body[0]);
     m_manifold_map.erase(p);
     m_manifold_map.erase(q);
 
-    EDYN_ASSERT(manifold.num_points == 0);
+    for (size_t i = 0; i < manifold.num_points; ++i) {
+        registry.destroy(manifold.point[i]);
+    }
 }
 
 void broadphase_worker::update() {
