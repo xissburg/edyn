@@ -20,10 +20,10 @@ void registry_snapshot::import(entt::registry &registry, entity_map &map) const 
     import_updated(registry, map, all_components{});
     import_destroyed(registry, map, all_components{});
 
-    for (auto entity : m_destroyed_entities) {
-        if (!map.has_rem(entity)) continue;
-        auto local_entity = map.remloc(entity);
-        map.erase_rem(entity);
+    for (auto remote_entity : m_destroyed_entities) {
+        if (!map.has_rem(remote_entity)) continue;
+        auto local_entity = map.remloc(remote_entity);
+        map.erase_rem(remote_entity);
 
         if (registry.valid(local_entity)) {
             registry.destroy(local_entity);
@@ -31,21 +31,25 @@ void registry_snapshot::import(entt::registry &registry, entity_map &map) const 
     }
 }
 
-void registry_snapshot_builder::insert_entity_mapping(entt::entity entity) {
+void registry_snapshot_builder::insert_entity_mapping(entt::entity local_entity) {
+    // Ignore if mapping already exists. Note that this is being called from the
+    // builder and the order is reversed, i.e. (local, remote). When importing, 
+    // the default order is used, so the first entity which is the remote, refers
+    // to the local entity in this registry.
     auto found_it = std::find_if(
         m_snapshot.m_remloc_entity_pairs.begin(), 
         m_snapshot.m_remloc_entity_pairs.end(), 
-        [entity] (auto &pair) { return entity == pair.first; });
+        [local_entity] (auto &pair) { return local_entity == pair.first; });
 
     if (found_it != m_snapshot.m_remloc_entity_pairs.end()) {
         return;
     }
     
-    if (m_entity_map->has_loc(entity)) {
-        auto remote_entity = m_entity_map->locrem(entity);
-        m_snapshot.m_remloc_entity_pairs.emplace_back(entity, remote_entity);
+    if (m_entity_map->has_loc(local_entity)) {
+        auto remote_entity = m_entity_map->locrem(local_entity);
+        m_snapshot.m_remloc_entity_pairs.emplace_back(local_entity, remote_entity);
     } else {
-        m_snapshot.m_remloc_entity_pairs.emplace_back(entity, entt::null);
+        m_snapshot.m_remloc_entity_pairs.emplace_back(local_entity, entt::null);
     }
 }
 
