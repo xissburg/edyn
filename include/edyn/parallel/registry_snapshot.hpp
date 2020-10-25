@@ -29,7 +29,7 @@ struct destroyed_components {
 class registry_snapshot {
 
     template<typename Component>
-    void import_child_entity(const entity_map &map, Component &component) const {
+    void import_child_entity(entt::registry &registry, const entity_map &map, Component &component) const {
         auto range = entt::resolve<Component>().data();
         for (entt::meta_data data : range) {
             if (data.type() == entt::resolve<entt::entity>()) {
@@ -39,9 +39,47 @@ class registry_snapshot {
             } else if (data.type().is_sequence_container()) {
                 auto handle = entt::meta_handle(component);
                 auto seq = data.get(handle).as_sequence_container();
-                for (size_t i = 0; i < seq.size(); ++i) {
-                    auto ent = seq[i].cast<entt::entity>();
-                    seq[i].cast<entt::entity>() = map.remloc(ent);
+
+                if (seq.value_type() == entt::resolve<entt::entity>()) {
+                    // HACK: there's currently no other way to determine whether
+                    // this is a dynamic or fixed container (i.e. std::vector or
+                    // std::array). `resize` will return false if it's fixed.
+                    auto is_dynamic = seq.resize(seq.size());
+
+                    if (is_dynamic) {
+                        // Only include valid entities.
+                        std::vector<entt::entity> entities;
+                        entities.reserve(seq.size());
+
+                        for (size_t i = 0; i < seq.size(); ++i) {
+                            auto remote_entity = seq[i].cast<entt::entity>();
+                            if (map.has_rem(remote_entity)) {
+                                auto local_entity = map.remloc(remote_entity);
+                                if (registry.valid(local_entity)) {
+                                    entities.push_back(local_entity);
+                                }
+                            }
+                        }
+
+                        seq.clear();
+                        for (auto entity : entities) {
+                            seq.insert(seq.end(), entity);
+                        }
+                    } else {
+                        for (size_t i = 0; i < seq.size(); ++i) {
+                            auto remote_entity = seq[i].cast<entt::entity>();
+                            if (map.has_rem(remote_entity)) {
+                                auto local_entity = map.remloc(remote_entity);
+                                if (registry.valid(local_entity)) {
+                                    seq[i].cast<entt::entity>() = local_entity;
+                                } else {
+                                    seq[i].cast<entt::entity>() = entt::null;
+                                }
+                            } else {
+                                seq[i].cast<entt::entity>() = entt::null;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -56,7 +94,7 @@ class registry_snapshot {
             auto local_entity = map.remloc(remote_entity);
             if (!registry.valid(local_entity)) continue;
             auto comp = pair.second;
-            import_child_entity(map, comp);
+            import_child_entity(registry, map, comp);
             registry.emplace_or_replace<Component>(local_entity, comp);
         }
     }
@@ -98,7 +136,6 @@ public:
 
 private:
     std::vector<std::pair<entt::entity, entt::entity>> m_remloc_entity_pairs;
-    std::unordered_set<entt::entity> m_updated_entities;
     std::unordered_set<entt::entity> m_destroyed_entities;
     map_tuple<updated_components, all_components>::type m_updated_components;
     map_tuple<destroyed_components, all_components>::type m_destroyed_components;
@@ -118,9 +155,12 @@ class registry_snapshot_builder {
             } else if (data.type().is_sequence_container()) {
                 auto handle = entt::meta_handle(component);
                 auto seq = data.get(handle).as_sequence_container();
-                for (entt::meta_any element : seq) {
-                    auto ent = element.cast<entt::entity>();
-                    insert_entity_mapping(ent);
+
+                if (seq.value_type() == entt::resolve<entt::entity>()) {
+                    for (entt::meta_any element : seq) {
+                        auto ent = element.cast<entt::entity>();
+                        insert_entity_mapping(ent);
+                    }
                 }
             }
         }
@@ -141,7 +181,6 @@ public:
         // Also add entity pairs for child entity members.
         (insert_child_entity_mapping(comp), ...);
 
-        m_snapshot.m_updated_entities.insert(entity);
         (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.push_back(std::make_pair(entity, comp)), ...);
     }
 
@@ -150,7 +189,6 @@ public:
         if constexpr(sizeof...(Component) <= 1) {
             if constexpr(std::conjunction_v<entt::is_eto_eligible<Component>...>) {
                 insert_entity_mapping(entity);
-                m_snapshot.m_updated_entities.insert(entity);
                 (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.push_back(std::make_pair(entity, Component{})), ...);
             } else {
                 (updated<Component>(entity, registry.get<Component>(entity)), ...);
