@@ -6,15 +6,15 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <entt/fwd.hpp>
+#include "edyn/comp/island.hpp"
+#include "edyn/math/scalar.hpp"
+#include "edyn/util/entity_map.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/registry_snapshot.hpp"
-#include "edyn/comp/island.hpp"
-#include "edyn/util/entity_map.hpp"
-#include "edyn/math/scalar.hpp"
 
 namespace edyn {
 
-struct constraint;
 class island_worker;
 class registry_snapshot;
 
@@ -30,6 +30,9 @@ class island_coordinator final {
         using registry_snapshot_func_t = void(entt::entity, const registry_snapshot &);
         entt::sigh<registry_snapshot_func_t> m_registry_snapshot_signal;
 
+        using split_island_func_t = void(entt::entity, const msg::split_island &);
+        entt::sigh<split_island_func_t> m_split_island_signal;
+
         island_info(entt::entity entity,
                     island_worker *worker,
                     message_queue_in_out message_queue)
@@ -39,6 +42,7 @@ class island_coordinator final {
             , m_snapshot_builder(m_entity_map)
         {
             m_message_queue.sink<registry_snapshot>().connect<&island_info::on_registry_snapshot>(*this);
+            m_message_queue.sink<msg::split_island>().connect<&island_info::on_split_island>(*this);
         }
 
         ~island_info() {
@@ -51,6 +55,14 @@ class island_coordinator final {
 
         void on_registry_snapshot(const registry_snapshot &snapshot) {
             m_registry_snapshot_signal.publish(m_entity, snapshot);
+        }
+
+        auto split_island_sink() {
+            return entt::sink {m_split_island_signal};
+        }
+
+        void on_split_island(const msg::split_island &split) {
+            m_split_island_signal.publish(m_entity, split);
         }
 
         void sync() {
@@ -73,6 +85,7 @@ public:
     void on_destroy_island_node(entt::registry &, entt::entity);
     void on_destroy_island_container(entt::registry &, entt::entity);
     void on_registry_snapshot(entt::entity, const registry_snapshot &);
+    void on_split_island(entt::entity, const msg::split_island &);
     
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);

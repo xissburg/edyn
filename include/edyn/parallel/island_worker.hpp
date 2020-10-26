@@ -27,6 +27,7 @@ void island_worker_func(job::data_type &);
 
 class island_worker final {
 
+    void maybe_split_island();
     void do_terminate();
 
 public:
@@ -61,6 +62,7 @@ public:
     void on_destroy_constraint(entt::registry &, entt::entity);
     
     void on_construct_island_node(entt::registry &, entt::entity);
+    void on_update_island_node(entt::registry &, entt::entity);
     void on_destroy_island_node(entt::registry &, entt::entity);
 
     void on_set_paused(const msg::set_paused &msg);
@@ -85,6 +87,8 @@ private:
     bool m_paused;
     registry_snapshot_builder m_snapshot_builder;
     bool m_importing_snapshot;
+    bool m_topology_changed;
+
     std::atomic<bool> m_terminating {false};
     std::atomic<bool> m_terminated {false};
     std::mutex m_terminate_mutex;

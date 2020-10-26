@@ -2,9 +2,7 @@
 #define EDYN_PARALLEL_MESSAGE_HPP
 
 #include <vector>
-#include <cstdint>
-#include "edyn/comp.hpp"
-#include "edyn/parallel/registry_snapshot.hpp"
+#include <entt/fwd.hpp>
 
 namespace edyn::msg {
 
@@ -14,6 +12,10 @@ struct set_paused {
 
 struct step_simulation {
 
+};
+
+struct split_island {
+    std::vector<std::vector<entt::entity>> connected_components;
 };
 
 }
