@@ -237,16 +237,23 @@ void narrowphase::update() {
 
         auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
         auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
+        const auto offset = vector3_one * -contact_breaking_threshold;
 
-        if (intersect(aabbA, aabbB)) {
+        // Only proceed to closest points calculation if AABBs intersect, since
+        // a manifold is allowed to exist whilst the AABB separation is smaller
+        // than `manifold.separation_threshold` which is greater than the
+        // contact breaking threshold.
+        if (intersect(aabbA.inset(offset), aabbB)) {
             auto &shapeA = body_view.get<shape>(manifold.body[0]);
             auto &shapeB = body_view.get<shape>(manifold.body[1]);
 
             auto result = collision_result{};
-            std::visit([&] (auto &&sA) {
+            // Structured binding is not captured by lambda, thus use an explicit
+            // capture list (https://stackoverflow.com/a/48103632/749818).
+            std::visit([&result, &shapeB, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA) {
                 std::visit([&] (auto &&sB) {
-                    result = collide(sA, posA, ornA, sB, posB, ornB, 
-                                    contact_breaking_threshold);
+                    result = collide(sA, pA, oA, sB, pB, oB, 
+                                     contact_breaking_threshold);
                 }, shapeB.var);
             }, shapeA.var);
 

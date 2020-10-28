@@ -62,7 +62,7 @@ void broadphase_main::update() {
 
             auto &b1 = aabb_view.get(e1);
 
-            if (intersect(b0.inset(offset), b1.inset(offset))) {
+            if (intersect(b0.inset(offset), b1)) {
                 auto p = std::make_pair(e0, e1);
                 if (!m_manifold_map.count(p)) {
                     make_contact_manifold(*m_registry, e0, e1, separation_threshold);

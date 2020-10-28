@@ -60,7 +60,7 @@ void broadphase_worker::update() {
         auto &b1 = aabb_view.get<AABB>(manifold.body[1]);
         const auto separation_offset = vector3_one * -manifold.separation_threshold;
 
-        if (!intersect(b0.inset(separation_offset), b1.inset(separation_offset))) {
+        if (!intersect(b0.inset(separation_offset), b1)) {
             m_registry->destroy(ent);
         }
     });
@@ -84,7 +84,7 @@ void broadphase_worker::update() {
 
             auto &b1 = aabb_view.get(e1);
 
-            if (intersect(b0.inset(offset), b1.inset(offset))) {
+            if (intersect(b0.inset(offset), b1)) {
                 auto p = std::make_pair(e0, e1);
                 if (!m_manifold_map.count(p)) {
                     make_contact_manifold(*m_registry, e0, e1, separation_threshold);
