@@ -267,6 +267,10 @@ void island_worker::maybe_split_island() {
     m_importing_snapshot = true;
     for (auto it = std::next(connected_components.begin()); it != connected_components.end(); ++it) {
         m_registry.destroy(it->begin(), it->end());
+
+        for (auto ent_it = it->begin(); ent_it != it->end(); ++ent_it) {
+            m_entity_map.erase_loc(*ent_it);    
+        }
     }
     m_importing_snapshot = false;
 
