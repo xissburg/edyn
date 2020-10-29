@@ -4,6 +4,7 @@
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_angvel.hpp"
 #include "edyn/sys/apply_gravity.hpp"
+#include "edyn/sys/update_aabbs.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
@@ -215,13 +216,16 @@ void solver::update(scalar dt) {
     // Integrate velocities to obtain new transforms.
     integrate_linvel(*registry, dt);
     integrate_angvel(*registry, dt);
-
+    update_aabbs(*registry);
+    
     // Update world-space moment of inertia.
     update_inertia(*registry);
 
     //put_islands_to_sleep(*registry, step, dt);
 
     //clear_kinematic_velocities(*registry);
+
+
 }
 
 }

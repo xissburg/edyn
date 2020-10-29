@@ -98,6 +98,7 @@ set(Edyn_SOURCES
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp
+    src/edyn/sys/update_aabbs.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/util/constraint.cpp
     src/edyn/util/shape_util.cpp

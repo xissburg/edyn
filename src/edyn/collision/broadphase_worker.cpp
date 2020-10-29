@@ -44,13 +44,6 @@ void broadphase_worker::on_destroy_contact_manifold(entt::registry &registry, en
 }
 
 void broadphase_worker::update() {
-    auto view = m_registry->view<position, orientation, shape, AABB>(exclude_global);
-    view.each([] (auto, auto &pos, auto &orn, auto &sh, auto &aabb) {
-        std::visit([&] (auto &&s) {
-            aabb = s.aabb(pos, orn);
-        }, sh.var);
-    });
-
     auto aabb_view = m_registry->view<AABB>();
     auto manifold_view = m_registry->view<contact_manifold>();
 
