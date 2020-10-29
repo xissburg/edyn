@@ -96,32 +96,33 @@ void island_coordinator::init_new_island_nodes() {
         to_visit.push_back(node_entity);
 
         while (!to_visit.empty()) {
-            auto entity = to_visit.back();
+            auto curr_entity = to_visit.back();
             to_visit.pop_back();
 
             // Add to connected component.
-            connected.push_back(entity);
+            connected.push_back(curr_entity);
 
             // Remove from main set.
             procedural_node_entities.erase(
                 std::remove(
                     procedural_node_entities.begin(), 
-                    procedural_node_entities.end(), entity),
+                    procedural_node_entities.end(), curr_entity),
                 procedural_node_entities.end());
 
             // Add related entities to be visited next.
-            auto &curr_node = m_registry->get<island_node>(entity);
+            auto &curr_node = m_registry->get<island_node>(curr_entity);
 
-            for (auto other : curr_node.entities) {
+            for (auto other_entity : curr_node.entities) {
                 auto already_visited = std::find(
-                    connected.begin(), connected.end(), other) != connected.end();
+                    connected.begin(), connected.end(), other_entity) != connected.end();
                 if (already_visited) continue;
 
-                // If the other entity is procedural and is already in an island,
-                // it means this new procedural entity must join the existing island.
-                auto &other_node = m_registry->get<island_node>(other);
-                auto &other_container = m_registry->get<island_container>(other);
+                auto &other_node = m_registry->get<island_node>(other_entity);
                 if (other_node.procedural) {
+                    auto &other_container = m_registry->get<island_container>(other_entity);
+
+                    // If the other entity is procedural and is already in an island,
+                    // it means this new procedural entity must join the existing island.
                     if (!other_container.entities.empty()) {
                         // Procedural entity must be in only one island.
                         EDYN_ASSERT(other_container.entities.size() == 1);
@@ -132,10 +133,14 @@ void island_coordinator::init_new_island_nodes() {
                         // to visit the entire island here. It needs to be updated in
                         // the snapshot however.
                         auto &info = m_island_info_map.at(island_entity);
-                        info->m_snapshot_builder.updated<island_node>(other, *m_registry);
+                        info->m_snapshot_builder.updated<island_node>(other_entity, *m_registry);
+                    } else {
+                        to_visit.push_back(other_entity);
                     }
                 } else {
-                    connected.push_back(entity);
+                    // Non-procedural nodes must not be visited because they do
+                    // not provide a path to connect other nodes through itself.
+                    connected.push_back(other_entity);
                 }
             }
         }
@@ -181,6 +186,8 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
         if (!other_node.procedural) continue;
 
         auto &other_container = m_registry->get<island_container>(other);
+        if (other_container.entities.empty()) continue;
+
         auto island_entity = other_container.entities.front();
 
         container.entities.push_back(island_entity);
