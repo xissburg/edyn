@@ -154,11 +154,13 @@ void process_collision(entt::registry &registry, entt::entity entity,
                         0, // lifetime
                         rp.distance // distance
                     );
-                    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.push_back(entt::type_index<contact_point>::value());
 
                     if (registry.has<material>(manifold.body[0]) && registry.has<material>(manifold.body[1])) {
                         create_contact_constraint(contact_entity, registry, manifold, cp);
                     }
+
+                    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.insert(entt::type_index<contact_point>::value());
+                    registry.get_or_emplace<island_node_dirty>(entity).indexes.insert(entt::type_index<contact_manifold>::value());
                 } else {
                     // Replace existing contact point.
                     auto contact_entity = manifold.point[idx];
@@ -203,6 +205,8 @@ void prune(entt::registry &registry, entt::entity entity,
             }
 
             --manifold.num_points;
+
+            registry.get_or_emplace<island_node_dirty>(entity).indexes.insert(entt::type_index<contact_manifold>::value());
         }
     }
 }
@@ -213,7 +217,10 @@ void on_destroy_manifold(entt::registry &registry, entt::entity entity) {
 
     // Destroy child entities, i.e. contact points.
     for (size_t i = 0; i < manifold.num_points; ++i) {
-        registry.destroy(manifold.point[i]);
+        auto point_entity = manifold.point[i];
+        if (registry.valid(point_entity)) {
+            registry.destroy(point_entity);
+        };
     }
 }
 

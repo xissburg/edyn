@@ -266,10 +266,28 @@ void island_worker::maybe_split_island() {
 
     m_importing_snapshot = true;
     for (auto it = std::next(connected_components.begin()); it != connected_components.end(); ++it) {
-        m_registry.destroy(it->begin(), it->end());
 
         for (auto ent_it = it->begin(); ent_it != it->end(); ++ent_it) {
-            m_entity_map.erase_loc(*ent_it);    
+            auto entity = *ent_it;
+            auto &node = node_view.get(entity);
+
+            // Destroy node locally if it is procedural or if it is not contained
+            // in the local island anymore.
+            bool should_destroy = false;
+
+            if (node.procedural) {
+                should_destroy = true;
+            } else if (std::find(isle.entities.begin(), isle.entities.end(), entity) == isle.entities.end()) {
+                should_destroy = true;
+            }
+
+            if (should_destroy) {
+                m_registry.destroy(entity);
+
+                if (m_entity_map.has_loc(entity)) {
+                    m_entity_map.erase_loc(entity);
+                }
+            }
         }
     }
     m_importing_snapshot = false;

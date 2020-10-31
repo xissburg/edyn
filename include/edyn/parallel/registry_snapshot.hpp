@@ -28,10 +28,10 @@ struct destroyed_components {
 
 class registry_snapshot {
 
-    void import_child_entity_sequence(entt::registry &, const entity_map &, entt::meta_sequence_container &) const;
+    void import_child_entity_sequence(entt::registry &, entity_map &, entt::meta_sequence_container &) const;
 
     template<typename Component>
-    void import_child_entity(entt::registry &registry, const entity_map &map, Component &component) const {
+    void import_child_entity(entt::registry &registry, entity_map &map, Component &component) const {
         auto range = entt::resolve<Component>().data();
         for (entt::meta_data data : range) {
             if (data.type() == entt::resolve<entt::entity>()) {
@@ -47,11 +47,12 @@ class registry_snapshot {
     }
 
     template<typename Component>
-    void import_updated(entt::registry &registry, const entity_map &map) const {
+    void import_updated(entt::registry &registry, entity_map &map) const {
         const auto &pairs = std::get<updated_components<Component>>(m_updated_components).value;
 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
+            if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);
             if (!registry.valid(local_entity)) continue;
             auto comp = pair.second;
@@ -61,12 +62,12 @@ class registry_snapshot {
     }
 
     template<typename... Component>
-    void import_updated(entt::registry &registry, const entity_map &map, [[maybe_unused]] std::tuple<Component...>) const {
+    void import_updated(entt::registry &registry, entity_map &map, [[maybe_unused]] std::tuple<Component...>) const {
         (import_updated<Component>(registry, map), ...);
     }
 
     template<typename Component>
-    void import_destroyed(entt::registry &registry, const entity_map &map) const {
+    void import_destroyed(entt::registry &registry, entity_map &map) const {
         using element_type = destroyed_components<Component>;
         const auto &entities = std::get<element_type>(m_destroyed_components).value;
 
@@ -80,7 +81,7 @@ class registry_snapshot {
     }
 
     template<typename... Component>
-    void import_destroyed(entt::registry &registry, const entity_map &map, [[maybe_unused]] std::tuple<Component...>) const {
+    void import_destroyed(entt::registry &registry, entity_map &map, [[maybe_unused]] std::tuple<Component...>) const {
         (import_destroyed<Component>(registry, map), ...);
     }
 
@@ -89,7 +90,7 @@ public:
      * Imports this snapshot into a registry by mapping the entities into the domain
      * of the target registry according to the provided `entity_map`.
      */
-    void import(entt::registry &registry, entity_map &map) const;
+    void import(entt::registry &, entity_map &) const;
 
     friend class registry_snapshot_builder;
 

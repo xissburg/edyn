@@ -20,7 +20,7 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     auto &con_node = registry.get<island_node>(entity);
     con_node.entities.push_back(row_entity);
 
-    registry.get_or_emplace<island_node_dirty>(entity).indexes.push_back(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(entity).indexes.insert(entt::type_index<island_node>::value());
 
     return row_entity;
 }
@@ -43,10 +43,10 @@ void make_contact_manifold(entt::entity contact_entity, entt::registry &registry
     node1.entities.push_back(contact_entity);
 
     // Mark stuff as dirty to schedule an update in the island worker.
-    registry.get_or_emplace<island_node_dirty>(e0).indexes.push_back(entt::type_index<island_node>::value());
-    registry.get_or_emplace<island_node_dirty>(e1).indexes.push_back(entt::type_index<island_node>::value());
-    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.push_back(entt::type_index<island_node>::value());
-    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.push_back(entt::type_index<contact_manifold>::value());
+    registry.get_or_emplace<island_node_dirty>(e0).indexes.insert(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(e1).indexes.insert(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.insert(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.insert(entt::type_index<contact_manifold>::value());
 }
 
 void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {

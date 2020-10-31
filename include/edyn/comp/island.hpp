@@ -2,6 +2,7 @@
 #define EDYN_COMP_ISLAND_HPP
 
 #include <vector>
+#include <unordered_set>
 #include <memory>
 #include <entt/fwd.hpp>
 
@@ -46,7 +47,7 @@ struct island_container {
 };
 
 struct island_node_dirty {
-    std::vector<entt::id_type> indexes;
+    std::unordered_set<entt::id_type> indexes;
 };
 
 }

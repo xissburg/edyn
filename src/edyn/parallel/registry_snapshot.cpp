@@ -3,7 +3,7 @@
 
 namespace edyn {
 
-void registry_snapshot::import_child_entity_sequence(entt::registry &registry, const entity_map &map, entt::meta_sequence_container &seq) const {
+void registry_snapshot::import_child_entity_sequence(entt::registry &registry, entity_map &map, entt::meta_sequence_container &seq) const {
     if (seq.value_type() != entt::resolve<entt::entity>()) return;
 
     for (size_t i = 0; i < seq.size(); ++i) {
@@ -16,7 +16,9 @@ void registry_snapshot::import_child_entity_sequence(entt::registry &registry, c
                 entity_ref = entt::null;
             }
         } else {
-            entity_ref = entt::null;
+            auto local_entity = registry.create();
+            map.insert(entity_ref, local_entity);
+            entity_ref = local_entity;
         }
     }
 
@@ -43,7 +45,9 @@ void registry_snapshot::import(entt::registry &registry, entity_map &map) const 
 
         if (!map.has_rem(remote_entity)) {
             if (local_entity != entt::null) {
-                map.insert(remote_entity, local_entity);
+                if (registry.valid(local_entity)) {
+                    map.insert(remote_entity, local_entity);
+                }
             } else {
                 map.insert(remote_entity, registry.create());
             }

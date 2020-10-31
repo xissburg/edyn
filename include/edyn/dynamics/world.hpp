@@ -31,7 +31,7 @@ public:
     void refresh(entt::entity entity) {
         static_assert(sizeof...(Component) > 0);
         auto &dirty = m_registry->get_or_emplace<island_node_dirty>(entity);
-        (dirty.indexes.push_back(entt::type_index<Component>::value()), ...);
+        (dirty.indexes.insert(entt::type_index<Component>::value()), ...);
     }
 
     void on_broadphase_intersect(entt::entity, entt::entity);

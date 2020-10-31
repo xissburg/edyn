@@ -47,7 +47,7 @@ void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::
                 other_node.entities.begin(),
                 other_node.entities.end(), entity), 
             other_node.entities.end());
-        registry.get_or_emplace<island_node_dirty>(other).indexes.push_back(entt::type_index<island_node>::value());
+        registry.get_or_emplace<island_node_dirty>(other).indexes.insert(entt::type_index<island_node>::value());
     }
 }
 
@@ -313,7 +313,7 @@ void island_coordinator::merge_islands(const std::unordered_set<entt::entity> &i
     for (auto it = std::next(island_entities.begin()); it != island_entities.end(); ++it) {
         auto other_island_entity = *it;
         auto &other_isle = m_registry->get<island>(other_island_entity);
-        
+
         for (auto ent : other_isle.entities) {
             // Move entity into selected island.
             isle.entities.push_back(ent);
@@ -418,6 +418,7 @@ void island_coordinator::step_simulation() {
 
 void island_coordinator::on_split_island(entt::entity source_island_entity, const msg::split_island &split) {
     auto &source_info = m_island_info_map.at(source_island_entity);
+    auto &source_isle = m_registry->get<island>(source_island_entity);
 
     for (auto &entities : split.connected_components) {
         auto island_entity = create_island();
@@ -430,11 +431,18 @@ void island_coordinator::on_split_island(entt::entity source_island_entity, cons
                 
                 auto &container = m_registry->get<island_container>(local_entity);
                 
-                container.entities.erase(
-                    std::remove(
-                        container.entities.begin(),
-                        container.entities.end(), source_island_entity), 
-                    container.entities.end());
+                // Remove source island from container if not there anymore.
+                auto not_in_source_island = std::find(source_isle.entities.begin(), 
+                                                      source_isle.entities.end(), local_entity)
+                                                      == source_isle.entities.end();
+                
+                if (not_in_source_island) {
+                    container.entities.erase(
+                        std::remove(
+                            container.entities.begin(),
+                            container.entities.end(), source_island_entity), 
+                        container.entities.end());
+                }
 
                 container.entities.push_back(island_entity);
             }
