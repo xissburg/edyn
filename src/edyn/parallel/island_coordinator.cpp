@@ -455,7 +455,9 @@ void island_coordinator::on_split_island(entt::entity source_island_entity, cons
         info->m_snapshot_builder.updated<island>(island_entity, isle);
         for (auto remote_entity : entities) {
             auto local_entity = source_info->m_entity_map.remloc(remote_entity);
-            info->m_snapshot_builder.maybe_updated(local_entity, *m_registry, all_components{});
+            if (m_registry->valid(local_entity)) {
+                info->m_snapshot_builder.maybe_updated(local_entity, *m_registry, all_components{});
+            }
         }
     }
 }

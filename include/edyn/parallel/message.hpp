@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_MESSAGE_HPP
 
 #include <vector>
+#include <unordered_set>
 #include <entt/fwd.hpp>
 
 namespace edyn::msg {
@@ -15,7 +16,7 @@ struct step_simulation {
 };
 
 struct split_island {
-    std::vector<std::vector<entt::entity>> connected_components;
+    std::vector<std::unordered_set<entt::entity>> connected_components;
 };
 
 }

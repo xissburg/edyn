@@ -211,10 +211,10 @@ void island_worker::maybe_split_island() {
         }
     });
 
-    std::vector<std::vector<entt::entity>> connected_components;
+    std::vector<std::unordered_set<entt::entity>> connected_components;
 
     while (!node_entities.empty()) {
-        std::vector<entt::entity> connected;
+        std::unordered_set<entt::entity> connected;
         std::vector<entt::entity> to_visit;
 
         auto node_entity = node_entities.back();
@@ -225,7 +225,7 @@ void island_worker::maybe_split_island() {
             to_visit.pop_back();
 
             // Add to connected component.
-            connected.push_back(entity);
+            connected.insert(entity);
 
             // Remove from main set.
             node_entities.erase(
@@ -246,7 +246,7 @@ void island_worker::maybe_split_island() {
                 if (other_node.procedural) {
                     to_visit.push_back(other);
                 } else {
-                    connected.push_back(other);
+                    connected.insert(other);
                 }
             }
         }
@@ -260,7 +260,8 @@ void island_worker::maybe_split_island() {
     // be split and run in parallel in two or more workers.
     // Keep the first connected component in this island.
     auto &isle = m_registry.get<island>(m_island_entity);
-    isle.entities = connected_components.front();
+    isle.entities = std::vector<entt::entity>(connected_components.front().begin(),
+                                              connected_components.front().end());
     auto builder = registry_snapshot_builder(m_entity_map);
     builder.updated<island>(m_island_entity, isle);
     m_message_queue.send<registry_snapshot>(builder.get_snapshot());
@@ -268,21 +269,20 @@ void island_worker::maybe_split_island() {
     m_splitting_island = true;
 
     for (auto it = std::next(connected_components.begin()); it != connected_components.end(); ++it) {
-
         for (auto ent_it = it->begin(); ent_it != it->end(); ++ent_it) {
             auto entity = *ent_it;
-            auto &node = node_view.get(entity);
 
-            // Destroy node locally if it is procedural or if it is not contained
-            // in the local island anymore.
-            auto should_destroy = node.procedural ||
+            // Destroy node locally if it is not contained in the local island anymore.
+            auto should_destroy = 
                 std::find(isle.entities.begin(), isle.entities.end(), entity) == isle.entities.end();
 
             if (should_destroy) {
-                m_registry.destroy(entity);
-
                 if (m_entity_map.has_loc(entity)) {
                     m_entity_map.erase_loc(entity);
+                }
+
+                if (m_registry.valid(entity)) {
+                    m_registry.destroy(entity);
                 }
             }
         }
@@ -290,7 +290,7 @@ void island_worker::maybe_split_island() {
 
     m_splitting_island = false;
 
-    m_message_queue.send<msg::split_island>(std::vector<std::vector<entt::entity>>(std::next(connected_components.begin()), connected_components.end()));
+    m_message_queue.send<msg::split_island>(std::vector<std::unordered_set<entt::entity>>(std::next(connected_components.begin()), connected_components.end()));
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {

@@ -18,7 +18,7 @@ class registry_snapshot_builder;
 
 template<typename Component>
 struct updated_components {
-    std::vector<std::pair<entt::entity, Component>> value;
+    std::unordered_map<entt::entity, Component> value;
 };
 
 template<typename Component>
@@ -143,7 +143,7 @@ public:
         // Also add entity pairs for child entity members.
         (insert_child_entity_mapping(comp), ...);
 
-        (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.push_back(std::make_pair(entity, comp)), ...);
+        (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.insert_or_assign(entity, comp), ...);
     }
 
     template<typename... Component>
@@ -151,7 +151,7 @@ public:
         if constexpr(sizeof...(Component) <= 1) {
             if constexpr(std::conjunction_v<entt::is_eto_eligible<Component>...>) {
                 insert_entity_mapping(entity);
-                (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.push_back(std::make_pair(entity, Component{})), ...);
+                (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.insert_or_assign(entity, Component{}), ...);
             } else {
                 (updated<Component>(entity, registry.get<Component>(entity)), ...);
             }
