@@ -107,7 +107,7 @@ size_t find_nearest_contact(const contact_manifold &manifold,
 }
 
 static
-void process_collision(entt::registry &registry, entt::entity entity, 
+void process_collision(entt::registry &registry, entt::entity manifold_entity, 
                        contact_manifold &manifold, const collision_result &result) {
     auto cp_view = registry.view<contact_point>();
 
@@ -145,7 +145,7 @@ void process_collision(entt::registry &registry, entt::entity entity,
 
                     auto &cp = registry.emplace<contact_point>(
                         contact_entity, 
-                        entity, // parent
+                        manifold_entity, // parent
                         rp.pivotA, // pivotA
                         rp.pivotB, // pivotB
                         rp.normalB, // normalB
@@ -159,8 +159,19 @@ void process_collision(entt::registry &registry, entt::entity entity,
                         create_contact_constraint(contact_entity, registry, manifold, cp);
                     }
 
-                    registry.get_or_emplace<island_node_dirty>(contact_entity).indexes.insert(entt::type_index<contact_point>::value());
-                    registry.get_or_emplace<island_node_dirty>(entity).indexes.insert(entt::type_index<contact_manifold>::value());
+                    auto &manifold_node = registry.get<island_node>(manifold_entity);
+                    manifold_node.entities.push_back(contact_entity);
+
+                    auto &cp_node = registry.get<island_node>(contact_entity);
+                    cp_node.entities.push_back(manifold_entity);
+
+                    auto &cp_dirty = registry.get_or_emplace<island_node_dirty>(contact_entity);
+                    cp_dirty.indexes.insert(entt::type_index<contact_point>::value());
+                    cp_dirty.indexes.insert(entt::type_index<island_node>::value());
+
+                    auto &manifold_dirty = registry.get_or_emplace<island_node_dirty>(manifold_entity);
+                    manifold_dirty.indexes.insert(entt::type_index<contact_manifold>::value());
+                    manifold_dirty.indexes.insert(entt::type_index<island_node>::value());
                 } else {
                     // Replace existing contact point.
                     auto contact_entity = manifold.point[idx];
@@ -212,7 +223,7 @@ void prune(entt::registry &registry, entt::entity entity,
 }
 
 static
-void on_destroy_manifold(entt::registry &registry, entt::entity entity) {
+void on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
     auto &manifold = registry.get<contact_manifold>(entity);
 
     // Destroy child entities, i.e. contact points.
@@ -227,7 +238,7 @@ void on_destroy_manifold(entt::registry &registry, entt::entity entity) {
 narrowphase::narrowphase(entt::registry &reg)
     : registry(&reg)
 {
-    registry->on_destroy<contact_manifold>().connect<&on_destroy_manifold>();
+    registry->on_destroy<contact_manifold>().connect<&on_destroy_contact_manifold>();
 }
 
 void narrowphase::update() {
