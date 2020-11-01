@@ -273,12 +273,12 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                 closest_point_segment_segment(v0, v1, edge_vertices[0], edge_vertices[1], 
                                               s[0], t[0], p0[0], p1[0], &num_points, 
                                               &s[1], &t[1], &p0[1], &p1[1]);
-                for (size_t i = 0; i < num_points; ++i) {
-                    if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                        auto pivotA = is_faceA ? to_object_space(p0[i], posA, ornA) :
-                                                 to_object_space(p1[i], posA, ornA);
-                        auto pivotB = is_faceA ? to_object_space(p1[i], posB, ornB) :
-                                                 to_object_space(p0[i], posB, ornB);
+                for (size_t j = 0; j < num_points; ++j) {
+                    if (s[j] > 0 && s[j] < 1 && t[j] > 0 && t[j] < 1) {
+                        auto pivotA = is_faceA ? to_object_space(p0[j], posA, ornA) :
+                                                 to_object_space(p1[j], posA, ornA);
+                        auto pivotB = is_faceA ? to_object_space(p1[j], posB, ornB) :
+                                                 to_object_space(p0[j], posB, ornB);
                         result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                     }
                 }
