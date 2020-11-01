@@ -60,6 +60,13 @@ T * try_get_constraint(entt::entity entity, entt::registry &registry) {
     return nullptr;
 }
 
+/**
+ * Adds one more constraint row to the given constraint. A new entity is created
+ * for the row with a `constraint_row` component and it also gets an island node
+ * assigned to it which is then associated with the node in the given entity. 
+ * The new entity is appended to the row array in the `constraint` and it is 
+ * also returned.
+ */
 entt::entity add_constraint_row(entt::entity, constraint &, entt::registry &, int priority = 0);
 
 entt::entity make_contact_manifold(entt::registry &, entt::entity body0, entt::entity body1,

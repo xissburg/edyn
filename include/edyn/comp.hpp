@@ -28,7 +28,8 @@ namespace edyn {
 using all_components = std::tuple<
     island, 
     island_node, 
-    island_container, 
+    island_container,
+    island_timestamp,
     AABB, 
     angvel, 
     collision_filter, 

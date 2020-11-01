@@ -87,6 +87,7 @@ private:
     bool m_paused;
     registry_snapshot_builder m_snapshot_builder;
     bool m_importing_snapshot;
+    bool m_splitting_island;
     bool m_topology_changed;
 
     std::atomic<bool> m_terminating {false};

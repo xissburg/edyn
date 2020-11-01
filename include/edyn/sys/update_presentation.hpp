@@ -14,9 +14,9 @@
 namespace edyn {
 
 inline void update_presentation(entt::registry &registry, double time) {
-    auto island_view = registry.view<island>(exclude_global);
-    island_view.each([time, &registry] (auto, island &isle) {
-        auto dt = time - isle.timestamp;
+    auto island_view = registry.view<island, island_timestamp>(exclude_global);
+    island_view.each([time, &registry] (auto, island &isle, island_timestamp &isle_time) {
+        auto dt = time - isle_time.value;
         
         for (auto ent : isle.entities) {
             auto [pos, vel, pre] = registry.try_get<position, linvel, present_position>(ent);

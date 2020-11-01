@@ -195,7 +195,7 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
         isle.entities.push_back(node_entity);
 
         auto &info = m_island_info_map.at(island_entity);
-        info->m_snapshot_builder.updated<island>(island_entity, m_registry->get<island>(island_entity));
+        info->m_snapshot_builder.updated<island>(island_entity, isle);
         info->m_snapshot_builder.maybe_updated(node_entity, *m_registry, all_components{});
     }
 }
@@ -203,7 +203,8 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
 entt::entity island_coordinator::create_island() {
     auto entity = m_registry->create();
     auto &isle = m_registry->emplace<island>(entity);
-    isle.timestamp = (double)performance_counter() / (double)performance_frequency();
+    auto &isle_time = m_registry->emplace<island_timestamp>(entity);
+    isle_time.value = (double)performance_counter() / (double)performance_frequency();
 
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
     auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
@@ -220,6 +221,7 @@ entt::entity island_coordinator::create_island() {
     // before it even starts.
     auto builder = registry_snapshot_builder(info->m_entity_map);
     builder.updated<island>(entity, isle);
+    builder.updated<island_timestamp>(entity, isle_time);
     info->m_message_queue.send<registry_snapshot>(builder.get_snapshot());
 
     // Register to receive snapshots.

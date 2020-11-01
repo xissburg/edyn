@@ -34,6 +34,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_solver(m_registry)
     , m_snapshot_builder(m_entity_map)
     , m_importing_snapshot(false)
+    , m_splitting_island(false)
     , m_topology_changed(false)
 {
     m_island_entity = m_registry.create();
@@ -52,7 +53,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 }
 
 void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) return;
+    if (m_importing_snapshot || m_splitting_island) return;
 
     auto &con = registry.get<constraint>(entity);
 
@@ -63,7 +64,7 @@ void island_worker::on_construct_constraint(entt::registry &registry, entt::enti
 }
 
 void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) return;
+    if (m_importing_snapshot || m_splitting_island) return;
 
     auto &con = registry.get<constraint>(entity);
 
@@ -74,7 +75,7 @@ void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity
 }
 
 void island_worker::on_construct_island_node(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) return;
+    if (m_importing_snapshot || m_splitting_island) return;
     
     auto &container = registry.emplace<island_container>(entity);
     container.entities.push_back(m_island_entity);
@@ -91,7 +92,7 @@ void island_worker::on_update_island_node(entt::registry &registry, entt::entity
 }
 
 void island_worker::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) return;
+    if (m_importing_snapshot || m_splitting_island) return;
 
     auto &isle = registry.get<island>(m_island_entity);
     isle.entities.erase(
@@ -157,9 +158,9 @@ void island_worker::update() {
     m_message_queue.update();
 
     if (!m_paused) {
-        auto &isle = m_registry.get<island>(m_island_entity);
-        auto timestamp = (double)performance_counter() / (double)performance_frequency();
-        auto dt = timestamp - isle.timestamp;
+        auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
+        auto time = (double)performance_counter() / (double)performance_frequency();
+        auto dt = time - isle_time.value;
 
         if (dt >= m_fixed_dt) {
             step();
@@ -175,9 +176,9 @@ void island_worker::step() {
     m_nphase.update();
     m_solver.update(m_fixed_dt);
 
-    auto &isle = m_registry.get<island>(m_island_entity);
-    isle.timestamp += m_fixed_dt;
-    m_snapshot_builder.updated<island>(m_island_entity, isle);
+    auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
+    isle_time.value += m_fixed_dt;
+    m_snapshot_builder.updated<island_timestamp>(m_island_entity, isle_time);
 
     sync();
 
@@ -193,7 +194,7 @@ void island_worker::reschedule() {
     auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
     auto ctx_intptr = reinterpret_cast<intptr_t>(this);
     archive(ctx_intptr);
-    //job_dispatcher::global()::async_after(isle.timestamp + m_fixed_dt - timestamp, j);
+    //job_dispatcher::global()::async_after(isle_time.value + m_fixed_dt - timestamp, j);
     job_dispatcher::global().async(j);
 }
 
@@ -264,7 +265,8 @@ void island_worker::maybe_split_island() {
     builder.updated<island>(m_island_entity, isle);
     m_message_queue.send<registry_snapshot>(builder.get_snapshot());
 
-    m_importing_snapshot = true;
+    m_splitting_island = true;
+
     for (auto it = std::next(connected_components.begin()); it != connected_components.end(); ++it) {
 
         for (auto ent_it = it->begin(); ent_it != it->end(); ++ent_it) {
@@ -273,13 +275,8 @@ void island_worker::maybe_split_island() {
 
             // Destroy node locally if it is procedural or if it is not contained
             // in the local island anymore.
-            bool should_destroy = false;
-
-            if (node.procedural) {
-                should_destroy = true;
-            } else if (std::find(isle.entities.begin(), isle.entities.end(), entity) == isle.entities.end()) {
-                should_destroy = true;
-            }
+            auto should_destroy = node.procedural ||
+                std::find(isle.entities.begin(), isle.entities.end(), entity) == isle.entities.end();
 
             if (should_destroy) {
                 m_registry.destroy(entity);
@@ -290,16 +287,17 @@ void island_worker::maybe_split_island() {
             }
         }
     }
-    m_importing_snapshot = false;
+
+    m_splitting_island = false;
 
     m_message_queue.send<msg::split_island>(std::vector<std::vector<entt::entity>>(std::next(connected_components.begin()), connected_components.end()));
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {
     m_paused = msg.paused;
-    auto &isle = m_registry.get<island>(m_island_entity);
+    auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto timestamp = (double)performance_counter() / (double)performance_frequency();
-    isle.timestamp = timestamp;
+    isle_time.value = timestamp;
 }
 
 void island_worker::on_step_simulation(const msg::step_simulation &msg) {
