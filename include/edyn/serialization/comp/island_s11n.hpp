@@ -13,7 +13,6 @@ void serialize(Archive &archive, island &isle) {
 
 template<typename Archive>
 void serialize(Archive &archive, island_node &node) {
-    archive(node.procedural);
     archive(node.entities);
 }
 

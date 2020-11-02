@@ -6,6 +6,7 @@ namespace edyn {
 struct dynamic_tag {};
 struct kinematic_tag {};
 struct static_tag {};
+struct procedural_tag {};
 struct sleeping_tag {};
 struct sleeping_disabled_tag {};
 struct disabled_tag {};

@@ -40,7 +40,6 @@ struct island_timestamp {
  * through when generating islands.
  */
 struct island_node {
-    bool procedural;
     std::vector<entt::entity> entities;
 };
 

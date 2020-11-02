@@ -52,6 +52,7 @@ using all_components = std::tuple<
     dynamic_tag, 
     kinematic_tag, 
     static_tag, 
+    procedural_tag,
     sleeping_tag,
     sleeping_disabled_tag, 
     disabled_tag

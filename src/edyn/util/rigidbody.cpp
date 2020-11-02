@@ -81,6 +81,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     switch (def.kind) {
     case rigidbody_kind::rb_dynamic:
         registry.emplace<dynamic_tag>(entity);
+        registry.emplace<procedural_tag>(entity);
         break;
     case rigidbody_kind::rb_kinematic:
         registry.emplace<kinematic_tag>(entity);
@@ -90,8 +91,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         break;
     }
 
-    bool procedural = def.kind == rigidbody_kind::rb_dynamic;
-    registry.emplace<island_node>(entity, procedural);
+    registry.emplace<island_node>(entity);
 }
 
 entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) {

@@ -8,6 +8,8 @@
 #include <entt/entt.hpp>
 #include <vector>
 
+#include <iostream>
+
 namespace edyn {
 
 broadphase_main::broadphase_main(entt::registry &reg)

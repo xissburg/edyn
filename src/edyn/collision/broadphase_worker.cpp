@@ -12,6 +12,8 @@
 #include <entt/entt.hpp>
 #include <vector>
 
+#include <iostream>
+
 namespace edyn {
 
 broadphase_worker::broadphase_worker(entt::registry &reg)

@@ -75,12 +75,10 @@ void island_coordinator::init_new_island_nodes() {
     std::vector<entt::entity> procedural_node_entities;
 
     for (auto entity : m_new_island_nodes) {
-        auto &node = m_registry->get<island_node>(entity);
-
-        if (!node.procedural) {
-            init_new_non_procedural_island_node(entity);
-        } else {
+        if (m_registry->has<procedural_tag>(entity)) {
             procedural_node_entities.push_back(entity);
+        } else {
+            init_new_non_procedural_island_node(entity);
         }
     }
 
@@ -117,8 +115,7 @@ void island_coordinator::init_new_island_nodes() {
                     connected.begin(), connected.end(), other_entity) != connected.end();
                 if (already_visited) continue;
 
-                auto &other_node = m_registry->get<island_node>(other_entity);
-                if (other_node.procedural) {
+                if (m_registry->has<procedural_tag>(other_entity)) {
                     auto &other_container = m_registry->get<island_container>(other_entity);
 
                     // If the other entity is procedural and is already in an island,
@@ -178,12 +175,11 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
     auto &node = m_registry->get<island_node>(node_entity);
     auto &container = m_registry->get<island_container>(node_entity);
 
-    EDYN_ASSERT(!node.procedural);
+    EDYN_ASSERT(!(m_registry->has<procedural_tag>(node_entity)));
 
     // Add new non-procedural entity to islands of related procedural entities.
     for (auto other : node.entities) {
-        auto &other_node = m_registry->get<island_node>(other);
-        if (!other_node.procedural) continue;
+        if (!m_registry->has<procedural_tag>(other)) continue;
 
         auto &other_container = m_registry->get<island_container>(other);
         if (other_container.entities.empty()) continue;
@@ -250,11 +246,14 @@ void island_coordinator::connect_nodes(entt::entity ent0, entt::entity ent1) {
     node0.entities.push_back(ent1);
     node1.entities.push_back(ent0);
 
-    if (!node0.procedural && !node1.procedural) {
+    auto node0_procedural = m_registry->has<procedural_tag>(ent0);
+    auto node1_procedural = m_registry->has<procedural_tag>(ent1);
+
+    if (!node0_procedural && !node1_procedural) {
         return;
     }
 
-    if (node0.procedural && node1.procedural) {
+    if (node0_procedural && node1_procedural) {
         // Find out whether they're in the same island.
         auto &container0 = m_registry->get<island_container>(ent0);
         auto &container1 = m_registry->get<island_container>(ent1);
@@ -273,7 +272,7 @@ void island_coordinator::connect_nodes(entt::entity ent0, entt::entity ent1) {
         // Add non-procedural entity to island.
         entt::entity procedural_entity, non_procedural_entity;
 
-        if (node0.procedural) {
+        if (node0_procedural) {
             procedural_entity = ent0;
             non_procedural_entity = ent1;
         } else {

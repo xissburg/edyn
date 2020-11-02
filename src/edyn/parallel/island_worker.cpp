@@ -132,9 +132,7 @@ void island_worker::sync() {
 
     // Add transient components of procedural nodes to snapshot.
     for (auto entity : isle.entities) {
-        auto &node = m_registry.get<island_node>(entity);
-        // TODO: perhaps remove `island_node::procedural` and use a tag instead.
-        if (node.procedural) {
+        if (m_registry.has<procedural_tag>(entity)) {
             m_snapshot_builder.maybe_updated(entity, m_registry, transient_components{});
         }
     }
@@ -205,10 +203,8 @@ void island_worker::maybe_split_island() {
 
     std::vector<entt::entity> node_entities;
     node_entities.reserve(node_view.size());
-    node_view.each([&node_entities] (entt::entity entity, island_node &node) {
-        if (node.procedural) {
-            node_entities.push_back(entity);
-        }
+    m_registry.view<procedural_tag>().each([&node_entities] (entt::entity entity) {
+        node_entities.push_back(entity);
     });
 
     std::vector<std::unordered_set<entt::entity>> connected_components;
@@ -242,8 +238,7 @@ void island_worker::maybe_split_island() {
                     connected.begin(), connected.end(), other) != connected.end();
                 if (already_visited) continue;
 
-                auto &other_node = node_view.get(other);
-                if (other_node.procedural) {
+                if (m_registry.has<procedural_tag>(other)) {
                     to_visit.push_back(other);
                 } else {
                     connected.insert(other);
