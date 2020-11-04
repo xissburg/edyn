@@ -9,28 +9,28 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/dynamics/island_util.hpp"
 
 namespace edyn {
 
 inline void update_presentation(entt::registry &registry, double time) {
-    auto island_view = registry.view<island, island_timestamp>(exclude_global);
-    island_view.each([time, &registry] (auto, island &isle, island_timestamp &isle_time) {
+    auto timestamp_view = registry.view<island_timestamp>();
+    auto linear_view = registry.view<position, linvel, present_position, island_container, procedural_tag>(exclude_global);
+    auto angular_view = registry.view<orientation, angvel, present_orientation, island_container, procedural_tag>(exclude_global);
+    
+    linear_view.each([&] (auto, position &pos, linvel &vel, present_position &pre, island_container &container) {
+        auto island_entity = container.entities.front();
+        auto &isle_time = timestamp_view.get(island_entity);
         auto dt = time - isle_time.value;
-        
-        for (auto ent : isle.entities) {
-            auto [pos, vel, pre] = registry.try_get<position, linvel, present_position>(ent);
-            if (pos && vel && pre) {
-                *pre = *pos + *vel * dt;
-            }
-        }
+        pre = pos + vel * dt;
+    });
 
-        for (auto ent : isle.entities) {
-            auto [orn, vel, pre] = registry.try_get<orientation, angvel, present_orientation>(ent);
-            if (orn && vel && pre) {
-                *pre = integrate(*orn, *vel, dt);
-            }
-        }
+    angular_view.each([&] (auto, orientation &orn, angvel &vel, present_orientation &pre, island_container &container) {
+        auto island_entity = container.entities.front();
+        auto &isle_time = timestamp_view.get(island_entity);
+        auto dt = time - isle_time.value;
+        pre = integrate(orn, vel, dt);
     });
 }
 
