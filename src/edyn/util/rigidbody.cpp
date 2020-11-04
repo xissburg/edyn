@@ -31,10 +31,14 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     if (def.kind == rigidbody_kind::rb_dynamic) {
         EDYN_ASSERT(def.mass > 0);
         registry.emplace<mass>(entity, def.mass);
-        registry.emplace<mass_inv>(entity, 1 / def.mass);
+        registry.emplace<mass_inv>(entity, def.mass < EDYN_SCALAR_MAX ? 1 / def.mass : 0);
         registry.emplace<inertia>(entity, def.inertia);
-        EDYN_ASSERT(def.inertia > vector3_zero);
-        auto &invI = registry.emplace<inertia_inv>(entity, 1 / def.inertia);
+        auto &invI = registry.emplace<inertia_inv>(entity, 
+            vector3 {
+                def.inertia.x < EDYN_SCALAR_MAX ? 1 / def.inertia.x : 0,
+                def.inertia.y < EDYN_SCALAR_MAX ? 1 / def.inertia.y : 0,
+                def.inertia.z < EDYN_SCALAR_MAX ? 1 / def.inertia.z : 0
+            });
         registry.emplace<inertia_world_inv>(entity, diagonal(invI));
     } else {
         registry.emplace<mass>(entity, EDYN_SCALAR_MAX);
