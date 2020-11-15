@@ -5,10 +5,11 @@
 namespace edyn {
 
 entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::registry &registry, int priority) {
-    EDYN_ASSERT(con.num_rows + 1 < max_constraint_rows);
+    EDYN_ASSERT(con.num_rows() + 1 < max_constraint_rows);
+    EDYN_ASSERT(con.row[con.num_rows()] == entt::null);
 
     auto row_entity = registry.create();
-    con.row[con.num_rows++] = row_entity;
+    con.row[con.num_rows()] = row_entity;
 
     auto &row = registry.emplace<constraint_row>(row_entity);
     row.entity = con.body;
@@ -68,13 +69,13 @@ void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool 
     if (enabled) {
         registry.remove<disabled_tag>(entity);
 
-        for (size_t i = 0; i < con.num_rows; ++i) {
+        for (size_t i = 0; i < con.num_rows(); ++i) {
             registry.remove<disabled_tag>(con.row[i]);
         }
     } else {
         registry.emplace_or_replace<disabled_tag>(entity);
 
-        for (size_t i = 0; i < con.num_rows; ++i) {
+        for (size_t i = 0; i < con.num_rows(); ++i) {
             registry.emplace_or_replace<disabled_tag>(con.row[i]);
         }
     }

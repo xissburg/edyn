@@ -24,9 +24,18 @@ struct constraint {
                  soft_distance_constraint,
                  hinge_constraint,
                  generic_constraint> var;
-    size_t num_rows {0};
     std::array<entt::entity, max_constraint_rows> row = 
         make_array<max_constraint_rows>(entt::entity{entt::null});
+
+    size_t num_rows() const {
+        size_t count = 0;
+        for (auto e : row) {
+            if (e != entt::null) {
+                ++count;
+            }
+        }
+        return count;
+    }
 };
 
 }

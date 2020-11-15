@@ -71,7 +71,7 @@ void contact_point_changed(entt::entity entity, entt::registry &registry,
     auto &con = registry.get<constraint>(entity);
     // One of the existing contacts has been replaced. Update its rows.
     // Zero out warm-starting impulses.
-    for (size_t i = 0; i < con.num_rows; ++i) {
+    for (size_t i = 0; i < con.num_rows(); ++i) {
         auto &row = registry.get<constraint_row>(con.row[i]);
         row.impulse = 0;
     }
@@ -223,11 +223,11 @@ void on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) 
     auto &manifold = registry.get<contact_manifold>(entity);
 
     // Destroy child entities, i.e. contact points.
-    for (size_t i = 0; i < manifold.num_points(); ++i) {
+    for (size_t i = 0; i < manifold.point.size(); ++i) {
         auto point_entity = manifold.point[i];
         if (registry.valid(point_entity)) {
             registry.destroy(point_entity);
-        };
+        }
     }
 }
 

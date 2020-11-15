@@ -34,7 +34,8 @@ void registry_snapshot::import_child_entity_sequence(entt::registry &registry, e
     }
 
     if (old_seq) {
-        // Add entities from old which are still valid and are not in new.
+        // Reinsert entities from old which are still valid and haven't been
+        // moved to another island due to a split.
         for (auto old_it = old_seq->begin(); old_it != old_seq->end(); ++old_it) {
             const auto &old_entity = (*old_it).cast<entt::entity>();
 
@@ -49,6 +50,21 @@ void registry_snapshot::import_child_entity_sequence(entt::registry &registry, e
                 }
             }
             if (contains) continue;
+
+            bool moved = false;
+            for (auto connected : m_split_connected_components) {
+                for (auto remote_entity : connected) {
+                    if (!map.has_rem(remote_entity)) continue;
+                    auto local_entity = map.remloc(remote_entity);
+                    if (!registry.valid(local_entity)) continue;
+                    
+                    if (local_entity == old_entity) {
+                        moved = true;
+                        break;
+                    }
+                }
+            }
+            if (moved) continue;
 
             auto result = new_seq.insert(new_seq.end(), old_entity);
             if (result.second) continue;

@@ -4,6 +4,11 @@
 
 namespace edyn {
 
+template<typename T>
+bool vector_contains(const std::vector<T> &vec, const T &value) {
+    return std::find(vec.begin(), vec.end(), value) != vec.end();
+}
+
 island_coordinator::island_coordinator(entt::registry &registry)
     : m_registry(&registry)
 {
@@ -162,7 +167,9 @@ void island_coordinator::init_new_island_nodes() {
                 isle.entities.push_back(entity);
             }
             auto &container = m_registry->get<island_container>(entity);
-            container.entities.push_back(island_entity);
+            if (!vector_contains(container.entities, island_entity)) {
+                container.entities.push_back(island_entity);
+            }
         }
 
         // Add new entities to the snapshot builder.
@@ -190,7 +197,9 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
 
         auto island_entity = other_container.entities.front();
 
-        container.entities.push_back(island_entity);
+        if (!vector_contains(container.entities, island_entity)) {
+            container.entities.push_back(island_entity);
+        }
         
         auto &info = m_island_info_map.at(island_entity);
         info->m_snapshot_builder.created(node_entity);
@@ -346,7 +355,11 @@ void island_coordinator::merge_islands(const std::unordered_set<entt::entity> &i
                     container.entities.begin(), 
                     container.entities.end(), other_island_entity),
                 container.entities.end());
-            container.entities.push_back(island_entity);
+
+            if (!vector_contains(container.entities, island_entity)) {
+                container.entities.push_back(island_entity);
+            }
+
             // Include all components in snapshot because this is a new entity
             // in that island.
             builder.created(entity);
@@ -383,8 +396,11 @@ void island_coordinator::on_destroy_constraint(entt::registry &registry, entt::e
     auto &con = registry.get<constraint>(entity);
 
     // Destroy all constraint rows.
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        registry.destroy(con.row[i]);
+    for (size_t i = 0; i < con.row.size(); ++i) {
+        auto row_entity = con.row[i];
+        if (registry.valid(row_entity)) {
+            registry.destroy(row_entity);
+        }
     }
 }
 
@@ -437,7 +453,7 @@ void island_coordinator::on_registry_snapshot(entt::entity source_island_entity,
             auto not_in_source_island = std::find(source_isle.entities.begin(), 
                                                     source_isle.entities.end(), local_entity)
                                                     == source_isle.entities.end();
-            
+
             if (not_in_source_island) {
                 container.entities.erase(
                     std::remove(
@@ -446,7 +462,9 @@ void island_coordinator::on_registry_snapshot(entt::entity source_island_entity,
                     container.entities.end());
             }
 
-            container.entities.push_back(island_entity);
+            if (!vector_contains(container.entities, island_entity)) {
+                container.entities.push_back(island_entity);
+            }
         }
 
         // Add new entities to the snapshot builder.

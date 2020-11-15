@@ -104,8 +104,11 @@ void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity
     auto &con = registry.get<constraint>(entity);
 
     // Destroy all constraint rows.
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        registry.destroy(con.row[i]);
+    for (size_t i = 0; i < con.row.size(); ++i) {
+        auto row_entity = con.row[i];
+        if (registry.valid(row_entity)) {
+            registry.destroy(row_entity);
+        }
     }
 }
 

@@ -161,7 +161,7 @@ void solver::update(scalar dt) {
         auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(con.body[1]);
         auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(con.body[1]);
 
-        for (size_t i = 0; i < con.num_rows; ++i) {
+        for (size_t i = 0; i < con.num_rows(); ++i) {
             auto &row = row_view.get(con.row[i]);
             EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
             prepare(row, 

@@ -7,7 +7,7 @@
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/gravity.hpp"
-#include <entt/meta/factory.hpp>
+#include <entt/entt.hpp>
 
 namespace edyn {
 
