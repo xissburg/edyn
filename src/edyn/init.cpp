@@ -14,6 +14,8 @@ namespace edyn {
 static bool g_edyn_initialized {false};
 
 static void init_meta() {
+    entt::resolve<entt::entity>();
+
     entt::meta<island>().type()
         .data<&island::entities, entt::as_ref_t>("entities"_hs);
 
@@ -39,7 +41,6 @@ static void init_meta() {
 
     entt::meta<gravity>().type()
         .data<&gravity::body, entt::as_ref_t>("body"_hs);
-
 }
 
 void init() {

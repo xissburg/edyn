@@ -122,7 +122,7 @@ void island_coordinator::init_new_island_nodes() {
                     // it means this new procedural entity must join the existing island.
                     if (!other_container.entities.empty()) {
                         // Procedural entity must be in only one island.
-                        //EDYN_ASSERT(other_container.entities.size() == 1);
+                        EDYN_ASSERT(other_container.entities.size() == 1);
                         auto island_entity = other_container.entities.front();
                         island_entities.insert(island_entity);
                         // This entity must not be visited because it is already in an
@@ -478,6 +478,7 @@ void island_coordinator::update() {
     refresh_dirty_entities();
     init_new_island_nodes();
     sync();
+    validate();
 }
 
 void island_coordinator::set_paused(bool paused) {
@@ -490,6 +491,34 @@ void island_coordinator::set_paused(bool paused) {
 void island_coordinator::step_simulation() {
     for (auto &pair : m_island_info_map) {
         pair.second->m_message_queue.send<msg::step_simulation>();
+    }
+}
+
+void island_coordinator::validate() {
+    const auto &node_view = m_registry->view<const island_node>();
+
+    // All siblings of a node should point back to itself.
+    for (entt::entity entity : node_view) {
+        auto &node = node_view.get(entity);
+        for (auto other : node.entities) {
+            auto &other_node = node_view.get(other);
+            if (std::find(other_node.entities.begin(), 
+                          other_node.entities.end(), 
+                          entity) == other_node.entities.end()) {
+                EDYN_ASSERT(false);
+            }
+        }
+    }
+
+    auto container_view = m_registry->view<const island_container, const procedural_tag>();
+
+    // All procedural entities should be present in a single island.
+    for (entt::entity entity : container_view) {
+        auto &container = container_view.get<const island_container>(entity);
+
+        if (container.entities.size() != 1) {
+            EDYN_ASSERT(false);
+        }
     }
 }
 

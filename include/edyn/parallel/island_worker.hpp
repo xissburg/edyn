@@ -29,6 +29,7 @@ class island_worker final {
 
     void maybe_split_island();
     void do_terminate();
+    void validate_island();
 
 public:
     island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue);

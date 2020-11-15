@@ -1,6 +1,5 @@
 #include "edyn/parallel/registry_snapshot.hpp"
 #include <entt/entt.hpp>
-#include <algorithm>
 
 namespace edyn {
 
@@ -41,7 +40,15 @@ void registry_snapshot::import_child_entity_sequence(entt::registry &registry, e
 
             if (!registry.valid(old_entity)) continue;
 
-            if (std::find(new_seq.begin(), new_seq.end(), old_entity) != new_seq.end()) continue;
+            bool contains = false;
+            for (auto it = new_seq.begin(); it != new_seq.end(); ++it) {
+                auto &entity_ref = (*it).cast<entt::entity>();
+                if (entity_ref == old_entity) {
+                    contains = true;
+                    break;
+                }
+            }
+            if (contains) continue;
 
             auto result = new_seq.insert(new_seq.end(), old_entity);
             if (result.second) continue;
@@ -61,15 +68,33 @@ void registry_snapshot::import_child_entity_sequence(entt::registry &registry, e
     }
     
     // Move null entities to the end of the container.
-    auto erase_it = std::remove(new_seq.begin(), new_seq.end(), entt::entity{entt::null});
+    auto erase_it = new_seq.end();
+    
+    for (auto it = new_seq.begin(); it != new_seq.end(); ++it) {
+        auto &entity_ref = (*it).cast<entt::entity>();
+        if (entity_ref == entt::null) {
+            erase_it = it;
+            break;
+        }
+    }
+
+    for (auto it = erase_it; it != new_seq.end(); ++it) {
+        auto &entity_ref = (*it).cast<entt::entity>();
+        if (entity_ref != entt::null) {
+            (*erase_it).cast<entt::entity>() = entity_ref;
+            ++erase_it;
+        }
+    }
 
     // Remove null entities if this is a dynamic container.
-    for (auto it = erase_it; it != new_seq.end(); ++it) {
+    for (auto it = erase_it; it != new_seq.end(); ) {
         auto result = new_seq.erase(it);
 
         if (!result.second) { // Not a dynamic container.
             break;
         }
+
+        it = result.first;
     }
 }
 

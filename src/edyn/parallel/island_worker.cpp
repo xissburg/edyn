@@ -8,8 +8,8 @@
 
 namespace edyn {
 
-static bool validate_topology(const entt::registry &registry) {
-    const auto &node_view = registry.view<const island_node>();
+void island_worker::validate_island() {
+    const auto &node_view = m_registry.view<const island_node>();
 
     // All siblings of a node should point back to itself.
     for (entt::entity entity : node_view) {
@@ -19,12 +19,27 @@ static bool validate_topology(const entt::registry &registry) {
             if (std::find(other_node.entities.begin(), 
                           other_node.entities.end(), 
                           entity) == other_node.entities.end()) {
-                return false;
+                EDYN_ASSERT(false);
             }
         }
     }
 
-    return true;
+    auto container_view = m_registry.view<const island_container>();
+
+    // All island containers shoud contain the local island.
+    for (entt::entity entity : container_view) {
+        auto &container = container_view.get(entity);
+
+        if (std::find(container.entities.begin(), 
+                      container.entities.end(), 
+                      m_island_entity) == container.entities.end()) {
+            EDYN_ASSERT(false);
+        }
+
+        if (container.entities.size() != 1) {
+            EDYN_ASSERT(false);
+        }
+    }
 }
 
 void island_worker_func(job::data_type &data) {
@@ -221,7 +236,7 @@ void island_worker::step() {
     sync();
 
     if (m_topology_changed) {
-        EDYN_ASSERT(validate_topology(m_registry));
+        validate_island();
         maybe_split_island();
         m_topology_changed = false;
     }

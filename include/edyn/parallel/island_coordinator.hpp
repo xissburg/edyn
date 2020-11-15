@@ -65,6 +65,8 @@ class island_coordinator final {
     void refresh_dirty_entities();
     void sync();
 
+    void validate();
+
 public:
     island_coordinator(entt::registry &);
     ~island_coordinator();
