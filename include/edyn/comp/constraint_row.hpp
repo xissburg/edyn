@@ -3,14 +3,18 @@
 
 #include <array>
 #include <entt/fwd.hpp>
+#include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
 static constexpr size_t max_constrained_entities = 2;
 
 struct constraint_row {
-    std::array<entt::entity, max_constrained_entities> entity;
+    std::array<entt::entity, max_constrained_entities> entity =
+        make_array<max_constrained_entities>(entt::entity{entt::null});
+
     std::array<vector3, max_constrained_entities * 2> J;
     scalar error;
     scalar lower_limit;

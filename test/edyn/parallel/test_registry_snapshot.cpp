@@ -37,7 +37,7 @@ TEST(registry_snapshot_test, test_registry_export_import) {
     auto ent0 = reg0.create();
     reg0.emplace<edyn::island_node>(ent0, std::vector<entt::entity>{child0, child1});
     auto ent1 = reg0.create();
-    reg0.emplace<edyn::contact_point>(ent1, child0);
+    reg0.emplace<edyn::contact_point>(ent1, std::array<entt::entity, 2>{child0, child1});
     reg0.get<edyn::contact_point>(ent1).distance = 6.28;
 
     auto map0 = edyn::entity_map{};
@@ -53,7 +53,7 @@ TEST(registry_snapshot_test, test_registry_export_import) {
 
     ASSERT_EQ(map1.locrem(reg1.get<edyn::island_node>(map1.remloc(ent0)).entities[0]), child0);
     ASSERT_EQ(map1.locrem(reg1.get<edyn::island_node>(map1.remloc(ent0)).entities[1]), child1);
-    ASSERT_EQ(map1.locrem(reg1.get<edyn::contact_point>(map1.remloc(ent1)).parent), child0);
+    ASSERT_EQ(map1.locrem(reg1.get<edyn::contact_point>(map1.remloc(ent1)).body[0]), child0);
     ASSERT_SCALAR_EQ(reg1.get<edyn::contact_point>(map1.remloc(ent1)).distance, 6.28);
 
     // Replace some entities in `reg1`, export it and load it into `reg0`.
@@ -68,6 +68,6 @@ TEST(registry_snapshot_test, test_registry_export_import) {
 
     ASSERT_EQ(reg0.get<edyn::island_node>(ent0).entities[0], ent1);
     ASSERT_EQ(reg0.get<edyn::island_node>(ent0).entities[1], child1);
-    ASSERT_EQ(reg0.get<edyn::contact_point>(ent1).parent, child0);
+    ASSERT_EQ(reg0.get<edyn::contact_point>(ent1).body[0], child0);
     ASSERT_SCALAR_EQ(reg0.get<edyn::contact_point>(ent1).distance, 6.28);
 }

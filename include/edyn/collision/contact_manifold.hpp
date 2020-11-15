@@ -3,15 +3,27 @@
 
 #include <array>
 #include <entt/fwd.hpp>
+#include <entt/entity/entity.hpp>
 #include "edyn/math/constants.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
 struct contact_manifold {
-    std::array<entt::entity, 2> body;
+    std::array<entt::entity, 2> body {entt::null, entt::null};
     scalar separation_threshold;
-    size_t num_points {0};
-    std::array<entt::entity, max_contacts> point;
+    std::array<entt::entity, max_contacts> point =
+        make_array<max_contacts>(entt::entity{entt::null});
+
+    size_t num_points() const {
+        size_t count = 0;
+        for (auto e : point) {
+            if (e != entt::null) {
+                ++count;
+            }
+        }
+        return count;
+    }
 };
 
 }

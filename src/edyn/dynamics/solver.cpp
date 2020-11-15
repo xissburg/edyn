@@ -142,7 +142,7 @@ void solver::update(scalar dt) {
     auto con_view = registry->view<constraint>(exclude_global);
     auto row_view = registry->view<constraint_row>(exclude_global);
 
-    con_view.each([&] (auto entity, constraint &con) {
+    con_view.each([&] (entt::entity entity, constraint &con) {
         std::visit([&] (auto &&c) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *registry, dt);
         }, con.var);
@@ -152,7 +152,7 @@ void solver::update(scalar dt) {
         return lhs.priority > rhs.priority;
     });
 
-    con_view.each([&] (auto entity, constraint &con) {
+    con_view.each([&] (entt::entity entity, constraint &con) {
         auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(con.body[0]);
         auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(con.body[0]);
         auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(con.body[0]);
@@ -179,14 +179,14 @@ void solver::update(scalar dt) {
     // Solve constraints.
     for (uint32_t i = 0; i < iterations; ++i) {
         // Prepare constraints for iteration.
-        con_view.each([&] (auto entity, constraint &con) {
+        con_view.each([&] (entt::entity entity, constraint &con) {
             std::visit([&] (auto &&c) {
                 c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *registry, dt);
             }, con.var);
         });
 
         // Solve rows.
-        row_view.each([&] (auto, constraint_row &row) {
+        row_view.each([&] (entt::entity entity, constraint_row &row) {
             auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(row.entity[0]);
             auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(row.entity[0]);
 

@@ -45,19 +45,6 @@ public:
 
     void reschedule();
 
-    template<typename Comp>
-    void on_destroy_component(entt::registry &registry, entt::entity entity) {
-        if (m_importing_snapshot) return;
-        m_snapshot_builder.template destroyed<Comp>(entity);
-    }
-
-    template<typename Comp>
-    void on_replace_component(entt::registry &registry, entt::entity entity) {
-        if (m_importing_snapshot) return;
-        auto &comp = registry.get<Comp>(entity);
-        m_snapshot_builder.template updated<Comp>(entity, comp);
-    }
-
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
     

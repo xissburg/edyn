@@ -24,7 +24,7 @@ static void init_meta() {
         .data<&island_container::entities, entt::as_ref_t>("entities"_hs);
 
     entt::meta<contact_point>().type()
-        .data<&contact_point::parent>("parent"_hs);
+        .data<&contact_point::body, entt::as_ref_t>("parent"_hs);
 
     entt::meta<contact_manifold>().type()
         .data<&contact_manifold::body, entt::as_ref_t>("body"_hs)

@@ -12,8 +12,6 @@
 #include <entt/entt.hpp>
 #include <vector>
 
-#include <iostream>
-
 namespace edyn {
 
 broadphase_worker::broadphase_worker(entt::registry &reg)
@@ -28,6 +26,7 @@ void broadphase_worker::on_construct_contact_manifold(entt::registry &registry, 
     // Cache the pair for quick look up.
     auto p = std::make_pair(manifold.body[0], manifold.body[1]);
     auto q = std::make_pair(manifold.body[1], manifold.body[0]);
+    EDYN_ASSERT(m_manifold_map.count(p) == 0 && m_manifold_map.count(q) == 0);
     m_manifold_map[p] = entity;
     m_manifold_map[q] = entity;
 }
@@ -58,7 +57,7 @@ void broadphase_worker::update() {
 
     // Search for new AABB intersections and create manifolds.
     const auto offset = vector3_one * -contact_breaking_threshold;
-    const auto separation_threshold = contact_breaking_threshold * 1.5;
+    const auto separation_threshold = contact_breaking_threshold * 4 * 1.3;
     auto it = aabb_view.begin();
     const auto it_end = aabb_view.end();
 

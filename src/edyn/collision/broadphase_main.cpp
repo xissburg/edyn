@@ -8,8 +8,6 @@
 #include <entt/entt.hpp>
 #include <vector>
 
-#include <iostream>
-
 namespace edyn {
 
 broadphase_main::broadphase_main(entt::registry &reg)
@@ -19,17 +17,18 @@ broadphase_main::broadphase_main(entt::registry &reg)
     reg.on_destroy<contact_manifold>().connect<&broadphase_main::on_destroy_contact_manifold>(*this);
 }
 
-void broadphase_main::on_construct_contact_manifold(entt::registry &reg, entt::entity ent) {
-    auto &manifold = reg.get<contact_manifold>(ent);
+void broadphase_main::on_construct_contact_manifold(entt::registry &reg, entt::entity entity) {
+    auto &manifold = reg.get<contact_manifold>(entity);
     // Cache the pair for quick look up.
     auto p = std::make_pair(manifold.body[0], manifold.body[1]);
     auto q = std::make_pair(manifold.body[1], manifold.body[0]);
-    m_manifold_map[p] = ent;
-    m_manifold_map[q] = ent;
+    EDYN_ASSERT(m_manifold_map.count(p) == 0 && m_manifold_map.count(q) == 0);
+    m_manifold_map[p] = entity;
+    m_manifold_map[q] = entity;
 }
 
-void broadphase_main::on_destroy_contact_manifold(entt::registry &reg, entt::entity ent) {
-    auto &manifold = reg.get<contact_manifold>(ent);
+void broadphase_main::on_destroy_contact_manifold(entt::registry &reg, entt::entity entity) {
+    auto &manifold = reg.get<contact_manifold>(entity);
     // Cleanup cached info.
     auto p = std::make_pair(manifold.body[0], manifold.body[1]);
     auto q = std::make_pair(manifold.body[1], manifold.body[0]);

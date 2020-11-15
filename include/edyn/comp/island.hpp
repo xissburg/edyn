@@ -48,6 +48,7 @@ struct island_container {
 };
 
 struct island_node_dirty {
+    bool is_new_entity {false};
     std::unordered_set<entt::id_type> indexes;
 };
 

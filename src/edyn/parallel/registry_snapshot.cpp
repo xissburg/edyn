@@ -1,13 +1,27 @@
 #include "edyn/parallel/registry_snapshot.hpp"
 #include <entt/entt.hpp>
+#include <algorithm>
 
 namespace edyn {
 
-void registry_snapshot::import_child_entity_sequence(entt::registry &registry, entity_map &map, entt::meta_sequence_container &seq) const {
-    if (seq.value_type() != entt::resolve<entt::entity>()) return;
+void registry_snapshot::import_created(entt::registry &registry, entity_map &map) const {
+    for (auto remote_entity : m_created_entities) {
+        if (map.has_rem(remote_entity)) continue;
+        auto local_entity = registry.create();
+        map.insert(remote_entity, local_entity);
+    }
+}
 
-    for (size_t i = 0; i < seq.size(); ++i) {
-        auto &entity_ref = seq[i].cast<entt::entity>();
+void registry_snapshot::import_child_entity_sequence(entt::registry &registry, entity_map &map, 
+                                                     entt::meta_sequence_container *old_seq,
+                                                     entt::meta_sequence_container &new_seq) const {
+    if (new_seq.value_type() != entt::resolve<entt::entity>()) return;
+
+    for (size_t i = 0; i < new_seq.size(); ++i) {
+        auto &entity_ref = new_seq[i].cast<entt::entity>();
+
+        if (entity_ref == entt::null) continue;
+
         if (map.has_rem(entity_ref)) {
             auto local_entity = map.remloc(entity_ref);
             if (registry.valid(local_entity)) {
@@ -16,45 +30,51 @@ void registry_snapshot::import_child_entity_sequence(entt::registry &registry, e
                 entity_ref = entt::null;
             }
         } else {
-            auto local_entity = registry.create();
-            map.insert(entity_ref, local_entity);
-            entity_ref = local_entity;
+            entity_ref = entt::null;
         }
     }
 
-    // Remove null if container is dynamic.
-    for (auto it = seq.begin(); it != seq.end();) {
-        if ((*it).cast<entt::entity>() == entt::null) {
-            auto pair = seq.erase(it);
-            
-            if (!pair.second) { // Not a dynamic container.
-                break;
-            }
+    if (old_seq) {
+        // Add entities from old which are still valid and are not in new.
+        for (auto old_it = old_seq->begin(); old_it != old_seq->end(); ++old_it) {
+            const auto &old_entity = (*old_it).cast<entt::entity>();
 
-            it = pair.first;
-        } else {
-            ++it;
+            if (!registry.valid(old_entity)) continue;
+
+            if (std::find(new_seq.begin(), new_seq.end(), old_entity) != new_seq.end()) continue;
+
+            auto result = new_seq.insert(new_seq.end(), old_entity);
+            if (result.second) continue;
+
+            // Not a dynamic container. Find a null entry to replace with.
+            bool found = false;
+            for (auto new_it = new_seq.begin(); new_it != new_seq.end(); ++new_it) {
+                auto &new_entity = (*new_it).cast<entt::entity>();
+                if (new_entity == entt::null) {
+                    new_entity = old_entity;
+                    found = true;
+                    break;
+                }
+            }
+            EDYN_ASSERT(found);
+        }
+    }
+    
+    // Move null entities to the end of the container.
+    auto erase_it = std::remove(new_seq.begin(), new_seq.end(), entt::entity{entt::null});
+
+    // Remove null entities if this is a dynamic container.
+    for (auto it = erase_it; it != new_seq.end(); ++it) {
+        auto result = new_seq.erase(it);
+
+        if (!result.second) { // Not a dynamic container.
+            break;
         }
     }
 }
 
 void registry_snapshot::import(entt::registry &registry, entity_map &map) const {
-    for (auto &pair : m_remloc_entity_pairs) {
-        auto remote_entity = pair.first;
-        auto local_entity = pair.second;
-
-        if (!map.has_rem(remote_entity)) {
-            if (local_entity != entt::null) {
-                if (registry.valid(local_entity)) {
-                    map.insert(remote_entity, local_entity);
-                }
-            } else {
-                map.insert(remote_entity, registry.create());
-            }
-        }
-    }
-
-    import_updated(registry, map, all_components{});
+    import_created(registry, map);
     import_destroyed(registry, map, all_components{});
 
     for (auto remote_entity : m_destroyed_entities) {
@@ -66,6 +86,21 @@ void registry_snapshot::import(entt::registry &registry, entity_map &map) const 
             registry.destroy(local_entity);
         }
     }
+
+    for (auto &pair : m_remloc_entity_pairs) {
+        auto remote_entity = pair.first;
+        auto local_entity = pair.second;
+
+        if (!map.has_rem(remote_entity)) {
+            if (local_entity != entt::null) {
+                if (registry.valid(local_entity)) {
+                    map.insert(remote_entity, local_entity);
+                }
+            }
+        }
+    }
+
+    import_updated(registry, map, all_components{});
 }
 
 void registry_snapshot_builder::insert_entity_mapping(entt::entity local_entity) {

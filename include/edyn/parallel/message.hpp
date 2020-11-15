@@ -15,10 +15,6 @@ struct step_simulation {
 
 };
 
-struct split_island {
-    std::vector<std::unordered_set<entt::entity>> connected_components;
-};
-
 }
 
 #endif // EDYN_PARALLEL_MESSAGE_HPP

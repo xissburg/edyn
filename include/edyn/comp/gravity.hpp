@@ -3,11 +3,12 @@
 
 #include <array>
 #include <entt/fwd.hpp>
+#include <entt/entity/entity.hpp>
 
 namespace edyn {
 
 struct gravity {
-    std::array<entt::entity, 2> body;
+    std::array<entt::entity, 2> body {entt::null, entt::null};
 };
 
 }

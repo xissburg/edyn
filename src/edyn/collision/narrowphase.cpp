@@ -20,13 +20,12 @@ namespace edyn {
 // Update distance of persisted contact points.
 static
 void update_contact_distances(entt::registry &registry) {
-    auto tr_view = registry.view<position, orientation>();
     auto cp_view = registry.view<contact_point>();
+    auto tr_view = registry.view<position, orientation>();
 
     cp_view.each([&] (auto, contact_point &cp) {
-        auto &manifold = registry.get<contact_manifold>(cp.parent);
-        auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
-        auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
+        auto [posA, ornA] = tr_view.get<position, orientation>(cp.body[0]);
+        auto [posB, ornB] = tr_view.get<position, orientation>(cp.body[1]);
         auto pivotA_world = posA + rotate(ornA, cp.pivotA);
         auto pivotB_world = posB + rotate(ornB, cp.pivotB);
         auto normal_world = rotate(ornB, cp.normalB);
@@ -44,10 +43,9 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
 }
 
 static
-void create_contact_constraint(entt::entity entity, entt::registry &registry, 
-                               contact_manifold &manifold, contact_point &cp) {
-    auto &materialA = registry.get<material>(manifold.body[0]);
-    auto &materialB = registry.get<material>(manifold.body[1]);
+void create_contact_constraint(entt::entity entity, entt::registry &registry, contact_point &cp) {
+    auto &materialA = registry.get<material>(cp.body[0]);
+    auto &materialB = registry.get<material>(cp.body[1]);
 
     cp.restitution = materialA.restitution * materialB.restitution;
     cp.friction = materialA.friction * materialB.friction;
@@ -64,7 +62,7 @@ void create_contact_constraint(entt::entity entity, entt::registry &registry,
     contact.stiffness = stiffness;
     contact.damping = damping;
 
-    make_constraint(entity, registry, std::move(contact), manifold.body[0], manifold.body[1]);
+    make_constraint(entity, registry, std::move(contact), cp.body[0], cp.body[1]);
 }
 
 static
@@ -85,9 +83,9 @@ size_t find_nearest_contact(const contact_manifold &manifold,
                             const collision_result::collision_point &coll_pt,
                             const ContactPointViewType &cp_view) {
     auto shortest_dist = contact_caching_threshold * contact_caching_threshold;
-    auto nearest_idx = manifold.num_points;
+    auto nearest_idx = manifold.num_points();
 
-    for (size_t i = 0; i < manifold.num_points; ++i) {
+    for (size_t i = 0; i < manifold.num_points(); ++i) {
         auto &cp = cp_view.get(manifold.point[i]);
         auto dA = length_sqr(coll_pt.pivotA - cp.pivotA);
         auto dB = length_sqr(coll_pt.pivotB - cp.pivotB);
@@ -118,34 +116,43 @@ void process_collision(entt::registry &registry, entt::entity manifold_entity,
         // Find closest existing point.
         auto nearest_idx = find_nearest_contact(manifold, rp, cp_view);
 
-        if (nearest_idx < manifold.num_points) {
+        if (nearest_idx < manifold.num_points()) {
             auto &cp = cp_view.get(manifold.point[nearest_idx]);
             ++cp.lifetime;
             merge_point(rp, cp);
         } else {
             // Assign it to array of points and set it up.
-            // Find best insertion index.
+            // Find best insertion index. Try pivotA first.
             std::array<vector3, max_contacts> pivots;
             std::array<scalar, max_contacts> distances;
-            for (size_t i = 0; i < manifold.num_points; ++i) {
+            for (size_t i = 0; i < manifold.num_points(); ++i) {
                 auto &cp = cp_view.get(manifold.point[i]);
-                pivots[i] = cp.pivotA;
+                pivots[i] = cp.pivotB;
                 distances[i] = cp.distance;
             }
 
-            auto idx = insert_index(pivots, distances, manifold.num_points, rp.pivotA, rp.distance);
+            auto idx = insert_index(pivots, distances, manifold.num_points(), rp.pivotB, rp.distance);
+
+            // No closest point found for pivotA, try pivotB.
+            if (idx >= manifold.num_points()) {
+                for (size_t i = 0; i < manifold.num_points(); ++i) {
+                    auto &cp = cp_view.get(manifold.point[i]);
+                    pivots[i] = cp.pivotB;
+                }
+
+                idx = insert_index(pivots, distances, manifold.num_points(), rp.pivotB, rp.distance);
+            }
 
             if (idx < max_contacts) {
-                auto is_new_contact = idx == manifold.num_points;
+                auto is_new_contact = idx == manifold.num_points();
 
                 if (is_new_contact) {
                     auto contact_entity = registry.create();
                     manifold.point[idx] = contact_entity;
-                    ++manifold.num_points;
 
                     auto &cp = registry.emplace<contact_point>(
                         contact_entity, 
-                        manifold_entity, // parent
+                        manifold.body,
                         rp.pivotA, // pivotA
                         rp.pivotB, // pivotB
                         rp.normalB, // normalB
@@ -156,22 +163,11 @@ void process_collision(entt::registry &registry, entt::entity manifold_entity,
                     );
 
                     if (registry.has<material>(manifold.body[0]) && registry.has<material>(manifold.body[1])) {
-                        create_contact_constraint(contact_entity, registry, manifold, cp);
+                        create_contact_constraint(contact_entity, registry, cp);
                     }
-
-                    auto &manifold_node = registry.get<island_node>(manifold_entity);
-                    manifold_node.entities.push_back(contact_entity);
-
-                    auto &cp_node = registry.get<island_node>(contact_entity);
-                    cp_node.entities.push_back(manifold_entity);
-
-                    auto &cp_dirty = registry.get_or_emplace<island_node_dirty>(contact_entity);
-                    cp_dirty.indexes.insert(entt::type_index<contact_point>::value());
-                    cp_dirty.indexes.insert(entt::type_index<island_node>::value());
 
                     auto &manifold_dirty = registry.get_or_emplace<island_node_dirty>(manifold_entity);
                     manifold_dirty.indexes.insert(entt::type_index<contact_manifold>::value());
-                    manifold_dirty.indexes.insert(entt::type_index<island_node>::value());
                 } else {
                     // Replace existing contact point.
                     auto contact_entity = manifold.point[idx];
@@ -194,7 +190,7 @@ void prune(entt::registry &registry, entt::entity entity,
     auto cp_view = registry.view<contact_point>();
 
     // Remove separating contact points.
-    for (size_t i = manifold.num_points; i > 0; --i) {
+    for (size_t i = manifold.num_points(); i > 0; --i) {
         size_t k = i - 1;
         auto point_entity = manifold.point[k];
         auto &cp = cp_view.get(point_entity);
@@ -209,13 +205,13 @@ void prune(entt::registry &registry, entt::entity entity,
             registry.destroy(point_entity);
 
             // Swap with last element.
-            size_t last_idx = manifold.num_points - 1;
+            size_t last_idx = manifold.num_points() - 1;
             
             if (last_idx != k) {
                 manifold.point[k] = manifold.point[last_idx];
             }
 
-            --manifold.num_points;
+            manifold.point[last_idx] = entt::null;
 
             registry.get_or_emplace<island_node_dirty>(entity).indexes.insert(entt::type_index<contact_manifold>::value());
         }
@@ -227,7 +223,7 @@ void on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) 
     auto &manifold = registry.get<contact_manifold>(entity);
 
     // Destroy child entities, i.e. contact points.
-    for (size_t i = 0; i < manifold.num_points; ++i) {
+    for (size_t i = 0; i < manifold.num_points(); ++i) {
         auto point_entity = manifold.point[i];
         if (registry.valid(point_entity)) {
             registry.destroy(point_entity);
@@ -244,9 +240,9 @@ narrowphase::narrowphase(entt::registry &reg)
 void narrowphase::update() {
     update_contact_distances(*registry);
 
+    auto manifold_view = registry->view<contact_manifold>();
     auto body_view = registry->view<AABB, shape, position, orientation>();
 
-    auto manifold_view = registry->view<contact_manifold>();
     manifold_view.each([&] (entt::entity entity, contact_manifold &manifold) {
         if (registry->has<sleeping_tag>(manifold.body[0]) && 
             registry->has<sleeping_tag>(manifold.body[1])) {
