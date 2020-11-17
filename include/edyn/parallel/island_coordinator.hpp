@@ -79,9 +79,7 @@ public:
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
 
-    void connect_nodes(entt::entity, entt::entity);
-    void disconnect_nodes(entt::entity, entt::entity);
-    void merge_islands(const std::unordered_set<entt::entity> &);
+    entt::entity merge_islands(const std::unordered_set<entt::entity> &);
 
     void update();
 
