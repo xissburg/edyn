@@ -95,12 +95,12 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                 s   = clamp_unit(std::min(-c * a_inv, -c1 * a_inv));
                 *sp = clamp_unit(std::max(-c * a_inv, -c1 * a_inv));
 
-                auto r2 = q1 - p2;
+                auto r2 = p2 - q1;
                 auto f2 = dot(d2, r2);
                 auto e_inv = 1 / e;
 
-                t   = clamp_unit(std::min(f * e_inv, f2 * e_inv));
-                *tp = clamp_unit(std::max(f * e_inv, f2 * e_inv));
+                t   = clamp_unit(std::min(-f * e_inv, -f2 * e_inv));
+                *tp = clamp_unit(std::max(-f * e_inv, -f2 * e_inv));
                 
                 if (std::abs(s - *sp) > EDYN_EPSILON) {
                     *num_points = 2;
