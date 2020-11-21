@@ -30,6 +30,7 @@ class island_worker final {
     void maybe_split_island();
     void do_terminate();
     void validate_island();
+    void init_new_imported_contact_manifolds();
 
 public:
     island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue);
@@ -48,6 +49,8 @@ public:
 
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
+
+    void on_construct_contact_manifold(entt::registry &, entt::entity);
     
     void on_construct_island_node(entt::registry &, entt::entity);
     void on_update_island_node(entt::registry &, entt::entity);
@@ -73,10 +76,13 @@ private:
     message_queue_in_out m_message_queue;
     double m_fixed_dt;
     bool m_paused;
+
     registry_snapshot_builder m_snapshot_builder;
     bool m_importing_snapshot;
     bool m_splitting_island;
     bool m_topology_changed;
+
+    std::vector<entt::entity> m_new_imported_contact_manifolds;
 
     std::atomic<bool> m_terminating {false};
     std::atomic<bool> m_terminated {false};

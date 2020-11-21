@@ -115,6 +115,19 @@ void registry_snapshot::import_child_entity_sequence(entt::registry &registry, e
 }
 
 void registry_snapshot::import(entt::registry &registry, entity_map &map) const {
+    for (auto &pair : m_remloc_entity_pairs) {
+        auto remote_entity = pair.first;
+        auto local_entity = pair.second;
+
+        if (!map.has_rem(remote_entity)) {
+            if (local_entity != entt::null) {
+                if (registry.valid(local_entity)) {
+                    map.insert(remote_entity, local_entity);
+                }
+            }
+        }
+    }
+    
     import_created(registry, map);
     import_destroyed(registry, map, all_components{});
 
@@ -128,18 +141,6 @@ void registry_snapshot::import(entt::registry &registry, entity_map &map) const 
         }
     }
 
-    for (auto &pair : m_remloc_entity_pairs) {
-        auto remote_entity = pair.first;
-        auto local_entity = pair.second;
-
-        if (!map.has_rem(remote_entity)) {
-            if (local_entity != entt::null) {
-                if (registry.valid(local_entity)) {
-                    map.insert(remote_entity, local_entity);
-                }
-            }
-        }
-    }
 
     import_updated(registry, map, all_components{});
 }
