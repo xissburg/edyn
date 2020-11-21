@@ -8,40 +8,6 @@
 
 namespace edyn {
 
-void island_worker::validate_island() {
-    const auto &node_view = m_registry.view<const island_node>();
-
-    // All siblings of a node should point back to itself.
-    for (entt::entity entity : node_view) {
-        auto &node = node_view.get(entity);
-        for (auto other : node.entities) {
-            auto &other_node = node_view.get(other);
-            if (std::find(other_node.entities.begin(), 
-                          other_node.entities.end(), 
-                          entity) == other_node.entities.end()) {
-                EDYN_ASSERT(false);
-            }
-        }
-    }
-
-    auto container_view = m_registry.view<const island_container>();
-
-    // All island containers shoud contain the local island.
-    for (entt::entity entity : container_view) {
-        auto &container = container_view.get(entity);
-
-        if (std::find(container.entities.begin(), 
-                      container.entities.end(), 
-                      m_island_entity) == container.entities.end()) {
-            EDYN_ASSERT(false);
-        }
-
-        if (container.entities.size() != 1) {
-            EDYN_ASSERT(false);
-        }
-    }
-}
-
 void island_worker_func(job::data_type &data) {
     auto archive = memory_input_archive(data.data(), data.size());
     intptr_t worker_intptr;
@@ -85,6 +51,8 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
     m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
+    
+    m_registry.on_construct<contact_manifold>().connect<&island_worker::on_construct_contact_manifold>(*this);
 }
 
 void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
@@ -109,6 +77,12 @@ void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity
         if (registry.valid(row_entity)) {
             registry.destroy(row_entity);
         }
+    }
+}
+
+void island_worker::on_construct_contact_manifold(entt::registry &registry, entt::entity entity) {
+    if (m_importing_snapshot) {
+        m_new_imported_contact_manifolds.push_back(entity);
     }
 }
 
@@ -228,6 +202,7 @@ void island_worker::update() {
 }
 
 void island_worker::step() {
+    init_new_imported_contact_manifolds();
     m_solver.update(m_fixed_dt);
     m_bphase.update();
     m_nphase.update();
@@ -253,6 +228,12 @@ void island_worker::reschedule() {
     archive(ctx_intptr);
     //job_dispatcher::global()::async_after(isle_time.value + m_fixed_dt - timestamp, j);
     job_dispatcher::global().async(j);
+}
+
+void island_worker::init_new_imported_contact_manifolds() {
+    m_nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
+                                      m_new_imported_contact_manifolds.end());
+    m_new_imported_contact_manifolds.clear();
 }
 
 void island_worker::maybe_split_island() {
@@ -390,6 +371,40 @@ void island_worker::do_terminate() {
 void island_worker::join() {
     auto lock = std::unique_lock(m_terminate_mutex);
     m_terminate_cv.wait(lock, [&] { return is_terminated(); });
+}
+
+void island_worker::validate_island() {
+    const auto &node_view = m_registry.view<const island_node>();
+
+    // All siblings of a node should point back to itself.
+    for (entt::entity entity : node_view) {
+        auto &node = node_view.get(entity);
+        for (auto other : node.entities) {
+            auto &other_node = node_view.get(other);
+            if (std::find(other_node.entities.begin(), 
+                          other_node.entities.end(), 
+                          entity) == other_node.entities.end()) {
+                EDYN_ASSERT(false);
+            }
+        }
+    }
+
+    auto container_view = m_registry.view<const island_container>();
+
+    // All island containers shoud contain the local island.
+    for (entt::entity entity : container_view) {
+        auto &container = container_view.get(entity);
+
+        if (std::find(container.entities.begin(), 
+                      container.entities.end(), 
+                      m_island_entity) == container.entities.end()) {
+            EDYN_ASSERT(false);
+        }
+
+        if (container.entities.size() != 1) {
+            EDYN_ASSERT(false);
+        }
+    }
 }
 
 }

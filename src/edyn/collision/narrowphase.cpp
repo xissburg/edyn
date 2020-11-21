@@ -241,41 +241,41 @@ void narrowphase::update() {
     update_contact_distances(*registry);
 
     auto manifold_view = registry->view<contact_manifold>();
-    auto body_view = registry->view<AABB, shape, position, orientation>();
+    update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
+}
 
-    manifold_view.each([&] (entt::entity entity, contact_manifold &manifold) {
-        if (registry->has<sleeping_tag>(manifold.body[0]) && 
-            registry->has<sleeping_tag>(manifold.body[1])) {
-            return;
-        }
+void narrowphase::update_contact_manifold(entt::entity entity, contact_manifold &manifold, narrowphase::body_view_t &body_view) {
+    if (registry->has<sleeping_tag>(manifold.body[0]) && 
+        registry->has<sleeping_tag>(manifold.body[1])) {
+        return;
+    }
 
-        auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
-        auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
-        const auto offset = vector3_one * -contact_breaking_threshold;
+    auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
+    auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
+    const auto offset = vector3_one * -contact_breaking_threshold;
 
-        // Only proceed to closest points calculation if AABBs intersect, since
-        // a manifold is allowed to exist whilst the AABB separation is smaller
-        // than `manifold.separation_threshold` which is greater than the
-        // contact breaking threshold.
-        if (intersect(aabbA.inset(offset), aabbB)) {
-            auto &shapeA = body_view.get<shape>(manifold.body[0]);
-            auto &shapeB = body_view.get<shape>(manifold.body[1]);
+    // Only proceed to closest points calculation if AABBs intersect, since
+    // a manifold is allowed to exist whilst the AABB separation is smaller
+    // than `manifold.separation_threshold` which is greater than the
+    // contact breaking threshold.
+    if (intersect(aabbA.inset(offset), aabbB)) {
+        auto &shapeA = body_view.get<shape>(manifold.body[0]);
+        auto &shapeB = body_view.get<shape>(manifold.body[1]);
 
-            auto result = collision_result{};
-            // Structured binding is not captured by lambda, thus use an explicit
-            // capture list (https://stackoverflow.com/a/48103632/749818).
-            std::visit([&result, &shapeB, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA) {
-                std::visit([&] (auto &&sB) {
-                    result = collide(sA, pA, oA, sB, pB, oB, 
-                                     contact_breaking_threshold);
-                }, shapeB.var);
-            }, shapeA.var);
+        auto result = collision_result{};
+        // Structured binding is not captured by lambda, thus use an explicit
+        // capture list (https://stackoverflow.com/a/48103632/749818).
+        std::visit([&result, &shapeB, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA) {
+            std::visit([&] (auto &&sB) {
+                result = collide(sA, pA, oA, sB, pB, oB, 
+                                    contact_breaking_threshold);
+            }, shapeB.var);
+        }, shapeA.var);
 
-            process_collision(*registry, entity, manifold, result);
-        }
+        process_collision(*registry, entity, manifold, result);
+    }
 
-        prune(*registry, entity, manifold, posA, ornA, posB, ornB);
-    });
+    prune(*registry, entity, manifold, posA, ornA, posB, ornB);
 }
 
 }
