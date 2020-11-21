@@ -205,18 +205,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         if (result.num_points < 4) {
             auto face_center = shA.get_face_center(sep_axis.feature_indexA, posA, ornA);
             auto face_basis = shA.get_face_basis(sep_axis.feature_indexA, ornA);
-            vector2 half_extents;
-
-            if (sep_axis.feature_indexA == 0 || sep_axis.feature_indexA == 1) {
-                half_extents.x = shA.half_extents.y;
-                half_extents.y = shA.half_extents.z;
-            } else if (sep_axis.feature_indexA == 2 || sep_axis.feature_indexA == 3) {
-                half_extents.x = shA.half_extents.z;
-                half_extents.y = shA.half_extents.x;
-            } else {
-                half_extents.x = shA.half_extents.x;
-                half_extents.y = shA.half_extents.y;
-            }
+            auto half_extents = shA.get_face_half_extents(sep_axis.feature_indexA);
 
             for (size_t j = 0; j < 4; ++j) {
                 auto b0_world = face_verticesB[j];

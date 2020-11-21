@@ -221,6 +221,16 @@ matrix3x3 box_shape::get_face_basis(size_t i, const quaternion &orn) const {
     return matrix3x3_columns(rotate(orn, x), rotate(orn, y), rotate(orn, z));
 }
 
+vector2 box_shape::get_face_half_extents(size_t i) const {
+    EDYN_ASSERT(i < 6);
+    if (i == 0 || i == 1) {
+        return vector2{half_extents.y, half_extents.z};
+    } else if (i == 2 || i == 3) {
+        return vector2{half_extents.z, half_extents.x};
+    }
+    return vector2{half_extents.x, half_extents.y};
+}
+
 size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {    
     for (size_t i = 0; i < 12; ++i) {
         auto idx0 = edge_indices[i * 2];

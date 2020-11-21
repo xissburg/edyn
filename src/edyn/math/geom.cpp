@@ -767,7 +767,8 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
     auto f = aabb_max - p0;
 
     if (std::abs(d.x) < EDYN_EPSILON) {
-        if (e.x < EDYN_EPSILON || f.x < EDYN_EPSILON) {
+        // Line is vertical.
+        if (e.x <= 0 && f.x >= 0) {
             s0 = e.y / d.y;
             s1 = f.y / d.y;
             num_points = 2; 
@@ -777,7 +778,8 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
     }
 
     if (std::abs(d.y) < EDYN_EPSILON) {
-        if (e.y < EDYN_EPSILON || f.y < EDYN_EPSILON) {
+        // Line is horizontal.
+        if (e.y <= 0 && f.y >= 0) {
             s0 = e.x / d.x;
             s1 = f.x / d.x;
             num_points = 2; 
@@ -786,7 +788,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
         return num_points;
     }
 
-    {
+    /* Left edge. */ {
         auto t = e.x / d.x;
         auto qy = p0.y + d.y * t;
         
@@ -796,7 +798,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
         }
     }
 
-    {
+    /* Right edge. */ {
         auto t = f.x / d.x;
         auto qy = p0.y + d.y * t;
         
@@ -804,7 +806,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
             if (num_points == 0) {
                 s0 = t;
                 ++num_points;
-            } else if (t != s0) {
+            } else if (std::abs(t - s0) > EDYN_EPSILON) {
                 s1 = t;
                 ++num_points;
             }
@@ -815,7 +817,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
         return num_points;
     }
 
-    {
+    /* Bottom edge. */ {
         auto t = e.y / d.y;
         auto qx = p0.x + d.x * t;
         
@@ -823,7 +825,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
             if (num_points == 0) {
                 s0 = t;
                 ++num_points;
-            } else if (t != s0) {
+            } else if (std::abs(t - s0) > EDYN_EPSILON) {
                 s1 = t;
                 ++num_points;
             }
@@ -834,7 +836,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
         return num_points;
     }
 
-    {
+    /* Top edge. */ {
         auto t = f.y / d.y;
         auto qx = p0.x + d.x * t;
         
@@ -842,7 +844,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
             if (num_points == 0) {
                 s0 = t;
                 ++num_points;
-            } else if (t != s0) {
+            } else if (std::abs(t - s0) > EDYN_EPSILON) {
                 s1 = t;
                 ++num_points;
             }
