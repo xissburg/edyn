@@ -1,7 +1,7 @@
 #include "../common/common.hpp"
 #include <edyn/collision/collide.hpp>
 
-TEST(test_collision, collide_box_box) {
+TEST(test_collision, collide_box_box_face_face) {
     auto box = edyn::box_shape{edyn::vector3{0.5, 0.5, 0.5}};
     auto result = edyn::collide(box, edyn::vector3{0,0,0}, edyn::quaternion_identity,
                                 box, edyn::vector3{0, 2 * box.half_extents.y, 0}, edyn::quaternion_identity, 
@@ -26,4 +26,46 @@ TEST(test_collision, collide_box_box) {
     }
 
     ASSERT_TRUE(expected_points.empty());
+}
+
+TEST(test_collision, collide_box_box_face_edge) {
+    auto box = edyn::box_shape{edyn::vector3{0.5, 0.5, 0.5}};
+    auto result = edyn::collide(box, edyn::vector3{0,0,0}, edyn::quaternion_identity,
+                                box, edyn::vector3{0, 2 * box.half_extents.y + 0.2, 0}, edyn::quaternion_axis_angle({1, 0, 0}, edyn::pi / 4), 
+                                0.02);
+    ASSERT_EQ(result.num_points, 2);
+    
+    std::vector<edyn::vector3> expected_pivotA;
+    expected_pivotA.push_back(edyn::vector3{0.5, 0.5, 0});
+    expected_pivotA.push_back(edyn::vector3{-0.5, 0.5, 0});
+
+    for (size_t i = 0; i < 2; ++i) {
+        ASSERT_EQ(expected_pivotA.size(), 2 - i);
+        
+        for (auto it = expected_pivotA.begin(); it != expected_pivotA.end(); ++it) {
+            if (edyn::distance(result.point[i].pivotA, *it) < EDYN_EPSILON) {
+                expected_pivotA.erase(it);
+                break;
+            }
+        }
+    }
+
+    ASSERT_TRUE(expected_pivotA.empty());
+    
+    std::vector<edyn::vector3> expected_pivotB;
+    expected_pivotB.push_back(edyn::vector3{0.5, -0.5, 0.5});
+    expected_pivotB.push_back(edyn::vector3{-0.5, -0.5, 0.5});
+
+    for (size_t i = 0; i < 2; ++i) {
+        ASSERT_EQ(expected_pivotB.size(), 2 - i);
+        
+        for (auto it = expected_pivotB.begin(); it != expected_pivotB.end(); ++it) {
+            if (edyn::distance(result.point[i].pivotB, *it) < EDYN_EPSILON) {
+                expected_pivotB.erase(it);
+                break;
+            }
+        }
+    }
+
+    ASSERT_TRUE(expected_pivotB.empty());
 }
