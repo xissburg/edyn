@@ -758,4 +758,98 @@ scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, ve
     return dist;
 }
 
+size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
+                           const vector2 &aabb_min, const vector2 &aabb_max,
+                           scalar &s0, scalar &s1) {
+    size_t num_points = 0;
+    auto d = p1 - p0;
+    auto e = aabb_min - p0;
+    auto f = aabb_max - p0;
+
+    if (std::abs(d.x) < EDYN_EPSILON) {
+        if (e.x < EDYN_EPSILON || f.x < EDYN_EPSILON) {
+            s0 = e.y / d.y;
+            s1 = f.y / d.y;
+            num_points = 2; 
+        }
+
+        return num_points;
+    }
+
+    if (std::abs(d.y) < EDYN_EPSILON) {
+        if (e.y < EDYN_EPSILON || f.y < EDYN_EPSILON) {
+            s0 = e.x / d.x;
+            s1 = f.x / d.x;
+            num_points = 2; 
+        }
+
+        return num_points;
+    }
+
+    {
+        auto t = e.x / d.x;
+        auto qy = p0.y + d.y * t;
+        
+        if (qy >= aabb_min.y && qy < aabb_max.y) {
+            s0 = t;
+            ++num_points;
+        }
+    }
+
+    {
+        auto t = f.x / d.x;
+        auto qy = p0.y + d.y * t;
+        
+        if (qy > aabb_min.y && qy <= aabb_max.y) {
+            if (num_points == 0) {
+                s0 = t;
+                ++num_points;
+            } else if (t != s0) {
+                s1 = t;
+                ++num_points;
+            }
+        }
+    }
+
+    if (num_points == 2) {
+        return num_points;
+    }
+
+    {
+        auto t = e.y / d.y;
+        auto qx = p0.x + d.x * t;
+        
+        if (qx >= aabb_min.x && qx < aabb_max.x) {
+            if (num_points == 0) {
+                s0 = t;
+                ++num_points;
+            } else if (t != s0) {
+                s1 = t;
+                ++num_points;
+            }
+        }
+    }
+
+    if (num_points == 2) {
+        return num_points;
+    }
+
+    {
+        auto t = f.y / d.y;
+        auto qx = p0.x + d.x * t;
+        
+        if (qx > aabb_min.x && qx <= aabb_max.x) {
+            if (num_points == 0) {
+                s0 = t;
+                ++num_points;
+            } else if (t != s0) {
+                s1 = t;
+                ++num_points;
+            }
+        }
+    }
+
+    return num_points;
+}
+
 }

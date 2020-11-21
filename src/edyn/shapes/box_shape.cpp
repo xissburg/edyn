@@ -177,6 +177,20 @@ std::array<vector3, 4> box_shape::get_face(size_t i, const vector3 &pos, const q
     };
 }
 
+static
+vector3 get_face_tangent(size_t i) {
+    EDYN_ASSERT(i < 6);
+    constexpr vector3 normals[] = {
+        { 0,  1,  0},
+        { 0, -1,  0},
+        { 0,  0,  1},
+        { 0,  0, -1},
+        { 1,  0,  0},
+        {-1,  0,  0},
+    };
+    return normals[i];
+}
+
 vector3 box_shape::get_face_normal(size_t i) const {
     EDYN_ASSERT(i < 6);
     constexpr vector3 normals[] = {
@@ -192,6 +206,19 @@ vector3 box_shape::get_face_normal(size_t i) const {
 
 vector3 box_shape::get_face_normal(size_t i, const quaternion &orn) const {
     return rotate(orn, get_face_normal(i));
+}
+
+vector3 box_shape::get_face_center(size_t i, const vector3 &pos, const quaternion &orn) const {
+    auto n = get_face_normal(i, orn);
+    auto e = half_extents[i / 2];
+    return pos + n * e;
+}
+
+matrix3x3 box_shape::get_face_basis(size_t i, const quaternion &orn) const {
+    auto y = get_face_normal(i);
+    auto x = get_face_tangent(i);
+    auto z = cross(x, y);
+    return matrix3x3_columns(rotate(orn, x), rotate(orn, y), rotate(orn, z));
 }
 
 size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {    

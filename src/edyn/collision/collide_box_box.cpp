@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <numeric>
 #include "edyn/util/array.hpp"
+#include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/math.hpp"
 
 namespace edyn {
 
@@ -201,29 +203,44 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // If not all vertices are contained in a face, perform edge intersection tests.
         if (result.num_points < 4) {
-            for (size_t i = 0; i < 4; ++i) {
-                auto &a0 = face_verticesA[i];
-                auto &a1 = face_verticesA[(i + 1) % 4];
+            auto face_center = shA.get_face_center(sep_axis.feature_indexA, posA, ornA);
+            auto face_basis = shA.get_face_basis(sep_axis.feature_indexA, ornA);
+            vector2 half_extents;
 
-                for (size_t j = 0; j < 4; ++j) {
-                    auto &b0 = face_verticesB[j];
-                    auto &b1 = face_verticesB[(j + 1) % 4];
+            if (sep_axis.feature_indexA == 0 || sep_axis.feature_indexA == 1) {
+                half_extents.x = shA.half_extents.y;
+                half_extents.y = shA.half_extents.z;
+            } else if (sep_axis.feature_indexA == 2 || sep_axis.feature_indexA == 3) {
+                half_extents.x = shA.half_extents.z;
+                half_extents.y = shA.half_extents.x;
+            } else {
+                half_extents.x = shA.half_extents.x;
+                half_extents.y = shA.half_extents.y;
+            }
 
-                    scalar s[2], t[2];
-                    vector3 p0[2], p1[2];
-                    size_t num_points = 0;
-                    closest_point_segment_segment(a0, a1, b0, b1, 
-                                                  s[0], t[0], p0[0], p1[0], &num_points, 
-                                                  &s[1], &t[1], &p0[1], &p1[1]);
-                    for (size_t k = 0; k < num_points; ++k) {
-                        if (result.num_points < max_contacts && 
-                            s[k] > 0 && s[k] < 1 && t[k] > 0 && t[k] < 1) {
-                            auto pivotA = to_object_space(p0[k], posA, ornA);
-                            auto pivotB = to_object_space(p1[k], posB, ornB);
-                            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-                        }
+            for (size_t j = 0; j < 4; ++j) {
+                auto b0_world = face_verticesB[j];
+                auto b1_world = face_verticesB[(j + 1) % 4];
+                auto b0 = to_object_space(b0_world, face_center, face_basis);
+                auto b1 = to_object_space(b1_world, face_center, face_basis);
+                auto p0 = vector2{b0.x, b0.z};
+                auto p1 = vector2{b1.x, b1.z};
+
+                scalar s[2];
+                auto num_points = intersect_line_aabb(p0, p1, -half_extents, half_extents, s[0], s[1]);
+                for (size_t k = 0; k < num_points; ++k) {
+                    if (result.num_points == max_contacts) break;
+
+                    if (s[k] >= 0 && s[k] < 1) {
+                        auto q1 = lerp(b0_world, b1_world, s[k]);
+                        auto q0 = project_plane(q1, face_center, face_normalA);
+                        auto pivotA = to_object_space(q0, posA, ornA);
+                        auto pivotB = to_object_space(q1, posB, ornB);
+                        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                     }
                 }
+
+                if (result.num_points == max_contacts) break;
             }
         }
     } else if ((sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == BOX_FEATURE_EDGE) ||

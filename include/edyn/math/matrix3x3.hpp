@@ -148,6 +148,11 @@ inline quaternion to_quaternion(const matrix3x3 &m) {
     return {temp[0], temp[1], temp[2], temp[3]};
 }
 
+inline
+vector3 to_object_space(const vector3 &p, const vector3 &pos, const matrix3x3 &basis) {
+    return transpose(basis) * (p - pos);
+}
+
 }
 
 #endif // EDYN_MATH_MATRIX3X3_HPP

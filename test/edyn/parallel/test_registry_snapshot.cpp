@@ -42,10 +42,12 @@ TEST(registry_snapshot_test, test_registry_export_import) {
 
     auto map0 = edyn::entity_map{};
     auto builder = edyn::registry_snapshot_builder(map0);
+    builder.created(ent0);
     builder.updated(ent0, reg0.get<edyn::island_node>(ent0));
+    builder.created(ent1);
     builder.updated(ent1, reg0.get<edyn::contact_point>(ent1));
-    builder.updated(child0);
-    builder.updated(child1);
+    builder.created(child0);
+    builder.created(child1);
 
     entt::registry reg1;
     auto map1 = edyn::entity_map{};

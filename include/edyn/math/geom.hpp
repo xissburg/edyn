@@ -269,6 +269,11 @@ vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p);
  */
 scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, 
                                 vector3 &closest, vector3 &normal);
+
+size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
+                           const vector2 &aabb_min, const vector2 &aabb_max,
+                           scalar &s0, scalar &s1);
+
 }
 
 #endif // EDYN_MATH_GEOM_HPP

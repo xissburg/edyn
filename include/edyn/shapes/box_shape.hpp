@@ -2,6 +2,7 @@
 #define EDYN_SHAPES_BOX_SHAPE_HPP
 
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
 #include <tuple>
@@ -165,6 +166,9 @@ struct box_shape {
      * @return Face normal in world space.
      */
     vector3 get_face_normal(size_t i, const quaternion &orn) const;
+
+    vector3 get_face_center(size_t i, const vector3 &pos, const quaternion &orn) const;
+    matrix3x3 get_face_basis(size_t i, const quaternion &orn) const;
 
     /**
      * Get edge index from vertex indices.
