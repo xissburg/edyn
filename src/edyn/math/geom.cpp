@@ -95,12 +95,12 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                 s   = clamp_unit(std::min(-c * a_inv, -c1 * a_inv));
                 *sp = clamp_unit(std::max(-c * a_inv, -c1 * a_inv));
 
-                auto r2 = q1 - p2;
+                auto r2 = p2 - q1;
                 auto f2 = dot(d2, r2);
                 auto e_inv = 1 / e;
 
-                t   = clamp_unit(std::min(f * e_inv, f2 * e_inv));
-                *tp = clamp_unit(std::max(f * e_inv, f2 * e_inv));
+                t   = clamp_unit(std::min(-f * e_inv, -f2 * e_inv));
+                *tp = clamp_unit(std::max(-f * e_inv, -f2 * e_inv));
                 
                 if (std::abs(s - *sp) > EDYN_EPSILON) {
                     *num_points = 2;
@@ -756,6 +756,102 @@ scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, ve
     }
 
     return dist;
+}
+
+size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
+                           const vector2 &aabb_min, const vector2 &aabb_max,
+                           scalar &s0, scalar &s1) {
+    size_t num_points = 0;
+    auto d = p1 - p0;
+    auto e = aabb_min - p0;
+    auto f = aabb_max - p0;
+
+    if (std::abs(d.x) < EDYN_EPSILON) {
+        // Line is vertical.
+        if (e.x <= 0 && f.x >= 0) {
+            s0 = e.y / d.y;
+            s1 = f.y / d.y;
+            num_points = 2; 
+        }
+
+        return num_points;
+    }
+
+    if (std::abs(d.y) < EDYN_EPSILON) {
+        // Line is horizontal.
+        if (e.y <= 0 && f.y >= 0) {
+            s0 = e.x / d.x;
+            s1 = f.x / d.x;
+            num_points = 2; 
+        }
+
+        return num_points;
+    }
+
+    /* Left edge. */ {
+        auto t = e.x / d.x;
+        auto qy = p0.y + d.y * t;
+        
+        if (qy >= aabb_min.y && qy < aabb_max.y) {
+            s0 = t;
+            ++num_points;
+        }
+    }
+
+    /* Right edge. */ {
+        auto t = f.x / d.x;
+        auto qy = p0.y + d.y * t;
+        
+        if (qy > aabb_min.y && qy <= aabb_max.y) {
+            if (num_points == 0) {
+                s0 = t;
+                ++num_points;
+            } else if (std::abs(t - s0) > EDYN_EPSILON) {
+                s1 = t;
+                ++num_points;
+            }
+        }
+    }
+
+    if (num_points == 2) {
+        return num_points;
+    }
+
+    /* Bottom edge. */ {
+        auto t = e.y / d.y;
+        auto qx = p0.x + d.x * t;
+        
+        if (qx >= aabb_min.x && qx < aabb_max.x) {
+            if (num_points == 0) {
+                s0 = t;
+                ++num_points;
+            } else if (std::abs(t - s0) > EDYN_EPSILON) {
+                s1 = t;
+                ++num_points;
+            }
+        }
+    }
+
+    if (num_points == 2) {
+        return num_points;
+    }
+
+    /* Top edge. */ {
+        auto t = f.y / d.y;
+        auto qx = p0.x + d.x * t;
+        
+        if (qx > aabb_min.x && qx <= aabb_max.x) {
+            if (num_points == 0) {
+                s0 = t;
+                ++num_points;
+            } else if (std::abs(t - s0) > EDYN_EPSILON) {
+                s1 = t;
+                ++num_points;
+            }
+        }
+    }
+
+    return num_points;
 }
 
 }

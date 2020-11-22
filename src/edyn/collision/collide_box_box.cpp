@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <numeric>
 #include "edyn/util/array.hpp"
+#include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/math.hpp"
 
 namespace edyn {
 
@@ -201,29 +203,33 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // If not all vertices are contained in a face, perform edge intersection tests.
         if (result.num_points < 4) {
-            for (size_t i = 0; i < 4; ++i) {
-                auto &a0 = face_verticesA[i];
-                auto &a1 = face_verticesA[(i + 1) % 4];
+            auto face_center = shA.get_face_center(sep_axis.feature_indexA, posA, ornA);
+            auto face_basis = shA.get_face_basis(sep_axis.feature_indexA, ornA);
+            auto half_extents = shA.get_face_half_extents(sep_axis.feature_indexA);
 
-                for (size_t j = 0; j < 4; ++j) {
-                    auto &b0 = face_verticesB[j];
-                    auto &b1 = face_verticesB[(j + 1) % 4];
+            for (size_t j = 0; j < 4; ++j) {
+                auto b0_world = face_verticesB[j];
+                auto b1_world = face_verticesB[(j + 1) % 4];
+                auto b0 = to_object_space(b0_world, face_center, face_basis);
+                auto b1 = to_object_space(b1_world, face_center, face_basis);
+                auto p0 = vector2{b0.x, b0.z};
+                auto p1 = vector2{b1.x, b1.z};
 
-                    scalar s[2], t[2];
-                    vector3 p0[2], p1[2];
-                    size_t num_points = 0;
-                    closest_point_segment_segment(a0, a1, b0, b1, 
-                                                  s[0], t[0], p0[0], p1[0], &num_points, 
-                                                  &s[1], &t[1], &p0[1], &p1[1]);
-                    for (size_t k = 0; k < num_points; ++k) {
-                        if (result.num_points < max_contacts && 
-                            s[k] > 0 && s[k] < 1 && t[k] > 0 && t[k] < 1) {
-                            auto pivotA = to_object_space(p0[k], posA, ornA);
-                            auto pivotB = to_object_space(p1[k], posB, ornB);
-                            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-                        }
+                scalar s[2];
+                auto num_points = intersect_line_aabb(p0, p1, -half_extents, half_extents, s[0], s[1]);
+                for (size_t k = 0; k < num_points; ++k) {
+                    if (result.num_points == max_contacts) break;
+
+                    if (s[k] >= 0 && s[k] <= 1) {
+                        auto q1 = lerp(b0_world, b1_world, s[k]);
+                        auto q0 = project_plane(q1, face_center, face_normalA);
+                        auto pivotA = to_object_space(q0, posA, ornA);
+                        auto pivotB = to_object_space(q1, posB, ornB);
+                        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                     }
                 }
+
+                if (result.num_points == max_contacts) break;
             }
         }
     } else if ((sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == BOX_FEATURE_EDGE) ||
@@ -263,24 +269,28 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // If both vertices are not inside the face then perform edge intersection tests.
         if (result.num_points < 2) {
-            for (int i = 0; i < 4; ++i) {
-                auto &v0 = face_vertices[i];
-                auto &v1 = face_vertices[(i + 1) % 4];
+            auto face_center = is_faceA ? shA.get_face_center(sep_axis.feature_indexA, posA, ornA) :
+                                          shB.get_face_center(sep_axis.feature_indexB, posB, ornB);
+            auto face_basis = is_faceA ? shA.get_face_basis(sep_axis.feature_indexA, ornA) :
+                                         shB.get_face_basis(sep_axis.feature_indexB, ornB);
+            auto half_extents = is_faceA ? shA.get_face_half_extents(sep_axis.feature_indexA) :
+                                           shB.get_face_half_extents(sep_axis.feature_indexB);
 
-                scalar s[2], t[2];
-                vector3 p0[2], p1[2];
-                size_t num_points = 0;
-                closest_point_segment_segment(v0, v1, edge_vertices[0], edge_vertices[1], 
-                                              s[0], t[0], p0[0], p1[0], &num_points, 
-                                              &s[1], &t[1], &p0[1], &p1[1]);
-                for (size_t i = 0; i < num_points; ++i) {
-                    if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                        auto pivotA = is_faceA ? to_object_space(p0[i], posA, ornA) :
-                                                 to_object_space(p1[i], posA, ornA);
-                        auto pivotB = is_faceA ? to_object_space(p1[i], posB, ornB) :
-                                                 to_object_space(p0[i], posB, ornB);
-                        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-                    }
+            auto e0 = to_object_space(edge_vertices[0], face_center, face_basis);
+            auto e1 = to_object_space(edge_vertices[1], face_center, face_basis);
+            auto p0 = vector2{e0.x, e0.z};
+            auto p1 = vector2{e1.x, e1.z};
+
+            scalar s[2];
+            auto num_points = intersect_line_aabb(p0, p1, -half_extents, half_extents, s[0], s[1]);
+
+            for (size_t i = 0; i < num_points; ++i) {
+                if (s[i] >= 0 && s[i] <= 1) {
+                    auto edge_pivot = lerp(edge_vertices[0], edge_vertices[1], s[i]);
+                    auto face_pivot = project_plane(edge_pivot, face_center, sep_axis.dir);
+                    auto pivotA = to_object_space(is_faceA ? face_pivot : edge_pivot, posA, ornA);
+                    auto pivotB = to_object_space(is_faceA ? edge_pivot : face_pivot, posB, ornB);
+                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                 }
             }
         }        
