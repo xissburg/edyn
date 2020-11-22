@@ -48,6 +48,13 @@ public:
         m_locrem.erase(local_entity);
     }
 
+    template<typename Func>
+    void each(Func func) const {
+        for (auto &pair : m_remloc) {
+            func(pair.first, pair.second);
+        }
+    }
+
 private:
     std::unordered_map<entt::entity, entt::entity> m_remloc; // Maps remote to local entities.
     std::unordered_map<entt::entity, entt::entity> m_locrem; // Maps local to remote entities.

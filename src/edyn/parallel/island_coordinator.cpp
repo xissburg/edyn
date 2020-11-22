@@ -434,13 +434,26 @@ void island_coordinator::update() {
 void island_coordinator::set_paused(bool paused) {
     m_paused = paused;
     for (auto &pair : m_island_info_map) {
-        pair.second->m_message_queue.send<msg::set_paused>(msg::set_paused{paused});
+        auto &info = pair.second;
+        info->m_message_queue.send<msg::set_paused>(msg::set_paused{paused});
+
+        if (!paused) {
+            // If the worker is being unpaused that means it was not running.
+            // Thus it is necessary to call `reschedule` to wake it up and
+            // process the message sent above.
+            info->m_worker->reschedule();
+        }
     }
 }
 
 void island_coordinator::step_simulation() {
     for (auto &pair : m_island_info_map) {
-        pair.second->m_message_queue.send<msg::step_simulation>();
+        auto &info = pair.second;
+        info->m_message_queue.send<msg::step_simulation>();
+        // The worker is not running while paused, thus it's necessary to call
+        // `reschedule` to make it run once. It does not reschedules itself
+        // while paused.
+        info->m_worker->reschedule();
     }
 }
 

@@ -109,6 +109,7 @@ set(Edyn_SOURCES
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
+    src/edyn/parallel/job_scheduler.cpp
     src/edyn/parallel/job_queue_scheduler.cpp
     src/edyn/parallel/island_worker.cpp
     src/edyn/parallel/island_coordinator.cpp

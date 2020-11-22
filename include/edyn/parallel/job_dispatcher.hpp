@@ -8,6 +8,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include "edyn/parallel/worker.hpp"
+#include "edyn/parallel/job_scheduler.hpp"
 
 namespace edyn {
 
@@ -19,6 +20,7 @@ class job_dispatcher {
 public:
     static job_dispatcher &global();
 
+    job_dispatcher();
     ~job_dispatcher();
 
     void start();
@@ -30,6 +32,8 @@ public:
      * Schedules a job to run asynchronously in a worker thread.
      */
     void async(const job &);
+
+    void async_after(double delta_time, const job &);
 
     /**
      * Schedules a job to run in a specific thread.
@@ -68,6 +72,8 @@ private:
 
     // Job queue for this thread.
     static thread_local job_queue m_queue;
+
+    job_scheduler m_scheduler;
 };
 
 }

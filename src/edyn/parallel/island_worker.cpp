@@ -197,8 +197,10 @@ void island_worker::update() {
         }
     }
 
-    // Reschedule this job.
-    reschedule();
+    // Reschedule this job only if not paused.
+    if (!m_paused) {
+        reschedule();
+    }
 }
 
 void island_worker::step() {
@@ -226,8 +228,16 @@ void island_worker::reschedule() {
     auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
     auto ctx_intptr = reinterpret_cast<intptr_t>(this);
     archive(ctx_intptr);
-    //job_dispatcher::global()::async_after(isle_time.value + m_fixed_dt - timestamp, j);
-    job_dispatcher::global().async(j);
+
+    auto time = (double)performance_counter() / (double)performance_frequency();
+    auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
+    auto delta_time = isle_time.value + m_fixed_dt - time;
+
+    if (delta_time > 0) {
+        job_dispatcher::global().async_after(delta_time, j);
+    } else {
+        job_dispatcher::global().async(j);
+    }
 }
 
 void island_worker::init_new_imported_contact_manifolds() {

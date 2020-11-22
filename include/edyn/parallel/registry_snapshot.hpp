@@ -127,7 +127,7 @@ public:
     std::vector<std::unordered_set<entt::entity>> m_split_connected_components;
     
 private:
-    std::vector<std::pair<entt::entity, entt::entity>> m_remloc_entity_pairs;
+    entity_map m_entity_map;
     std::unordered_set<entt::entity> m_created_entities;
     std::unordered_set<entt::entity> m_destroyed_entities;
     map_tuple<updated_components, all_components>::type m_updated_components;
