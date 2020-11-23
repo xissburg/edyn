@@ -54,6 +54,7 @@ class island_coordinator final {
         }
 
         void sync() {
+            //if (m_snapshot_builder.empty()) return;
             m_message_queue.send<registry_snapshot>(m_snapshot_builder.get_snapshot());
             m_snapshot_builder.clear();
         }

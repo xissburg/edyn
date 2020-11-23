@@ -120,6 +120,8 @@ public:
      */
     void import(entt::registry &, entity_map &) const;
 
+    const auto created() const { return m_created_entities; }
+
     friend class registry_snapshot_builder;
 
     double m_timestamp;
@@ -135,37 +137,14 @@ private:
 };
 
 class registry_snapshot_builder {
-    void insert_entity_mapping(entt::entity);
-
-    template<typename Component>
-    void insert_child_entity_mapping(Component &component) {
-        auto range = entt::resolve<Component>().data();
-        for (entt::meta_data data : range) {
-            if (data.type() == entt::resolve<entt::entity>()) {
-                auto handle = entt::meta_handle(component);
-                auto ent = data.get(handle).cast<entt::entity>();
-                insert_entity_mapping(ent);
-            } else if (data.type().is_sequence_container()) {
-                auto handle = entt::meta_handle(component);
-                auto seq = data.get(handle).as_sequence_container();
-
-                if (seq.value_type() == entt::resolve<entt::entity>()) {
-                    for (entt::meta_any element : seq) {
-                        auto ent = element.cast<entt::entity>();
-                        insert_entity_mapping(ent);
-                    }
-                }
-            }
-        }
-    }
-
 public:
     registry_snapshot_builder(entity_map &map)
         : m_entity_map(&map)
     {}
 
+    void insert_entity_mapping(entt::entity);
+
     void created(entt::entity entity) {
-        insert_entity_mapping(entity);
         m_snapshot.m_created_entities.insert(entity);
     }
 
@@ -174,11 +153,6 @@ public:
      */
     template<typename... Component>
     void updated(entt::entity entity, Component &... comp) {
-        insert_entity_mapping(entity);
-
-        // Also add entity pairs for child entity members.
-        (insert_child_entity_mapping(comp), ...);
-
         (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.insert_or_assign(entity, comp), ...);
     }
 
@@ -186,7 +160,6 @@ public:
     void updated(entt::entity entity, entt::registry &registry) {
         if constexpr(sizeof...(Component) <= 1) {
             if constexpr(std::conjunction_v<entt::is_eto_eligible<Component>...>) {
-                insert_entity_mapping(entity);
                 (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.insert_or_assign(entity, Component{}), ...);
             } else {
                 (updated<Component>(entity, registry.get<Component>(entity)), ...);
@@ -228,8 +201,6 @@ public:
      */
     template<typename... Component>
     void destroyed(entt::entity entity) {
-        insert_entity_mapping(entity);
-
         if constexpr(sizeof...(Component) == 0) {
             m_snapshot.m_destroyed_entities.insert(entity);
         } else {

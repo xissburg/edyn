@@ -362,6 +362,12 @@ void island_coordinator::on_registry_snapshot(entt::entity source_island_entity,
     snapshot.import(*m_registry, source_info->m_entity_map);
     m_importing_snapshot = false;
 
+    for (auto remote_entity : snapshot.created()) {
+        if (!source_info->m_entity_map.has_rem(remote_entity)) continue;
+        auto local_entity = source_info->m_entity_map.remloc(remote_entity);
+        source_info->m_snapshot_builder.insert_entity_mapping(local_entity);
+    }
+
     auto &source_isle = m_registry->get<island>(source_island_entity);
 
     for (auto &entities : snapshot.m_split_connected_components) {

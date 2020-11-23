@@ -141,10 +141,8 @@ void registry_snapshot_builder::insert_entity_mapping(entt::entity local_entity)
     // Note that this is being called from the builder and the order is reversed,
     // i.e. (local, remote). When importing, the "correct" order is used, so the
     // first entity which is the remote, refers to the local entity in this registry.
-    if (m_entity_map->has_loc(local_entity)) {
-        auto remote_entity = m_entity_map->locrem(local_entity);
-        m_snapshot.m_entity_map.insert(local_entity, remote_entity);
-    }
+    auto remote_entity = m_entity_map->locrem(local_entity);
+    m_snapshot.m_entity_map.insert(local_entity, remote_entity);
 }
 
 }

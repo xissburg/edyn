@@ -48,6 +48,10 @@ public:
         m_locrem.erase(local_entity);
     }
 
+    bool empty() const {
+        return m_remloc.empty();
+    }
+
     template<typename Func>
     void each(Func func) const {
         for (auto &pair : m_remloc) {

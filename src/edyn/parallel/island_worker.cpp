@@ -147,6 +147,12 @@ void island_worker::on_registry_snapshot(const registry_snapshot &snapshot) {
     m_importing_snapshot = true;
     snapshot.import(m_registry, m_entity_map);
     m_importing_snapshot = false;
+
+    for (auto remote_entity : snapshot.created()) {
+        if (!m_entity_map.has_rem(remote_entity)) continue;
+        auto local_entity = m_entity_map.remloc(remote_entity);
+        m_snapshot_builder.insert_entity_mapping(local_entity);
+    }
 }
 
 void island_worker::sync() {
