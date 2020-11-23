@@ -121,6 +121,7 @@ public:
     void import(entt::registry &, entity_map &) const;
 
     const auto created() const { return m_created_entities; }
+    const auto destroyed() const { return m_destroyed_entities; }
 
     friend class registry_snapshot_builder;
 

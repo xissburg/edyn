@@ -94,13 +94,6 @@ void island_worker::on_construct_island_node(entt::registry &registry, entt::ent
     auto &container = registry.emplace<island_container>(entity);
     container.entities.push_back(m_island_entity);
 
-    auto &isle = registry.get<island>(m_island_entity);
-    if (std::find(isle.entities.begin(), isle.entities.end(), entity) == isle.entities.end()) {
-        EDYN_ASSERT((registry.has<island_container, island_node>(entity)));
-        isle.entities.push_back(entity);
-        m_snapshot_builder.updated<island>(m_island_entity, isle);
-    }
-
     m_snapshot_builder.created(entity);
     m_snapshot_builder.maybe_updated(entity, registry, all_components{});
 }
@@ -111,16 +104,8 @@ void island_worker::on_update_island_node(entt::registry &registry, entt::entity
 
 void island_worker::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
 
-    auto &isle = registry.get<island>(m_island_entity);
-    isle.entities.erase(
-        std::remove(
-            isle.entities.begin(),
-            isle.entities.end(), entity),
-        isle.entities.end());
-
     if (!m_importing_snapshot && !m_splitting_island) {
         m_snapshot_builder.destroyed(entity);
-        m_snapshot_builder.updated<island>(m_island_entity, isle);
     }
 
     // Remove from connected nodes.
@@ -309,14 +294,11 @@ void island_worker::maybe_split_island() {
     // There's more than one island in this worker which means the work can now
     // be split and run in parallel in two or more workers.
     // Keep the first connected component in this island.
-    auto &isle = m_registry.get<island>(m_island_entity);
-    isle.entities = std::vector<entt::entity>(connected_components.front().begin(),
-                                              connected_components.front().end());
-    m_snapshot_builder.updated<island>(m_island_entity, isle);
-
+    auto local_entities = connected_components.front();
     m_splitting_island = true;
 
     std::unordered_set<entt::entity> destroyed_entities;
+    m_snapshot_builder.split(local_entities);
     
     for (auto it = std::next(connected_components.begin()); it != connected_components.end(); ++it) {
         for (auto ent_it = it->begin(); ent_it != it->end(); ++ent_it) {
@@ -324,7 +306,9 @@ void island_worker::maybe_split_island() {
 
             // Destroy node locally if it is not contained in the local island anymore.
             auto should_destroy = 
-                std::find(isle.entities.begin(), isle.entities.end(), entity) == isle.entities.end();
+                std::find(local_entities.begin(), 
+                          local_entities.end(), entity) == 
+                          local_entities.end();
 
             if (should_destroy) {
                 destroyed_entities.insert(entity);

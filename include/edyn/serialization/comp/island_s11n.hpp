@@ -7,8 +7,6 @@ namespace edyn {
 
 template<typename Archive>
 void serialize(Archive &archive, island &isle) {
-    archive(isle.entities);
-    archive(isle.sleep_step);
 }
 
 template<typename Archive>

@@ -16,9 +16,6 @@ static bool g_edyn_initialized {false};
 static void init_meta() {
     entt::resolve<entt::entity>();
 
-    entt::meta<island>().type()
-        .data<&island::entities, entt::as_ref_t>("entities"_hs);
-
     entt::meta<island_node>().type()
         .data<&island_node::entities, entt::as_ref_t>("entities"_hs);
 

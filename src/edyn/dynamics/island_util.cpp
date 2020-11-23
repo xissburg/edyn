@@ -19,16 +19,16 @@ void wakeup_island(entt::entity island_ent, entt::registry &registry) {
     // given island.
     registry.remove<sleeping_tag>(island_ent);
 
-    auto &isle = registry.get<island>(island_ent);
+    /* auto &isle = registry.get<island>(island_ent);
     isle.sleep_step = UINT64_MAX;
 
     for (auto e : isle.entities) {
         registry.remove<sleeping_tag>(e);
-    }
+    } */
 }
 
 void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
-    auto island_view = registry.view<island>(exclude_global);
+    /* auto island_view = registry.view<island>(exclude_global);
 
     island_view.each([&] (auto ent, auto &isle) {
         // Check if there are any entities in this island moving faster than
@@ -75,7 +75,7 @@ void put_islands_to_sleep(entt::registry &registry, uint64_t step, scalar dt) {
                 registry.emplace<sleeping_tag>(e);
             }
         }
-    });
+    }); */
 }
 
 }

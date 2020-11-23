@@ -26,6 +26,7 @@ class island_coordinator final {
         message_queue_in_out m_message_queue;
         entity_map m_entity_map;
         registry_snapshot_builder m_snapshot_builder;
+        std::unordered_set<entt::entity> m_entities;
 
         using registry_snapshot_func_t = void(entt::entity, const registry_snapshot &);
         entt::sigh<registry_snapshot_func_t> m_registry_snapshot_signal;
