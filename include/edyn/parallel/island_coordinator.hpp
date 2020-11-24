@@ -26,7 +26,6 @@ class island_coordinator final {
         message_queue_in_out m_message_queue;
         entity_map m_entity_map;
         registry_snapshot_builder m_snapshot_builder;
-        std::unordered_set<entt::entity> m_entities;
 
         using registry_snapshot_func_t = void(entt::entity, const registry_snapshot &);
         entt::sigh<registry_snapshot_func_t> m_registry_snapshot_signal;
@@ -81,7 +80,8 @@ public:
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
 
-    entt::entity merge_islands(const std::unordered_set<entt::entity> &);
+    entt::entity merge_islands(const std::unordered_set<entt::entity> &island_entities,
+                               const std::vector<entt::entity> &entities);
 
     void update();
 

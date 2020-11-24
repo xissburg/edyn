@@ -301,14 +301,9 @@ void island_worker::maybe_split_island() {
     m_snapshot_builder.split(local_entities);
     
     for (auto it = std::next(connected_components.begin()); it != connected_components.end(); ++it) {
-        for (auto ent_it = it->begin(); ent_it != it->end(); ++ent_it) {
-            auto entity = *ent_it;
-
+        for (auto entity : *it) {
             // Destroy node locally if it is not contained in the local island anymore.
-            auto should_destroy = 
-                std::find(local_entities.begin(), 
-                          local_entities.end(), entity) == 
-                          local_entities.end();
+            auto should_destroy = local_entities.count(entity) == 0;
 
             if (should_destroy) {
                 destroyed_entities.insert(entity);
