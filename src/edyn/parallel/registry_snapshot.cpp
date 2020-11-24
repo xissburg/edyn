@@ -51,20 +51,25 @@ void registry_snapshot::import_child_entity_sequence(entt::registry &registry, e
             }
             if (contains) continue;
 
-            bool moved = false;
-            for (auto connected : m_split_connected_components) {
-                for (auto remote_entity : connected) {
-                    if (!map.has_rem(remote_entity)) continue;
-                    auto local_entity = map.remloc(remote_entity);
-                    if (!registry.valid(local_entity)) continue;
-                    
-                    if (local_entity == old_entity) {
-                        moved = true;
-                        break;
+            if (!m_split_connected_components.empty()) {
+                bool moved = false;
+                // Ignore entity if it has moved to another island due to a split.
+                // The first set are the components left in the source island worker,
+                // so it must not be considered.
+                for (auto it = std::next(m_split_connected_components.begin()); it != m_split_connected_components.end(); ++it) {
+                    for (auto remote_entity : *it) {
+                        if (!map.has_rem(remote_entity)) continue;
+                        auto local_entity = map.remloc(remote_entity);
+                        if (!registry.valid(local_entity)) continue;
+                        
+                        if (local_entity == old_entity) {
+                            moved = true;
+                            break;
+                        }
                     }
                 }
+                if (moved) continue;
             }
-            if (moved) continue;
 
             auto result = new_seq.insert(new_seq.end(), old_entity);
             if (result.second) continue;
