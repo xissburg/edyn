@@ -33,14 +33,14 @@ island_coordinator::~island_coordinator() {
 }
 
 void island_coordinator::on_construct_island_node(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) return;
+    if (m_importing_delta) return;
 
     registry.emplace<island_container>(entity);
     m_new_island_nodes.push_back(entity);
 }
 
 void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) return;
+    if (m_importing_delta) return;
 
     auto &node = registry.get<island_node>(entity);
 
@@ -57,14 +57,14 @@ void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::
 }
 
 void island_coordinator::on_destroy_island_container(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) return;
+    if (m_importing_delta) return;
 
     auto &container = registry.get<island_container>(entity);
 
     // Remove from islands.
     for (auto island_entity : container.entities) {
         auto &info = m_island_info_map.at(island_entity);
-        info->m_snapshot_builder.destroyed(entity);
+        info->m_delta_builder.destroyed(entity);
     }
 }
 
@@ -146,9 +146,9 @@ void island_coordinator::init_new_island_nodes() {
                 container.entities.push_back(island_entity);
             }
 
-            // Add new entities to the snapshot builder.
-            info->m_snapshot_builder.created(entity);
-            info->m_snapshot_builder.maybe_updated(entity, *m_registry, all_components{});
+            // Add new entities to the delta builder.
+            info->m_delta_builder.created(entity);
+            info->m_delta_builder.maybe_updated(entity, *m_registry, all_components{});
         }
     }
 }
@@ -173,8 +173,8 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
         }
         
         auto &info = m_island_info_map.at(island_entity);
-        info->m_snapshot_builder.created(node_entity);
-        info->m_snapshot_builder.maybe_updated(node_entity, *m_registry, all_components{});
+        info->m_delta_builder.created(node_entity);
+        info->m_delta_builder.maybe_updated(node_entity, *m_registry, all_components{});
     }
 }
 
@@ -195,19 +195,19 @@ entt::entity island_coordinator::create_island(double timestamp) {
     auto *worker = new island_worker(entity, m_fixed_dt, message_queue_in_out(main_queue_input, isle_queue_output));
     auto info = std::make_unique<island_info>(entity, worker, message_queue_in_out(isle_queue_input, main_queue_output));
 
-    // Send over a snapshot containing this island entity to the island worker
+    // Send over a delta containing this island entity to the island worker
     // before it even starts.
-    auto builder = registry_snapshot_builder(info->m_entity_map);
+    auto builder = registry_delta_builder(info->m_entity_map);
     builder.created(entity);
     builder.maybe_updated(entity, *m_registry, all_components{});
-    info->m_message_queue.send<registry_snapshot>(builder.get_snapshot());
+    info->m_message_queue.send<registry_delta>(builder.get_delta());
 
     if (m_paused) {
         info->m_message_queue.send<msg::set_paused>(msg::set_paused{true});
     }
 
-    // Register to receive snapshots.
-    info->registry_snapshot_sink().connect<&island_coordinator::on_registry_snapshot>(*this);
+    // Register to receive delta.
+    info->registry_delta_sink().connect<&island_coordinator::on_registry_delta>(*this);
 
     m_island_info_map.emplace(entity, std::move(info));
 
@@ -228,7 +228,7 @@ entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::en
     auto island_entity = create_island(timestamp);
 
     auto &info = m_island_info_map.at(island_entity);
-    auto &builder = info->m_snapshot_builder;
+    auto &builder = info->m_delta_builder;
 
     for (auto entity : entities) {
         // Point container to its new island.
@@ -246,7 +246,7 @@ entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::en
             container.entities.push_back(island_entity);
         }
 
-        // Include all components in snapshot because this is a new entity
+        // Include all components in delta because this is a new entity
         // in that island.
         builder.created(entity);
         builder.maybe_updated(entity, *m_registry, all_components{});
@@ -264,7 +264,7 @@ entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::en
 }
 
 void island_coordinator::on_construct_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) return;
+    if (m_importing_delta) return;
 
     auto &con = registry.get<constraint>(entity);
 
@@ -275,7 +275,7 @@ void island_coordinator::on_construct_constraint(entt::registry &registry, entt:
 }
 
 void island_coordinator::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) return;
+    if (m_importing_delta) return;
 
     auto &con = registry.get<constraint>(entity);
 
@@ -294,7 +294,7 @@ void island_coordinator::refresh_dirty_entities() {
         for (auto island_entity : container.entities) {
             if (!m_island_info_map.count(island_entity)) continue;
             auto &info = m_island_info_map.at(island_entity);
-            auto &builder = info->m_snapshot_builder;
+            auto &builder = info->m_delta_builder;
             builder.updated(entity, *m_registry, 
                 dirty.indexes.begin(), dirty.indexes.end(), 
                 all_components{});
@@ -308,29 +308,29 @@ void island_coordinator::refresh_dirty_entities() {
     m_registry->clear<island_node_dirty>();
 }
 
-void island_coordinator::on_registry_snapshot(entt::entity source_island_entity, const registry_snapshot &snapshot) {
-    m_importing_snapshot = true;
+void island_coordinator::on_registry_delta(entt::entity source_island_entity, const registry_delta &delta) {
+    m_importing_delta = true;
     auto &source_info = m_island_info_map.at(source_island_entity);
-    snapshot.import(*m_registry, source_info->m_entity_map);
-    m_importing_snapshot = false;
+    delta.import(*m_registry, source_info->m_entity_map);
+    m_importing_delta = false;
 
-    for (auto remote_entity : snapshot.created()) {
+    for (auto remote_entity : delta.created()) {
         if (!source_info->m_entity_map.has_rem(remote_entity)) continue;
         auto local_entity = source_info->m_entity_map.remloc(remote_entity);
-        source_info->m_snapshot_builder.insert_entity_mapping(local_entity);
+        source_info->m_delta_builder.insert_entity_mapping(local_entity);
     }
 
-    if (!snapshot.m_split_connected_components.empty()) {
+    if (!delta.m_split_connected_components.empty()) {
         auto timestamp = m_registry->get<island_timestamp>(source_island_entity).value;
 
-        const auto &remote_source_entities = snapshot.m_split_connected_components.front();
+        const auto &remote_source_entities = delta.m_split_connected_components.front();
 
-        for (auto it = std::next(snapshot.m_split_connected_components.begin()); it != snapshot.m_split_connected_components.end(); ++it) {
+        for (auto it = std::next(delta.m_split_connected_components.begin()); it != delta.m_split_connected_components.end(); ++it) {
             auto &entities = *it;
             auto island_entity = create_island(timestamp);
             auto &info = m_island_info_map.at(island_entity);
 
-            // Make containers point to the new island and add entities to the snapshot builder.
+            // Make containers point to the new island and add entities to the delta builder.
             for (auto remote_entity : entities) {
                 if (!source_info->m_entity_map.has_rem(remote_entity)) continue;
                 auto local_entity = source_info->m_entity_map.remloc(remote_entity);
@@ -353,8 +353,8 @@ void island_coordinator::on_registry_snapshot(entt::entity source_island_entity,
                     container.entities.push_back(island_entity);
                 }
 
-                info->m_snapshot_builder.created(local_entity);
-                info->m_snapshot_builder.maybe_updated(local_entity, *m_registry, all_components{});
+                info->m_delta_builder.created(local_entity);
+                info->m_delta_builder.maybe_updated(local_entity, *m_registry, all_components{});
             }
         }
     }

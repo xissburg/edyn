@@ -1,6 +1,6 @@
 #include "../common/common.hpp"
 
-TEST(registry_snapshot_test, test_registry_updated_and_import) {
+TEST(registry_delta_test, test_registry_updated_and_import) {
     edyn::init();
 
     entt::registry reg0;
@@ -14,21 +14,21 @@ TEST(registry_snapshot_test, test_registry_updated_and_import) {
     e_map.insert(ent0, ent0);
     e_map.insert(ent1, ent1);
 
-    auto builder = edyn::registry_snapshot_builder(e_map);
+    auto builder = edyn::registry_delta_builder(e_map);
     builder.updated(ent0, reg0.get<edyn::orientation>(ent0), reg0.get<edyn::position>(ent0));
     builder.updated(ent1, reg0.get<edyn::position>(ent1));
 
     reg0.replace<edyn::orientation>(ent0, 335, 0, 0, 1);
     reg0.replace<edyn::position>(ent1, edyn::vector3_zero);
 
-    builder.get_snapshot().import(reg0, e_map);
+    builder.get_delta().import(reg0, e_map);
 
     ASSERT_EQ(reg0.get<edyn::orientation>(ent0).x, 665);
     ASSERT_EQ(reg0.get<edyn::position>(ent0), (edyn::position{{3, 2, -1}}));
     ASSERT_EQ(reg0.get<edyn::position>(ent1), (edyn::position{{1, 2, 3}}));
 }
 
-TEST(registry_snapshot_test, test_registry_export_import) {
+TEST(registry_delta_test, test_registry_export_import) {
     edyn::init();
 
     entt::registry reg0;
@@ -41,7 +41,7 @@ TEST(registry_snapshot_test, test_registry_export_import) {
     reg0.get<edyn::contact_point>(ent1).distance = 6.28;
 
     auto map0 = edyn::entity_map{};
-    auto builder = edyn::registry_snapshot_builder(map0);
+    auto builder = edyn::registry_delta_builder(map0);
     builder.created(ent0);
     builder.updated(ent0, reg0.get<edyn::island_node>(ent0));
     builder.created(ent1);
@@ -51,7 +51,15 @@ TEST(registry_snapshot_test, test_registry_export_import) {
 
     entt::registry reg1;
     auto map1 = edyn::entity_map{};
-    builder.get_snapshot().import(reg1, map1);
+    builder.get_delta().import(reg1, map1);
+
+    auto builder1 = edyn::registry_delta_builder(map1);
+
+    for (auto remote_entity : builder.get_delta().created()) {
+        if (!map1.has_rem(remote_entity)) continue;
+        auto local_entity = map1.remloc(remote_entity);
+        builder1.insert_entity_mapping(local_entity);
+    }
 
     ASSERT_EQ(map1.locrem(reg1.get<edyn::island_node>(map1.remloc(ent0)).entities[0]), child0);
     ASSERT_EQ(map1.locrem(reg1.get<edyn::island_node>(map1.remloc(ent0)).entities[1]), child1);
@@ -62,11 +70,11 @@ TEST(registry_snapshot_test, test_registry_export_import) {
     auto &comp0 = reg1.get<edyn::island_node>(map1.remloc(ent0));
     comp0.entities[0] = map1.remloc(ent1);
 
-    auto builder1 = edyn::registry_snapshot_builder(map1);
     builder1.updated(map1.remloc(ent0), reg1.get<edyn::island_node>(map1.remloc(ent0)));
     builder1.updated(map1.remloc(ent1), reg1.get<edyn::contact_point>(map1.remloc(ent1)));
     
-    builder1.get_snapshot().import(reg0, map0);
+    builder1.get_delta().import(reg0, map0);
+
 
     ASSERT_EQ(reg0.get<edyn::island_node>(ent0).entities[0], ent1);
     ASSERT_EQ(reg0.get<edyn::island_node>(ent0).entities[1], child1);

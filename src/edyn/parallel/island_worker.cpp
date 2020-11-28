@@ -32,16 +32,16 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_bphase(m_registry)
     , m_nphase(m_registry)
     , m_solver(m_registry)
-    , m_snapshot_builder(m_entity_map)
-    , m_importing_snapshot(false)
+    , m_delta_builder(m_entity_map)
+    , m_importing_delta(false)
     , m_splitting_island(false)
     , m_topology_changed(false)
 {
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
-    m_snapshot_builder.updated(m_island_entity);
+    m_delta_builder.updated(m_island_entity);
 
-    m_message_queue.sink<registry_snapshot>().connect<&island_worker::on_registry_snapshot>(*this);
+    m_message_queue.sink<registry_delta>().connect<&island_worker::on_registry_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
 
@@ -56,7 +56,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 }
 
 void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot || m_splitting_island) return;
+    if (m_importing_delta || m_splitting_island) return;
 
     auto &con = registry.get<constraint>(entity);
 
@@ -67,7 +67,7 @@ void island_worker::on_construct_constraint(entt::registry &registry, entt::enti
 }
 
 void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot || m_splitting_island) return;
+    if (m_importing_delta || m_splitting_island) return;
 
     auto &con = registry.get<constraint>(entity);
 
@@ -81,21 +81,21 @@ void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity
 }
 
 void island_worker::on_construct_contact_manifold(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot) {
+    if (m_importing_delta) {
         m_new_imported_contact_manifolds.push_back(entity);
     }
 }
 
 void island_worker::on_construct_island_node(entt::registry &registry, entt::entity entity) {
-    if (m_importing_snapshot || m_splitting_island) {
+    if (m_importing_delta || m_splitting_island) {
         return;
     }
     
     auto &container = registry.emplace<island_container>(entity);
     container.entities.push_back(m_island_entity);
 
-    m_snapshot_builder.created(entity);
-    m_snapshot_builder.maybe_updated(entity, registry, all_components{});
+    m_delta_builder.created(entity);
+    m_delta_builder.maybe_updated(entity, registry, all_components{});
 }
 
 void island_worker::on_update_island_node(entt::registry &registry, entt::entity entity) {
@@ -104,8 +104,8 @@ void island_worker::on_update_island_node(entt::registry &registry, entt::entity
 
 void island_worker::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
 
-    if (!m_importing_snapshot && !m_splitting_island) {
-        m_snapshot_builder.destroyed(entity);
+    if (!m_importing_delta && !m_splitting_island) {
+        m_delta_builder.destroyed(entity);
     }
 
     // Remove from connected nodes.
@@ -119,48 +119,48 @@ void island_worker::on_destroy_island_node(entt::registry &registry, entt::entit
                 other_node.entities.begin(),
                 other_node.entities.end(), entity), 
             other_node.entities.end());
-        if (!m_importing_snapshot && !m_splitting_island) {
-            m_snapshot_builder.updated<island_node>(other, other_node);
+        if (!m_importing_delta && !m_splitting_island) {
+            m_delta_builder.updated<island_node>(other, other_node);
         }
     }
 
     m_topology_changed = true;
 }
 
-void island_worker::on_registry_snapshot(const registry_snapshot &snapshot) {
+void island_worker::on_registry_delta(const registry_delta &delta) {
     // Import components from main registry.
-    m_importing_snapshot = true;
-    snapshot.import(m_registry, m_entity_map);
-    m_importing_snapshot = false;
+    m_importing_delta = true;
+    delta.import(m_registry, m_entity_map);
+    m_importing_delta = false;
 
-    for (auto remote_entity : snapshot.created()) {
+    for (auto remote_entity : delta.created()) {
         if (!m_entity_map.has_rem(remote_entity)) continue;
         auto local_entity = m_entity_map.remloc(remote_entity);
-        m_snapshot_builder.insert_entity_mapping(local_entity);
+        m_delta_builder.insert_entity_mapping(local_entity);
     }
 }
 
 void island_worker::sync() {
-    // Add transient components of procedural nodes to snapshot.
+    // Add transient components of procedural nodes to delta.
     m_registry.view<procedural_tag>().each([&] (entt::entity entity) {
-        m_snapshot_builder.maybe_updated(entity, m_registry, transient_components{});
+        m_delta_builder.maybe_updated(entity, m_registry, transient_components{});
     });
 
     auto view = m_registry.view<island_node_dirty>();
     view.each([&] (entt::entity entity, island_node_dirty &dirty) {
-        m_snapshot_builder.updated(entity, m_registry,
+        m_delta_builder.updated(entity, m_registry,
             dirty.indexes.begin(), dirty.indexes.end(),
             all_components{});
 
         if (dirty.is_new_entity) {
-            m_snapshot_builder.created(entity);
+            m_delta_builder.created(entity);
         }
     });
 
-    m_message_queue.send<registry_snapshot>(m_snapshot_builder.get_snapshot());
+    m_message_queue.send<registry_delta>(m_delta_builder.get_delta());
 
-    // Clear snapshot for the next run.
-    m_snapshot_builder.clear();
+    // Clear delta for the next run.
+    m_delta_builder.clear();
     m_registry.clear<island_node_dirty>();
 }
 
@@ -183,7 +183,7 @@ void island_worker::update() {
                 auto remainder = dt - num_steps * m_fixed_dt;
                 auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
                 isle_time.value = time - (remainder + max_lagging_steps * m_fixed_dt);
-                m_snapshot_builder.updated<island_timestamp>(m_island_entity, isle_time);
+                m_delta_builder.updated<island_timestamp>(m_island_entity, isle_time);
             }
         }
     }
@@ -202,7 +202,7 @@ void island_worker::step() {
 
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     isle_time.value += m_fixed_dt;
-    m_snapshot_builder.updated<island_timestamp>(m_island_entity, isle_time);
+    m_delta_builder.updated<island_timestamp>(m_island_entity, isle_time);
 
     sync();
 
@@ -298,7 +298,7 @@ void island_worker::maybe_split_island() {
     m_splitting_island = true;
 
     std::unordered_set<entt::entity> destroyed_entities;
-    m_snapshot_builder.split(local_entities);
+    m_delta_builder.split(local_entities);
     
     for (auto it = std::next(connected_components.begin()); it != connected_components.end(); ++it) {
         for (auto entity : *it) {
@@ -317,7 +317,7 @@ void island_worker::maybe_split_island() {
             }
         }
 
-        m_snapshot_builder.split(*it);
+        m_delta_builder.split(*it);
     }
 
     for (auto entity : destroyed_entities) {

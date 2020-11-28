@@ -1,9 +1,9 @@
-#include "edyn/parallel/registry_snapshot.hpp"
+#include "edyn/parallel/registry_delta.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void registry_snapshot::import_created(entt::registry &registry, entity_map &map) const {
+void registry_delta::import_created(entt::registry &registry, entity_map &map) const {
     for (auto remote_entity : m_created_entities) {
         if (map.has_rem(remote_entity)) continue;
         auto local_entity = registry.create();
@@ -11,7 +11,7 @@ void registry_snapshot::import_created(entt::registry &registry, entity_map &map
     }
 }
 
-void registry_snapshot::import_child_entity_sequence(entt::registry &registry, entity_map &map, 
+void registry_delta::import_child_entity_sequence(entt::registry &registry, entity_map &map, 
                                                      entt::meta_sequence_container *old_seq,
                                                      entt::meta_sequence_container &new_seq) const {
     if (new_seq.value_type() != entt::resolve<entt::entity>()) return;
@@ -119,7 +119,7 @@ void registry_snapshot::import_child_entity_sequence(entt::registry &registry, e
     }
 }
 
-void registry_snapshot::import(entt::registry &registry, entity_map &map) const {
+void registry_delta::import(entt::registry &registry, entity_map &map) const {
     m_entity_map.each([&registry, &map] (entt::entity remote_entity, entt::entity local_entity) {
         if (!map.has_rem(remote_entity) && registry.valid(local_entity)) {
             map.insert(remote_entity, local_entity);
@@ -142,12 +142,12 @@ void registry_snapshot::import(entt::registry &registry, entity_map &map) const 
     import_updated(registry, map, all_components{});
 }
 
-void registry_snapshot_builder::insert_entity_mapping(entt::entity local_entity) {
+void registry_delta_builder::insert_entity_mapping(entt::entity local_entity) {
     // Note that this is being called from the builder and the order is reversed,
     // i.e. (local, remote). When importing, the "correct" order is used, so the
     // first entity which is the remote, refers to the local entity in this registry.
     auto remote_entity = m_entity_map->locrem(local_entity);
-    m_snapshot.m_entity_map.insert(local_entity, remote_entity);
+    m_delta.m_entity_map.insert(local_entity, remote_entity);
 }
 
 }

@@ -16,7 +16,7 @@
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/comp.hpp"
 #include "edyn/util/tuple.hpp"
-#include "edyn/parallel/registry_snapshot.hpp"
+#include "edyn/parallel/registry_delta.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 
 namespace edyn {
@@ -37,7 +37,7 @@ public:
 
     virtual ~island_worker() {}
 
-    void on_registry_snapshot(const registry_snapshot &snapshot);
+    void on_registry_delta(const registry_delta &delta);
 
     void sync();
 
@@ -77,8 +77,8 @@ private:
     double m_fixed_dt;
     bool m_paused;
 
-    registry_snapshot_builder m_snapshot_builder;
-    bool m_importing_snapshot;
+    registry_delta_builder m_delta_builder;
+    bool m_importing_delta;
     bool m_splitting_island;
     bool m_topology_changed;
 

@@ -11,12 +11,12 @@
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/registry_snapshot.hpp"
+#include "edyn/parallel/registry_delta.hpp"
 
 namespace edyn {
 
 class island_worker;
-class registry_snapshot;
+class registry_delta;
 
 class island_coordinator final {
 
@@ -25,10 +25,10 @@ class island_coordinator final {
         island_worker *m_worker;
         message_queue_in_out m_message_queue;
         entity_map m_entity_map;
-        registry_snapshot_builder m_snapshot_builder;
+        registry_delta_builder m_delta_builder;
 
-        using registry_snapshot_func_t = void(entt::entity, const registry_snapshot &);
-        entt::sigh<registry_snapshot_func_t> m_registry_snapshot_signal;
+        using registry_delta_func_t = void(entt::entity, const registry_delta &);
+        entt::sigh<registry_delta_func_t> m_registry_delta_signal;
 
         island_info(entt::entity entity,
                     island_worker *worker,
@@ -36,27 +36,27 @@ class island_coordinator final {
             : m_entity(entity)
             , m_worker(worker)
             , m_message_queue(message_queue)
-            , m_snapshot_builder(m_entity_map)
+            , m_delta_builder(m_entity_map)
         {
-            m_message_queue.sink<registry_snapshot>().connect<&island_info::on_registry_snapshot>(*this);
+            m_message_queue.sink<registry_delta>().connect<&island_info::on_registry_delta>(*this);
         }
 
         ~island_info() {
-            m_message_queue.sink<registry_snapshot>().disconnect(*this);
+            m_message_queue.sink<registry_delta>().disconnect(*this);
         }
 
-        auto registry_snapshot_sink() {
-            return entt::sink {m_registry_snapshot_signal};
+        auto registry_delta_sink() {
+            return entt::sink {m_registry_delta_signal};
         }
 
-        void on_registry_snapshot(const registry_snapshot &snapshot) {
-            m_registry_snapshot_signal.publish(m_entity, snapshot);
+        void on_registry_delta(const registry_delta &delta) {
+            m_registry_delta_signal.publish(m_entity, delta);
         }
 
         void sync() {
-            //if (m_snapshot_builder.empty()) return;
-            m_message_queue.send<registry_snapshot>(m_snapshot_builder.get_snapshot());
-            m_snapshot_builder.clear();
+            //if (m_delta_builder.empty()) return;
+            m_message_queue.send<registry_delta>(m_delta_builder.get_delta());
+            m_delta_builder.clear();
         }
     };
 
@@ -75,7 +75,7 @@ public:
     void on_construct_island_node(entt::registry &, entt::entity);
     void on_destroy_island_node(entt::registry &, entt::entity);
     void on_destroy_island_container(entt::registry &, entt::entity);
-    void on_registry_snapshot(entt::entity, const registry_snapshot &);
+    void on_registry_delta(entt::entity, const registry_delta &);
     
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
@@ -96,7 +96,7 @@ private:
     std::unordered_map<entt::entity, std::unique_ptr<island_info>> m_island_info_map;
 
     std::vector<entt::entity> m_new_island_nodes;
-    bool m_importing_snapshot {false};
+    bool m_importing_delta {false};
     bool m_paused {false};
 };
 

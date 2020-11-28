@@ -113,7 +113,7 @@ set(Edyn_SOURCES
     src/edyn/parallel/job_queue_scheduler.cpp
     src/edyn/parallel/island_worker.cpp
     src/edyn/parallel/island_coordinator.cpp
-    src/edyn/parallel/registry_snapshot.cpp
+    src/edyn/parallel/registry_delta.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/edyn.cpp
     src/edyn/init.cpp

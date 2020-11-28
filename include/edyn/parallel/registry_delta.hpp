@@ -1,5 +1,5 @@
-#ifndef EDYN_PARALLEL_REGISTRY_SNAPSHOT_HPP
-#define EDYN_PARALLEL_REGISTRY_SNAPSHOT_HPP
+#ifndef EDYN_PARALLEL_REGISTRY_DELTA_HPP
+#define EDYN_PARALLEL_REGISTRY_DELTA_HPP
 
 #include <tuple>
 #include <vector>
@@ -14,7 +14,7 @@
 
 namespace edyn {
 
-class registry_snapshot_builder;
+class registry_delta_builder;
 
 template<typename Component>
 struct updated_components {
@@ -26,7 +26,7 @@ struct destroyed_components {
     std::unordered_set<entt::entity> value;
 };
 
-class registry_snapshot {
+class registry_delta {
 
     void import_created(entt::registry &, entity_map &) const;
 
@@ -115,7 +115,7 @@ class registry_snapshot {
 
 public:
     /**
-     * Imports this snapshot into a registry by mapping the entities into the domain
+     * Imports this delta into a registry by mapping the entities into the domain
      * of the target registry according to the provided `entity_map`.
      */
     void import(entt::registry &, entity_map &) const;
@@ -123,7 +123,7 @@ public:
     const auto created() const { return m_created_entities; }
     const auto destroyed() const { return m_destroyed_entities; }
 
-    friend class registry_snapshot_builder;
+    friend class registry_delta_builder;
 
     double m_timestamp;
 
@@ -137,31 +137,31 @@ private:
     map_tuple<destroyed_components, all_components>::type m_destroyed_components;
 };
 
-class registry_snapshot_builder {
+class registry_delta_builder {
 public:
-    registry_snapshot_builder(entity_map &map)
+    registry_delta_builder(entity_map &map)
         : m_entity_map(&map)
     {}
 
     void insert_entity_mapping(entt::entity);
 
     void created(entt::entity entity) {
-        m_snapshot.m_created_entities.insert(entity);
+        m_delta.m_created_entities.insert(entity);
     }
 
     /**
-     * Adds a component to be updated by the snapshot.
+     * Adds a component to be updated by the delta.
      */
     template<typename... Component>
     void updated(entt::entity entity, Component &... comp) {
-        (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.insert_or_assign(entity, comp), ...);
+        (std::get<updated_components<Component>>(m_delta.m_updated_components).value.insert_or_assign(entity, comp), ...);
     }
 
     template<typename... Component>
     void updated(entt::entity entity, entt::registry &registry) {
         if constexpr(sizeof...(Component) <= 1) {
             if constexpr(std::conjunction_v<entt::is_eto_eligible<Component>...>) {
-                (std::get<updated_components<Component>>(m_snapshot.m_updated_components).value.insert_or_assign(entity, Component{}), ...);
+                (std::get<updated_components<Component>>(m_delta.m_updated_components).value.insert_or_assign(entity, Component{}), ...);
             } else {
                 (updated<Component>(entity, registry.get<Component>(entity)), ...);
             }
@@ -198,14 +198,14 @@ public:
     }
 
     /**
-     * Marks a component as deleted in this snapshot.
+     * Marks a component as deleted in this delta.
      */
     template<typename... Component>
     void destroyed(entt::entity entity) {
         if constexpr(sizeof...(Component) == 0) {
-            m_snapshot.m_destroyed_entities.insert(entity);
+            m_delta.m_destroyed_entities.insert(entity);
         } else {
-            (std::get<destroyed_components<Component>>(m_snapshot.m_destroyed_components).value.insert(entity), ...);
+            (std::get<destroyed_components<Component>>(m_delta.m_destroyed_components).value.insert(entity), ...);
         }
     }
 
@@ -215,22 +215,22 @@ public:
     }
 
     void split(const std::unordered_set<entt::entity> &connected_component) {
-        m_snapshot.m_split_connected_components.push_back(connected_component);
+        m_delta.m_split_connected_components.push_back(connected_component);
     }
 
     void clear() {
-        m_snapshot = {};
+        m_delta = {};
     }
 
-    auto & get_snapshot() {
-        return m_snapshot;
+    auto & get_delta() {
+        return m_delta;
     }
 
 private:
     entity_map *m_entity_map;
-    registry_snapshot m_snapshot;
+    registry_delta m_delta;
 };
 
 }
 
-#endif // EDYN_PARALLEL_REGISTRY_SNAPSHOT_HPP
+#endif // EDYN_PARALLEL_REGISTRY_DELTA_HPP

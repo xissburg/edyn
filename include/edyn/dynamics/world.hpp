@@ -11,7 +11,7 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/collision/broadphase_main.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
-#include "edyn/parallel/registry_snapshot.hpp"
+#include "edyn/parallel/registry_delta.hpp"
 
 namespace edyn {
 
