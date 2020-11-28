@@ -56,24 +56,32 @@ void job_scheduler::update() {
         auto lock = std::unique_lock(m_mutex);
         
         if (m_jobs.empty()) {
+            // Wait until there's a job available.
             m_cv.wait(lock, [&] () { return !m_jobs.empty() || !m_running.load(std::memory_order_acquire); });
+        } else {
+            // Wait until the next job is ready.
+            auto current_time = (double)performance_counter() / (double)performance_frequency();
+            double time_until_next_job = m_jobs.front().m_timestamp - current_time;
+            
+            if (time_until_next_job > 0) {
+                auto duration = std::chrono::duration<double>(time_until_next_job);
+                m_cv.wait_for(lock, duration, [&] () { return !m_running.load(std::memory_order_acquire); });
+            }
         }
 
         auto current_time = (double)performance_counter() / (double)performance_frequency();
-        auto it = m_jobs.begin();
 
+        // Dispatch all jobs with a timestamp before the current time.
+        auto it = m_jobs.begin();
         for (; it != m_jobs.end(); ++it) {
-            if (it->m_timestamp > current_time) break;
+            if (it->m_timestamp > current_time) {
+                break;
+            }
             m_dispatcher->async(it->m_job);
         }
 
-        if (it != m_jobs.end()) {
-            auto time_until_next_job = it->m_timestamp - current_time;
-            m_jobs.erase(m_jobs.begin(), it);
-
-            auto duration = std::chrono::duration<double>(time_until_next_job);
-            m_cv.wait_for(lock, duration, [&] () { return !m_running.load(std::memory_order_acquire); });
-        }
+        // Erase all jobs that were dispatched.
+        m_jobs.erase(m_jobs.begin(), it);
     }
 }
 
