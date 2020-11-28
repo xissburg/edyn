@@ -81,13 +81,12 @@ void island_coordinator::init_new_island_nodes() {
 
     m_new_island_nodes.clear();
 
-
     while (!procedural_node_entities.empty()) {
         auto node_entity = *procedural_node_entities.begin();
 
         // Find connected components to build new islands for procedural entities.
         std::unordered_set<entt::entity> island_entities;
-        std::vector<entt::entity> connected;
+        std::unordered_set<entt::entity> connected;
         std::vector<entt::entity> to_visit;
         to_visit.push_back(node_entity);
 
@@ -96,7 +95,7 @@ void island_coordinator::init_new_island_nodes() {
             to_visit.pop_back();
 
             // Add to connected component.
-            connected.push_back(curr_entity);
+            connected.insert(curr_entity);
 
             // Remove from main set.
             procedural_node_entities.erase(curr_entity);
@@ -105,8 +104,7 @@ void island_coordinator::init_new_island_nodes() {
             auto &curr_node = m_registry->get<island_node>(curr_entity);
 
             for (auto other_entity : curr_node.entities) {
-                auto already_visited = std::find(
-                    connected.begin(), connected.end(), other_entity) != connected.end();
+                auto already_visited = connected.count(other_entity) > 0;
                 if (already_visited) continue;
 
                 if (m_registry->has<procedural_tag>(other_entity)) {
@@ -123,7 +121,7 @@ void island_coordinator::init_new_island_nodes() {
                 } else {
                     // Non-procedural nodes must not be visited because they do
                     // not provide a path to connect other nodes through itself.
-                    connected.push_back(other_entity);
+                    connected.insert(other_entity);
                 }
             }
         }
@@ -224,7 +222,7 @@ entt::entity island_coordinator::create_island(double timestamp) {
 }
 
 entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::entity> &island_entities,
-                                               const std::vector<entt::entity> &entities) {
+                                               const std::unordered_set<entt::entity> &entities) {
     EDYN_ASSERT(island_entities.size() > 1);
     auto timestamp = m_registry->get<island_timestamp>(*island_entities.begin()).value;
     auto island_entity = create_island(timestamp);
@@ -239,8 +237,8 @@ entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::en
             std::remove_if(
                 container.entities.begin(), 
                 container.entities.end(), 
-                [&island_entities] (entt::entity island_entity) { 
-                    return island_entities.count(island_entity) > 0; 
+                [&island_entities] (entt::entity other_island_entity) { 
+                    return island_entities.count(other_island_entity) > 0; 
                 }),
             container.entities.end());
 
@@ -322,15 +320,17 @@ void island_coordinator::on_registry_snapshot(entt::entity source_island_entity,
         source_info->m_snapshot_builder.insert_entity_mapping(local_entity);
     }
 
-    auto timestamp = m_registry->get<island_timestamp>(source_island_entity).value;
-
     if (!snapshot.m_split_connected_components.empty()) {
+        auto timestamp = m_registry->get<island_timestamp>(source_island_entity).value;
+
         const auto &remote_source_entities = snapshot.m_split_connected_components.front();
 
         for (auto it = std::next(snapshot.m_split_connected_components.begin()); it != snapshot.m_split_connected_components.end(); ++it) {
             auto &entities = *it;
             auto island_entity = create_island(timestamp);
+            auto &info = m_island_info_map.at(island_entity);
 
+            // Make containers point to the new island and add entities to the snapshot builder.
             for (auto remote_entity : entities) {
                 if (!source_info->m_entity_map.has_rem(remote_entity)) continue;
                 auto local_entity = source_info->m_entity_map.remloc(remote_entity);
@@ -352,18 +352,9 @@ void island_coordinator::on_registry_snapshot(entt::entity source_island_entity,
                 if (!vector_contains(container.entities, island_entity)) {
                     container.entities.push_back(island_entity);
                 }
-            }
 
-            // Add new entities to the snapshot builder.
-            auto &info = m_island_info_map.at(island_entity);
-            
-            for (auto remote_entity : entities) {
-                if (!source_info->m_entity_map.has_rem(remote_entity)) continue;
-                auto local_entity = source_info->m_entity_map.remloc(remote_entity);
-                if (m_registry->valid(local_entity)) {
-                    info->m_snapshot_builder.created(local_entity);
-                    info->m_snapshot_builder.maybe_updated(local_entity, *m_registry, all_components{});
-                }
+                info->m_snapshot_builder.created(local_entity);
+                info->m_snapshot_builder.maybe_updated(local_entity, *m_registry, all_components{});
             }
         }
     }
@@ -437,6 +428,10 @@ void island_coordinator::validate() {
 
         if (container.entities.size() != 1) {
             EDYN_ASSERT(false);
+        }
+
+        for (auto island_entity : container.entities) {
+            EDYN_ASSERT((m_registry->valid(island_entity)));
         }
     }
 }

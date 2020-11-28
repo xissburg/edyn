@@ -81,7 +81,7 @@ public:
     void on_destroy_constraint(entt::registry &, entt::entity);
 
     entt::entity merge_islands(const std::unordered_set<entt::entity> &island_entities,
-                               const std::vector<entt::entity> &entities);
+                               const std::unordered_set<entt::entity> &entities);
 
     void update();
 
