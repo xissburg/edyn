@@ -176,7 +176,7 @@ void island_worker::update() {
         if (dt >= m_fixed_dt) {
             step();
 
-            constexpr int max_lagging_steps = 2;
+            constexpr int max_lagging_steps = 10;
             auto num_steps = int(std::floor(dt / m_fixed_dt));
 
             if (num_steps > max_lagging_steps) {

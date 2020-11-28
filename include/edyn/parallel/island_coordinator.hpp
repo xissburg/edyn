@@ -62,7 +62,7 @@ class island_coordinator final {
 
     void init_new_island_nodes();
     void init_new_non_procedural_island_node(entt::entity);
-    entt::entity create_island();
+    entt::entity create_island(double timestamp);
     void refresh_dirty_entities();
     void sync();
 

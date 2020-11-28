@@ -81,6 +81,7 @@ void island_coordinator::init_new_island_nodes() {
 
     m_new_island_nodes.clear();
 
+
     while (!procedural_node_entities.empty()) {
         auto node_entity = *procedural_node_entities.begin();
 
@@ -130,7 +131,8 @@ void island_coordinator::init_new_island_nodes() {
         entt::entity island_entity;
 
         if (island_entities.empty()) {
-            island_entity = create_island();
+            const auto timestamp = (double)performance_counter() / (double)performance_frequency();
+            island_entity = create_island(timestamp);
         } else if (island_entities.size() > 1) {
             island_entity = merge_islands(island_entities, connected);
         } else {
@@ -178,11 +180,11 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
     }
 }
 
-entt::entity island_coordinator::create_island() {
+entt::entity island_coordinator::create_island(double timestamp) {
     auto entity = m_registry->create();
     m_registry->emplace<island>(entity);
     auto &isle_time = m_registry->emplace<island_timestamp>(entity);
-    isle_time.value = (double)performance_counter() / (double)performance_frequency();
+    isle_time.value = timestamp;
 
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
     auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
@@ -224,7 +226,8 @@ entt::entity island_coordinator::create_island() {
 entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::entity> &island_entities,
                                                const std::vector<entt::entity> &entities) {
     EDYN_ASSERT(island_entities.size() > 1);
-    auto island_entity = create_island();
+    auto timestamp = m_registry->get<island_timestamp>(*island_entities.begin()).value;
+    auto island_entity = create_island(timestamp);
 
     auto &info = m_island_info_map.at(island_entity);
     auto &builder = info->m_snapshot_builder;
@@ -319,12 +322,14 @@ void island_coordinator::on_registry_snapshot(entt::entity source_island_entity,
         source_info->m_snapshot_builder.insert_entity_mapping(local_entity);
     }
 
+    auto timestamp = m_registry->get<island_timestamp>(source_island_entity).value;
+
     if (!snapshot.m_split_connected_components.empty()) {
         const auto &remote_source_entities = snapshot.m_split_connected_components.front();
 
         for (auto it = std::next(snapshot.m_split_connected_components.begin()); it != snapshot.m_split_connected_components.end(); ++it) {
             auto &entities = *it;
-            auto island_entity = create_island();
+            auto island_entity = create_island(timestamp);
 
             for (auto remote_entity : entities) {
                 if (!source_info->m_entity_map.has_rem(remote_entity)) continue;
