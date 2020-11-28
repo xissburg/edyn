@@ -67,11 +67,13 @@ void job_scheduler::update() {
             m_dispatcher->async(it->m_job);
         }
 
-        auto time_until_next_job = it->m_timestamp - current_time;
-        m_jobs.erase(m_jobs.begin(), it);
+        if (it != m_jobs.end()) {
+            auto time_until_next_job = it->m_timestamp - current_time;
+            m_jobs.erase(m_jobs.begin(), it);
 
-        auto duration = std::chrono::duration<double>(time_until_next_job);
-        m_cv.wait_for(lock, duration, [&] () { return !m_running.load(std::memory_order_acquire); });
+            auto duration = std::chrono::duration<double>(time_until_next_job);
+            m_cv.wait_for(lock, duration, [&] () { return !m_running.load(std::memory_order_acquire); });
+        }
     }
 }
 
