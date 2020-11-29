@@ -3,7 +3,7 @@
 
 namespace edyn {
 
-void registry_delta::import_created(entt::registry &registry, entity_map &map) const {
+void registry_delta::import_created_entities(entt::registry &registry, entity_map &map) const {
     for (auto remote_entity : m_created_entities) {
         if (map.has_rem(remote_entity)) continue;
         auto local_entity = registry.create();
@@ -126,7 +126,7 @@ void registry_delta::import(entt::registry &registry, entity_map &map) const {
         }
     });
     
-    import_created(registry, map);
+    import_created_entities(registry, map);
     import_destroyed(registry, map, all_components{});
 
     for (auto remote_entity : m_destroyed_entities) {
@@ -139,6 +139,7 @@ void registry_delta::import(entt::registry &registry, entity_map &map) const {
         }
     }
 
+    import_created_components(registry, map, all_components{});
     import_updated(registry, map, all_components{});
 }
 

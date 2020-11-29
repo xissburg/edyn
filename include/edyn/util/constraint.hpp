@@ -24,14 +24,14 @@ void make_constraint(entt::entity entity, entt::registry &registry, T&& con,
     auto &node1 = registry.get<island_node>(ent1);
     node1.entities.push_back(entity);
 
-    registry.get_or_emplace<island_node_dirty>(ent0).indexes.insert(entt::type_index<island_node>::value());
-    registry.get_or_emplace<island_node_dirty>(ent1).indexes.insert(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(ent0).updated_indexes.insert(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(ent1).updated_indexes.insert(entt::type_index<island_node>::value());
     
     auto &constraint_dirty = registry.get_or_emplace<island_node_dirty>(entity);
     constraint_dirty.is_new_entity = true;
-    constraint_dirty.indexes.insert(entt::type_index<procedural_tag>::value());
-    constraint_dirty.indexes.insert(entt::type_index<island_node>::value());
-    constraint_dirty.indexes.insert(entt::type_index<constraint>::value());
+    constraint_dirty.created_indexes.insert(entt::type_index<procedural_tag>::value());
+    constraint_dirty.created_indexes.insert(entt::type_index<island_node>::value());
+    constraint_dirty.created_indexes.insert(entt::type_index<constraint>::value());
 }
 
 template<typename T> inline

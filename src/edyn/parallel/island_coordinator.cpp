@@ -52,7 +52,7 @@ void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::
                 other_node.entities.begin(),
                 other_node.entities.end(), entity), 
             other_node.entities.end());
-        registry.get_or_emplace<island_node_dirty>(other).indexes.insert(entt::type_index<island_node>::value());
+        registry.get_or_emplace<island_node_dirty>(other).updated_indexes.insert(entt::type_index<island_node>::value());
     }
 }
 
@@ -144,11 +144,10 @@ void island_coordinator::init_new_island_nodes() {
             auto &container = m_registry->get<island_container>(entity);
             if (!vector_contains(container.entities, island_entity)) {
                 container.entities.push_back(island_entity);
+                // Add new entities to the delta builder.
+                info->m_delta_builder.created(entity);
+                info->m_delta_builder.maybe_created(entity, *m_registry, all_components{});
             }
-
-            // Add new entities to the delta builder.
-            info->m_delta_builder.created(entity);
-            info->m_delta_builder.maybe_updated(entity, *m_registry, all_components{});
         }
     }
 }
@@ -167,14 +166,14 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
         if (other_container.entities.empty()) continue;
 
         auto island_entity = other_container.entities.front();
+        auto &info = m_island_info_map.at(island_entity);
 
         if (!vector_contains(container.entities, island_entity)) {
             container.entities.push_back(island_entity);
+            info->m_delta_builder.created(node_entity);
+            info->m_delta_builder.maybe_created(node_entity, *m_registry, all_components{});
         }
         
-        auto &info = m_island_info_map.at(island_entity);
-        info->m_delta_builder.created(node_entity);
-        info->m_delta_builder.maybe_updated(node_entity, *m_registry, all_components{});
     }
 }
 
@@ -199,7 +198,7 @@ entt::entity island_coordinator::create_island(double timestamp) {
     // before it even starts.
     auto builder = registry_delta_builder(info->m_entity_map);
     builder.created(entity);
-    builder.maybe_updated(entity, *m_registry, all_components{});
+    builder.created(entity, isle_time);
     info->m_message_queue.send<registry_delta>(builder.get_delta());
 
     if (m_paused) {
@@ -249,7 +248,7 @@ entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::en
         // Include all components in delta because this is a new entity
         // in that island.
         builder.created(entity);
-        builder.maybe_updated(entity, *m_registry, all_components{});
+        builder.maybe_created(entity, *m_registry, all_components{});
     }
 
     // Destroy empty islands.
@@ -295,13 +294,17 @@ void island_coordinator::refresh_dirty_entities() {
             if (!m_island_info_map.count(island_entity)) continue;
             auto &info = m_island_info_map.at(island_entity);
             auto &builder = info->m_delta_builder;
-            builder.updated(entity, *m_registry, 
-                dirty.indexes.begin(), dirty.indexes.end(), 
-                all_components{});
 
             if (dirty.is_new_entity) {
                 builder.created(entity);
             }
+
+            builder.created(entity, *m_registry, 
+                dirty.created_indexes.begin(), dirty.created_indexes.end(), 
+                all_components{});
+            builder.updated(entity, *m_registry, 
+                dirty.updated_indexes.begin(), dirty.updated_indexes.end(), 
+                all_components{});
         }
     });
 
@@ -354,7 +357,7 @@ void island_coordinator::on_registry_delta(entt::entity source_island_entity, co
                 }
 
                 info->m_delta_builder.created(local_entity);
-                info->m_delta_builder.maybe_updated(local_entity, *m_registry, all_components{});
+                info->m_delta_builder.maybe_created(local_entity, *m_registry, all_components{});
             }
         }
     }

@@ -39,7 +39,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 {
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
-    m_delta_builder.updated(m_island_entity);
+    m_delta_builder.insert_entity_mapping(m_island_entity);
 
     m_message_queue.sink<registry_delta>().connect<&island_worker::on_registry_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -95,7 +95,7 @@ void island_worker::on_construct_island_node(entt::registry &registry, entt::ent
     container.entities.push_back(m_island_entity);
 
     m_delta_builder.created(entity);
-    m_delta_builder.maybe_updated(entity, registry, all_components{});
+    m_delta_builder.maybe_created(entity, registry, all_components{});
 }
 
 void island_worker::on_update_island_node(entt::registry &registry, entt::entity entity) {
@@ -148,13 +148,17 @@ void island_worker::sync() {
 
     auto view = m_registry.view<island_node_dirty>();
     view.each([&] (entt::entity entity, island_node_dirty &dirty) {
-        m_delta_builder.updated(entity, m_registry,
-            dirty.indexes.begin(), dirty.indexes.end(),
-            all_components{});
-
         if (dirty.is_new_entity) {
             m_delta_builder.created(entity);
         }
+
+        m_delta_builder.created(entity, m_registry,
+            dirty.created_indexes.begin(), dirty.created_indexes.end(),
+            all_components{});
+
+        m_delta_builder.updated(entity, m_registry,
+            dirty.updated_indexes.begin(), dirty.updated_indexes.end(),
+            all_components{});
     });
 
     m_message_queue.send<registry_delta>(m_delta_builder.get_delta());

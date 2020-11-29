@@ -167,7 +167,7 @@ void process_collision(entt::registry &registry, entt::entity manifold_entity,
                     }
 
                     auto &manifold_dirty = registry.get_or_emplace<island_node_dirty>(manifold_entity);
-                    manifold_dirty.indexes.insert(entt::type_index<contact_manifold>::value());
+                    manifold_dirty.updated_indexes.insert(entt::type_index<contact_manifold>::value());
                 } else {
                     // Replace existing contact point.
                     auto contact_entity = manifold.point[idx];
@@ -213,7 +213,7 @@ void prune(entt::registry &registry, entt::entity entity,
 
             manifold.point[last_idx] = entt::null;
 
-            registry.get_or_emplace<island_node_dirty>(entity).indexes.insert(entt::type_index<contact_manifold>::value());
+            registry.get_or_emplace<island_node_dirty>(entity).updated_indexes.insert(entt::type_index<contact_manifold>::value());
         }
     }
 }
