@@ -3,6 +3,7 @@
 
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
+#include "edyn/util/entity_map.hpp"
 
 namespace edyn {
 

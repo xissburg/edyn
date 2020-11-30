@@ -14,6 +14,10 @@
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/merge/merge_island.hpp"
 #include "edyn/parallel/merge/merge_contact_point.hpp"
+#include "edyn/parallel/merge/merge_contact_manifold.hpp"
+#include "edyn/parallel/merge/merge_constraint_row.hpp"
+#include "edyn/parallel/merge/merge_constraint.hpp"
+#include "edyn/parallel/merge/merge_gravity.hpp"
 
 namespace edyn {
 

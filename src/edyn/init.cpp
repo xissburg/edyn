@@ -13,29 +13,9 @@ namespace edyn {
 
 static bool g_edyn_initialized {false};
 
-static void init_meta() {
-    entt::meta<contact_point>().type()
-        .data<&contact_point::body, entt::as_ref_t>("parent"_hs);
-
-    entt::meta<contact_manifold>().type()
-        .data<&contact_manifold::body, entt::as_ref_t>("body"_hs)
-        .data<&contact_manifold::point, entt::as_ref_t>("point"_hs);
-
-    entt::meta<constraint_row>().type()
-        .data<&constraint_row::entity, entt::as_ref_t>("entity"_hs);
-
-    entt::meta<constraint>().type()
-        .data<&constraint::body, entt::as_ref_t>("entity"_hs)
-        .data<&constraint::row, entt::as_ref_t>("row"_hs);
-
-    entt::meta<gravity>().type()
-        .data<&gravity::body, entt::as_ref_t>("body"_hs);
-}
-
 void init() {
     if (g_edyn_initialized) return;
 
-    init_meta();
     edyn::job_dispatcher::global().start();
 
     g_edyn_initialized = true;

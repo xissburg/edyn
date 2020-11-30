@@ -223,7 +223,11 @@ entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::en
     for (auto entity : entities) {
         // Point container to its new island.
         auto &container = m_registry->get<island_container>(entity);
-        container.entities.erase(island_entities.begin(), island_entities.end());
+
+        for (auto other_island_entity : island_entities) {
+            container.entities.erase(other_island_entity);
+        }
+
         container.entities.insert(island_entity);
 
         // Include all components in delta because this is a new entity

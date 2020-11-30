@@ -4,16 +4,17 @@
 #include <unordered_set>
 #include <entt/entity/registry.hpp>
 #include "edyn/parallel/merge/merge_component.hpp"
-#include "edyn/parallel/registry_delta.hpp"
 #include "edyn/util/entity_map.hpp"
 
 namespace edyn {
+
+std::vector<std::unordered_set<entt::entity>> map_split_to_local(const merge_context &ctx);
 
 template<merge_type MergeType, typename Component, typename Member>
 void merge_unordered_set(const Component *old_comp, 
                          Component &new_comp, 
                          Member Component:: *member, 
-                         merge_context &ctx) {
+                         const merge_context &ctx) {
 
     std::unordered_set<entt::entity> entities;
 
@@ -28,28 +29,12 @@ void merge_unordered_set(const Component *old_comp,
     if constexpr(MergeType == merge_type::updated) {
         // Reinsert entities from old which are still valid and haven't been
         // moved to another island due to a split.
-        std::vector<std::unordered_set<entt::entity>> split;
-
-        if (!ctx.delta->m_split_connected_components.empty()) {
-            // The first set contains the components left in the source island worker,
-            // so it must not be considered.
-            for (auto it = std::next(ctx.delta->m_split_connected_components.begin()); it != ctx.delta->m_split_connected_components.end(); ++it) {
-                std::unordered_set<entt::entity> connected;
-
-                for (auto remote_entity : *it) {
-                    if (!ctx.map->has_rem(remote_entity)) continue;
-                    auto local_entity = ctx.map->remloc(remote_entity);
-                    connected.insert(local_entity);
-                }
-
-                split.push_back(connected);
-            }
-        }
+        auto split = map_split_to_local(ctx);
 
         for (auto old_entity : old_comp->*member) {
             if (!ctx.registry->valid(old_entity)) continue;
 
-            if (new_comp.*member.count(old_entity)) continue;
+            if ((new_comp.*member).count(old_entity)) continue;
 
             bool moved = false;
             // Ignore entity if it has moved to another island due to a split.
@@ -62,9 +47,61 @@ void merge_unordered_set(const Component *old_comp,
 
             if (moved) continue;
 
-            new_comp.*member.insert(old_entity);
+            (new_comp.*member).insert(old_entity);
         }
     }
+}
+
+template<merge_type MergeType, typename Component, typename Member>
+void merge_array(const Component *old_comp, 
+                 Component &new_comp, 
+                 Member Component:: *member, 
+                 const merge_context &ctx) {
+    
+    for (auto &entity : new_comp.*member) {
+        if (entity == entt::null) continue;
+
+        if (ctx.map->has_rem(entity)) {
+            auto local_entity = ctx.map->remloc(entity);
+            if (ctx.registry->valid(local_entity)) {
+                entity = local_entity;
+            } else {
+                entity = entt::null;
+            }
+        } else {
+            entity = entt::null;
+        }
+    }
+
+    if constexpr(MergeType == merge_type::updated) {
+        // Reinsert entities from old which are still valid and haven't been
+        // moved to another island due to a split.
+        auto split = map_split_to_local(ctx);
+
+        for (auto &old_entity : old_comp->*member) {
+            if (!ctx.registry->valid(old_entity)) continue;
+            
+            auto found_it = std::find((new_comp.*member).begin(), (new_comp.*member).end(), old_entity);
+            if (found_it != (new_comp.*member).end()) continue;
+
+            auto moved = false;
+            for (auto &connected : split) {
+                if (connected.count(old_entity)) {
+                    moved = true;
+                    break;
+                }
+            }
+            if (moved) continue;
+            
+            // Find a null entry to replace with.
+            auto null_it = std::find((new_comp.*member).begin(), (new_comp.*member).end(), entt::entity{entt::null});
+            EDYN_ASSERT(null_it != (new_comp.*member).end());
+            *null_it = old_entity;
+        }
+    }
+
+    // Move null entities to the end of the array.
+    std::remove((new_comp.*member).begin(), (new_comp.*member).end(), entt::entity{entt::null});
 }
 
 }

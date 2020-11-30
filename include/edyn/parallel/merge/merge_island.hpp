@@ -2,7 +2,7 @@
 #define EDYN_PARALLEL_MERGE_MERGE_ISLAND_NODE_HPP
 
 #include "edyn/comp/island.hpp"
-#include "edyn/parallel/merge/merge_component.hpp"
+#include "edyn/parallel/merge/merge_util.hpp"
 
 namespace edyn {
 
