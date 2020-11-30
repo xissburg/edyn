@@ -4,11 +4,6 @@
 
 namespace edyn {
 
-template<typename T>
-bool vector_contains(const std::vector<T> &vec, const T &value) {
-    return std::find(vec.begin(), vec.end(), value) != vec.end();
-}
-
 island_coordinator::island_coordinator(entt::registry &registry)
     : m_registry(&registry)
 {
@@ -47,11 +42,7 @@ void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::
     // Remove from connected nodes.
     for (auto other : node.entities) {
         auto &other_node = registry.get<island_node>(other);
-        other_node.entities.erase(
-            std::remove(
-                other_node.entities.begin(),
-                other_node.entities.end(), entity), 
-            other_node.entities.end());
+        other_node.entities.erase( entity);
         registry.get_or_emplace<island_node_dirty>(other).updated_indexes.insert(entt::type_index<island_node>::value());
     }
 }
@@ -115,7 +106,7 @@ void island_coordinator::init_new_island_nodes() {
                     if (!other_container.entities.empty()) {
                         // Procedural entity must be in only one island.
                         EDYN_ASSERT(other_container.entities.size() == 1);
-                        auto island_entity = other_container.entities.front();
+                        auto island_entity = *other_container.entities.begin();
                         island_entities.insert(island_entity);
                     }
                 } else {
@@ -142,8 +133,8 @@ void island_coordinator::init_new_island_nodes() {
         for (auto entity : connected) {
             // Assign island to containers.
             auto &container = m_registry->get<island_container>(entity);
-            if (!vector_contains(container.entities, island_entity)) {
-                container.entities.push_back(island_entity);
+            if (container.entities.count(island_entity) == 0) {
+                container.entities.insert(island_entity);
                 // Add new entities to the delta builder.
                 info->m_delta_builder.created(entity);
                 info->m_delta_builder.maybe_created(entity, *m_registry, all_components{});
@@ -165,11 +156,11 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
         auto &other_container = m_registry->get<island_container>(other);
         if (other_container.entities.empty()) continue;
 
-        auto island_entity = other_container.entities.front();
+        auto island_entity = *other_container.entities.begin();
         auto &info = m_island_info_map.at(island_entity);
 
-        if (!vector_contains(container.entities, island_entity)) {
-            container.entities.push_back(island_entity);
+        if (container.entities.count(island_entity) == 0) {
+            container.entities.insert(island_entity);
             info->m_delta_builder.created(node_entity);
             info->m_delta_builder.maybe_created(node_entity, *m_registry, all_components{});
         }
@@ -232,18 +223,8 @@ entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::en
     for (auto entity : entities) {
         // Point container to its new island.
         auto &container = m_registry->get<island_container>(entity);
-        container.entities.erase(
-            std::remove_if(
-                container.entities.begin(), 
-                container.entities.end(), 
-                [&island_entities] (entt::entity other_island_entity) { 
-                    return island_entities.count(other_island_entity) > 0; 
-                }),
-            container.entities.end());
-
-        if (!vector_contains(container.entities, island_entity)) {
-            container.entities.push_back(island_entity);
-        }
+        container.entities.erase(island_entities.begin(), island_entities.end());
+        container.entities.insert(island_entity);
 
         // Include all components in delta because this is a new entity
         // in that island.
@@ -345,16 +326,10 @@ void island_coordinator::on_registry_delta(entt::entity source_island_entity, co
                 auto not_in_source_island = remote_source_entities.count(remote_entity) == 0;
 
                 if (not_in_source_island) {
-                    container.entities.erase(
-                        std::remove(
-                            container.entities.begin(),
-                            container.entities.end(), source_island_entity), 
-                        container.entities.end());
+                    container.entities.erase(source_island_entity);
                 }
 
-                if (!vector_contains(container.entities, island_entity)) {
-                    container.entities.push_back(island_entity);
-                }
+                container.entities.insert(island_entity);
 
                 info->m_delta_builder.created(local_entity);
                 info->m_delta_builder.maybe_created(local_entity, *m_registry, all_components{});

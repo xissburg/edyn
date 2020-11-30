@@ -81,14 +81,14 @@ bool broadphase_main::should_collide(entt::entity e0, entt::entity e1) const {
     // One of the entities must be dynamic.
     if (m_registry->has<dynamic_tag>(e0)) {
         // Dynamic entities are assigned to only one island.
-        auto island_entity = container0.entities.front();
+        auto island_entity = *container0.entities.begin();
         for (auto other_island_entity : container1.entities) {
             if (other_island_entity == island_entity) {
                 return false;
             }
         }
     } else if (m_registry->has<dynamic_tag>(e1)) {
-        auto island_entity = container1.entities.front();
+        auto island_entity = *container1.entities.begin();
         for (auto other_island_entity : container0.entities) {
             if (other_island_entity == island_entity) {
                 return false;

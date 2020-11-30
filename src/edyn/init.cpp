@@ -14,14 +14,6 @@ namespace edyn {
 static bool g_edyn_initialized {false};
 
 static void init_meta() {
-    entt::resolve<entt::entity>();
-
-    entt::meta<island_node>().type()
-        .data<&island_node::entities, entt::as_ref_t>("entities"_hs);
-
-    entt::meta<island_container>().type()
-        .data<&island_container::entities, entt::as_ref_t>("entities"_hs);
-
     entt::meta<contact_point>().type()
         .data<&contact_point::body, entt::as_ref_t>("parent"_hs);
 

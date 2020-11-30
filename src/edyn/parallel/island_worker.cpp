@@ -92,7 +92,7 @@ void island_worker::on_construct_island_node(entt::registry &registry, entt::ent
     }
     
     auto &container = registry.emplace<island_container>(entity);
-    container.entities.push_back(m_island_entity);
+    container.entities.insert(m_island_entity);
 
     m_delta_builder.created(entity);
     m_delta_builder.maybe_created(entity, registry, all_components{});
@@ -114,11 +114,7 @@ void island_worker::on_destroy_island_node(entt::registry &registry, entt::entit
     for (auto other : node.entities) {
         if (!registry.valid(other) || !registry.has<island_node>(other)) continue;
         auto &other_node = registry.get<island_node>(other);
-        other_node.entities.erase(
-            std::remove(
-                other_node.entities.begin(),
-                other_node.entities.end(), entity), 
-            other_node.entities.end());
+        other_node.entities.erase(entity);
         if (!m_importing_delta && !m_splitting_island) {
             m_delta_builder.updated<island_node>(other, other_node);
         }

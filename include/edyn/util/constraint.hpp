@@ -15,14 +15,14 @@ template<typename T> inline
 void make_constraint(entt::entity entity, entt::registry &registry, T&& con, 
                      entt::entity ent0, entt::entity ent1) {
     registry.emplace<procedural_tag>(entity);
-    registry.emplace<island_node>(entity, std::vector<entt::entity>{ent0, ent1});
+    registry.emplace<island_node>(entity, std::unordered_set<entt::entity>{ent0, ent1});
     registry.emplace<constraint>(entity, std::array<entt::entity, 2>{ent0, ent1}, std::forward<T>(con));
 
     auto &node0 = registry.get<island_node>(ent0);
-    node0.entities.push_back(entity);
+    node0.entities.insert(entity);
 
     auto &node1 = registry.get<island_node>(ent1);
-    node1.entities.push_back(entity);
+    node1.entities.insert(entity);
 
     registry.get_or_emplace<island_node_dirty>(ent0).updated_indexes.insert(entt::type_index<island_node>::value());
     registry.get_or_emplace<island_node_dirty>(ent1).updated_indexes.insert(entt::type_index<island_node>::value());

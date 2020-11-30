@@ -34,11 +34,11 @@ struct island_timestamp {
  * through when generating islands.
  */
 struct island_node {
-    std::vector<entt::entity> entities;
+    std::unordered_set<entt::entity> entities;
 };
 
 struct island_container {
-    std::vector<entt::entity> entities;
+    std::unordered_set<entt::entity> entities;
 };
 
 struct island_node_dirty {

@@ -8,9 +8,12 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <entt/fwd.hpp>
-#include "edyn/util/entity_map.hpp"
-#include "edyn/util/tuple.hpp"
 #include "edyn/comp.hpp"
+#include "edyn/util/tuple.hpp"
+#include "edyn/util/entity_map.hpp"
+#include "edyn/parallel/merge/merge_component.hpp"
+#include "edyn/parallel/merge/merge_island.hpp"
+#include "edyn/parallel/merge/merge_contact_point.hpp"
 
 namespace edyn {
 
@@ -30,44 +33,10 @@ class registry_delta {
 
     void import_created_entities(entt::registry &, entity_map &) const;
 
-    void import_child_entity_sequence(entt::registry &, entity_map &, 
-                                      entt::meta_sequence_container *old_seq, 
-                                      entt::meta_sequence_container &new_seq) const;
-
-    template<typename Component>
-    void import_child_entity(entt::registry &registry, entity_map &map, Component *old_comp, Component &new_comp) const {
-        auto range = entt::resolve<Component>().data();
-        for (entt::meta_data data : range) {
-            if (data.type() == entt::resolve<entt::entity>()) {
-                auto new_handle = entt::meta_handle(new_comp);
-                auto remote_entity = data.get(new_handle).cast<entt::entity>();
-
-                if (map.has_rem(remote_entity)) {
-                    auto local_entity = map.remloc(remote_entity);
-                    if (registry.valid(local_entity)) {
-                        data.set(new_handle, local_entity);
-                    } else {
-                        data.set(new_handle, entt::entity{entt::null});
-                    }
-                }
-            } else if (data.type().is_sequence_container()) {
-                auto new_handle = entt::meta_handle(new_comp);
-                auto new_seq = data.get(new_handle).as_sequence_container();
-
-                if (old_comp) {
-                    auto old_handle = entt::meta_handle(*old_comp);
-                    auto old_seq = data.get(old_handle).as_sequence_container();
-                    import_child_entity_sequence(registry, map, &old_seq, new_seq);
-                } else {
-                    import_child_entity_sequence(registry, map, nullptr, new_seq);
-                }
-            }
-        }
-    }
-
     template<typename Component>
     void import_updated(entt::registry &registry, entity_map &map) const {
         const auto &pairs = std::get<component_map<Component>>(m_updated_components).value;
+        auto ctx = merge_context{&registry, &map, this};
 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
@@ -78,7 +47,7 @@ class registry_delta {
             if constexpr(!std::is_empty_v<Component>) {
                 auto new_component = pair.second;
                 auto &old_component = registry.get<Component>(local_entity);
-                import_child_entity(registry, map, &old_component, new_component);
+                merge<merge_type::updated>(&old_component, new_component, ctx);
                 registry.replace<Component>(local_entity, new_component);
             }
         }
@@ -87,6 +56,7 @@ class registry_delta {
     template<typename Component>
     void import_created_components(entt::registry &registry, entity_map &map) const {
         const auto &pairs = std::get<component_map<Component>>(m_created_components).value;
+        auto ctx = merge_context{&registry, &map, this};
 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
@@ -98,7 +68,7 @@ class registry_delta {
                 registry.emplace<Component>(local_entity);
             } else {
                 auto new_component = pair.second;
-                import_child_entity(registry, map, static_cast<Component*>(nullptr), new_component);
+                merge<merge_type::created>(static_cast<Component*>(nullptr), new_component, ctx);
                 registry.emplace<Component>(local_entity, new_component);
             }
         }
