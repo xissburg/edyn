@@ -1,6 +1,7 @@
 #ifndef EDYN_PARALLEL_MERGE_MERGE_UTIL_HPP
 #define EDYN_PARALLEL_MERGE_MERGE_UTIL_HPP
 
+#include <array>
 #include <unordered_set>
 #include <entt/entity/registry.hpp>
 #include "edyn/parallel/merge/merge_component.hpp"
@@ -10,10 +11,10 @@ namespace edyn {
 
 std::vector<std::unordered_set<entt::entity>> map_split_to_local(const merge_context &ctx);
 
-template<merge_type MergeType, typename Component, typename Member>
+template<merge_type MergeType, typename Component>
 void merge_unordered_set(const Component *old_comp, 
                          Component &new_comp, 
-                         Member Component:: *member, 
+                         std::unordered_set<entt::entity> Component:: *member, 
                          const merge_context &ctx) {
 
     std::unordered_set<entt::entity> entities;
@@ -21,6 +22,7 @@ void merge_unordered_set(const Component *old_comp,
     for (auto remote_entity : new_comp.*member) {
         if (!ctx.map->has_rem(remote_entity)) continue;
         auto local_entity = ctx.map->remloc(remote_entity);
+        if (!ctx.registry->valid(local_entity)) continue;
         entities.insert(local_entity);
     }
 
@@ -52,10 +54,10 @@ void merge_unordered_set(const Component *old_comp,
     }
 }
 
-template<merge_type MergeType, typename Component, typename Member>
+template<merge_type MergeType, typename Component, std::size_t N>
 void merge_array(const Component *old_comp, 
                  Component &new_comp, 
-                 Member Component:: *member, 
+                 std::array<entt::entity, N> Component:: *member, 
                  const merge_context &ctx) {
     
     for (auto &entity : new_comp.*member) {
