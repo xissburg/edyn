@@ -31,7 +31,7 @@ TEST(test_collision, collide_box_box_face_face) {
 TEST(test_collision, collide_box_box_face_edge) {
     auto box = edyn::box_shape{edyn::vector3{0.5, 0.5, 0.5}};
     auto result = edyn::collide(box, edyn::vector3{0,0,0}, edyn::quaternion_identity,
-                                box, edyn::vector3{0, 2 * box.half_extents.y + 0.2, 0}, edyn::quaternion_axis_angle({1, 0, 0}, edyn::pi / 4), 
+                                box, edyn::vector3{0, edyn::scalar{2} * box.half_extents.y + edyn::scalar{0.2}, 0}, edyn::quaternion_axis_angle({1, 0, 0}, edyn::pi / 4), 
                                 0.02);
     ASSERT_EQ(result.num_points, 2);
     
