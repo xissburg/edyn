@@ -34,7 +34,6 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_solver(m_registry)
     , m_delta_builder(m_entity_map)
     , m_importing_delta(false)
-    , m_splitting_island(false)
     , m_topology_changed(false)
 {
     m_island_entity = m_registry.create();
@@ -56,7 +55,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 }
 
 void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta || m_splitting_island) return;
+    if (m_importing_delta) return;
 
     auto &con = registry.get<constraint>(entity);
 
@@ -67,7 +66,7 @@ void island_worker::on_construct_constraint(entt::registry &registry, entt::enti
 }
 
 void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta || m_splitting_island) return;
+    if (m_importing_delta) return;
 
     auto &con = registry.get<constraint>(entity);
 
@@ -87,7 +86,7 @@ void island_worker::on_construct_contact_manifold(entt::registry &registry, entt
 }
 
 void island_worker::on_construct_island_node(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta || m_splitting_island) {
+    if (m_importing_delta) {
         return;
     }
     
@@ -104,7 +103,7 @@ void island_worker::on_update_island_node(entt::registry &registry, entt::entity
 
 void island_worker::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
 
-    if (!m_importing_delta && !m_splitting_island) {
+    if (!m_importing_delta) {
         m_delta_builder.destroyed(entity);
     }
 
@@ -112,10 +111,9 @@ void island_worker::on_destroy_island_node(entt::registry &registry, entt::entit
     auto &node = registry.get<island_node>(entity);
 
     for (auto other : node.entities) {
-        if (!registry.valid(other) || !registry.has<island_node>(other)) continue;
         auto &other_node = registry.get<island_node>(other);
         other_node.entities.erase(entity);
-        if (!m_importing_delta && !m_splitting_island) {
+        if (!m_importing_delta) {
             m_delta_builder.updated<island_node>(other, other_node);
         }
     }
@@ -204,13 +202,13 @@ void island_worker::step() {
     isle_time.value += m_fixed_dt;
     m_delta_builder.updated<island_timestamp>(m_island_entity, isle_time);
 
-    sync();
-
     if (m_topology_changed) {
         validate_island();
         maybe_split_island();
         m_topology_changed = false;
     }
+
+    sync();
 }
 
 void island_worker::reschedule() {
@@ -241,10 +239,10 @@ void island_worker::maybe_split_island() {
     auto node_view = m_registry.view<island_node>();
     if (node_view.empty()) return;
 
-    std::vector<entt::entity> node_entities;
+    std::unordered_set<entt::entity> node_entities;
     node_entities.reserve(node_view.size());
     m_registry.view<procedural_tag>().each([&node_entities] (entt::entity entity) {
-        node_entities.push_back(entity);
+        node_entities.insert(entity);
     });
 
     std::vector<std::unordered_set<entt::entity>> connected_components;
@@ -253,7 +251,7 @@ void island_worker::maybe_split_island() {
         std::unordered_set<entt::entity> connected;
         std::vector<entt::entity> to_visit;
 
-        auto node_entity = node_entities.back();
+        auto node_entity = *node_entities.begin();
         to_visit.push_back(node_entity);
 
         while (!to_visit.empty()) {
@@ -264,18 +262,13 @@ void island_worker::maybe_split_island() {
             connected.insert(entity);
 
             // Remove from main set.
-            node_entities.erase(
-                std::remove(
-                    node_entities.begin(), 
-                    node_entities.end(), entity),
-                node_entities.end());
+            node_entities.erase(entity);
 
             // Add related entities to be visited next.
             auto &curr_node = node_view.get(entity);
 
             for (auto other : curr_node.entities) {
-                auto already_visited = std::find(
-                    connected.begin(), connected.end(), other) != connected.end();
+                auto already_visited = connected.count(other) > 0;
                 if (already_visited) continue;
 
                 if (m_registry.has<procedural_tag>(other)) {
@@ -293,42 +286,11 @@ void island_worker::maybe_split_island() {
 
     // There's more than one island in this worker which means the work can now
     // be split and run in parallel in two or more workers.
-    // Keep the first connected component in this island.
-    auto local_entities = connected_components.front();
-    m_splitting_island = true;
-
-    std::unordered_set<entt::entity> destroyed_entities;
-    m_delta_builder.split(local_entities);
-    
-    for (auto it = std::next(connected_components.begin()); it != connected_components.end(); ++it) {
-        for (auto entity : *it) {
-            // Destroy node locally if it is not contained in the local island anymore.
-            auto should_destroy = local_entities.count(entity) == 0;
-
-            if (should_destroy) {
-                destroyed_entities.insert(entity);
-
-                // Check if it's valid since it could have already been destroyed
-                // in case it is a child of another entity that was destroyed
-                // earlier in this loop (e.g. a constraint will destroy its rows).
-                if (m_registry.valid(entity)) {
-                    m_registry.destroy(entity);
-                }
-            }
-        }
-
-        m_delta_builder.split(*it);
+    island_topology topo;
+    for (auto &connected : connected_components) {
+        topo.count.push_back(connected.size());
     }
-
-    for (auto entity : destroyed_entities) {
-        if (m_entity_map.has_loc(entity)) {
-            m_entity_map.erase_loc(entity);
-        }
-    }
-
-    m_splitting_island = false;
-
-    sync();
+    m_delta_builder.topology(topo);
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {
@@ -376,11 +338,7 @@ void island_worker::validate_island() {
         auto &node = node_view.get(entity);
         for (auto other : node.entities) {
             auto &other_node = node_view.get(other);
-            if (std::find(other_node.entities.begin(), 
-                          other_node.entities.end(), 
-                          entity) == other_node.entities.end()) {
-                EDYN_ASSERT(false);
-            }
+            EDYN_ASSERT(other_node.entities.count(entity) > 0);
         }
     }
 

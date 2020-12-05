@@ -79,7 +79,6 @@ private:
 
     registry_delta_builder m_delta_builder;
     bool m_importing_delta;
-    bool m_splitting_island;
     bool m_topology_changed;
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;

@@ -33,6 +33,10 @@ struct destroyed_components {
     std::unordered_set<entt::entity> value;
 };
 
+struct island_topology {
+    std::vector<size_t> count;
+};
+
 class registry_delta {
 
     void import_created_entities(entt::registry &, entity_map &) const;
@@ -122,7 +126,7 @@ public:
 
     double m_timestamp;
 
-    std::vector<std::unordered_set<entt::entity>> m_split_connected_components;
+    island_topology m_island_topology;
     
 private:
     entity_map m_entity_map;
@@ -252,8 +256,8 @@ public:
         destroyed<Component...>(entity);
     }
 
-    void split(const std::unordered_set<entt::entity> &connected_component) {
-        m_delta.m_split_connected_components.push_back(connected_component);
+    void topology(const island_topology &topo) {
+        m_delta.m_island_topology = topo;
     }
 
     void clear() {

@@ -21,7 +21,8 @@ class registry_delta;
 class island_coordinator final {
 
     struct island_info {
-        entt::entity m_entity;
+        entt::entity m_island_entity;
+        std::unordered_set<entt::entity> m_entities;
         island_worker *m_worker;
         message_queue_in_out m_message_queue;
         entity_map m_entity_map;
@@ -30,10 +31,10 @@ class island_coordinator final {
         using registry_delta_func_t = void(entt::entity, const registry_delta &);
         entt::sigh<registry_delta_func_t> m_registry_delta_signal;
 
-        island_info(entt::entity entity,
+        island_info(entt::entity island_entity,
                     island_worker *worker,
                     message_queue_in_out message_queue)
-            : m_entity(entity)
+            : m_island_entity(island_entity)
             , m_worker(worker)
             , m_message_queue(message_queue)
             , m_delta_builder(m_entity_map)
@@ -50,7 +51,7 @@ class island_coordinator final {
         }
 
         void on_registry_delta(const registry_delta &delta) {
-            m_registry_delta_signal.publish(m_entity, delta);
+            m_registry_delta_signal.publish(m_island_entity, delta);
         }
 
         void sync() {
@@ -63,7 +64,10 @@ class island_coordinator final {
     void init_new_island_nodes();
     void init_new_non_procedural_island_node(entt::entity);
     entt::entity create_island(double timestamp);
+    void split_islands();
+    void split_island(entt::entity);
     void refresh_dirty_entities();
+    bool should_split_island(const island_topology &);
     void sync();
 
     void validate();
@@ -74,6 +78,7 @@ public:
 
     void on_construct_island_node(entt::registry &, entt::entity);
     void on_destroy_island_node(entt::registry &, entt::entity);
+    void on_construct_island_container(entt::registry &, entt::entity);
     void on_destroy_island_container(entt::registry &, entt::entity);
     void on_registry_delta(entt::entity, const registry_delta &);
     
@@ -96,6 +101,7 @@ private:
     std::unordered_map<entt::entity, std::unique_ptr<island_info>> m_island_info_map;
 
     std::vector<entt::entity> m_new_island_nodes;
+    std::unordered_set<entt::entity> m_islands_to_split;
     bool m_importing_delta {false};
     bool m_paused {false};
 };
