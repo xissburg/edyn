@@ -359,6 +359,29 @@ void island_worker::validate_island() {
         EDYN_ASSERT(container.entities.size() == 1);
         EDYN_ASSERT(container.entities.count(m_island_entity) > 0);
     }
+
+    // Parent nodes that are not a child should be an `island_node`.
+    m_registry.view<island_node_parent>(entt::exclude_t<island_node_child>{}).each([&] (entt::entity entity, island_node_parent &) {
+        EDYN_ASSERT(m_registry.has<island_node>(entity));
+    });
+
+    // Parent nodes that are a child should not be an `island_node`.
+    m_registry.view<island_node_parent, island_node_child>().each([&] (entt::entity entity, auto, auto) {
+        EDYN_ASSERT(!m_registry.has<island_node>(entity));
+    });
+
+    // Parent and child nodes should reference each other.
+    m_registry.view<island_node_parent>().each([&] (entt::entity parent_entity, island_node_parent &parent) {
+        for (auto child_entity : parent.children) {
+            auto &child = m_registry.get<island_node_child>(child_entity);
+            EDYN_ASSERT(child.parent == parent_entity);
+        }
+    });
+
+    m_registry.view<island_node_child>().each([&] (entt::entity child_entity, island_node_child &child) {
+        auto &parent = m_registry.get<island_node_parent>(child.parent);
+        EDYN_ASSERT(parent.children.count(child_entity) > 0);
+    });
 }
 
 }
