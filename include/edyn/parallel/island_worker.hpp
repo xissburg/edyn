@@ -27,7 +27,7 @@ void island_worker_func(job::data_type &);
 
 class island_worker final {
 
-    void maybe_split_island();
+    void calculate_topology();
     void do_terminate();
     void validate_island();
     void init_new_imported_contact_manifolds();

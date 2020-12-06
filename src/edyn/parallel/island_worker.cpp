@@ -210,7 +210,7 @@ void island_worker::step() {
 
     if (m_topology_changed) {
         validate_island();
-        maybe_split_island();
+        calculate_topology();
         m_topology_changed = false;
     }
 
@@ -241,7 +241,7 @@ void island_worker::init_new_imported_contact_manifolds() {
     m_new_imported_contact_manifolds.clear();
 }
 
-void island_worker::maybe_split_island() {
+void island_worker::calculate_topology() {
     auto node_view = m_registry.view<island_node>();
     if (node_view.empty()) return;
 
