@@ -1,5 +1,5 @@
 #include "edyn/sys/update_aabbs.hpp"
-#include "edyn/dynamics/island_util.hpp"
+#include "edyn/util/island_util.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/shape.hpp"

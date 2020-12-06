@@ -12,10 +12,10 @@ namespace edyn {
 template<merge_type MergeType, typename Component>
 void merge_unordered_set(const Component *old_comp, 
                          Component &new_comp, 
-                         std::unordered_set<entt::entity> Component:: *member, 
+                         entity_set Component:: *member, 
                          const merge_context &ctx) {
 
-    std::unordered_set<entt::entity> entities;
+    entity_set entities;
 
     for (auto remote_entity : new_comp.*member) {
         if (!ctx.map->has_rem(remote_entity)) continue;

@@ -5,7 +5,7 @@
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/math/constants.hpp"
-#include "edyn/dynamics/island_util.hpp"
+#include "edyn/util/island_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {

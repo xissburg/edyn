@@ -94,7 +94,7 @@ set(Edyn_SOURCES
     src/edyn/constraints/point_constraint.cpp
     src/edyn/constraints/hinge_constraint.cpp
     src/edyn/constraints/generic_constraint.cpp
-    src/edyn/dynamics/island_util.cpp
+    src/edyn/util/island_util.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp

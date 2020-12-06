@@ -56,6 +56,9 @@ public:
     void on_update_island_node(entt::registry &, entt::entity);
     void on_destroy_island_node(entt::registry &, entt::entity);
 
+    void on_construct_island_container(entt::registry &, entt::entity);
+    void on_destroy_island_container(entt::registry &, entt::entity);
+
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);
 

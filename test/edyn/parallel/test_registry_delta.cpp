@@ -7,7 +7,7 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
     auto child0 = reg0.create();
     auto child1 = reg0.create();
     auto ent0 = reg0.create();
-    reg0.emplace<edyn::island_node>(ent0, std::unordered_set<entt::entity>{child0, child1});
+    reg0.emplace<edyn::island_node>(ent0, edyn::entity_set{child0, child1});
     auto ent1 = reg0.create();
     reg0.emplace<edyn::contact_point>(ent1, std::array<entt::entity, 2>{child0, child1});
     reg0.get<edyn::contact_point>(ent1).distance = 6.28;

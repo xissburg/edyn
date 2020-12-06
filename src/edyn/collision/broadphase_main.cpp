@@ -3,7 +3,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/dynamics/island_util.hpp"
+#include "edyn/util/island_util.hpp"
 #include "edyn/util/constraint.hpp"
 #include <entt/entt.hpp>
 #include <vector>

@@ -48,6 +48,9 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     m_registry.on_update<island_node>().connect<&island_worker::on_update_island_node>(*this);
     m_registry.on_destroy<island_node>().connect<&island_worker::on_destroy_island_node>(*this);
 
+    m_registry.on_construct<island_container>().connect<&island_worker::on_construct_island_container>(*this);
+    m_registry.on_destroy<island_container>().connect<&island_worker::on_destroy_island_container>(*this);
+
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
     m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
     
@@ -86,15 +89,7 @@ void island_worker::on_construct_contact_manifold(entt::registry &registry, entt
 }
 
 void island_worker::on_construct_island_node(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) {
-        return;
-    }
-    
-    auto &container = registry.emplace<island_container>(entity);
-    container.entities.insert(m_island_entity);
 
-    m_delta_builder.created(entity);
-    m_delta_builder.maybe_created(entity, registry, all_components{});
 }
 
 void island_worker::on_update_island_node(entt::registry &registry, entt::entity entity) {
@@ -102,11 +97,6 @@ void island_worker::on_update_island_node(entt::registry &registry, entt::entity
 }
 
 void island_worker::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
-
-    if (!m_importing_delta) {
-        m_delta_builder.destroyed(entity);
-    }
-
     // Remove from connected nodes.
     auto &node = registry.get<island_node>(entity);
 
@@ -119,6 +109,22 @@ void island_worker::on_destroy_island_node(entt::registry &registry, entt::entit
     }
 
     m_topology_changed = true;
+}
+
+void island_worker::on_construct_island_container(entt::registry &registry, entt::entity entity) {
+    if (m_importing_delta) {
+        return;
+    }
+    
+    auto &container = registry.get<island_container>(entity);
+    container.entities.insert(m_island_entity);
+    m_delta_builder.created<island_container>(entity, container);
+}
+
+void island_worker::on_destroy_island_container(entt::registry &registry, entt::entity entity) {
+    if (!m_importing_delta) {
+        m_delta_builder.destroyed(entity);
+    }
 }
 
 void island_worker::on_registry_delta(const registry_delta &delta) {
@@ -239,16 +245,16 @@ void island_worker::maybe_split_island() {
     auto node_view = m_registry.view<island_node>();
     if (node_view.empty()) return;
 
-    std::unordered_set<entt::entity> node_entities;
+    entity_set node_entities;
     node_entities.reserve(node_view.size());
-    m_registry.view<procedural_tag>().each([&node_entities] (entt::entity entity) {
+    m_registry.view<island_node, procedural_tag>().each([&node_entities] (entt::entity entity, [[maybe_unused]] auto) {
         node_entities.insert(entity);
     });
 
-    std::vector<std::unordered_set<entt::entity>> connected_components;
+    std::vector<entity_set> connected_components;
 
     while (!node_entities.empty()) {
-        std::unordered_set<entt::entity> connected;
+        entity_set connected;
         std::vector<entt::entity> to_visit;
 
         auto node_entity = *node_entities.begin();

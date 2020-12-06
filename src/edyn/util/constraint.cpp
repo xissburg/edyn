@@ -15,21 +15,22 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     row.entity = con.body;
     row.priority = priority;
 
-    // Add island node and make it reference the constraint and vice-versa.
     registry.emplace<procedural_tag>(row_entity);
-    auto &row_node = registry.emplace<island_node>(row_entity);
-    row_node.entities.insert(entity);
 
-    auto &con_node = registry.get<island_node>(entity);
-    con_node.entities.insert(row_entity);
+    // The constraint row is a child of the constraint.
+    auto &row_child_node = registry.emplace<island_node_child>(row_entity);
+    row_child_node.parent = entity;
 
-    registry.get_or_emplace<island_node_dirty>(entity).updated_indexes.insert(entt::type_index<island_node>::value());
+    auto &con_parent_node = registry.get<island_node_parent>(entity);
+    con_parent_node.children.insert(row_entity);
+
+    registry.emplace<island_container>(row_entity);
+
+    registry.get_or_emplace<island_node_dirty>(entity).updated<island_node_parent>();
 
     auto &row_dirty = registry.get_or_emplace<island_node_dirty>(row_entity);
     row_dirty.is_new_entity = true;
-    row_dirty.created_indexes.insert(entt::type_index<island_node>::value());
-    row_dirty.created_indexes.insert(entt::type_index<procedural_tag>::value());
-    row_dirty.created_indexes.insert(entt::type_index<constraint_row>::value());
+    row_dirty.created<island_node_child, island_container, procedural_tag, constraint_row>();
 
     return row_entity;
 }
@@ -43,7 +44,9 @@ entt::entity make_contact_manifold(entt::registry &registry, entt::entity e0, en
 void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry, entt::entity e0, entt::entity e1, scalar separation_threshold) {
     EDYN_ASSERT(registry.valid(e0) && registry.valid(e1));
     registry.emplace<procedural_tag>(manifold_entity);
-    registry.emplace<island_node>(manifold_entity, std::unordered_set<entt::entity>{e0, e1});
+    registry.emplace<island_node>(manifold_entity, entity_set{e0, e1});
+    registry.emplace<island_node_parent>(manifold_entity);
+    registry.emplace<island_container>(manifold_entity);
     registry.emplace<contact_manifold>(manifold_entity, e0, e1, separation_threshold);
 
     // Assign a reference to the contact entity in the body nodes.
@@ -54,14 +57,12 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     node1.entities.insert(manifold_entity);
 
     // Mark stuff as dirty to schedule an update in the island worker.
-    registry.get_or_emplace<island_node_dirty>(e0).updated_indexes.insert(entt::type_index<island_node>::value());
-    registry.get_or_emplace<island_node_dirty>(e1).updated_indexes.insert(entt::type_index<island_node>::value());
+    registry.get_or_emplace<island_node_dirty>(e0).updated<island_node>();
+    registry.get_or_emplace<island_node_dirty>(e1).updated<island_node>();
 
     auto &contact_dirty = registry.get_or_emplace<island_node_dirty>(manifold_entity);
     contact_dirty.is_new_entity = true;
-    contact_dirty.created_indexes.insert(entt::type_index<procedural_tag>::value());
-    contact_dirty.created_indexes.insert(entt::type_index<island_node>::value());
-    contact_dirty.created_indexes.insert(entt::type_index<contact_manifold>::value());
+    contact_dirty.created<procedural_tag, island_node, island_node_parent, island_container, contact_manifold>();
 }
 
 void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {

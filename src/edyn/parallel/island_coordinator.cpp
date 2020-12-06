@@ -1,5 +1,6 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/util/island_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -31,7 +32,6 @@ island_coordinator::~island_coordinator() {
 void island_coordinator::on_construct_island_node(entt::registry &registry, entt::entity entity) {
     if (m_importing_delta) return;
 
-    registry.emplace<island_container>(entity);
     m_new_island_nodes.push_back(entity);
 }
 
@@ -44,7 +44,7 @@ void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::
     for (auto other : node.entities) {
         auto &other_node = registry.get<island_node>(other);
         other_node.entities.erase( entity);
-        registry.get_or_emplace<island_node_dirty>(other).updated_indexes.insert(entt::type_index<island_node>::value());
+        registry.get_or_emplace<island_node_dirty>(other).updated<island_node>();
     }
 }
 
@@ -72,7 +72,7 @@ void island_coordinator::on_destroy_island_container(entt::registry &registry, e
 }
 
 void island_coordinator::init_new_island_nodes() {
-    std::unordered_set<entt::entity> procedural_node_entities;
+    entity_set procedural_node_entities;
 
     for (auto entity : m_new_island_nodes) {
         if (m_registry->has<procedural_tag>(entity)) {
@@ -86,8 +86,8 @@ void island_coordinator::init_new_island_nodes() {
 
     while (!procedural_node_entities.empty()) {
         // Find connected components to build new islands for procedural entities.
-        std::unordered_set<entt::entity> island_entities;
-        std::unordered_set<entt::entity> connected;
+        entity_set island_entities;
+        entity_set connected;
         std::vector<entt::entity> to_visit;
 
         auto node_entity = *procedural_node_entities.begin();
@@ -99,6 +99,12 @@ void island_coordinator::init_new_island_nodes() {
 
             // Add to connected component.
             connected.insert(curr_entity);
+
+            if (m_registry->has<island_node_parent>(curr_entity)) {
+                // Add children.
+                auto children = get_island_node_children(*m_registry, curr_entity);
+                connected.insert(children.begin(), children.end());
+            }
 
             // Remove from main set.
             procedural_node_entities.erase(curr_entity);
@@ -239,8 +245,8 @@ entt::entity island_coordinator::create_island(double timestamp) {
     return entity;
 }
 
-entt::entity island_coordinator::merge_islands(const std::unordered_set<entt::entity> &island_entities,
-                                               const std::unordered_set<entt::entity> &new_entities) {
+entt::entity island_coordinator::merge_islands(const entity_set &island_entities,
+                                               const entity_set &new_entities) {
     EDYN_ASSERT(island_entities.size() > 1);
 
     // Pick biggest island and move the other entities into it.
@@ -388,20 +394,20 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
     if (m_island_info_map.count(split_island_entity) == 0) return;
 
     auto &split_info = m_island_info_map.at(split_island_entity);
-    std::unordered_set<entt::entity> node_entities;
+    entity_set node_entities;
     node_entities.reserve(split_info->m_entities.size());
 
     for (auto entity : split_info->m_entities) {
-        if (m_registry->has<procedural_tag>(entity)) {
+        if (m_registry->has<island_node, procedural_tag>(entity)) {
             node_entities.insert(entity);
         }
     }
 
     auto node_view = m_registry->view<island_node>();
-    std::vector<std::unordered_set<entt::entity>> connected_components;
+    std::vector<entity_set> connected_components;
 
     while (!node_entities.empty()) {
-        std::unordered_set<entt::entity> connected;
+        entity_set connected;
         std::vector<entt::entity> to_visit;
 
         auto node_entity = *node_entities.begin();
@@ -413,6 +419,12 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
 
             // Add to connected component.
             connected.insert(entity);
+
+            if (m_registry->has<island_node_parent>(entity)) {
+                // Add children.
+                auto children = get_island_node_children(*m_registry, entity);
+                connected.insert(children.begin(), children.end());
+            }
 
             // Remove from main set.
             node_entities.erase(entity);
@@ -450,7 +462,6 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
         // Make containers point to the new island and add entities to the delta builder.
         for (auto entity : connected) {
             auto &container = m_registry->get<island_container>(entity);
-            //EDYN_ASSERT(container.entities.count(split_island_entity) > 0);
             container.entities.erase(split_island_entity);
             container.entities.insert(island_entity);
 

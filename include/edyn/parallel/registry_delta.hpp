@@ -30,7 +30,7 @@ struct component_map {
 
 template<typename Component>
 struct destroyed_components {
-    std::unordered_set<entt::entity> value;
+    entity_set value;
 };
 
 struct island_topology {
@@ -130,8 +130,8 @@ public:
     
 private:
     entity_map m_entity_map;
-    std::unordered_set<entt::entity> m_created_entities;
-    std::unordered_set<entt::entity> m_destroyed_entities;
+    entity_set m_created_entities;
+    entity_set m_destroyed_entities;
     map_tuple<component_map, all_components>::type m_created_components;
     map_tuple<component_map, all_components>::type m_updated_components;
     map_tuple<destroyed_components, all_components>::type m_destroyed_components;

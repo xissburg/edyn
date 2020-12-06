@@ -13,32 +13,61 @@ namespace edyn {
 
 template<typename T> inline
 void make_constraint(entt::entity entity, entt::registry &registry, T&& con, 
-                     entt::entity ent0, entt::entity ent1) {
+                     entt::entity ent0, entt::entity ent1, entt::entity *parent_entity = nullptr) {
+
     registry.emplace<procedural_tag>(entity);
-    registry.emplace<island_node>(entity, std::unordered_set<entt::entity>{ent0, ent1});
+
+    // If the constraint has a parent (e.g. when it's a `contact_constraint` in a
+    // contact manifold), only assign an `island_node_child` to it or else assign
+    // an `island_node` since in that case it will be the root of the node sub-tree
+    // into which `constraint_row`s will be added.
+    if (parent_entity) {
+        registry.emplace<island_node_child>(entity, *parent_entity);
+        
+        auto &node_parent = registry.get<island_node_parent>(*parent_entity);
+        node_parent.children.insert(entity);
+    } else {
+        registry.emplace<island_node>(entity, entity_set{ent0, ent1});
+    }
+
+    // A constraint is a parent of its rows, thus it needs an `island_node_parent`.
+    registry.emplace<island_node_parent>(entity);
+    registry.emplace<island_container>(entity);
     registry.emplace<constraint>(entity, std::array<entt::entity, 2>{ent0, ent1}, std::forward<T>(con));
 
-    auto &node0 = registry.get<island_node>(ent0);
-    node0.entities.insert(entity);
+    if (!parent_entity) {
+        // When there's no parent entity, the constraint is associated with the
+        // rigid bodies directly.
+        auto &node0 = registry.get<island_node>(ent0);
+        node0.entities.insert(entity);
 
-    auto &node1 = registry.get<island_node>(ent1);
-    node1.entities.insert(entity);
+        auto &node1 = registry.get<island_node>(ent1);
+        node1.entities.insert(entity);
+        
+        registry.get_or_emplace<island_node_dirty>(ent0).updated<island_node>();
+        registry.get_or_emplace<island_node_dirty>(ent1).updated<island_node>();
+    }
 
-    registry.get_or_emplace<island_node_dirty>(ent0).updated_indexes.insert(entt::type_index<island_node>::value());
-    registry.get_or_emplace<island_node_dirty>(ent1).updated_indexes.insert(entt::type_index<island_node>::value());
-    
     auto &constraint_dirty = registry.get_or_emplace<island_node_dirty>(entity);
     constraint_dirty.is_new_entity = true;
-    constraint_dirty.created_indexes.insert(entt::type_index<procedural_tag>::value());
-    constraint_dirty.created_indexes.insert(entt::type_index<island_node>::value());
-    constraint_dirty.created_indexes.insert(entt::type_index<constraint>::value());
+    constraint_dirty.created<procedural_tag, constraint, island_node_parent, island_container>();
+
+    if (parent_entity) {
+        constraint_dirty.created<island_node_child>();
+
+        auto &parent_dirty = registry.get_or_emplace<island_node_dirty>(*parent_entity);
+        parent_dirty.updated<island_node_parent>();
+    } else {
+        constraint_dirty.created<island_node>();
+    }
 }
 
 template<typename T> inline
 entt::entity make_constraint(entt::registry &registry, T&& con, 
-                             entt::entity ent0, entt::entity ent1) {
+                             entt::entity ent0, entt::entity ent1, 
+                             entt::entity *parent_entity = nullptr) {
     auto ent = registry.create();
-    make_constraint<T>(ent, registry, std::forward<T>(con), ent0, ent1);
+    make_constraint<T>(ent, registry, std::forward<T>(con), ent0, ent1, parent_entity);
     return ent;
 }
 

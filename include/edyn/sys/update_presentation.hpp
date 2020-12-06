@@ -10,7 +10,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/dynamics/island_util.hpp"
+#include "edyn/util/island_util.hpp"
 
 namespace edyn {
 

@@ -43,7 +43,8 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
 }
 
 static
-void create_contact_constraint(entt::entity entity, entt::registry &registry, contact_point &cp) {
+void create_contact_constraint(entt::registry &registry, entt::entity manifold_entity,
+                               entt::entity contact_entity, contact_point &cp) {
     auto &materialA = registry.get<material>(cp.body[0]);
     auto &materialB = registry.get<material>(cp.body[1]);
 
@@ -62,7 +63,7 @@ void create_contact_constraint(entt::entity entity, entt::registry &registry, co
     contact.stiffness = stiffness;
     contact.damping = damping;
 
-    make_constraint(entity, registry, std::move(contact), cp.body[0], cp.body[1]);
+    make_constraint(contact_entity, registry, std::move(contact), cp.body[0], cp.body[1], &manifold_entity);
 }
 
 static
@@ -163,11 +164,15 @@ void process_collision(entt::registry &registry, entt::entity manifold_entity,
                     );
 
                     if (registry.has<material>(manifold.body[0]) && registry.has<material>(manifold.body[1])) {
-                        create_contact_constraint(contact_entity, registry, cp);
+                        create_contact_constraint(registry, manifold_entity, contact_entity, cp);
                     }
 
+                    auto &contact_dirty = registry.get_or_emplace<island_node_dirty>(contact_entity);
+                    contact_dirty.is_new_entity = true;
+                    contact_dirty.created<contact_point>();
+
                     auto &manifold_dirty = registry.get_or_emplace<island_node_dirty>(manifold_entity);
-                    manifold_dirty.updated_indexes.insert(entt::type_index<contact_manifold>::value());
+                    manifold_dirty.updated<contact_manifold>();
                 } else {
                     // Replace existing contact point.
                     auto contact_entity = manifold.point[idx];
@@ -213,7 +218,11 @@ void prune(entt::registry &registry, entt::entity entity,
 
             manifold.point[last_idx] = entt::null;
 
-            registry.get_or_emplace<island_node_dirty>(entity).updated_indexes.insert(entt::type_index<contact_manifold>::value());
+            auto &node_parent = registry.get<island_node_parent>(entity);
+            node_parent.children.erase(point_entity);
+
+            registry.get_or_emplace<island_node_dirty>(entity)
+                .updated<contact_manifold, island_node_parent>();
         }
     }
 }

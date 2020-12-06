@@ -96,6 +96,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     }
 
     registry.emplace<island_node>(entity);
+    registry.emplace<island_container>(entity);
 }
 
 entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) {

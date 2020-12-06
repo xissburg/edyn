@@ -22,7 +22,7 @@ class island_coordinator final {
 
     struct island_info {
         entt::entity m_island_entity;
-        std::unordered_set<entt::entity> m_entities;
+        entity_set m_entities;
         island_worker *m_worker;
         message_queue_in_out m_message_queue;
         entity_map m_entity_map;
@@ -85,8 +85,8 @@ public:
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
 
-    entt::entity merge_islands(const std::unordered_set<entt::entity> &island_entities,
-                               const std::unordered_set<entt::entity> &entities);
+    entt::entity merge_islands(const entity_set &island_entities,
+                               const entity_set &new_entities);
 
     void update();
 
@@ -101,7 +101,7 @@ private:
     std::unordered_map<entt::entity, std::unique_ptr<island_info>> m_island_info_map;
 
     std::vector<entt::entity> m_new_island_nodes;
-    std::unordered_set<entt::entity> m_islands_to_split;
+    entity_set m_islands_to_split;
     bool m_importing_delta {false};
     bool m_paused {false};
 };
