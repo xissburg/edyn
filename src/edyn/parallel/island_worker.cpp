@@ -344,19 +344,14 @@ void island_worker::validate_island() {
 
     auto container_view = m_registry.view<const island_container>();
 
-    // All island containers shoud contain the local island.
+    // All island containers shoud only contain the local island. Non-procedural
+    // entities can be present in multiple islands but this island is not aware
+    // of the other islands thus these islands are removed from the entity set
+    // during import of the registry delta.
     for (entt::entity entity : container_view) {
         auto &container = container_view.get(entity);
-
-        if (std::find(container.entities.begin(), 
-                      container.entities.end(), 
-                      m_island_entity) == container.entities.end()) {
-            EDYN_ASSERT(false);
-        }
-
-        if (container.entities.size() != 1) {
-            EDYN_ASSERT(false);
-        }
+        EDYN_ASSERT(container.entities.size() == 1);
+        EDYN_ASSERT(container.entities.count(m_island_entity) > 0);
     }
 }
 

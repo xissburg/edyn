@@ -521,11 +521,7 @@ void island_coordinator::validate() {
         auto &node = node_view.get(entity);
         for (auto other : node.entities) {
             auto &other_node = node_view.get(other);
-            if (std::find(other_node.entities.begin(), 
-                          other_node.entities.end(), 
-                          entity) == other_node.entities.end()) {
-                EDYN_ASSERT(false);
-            }
+            EDYN_ASSERT(other_node.entities.count(entity) > 0);
         }
     }
 
@@ -535,9 +531,7 @@ void island_coordinator::validate() {
     for (entt::entity entity : container_view) {
         auto &container = container_view.get<const island_container>(entity);
 
-        if (container.entities.size() > 1) {
-            EDYN_ASSERT(false);
-        }
+        EDYN_ASSERT(container.entities.size() == 1);
 
         for (auto island_entity : container.entities) {
             EDYN_ASSERT((m_registry->valid(island_entity)));
