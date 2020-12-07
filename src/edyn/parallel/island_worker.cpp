@@ -350,7 +350,7 @@ void island_worker::validate_island() {
 
     auto container_view = m_registry.view<const island_container>();
 
-    // All island containers shoud only contain the local island. Non-procedural
+    // All island containers should only contain the local island. Non-procedural
     // entities can be present in multiple islands but this island is not aware
     // of the other islands thus these islands are removed from the entity set
     // during import of the registry delta.

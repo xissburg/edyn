@@ -51,19 +51,7 @@ void prepare(constraint_row &row,
 }
 
 static
-void apply_angular_impulse(scalar impulse,
-                           entt::registry &registry,
-                           constraint_row &row,
-                           size_t ent_idx,
-                           const matrix3x3 &inv_I,
-                           delta_angvel &dw) {
-    auto idx_J = ent_idx * 2 + 1;
-    dw += inv_I * row.J[idx_J] * impulse;
-}
-
-static
 void apply_impulse(scalar impulse,
-                   entt::registry &registry,
                    constraint_row &row,
                    scalar inv_mA, scalar inv_mB,
                    const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
@@ -74,17 +62,17 @@ void apply_impulse(scalar impulse,
     dvB += inv_mB * row.J[2] * impulse;
 
     // Apply angular impulse.
-    apply_angular_impulse(impulse, registry, row, 0, inv_IA, dwA);
-    apply_angular_impulse(impulse, registry, row, 1, inv_IB, dwB);
+    dwA += inv_IA * row.J[1] * impulse;
+    dwB += inv_IB * row.J[3] * impulse;
 }
 
 static
-void warm_start(entt::registry &registry, constraint_row &row, 
+void warm_start(constraint_row &row, 
                 scalar inv_mA, scalar inv_mB,
                 const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
                 delta_linvel &dvA, delta_linvel &dvB,
                 delta_angvel &dwA, delta_angvel &dwB) {
-    apply_impulse(row.impulse, registry, row, 
+    apply_impulse(row.impulse, row, 
                   inv_mA, inv_mB, 
                   inv_IA, inv_IB, 
                   dvA, dvB, 
@@ -169,10 +157,10 @@ void solver::update(scalar dt) {
                     inv_IA, inv_IB, 
                     linvelA, linvelB, 
                     angvelA, angvelB);
-            warm_start(*registry, row, 
-                        inv_mA, inv_mB, 
-                        inv_IA, inv_IB, 
-                        dvA, dvB, dwA, dwB);
+            warm_start(row, 
+                       inv_mA, inv_mB, 
+                       inv_IA, inv_IB, 
+                       dvA, dvB, dwA, dwB);
         }
     });
 
@@ -194,7 +182,7 @@ void solver::update(scalar dt) {
             auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(row.entity[1]);
 
             auto delta_impulse = solve(row, dvA, dvB, dwA, dwB);
-            apply_impulse(delta_impulse, *registry, row, 
+            apply_impulse(delta_impulse, row, 
                           inv_mA, inv_mB, inv_IA, inv_IB, 
                           dvA, dvB, dwA, dwB);
         });
@@ -224,8 +212,6 @@ void solver::update(scalar dt) {
     //put_islands_to_sleep(*registry, step, dt);
 
     //clear_kinematic_velocities(*registry);
-
-
 }
 
 }
