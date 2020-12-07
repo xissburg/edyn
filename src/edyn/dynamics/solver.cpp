@@ -124,9 +124,8 @@ void solver::update(scalar dt) {
     apply_gravity(*registry, dt);
 
     // Setup constraints.
-    auto mass_inv_view = registry->view<mass_inv, inertia_world_inv>(exclude_global);
-    auto vel_view = registry->view<linvel, angvel>(exclude_global);
-    auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_global);
+    auto mass_delta_group = registry->group<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
+    auto vel_group = registry->group<linvel, angvel>();
     auto con_view = registry->view<constraint>(exclude_global);
     auto row_view = registry->view<constraint_row>(exclude_global);
 
@@ -141,13 +140,11 @@ void solver::update(scalar dt) {
     });
 
     con_view.each([&] (entt::entity entity, constraint &con) {
-        auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(con.body[0]);
-        auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(con.body[0]);
-        auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(con.body[0]);
+        auto [inv_mA, inv_IA, dvA, dwA] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
+        auto [linvelA, angvelA] = vel_group.get<linvel, angvel>(con.body[0]);
 
-        auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(con.body[1]);
-        auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(con.body[1]);
-        auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(con.body[1]);
+        auto [inv_mB, inv_IB, dvB, dwB] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+        auto [linvelB, angvelB] = vel_group.get<linvel, angvel>(con.body[1]);
 
         for (size_t i = 0; i < con.num_rows(); ++i) {
             auto &row = row_view.get(con.row[i]);
@@ -175,11 +172,8 @@ void solver::update(scalar dt) {
 
         // Solve rows.
         row_view.each([&] (entt::entity entity, constraint_row &row) {
-            auto [inv_mA, inv_IA] = mass_inv_view.get<mass_inv, inertia_world_inv>(row.entity[0]);
-            auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(row.entity[0]);
-
-            auto [inv_mB, inv_IB] = mass_inv_view.get<mass_inv, inertia_world_inv>(row.entity[1]);
-            auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(row.entity[1]);
+            auto [inv_mA, inv_IA, dvA, dwA] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(row.entity[0]);
+            auto [inv_mB, inv_IB, dvB, dwB] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(row.entity[1]);
 
             auto delta_impulse = solve(row, dvA, dvB, dwA, dwB);
             apply_impulse(delta_impulse, row, 
