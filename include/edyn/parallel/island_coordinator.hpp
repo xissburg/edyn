@@ -64,6 +64,8 @@ class island_coordinator final {
     void init_new_island_nodes();
     void init_new_non_procedural_island_node(entt::entity);
     entt::entity create_island(double timestamp);
+    entt::entity merge_islands(const entity_set &island_entities,
+                               const entity_set &new_entities);
     void split_islands();
     void split_island(entt::entity);
     void refresh_dirty_entities();
@@ -84,9 +86,6 @@ public:
     
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
-
-    entt::entity merge_islands(const entity_set &island_entities,
-                               const entity_set &new_entities);
 
     void update();
 
