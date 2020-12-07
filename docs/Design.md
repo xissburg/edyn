@@ -2,11 +2,11 @@
 
 This document describes the general engine architecture. It is a bit of a brainstorming document and does not reflect the current state of the library. The ideas presented here are planned to be implemented in the near future.
 
-## Introduction
+# Introduction
 
 _Edyn_ (pronounced like "eh-dyin'") stands for _Entity Dynamics_ and it is a real-time physics engine focused on multi-threaded, networked and distributed simulation of massive dynamic worlds. It is organized as an _entity-component system_ (ECS) using the amazing [EnTT](https://github.com/skypjack/entt) library.
 
-### The ECS approach
+## The ECS approach
 
 Typical physics engines will offer explicit means to create objects such as rigid bodies, whereas in _Edyn_ object creation is implicit due to the entity-component design. A rigid body is created from the bottom up, by associating its parts to a single entity, such as:
 
@@ -69,7 +69,7 @@ auto entity = edyn::make_rigidbody(registry, def);
 
 It is not necessary to assign a shape to a rigid body. That enables the simulation to contain implicit rigid bodies (not to be confused with the meaning of implicit from above) which are not visually present in the simulation and don't participate in collision detection, but instead are connected to other bodies via constraints and are used to generate forces that affect the primary entities that users interact with. As an example, this can be useful to simulate drivetrain components in a vehicle.
 
-## Foundation
+# Foundation
 
 The library can be built with single- or double-precision floating point. `edyn::scalar` is simply a `using` declaration equals to `float` or `double` which is set according to the `EDYN_DOUBLE_PRECISION` compilation option. _build_settings.hpp_ is generated during build from _cmake/build_settings.h.in_ so that invocations are linked to the correct definition.
 
@@ -83,7 +83,7 @@ The library can be built with single- or double-precision floating point. `edyn:
 
 _SIMD_ implementations of the above are planned.
 
-## Constraints
+# Constraints
 
 Constraints are components of the type `edyn::constraint` which store the actual constraint in a `std::variant`. Different constraint types have different data and logic, thus the `std::variant`, which by default contains all the fundamental constraint implementations provided by the library. To add custom constraints to the library it is necessary to fork the project and modify the code to insert these into the variant, since this is not a header-only library and the types in the `std::variant` are compiled into the library.
 
@@ -98,7 +98,7 @@ These functions are invoked using CRTP to avoid virtual functions.
 
 A traditional Sequential Impulse constraint solver is used.
 
-## Collision detection and response
+# Collision detection and response
 
 Many physics engines give special treatment to _contact constraints_ (aka _non-penetration constraints_). In _Edyn_ they are no different of other types of constraints. The `edyn::contact_constraint` is simply part of the `std::variant` in the `edyn::constraint` component.
 
@@ -114,11 +114,11 @@ To enable collision response for an entity, a `edyn::material` component must be
 
 Collision events can be observed by listening to `on_construct<entt::contact_point>` or `on_destroy<entt::contact_point>` in the `entt::registry`.
 
-## Shapes
+# Shapes
 
 Similarly to constraints, `edyn::shape` also holds a `std::variant` with all shape types in its parameter pack. It's necessary to fork the project and modify the code to add custom shapes. It is also necessary to provide a `edyn::collide` function for every permutation of the custom shape with all existing shapes.
 
-### Paged triangle mesh shape
+## Paged triangle mesh shape
 
 For the shape of the world's terrain, a triangle mesh shape is usually the best choice. For larger worlds, it is interesting to split up this terrain in smaller chunks and load them in and out of the world as needed. The `edyn::paged_triangle_mesh` offers a deferred loading mechanism that will load chunks of a concave triangle mesh as dynamic objects enter their bounding boxes. It must be initialized with a set of entities with a `edyn::AABB` assigned and an `Archive` (which is templated).
 
@@ -128,7 +128,7 @@ When there are no dynamic entities in the AABB of the chunk, it becomes a candid
 
 Edge adjacency and Voronoi regions are used to prevent internal edge collisions.
 
-## Multi-threading
+# Multi-threading
 
 The multi-threading model seeks to maximize parallelization by splitting up the simulation into independent chunks that can be run separately in different threads with the least amount of synchronization as possible. These chunks are called _islands_ where entities in one island _A_ cannot affect the state of entities in another island _B_, and thus _A_ and _B_ can be executed in parallel.
 
@@ -136,7 +136,7 @@ In the application's main thread there should be one _master registry_ which con
 
 The _island workers_ are jobs that are scheduled to be run in worker threads. In each invocation of the _island worker_ main function, it performs one simulation step (if the difference between the current time and the last time it did a step is greater then the fixed delta time) and reschedules itself to run again at a later time to perform the steps for that island continuously. This means unlike a typical physics engine, there's no main loop where the simulation steps are performed, all islands are stepped forward independently of any central synchronization mechanism.
 
-### Job System
+## Job System
 
 _Edyn_ has its own job system it uses for parallelizing tasks and running background jobs. The `edyn::job_dispatcher` manages a set of workers which are each associated with a background thread. When a job is scheduled it pushes it into the queue of the least busy worker.
 
@@ -148,22 +148,27 @@ A job is comprised of a fixed size data buffer and a function pointer that takes
 
 Using the `edyn::job_scheduler` it is possible to schedule a job to run after a delay. The `edyn::job_scheduler` keeps a queue of waiting jobs sorted by desired execution time and it uses a `std::condition_variable` to block execution until the next timed job is ready invoking `std::condition_variable::wait_for` and then schedules it using a `edyn::job_dispatcher`. To create a repeating job that is executed every _dt_ seconds, it's necessary to have the job reschedule itself to run again at a later time once it finishes processing. This technique is used for running periodic tasks such as the _island workers_.
 
-### Simulation Islands
+## Simulation Islands
 
 Dynamic entities that cannot immediately affect the motion of others can be simulated in isolation. More precisely, two dynamic entities _A_ and _B_ which are not connected via constraints are not capable of immediately affecting the motion of each other. That means, the motion of _A_ and _B_ is independent and thus could be performed in two separate threads.
 
 An _island_ is a set of entities that are connected via constraints, directly or indirectly. The motion of one dynamic entity in an island will likely have an effect on the motion of all other dynamic entities in the island, thus the constraints in one island have to be solved together. 
 
-#### The Island Node Graph
+### The Island Node Graph
+
 Islands are modeled as a graph, where the rigid bodies, constraints, among others, are nodes which can be connected to each other. These nodes are represented by an `edyn::island_node` component which contains a set of connected entities. Individual islands can be found using the concept of _connected components_ from graph theory. Islands are instantiated as entities and have an `edyn::island` component associated with them. All nodes have an `edyn::island_container` component which contains a set of island entities where this node is present. As nodes are created, destroyed or modified, islands can split into two or more islands, or they can also merge with other islands.
 
-#### Procedural Nodes
+Nodes can have a local subtree of child nodes which allows the node graph to be simplified and improve performance of walking the graph to calculate connected components and also eliminates the need to recalculate when the subtree changes. At the root level, an entity that is an `edyn::island_node` can also have an `edyn::island_node_parent` component which contains a set of children. The child nodes must not have an `edyn::island_node` component and they must have an `edyn::island_node_child` which holds a reference to the parent. If this child node has further children, it must have an `edyn::island_node_parent` component as well containing a set of another level of child nodes. All the child nodes must have an `edyn::island_container` as well. When an `edyn::island_node_parent` is destroyed, all its children must be destroyed along with it and when the root level node is moved to another island, all child nodes are moved with it.
+
+The island node subtree is particularly useful for contact manifolds. The entity that holds a `edyn::contact_manifold` also has an `edyn::island_node` which points to the two rigid bodies that could be colliding. During narrow-phase contact points might be created and destroyed and they will be connected to the manifold as a child node. The constraint rows in the `edyn::contact_constraint` (which is assigned to the same entity as the `edyn::contact_point`) are also connected to the constraint as children. Contact points are created and destroyed frequently, and with this setup the node graph is not changed when that happens, which eliminates the need to recalculate the connected components.
+
+### Procedural Nodes
 
 Nodes that have their state calculated by the physics simulation are characterized as _procedural_ using the `edyn::procedural_tag`. These nodes can only be present in one island, which means that if a connection is created between two procedural nodes that reside in different islands, the islands have to be merged into one. Later, if this connection is destroyed, the island can be again split into two. Dynamic rigid bodies and constraints must have a `edyn::procedural_tag` assigned to them. Non-procedural nodes can be present in multiple islands at the same time, since they are effectively read-only from the island's perspective. These are usually the static and kinematic entities.
 
 The presence of non-procedural nodes in multiple islands means that their data will have to be duplicated multiple times. In general this is not much data so duplication shouldn't be a concern. One case where it can be desirable to not duplicate data due to its size, is where a static entity is linked to a triangle mesh shape containing thousands of triangles. In this case, the `edyn::triangle_mesh` keeps a `std::shared_ptr` to its triangle data so when it's duplicated, the bulk of its data is reused. This data is going to be accessed from multiple threads thus it must be thread-safe. For a `edyn::triangle_mesh` the data is immutable. A `edyn::paged_triangle_mesh` has a dynamic page loading mechanism which must be secured using mutexes.
 
-#### Island Coordinator
+### Island Coordinator
 
 In the main thread, an `edyn::island_coordinator` manages all running islands and is responsible for creating, merging and splitting islands, applying island updates onto the main registry and dispatching messages to islands. When new nodes are created, the `edyn::island_coordinator` analyzes the graph to find out which islands these nodes should be inserted into, which could result in new islands being created, or islands being merged. Later, it sends out all the data of the new entities to the respective `edyn::island_worker`s using a `edyn::registry_delta`, which holds a set of changes that can be imported into the island's private registry. These comprise entities created and destroyed, and components that were created, updated and destroyed.
 
@@ -175,7 +180,7 @@ The main thread runs its own special broadphase using `edyn::broadphase_main`, w
 
 When a physics component is modified, the changes have to be propagated to its respective `edyn::island_worker`. It's necessary to call `edyn::world::refresh()` with the entity and components that need to be updated in their islands.
 
-#### Island Worker
+### Island Worker
 
 The `edyn::island_worker` is a job that is run in the `edyn::job_dispatcher` which performs the actual physics simulation. They are created by the `edyn::island_coordinator` when new islands are created and destroyed when islands are destroyed. They have a private `entt::registry` where the simulation data for its only island is stored.
 
@@ -183,7 +188,7 @@ The `edyn::island worker` has a message queue (single producer, single consumer)
 
 Using the job system, each island can be scheduled to run the simulation in the background in separate threads taking advantage of the job system's load balancing. In the `edyn::island_worker` main function, it performs a single step of the simulation instead of all steps necessary to bring the simulation to the current time in order to prevent taking too much time off the worker queue. If the timestamp of the current step plus the fixed delta time is after the current time, it means the island worker can rest for a little bit and in this case it reschedules itself to run at a later time. Otherwise it dispatches itself to run again as soon as possible.
 
-#### Entity Mapping
+### Entity Mapping
 
 Since each `edyn::island_worker` has its own registry where entities from the main registry are replicated, it is necessary to map `entt::entity` (i.e. entity identifiers) from one registry to another, since entities cannot just be the same in different registries. This is called _entity mapping_ and is done using an `edyn::entity_map`, which allows entities to be converted from _remote_ to _local_ and vice-versa.
 
@@ -191,7 +196,7 @@ Of special consideration are components that have `entt::entity`s in them, such 
 
 If the island creates a new entity (e.g. when a new contact point is created), it won't yet have an entity mapping for it, since there's no corresponding entity in the main registry yet. It will be added to the current `edyn::registry_delta` as a created entity and when received by the other end, a new entity will be instantiated to be mapped into this. Then, still in the other end, in its current `edyn::registry_delta` it will add an entity mapping between these two and when its received by the island worker, the entity mapping can be added locally and it will now know what that entity id is in the master registry.
 
-#### Timing Concerns
+### Timing Concerns
 
 Running the simulation in parallel means that the state of entities in the main registry will not be at the same point in time. However, all entities in one island are synchronized at the same point in time, which is given away by the `edyn::island_timestamp` of an island. Then, for presentation the state must be interpolated/extrapolated according to the time in that island. That is done internally using `edyn::present_position` and `edyn::present_orientation` which are updated in every `edyn::world::update` and those should be used for presentation instead of `edyn::position` or `edyn::orientation`.
 
@@ -199,15 +204,15 @@ When merging the registries of multiple `edyn::island_worker`s onto the main reg
 
 The _step number_ is an unsigned integer which starts at zero and is incremented in every step of the simulation in each island. It corresponds to what point in time the simulation is at. All entities in an island will have their state correspond to the same step number at all times.
 
-#### Parallel Sub-steps
+### Parallel Sub-steps
 
 Splitting the simulation into islands is not enough to maximize resource utilization in certain cases, such as a big pyramid of boxes, which is a single island and would be run in a single island worker, thus turning it into a single-threaded solution. It is advantageous to further split the island step into sub-steps which can run in parallel, one of which is collision detection, which can be fully parallelized using a `edyn::parallel_for_async` and then set itself to be rescheduled once the `edyn::atomic_counter` hits zero. The constraint solver iterations are also rather expensive in this case though more difficult to parallelize since there's a dependency among _some_ of them. For example, in a chain of rigid bodies connected by a simple joint such as `A-(α)-B-(β)-C`, the constraints `α` and `β` cannot be solved in parallel because both depend on body `B`. However, in a chain such as `A-(α)-B-(β)-C-(γ)-D`, the constraints `α` and `γ` can be solved in parallel because they don't have any rigid body in common, and then constraint `β` can be solved in a subsequent step (this is in one iteration of the solver, where 10 iterations is the default). The separation of independent constraints into groups that can be solved in parallel is an _edge coloring_ of the graph. Given a valid edge coloring of the constraint graph, each set of constraints of the same color can be solved in parallel. This is possible because no pair of constraints of the same color touches the same rigid bodies. Thus, for each iteration of the solver, it would, for each color, dispatch a set of solver iteration jobs for the constraints of that color using `edyn::parallel_for_async` and wait for them to finish using the returned `edyn::atomic_counter` to reschedule the island job and then continue by dispatching the next color and so on, and then after all colors are done, move over to the next iteration and repeat.
 
-#### Sleeping
+### Sleeping
 
 Another function of islands is to allow entities to _sleep_ when they're inactive (not moving, or barely moving). As stated before, an island is a set of entities where the motion of one can immediately affect all others, thus when none of these entities are moving, nothing is going to move, so it's wasteful to do motion integration and constraint resolution for an island in this state. In that case the island is put to sleep by assigning a `edyn::sleeping_tag` to all entities in the island. The `edyn::island_worker` stops rescheduling itself when it is set to sleep. It must be waken up by the coordinator.
 
-### Parallel-for
+## Parallel-for
 
 A naïve parallel-for implementation would split the range of work into _N_ nearly equally sized subranges (where _N_ is the number of cores or workers) and dispatch these into simple jobs that iterate over that subrange, calling a function on each iteration which takes the index as its single parameter. The `edyn::parallel_for` behaves quite differently. It initially dispatches a specialized parallel-for job and then starts running the for-loop right after, in the calling thread. The parallel-for job has a reference to a structure that holds the state of the for-loop that's currently running in the calling thread. It first checks if there's enough work left to do and then proceeds to _steal_ a subrange of that loop while it's still running, by subtracting a value from its upper bound, which is an atomic integer. It then repeats the same initial steps where it schedules another parallel-for job and starts iterating of the range it has taken for itself. When the next parallel-for job runs, it will do the same, though now it has to choose which subrange to steal from, which should be the one with the largest amount of work left. This splitting continues until the number of parallel-for jobs reaches a limit, usually the number of workers available. 
 
@@ -217,11 +222,11 @@ In the asynchronous form, `edyn::parallel_for_async` does not execute a subrange
 
 Really big for-loops could still cause the worker thread to be blocked for too long executing a long range of work. In this case it's possible to specify a maximum number of iterations per execution. The parallel-for job will reschedule itself and return once the maximum number of iterations is reached and when it's picked for execution again, it continues from where the work was left at.
 
-### Parallel-reduce
+## Parallel-reduce
 
 _TODO_
 
-## Networking
+# Networking
 
 The networking model follows a client-server architecture where the server is authoritative but gives the client freedom to directly set the state of the entities it owns in some situations. The goal is to synchronize the simulation on both ends, accounting for network latency and jitter.
 
@@ -237,7 +242,7 @@ All data shared between client and server is generated using registry snapshots 
 
 The issues above will be discussed in greater detail in the following subsections.
 
-### Server receives data from client
+## Server receives data from client
 
 The server expects users to send the dynamic state of the entities the client owns frequently. This state will be applied to the server registry at the right time if the client has permission do so at the moment.
 
@@ -267,7 +272,7 @@ In the case where the server takes ownership of an island, none of the physics c
 
 The server will hand ownership back to the client when the dynamic state sent by the client converges towards that of the server {this sounds complex}.
 
-### Server sends data to client
+## Server sends data to client
 
 The server will periodically capture snapshots of relevant islands and send them out to clients. Which islands will be sent and how often is determined by the client's _points of interest_.
 
@@ -275,13 +280,13 @@ The point of interest is simply an entity that has a `edyn::position` component.
 
 All entities in a radius around the point of interest will be included in the snapshot. Not all entities are necessarily included in one snapshot. If the server is multi-threaded, this will be done separately per island, which will result in a bunch of smaller snapshot packets being sent for the same step number. These packets don't need to be reliably delivered.
 
-### Client sends data to server
+## Client sends data to server
 
 Clients will periodically send snapshots of its owned entities to the server. Dynamic components will be sent often in a stream (unreliable packets). Steady components will be sent when they change (reliable packets).
 
 One important piece that has to be managed by the user of the library are user inputs which will be also applied in the server. It's important that an input history is sent so that the chance of an input not reaching the server is lowered in case of packet loss.
 
-### Client receives data from server
+## Client receives data from server
 
 Snapshots sent by the server in the snapshot stream do not contain all components of each entity in it. These snapshots only contain the dynamic components that change very often, such as position and velocity. However, entities often have more components which are necessary to correctly simulate them. Thus, the client must check whether it already has obtained the full information of those entities and if not, query the server for the full thing. The server should respond with a snapshot containing the requested data and this can be loaded into the local registry which will instantiate the full entity and now it's ready to be properly updated.
 
@@ -295,10 +300,10 @@ The server snapshot will usually contain a single island. If the extrapolation i
 
 Extrapolation will introduce visible errors and disturbances when the extrapolate result doesn't match the previous local state very closely. A discontinuity error is calculated before the components are replaced by the extrapolated version and that is provided in a `edyn::discontinuity` component which can be used by the graphics engine to smooth out these errors by adding them to the next future states. The discontinuity decays towards zero over time.
 
-## Clusters
+# Clusters
 
 Multiple server instances can run in different machines in the same local area network (LAN) and balance load. The principles of distributing work among all machine are similar to that of multi-threading.
 
-## Distributed simulation
+# Distributed simulation
 
 Several server clusters can exist in different geographical locations to allow for better network performance for local clients. Clusters communicate among themselves to synchronize the redundant simulation of the persistent world.
