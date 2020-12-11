@@ -92,6 +92,16 @@ public:
     void set_paused(bool);
     void step_simulation();
 
+    template<typename... Component>
+    void refresh(entt::entity entity) {
+        static_assert(sizeof...(Component) > 0);
+        auto &container = m_registry->get<island_container>(entity);
+        for (auto island_entity : container.entities) {
+            auto &info = m_island_info_map.at(island_entity);
+            info->m_delta_builder.updated<Component...>(entity, *m_registry);
+        }
+    }
+
     scalar m_fixed_dt {1.0/60};
 
 private:
