@@ -29,11 +29,6 @@ struct component_map {
     std::unordered_map<entt::entity, Component> value;
 };
 
-template<typename Component>
-struct destroyed_components {
-    entity_set value;
-};
-
 struct island_topology {
     std::vector<size_t> count;
 };
@@ -41,6 +36,7 @@ struct island_topology {
 class registry_delta {
 
     void import_created_entities(entt::registry &, entity_map &) const;
+    void import_destroyed_entities(entt::registry &, entity_map &) const;
 
     template<typename Component>
     void import_updated(entt::registry &registry, entity_map &map) const {
@@ -94,10 +90,7 @@ class registry_delta {
     }
 
     template<typename Component>
-    void import_destroyed(entt::registry &registry, entity_map &map) const {
-        using element_type = destroyed_components<Component>;
-        const auto &entities = std::get<element_type>(m_destroyed_components).value;
-
+    void import_destroyed_components(entt::registry &registry, entity_map &map, const entity_set &entities) const {
         for (auto remote_entity : entities) {
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.locrem(remote_entity);
@@ -109,8 +102,17 @@ class registry_delta {
     }
 
     template<typename... Component>
-    void import_destroyed(entt::registry &registry, entity_map &map, [[maybe_unused]] std::tuple<Component...>) const {
-        (import_destroyed<Component>(registry, map), ...);
+    void import_destroyed_components(entt::registry &registry, entity_map &map, entt::id_type id, const entity_set &entities) const {
+        ((entt::type_index<Component>::value() == id ? import_destroyed_components<Component>(registry, map, entities) : (void)0), ...);
+    }
+
+    template<typename... Component>
+    void import_destroyed_components(entt::registry &registry, entity_map &map, [[maybe_unused]] std::tuple<Component...>) const {
+        for (auto &pair : m_destroyed_components) {
+            auto index = pair.first;
+            auto &entities = pair.second;
+            import_destroyed_components<Component...>(registry, map, index, entities);
+        }
     }
 
 public:
@@ -135,7 +137,7 @@ private:
     entity_set m_destroyed_entities;
     map_tuple<component_map, all_components>::type m_created_components;
     map_tuple<component_map, all_components>::type m_updated_components;
-    map_tuple<destroyed_components, all_components>::type m_destroyed_components;
+    std::unordered_map<entt::id_type, entity_set> m_destroyed_components;
 };
 
 class registry_delta_builder {
@@ -241,14 +243,15 @@ public:
     }
 
     /**
-     * Marks a component as deleted in this delta.
+     * Marks components as deleted in this delta, or marks the entity as destroyed
+     * if no component is specified.
      */
     template<typename... Component>
     void destroyed(entt::entity entity) {
         if constexpr(sizeof...(Component) == 0) {
             m_delta.m_destroyed_entities.insert(entity);
         } else {
-            (std::get<destroyed_components<Component>>(m_delta.m_destroyed_components).value.insert(entity), ...);
+            (m_delta.m_destroyed_components[entt::type_index<Component>::value()].insert(entity), ...);
         }
     }
 

@@ -11,16 +11,7 @@ void registry_delta::import_created_entities(entt::registry &registry, entity_ma
     }
 }
 
-void registry_delta::import(entt::registry &registry, entity_map &map) const {
-    m_entity_map.each([&registry, &map] (entt::entity remote_entity, entt::entity local_entity) {
-        if (!map.has_rem(remote_entity) && registry.valid(local_entity)) {
-            map.insert(remote_entity, local_entity);
-        }
-    });
-    
-    import_created_entities(registry, map);
-    import_destroyed(registry, map, all_components{});
-
+void registry_delta::import_destroyed_entities(entt::registry &registry, entity_map &map) const {
     for (auto remote_entity : m_destroyed_entities) {
         if (!map.has_rem(remote_entity)) continue;
         auto local_entity = map.remloc(remote_entity);
@@ -30,6 +21,18 @@ void registry_delta::import(entt::registry &registry, entity_map &map) const {
             registry.destroy(local_entity);
         }
     }
+}
+
+void registry_delta::import(entt::registry &registry, entity_map &map) const {
+    m_entity_map.each([&registry, &map] (entt::entity remote_entity, entt::entity local_entity) {
+        if (!map.has_rem(remote_entity) && registry.valid(local_entity)) {
+            map.insert(remote_entity, local_entity);
+        }
+    });
+    
+    import_created_entities(registry, map);
+    import_destroyed_components(registry, map, all_components{});
+    import_destroyed_entities(registry, map);
 
     import_created_components(registry, map, all_components{});
     import_updated(registry, map, all_components{});
