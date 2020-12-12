@@ -8,6 +8,7 @@
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/dirty.hpp"
 
 namespace edyn {
 
@@ -44,19 +45,17 @@ void make_constraint(entt::entity entity, entt::registry &registry, T&& con,
         auto &node1 = registry.get<island_node>(ent1);
         node1.entities.insert(entity);
         
-        registry.get_or_emplace<island_node_dirty>(ent0).updated<island_node>();
-        registry.get_or_emplace<island_node_dirty>(ent1).updated<island_node>();
+        registry.get_or_emplace<dirty>(ent0).updated<island_node>();
+        registry.get_or_emplace<dirty>(ent1).updated<island_node>();
     }
 
-    auto &constraint_dirty = registry.get_or_emplace<island_node_dirty>(entity);
-    constraint_dirty.is_new_entity = true;
-    constraint_dirty.created<procedural_tag, constraint, island_node_parent, island_container>();
+    auto &constraint_dirty = registry.get_or_emplace<dirty>(entity)
+        .set_new()
+        .created<procedural_tag, constraint, island_node_parent, island_container>();
 
     if (parent_entity) {
         constraint_dirty.created<island_node_child>();
-
-        auto &parent_dirty = registry.get_or_emplace<island_node_dirty>(*parent_entity);
-        parent_dirty.updated<island_node_parent>();
+        registry.get_or_emplace<dirty>(*parent_entity).updated<island_node_parent>();
     } else {
         constraint_dirty.created<island_node>();
     }

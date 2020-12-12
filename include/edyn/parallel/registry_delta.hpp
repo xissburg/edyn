@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <entt/fwd.hpp>
+#include <entt/core/type_info.hpp>
 #include "edyn/comp.hpp"
 #include "edyn/util/tuple.hpp"
 #include "edyn/util/entity_map.hpp"
@@ -254,6 +255,18 @@ public:
     template<typename... Component>
     void destroyed(entt::entity entity, [[maybe_unused]] std::tuple<Component...>) {
         destroyed<Component...>(entity);
+    }
+
+    template<typename... Component>
+    void destroyed(entt::entity entity, entt::id_type id) {
+        ((entt::type_index<Component>::value() == id ? destroyed<Component>(entity) : (void)0), ...);
+    }
+
+    template<typename... Component, typename It>
+    void destroyed(entt::entity entity, It first, It last, std::tuple<Component...>) {
+        for (auto it = first; it != last; ++it) {
+            destroyed<Component...>(entity, *it);
+        }
     }
 
     void topology(const island_topology &topo) {

@@ -2,7 +2,6 @@
 #define EDYN_COMP_ISLAND_HPP
 
 #include "edyn/util/entity_set.hpp"
-#include <entt/core/type_info.hpp>
 
 namespace edyn {
 
@@ -61,37 +60,6 @@ struct island_node_parent {
  */
 struct island_node_child {
     entt::entity parent;
-};
-
-struct island_node_dirty {
-    bool is_new_entity {false};
-
-    using index_set_t = std::unordered_set<entt::id_type>;
-
-    index_set_t created_indexes;
-    index_set_t updated_indexes;
-    index_set_t destroyed_indexes;
-
-    template<typename... Ts>
-    void created() {
-        cud<Ts...>(&island_node_dirty::created_indexes);
-    }
-
-    template<typename... Ts>
-    void updated() {
-        cud<Ts...>(&island_node_dirty::updated_indexes);
-    }
-
-    template<typename... Ts>
-    void destroyed() {
-        cud<Ts...>(&island_node_dirty::destroyed_indexes);
-    }
-
-private:
-    template<typename... Ts>
-    void cud(index_set_t island_node_dirty:: *member) {
-        ((this->*member).insert(entt::type_index<Ts>::value()), ...);
-    }
 };
 
 }

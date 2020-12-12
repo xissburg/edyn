@@ -5,6 +5,7 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/constraint.hpp"
+#include "edyn/comp/dirty.hpp"
 
 namespace edyn {
 
@@ -146,8 +147,7 @@ void island_worker::sync() {
         m_delta_builder.maybe_updated(entity, m_registry, transient_components{});
     });
 
-    auto view = m_registry.view<island_node_dirty>();
-    view.each([&] (entt::entity entity, island_node_dirty &dirty) {
+    m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
         if (dirty.is_new_entity) {
             m_delta_builder.created(entity);
         }
@@ -159,13 +159,17 @@ void island_worker::sync() {
         m_delta_builder.updated(entity, m_registry,
             dirty.updated_indexes.begin(), dirty.updated_indexes.end(),
             all_components{});
+
+        m_delta_builder.destroyed(entity,
+            dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end(),
+            all_components{});
     });
 
     m_message_queue.send<registry_delta>(m_delta_builder.get_delta());
 
     // Clear delta for the next run.
     m_delta_builder.clear();
-    m_registry.clear<island_node_dirty>();
+    m_registry.clear<dirty>();
 }
 
 void island_worker::update() {

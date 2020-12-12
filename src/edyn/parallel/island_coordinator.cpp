@@ -1,6 +1,7 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/util/island_util.hpp"
+#include "edyn/comp/dirty.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -44,7 +45,7 @@ void island_coordinator::on_destroy_island_node(entt::registry &registry, entt::
     for (auto other : node.entities) {
         auto &other_node = registry.get<island_node>(other);
         other_node.entities.erase( entity);
-        registry.get_or_emplace<island_node_dirty>(other).updated<island_node>();
+        registry.get_or_emplace<dirty>(other).updated<island_node>();
     }
 }
 
@@ -338,8 +339,8 @@ void island_coordinator::on_destroy_constraint(entt::registry &registry, entt::e
 }
 
 void island_coordinator::refresh_dirty_entities() {
-    auto view = m_registry->view<island_container, island_node_dirty>();
-    view.each([&] (entt::entity entity, island_container &container, island_node_dirty &dirty) {
+    auto view = m_registry->view<island_container, dirty>();
+    view.each([&] (entt::entity entity, island_container &container, dirty &dirty) {
         for (auto island_entity : container.entities) {
             if (!m_island_info_map.count(island_entity)) continue;
             auto &info = m_island_info_map.at(island_entity);
@@ -355,10 +356,13 @@ void island_coordinator::refresh_dirty_entities() {
             builder.updated(entity, *m_registry, 
                 dirty.updated_indexes.begin(), dirty.updated_indexes.end(), 
                 all_components{});
+            builder.destroyed(entity, 
+                dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end(), 
+                all_components{});
         }
     });
 
-    m_registry->clear<island_node_dirty>();
+    m_registry->clear<dirty>();
 }
 
 void island_coordinator::on_registry_delta(entt::entity source_island_entity, const registry_delta &delta) {

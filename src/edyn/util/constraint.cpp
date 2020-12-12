@@ -1,6 +1,7 @@
 #include "edyn/util/constraint.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/dirty.hpp"
 
 namespace edyn {
 
@@ -26,11 +27,11 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
 
     registry.emplace<island_container>(row_entity);
 
-    registry.get_or_emplace<island_node_dirty>(entity).updated<island_node_parent>();
+    registry.get_or_emplace<dirty>(entity).updated<island_node_parent>();
 
-    auto &row_dirty = registry.get_or_emplace<island_node_dirty>(row_entity);
-    row_dirty.is_new_entity = true;
-    row_dirty.created<island_node_child, island_container, procedural_tag, constraint_row>();
+    registry.get_or_emplace<dirty>(row_entity)
+        .set_new()
+        .created<island_node_child, island_container, procedural_tag, constraint_row>();
 
     return row_entity;
 }
@@ -57,12 +58,12 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     node1.entities.insert(manifold_entity);
 
     // Mark stuff as dirty to schedule an update in the island worker.
-    registry.get_or_emplace<island_node_dirty>(e0).updated<island_node>();
-    registry.get_or_emplace<island_node_dirty>(e1).updated<island_node>();
+    registry.get_or_emplace<dirty>(e0).updated<island_node>();
+    registry.get_or_emplace<dirty>(e1).updated<island_node>();
 
-    auto &contact_dirty = registry.get_or_emplace<island_node_dirty>(manifold_entity);
-    contact_dirty.is_new_entity = true;
-    contact_dirty.created<procedural_tag, island_node, island_node_parent, island_container, contact_manifold>();
+    registry.get_or_emplace<dirty>(manifold_entity)
+        .set_new()
+        .created<procedural_tag, island_node, island_node_parent, island_container, contact_manifold>();
 }
 
 void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {

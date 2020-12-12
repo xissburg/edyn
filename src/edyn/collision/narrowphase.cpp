@@ -167,12 +167,11 @@ void process_collision(entt::registry &registry, entt::entity manifold_entity,
                         create_contact_constraint(registry, manifold_entity, contact_entity, cp);
                     }
 
-                    auto &contact_dirty = registry.get_or_emplace<island_node_dirty>(contact_entity);
-                    contact_dirty.is_new_entity = true;
-                    contact_dirty.created<contact_point>();
+                    registry.get_or_emplace<dirty>(contact_entity)
+                        .set_new()
+                        .created<contact_point>();
 
-                    auto &manifold_dirty = registry.get_or_emplace<island_node_dirty>(manifold_entity);
-                    manifold_dirty.updated<contact_manifold>();
+                    registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold>();
                 } else {
                     // Replace existing contact point.
                     auto contact_entity = manifold.point[idx];
@@ -221,7 +220,7 @@ void prune(entt::registry &registry, entt::entity entity,
             auto &node_parent = registry.get<island_node_parent>(entity);
             node_parent.children.erase(point_entity);
 
-            registry.get_or_emplace<island_node_dirty>(entity)
+            registry.get_or_emplace<dirty>(entity)
                 .updated<contact_manifold, island_node_parent>();
         }
     }
