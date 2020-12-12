@@ -6,6 +6,7 @@
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
+#include "edyn/comp/continuous.hpp"
 
 namespace edyn {
 
@@ -142,11 +143,19 @@ void island_worker::on_registry_delta(const registry_delta &delta) {
 }
 
 void island_worker::sync() {
-    // Add transient components of procedural nodes to delta.
-    m_registry.view<procedural_tag>().each([&] (entt::entity entity) {
-        m_delta_builder.maybe_updated(entity, m_registry, transient_components{});
+    // Always update AABBs since they're needed for broad-phase in the coordinator.
+    m_registry.view<AABB>().each([&] (entt::entity entity, AABB &aabb) {
+        m_delta_builder.updated(entity, aabb);
     });
 
+    // Update continuous components.
+    m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
+        m_delta_builder.updated(entity, m_registry,
+            cont.types.begin(), cont.types.end(),
+            all_components{});
+    });
+
+    // Update dirty components.
     m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
         if (dirty.is_new_entity) {
             m_delta_builder.created(entity);
@@ -155,11 +164,9 @@ void island_worker::sync() {
         m_delta_builder.created(entity, m_registry,
             dirty.created_indexes.begin(), dirty.created_indexes.end(),
             all_components{});
-
         m_delta_builder.updated(entity, m_registry,
             dirty.updated_indexes.begin(), dirty.updated_indexes.end(),
             all_components{});
-
         m_delta_builder.destroyed(entity,
             dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end(),
             all_components{});

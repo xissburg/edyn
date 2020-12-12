@@ -15,6 +15,7 @@
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/continuous.hpp"
 
 namespace edyn {
 
@@ -93,6 +94,13 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     case rigidbody_kind::rb_static:
         registry.emplace<static_tag>(entity);
         break;
+    }
+
+    if (def.kind == rigidbody_kind::rb_dynamic) {
+        // Instruct island worker to continuously send position, orientation and
+        // velocity updates back to coordinator. The velocity is needed for calculation
+        // of the present position and orientation in `update_presentation`.
+        registry.emplace<continuous>(entity).insert<position, orientation, linvel, angvel>();
     }
 
     registry.emplace<island_node>(entity);

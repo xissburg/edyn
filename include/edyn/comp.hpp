@@ -20,6 +20,7 @@
 #include "comp/material.hpp"
 #include "comp/island.hpp"
 #include "comp/collision_filter.hpp"
+#include "comp/continuous.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 
@@ -51,6 +52,7 @@ using all_components = std::tuple<
     shape, 
     contact_manifold, 
     contact_point, 
+    continuous,
     dynamic_tag, 
     kinematic_tag, 
     static_tag, 
@@ -58,11 +60,6 @@ using all_components = std::tuple<
     sleeping_tag,
     sleeping_disabled_tag, 
     disabled_tag
->;
-
-using transient_components = std::tuple<
-    AABB, angvel, constraint_row, inertia_world_inv, linvel, orientation,
-    position, contact_point
 >;
 
 }
