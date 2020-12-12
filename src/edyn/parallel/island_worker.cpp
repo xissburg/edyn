@@ -172,7 +172,7 @@ void island_worker::sync() {
             all_components{});
     });
 
-    m_message_queue.send<registry_delta>(m_delta_builder.get_delta());
+    m_message_queue.send<registry_delta>(std::move(m_delta_builder.get_delta()));
 
     // Clear delta for the next run.
     m_delta_builder.clear();

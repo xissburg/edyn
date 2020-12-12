@@ -225,7 +225,7 @@ entt::entity island_coordinator::create_island(double timestamp) {
     auto builder = registry_delta_builder(info->m_entity_map);
     builder.created(entity);
     builder.created(entity, isle_time);
-    info->m_message_queue.send<registry_delta>(builder.get_delta());
+    info->m_message_queue.send<registry_delta>(std::move(builder.get_delta()));
 
     if (m_paused) {
         info->m_message_queue.send<msg::set_paused>(msg::set_paused{true});

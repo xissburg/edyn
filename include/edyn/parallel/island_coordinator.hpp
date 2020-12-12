@@ -56,7 +56,7 @@ class island_coordinator final {
 
         void sync() {
             //if (m_delta_builder.empty()) return;
-            m_message_queue.send<registry_delta>(m_delta_builder.get_delta());
+            m_message_queue.send<registry_delta>(std::move(m_delta_builder.get_delta()));
             m_delta_builder.clear();
         }
     };

@@ -4,13 +4,10 @@
 #include <tuple>
 #include <vector>
 #include <utility>
-#include <algorithm>
-#include <unordered_set>
-#include <unordered_map>
 #include <entt/fwd.hpp>
+#include <unordered_map>
 #include <entt/core/type_info.hpp>
 #include "edyn/comp.hpp"
-#include "edyn/util/tuple.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/merge/merge_island.hpp"
@@ -22,26 +19,23 @@
 
 namespace edyn {
 
+class registry_delta;
 class registry_delta_builder;
 
+struct component_map_base {
+    virtual void import(const registry_delta &, entt::registry &, entity_map &) const = 0;
+};
+
 template<typename Component>
-struct component_map {
-    std::unordered_map<entt::entity, Component> value;
-};
+struct updated_component_map: public component_map_base {
+    std::unordered_map<entt::entity, Component> pairs;
 
-struct island_topology {
-    std::vector<size_t> count;
-};
+    void insert(entt::entity entity, const Component &comp) {
+        pairs.insert_or_assign(entity, comp);
+    }
 
-class registry_delta {
-
-    void import_created_entities(entt::registry &, entity_map &) const;
-    void import_destroyed_entities(entt::registry &, entity_map &) const;
-
-    template<typename Component>
-    void import_updated(entt::registry &registry, entity_map &map) const {
-        const auto &pairs = std::get<component_map<Component>>(m_updated_components).value;
-        auto ctx = merge_context{&registry, &map, this};
+    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) const override {
+        auto ctx = merge_context{&registry, &map, &delta};
 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
@@ -57,11 +51,18 @@ class registry_delta {
             }
         }
     }
-    
-    template<typename Component>
-    void import_created_components(entt::registry &registry, entity_map &map) const {
-        const auto &pairs = std::get<component_map<Component>>(m_created_components).value;
-        auto ctx = merge_context{&registry, &map, this};
+};
+
+template<typename Component>
+struct created_component_map: public component_map_base {
+    std::unordered_map<entt::entity, Component> pairs;
+
+    void insert(entt::entity entity, const Component &comp) {
+        pairs.insert_or_assign(entity, comp);
+    }
+
+    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) const override {
+        auto ctx = merge_context{&registry, &map, &delta};
 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
@@ -73,24 +74,22 @@ class registry_delta {
                 registry.emplace<Component>(local_entity);
             } else {
                 auto new_component = pair.second;
-                merge<merge_type::created>(static_cast<Component*>(nullptr), new_component, ctx);
+                merge<merge_type::created>(static_cast<Component *>(nullptr), new_component, ctx);
                 registry.emplace<Component>(local_entity, new_component);
             }
         }
     }
+};
 
-    template<typename... Component>
-    void import_created_components(entt::registry &registry, entity_map &map, [[maybe_unused]] std::tuple<Component...>) const {
-        (import_created_components<Component>(registry, map), ...);
+template<typename Component>
+struct destroyed_component_map: public component_map_base {
+    entity_set entities;
+
+    void insert(entt::entity entity) {
+        entities.insert(entity);
     }
 
-    template<typename... Component>
-    void import_updated(entt::registry &registry, entity_map &map, [[maybe_unused]] std::tuple<Component...>) const {
-        (import_updated<Component>(registry, map), ...);
-    }
-
-    template<typename Component>
-    void import_destroyed_components(entt::registry &registry, entity_map &map, const entity_set &entities) const {
+    void import(const registry_delta &, entt::registry &registry, entity_map &map) const override {
         for (auto remote_entity : entities) {
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.locrem(remote_entity);
@@ -100,19 +99,46 @@ class registry_delta {
             }
         }
     }
+};
 
-    template<typename... Component>
-    void import_destroyed_components(entt::registry &registry, entity_map &map, entt::id_type id, const entity_set &entities) const {
-        ((entt::type_index<Component>::value() == id ? import_destroyed_components<Component>(registry, map, entities) : (void)0), ...);
+struct island_topology {
+    std::vector<size_t> count;
+};
+
+class registry_delta {
+
+    using map_of_component_map = std::unordered_map<entt::id_type, std::unique_ptr<component_map_base>>;
+
+    void import_created_entities(entt::registry &, entity_map &) const;
+    void import_destroyed_entities(entt::registry &, entity_map &) const;
+
+    void import_updated_components(entt::registry &, entity_map &) const;
+    void import_created_components(entt::registry &, entity_map &) const;
+    void import_destroyed_components(entt::registry &, entity_map &) const;
+
+    template<typename Component>
+    void created(entt::entity entity, const Component &comp) {
+        assure_components<Component, created_component_map>(&registry_delta::m_created_components).insert(entity, comp);
     }
 
-    template<typename... Component>
-    void import_destroyed_components(entt::registry &registry, entity_map &map, [[maybe_unused]] std::tuple<Component...>) const {
-        for (auto &pair : m_destroyed_components) {
-            auto index = pair.first;
-            auto &entities = pair.second;
-            import_destroyed_components<Component...>(registry, map, index, entities);
+    template<typename Component>
+    void updated(entt::entity entity, const Component &comp) {
+        assure_components<Component, updated_component_map>(&registry_delta::m_updated_components).insert(entity, comp);
+    }
+
+    template<typename Component>
+    void destroyed(entt::entity entity) {
+        assure_components<Component, destroyed_component_map>(&registry_delta::m_destroyed_components).insert(entity);
+    }
+
+    template<typename Component, template<typename> typename MapType>
+    auto & assure_components(map_of_component_map registry_delta:: *member) {
+        auto id = entt::type_index<Component>::value();
+        using component_map_t = MapType<Component>;
+        if ((this->*member).count(id) == 0) {
+            (this->*member)[id].reset(new component_map_t);
         }
+        return static_cast<component_map_t &>(*(this->*member).at(id));
     }
 
 public:
@@ -123,7 +149,6 @@ public:
     void import(entt::registry &, entity_map &) const;
 
     const auto created() const { return m_created_entities; }
-    const auto destroyed() const { return m_destroyed_entities; }
 
     friend class registry_delta_builder;
 
@@ -135,9 +160,10 @@ private:
     entity_map m_entity_map;
     entity_set m_created_entities;
     entity_set m_destroyed_entities;
-    map_tuple<component_map, all_components>::type m_created_components;
-    map_tuple<component_map, all_components>::type m_updated_components;
-    std::unordered_map<entt::id_type, entity_set> m_destroyed_components;
+
+    map_of_component_map m_created_components;
+    map_of_component_map m_updated_components;
+    map_of_component_map m_destroyed_components;
 };
 
 class registry_delta_builder {
@@ -154,14 +180,14 @@ public:
 
     template<typename Component, typename... Components>
     void created(entt::entity entity, const Component &comp, const Components &... comps) {
-        std::get<component_map<Component>>(m_delta.m_created_components).value.insert_or_assign(entity, comp);
-        (std::get<component_map<Components>>(m_delta.m_created_components).value.insert_or_assign(entity, comps), ...);
+        m_delta.created(entity, comp);
+        (m_delta.created(entity, comps), ...);
     }
 
     template<typename Component>
     void created(entt::entity entity, entt::registry &registry) {
         if constexpr(entt::is_eto_eligible_v<Component>) {
-            std::get<component_map<Component>>(m_delta.m_created_components).value.insert_or_assign(entity, Component{});
+            m_delta.created(entity, Component{});
         } else {
             created<Component>(entity, registry.get<Component>(entity));
         }
@@ -195,18 +221,18 @@ public:
     }
 
     /**
-     * Adds a component to be updated by the delta.
+     * Adds components to be updated by the delta.
      */
     template<typename... Component>
     void updated(entt::entity entity, Component &... comp) {
-        (std::get<component_map<Component>>(m_delta.m_updated_components).value.insert_or_assign(entity, comp), ...);
+        (m_delta.updated(entity, comp), ...);
     }
 
     template<typename... Component>
     void updated(entt::entity entity, entt::registry &registry) {
         if constexpr(sizeof...(Component) <= 1) {
             if constexpr(std::conjunction_v<entt::is_eto_eligible<Component>...>) {
-                (std::get<component_map<Component>>(m_delta.m_updated_components).value.insert_or_assign(entity, Component{}), ...);
+                (m_delta.updated(entity, Component{}), ...);
             } else {
                 (updated<Component>(entity, registry.get<Component>(entity)), ...);
             }
@@ -251,7 +277,7 @@ public:
         if constexpr(sizeof...(Component) == 0) {
             m_delta.m_destroyed_entities.insert(entity);
         } else {
-            (m_delta.m_destroyed_components[entt::type_index<Component>::value()].insert(entity), ...);
+            (m_delta.destroyed<Component>(entity), ...);
         }
     }
 
