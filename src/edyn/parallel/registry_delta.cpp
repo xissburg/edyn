@@ -49,11 +49,21 @@ void registry_delta::import(entt::registry &registry, entity_map &map) const {
     });
     
     import_created_entities(registry, map);
-    import_destroyed_components(registry, map);
     import_destroyed_entities(registry, map);
 
     import_created_components(registry, map);
     import_updated_components(registry, map);
+    import_destroyed_components(registry, map);
+}
+
+bool registry_delta::empty() const {
+    return 
+        m_entity_map.empty() && 
+        m_created_entities.empty() && 
+        m_destroyed_entities.empty() &&
+        m_created_components.empty() &&
+        m_updated_components.empty() &&
+        m_destroyed_components.empty();
 }
 
 void registry_delta_builder::insert_entity_mapping(entt::entity local_entity) {

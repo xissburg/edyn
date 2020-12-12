@@ -16,8 +16,9 @@ namespace edyn {
 
 inline void update_presentation(entt::registry &registry, double time) {
     auto timestamp_view = registry.view<island_timestamp>();
-    auto linear_view = registry.view<position, linvel, present_position, island_container, procedural_tag>(exclude_global);
-    auto angular_view = registry.view<orientation, angvel, present_orientation, island_container, procedural_tag>(exclude_global);
+    auto exclude = entt::exclude<sleeping_tag, disabled_tag>;
+    auto linear_view = registry.view<position, linvel, present_position, island_container, procedural_tag>(exclude);
+    auto angular_view = registry.view<orientation, angvel, present_orientation, island_container, procedural_tag>(exclude);
     
     linear_view.each([&] (auto, position &pos, linvel &vel, present_position &pre, island_container &container) {
         auto island_entity = *container.entities.begin();

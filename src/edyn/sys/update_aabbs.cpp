@@ -9,7 +9,7 @@
 namespace edyn {
 
 void update_aabbs(entt::registry &registry) {
-    auto view = registry.view<position, orientation, shape, AABB>(exclude_global);
+    auto view = registry.view<position, orientation, shape, AABB>(entt::exclude<disabled_tag>);
     view.each([] (auto, auto &pos, auto &orn, auto &sh, auto &aabb) {
         std::visit([&] (auto &&s) {
             aabb = s.aabb(pos, orn);

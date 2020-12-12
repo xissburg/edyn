@@ -54,8 +54,11 @@ class island_coordinator final {
             m_registry_delta_signal.publish(m_island_entity, delta);
         }
 
+        bool empty() const {
+            return m_delta_builder.empty();
+        }
+
         void sync() {
-            //if (m_delta_builder.empty()) return;
             m_message_queue.send<registry_delta>(std::move(m_delta_builder.get_delta()));
             m_delta_builder.clear();
         }
@@ -68,6 +71,7 @@ class island_coordinator final {
                                const entity_set &new_entities);
     void split_islands();
     void split_island(entt::entity);
+    void wake_up_island(entt::entity);
     void refresh_dirty_entities();
     bool should_split_island(const island_topology &);
     void sync();

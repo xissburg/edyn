@@ -7,6 +7,7 @@
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/continuous.hpp"
+#include "edyn/math/constants.hpp"
 
 namespace edyn {
 
@@ -30,6 +31,7 @@ void island_worker_func(job::data_type &data) {
 island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue)
     : m_message_queue(message_queue)
     , m_fixed_dt(fixed_dt)
+    , m_sleep_timestamp(-1)
     , m_paused(false)
     , m_bphase(m_registry)
     , m_nphase(m_registry)
@@ -140,6 +142,14 @@ void island_worker::on_registry_delta(const registry_delta &delta) {
         auto local_entity = m_entity_map.remloc(remote_entity);
         m_delta_builder.insert_entity_mapping(local_entity);
     }
+
+    // Presence of a deleted `sleeping_tag` for this island indicates a wake up
+    // event.
+    auto remote_island_entity = m_entity_map.locrem(m_island_entity);
+
+    if (delta.did_destroy<sleeping_tag>(remote_island_entity)) {
+        wake_up();
+    }
 }
 
 void island_worker::sync() {
@@ -203,8 +213,10 @@ void island_worker::update() {
         }
     }
 
-    // Reschedule this job only if not paused.
-    if (!m_paused) {
+    // Reschedule this job only if not paused nor sleeping.
+    auto sleeping = m_registry.has<sleeping_tag>(m_island_entity);
+
+    if (!m_paused && !sleeping) {
         reschedule();
     }
 }
@@ -218,6 +230,8 @@ void island_worker::step() {
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     isle_time.value += m_fixed_dt;
     m_delta_builder.updated<island_timestamp>(m_island_entity, isle_time);
+
+    maybe_go_to_sleep();
 
     if (m_topology_changed) {
         validate_island();
@@ -250,6 +264,78 @@ void island_worker::init_new_imported_contact_manifolds() {
     m_nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
                                       m_new_imported_contact_manifolds.end());
     m_new_imported_contact_manifolds.clear();
+}
+
+void island_worker::maybe_go_to_sleep() {
+    if (could_go_to_sleep()) {
+        const auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
+
+        if (m_sleep_timestamp < 0) {
+            m_sleep_timestamp = isle_time.value;
+        } else {
+            auto sleep_dt = isle_time.value - m_sleep_timestamp;
+            if (sleep_dt > island_time_to_sleep) {
+                go_to_sleep();
+                m_sleep_timestamp = -1;
+            }
+        }
+    } else {
+        m_sleep_timestamp = -1;
+    }
+}
+
+bool island_worker::could_go_to_sleep() {
+    // If any entity has a `sleeping_disabled_tag` then the island should
+    // not go to sleep, since the movement of all entities depend on one
+    // another in the same island.
+    if (!m_registry.view<sleeping_disabled_tag>().empty()) {
+        return false;
+    }
+
+    // Check if there are any entities moving faster than the sleep threshold.
+    auto vel_view = m_registry.view<linvel, angvel, procedural_tag>();
+    for (auto entity : vel_view) {
+        auto [v, w] = vel_view.get<linvel, angvel>(entity);
+
+        if ((length_sqr(v) > island_linear_sleep_threshold * island_linear_sleep_threshold) || 
+            (length_sqr(w) > island_angular_sleep_threshold * island_angular_sleep_threshold)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void island_worker::go_to_sleep() {
+    m_registry.emplace<sleeping_tag>(m_island_entity);
+    m_delta_builder.created(m_island_entity, sleeping_tag{});
+
+    // Assign `sleeping_tag` to all procedural entities.
+    m_registry.view<procedural_tag>().each([&] (entt::entity entity) {
+        if (auto *v = m_registry.try_get<linvel>(entity); v) {
+            *v = vector3_zero;
+            m_delta_builder.updated(entity, *v);
+        }
+
+        if (auto *w = m_registry.try_get<angvel>(entity); w) {
+            *w = vector3_zero;
+            m_delta_builder.updated(entity, *w);
+        }
+
+        m_registry.emplace<sleeping_tag>(entity);
+        m_delta_builder.created(entity, sleeping_tag{});
+    });
+}
+
+void island_worker::wake_up() {
+    auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
+    isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
+    m_delta_builder.updated(m_island_entity, isle_timestamp);
+
+    m_registry.view<sleeping_tag>().each([&] (entt::entity entity) {
+        m_delta_builder.destroyed<sleeping_tag>(entity);
+    });
+    m_registry.clear<sleeping_tag>();
 }
 
 void island_worker::calculate_topology() {

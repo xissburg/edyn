@@ -290,6 +290,10 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
             EDYN_ASSERT(container.entities.size() <= 1);
         }
 
+        // Remove `sleeping_tag`s since the island is supposed to be awake
+        // after a merge.
+        m_registry->remove_if_exists<sleeping_tag>(entity);
+
         if (info->m_entities.count(entity) == 0) {
             // Include all components in delta because this is a new entity
             // in the selected island.
@@ -483,10 +487,27 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
     m_registry->destroy(split_island_entity);
 }
 
+void island_coordinator::wake_up_island(entt::entity island_entity) {
+    auto &info = m_island_info_map.at(island_entity);
+
+    m_registry->remove<sleeping_tag>(island_entity);
+    info->m_delta_builder.destroyed<sleeping_tag>(island_entity);
+}
+
 void island_coordinator::sync() {
     for (auto &pair : m_island_info_map) {
+        auto island_entity = pair.first;
         auto &info = pair.second;
-        info->sync();
+
+        if (info->empty()) continue;
+
+        if (m_registry->has<sleeping_tag>(island_entity)) {
+            wake_up_island(island_entity);
+            info->sync();
+            info->m_worker->reschedule();
+        } else {
+            info->sync();
+        }
     }
 }
 

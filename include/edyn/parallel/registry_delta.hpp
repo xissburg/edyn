@@ -92,9 +92,10 @@ struct destroyed_component_map: public component_map_base {
     void import(const registry_delta &, entt::registry &registry, entity_map &map) const override {
         for (auto remote_entity : entities) {
             if (!map.has_rem(remote_entity)) continue;
-            auto local_entity = map.locrem(remote_entity);
+            auto local_entity = map.remloc(remote_entity);
+            if (!registry.valid(local_entity)) continue;
 
-            if (registry.valid(local_entity) && registry.has<Component>(local_entity)) {
+            if (registry.has<Component>(local_entity)) {
                 registry.remove<Component>(local_entity);
             }
         }
@@ -148,14 +149,27 @@ public:
      */
     void import(entt::registry &, entity_map &) const;
 
+    bool empty() const;
+
     const auto created() const { return m_created_entities; }
+
+    template<typename Component>
+    bool did_destroy(entt::entity entity) const {
+        auto id = entt::type_index<Component>::value();
+        if (m_destroyed_components.count(id)) {
+            auto &comp_map = static_cast<destroyed_component_map<Component> &>(*m_destroyed_components.at(id).get());
+            return comp_map.entities.count(entity) > 0;
+        } else {
+            return false;
+        }
+    }
 
     friend class registry_delta_builder;
 
     double m_timestamp;
 
     island_topology m_island_topology;
-    
+
 private:
     entity_map m_entity_map;
     entity_set m_created_entities;
@@ -304,6 +318,10 @@ public:
 
     void clear() {
         m_delta = {};
+    }
+
+    bool empty() const {
+        return m_delta.empty();
     }
 
     auto & get_delta() {

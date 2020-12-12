@@ -31,6 +31,10 @@ class island_worker final {
     void do_terminate();
     void validate_island();
     void init_new_imported_contact_manifolds();
+    void maybe_go_to_sleep();
+    bool could_go_to_sleep();
+    void go_to_sleep();
+    void wake_up();
 
 public:
     island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue);
@@ -78,6 +82,7 @@ private:
     solver m_solver;
     message_queue_in_out m_message_queue;
     double m_fixed_dt;
+    double m_sleep_timestamp;
     bool m_paused;
 
     registry_delta_builder m_delta_builder;

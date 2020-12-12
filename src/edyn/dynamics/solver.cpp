@@ -104,7 +104,7 @@ scalar solve(constraint_row &row,
 }
 
 void update_inertia(entt::registry &registry) {
-    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(exclude_global);
+    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(entt::exclude<disabled_tag>);
     view.each([] (auto, orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
@@ -126,8 +126,8 @@ void solver::update(scalar dt) {
     // Setup constraints.
     auto mass_delta_group = registry->group<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
     auto vel_group = registry->group<linvel, angvel>();
-    auto con_view = registry->view<constraint>(exclude_global);
-    auto row_view = registry->view<constraint_row>(exclude_global);
+    auto con_view = registry->view<constraint>(entt::exclude<disabled_tag>);
+    auto row_view = registry->view<constraint_row>(entt::exclude<disabled_tag>);
 
     con_view.each([&] (entt::entity entity, constraint &con) {
         std::visit([&] (auto &&c) {
@@ -183,13 +183,13 @@ void solver::update(scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    auto linvel_view = registry->view<linvel, delta_linvel, dynamic_tag>(exclude_global);
+    auto linvel_view = registry->view<linvel, delta_linvel, dynamic_tag>(entt::exclude<disabled_tag>);
     linvel_view.each([] (auto, linvel &vel, delta_linvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
-    auto angvel_view = registry->view<angvel, delta_angvel, dynamic_tag>(exclude_global);
+    auto angvel_view = registry->view<angvel, delta_angvel, dynamic_tag>(entt::exclude<disabled_tag>);
     angvel_view.each([] (auto, angvel &vel, delta_angvel &delta) {
         vel += delta;
         delta = vector3_zero;
@@ -202,10 +202,6 @@ void solver::update(scalar dt) {
     
     // Update world-space moment of inertia.
     update_inertia(*registry);
-
-    //put_islands_to_sleep(*registry, step, dt);
-
-    //clear_kinematic_velocities(*registry);
 }
 
 }
