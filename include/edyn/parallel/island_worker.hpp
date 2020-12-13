@@ -27,6 +27,7 @@ void island_worker_func(job::data_type &);
 
 class island_worker final {
 
+    void reschedule_later();
     void calculate_topology();
     void do_terminate();
     void validate_island();
@@ -91,6 +92,7 @@ private:
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;
 
+    std::atomic<bool> m_rescheduled {false};
     std::atomic<bool> m_terminating {false};
     std::atomic<bool> m_terminated {false};
     std::mutex m_terminate_mutex;

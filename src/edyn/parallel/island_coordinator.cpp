@@ -540,6 +540,9 @@ void island_coordinator::set_paused(bool paused) {
 
 void island_coordinator::step_simulation() {
     for (auto &pair : m_island_info_map) {
+        auto island_entity = pair.first;
+        if (m_registry->has<sleeping_tag>(island_entity)) continue;
+
         auto &info = pair.second;
         info->m_message_queue.send<msg::step_simulation>();
         // The worker is not running while paused, thus it's necessary to call

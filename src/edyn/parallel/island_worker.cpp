@@ -193,7 +193,7 @@ void island_worker::update() {
     // Process messages.
     m_message_queue.update();
 
-    if (!m_paused) {
+    if (!m_paused && !m_registry.has<sleeping_tag>(m_island_entity)) {
         auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
         auto time = (double)performance_counter() / (double)performance_frequency();
         auto dt = time - isle_time.value;
@@ -216,8 +216,10 @@ void island_worker::update() {
     // Reschedule this job only if not paused nor sleeping.
     auto sleeping = m_registry.has<sleeping_tag>(m_island_entity);
 
+    m_rescheduled.store(false, std::memory_order_release);
+
     if (!m_paused && !sleeping) {
-        reschedule();
+        reschedule_later();
     }
 }
 
@@ -242,7 +244,12 @@ void island_worker::step() {
     sync();
 }
 
-void island_worker::reschedule() {
+void island_worker::reschedule_later() {
+    bool rescheduled = false;
+    m_rescheduled.compare_exchange_strong(rescheduled, true, std::memory_order_acq_rel);
+
+    if (rescheduled) return;
+
     auto j = job();
     j.func = &island_worker_func;
     auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
@@ -258,6 +265,21 @@ void island_worker::reschedule() {
     } else {
         job_dispatcher::global().async(j);
     }
+}
+
+void island_worker::reschedule() {
+    bool rescheduled = false;
+    m_rescheduled.compare_exchange_strong(rescheduled, true, std::memory_order_acq_rel);
+
+    if (rescheduled) return;
+
+    auto j = job();
+    j.func = &island_worker_func;
+    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
+    auto ctx_intptr = reinterpret_cast<intptr_t>(this);
+    archive(ctx_intptr);
+
+    job_dispatcher::global().async(j);
 }
 
 void island_worker::init_new_imported_contact_manifolds() {
@@ -328,14 +350,18 @@ void island_worker::go_to_sleep() {
 }
 
 void island_worker::wake_up() {
+    auto builder = registry_delta_builder(m_entity_map);
+
     auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
     isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
-    m_delta_builder.updated(m_island_entity, isle_timestamp);
+    builder.updated(m_island_entity, isle_timestamp);
 
     m_registry.view<sleeping_tag>().each([&] (entt::entity entity) {
-        m_delta_builder.destroyed<sleeping_tag>(entity);
+        builder.destroyed<sleeping_tag>(entity);
     });
     m_registry.clear<sleeping_tag>();
+
+    m_message_queue.send<registry_delta>(std::move(builder.get_delta()));
 }
 
 void island_worker::calculate_topology() {
