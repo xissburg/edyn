@@ -48,6 +48,8 @@ void job_dispatcher::start(size_t num_worker_threads) {
 }
 
 void job_dispatcher::stop() {
+    m_scheduler.stop();
+
     for (auto &pair : m_workers) {
         pair.second->stop();
     }
@@ -58,8 +60,6 @@ void job_dispatcher::stop() {
 
     m_workers.clear();
     m_threads.clear();
-
-    m_scheduler.stop();
 }
 
 void job_dispatcher::async(const job &j) {

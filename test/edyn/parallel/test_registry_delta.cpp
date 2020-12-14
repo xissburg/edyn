@@ -27,7 +27,7 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
 
     auto builder1 = edyn::registry_delta_builder(map1);
 
-    for (auto remote_entity : builder.get_delta().created()) {
+    for (auto remote_entity : builder.get_delta().created_entities()) {
         if (!map1.has_rem(remote_entity)) continue;
         auto local_entity = map1.remloc(remote_entity);
         builder1.insert_entity_mapping(local_entity);

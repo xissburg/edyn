@@ -27,6 +27,7 @@ class island_coordinator final {
         message_queue_in_out m_message_queue;
         entity_map m_entity_map;
         registry_delta_builder m_delta_builder;
+        bool m_sent_msg_in_last_update {false};
 
         using registry_delta_func_t = void(entt::entity, const registry_delta &);
         entt::sigh<registry_delta_func_t> m_registry_delta_signal;
@@ -36,7 +37,15 @@ class island_coordinator final {
                     message_queue_in_out message_queue);
         ~island_info();
         bool empty() const;
+        void read_messages();
         void sync();
+
+        template<typename Message, typename... Args>
+        void send(Args &&... args) {
+            m_message_queue.send<Message>(std::forward<Args>(args)...);
+            m_sent_msg_in_last_update = true;
+        }
+        
         void on_registry_delta(const registry_delta &);
 
         auto registry_delta_sink() {

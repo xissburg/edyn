@@ -36,7 +36,6 @@ class island_worker final {
     void maybe_go_to_sleep();
     bool could_go_to_sleep();
     void go_to_sleep();
-    void wake_up();
 
 public:
     island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue);
@@ -67,6 +66,7 @@ public:
 
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);
+    void on_wake_up_island(const msg::wake_up_island &);
 
     bool is_terminated() const;
     bool is_terminating() const;

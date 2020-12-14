@@ -46,6 +46,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     m_message_queue.sink<registry_delta>().connect<&island_worker::on_registry_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
+    m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
 
     m_registry.on_construct<island_node>().connect<&island_worker::on_construct_island_node>(*this);
     m_registry.on_update<island_node>().connect<&island_worker::on_update_island_node>(*this);
@@ -136,19 +137,28 @@ void island_worker::on_registry_delta(const registry_delta &delta) {
     delta.import(m_registry, m_entity_map);
     m_importing_delta = false;
 
-    for (auto remote_entity : delta.created()) {
+    for (auto remote_entity : delta.created_entities()) {
         if (!m_entity_map.has_rem(remote_entity)) continue;
         auto local_entity = m_entity_map.remloc(remote_entity);
         m_delta_builder.insert_entity_mapping(local_entity);
     }
+}
 
-    // Presence of a deleted `sleeping_tag` for this island indicates a wake up
-    // event.
-    auto remote_island_entity = m_entity_map.locrem(m_island_entity);
+void island_worker::on_wake_up_island(const msg::wake_up_island &) {
+    if (!m_registry.has<sleeping_tag>(m_island_entity)) return;
 
-    if (delta.did_destroy<sleeping_tag>(remote_island_entity)) {
-        wake_up();
-    }
+    auto builder = registry_delta_builder(m_entity_map);
+
+    auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
+    isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
+    builder.updated(m_island_entity, isle_timestamp);
+
+    m_registry.view<sleeping_tag>().each([&] (entt::entity entity) {
+        builder.destroyed<sleeping_tag>(entity);
+    });
+    m_registry.clear<sleeping_tag>();
+
+    m_message_queue.send<registry_delta>(std::move(builder.get_delta()));
 }
 
 void island_worker::sync() {
@@ -354,21 +364,6 @@ void island_worker::go_to_sleep() {
     });
 }
 
-void island_worker::wake_up() {
-    auto builder = registry_delta_builder(m_entity_map);
-
-    auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
-    isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
-    builder.updated(m_island_entity, isle_timestamp);
-
-    m_registry.view<sleeping_tag>().each([&] (entt::entity entity) {
-        builder.destroyed<sleeping_tag>(entity);
-    });
-    m_registry.clear<sleeping_tag>();
-
-    m_message_queue.send<registry_delta>(std::move(builder.get_delta()));
-}
-
 void island_worker::calculate_topology() {
     auto node_view = m_registry.view<island_node>();
     if (node_view.empty()) return;
@@ -434,7 +429,7 @@ void island_worker::on_set_paused(const msg::set_paused &msg) {
     isle_time.value = timestamp;
 }
 
-void island_worker::on_step_simulation(const msg::step_simulation &msg) {
+void island_worker::on_step_simulation(const msg::step_simulation &) {
     if (!m_registry.has<sleeping_tag>(m_island_entity)) {
         step();
     }

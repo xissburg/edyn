@@ -11,9 +11,9 @@ struct set_paused {
     bool paused;
 };
 
-struct step_simulation {
+struct step_simulation {};
 
-};
+struct wake_up_island {};
 
 }
 

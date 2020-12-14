@@ -151,7 +151,18 @@ public:
 
     bool empty() const;
 
-    const auto created() const { return m_created_entities; }
+    const auto created_entities() const { return m_created_entities; }
+
+    template<typename Component>
+    bool did_create(entt::entity entity) const {
+        auto id = entt::type_index<Component>::value();
+        if (m_created_components.count(id)) {
+            auto &comp_map = static_cast<created_component_map<Component> &>(*m_created_components.at(id).get());
+            return comp_map.pairs.count(entity) > 0;
+        } else {
+            return false;
+        }
+    }
 
     template<typename Component>
     bool did_destroy(entt::entity entity) const {
