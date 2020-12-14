@@ -18,9 +18,8 @@ void island_worker_func(job::data_type &data) {
     auto *worker = reinterpret_cast<island_worker *>(worker_intptr);
 
     if (worker->is_terminating()) {
-        // `worker` is dynamically allocated and it reschedules itself after every
-        // invocation to `update`. If it is marked as finished, it should be
-        // deallocated thus stopping the rescheduling cycle.
+        // `worker` is dynamically allocated and must be manually deallocated
+        // when it terminates.
         worker->do_terminate();
         delete worker;
     } else {
@@ -216,6 +215,9 @@ void island_worker::update() {
     // Reschedule this job only if not paused nor sleeping.
     auto sleeping = m_registry.has<sleeping_tag>(m_island_entity);
 
+    // The update is done and this job can be rescheduled after this point. That
+    // means it's safe to call this `update` function in another thread after
+    // the line below.
     m_rescheduled.store(false, std::memory_order_release);
 
     if (!m_paused && !sleeping) {
@@ -244,11 +246,16 @@ void island_worker::step() {
     sync();
 }
 
-void island_worker::reschedule_later() {
+bool island_worker::exchange_rescheduled() {
+    // Try to set `m_rescheduled` to true if it has not been set already.
     bool rescheduled = false;
     m_rescheduled.compare_exchange_strong(rescheduled, true, std::memory_order_acq_rel);
+    return rescheduled;
+}
 
-    if (rescheduled) return;
+void island_worker::reschedule_later() {
+    // Do not proceed if it has been scheduled already.
+    if (exchange_rescheduled()) return;
 
     auto j = job();
     j.func = &island_worker_func;
@@ -268,10 +275,7 @@ void island_worker::reschedule_later() {
 }
 
 void island_worker::reschedule() {
-    bool rescheduled = false;
-    m_rescheduled.compare_exchange_strong(rescheduled, true, std::memory_order_acq_rel);
-
-    if (rescheduled) return;
+    if (exchange_rescheduled()) return;
 
     auto j = job();
     j.func = &island_worker_func;
@@ -283,6 +287,7 @@ void island_worker::reschedule() {
 }
 
 void island_worker::init_new_imported_contact_manifolds() {
+    // Find contact points for new manifolds imported from the main registry.
     m_nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
                                       m_new_imported_contact_manifolds.end());
     m_new_imported_contact_manifolds.clear();
@@ -450,7 +455,6 @@ void island_worker::do_terminate() {
         auto lock = std::lock_guard(m_terminate_mutex);
         m_terminated.store(true, std::memory_order_relaxed);
     }
-    //m_message_queue.send<msg::island_worker_terminated>();
     m_terminate_cv.notify_one();
 }
 

@@ -27,6 +27,7 @@ void island_worker_func(job::data_type &);
 
 class island_worker final {
 
+    bool exchange_rescheduled();
     void reschedule_later();
     void calculate_topology();
     void do_terminate();
