@@ -307,17 +307,17 @@ void island_worker::maybe_go_to_sleep() {
     if (could_go_to_sleep()) {
         const auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
 
-        if (m_sleep_timestamp < 0) {
+        if (!m_sleep_timestamp) {
             m_sleep_timestamp = isle_time.value;
         } else {
-            auto sleep_dt = isle_time.value - m_sleep_timestamp;
+            auto sleep_dt = isle_time.value - *m_sleep_timestamp;
             if (sleep_dt > island_time_to_sleep) {
                 go_to_sleep();
-                m_sleep_timestamp = -1;
+                m_sleep_timestamp.reset();
             }
         }
     } else {
-        m_sleep_timestamp = -1;
+        m_sleep_timestamp.reset();
     }
 }
 

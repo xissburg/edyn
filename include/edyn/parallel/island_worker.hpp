@@ -3,6 +3,7 @@
 
 #include <mutex>
 #include <atomic>
+#include <optional>
 #include <condition_variable>
 #include <entt/entt.hpp>
 #include "edyn/serialization/memory_archive.hpp"
@@ -84,7 +85,7 @@ private:
     solver m_solver;
     message_queue_in_out m_message_queue;
     double m_fixed_dt;
-    double m_sleep_timestamp;
+    std::optional<double> m_sleep_timestamp;
     bool m_paused;
 
     registry_delta_builder m_delta_builder;
