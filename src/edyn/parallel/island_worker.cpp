@@ -435,7 +435,9 @@ void island_worker::on_set_paused(const msg::set_paused &msg) {
 }
 
 void island_worker::on_step_simulation(const msg::step_simulation &msg) {
-    step();
+    if (!m_registry.has<sleeping_tag>(m_island_entity)) {
+        step();
+    }
 }
 
 bool island_worker::is_terminated() const {
