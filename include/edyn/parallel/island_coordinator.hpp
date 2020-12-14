@@ -33,34 +33,14 @@ class island_coordinator final {
 
         island_info(entt::entity island_entity,
                     island_worker *worker,
-                    message_queue_in_out message_queue)
-            : m_island_entity(island_entity)
-            , m_worker(worker)
-            , m_message_queue(message_queue)
-            , m_delta_builder(m_entity_map)
-        {
-            m_message_queue.sink<registry_delta>().connect<&island_info::on_registry_delta>(*this);
-        }
-
-        ~island_info() {
-            m_message_queue.sink<registry_delta>().disconnect(*this);
-        }
+                    message_queue_in_out message_queue);
+        ~island_info();
+        bool empty() const;
+        void sync();
+        void on_registry_delta(const registry_delta &);
 
         auto registry_delta_sink() {
             return entt::sink {m_registry_delta_signal};
-        }
-
-        void on_registry_delta(const registry_delta &delta) {
-            m_registry_delta_signal.publish(m_island_entity, delta);
-        }
-
-        bool empty() const {
-            return m_delta_builder.empty();
-        }
-
-        void sync() {
-            m_message_queue.send<registry_delta>(std::move(m_delta_builder.get_delta()));
-            m_delta_builder.clear();
         }
     };
 

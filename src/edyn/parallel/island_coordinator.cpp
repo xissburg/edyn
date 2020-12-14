@@ -6,6 +6,34 @@
 
 namespace edyn {
 
+island_coordinator::island_info::island_info(entt::entity island_entity,
+            island_worker *worker,
+            message_queue_in_out message_queue)
+    : m_island_entity(island_entity)
+    , m_worker(worker)
+    , m_message_queue(message_queue)
+    , m_delta_builder(m_entity_map)
+{
+    m_message_queue.sink<registry_delta>().connect<&island_info::on_registry_delta>(*this);
+}
+
+island_coordinator::island_info::~island_info() {
+    m_message_queue.sink<registry_delta>().disconnect(*this);
+}
+
+void island_coordinator::island_info::on_registry_delta(const registry_delta &delta) {
+    m_registry_delta_signal.publish(m_island_entity, delta);
+}
+
+bool island_coordinator::island_info::empty() const {
+    return m_delta_builder.empty();
+}
+
+void island_coordinator::island_info::sync() {
+    m_message_queue.send<registry_delta>(std::move(m_delta_builder.get_delta()));
+    m_delta_builder.clear();
+}
+
 island_coordinator::island_coordinator(entt::registry &registry)
     : m_registry(&registry)
 {
@@ -228,7 +256,7 @@ entt::entity island_coordinator::create_island(double timestamp) {
     info->m_message_queue.send<registry_delta>(std::move(builder.get_delta()));
 
     if (m_paused) {
-        info->m_message_queue.send<msg::set_paused>(msg::set_paused{true});
+        info->m_message_queue.send<msg::set_paused>(true);
     }
 
     // Register to receive delta.
@@ -527,7 +555,7 @@ void island_coordinator::set_paused(bool paused) {
     m_paused = paused;
     for (auto &pair : m_island_info_map) {
         auto &info = pair.second;
-        info->m_message_queue.send<msg::set_paused>(msg::set_paused{paused});
+        info->m_message_queue.send<msg::set_paused>(paused);
 
         if (!paused) {
             // If the worker is being unpaused that means it was not running.
@@ -546,8 +574,7 @@ void island_coordinator::step_simulation() {
         auto &info = pair.second;
         info->m_message_queue.send<msg::step_simulation>();
         // The worker is not running while paused, thus it's necessary to call
-        // `reschedule` to make it run once. It does not reschedules itself
-        // while paused.
+        // `reschedule` to make it run once.
         info->m_worker->reschedule();
     }
 }
