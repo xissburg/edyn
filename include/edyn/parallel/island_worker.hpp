@@ -28,7 +28,6 @@ void island_worker_func(job::data_type &);
 
 class island_worker final {
 
-    bool exchange_rescheduled();
     void reschedule_later();
     void calculate_topology();
     void do_terminate();
@@ -41,7 +40,7 @@ class island_worker final {
 public:
     island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue);
 
-    virtual ~island_worker() {}
+    ~island_worker();
 
     void on_registry_delta(const registry_delta &delta);
 
@@ -94,7 +93,7 @@ private:
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;
 
-    std::atomic<bool> m_rescheduled {false};
+    std::atomic<int> m_reschedule_counter {0};
     std::atomic<bool> m_terminating {false};
     std::atomic<bool> m_terminated {false};
     std::mutex m_terminate_mutex;

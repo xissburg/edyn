@@ -13,6 +13,7 @@ island_coordinator::island_info::island_info(entt::entity island_entity,
     , m_worker(worker)
     , m_message_queue(message_queue)
     , m_delta_builder(m_entity_map)
+    , m_pending_flush(false)
 {
     m_message_queue.sink<registry_delta>().connect<&island_info::on_registry_delta>(*this);
 }
@@ -31,12 +32,18 @@ bool island_coordinator::island_info::empty() const {
 
 void island_coordinator::island_info::read_messages() {
     m_message_queue.update();
-    m_sent_msg_in_last_update = false;
 }
 
 void island_coordinator::island_info::sync() {
     send<registry_delta>(std::move(m_delta_builder.get_delta()));
     m_delta_builder.clear();
+}
+
+void island_coordinator::island_info::flush() {
+    if (m_pending_flush) {
+        m_worker->reschedule();
+        m_pending_flush = false;
+    }
 }
 
 island_coordinator::island_coordinator(entt::registry &registry)
@@ -247,6 +254,9 @@ entt::entity island_coordinator::create_island(double timestamp) {
     // it will be deallocated on the next run.
     auto *worker = new island_worker(entity, m_fixed_dt, message_queue_in_out(main_queue_input, isle_queue_output));
     auto info = std::make_unique<island_info>(entity, worker, message_queue_in_out(isle_queue_input, main_queue_output));
+    
+    // Register to receive delta.
+    info->registry_delta_sink().connect<&island_coordinator::on_registry_delta>(*this);
 
     // Send over a delta containing this island entity to the island worker
     // before it even starts.
@@ -259,17 +269,7 @@ entt::entity island_coordinator::create_island(double timestamp) {
         info->send<msg::set_paused>(true);
     }
 
-    // Register to receive delta.
-    info->registry_delta_sink().connect<&island_coordinator::on_registry_delta>(*this);
-
     m_island_info_map.emplace(entity, std::move(info));
-
-    auto j = job();
-    j.func = &island_worker_func;
-    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
-    auto worker_intptr = reinterpret_cast<intptr_t>(worker);
-    archive(worker_intptr);
-    job_dispatcher::global().async(j);
 
     return entity;
 }
@@ -342,6 +342,13 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
         m_registry->destroy(other_island_entity);
     }
 
+    // Prevents glitch where entities are moved into an island that was sleeping
+    // and thus its timestamp is outdated.
+    if (m_registry->has<sleeping_tag>(island_entity)) {
+        auto &isle_timestamp = m_registry->get<island_timestamp>(island_entity);
+        isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
+    }
+
     return island_entity;
 }
 
@@ -411,21 +418,6 @@ void island_coordinator::on_registry_delta(entt::entity source_island_entity, co
 
     if (should_split_island(delta.m_island_topology)) {
         m_islands_to_split.insert(source_island_entity);
-    }
-
-    // If this island is now sleeping and a message was sent to it in the previous
-    // update, the island has to be waken up because it might have happened that
-    // the island was still visible as awake in the coordinator when the message
-    // was sent but it had just went to sleep at the same time in the island worker.
-    // There is a very slim chance of this happening. If the island is not waken
-    // up in this situation, the message will not be processed immediately.
-    auto remote_island_entity = source_info->m_entity_map.locrem(source_island_entity);
-
-    if (delta.did_create<sleeping_tag>(remote_island_entity) && 
-        source_info->m_sent_msg_in_last_update) {
-
-        source_info->send<msg::wake_up_island>();
-        source_info->m_worker->reschedule();
     }
 }
 
@@ -540,9 +532,10 @@ void island_coordinator::sync() {
 
             if (m_registry->has<sleeping_tag>(island_entity)) {
                 info->send<msg::wake_up_island>();
-                info->m_worker->reschedule();
             }
         }
+
+        info->flush();
     }
 }
 
@@ -563,13 +556,6 @@ void island_coordinator::set_paused(bool paused) {
     for (auto &pair : m_island_info_map) {
         auto &info = pair.second;
         info->send<msg::set_paused>(paused);
-
-        if (!paused) {
-            // If the worker is being unpaused that means it was not running.
-            // Thus it is necessary to call `reschedule` to wake it up and
-            // process the message sent above.
-            info->m_worker->reschedule();
-        }
     }
 }
 
@@ -580,9 +566,6 @@ void island_coordinator::step_simulation() {
 
         auto &info = pair.second;
         info->send<msg::step_simulation>();
-        // The worker is not running while paused, thus it's necessary to call
-        // `reschedule` to make it run once.
-        info->m_worker->reschedule();
     }
 }
 

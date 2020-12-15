@@ -30,7 +30,6 @@ void island_worker_func(job::data_type &data) {
 island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue)
     : m_message_queue(message_queue)
     , m_fixed_dt(fixed_dt)
-    , m_sleep_timestamp(-1)
     , m_paused(false)
     , m_bphase(m_registry)
     , m_nphase(m_registry)
@@ -59,6 +58,10 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
     
     m_registry.on_construct<contact_manifold>().connect<&island_worker::on_construct_contact_manifold>(*this);
+}
+
+island_worker::~island_worker() {
+
 }
 
 void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
@@ -224,14 +227,19 @@ void island_worker::update() {
 
     // Reschedule this job only if not paused nor sleeping.
     auto sleeping = m_registry.has<sleeping_tag>(m_island_entity);
+    auto paused = m_paused;
 
     // The update is done and this job can be rescheduled after this point. That
     // means it's safe to call this `update` function in another thread after
     // the line below.
-    m_rescheduled.store(false, std::memory_order_release);
+    auto reschedule_count = m_reschedule_counter.exchange(0, std::memory_order_acq_rel);
 
-    if (!m_paused && !sleeping) {
-        reschedule_later();
+    if (reschedule_count <= 1) {
+        if (!paused && !sleeping) {
+            reschedule_later();
+        }
+    } else {
+        reschedule();
     }
 }
 
@@ -256,16 +264,10 @@ void island_worker::step() {
     sync();
 }
 
-bool island_worker::exchange_rescheduled() {
-    // Try to set `m_rescheduled` to true if it has not been set already.
-    bool rescheduled = false;
-    m_rescheduled.compare_exchange_strong(rescheduled, true, std::memory_order_acq_rel);
-    return rescheduled;
-}
-
 void island_worker::reschedule_later() {
-    // Do not proceed if it has been scheduled already.
-    if (exchange_rescheduled()) return;
+    // Only reschedule if it has not been scheduled and updated already.
+    auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
+    if (reschedule_count > 0) return;
 
     auto j = job();
     j.func = &island_worker_func;
@@ -285,7 +287,9 @@ void island_worker::reschedule_later() {
 }
 
 void island_worker::reschedule() {
-    if (exchange_rescheduled()) return;
+    // Only reschedule if it has not been scheduled and updated already.
+    auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
+    if (reschedule_count > 0) return;
 
     auto j = job();
     j.func = &island_worker_func;
@@ -436,21 +440,22 @@ void island_worker::on_step_simulation(const msg::step_simulation &) {
 }
 
 bool island_worker::is_terminated() const {
-    return m_terminated.load(std::memory_order_relaxed);
+    return m_terminated.load(std::memory_order_acquire);
 }
 
 bool island_worker::is_terminating() const {
-    return m_terminating.load(std::memory_order_relaxed);
+    return m_terminating.load(std::memory_order_acquire);
 }
 
 void island_worker::terminate() {
-    m_terminating.store(true, std::memory_order_relaxed);
+    m_terminating.store(true, std::memory_order_release);
+    reschedule();
 }
 
 void island_worker::do_terminate() {
     {
         auto lock = std::lock_guard(m_terminate_mutex);
-        m_terminated.store(true, std::memory_order_relaxed);
+        m_terminated.store(true, std::memory_order_release);
     }
     m_terminate_cv.notify_one();
 }
