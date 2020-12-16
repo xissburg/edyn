@@ -23,6 +23,7 @@ class registry_delta;
 class registry_delta_builder;
 
 struct component_map_base {
+    virtual ~component_map_base() {}
     virtual void import(const registry_delta &, entt::registry &, entity_map &) const = 0;
 };
 
