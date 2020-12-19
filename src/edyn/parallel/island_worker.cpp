@@ -233,8 +233,9 @@ void island_worker::update() {
     // means it's safe to call this `update` function in another thread after
     // the line below.
     auto reschedule_count = m_reschedule_counter.exchange(0, std::memory_order_acq_rel);
+    EDYN_ASSERT(reschedule_count != 0);
 
-    if (reschedule_count <= 1) {
+    if (reschedule_count == 1) {
         if (!paused && !sleeping) {
             reschedule_later();
         }
