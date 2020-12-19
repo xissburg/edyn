@@ -8,6 +8,9 @@
 
 namespace edyn {
 
+/**
+ * Thread-safe queue of jobs.
+ */
 class job_queue {
 public:
     void push(const job &);

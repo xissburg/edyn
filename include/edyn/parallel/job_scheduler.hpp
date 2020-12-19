@@ -13,6 +13,9 @@ namespace edyn {
 
 class job_dispatcher;
 
+/**
+ * Schedules jobs for execution at a later time in a `job_dispatcher`.
+ */
 class job_scheduler final {
     struct timed_job {
         job m_job;

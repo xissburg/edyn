@@ -1,4 +1,3 @@
-#include <entt/entity/view.hpp>
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
@@ -18,6 +17,7 @@
 #include "edyn/dynamics/solver_stage.hpp"
 #include "edyn/util/array.hpp"
 #include "edyn/util/rigidbody.hpp"
+#include <entt/entt.hpp>
 
 namespace edyn {
 
@@ -112,7 +112,7 @@ void update_inertia(entt::registry &registry) {
 }
 
 solver::solver(entt::registry &reg) 
-    : registry(&reg)
+    : m_registry(&reg)
 {
     reg.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     reg.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
@@ -120,22 +120,22 @@ solver::solver(entt::registry &reg)
 
 void solver::update(scalar dt) {
     // Apply forces and acceleration.
-    integrate_linacc(*registry, dt);
-    apply_gravity(*registry, dt);
+    integrate_linacc(*m_registry, dt);
+    apply_gravity(*m_registry, dt);
 
     // Setup constraints.
-    auto mass_delta_group = registry->group<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
-    auto vel_group = registry->group<linvel, angvel>();
-    auto con_view = registry->view<constraint>(entt::exclude<disabled_tag>);
-    auto row_view = registry->view<constraint_row>(entt::exclude<disabled_tag>);
+    auto mass_delta_group = m_registry->group<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
+    auto vel_group = m_registry->group<linvel, angvel>();
+    auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
+    auto row_view = m_registry->view<constraint_row>(entt::exclude<disabled_tag>);
 
     con_view.each([&] (entt::entity entity, constraint &con) {
         std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *registry, dt);
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *m_registry, dt);
         }, con.var);
     });
 
-    registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
+    m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
         return lhs.priority > rhs.priority;
     });
 
@@ -166,7 +166,7 @@ void solver::update(scalar dt) {
         // Prepare constraints for iteration.
         con_view.each([&] (entt::entity entity, constraint &con) {
             std::visit([&] (auto &&c) {
-                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *registry, dt);
+                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *m_registry, dt);
             }, con.var);
         });
 
@@ -183,25 +183,25 @@ void solver::update(scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    auto linvel_view = registry->view<linvel, delta_linvel, dynamic_tag>(entt::exclude<disabled_tag>);
+    auto linvel_view = m_registry->view<linvel, delta_linvel, dynamic_tag>(entt::exclude<disabled_tag>);
     linvel_view.each([] (auto, linvel &vel, delta_linvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
-    auto angvel_view = registry->view<angvel, delta_angvel, dynamic_tag>(entt::exclude<disabled_tag>);
+    auto angvel_view = m_registry->view<angvel, delta_angvel, dynamic_tag>(entt::exclude<disabled_tag>);
     angvel_view.each([] (auto, angvel &vel, delta_angvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
     // Integrate velocities to obtain new transforms.
-    integrate_linvel(*registry, dt);
-    integrate_angvel(*registry, dt);
-    update_aabbs(*registry);
+    integrate_linvel(*m_registry, dt);
+    integrate_angvel(*m_registry, dt);
+    update_aabbs(*m_registry);
     
     // Update world-space moment of inertia.
-    update_inertia(*registry);
+    update_inertia(*m_registry);
 }
 
 }

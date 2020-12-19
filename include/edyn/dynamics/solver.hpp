@@ -1,7 +1,7 @@
 #ifndef EDYN_DYNAMICS_SOLVER_HPP
 #define EDYN_DYNAMICS_SOLVER_HPP
 
-#include <entt/entt.hpp>
+#include <entt/fwd.hpp>
 #include "edyn/math/scalar.hpp"
 
 namespace edyn {
@@ -15,8 +15,7 @@ public:
     uint32_t iterations {10};
 
 private:
-    entt::registry *registry;
-    std::vector<entt::scoped_connection> connections;
+    entt::registry *m_registry;
 };
 
 }

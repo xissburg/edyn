@@ -6,7 +6,8 @@
 namespace edyn {
 
 /**
- * @brief An _island_ is a set of entities that are connected through relations.
+ * @brief An _island_ is a set of entities that can affect one another,
+ * usually through constraints.
  */
 struct island {
 

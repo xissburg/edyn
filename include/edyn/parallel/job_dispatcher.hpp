@@ -16,6 +16,9 @@ struct job;
 class job_queue;
 class job_queue_scheduler;
 
+/**
+ * Manages a set of worker threads and dispatches jobs to them.
+ */
 class job_dispatcher {
 public:
     static job_dispatcher &global();

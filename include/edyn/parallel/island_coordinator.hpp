@@ -13,6 +13,10 @@ namespace edyn {
 class island_worker;
 class registry_delta;
 
+/**
+ * Manages all simulation islands. Creates and destroys island workers as necessary
+ * and synchonizes the workers and the main registry.
+ */
 class island_coordinator final {
 
     void init_new_island_nodes();
@@ -62,7 +66,6 @@ public:
 
 private:
     entt::registry *m_registry;
-    std::vector<entt::scoped_connection> m_connections;
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;
 
     std::vector<entt::entity> m_new_island_nodes;

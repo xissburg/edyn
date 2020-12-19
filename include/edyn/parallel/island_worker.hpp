@@ -18,6 +18,9 @@ namespace edyn {
 
 void island_worker_func(job::data_type &);
 
+/**
+ * Simulates one island in a worker thread independently.
+ */
 class island_worker final {
 
     void reschedule_later();
