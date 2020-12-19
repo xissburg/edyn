@@ -1,5 +1,4 @@
 #include "edyn/util/island_util.hpp"
-#include "edyn/comp.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/dynamics/world.hpp"
 #include "edyn/parallel/message.hpp"

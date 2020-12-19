@@ -1,6 +1,7 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/util/island_util.hpp"
+#include "edyn/comp/shared_comp.hpp"
 #include "edyn/comp/dirty.hpp"
 #include <entt/entt.hpp>
 
@@ -187,7 +188,7 @@ void island_coordinator::init_new_island_nodes() {
                 container.entities.insert(island_entity);
                 // Add new entities to the delta builder.
                 info->m_delta_builder.created(entity);
-                info->m_delta_builder.maybe_created(entity, *m_registry, all_components{});
+                info->m_delta_builder.maybe_created(entity, *m_registry, shared_components{});
             }
         } else if (island_entities.size() == 1) {
             auto island_entity = *island_entities.begin();
@@ -202,9 +203,9 @@ void island_coordinator::init_new_island_nodes() {
                     container.entities.insert(island_entity);
                     // Add new entities to the delta builder.
                     info->m_delta_builder.created(entity);
-                    info->m_delta_builder.maybe_created(entity, *m_registry, all_components{});
+                    info->m_delta_builder.maybe_created(entity, *m_registry, shared_components{});
                 } else {
-                    info->m_delta_builder.maybe_updated(entity, *m_registry, all_components{});
+                    info->m_delta_builder.maybe_updated(entity, *m_registry, shared_components{});
                 }
             }
         } else {
@@ -233,7 +234,7 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
         if (container.entities.count(island_entity) == 0) {
             container.entities.insert(island_entity);
             info->m_delta_builder.created(node_entity);
-            info->m_delta_builder.maybe_created(node_entity, *m_registry, all_components{});
+            info->m_delta_builder.maybe_created(node_entity, *m_registry, shared_components{});
         }
     }
 }
@@ -326,9 +327,9 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
             // Include all components in delta because this is a new entity
             // in the selected island.
             builder.created(entity);
-            builder.maybe_created(entity, *m_registry, all_components{});
+            builder.maybe_created(entity, *m_registry, shared_components{});
         } else {
-            builder.maybe_updated(entity, *m_registry, all_components{});
+            builder.maybe_updated(entity, *m_registry, shared_components{});
         }
     }
 
@@ -391,13 +392,13 @@ void island_coordinator::refresh_dirty_entities() {
 
             builder.created(entity, *m_registry, 
                 dirty.created_indexes.begin(), dirty.created_indexes.end(), 
-                all_components{});
+                shared_components{});
             builder.updated(entity, *m_registry, 
                 dirty.updated_indexes.begin(), dirty.updated_indexes.end(), 
-                all_components{});
+                shared_components{});
             builder.destroyed(entity, 
                 dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end(), 
-                all_components{});
+                shared_components{});
         }
     });
 
@@ -513,7 +514,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
             }
 
             info->m_delta_builder.created(entity);
-            info->m_delta_builder.maybe_created(entity, *m_registry, all_components{});
+            info->m_delta_builder.maybe_created(entity, *m_registry, shared_components{});
         }
     }
 

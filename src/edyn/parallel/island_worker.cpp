@@ -6,7 +6,7 @@
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
-#include "edyn/comp/continuous.hpp"
+#include "edyn/comp/shared_comp.hpp"
 #include "edyn/math/constants.hpp"
 
 namespace edyn {
@@ -174,7 +174,7 @@ void island_worker::sync() {
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
         m_delta_builder.updated(entity, m_registry,
             cont.types.begin(), cont.types.end(),
-            all_components{});
+            shared_components{});
     });
 
     // Update dirty components.
@@ -185,13 +185,13 @@ void island_worker::sync() {
 
         m_delta_builder.created(entity, m_registry,
             dirty.created_indexes.begin(), dirty.created_indexes.end(),
-            all_components{});
+            shared_components{});
         m_delta_builder.updated(entity, m_registry,
             dirty.updated_indexes.begin(), dirty.updated_indexes.end(),
-            all_components{});
+            shared_components{});
         m_delta_builder.destroyed(entity,
             dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end(),
-            all_components{});
+            shared_components{});
     });
 
     m_message_queue.send<registry_delta>(std::move(m_delta_builder.get_delta()));

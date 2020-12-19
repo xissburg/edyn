@@ -7,7 +7,6 @@
 #include <entt/fwd.hpp>
 #include <unordered_map>
 #include <entt/core/type_info.hpp>
-#include "edyn/comp.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/merge/merge_island.hpp"

@@ -15,7 +15,6 @@
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/comp.hpp"
 #include "edyn/util/tuple.hpp"
 #include "edyn/parallel/registry_delta.hpp"
 #include "edyn/collision/contact_manifold.hpp"
