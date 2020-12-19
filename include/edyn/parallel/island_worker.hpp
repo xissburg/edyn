@@ -4,24 +4,17 @@
 #include <mutex>
 #include <atomic>
 #include <optional>
-#include <condition_variable>
 #include <entt/entt.hpp>
-#include "edyn/serialization/memory_archive.hpp"
-#include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/message.hpp"
+#include <condition_variable>
 #include "edyn/parallel/job.hpp"
-#include "edyn/parallel/job_dispatcher.hpp"
-#include "edyn/time/time.hpp"
-#include "edyn/collision/broadphase_worker.hpp"
-#include "edyn/collision/narrowphase.hpp"
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/util/tuple.hpp"
+#include "edyn/parallel/message.hpp"
+#include "edyn/collision/narrowphase.hpp"
+#include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/registry_delta.hpp"
-#include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/broadphase_worker.hpp"
 
 namespace edyn {
-
-class job_dispatcher;
 
 void island_worker_func(job::data_type &);
 

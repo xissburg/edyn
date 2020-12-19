@@ -114,6 +114,7 @@ set(Edyn_SOURCES
     src/edyn/parallel/island_worker.cpp
     src/edyn/parallel/island_coordinator.cpp
     src/edyn/parallel/registry_delta.cpp
+    src/edyn/parallel/island_worker_context.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/edyn.cpp
     src/edyn/init.cpp

@@ -1,10 +1,10 @@
 #include "edyn/sys/update_aabbs.hpp"
-#include "edyn/util/island_util.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/aabb.hpp"
-#include <entt/entt.hpp>
+#include "edyn/comp/tag.hpp"
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

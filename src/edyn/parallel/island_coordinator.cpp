@@ -3,49 +3,10 @@
 #include "edyn/util/island_util.hpp"
 #include "edyn/comp/shared_comp.hpp"
 #include "edyn/comp/dirty.hpp"
+#include "edyn/time/time.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
-
-island_coordinator::island_info::island_info(entt::entity island_entity,
-            island_worker *worker,
-            message_queue_in_out message_queue)
-    : m_island_entity(island_entity)
-    , m_worker(worker)
-    , m_message_queue(message_queue)
-    , m_delta_builder(m_entity_map)
-    , m_pending_flush(false)
-{
-    m_message_queue.sink<registry_delta>().connect<&island_info::on_registry_delta>(*this);
-}
-
-island_coordinator::island_info::~island_info() {
-    m_message_queue.sink<registry_delta>().disconnect(*this);
-}
-
-void island_coordinator::island_info::on_registry_delta(const registry_delta &delta) {
-    m_registry_delta_signal.publish(m_island_entity, delta);
-}
-
-bool island_coordinator::island_info::empty() const {
-    return m_delta_builder.empty();
-}
-
-void island_coordinator::island_info::read_messages() {
-    m_message_queue.update();
-}
-
-void island_coordinator::island_info::sync() {
-    send<registry_delta>(std::move(m_delta_builder.get_delta()));
-    m_delta_builder.clear();
-}
-
-void island_coordinator::island_info::flush() {
-    if (m_pending_flush) {
-        m_worker->reschedule();
-        m_pending_flush = false;
-    }
-}
 
 island_coordinator::island_coordinator(entt::registry &registry)
     : m_registry(&registry)
@@ -60,9 +21,9 @@ island_coordinator::island_coordinator(entt::registry &registry)
 }
 
 island_coordinator::~island_coordinator() {
-    for (auto &pair : m_island_info_map) {
-        auto &info = pair.second;
-        info->m_worker->terminate();
+    for (auto &pair : m_island_ctx_map) {
+        auto &ctx = pair.second;
+        ctx->terminate();
     }
 }
 
@@ -89,8 +50,8 @@ void island_coordinator::on_construct_island_container(entt::registry &registry,
     auto &container = registry.get<island_container>(entity);
 
     for (auto island_entity : container.entities) {
-        auto &info = m_island_info_map.at(island_entity);
-        info->m_entities.insert(entity);
+        auto &ctx = m_island_ctx_map.at(island_entity);
+        ctx->m_entities.insert(entity);
     }
 }
 
@@ -99,11 +60,11 @@ void island_coordinator::on_destroy_island_container(entt::registry &registry, e
 
     // Remove from islands.
     for (auto island_entity : container.entities) {
-        auto &info = m_island_info_map.at(island_entity);
-        EDYN_ASSERT(info->m_entities.count(entity) > 0);
-        info->m_entities.erase(entity);
+        auto &ctx = m_island_ctx_map.at(island_entity);
+        EDYN_ASSERT(ctx->m_entities.count(entity) > 0);
+        ctx->m_entities.erase(entity);
         if (!m_importing_delta)  {
-            info->m_delta_builder.destroyed(entity);
+            ctx->m_delta_builder.destroyed(entity);
         }
     }
 }
@@ -179,22 +140,22 @@ void island_coordinator::init_new_island_nodes() {
             const auto timestamp = (double)performance_counter() / (double)performance_frequency();
             auto island_entity = create_island(timestamp);
 
-            auto &info = m_island_info_map.at(island_entity);
-            info->m_entities = connected;
+            auto &ctx = m_island_ctx_map.at(island_entity);
+            ctx->m_entities = connected;
 
             for (auto entity : connected) {
                 // Assign island to containers.
                 auto &container = m_registry->get<island_container>(entity);
                 container.entities.insert(island_entity);
                 // Add new entities to the delta builder.
-                info->m_delta_builder.created(entity);
-                info->m_delta_builder.maybe_created(entity, *m_registry, shared_components{});
+                ctx->m_delta_builder.created(entity);
+                ctx->m_delta_builder.maybe_created(entity, *m_registry, shared_components{});
             }
         } else if (island_entities.size() == 1) {
             auto island_entity = *island_entities.begin();
             
-            auto &info = m_island_info_map.at(island_entity);
-            info->m_entities.insert(connected.begin(), connected.end());
+            auto &ctx = m_island_ctx_map.at(island_entity);
+            ctx->m_entities.insert(connected.begin(), connected.end());
 
             for (auto entity : connected) {
                 // Assign island to containers.
@@ -202,10 +163,10 @@ void island_coordinator::init_new_island_nodes() {
                 if (container.entities.count(island_entity) == 0) {
                     container.entities.insert(island_entity);
                     // Add new entities to the delta builder.
-                    info->m_delta_builder.created(entity);
-                    info->m_delta_builder.maybe_created(entity, *m_registry, shared_components{});
+                    ctx->m_delta_builder.created(entity);
+                    ctx->m_delta_builder.maybe_created(entity, *m_registry, shared_components{});
                 } else {
-                    info->m_delta_builder.maybe_updated(entity, *m_registry, shared_components{});
+                    ctx->m_delta_builder.maybe_updated(entity, *m_registry, shared_components{});
                 }
             }
         } else {
@@ -228,13 +189,13 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
         if (other_container.entities.empty()) continue;
 
         auto island_entity = *other_container.entities.begin();
-        auto &info = m_island_info_map.at(island_entity);
-        info->m_entities.insert(node_entity);
+        auto &ctx = m_island_ctx_map.at(island_entity);
+        ctx->m_entities.insert(node_entity);
 
         if (container.entities.count(island_entity) == 0) {
             container.entities.insert(island_entity);
-            info->m_delta_builder.created(node_entity);
-            info->m_delta_builder.maybe_created(node_entity, *m_registry, shared_components{});
+            ctx->m_delta_builder.created(node_entity);
+            ctx->m_delta_builder.maybe_created(node_entity, *m_registry, shared_components{});
         }
     }
 }
@@ -254,23 +215,23 @@ entt::entity island_coordinator::create_island(double timestamp) {
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
     auto *worker = new island_worker(entity, m_fixed_dt, message_queue_in_out(main_queue_input, isle_queue_output));
-    auto info = std::make_unique<island_info>(entity, worker, message_queue_in_out(isle_queue_input, main_queue_output));
+    auto ctx = std::make_unique<island_worker_context>(entity, worker, message_queue_in_out(isle_queue_input, main_queue_output));
     
     // Register to receive delta.
-    info->registry_delta_sink().connect<&island_coordinator::on_registry_delta>(*this);
+    ctx->registry_delta_sink().connect<&island_coordinator::on_registry_delta>(*this);
 
     // Send over a delta containing this island entity to the island worker
     // before it even starts.
-    auto builder = registry_delta_builder(info->m_entity_map);
+    auto builder = registry_delta_builder(ctx->m_entity_map);
     builder.created(entity);
     builder.created(entity, isle_time);
-    info->send<registry_delta>(std::move(builder.get_delta()));
+    ctx->send<registry_delta>(std::move(builder.get_delta()));
 
     if (m_paused) {
-        info->send<msg::set_paused>(true);
+        ctx->send<msg::set_paused>(true);
     }
 
-    m_island_info_map.emplace(entity, std::move(info));
+    m_island_ctx_map.emplace(entity, std::move(ctx));
 
     return entity;
 }
@@ -284,10 +245,10 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
     size_t biggest_size = 0;
 
     for (auto entity : island_entities) {
-        auto &info = m_island_info_map.at(entity);
+        auto &ctx = m_island_ctx_map.at(entity);
         
-        if (info->m_entities.size() > biggest_size) {
-            biggest_size = info->m_entities.size();
+        if (ctx->m_entities.size() > biggest_size) {
+            biggest_size = ctx->m_entities.size();
             island_entity = entity;
         }
     }
@@ -298,12 +259,12 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
     auto all_entities = new_entities;
 
     for (auto other_island_entity : other_island_entities) {
-        auto &info = m_island_info_map.at(other_island_entity);
-        all_entities.insert(info->m_entities.begin(), info->m_entities.end());
+        auto &ctx = m_island_ctx_map.at(other_island_entity);
+        all_entities.insert(ctx->m_entities.begin(), ctx->m_entities.end());
     }
 
-    auto &info = m_island_info_map.at(island_entity);
-    auto &builder = info->m_delta_builder;
+    auto &ctx = m_island_ctx_map.at(island_entity);
+    auto &builder = ctx->m_delta_builder;
 
     for (auto entity : all_entities) {
         // Point container to its new island.
@@ -323,7 +284,7 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
         // since the island is supposed to be awake after a merge.
         m_registry->remove_if_exists<sleeping_tag>(entity);
 
-        if (info->m_entities.count(entity) == 0) {
+        if (ctx->m_entities.count(entity) == 0) {
             // Include all components in delta because this is a new entity
             // in the selected island.
             builder.created(entity);
@@ -333,13 +294,13 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
         }
     }
 
-    info->m_entities.insert(all_entities.begin(), all_entities.end());
+    ctx->m_entities.insert(all_entities.begin(), all_entities.end());
 
     // Destroy empty islands.
     for (auto other_island_entity : other_island_entities) {
-        auto &info = m_island_info_map.at(other_island_entity);
-        info->m_worker->terminate();
-        m_island_info_map.erase(other_island_entity);
+        auto &ctx = m_island_ctx_map.at(other_island_entity);
+        ctx->terminate();
+        m_island_ctx_map.erase(other_island_entity);
         m_registry->destroy(other_island_entity);
     }
 
@@ -382,9 +343,9 @@ void island_coordinator::refresh_dirty_entities() {
     auto view = m_registry->view<island_container, dirty>();
     view.each([&] (entt::entity entity, island_container &container, dirty &dirty) {
         for (auto island_entity : container.entities) {
-            if (!m_island_info_map.count(island_entity)) continue;
-            auto &info = m_island_info_map.at(island_entity);
-            auto &builder = info->m_delta_builder;
+            if (!m_island_ctx_map.count(island_entity)) continue;
+            auto &ctx = m_island_ctx_map.at(island_entity);
+            auto &builder = ctx->m_delta_builder;
 
             if (dirty.is_new_entity) {
                 builder.created(entity);
@@ -407,14 +368,14 @@ void island_coordinator::refresh_dirty_entities() {
 
 void island_coordinator::on_registry_delta(entt::entity source_island_entity, const registry_delta &delta) {
     m_importing_delta = true;
-    auto &source_info = m_island_info_map.at(source_island_entity);
-    delta.import(*m_registry, source_info->m_entity_map);
+    auto &source_ctx = m_island_ctx_map.at(source_island_entity);
+    delta.import(*m_registry, source_ctx->m_entity_map);
     m_importing_delta = false;
 
     for (auto remote_entity : delta.created_entities()) {
-        if (!source_info->m_entity_map.has_rem(remote_entity)) continue;
-        auto local_entity = source_info->m_entity_map.remloc(remote_entity);
-        source_info->m_delta_builder.insert_entity_mapping(local_entity);
+        if (!source_ctx->m_entity_map.has_rem(remote_entity)) continue;
+        auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
+        source_ctx->m_delta_builder.insert_entity_mapping(local_entity);
     }
 
     if (should_split_island(delta.m_island_topology)) {
@@ -435,13 +396,13 @@ void island_coordinator::split_islands() {
 }
 
 void island_coordinator::split_island(entt::entity split_island_entity) {
-    if (m_island_info_map.count(split_island_entity) == 0) return;
+    if (m_island_ctx_map.count(split_island_entity) == 0) return;
 
-    auto &split_info = m_island_info_map.at(split_island_entity);
+    auto &split_ctx = m_island_ctx_map.at(split_island_entity);
     entity_set node_entities;
-    node_entities.reserve(split_info->m_entities.size());
+    node_entities.reserve(split_ctx->m_entities.size());
 
-    for (auto entity : split_info->m_entities) {
+    for (auto entity : split_ctx->m_entities) {
         if (m_registry->has<island_node, procedural_tag>(entity)) {
             node_entities.insert(entity);
         }
@@ -500,8 +461,8 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
 
     for (auto &connected : connected_components) {
         auto island_entity = create_island(timestamp);
-        auto &info = m_island_info_map.at(island_entity);
-        info->m_entities = connected;
+        auto &ctx = m_island_ctx_map.at(island_entity);
+        ctx->m_entities = connected;
 
         // Make containers point to the new island and add entities to the delta builder.
         for (auto entity : connected) {
@@ -513,35 +474,35 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
                 EDYN_ASSERT(container.entities.size() <= 1);
             }
 
-            info->m_delta_builder.created(entity);
-            info->m_delta_builder.maybe_created(entity, *m_registry, shared_components{});
+            ctx->m_delta_builder.created(entity);
+            ctx->m_delta_builder.maybe_created(entity, *m_registry, shared_components{});
         }
     }
 
-    split_info->m_worker->terminate();
-    m_island_info_map.erase(split_island_entity);
+    split_ctx->terminate();
+    m_island_ctx_map.erase(split_island_entity);
     m_registry->destroy(split_island_entity);
 }
 
 void island_coordinator::sync() {
-    for (auto &pair : m_island_info_map) {
+    for (auto &pair : m_island_ctx_map) {
         auto island_entity = pair.first;
-        auto &info = pair.second;
+        auto &ctx = pair.second;
 
-        if (!info->empty()) {
-            info->sync();
+        if (!ctx->delta_empty()) {
+            ctx->send_delta();
 
             if (m_registry->has<sleeping_tag>(island_entity)) {
-                info->send<msg::wake_up_island>();
+                ctx->send<msg::wake_up_island>();
             }
         }
 
-        info->flush();
+        ctx->flush();
     }
 }
 
 void island_coordinator::update() {
-    for (auto &pair : m_island_info_map) {
+    for (auto &pair : m_island_ctx_map) {
         pair.second->read_messages();
     }
 
@@ -554,19 +515,19 @@ void island_coordinator::update() {
 
 void island_coordinator::set_paused(bool paused) {
     m_paused = paused;
-    for (auto &pair : m_island_info_map) {
-        auto &info = pair.second;
-        info->send<msg::set_paused>(paused);
+    for (auto &pair : m_island_ctx_map) {
+        auto &ctx = pair.second;
+        ctx->send<msg::set_paused>(paused);
     }
 }
 
 void island_coordinator::step_simulation() {
-    for (auto &pair : m_island_info_map) {
+    for (auto &pair : m_island_ctx_map) {
         auto island_entity = pair.first;
         if (m_registry->has<sleeping_tag>(island_entity)) continue;
 
-        auto &info = pair.second;
-        info->send<msg::step_simulation>();
+        auto &ctx = pair.second;
+        ctx->send<msg::step_simulation>();
     }
 }
 
