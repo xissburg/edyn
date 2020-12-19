@@ -62,6 +62,7 @@ set(Edyn_SOURCES
     src/edyn/collision/broadphase_main.cpp
     src/edyn/collision/broadphase_worker.cpp
     src/edyn/collision/narrowphase.cpp
+    src/edyn/collision/contact_manifold_map.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
     src/edyn/collision/collide_sphere_plane.cpp
     src/edyn/collision/collide_cylinder_cylinder.cpp

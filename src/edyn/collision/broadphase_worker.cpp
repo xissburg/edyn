@@ -14,31 +14,10 @@
 
 namespace edyn {
 
-broadphase_worker::broadphase_worker(entt::registry &reg)
-    : m_registry(&reg)
-{
-    reg.on_construct<contact_manifold>().connect<&broadphase_worker::on_construct_contact_manifold>(*this);
-    reg.on_destroy<contact_manifold>().connect<&broadphase_worker::on_destroy_contact_manifold>(*this);
-}
-
-void broadphase_worker::on_construct_contact_manifold(entt::registry &registry, entt::entity entity) {
-    auto &manifold = registry.get<contact_manifold>(entity);
-    // Cache the pair for quick look up.
-    auto p = std::make_pair(manifold.body[0], manifold.body[1]);
-    auto q = std::make_pair(manifold.body[1], manifold.body[0]);
-    EDYN_ASSERT(m_manifold_map.count(p) == 0 && m_manifold_map.count(q) == 0);
-    m_manifold_map[p] = entity;
-    m_manifold_map[q] = entity;
-}
-
-void broadphase_worker::on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
-    auto &manifold = registry.get<contact_manifold>(entity);
-    // Cleanup cached info.
-    auto p = std::make_pair(manifold.body[0], manifold.body[1]);
-    auto q = std::make_pair(manifold.body[1], manifold.body[0]);
-    m_manifold_map.erase(p);
-    m_manifold_map.erase(q);
-}
+broadphase_worker::broadphase_worker(entt::registry &registry)
+    : m_registry(&registry)
+    , m_manifold_map(registry)
+{}
 
 void broadphase_worker::update() {
     auto aabb_view = m_registry->view<AABB>();
@@ -76,7 +55,7 @@ void broadphase_worker::update() {
 
             if (intersect(b0.inset(offset), b1)) {
                 auto p = std::make_pair(e0, e1);
-                if (!m_manifold_map.count(p)) {
+                if (!m_manifold_map.contains(p)) {
                     make_contact_manifold(*m_registry, e0, e1, separation_threshold);
                 }
             }
