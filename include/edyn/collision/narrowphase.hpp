@@ -23,13 +23,13 @@ public:
 
     template<typename Iterator>
     void update_contact_manifolds(Iterator begin, Iterator end) {
-        auto manifold_view = registry->view<contact_manifold>();
+        auto manifold_view = m_registry->view<contact_manifold>();
         update_contact_manifolds(begin, end, manifold_view);
     }
 
     template<typename Iterator>
     void update_contact_manifolds(Iterator begin, Iterator end, contact_manifold_view_t &manifold_view) {
-        auto body_view = registry->view<AABB, shape, position, orientation>();
+        auto body_view = m_registry->view<AABB, shape, position, orientation>();
         
         for (auto it = begin; it != end; ++it) {
             entt::entity entity = *it;
@@ -41,7 +41,7 @@ public:
     void update_contact_manifold(entt::entity, contact_manifold &, narrowphase::body_view_t &);
 
 private:
-    entt::registry *registry;
+    entt::registry *m_registry;
 };
 
 }

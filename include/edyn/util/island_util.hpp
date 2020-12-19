@@ -9,7 +9,15 @@
 
 namespace edyn {
 
+/**
+ * Returns all nodes in the `node_entity` sub-tree.
+ */
 entity_set get_island_node_children(const entt::registry &, entt::entity node_entity);
+
+/**
+ * Destroys children of a parent node that was destroyed.
+ */
+void on_destroy_island_node_parent(entt::registry &, entt::entity);
 
 }
 

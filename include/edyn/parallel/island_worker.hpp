@@ -45,9 +45,10 @@ public:
     void reschedule();
 
     void on_construct_constraint(entt::registry &, entt::entity);
-    void on_destroy_constraint(entt::registry &, entt::entity);
 
     void on_construct_contact_manifold(entt::registry &, entt::entity);
+
+    void on_destroy_island_node_parent(entt::registry &, entt::entity);
     
     void on_construct_island_node(entt::registry &, entt::entity);
     void on_update_island_node(entt::registry &, entt::entity);

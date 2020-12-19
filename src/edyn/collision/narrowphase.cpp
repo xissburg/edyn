@@ -226,38 +226,18 @@ void prune(entt::registry &registry, entt::entity entity,
     }
 }
 
-static
-void on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
-    auto &manifold = registry.get<contact_manifold>(entity);
-
-    // Destroy child entities, i.e. contact points.
-    for (size_t i = 0; i < manifold.point.size(); ++i) {
-        auto point_entity = manifold.point[i];
-        if (registry.valid(point_entity)) {
-            registry.destroy(point_entity);
-        }
-    }
-}
-
 narrowphase::narrowphase(entt::registry &reg)
-    : registry(&reg)
-{
-    registry->on_destroy<contact_manifold>().connect<&on_destroy_contact_manifold>();
-}
+    : m_registry(&reg)
+{}
 
 void narrowphase::update() {
-    update_contact_distances(*registry);
+    update_contact_distances(*m_registry);
 
-    auto manifold_view = registry->view<contact_manifold>();
+    auto manifold_view = m_registry->view<contact_manifold>();
     update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
 }
 
 void narrowphase::update_contact_manifold(entt::entity entity, contact_manifold &manifold, narrowphase::body_view_t &body_view) {
-    if (registry->has<sleeping_tag>(manifold.body[0]) && 
-        registry->has<sleeping_tag>(manifold.body[1])) {
-        return;
-    }
-
     auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
     auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
     const auto offset = vector3_one * -contact_breaking_threshold;
@@ -280,10 +260,10 @@ void narrowphase::update_contact_manifold(entt::entity entity, contact_manifold 
             }, shapeB.var);
         }, shapeA.var);
 
-        process_collision(*registry, entity, manifold, result);
+        process_collision(*m_registry, entity, manifold, result);
     }
 
-    prune(*registry, entity, manifold, posA, ornA, posB, ornB);
+    prune(*m_registry, entity, manifold, posA, ornA, posB, ornB);
 }
 
 }

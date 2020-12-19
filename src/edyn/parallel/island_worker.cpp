@@ -8,6 +8,7 @@
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/shared_comp.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/util/island_util.hpp"
 
 namespace edyn {
 
@@ -47,6 +48,9 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
 
+    // Destroy children when parents are destroyed.
+    m_registry.on_destroy<island_node_parent>().connect<&island_worker::on_destroy_island_node_parent>(*this);
+
     m_registry.on_construct<island_node>().connect<&island_worker::on_construct_island_node>(*this);
     m_registry.on_update<island_node>().connect<&island_worker::on_update_island_node>(*this);
     m_registry.on_destroy<island_node>().connect<&island_worker::on_destroy_island_node>(*this);
@@ -55,7 +59,6 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     m_registry.on_destroy<island_container>().connect<&island_worker::on_destroy_island_container>(*this);
 
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
-    m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
     
     m_registry.on_construct<contact_manifold>().connect<&island_worker::on_construct_contact_manifold>(*this);
 }
@@ -75,24 +78,15 @@ void island_worker::on_construct_constraint(entt::registry &registry, entt::enti
     }, con.var);
 }
 
-void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-
-    auto &con = registry.get<constraint>(entity);
-
-    // Destroy all constraint rows.
-    for (size_t i = 0; i < con.row.size(); ++i) {
-        auto row_entity = con.row[i];
-        if (registry.valid(row_entity)) {
-            registry.destroy(row_entity);
-        }
-    }
-}
-
 void island_worker::on_construct_contact_manifold(entt::registry &registry, entt::entity entity) {
     if (m_importing_delta) {
         m_new_imported_contact_manifolds.push_back(entity);
     }
+}
+
+void island_worker::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
+    if (m_importing_delta) return;
+    edyn::on_destroy_island_node_parent(registry, entity);
 }
 
 void island_worker::on_construct_island_node(entt::registry &registry, entt::entity entity) {

@@ -31,4 +31,14 @@ entity_set get_island_node_children(const entt::registry &registry, entt::entity
     return children;
 }
 
+void on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
+    auto &parent = registry.get<island_node_parent>(entity);
+
+    for (auto child_entity : parent.children) {
+        if (registry.valid(child_entity)) {
+            registry.destroy(child_entity);
+        }
+    }
+}
+
 }

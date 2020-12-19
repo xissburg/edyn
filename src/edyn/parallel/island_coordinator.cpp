@@ -11,13 +11,14 @@ namespace edyn {
 island_coordinator::island_coordinator(entt::registry &registry)
     : m_registry(&registry)
 {
+    registry.on_destroy<island_node_parent>().connect<&island_coordinator::on_destroy_island_node_parent>(*this);
+
     registry.on_construct<island_node>().connect<&island_coordinator::on_construct_island_node>(*this);
     registry.on_destroy<island_node>().connect<&island_coordinator::on_destroy_island_node>(*this);
     registry.on_construct<island_container>().connect<&island_coordinator::on_construct_island_container>(*this);
     registry.on_destroy<island_container>().connect<&island_coordinator::on_destroy_island_container>(*this);
 
     registry.on_construct<constraint>().connect<&island_coordinator::on_construct_constraint>(*this);
-    registry.on_destroy<constraint>().connect<&island_coordinator::on_destroy_constraint>(*this);
 }
 
 island_coordinator::~island_coordinator() {
@@ -325,18 +326,9 @@ void island_coordinator::on_construct_constraint(entt::registry &registry, entt:
     }, con.var);
 }
 
-void island_coordinator::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
+void island_coordinator::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
     if (m_importing_delta) return;
-
-    auto &con = registry.get<constraint>(entity);
-
-    // Destroy all constraint rows.
-    for (size_t i = 0; i < con.row.size(); ++i) {
-        auto row_entity = con.row[i];
-        if (registry.valid(row_entity)) {
-            registry.destroy(row_entity);
-        }
-    }
+    edyn::on_destroy_island_node_parent(registry, entity);
 }
 
 void island_coordinator::refresh_dirty_entities() {

@@ -33,6 +33,8 @@ public:
     island_coordinator(entt::registry &);
     ~island_coordinator();
 
+    void on_destroy_island_node_parent(entt::registry &, entt::entity);
+
     void on_construct_island_node(entt::registry &, entt::entity);
     void on_destroy_island_node(entt::registry &, entt::entity);
     void on_construct_island_container(entt::registry &, entt::entity);
@@ -40,7 +42,6 @@ public:
     void on_registry_delta(entt::entity, const registry_delta &);
     
     void on_construct_constraint(entt::registry &, entt::entity);
-    void on_destroy_constraint(entt::registry &, entt::entity);
 
     void update();
 
