@@ -6,13 +6,13 @@ It is still in an early stage of development and is not yet ready for use. Feel 
 
 Examples are located in a separate repository: [Edyn Testbed](https://github.com/xissburg/edyn-testbed)
 
-## Build Instructions
+# Build Instructions
 
-### Requirements
+## Requirements
 
 A compiler with C++17 support is required, along with `CMake` version 3.12.4 or above.
 
-### Steps
+## Steps
 
 In the _Edyn_ directory:
 
@@ -24,27 +24,27 @@ $ cmake ..
 $ make
 ```
 
-## The ECS approach
+# The ECS approach
 
 Typical physics engines will offer explicit means to create objects such as rigid bodies, whereas in _Edyn_ object creation is implicit due to the entity-component design. A rigid body is created from the bottom up, by associating its parts to a single entity, such as:
 
 ```cpp
 entt::registry registry;
 auto entity = registry.create();
-registry.assign<edyn::dynamic_tag>(entity);
-registry.assign<edyn::position>(entity, 0, 3, 0);
-registry.assign<edyn::orientation>(entity, edyn::quaternion_axis_angle({0, 1, 0}, edyn::to_radians(30)));
-registry.assign<edyn::linvel>(entity, edyn::vector3_zero);
-registry.assign<edyn::angvel>(entity, 0, 0.314, 0);
+registry.emplace<edyn::dynamic_tag>(entity);
+registry.emplace<edyn::position>(entity, 0, 3, 0);
+registry.emplace<edyn::orientation>(entity, edyn::quaternion_axis_angle({0, 1, 0}, edyn::to_radians(30)));
+registry.emplace<edyn::linvel>(entity, edyn::vector3_zero);
+registry.emplace<edyn::angvel>(entity, 0, 0.314, 0);
 auto mass = edyn::scalar{50};
-registry.assign<edyn::mass>(entity, mass);
-auto &shape = registry.assign<edyn::shape>(entity, edyn::box_shape{0.5, 0.2, 0.4});
-registry.assign<edyn::inertia>(entity, shape.inertia(mass));
-registry.assign<edyn::material>(entity, 0.2, 0.9); // Restitution and friction.
-registry.assign<edyn::linacc>(entity, edyn::gravity_earth);
+registry.emplace<edyn::mass>(entity, mass);
+auto &shape = registry.emplace<edyn::shape>(entity, edyn::box_shape{0.5, 0.2, 0.4});
+registry.emplace<edyn::inertia>(entity, shape.inertia(mass));
+registry.emplace<edyn::material>(entity, 0.2, 0.9); // Restitution and friction.
+registry.emplace<edyn::linacc>(entity, edyn::gravity_earth);
 ```
 
-There's no explicit mention of a rigid body in the code, but during the physics update all entities that have a combination of the components assigned above will be treated as a rigid body and their state will be update over time as expected. The update may be carried as follows:
+There's no explicit mention of a rigid body in the code, but during the physics update all entities that have a combination of the components assigned above will be treated as a rigid body and their state will be updated over time as expected. The update may be carried as follows:
 
 ```cpp
 // Apply gravity acceleration, increasing linear velocity.
@@ -85,6 +85,32 @@ def.gravity = edyn::gravity_earth;
 auto entity = edyn::make_rigidbody(registry, def);
 ```
 
-## Documentation
+# Basics
+
+_Edyn_ is built as a multi-threaded library from the ground up which requires initializing its worker threads on start-up invoking `edyn::init()`, and then a `edyn::world` must be created before setting up the scene:
+
+```cpp
+#include <entt/entt.hpp>
+#include <edyn/edyn.hpp>
+
+edyn::init();
+entt::registry registry;
+auto &world = registry.set<edyn::world>(registry);
+
+// Create rigid bodies and constraints...
+
+// Call `edyn::world::update()` periodically in your main loop somwhere.
+for (;;) {
+  world.update();
+  // Do something with the results, e.g. render scene.
+  // ...
+}
+```
+
+When `edyn::world::update()` is called, it processes any pending changes, creates/destroys workers if needed, dispatches messages to workers, reads and processes messages from workers which are merged into the `entt::registry`, perparing the entities and components to be rendered right after.
+
+Due to its multi-threaded nature, all changes to relevant components in the main `entt::registry` need to be propagated to the worker threads. The `edyn::world` doesn't automatically pick up these changes, thus it's necessary to notify it either by calling `edyn::world::refresh()` or assigning a `edyn::dirty` component to the entity and calling some of its functions such as `edyn::dirty::updated()` (e.g. `registry.emplace<edyn::dirty>(entity).updated<edyn::position, edyn::linvel>()`).
+
+# Documentation
 
 See [docs/Design.md](https://github.com/xissburg/edyn/blob/master/docs/Design.md) to learn more about the engine's planned architecture.

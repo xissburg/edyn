@@ -19,17 +19,28 @@ struct has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...>
 /**
  * Find index of a type in a template parameter pack.
  */
-template<typename T, typename... Ts>
+template<typename IndexType, typename T, typename... Ts>
 struct index_of;
 
-template<typename T, typename... Ts>
-struct index_of<T, T, Ts...> : std::integral_constant<size_t, 0>{};
+template<typename IndexType, typename T, typename... Ts>
+struct index_of<IndexType, T, T, Ts...> : std::integral_constant<IndexType, 0>{};
 
-template<typename T, typename U, typename... Ts>
-struct index_of<T, U, Ts...> : std::integral_constant<size_t, 1 + index_of<T, Ts...>::value>{};
+template<typename IndexType, typename T, typename U, typename... Ts>
+struct index_of<IndexType, T, U, Ts...> : std::integral_constant<IndexType, 1 + index_of<IndexType, T, Ts...>::value>{};
 
-template<typename T, typename... Ts>
-static constexpr size_t index_of_v = index_of<T, Ts...>::value;
+template<typename IndexType, typename T, typename... Ts>
+static constexpr IndexType index_of_v = index_of<IndexType, T, Ts...>::value;
+
+/**
+ * Map a `std::tuple<Us...>` to `std::tuple<T<Us>...>`.
+ */
+template<template<typename> class T, typename U>
+struct map_tuple;
+
+template<template<typename> class T, typename... Us>
+struct map_tuple<T, std::tuple<Us...>> {
+    using type = std::tuple<T<Us>...>;
+};
 
 }
 

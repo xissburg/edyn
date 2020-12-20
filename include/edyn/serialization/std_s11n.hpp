@@ -1,6 +1,7 @@
 #ifndef EDYN_SERIALIZATION_STD_S11N_HPP
 #define EDYN_SERIALIZATION_STD_S11N_HPP
 
+#include <array>
 #include <vector>
 #include <cstdint>
 #include <memory>
@@ -107,8 +108,7 @@ namespace internal {
 }
 
 template<typename Archive, typename... Ts>
-void serialize(Archive& archive, std::variant<Ts...>& var)
-{
+void serialize(Archive& archive, std::variant<Ts...>& var) {
     if constexpr(Archive::is_input::value) {
         size_t id;
         archive(id);
@@ -116,7 +116,7 @@ void serialize(Archive& archive, std::variant<Ts...>& var)
     } else {
         std::visit([&archive] (auto &&t) {
             using T = std::decay_t<decltype(t)>;
-            auto id = index_of_v<T, Ts...>;
+            auto id = index_of_v<size_t, T, Ts...>;
             archive(id);
             archive(t);
         }, var);

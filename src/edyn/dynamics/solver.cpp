@@ -1,11 +1,10 @@
-#include <entt/entity/view.hpp>
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_angvel.hpp"
 #include "edyn/sys/apply_gravity.hpp"
+#include "edyn/sys/update_aabbs.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/mass.hpp"
@@ -16,31 +15,11 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/dynamics/solver_stage.hpp"
-#include "edyn/dynamics/island_util.hpp"
 #include "edyn/util/array.hpp"
 #include "edyn/util/rigidbody.hpp"
+#include <entt/entt.hpp>
 
 namespace edyn {
-
-static 
-void on_construct_constraint(entt::entity entity, entt::registry &registry, constraint &con) {
-    auto &rel = registry.get<relation>(entity);
-
-    std::visit([&] (auto &&c) {
-        // Initialize actual constraint.
-        c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, rel, registry, 0);
-    }, con.var);
-}
-
-static 
-void on_destroy_constraint(entt::entity entity, entt::registry &registry) {
-    auto &con = registry.get<constraint>(entity);
-
-    // Destroy all constraint rows.
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        registry.destroy(con.row[i]);
-    }
-}
 
 static
 scalar restitution_curve(scalar restitution, scalar relvel) {
@@ -72,19 +51,7 @@ void prepare(constraint_row &row,
 }
 
 static
-void apply_angular_impulse(scalar impulse,
-                           entt::registry &registry,
-                           constraint_row &row,
-                           size_t ent_idx,
-                           const matrix3x3 &inv_I,
-                           delta_angvel &dw) {
-    auto idx_J = ent_idx * 2 + 1;
-    dw += inv_I * row.J[idx_J] * impulse;
-}
-
-static
 void apply_impulse(scalar impulse,
-                   entt::registry &registry,
                    constraint_row &row,
                    scalar inv_mA, scalar inv_mB,
                    const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
@@ -95,17 +62,17 @@ void apply_impulse(scalar impulse,
     dvB += inv_mB * row.J[2] * impulse;
 
     // Apply angular impulse.
-    apply_angular_impulse(impulse, registry, row, 0, inv_IA, dwA);
-    apply_angular_impulse(impulse, registry, row, 1, inv_IB, dwB);
+    dwA += inv_IA * row.J[1] * impulse;
+    dwB += inv_IB * row.J[3] * impulse;
 }
 
 static
-void warm_start(entt::registry &registry, constraint_row &row, 
+void warm_start(constraint_row &row, 
                 scalar inv_mA, scalar inv_mB,
                 const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
                 delta_linvel &dvA, delta_linvel &dvB,
                 delta_angvel &dwA, delta_angvel &dwB) {
-    apply_impulse(row.impulse, registry, row, 
+    apply_impulse(row.impulse, row, 
                   inv_mA, inv_mB, 
                   inv_IA, inv_IB, 
                   dvA, dvB, 
@@ -137,135 +104,104 @@ scalar solve(constraint_row &row,
 }
 
 void update_inertia(entt::registry &registry) {
-    auto view = registry.view<dynamic_tag, const orientation, const inertia_inv, inertia_world_inv>(exclude_global);
-    view.each([] (auto, auto, const orientation& orn, const inertia_inv &inv_I, inertia_world_inv &inv_IW) {
+    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(entt::exclude<disabled_tag>);
+    view.each([] (auto, orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
     });
 }
 
-solver::solver(entt::registry &reg) 
-    : registry(&reg)
+solver::solver(entt::registry &registry) 
+    : m_registry(&registry)
 {
-    connections.push_back(reg.on_construct<constraint>().connect<&on_construct_constraint>());
-    connections.push_back(reg.on_destroy<constraint>().connect<&on_destroy_constraint>());
-
-    connections.push_back(reg.on_construct<relation>().connect<&island_on_construct_relation>());
-    connections.push_back(reg.on_destroy<relation>().connect<&island_on_destroy_relation>());
-
-    connections.push_back(reg.on_construct<linvel>().connect<&entt::registry::assign<delta_linvel>>(reg));
-    connections.push_back(reg.on_destroy<linvel>().
-        connect<entt::overload<void(entt::entity)>(&entt::registry::reset<delta_linvel>)>(reg));
-
-    connections.push_back(reg.on_construct<angvel>().connect<&entt::registry::assign<delta_angvel>>(reg));
-    connections.push_back(reg.on_destroy<angvel>().
-        connect<entt::overload<void(entt::entity)>(&entt::registry::reset<delta_angvel>)>(reg));
+    registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
+    registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
 }
 
-void solver::update(uint64_t step, scalar dt) {
+void solver::update(scalar dt) {
     // Apply forces and acceleration.
-    integrate_linacc(*registry, dt);
-    apply_gravity(*registry, dt);
+    integrate_linacc(*m_registry, dt);
+    apply_gravity(*m_registry, dt);
 
     // Setup constraints.
-    auto mass_inv_view = registry->view<const mass_inv, const inertia_world_inv>(exclude_global);
-    auto vel_view = registry->view<const linvel, const angvel>(exclude_global);
-    auto delta_view = registry->view<delta_linvel, delta_angvel>(exclude_global);
+    auto mass_delta_group = m_registry->group<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
+    auto vel_group = m_registry->group<linvel, angvel>();
+    auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
+    auto row_view = m_registry->view<constraint_row>(entt::exclude<disabled_tag>);
 
-    auto con_view = registry->view<const relation, constraint>(exclude_global);
-    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
+    con_view.each([&] (entt::entity entity, constraint &con) {
         std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *m_registry, dt);
         }, con.var);
     });
 
-    registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
+    m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
         return lhs.priority > rhs.priority;
     });
 
-    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
-        std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, rel, *registry, dt);
-        }, con.var);
-    });
+    con_view.each([&] (entt::entity entity, constraint &con) {
+        auto [inv_mA, inv_IA, dvA, dwA] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
+        auto [linvelA, angvelA] = vel_group.get<linvel, angvel>(con.body[0]);
 
-    registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
-        return lhs.priority > rhs.priority;
-    });
+        auto [inv_mB, inv_IB, dvB, dwB] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+        auto [linvelB, angvelB] = vel_group.get<linvel, angvel>(con.body[1]);
 
-    con_view.each([&] (auto entity, const relation &rel, constraint &con) {
-        auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[0]);
-        auto [linvelA, angvelA] = vel_view.get<const linvel, const angvel>(rel.entity[0]);
-        auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[0]);
-
-        auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(rel.entity[1]);
-        auto [linvelB, angvelB] = vel_view.get<const linvel, const angvel>(rel.entity[1]);
-        auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(rel.entity[1]);
-
-        for (size_t i = 0; i < con.num_rows; ++i) {
-            auto &row = registry->get<constraint_row>(con.row[i]);
+        for (size_t i = 0; i < con.num_rows(); ++i) {
+            auto &row = row_view.get(con.row[i]);
             EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
             prepare(row, 
                     inv_mA, inv_mB, 
                     inv_IA, inv_IB, 
                     linvelA, linvelB, 
                     angvelA, angvelB);
-            warm_start(*registry, row, 
-                        inv_mA, inv_mB, 
-                        inv_IA, inv_IB, 
-                        dvA, dvB, dwA, dwB);
+            warm_start(row, 
+                       inv_mA, inv_mB, 
+                       inv_IA, inv_IB, 
+                       dvA, dvB, dwA, dwB);
         }
     });
 
     // Solve constraints.
-    auto row_view = registry->view<constraint_row>(exclude_global);
-
     for (uint32_t i = 0; i < iterations; ++i) {
         // Prepare constraints for iteration.
-        con_view.each([&] (auto entity, const relation &rel, constraint &con) {
+        con_view.each([&] (entt::entity entity, constraint &con) {
             std::visit([&] (auto &&c) {
-                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, rel, *registry, dt);
+                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *m_registry, dt);
             }, con.var);
         });
 
         // Solve rows.
-        row_view.each([&] (auto, auto &row) {
-            auto [inv_mA, inv_IA] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(row.entity[0]);
-            auto [dvA, dwA] = delta_view.get<delta_linvel, delta_angvel>(row.entity[0]);
-
-            auto [inv_mB, inv_IB] = mass_inv_view.get<const mass_inv, const inertia_world_inv>(row.entity[1]);
-            auto [dvB, dwB] = delta_view.get<delta_linvel, delta_angvel>(row.entity[1]);
+        row_view.each([&] (entt::entity entity, constraint_row &row) {
+            auto [inv_mA, inv_IA, dvA, dwA] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(row.entity[0]);
+            auto [inv_mB, inv_IB, dvB, dwB] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(row.entity[1]);
 
             auto delta_impulse = solve(row, dvA, dvB, dwA, dwB);
-            apply_impulse(delta_impulse, *registry, row, 
-                            inv_mA, inv_mB, inv_IA, inv_IB, 
-                            dvA, dvB, dwA, dwB);
+            apply_impulse(delta_impulse, row, 
+                          inv_mA, inv_mB, inv_IA, inv_IB, 
+                          dvA, dvB, dwA, dwB);
         });
     }
 
     // Apply constraint velocity correction.
-    auto linvel_view = registry->view<dynamic_tag, linvel, delta_linvel>(exclude_global);
-    linvel_view.each([] (auto, auto, linvel &vel, delta_linvel &delta) {
+    auto linvel_view = m_registry->view<linvel, delta_linvel, dynamic_tag>(entt::exclude<disabled_tag>);
+    linvel_view.each([] (auto, linvel &vel, delta_linvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
-    auto angvel_view = registry->view<dynamic_tag, angvel, delta_angvel>(exclude_global);
-    angvel_view.each([] (auto, auto, angvel &vel, delta_angvel &delta) {
+    auto angvel_view = m_registry->view<angvel, delta_angvel, dynamic_tag>(entt::exclude<disabled_tag>);
+    angvel_view.each([] (auto, angvel &vel, delta_angvel &delta) {
         vel += delta;
         delta = vector3_zero;
     });
 
     // Integrate velocities to obtain new transforms.
-    integrate_linvel(*registry, dt);
-    integrate_angvel(*registry, dt);
-
+    integrate_linvel(*m_registry, dt);
+    integrate_angvel(*m_registry, dt);
+    update_aabbs(*m_registry);
+    
     // Update world-space moment of inertia.
-    update_inertia(*registry);
-
-    put_islands_to_sleep(*registry, step, dt);
-
-    //clear_kinematic_velocities(*registry);
+    update_inertia(*m_registry);
 }
 
 }

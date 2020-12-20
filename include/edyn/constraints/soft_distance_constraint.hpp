@@ -15,9 +15,9 @@ struct soft_distance_constraint : public constraint_base<soft_distance_constrain
 
     scalar m_relspd;
 
-    void init(entt::entity, constraint &, const relation &, entt::registry &);
-    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
-    void iteration(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, entt::registry &);
+    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
+    void iteration(entt::entity, constraint &, entt::registry &, scalar dt);
 
 };
 

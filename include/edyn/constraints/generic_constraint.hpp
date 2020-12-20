@@ -10,8 +10,8 @@ namespace edyn {
 struct generic_constraint : public constraint_base<generic_constraint> {
     std::array<vector3, 2> pivot;
 
-    void init(entt::entity, constraint &, const relation &, entt::registry &);
-    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, entt::registry &);
+    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
 };
 
 }

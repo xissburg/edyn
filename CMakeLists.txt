@@ -59,8 +59,10 @@ conan_basic_setup()
 set(Edyn_SOURCES
     src/edyn/math/geom.cpp
     src/edyn/math/quaternion.cpp
-    src/edyn/collision/broadphase.cpp
+    src/edyn/collision/broadphase_main.cpp
+    src/edyn/collision/broadphase_worker.cpp
     src/edyn/collision/narrowphase.cpp
+    src/edyn/collision/contact_manifold_map.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
     src/edyn/collision/collide_sphere_plane.cpp
     src/edyn/collision/collide_cylinder_cylinder.cpp
@@ -93,10 +95,11 @@ set(Edyn_SOURCES
     src/edyn/constraints/point_constraint.cpp
     src/edyn/constraints/hinge_constraint.cpp
     src/edyn/constraints/generic_constraint.cpp
-    src/edyn/dynamics/island_util.cpp
+    src/edyn/util/island_util.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp
+    src/edyn/sys/update_aabbs.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/util/constraint.cpp
     src/edyn/util/shape_util.cpp
@@ -107,9 +110,15 @@ set(Edyn_SOURCES
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
+    src/edyn/parallel/job_scheduler.cpp
     src/edyn/parallel/job_queue_scheduler.cpp
+    src/edyn/parallel/island_worker.cpp
+    src/edyn/parallel/island_coordinator.cpp
+    src/edyn/parallel/registry_delta.cpp
+    src/edyn/parallel/island_worker_context.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/edyn.cpp
+    src/edyn/init.cpp
 )
 
 if(UNIX)

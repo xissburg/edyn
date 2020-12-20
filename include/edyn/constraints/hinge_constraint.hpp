@@ -13,8 +13,8 @@ struct hinge_constraint : public  constraint_base<hinge_constraint> {
 
     void set_axis(const quaternion &ornA,
                   const vector3 &axisA, const vector3 &axisB);
-    void init(entt::entity, constraint &, const relation &, entt::registry &);
-    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, entt::registry &);
+    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
 };
 
 }

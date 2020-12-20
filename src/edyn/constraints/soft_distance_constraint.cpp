@@ -1,7 +1,6 @@
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -13,23 +12,18 @@
 
 namespace edyn {
 
-void soft_distance_constraint::init(entt::entity, constraint &con, 
-                                    const relation &rel, entt::registry &registry) {
-    con.num_rows = 2;
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        con.row[i] = registry.create();
-        auto &row = registry.assign<constraint_row>(con.row[i]);
-        row.entity = rel.entity;
-        row.priority = 400;
+void soft_distance_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
+    for (size_t i = 0; i < 2; ++i) {
+        add_constraint_row(entity, con, registry, 400);
     }
 }
 
 void soft_distance_constraint::prepare(entt::entity, constraint &con, 
-                                       const relation &rel, entt::registry &registry, scalar dt) {
-    auto &posA = registry.get<const position>(rel.entity[0]);
-    auto &ornA = registry.get<const orientation>(rel.entity[0]);
-    auto &posB = registry.get<const position>(rel.entity[1]);
-    auto &ornB = registry.get<const orientation>(rel.entity[1]);
+                                       entt::registry &registry, scalar dt) {
+    auto &posA = registry.get<position>(con.body[0]);
+    auto &ornA = registry.get<orientation>(con.body[0]);
+    auto &posB = registry.get<position>(con.body[1]);
+    auto &ornB = registry.get<orientation>(con.body[1]);
 
     auto rA = rotate(ornA, pivot[0]);
     auto rB = rotate(ornB, pivot[1]);
@@ -69,10 +63,10 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
         row.J = {dn, p, -dn, -q};
         row.error = 0;
 
-        auto &linvelA = registry.get<linvel>(rel.entity[0]);
-        auto &angvelA = registry.get<angvel>(rel.entity[0]);
-        auto &linvelB = registry.get<linvel>(rel.entity[1]);
-        auto &angvelB = registry.get<angvel>(rel.entity[1]);
+        auto &linvelA = registry.get<linvel>(con.body[0]);
+        auto &angvelA = registry.get<angvel>(con.body[0]);
+        auto &linvelB = registry.get<linvel>(con.body[1]);
+        auto &angvelB = registry.get<angvel>(con.body[1]);
 
         auto relspd = dot(row.J[0], linvelA) + 
                       dot(row.J[1], angvelA) +
@@ -90,12 +84,12 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
 }
 
 void soft_distance_constraint::iteration(entt::entity entity, constraint &con, 
-                                         const relation &rel, entt::registry &registry, scalar dt) {
+                                         entt::registry &registry, scalar dt) {
     // Adjust damping row limits to account for velocity changes during iterations.
-    auto &dvA = registry.get<delta_linvel>(rel.entity[0]);
-    auto &dwA = registry.get<delta_angvel>(rel.entity[0]);
-    auto &dvB = registry.get<delta_linvel>(rel.entity[1]);
-    auto &dwB = registry.get<delta_angvel>(rel.entity[1]);
+    auto &dvA = registry.get<delta_linvel>(con.body[0]);
+    auto &dwA = registry.get<delta_angvel>(con.body[0]);
+    auto &dvB = registry.get<delta_linvel>(con.body[1]);
+    auto &dwB = registry.get<delta_angvel>(con.body[1]);
 
     auto &row = registry.get<constraint_row>(con.row[1]);
     auto delta_relspd = dot(row.J[0], dvA) + 

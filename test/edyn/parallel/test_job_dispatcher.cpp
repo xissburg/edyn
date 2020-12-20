@@ -1,7 +1,6 @@
 #include "../common/common.hpp"
 
 #include <array>
-#include <future>
 
 class job_dispatcher_test: public ::testing::Test {
 protected:

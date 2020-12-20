@@ -1,11 +1,11 @@
 #include "edyn/constraints/hinge_constraint.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/util/constraint.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -36,26 +36,20 @@ void hinge_constraint::set_axis(const quaternion &ornA,
     frame[1] = matrix3x3_columns(frameB_x, frameB_y, axisB);
 }
 
-void hinge_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = 5;
-
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        auto e = registry.create();
-        con.row[i] = e;
-        auto &row = registry.assign<constraint_row>(e);
-        row.entity = rel.entity;
-        row.priority = 100;
+void hinge_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
+    for (size_t i = 0; i < 5; ++i) {
+        add_constraint_row(entity, con, registry, 100);
     }
 }
 
-void hinge_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-    auto &posA = registry.get<const position>(rel.entity[0]);
-    auto &posB = registry.get<const position>(rel.entity[1]);
+void hinge_constraint::prepare(entt::entity, constraint &con, entt::registry &registry, scalar dt) {
+    auto &posA = registry.get<position>(con.body[0]);
+    auto &posB = registry.get<position>(con.body[1]);
 
-    auto &ornA = registry.get<const orientation>(rel.entity[0]);
+    auto &ornA = registry.get<orientation>(con.body[0]);
     const auto rA = rotate(ornA, pivot[0]);
 
-    auto &ornB = registry.get<const orientation>(rel.entity[1]);
+    auto &ornB = registry.get<orientation>(con.body[1]);
     const auto rB = rotate(ornB, pivot[1]);
 
     const auto rA_skew = skew(rA);

@@ -51,11 +51,6 @@ struct rigidbody_def {
 
     bool sensor {false};
 
-    scalar lon_tread_stiffness {3000000};
-    scalar lat_tread_stiffness {1800000};
-    scalar speed_sensitivity {0.03};
-    scalar load_sensitivity {0.05};
-
     uint64_t collision_group {1ULL};
     uint64_t collision_mask {~0ULL};
 
@@ -101,6 +96,7 @@ void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, 
 void update_kinematic_orientation(entt::registry &, entt::entity, const quaternion &, scalar dt);
 void clear_kinematic_velocities(entt::registry &);
 
+bool validate_rigidbody(entt::entity &, entt::registry &);
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP

@@ -4,69 +4,46 @@
 #include <atomic>
 #include <mutex>
 #include <vector>
-#include <entt/entt.hpp>
+#include <unordered_map>
+#include <entt/fwd.hpp>
 
 #include "solver.hpp"
 #include "edyn/math/scalar.hpp"
-#include "edyn/collision/broadphase.hpp"
-#include "edyn/collision/narrowphase.hpp"
+#include "edyn/collision/broadphase_main.hpp"
+#include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/parallel/registry_delta.hpp"
 
 namespace edyn {
+
+class world;
 
 class world final {
 public:
     world(entt::registry &);
     ~world();
 
-    void update(scalar dt);
+    void update();
 
-    void step(scalar dt);
+    void set_paused(bool);
+    void step();
 
-    uint64_t current_step() const {
-        return step_;
+    /**
+     * @brief Updates components in the islands where the entity resides.
+     */ 
+    template<typename... Component>
+    void refresh(entt::entity entity) {
+        m_island_coordinator.refresh<Component...>(entity);
     }
 
-    double local_time() const {
-        return local_time_;
-    }
-
-    void run();
-
-    void quit();
-
-    using update_signal_func_t = void(scalar);
-    using step_signal_func_t = void(uint64_t);
-
-    entt::sink<update_signal_func_t> update_sink() {
-        return {update_signal};
-    }
-
-    entt::sink<step_signal_func_t> step_sink() {
-        return {step_signal};
-    }
-
-    broadphase &get_broaphase() {
-        return bphase;
-    }
-
-    narrowphase &get_narrowphase() {
-        return nphase;
-    }
-
-    scalar fixed_dt {1.0/60};
-    solver sol;
+    scalar m_fixed_dt {1.0/60};
+    solver m_solver;
 
 private:
-    entt::registry* registry;
-    broadphase bphase;
-    narrowphase nphase;
-    std::vector<entt::scoped_connection> connections;
-    scalar residual_dt {0};
-    std::atomic<uint64_t> step_ {0};
-    std::atomic<double> local_time_;
-    std::atomic_bool running {false};
-    entt::sigh<update_signal_func_t> update_signal;
-    entt::sigh<step_signal_func_t> step_signal;
+    entt::registry* m_registry;
+    broadphase_main m_bphase;
+    island_coordinator m_island_coordinator;
+
+    bool m_paused {false};
 };
 
 }
