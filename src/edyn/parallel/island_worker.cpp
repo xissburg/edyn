@@ -364,11 +364,7 @@ void island_worker::calculate_topology() {
     auto node_view = m_registry.view<island_node>();
     if (node_view.empty()) return;
 
-    entity_set node_entities;
-    node_entities.reserve(node_view.size());
-    m_registry.view<island_node, procedural_tag>().each([&node_entities] (entt::entity entity, [[maybe_unused]] auto) {
-        node_entities.insert(entity);
-    });
+    auto node_entities = entity_set(node_view.begin(), node_view.end());
 
     std::vector<entity_set> connected_components;
 
@@ -391,15 +387,17 @@ void island_worker::calculate_topology() {
 
             // Add related entities to be visited next.
             auto &curr_node = node_view.get(entity);
+            auto is_procedural = m_registry.has<procedural_tag>(entity);
 
             for (auto other : curr_node.entities) {
                 auto already_visited = connected.count(other) > 0;
                 if (already_visited) continue;
 
-                if (m_registry.has<procedural_tag>(other)) {
+                // Non-procedural nodes should only connect non-procedural nodes
+                // because a procedural node cannot affect another through a
+                // non-procedural node.
+                if (is_procedural || (!is_procedural && !m_registry.has<procedural_tag>(other))) {
                     to_visit.push_back(other);
-                } else {
-                    connected.insert(other);
                 }
             }
         }

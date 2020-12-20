@@ -5,6 +5,20 @@
 
 namespace edyn {
 
+void limit_dirty_to_island_of_procedural(entt::registry &registry, entt::entity ent0, entt::entity ent1) {
+    if (!registry.has<procedural_tag>(ent0)) {
+        EDYN_ASSERT(registry.has<procedural_tag>(ent1));
+        auto &container = registry.get<island_container>(ent1);
+        registry.get_or_emplace<dirty>(ent0).islands(*container.entities.begin());
+    }
+
+    if (!registry.has<procedural_tag>(ent1)) {
+        EDYN_ASSERT(registry.has<procedural_tag>(ent0));
+        auto &container = registry.get<island_container>(ent0);
+        registry.get_or_emplace<dirty>(ent1).islands(*container.entities.begin());
+    }
+}
+
 entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::registry &registry, int priority) {
     EDYN_ASSERT(con.num_rows() + 1 < max_constraint_rows);
     EDYN_ASSERT(con.row[con.num_rows()] == entt::null);
@@ -36,34 +50,36 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     return row_entity;
 }
 
-entt::entity make_contact_manifold(entt::registry &registry, entt::entity e0, entt::entity e1, scalar separation_threshold) {
+entt::entity make_contact_manifold(entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
     auto manifold_entity = registry.create();
-    make_contact_manifold(manifold_entity, registry, e0, e1, separation_threshold);
+    make_contact_manifold(manifold_entity, registry, body0, body1, separation_threshold);
     return manifold_entity;
 }
 
-void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry, entt::entity e0, entt::entity e1, scalar separation_threshold) {
-    EDYN_ASSERT(registry.valid(e0) && registry.valid(e1));
+void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
+    EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
     registry.emplace<procedural_tag>(manifold_entity);
-    registry.emplace<island_node>(manifold_entity, entity_set{e0, e1});
+    registry.emplace<island_node>(manifold_entity, entity_set{body0, body1});
     registry.emplace<island_node_parent>(manifold_entity);
     registry.emplace<island_container>(manifold_entity);
-    registry.emplace<contact_manifold>(manifold_entity, e0, e1, separation_threshold);
+    registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
 
     // Assign a reference to the contact entity in the body nodes.
-    auto &node0 = registry.get<island_node>(e0);
+    auto &node0 = registry.get<island_node>(body0);
     node0.entities.insert(manifold_entity);
 
-    auto &node1 = registry.get<island_node>(e1);
+    auto &node1 = registry.get<island_node>(body1);
     node1.entities.insert(manifold_entity);
 
     // Mark stuff as dirty to schedule an update in the island worker.
-    registry.get_or_emplace<dirty>(e0).updated<island_node>();
-    registry.get_or_emplace<dirty>(e1).updated<island_node>();
+    registry.get_or_emplace<dirty>(body0).updated<island_node>();
+    registry.get_or_emplace<dirty>(body1).updated<island_node>();
 
     registry.get_or_emplace<dirty>(manifold_entity)
         .set_new()
         .created<procedural_tag, island_node, island_node_parent, island_container, contact_manifold>();
+
+    limit_dirty_to_island_of_procedural(registry, body0, body1);
 }
 
 void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {

@@ -22,6 +22,7 @@ struct dirty {
     index_set_t created_indexes;
     index_set_t updated_indexes;
     index_set_t destroyed_indexes;
+    entity_set island_entities;
 
     /**
      * @brief Marks the given components as created.
@@ -60,6 +61,26 @@ struct dirty {
     dirty & set_new() {
         is_new_entity = true;
         return *this;
+    }
+
+    /**
+     * @brief Limits the updates to select islands.
+     * @param island_entity One island that should receive this update.
+     * @return This object.
+     */
+    dirty & islands(entt::entity island_entity) {
+        island_entities.insert(island_entity);
+    }
+
+    /**
+     * @brief Limits the updates to select islands.
+     * @param first An iterator to the first element in the collection.
+     * @param last An iterator to the last element in the collection.
+     * @return This object.
+     */
+    template<typename Iterator>
+    dirty & islands(Iterator first, Iterator last) {
+        island_entities.insert(first, last);
     }
 
 private:

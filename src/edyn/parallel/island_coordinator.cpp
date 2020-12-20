@@ -88,6 +88,8 @@ void island_coordinator::on_construct_constraint(entt::registry &registry, entt:
 }
 
 void island_coordinator::init_new_island_nodes() {
+    if (m_new_island_nodes.empty()) return;
+    
     entity_set procedural_node_entities;
 
     for (auto entity : m_new_island_nodes) {
@@ -335,7 +337,9 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
 void island_coordinator::refresh_dirty_entities() {
     auto view = m_registry->view<island_container, dirty>();
     view.each([&] (entt::entity entity, island_container &container, dirty &dirty) {
-        for (auto island_entity : container.entities) {
+        const auto &island_entities = dirty.island_entities.empty() ? container.entities : dirty.island_entities;
+
+        for (auto island_entity : island_entities) {
             if (!m_island_ctx_map.count(island_entity)) continue;
             auto &ctx = m_island_ctx_map.at(island_entity);
             auto &builder = ctx->m_delta_builder;
@@ -397,7 +401,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
     node_entities.reserve(split_ctx->m_entities.size());
 
     for (auto entity : split_ctx->m_entities) {
-        if (m_registry->has<island_node, procedural_tag>(entity)) {
+        if (m_registry->has<island_node>(entity)) {
             node_entities.insert(entity);
         }
     }
@@ -430,15 +434,17 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
 
             // Add related entities to be visited next.
             auto &curr_node = node_view.get(entity);
+            auto is_procedural = m_registry->has<procedural_tag>(entity);
 
             for (auto other : curr_node.entities) {
                 auto already_visited = connected.count(other) > 0;
                 if (already_visited) continue;
 
-                if (m_registry->has<procedural_tag>(other)) {
+                // Non-procedural nodes should only connect non-procedural nodes
+                // because a procedural node cannot affect another through a
+                // non-procedural node.
+                if (is_procedural || (!is_procedural && !m_registry->has<procedural_tag>(other))) {
                     to_visit.push_back(other);
-                } else {
-                    connected.insert(other);
                 }
             }
         }
@@ -452,16 +458,32 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
     if (connected_components.size() == 1) return;
 
     auto timestamp = m_registry->get<island_timestamp>(split_island_entity).value;
+    auto container_view = m_registry->view<island_container>();
 
     for (auto &connected : connected_components) {
+        bool contains_procedural = false;
+
+        // Remove deceased island from containers.
+        for (auto entity : connected) {
+            auto &container = container_view.get(entity);
+            container.entities.erase(split_island_entity);
+
+            if (m_registry->has<procedural_tag>(entity)) {
+                contains_procedural = true;
+            }
+        }
+
+        // Do not create a new island if this connected component does not
+        // contain any procedural node. 
+        if (!contains_procedural) continue;
+
         auto island_entity = create_island(timestamp);
         auto &ctx = m_island_ctx_map.at(island_entity);
         ctx->m_entities = connected;
 
         // Make containers point to the new island and add entities to the delta builder.
         for (auto entity : connected) {
-            auto &container = m_registry->get<island_container>(entity);
-            container.entities.erase(split_island_entity);
+            auto &container = container_view.get(entity);
             container.entities.insert(island_entity);
 
             if (m_registry->has<procedural_tag>(entity)) {
