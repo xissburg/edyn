@@ -5,6 +5,57 @@
 
 namespace edyn {
 
+namespace internal {
+    void pre_make_constraint(entt::entity entity, entt::registry &registry, 
+                            entt::entity body0, entt::entity body1, 
+                            entt::entity *parent_entity) {
+
+        registry.emplace<procedural_tag>(entity);
+
+        // If the constraint has a parent (e.g. when it's a `contact_constraint` in a
+        // contact manifold), only assign an `island_node_child` to it or else assign
+        // an `island_node` since in that case it will be the root of the node sub-tree
+        // into which `constraint_row`s will be added.
+        if (parent_entity) {
+            registry.emplace<island_node_child>(entity, *parent_entity);
+            
+            auto &node_parent = registry.get<island_node_parent>(*parent_entity);
+            node_parent.children.insert(entity);
+        } else {
+            registry.emplace<island_node>(entity, entity_set{body0, body1});
+        }
+
+        // A constraint is a parent of its rows, thus it needs an `island_node_parent`.
+        registry.emplace<island_node_parent>(entity);
+        registry.emplace<island_container>(entity);
+
+        if (!parent_entity) {
+            // When there's no parent entity, the constraint is associated with the
+            // rigid bodies directly.
+            auto &node0 = registry.get<island_node>(body0);
+            node0.entities.insert(entity);
+
+            auto &node1 = registry.get<island_node>(body1);
+            node1.entities.insert(entity);
+            
+            registry.get_or_emplace<dirty>(body0).updated<island_node>();
+            registry.get_or_emplace<dirty>(body1).updated<island_node>();
+            limit_dirty_to_island_of_procedural(registry, body0, body1);
+        }
+
+        auto &constraint_dirty = registry.get_or_emplace<dirty>(entity)
+            .set_new()
+            .created<procedural_tag, constraint, island_node_parent, island_container>();
+
+        if (parent_entity) {
+            constraint_dirty.created<island_node_child>();
+            registry.get_or_emplace<dirty>(*parent_entity).updated<island_node_parent>();
+        } else {
+            constraint_dirty.created<island_node>();
+        }
+    }
+}
+
 void limit_dirty_to_island_of_procedural(entt::registry &registry, entt::entity ent0, entt::entity ent1) {
     if (!registry.has<procedural_tag>(ent0)) {
         EDYN_ASSERT(registry.has<procedural_tag>(ent1));
