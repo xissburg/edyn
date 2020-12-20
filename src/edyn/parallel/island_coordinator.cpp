@@ -15,6 +15,7 @@ island_coordinator::island_coordinator(entt::registry &registry)
 
     registry.on_construct<island_node>().connect<&island_coordinator::on_construct_island_node>(*this);
     registry.on_destroy<island_node>().connect<&island_coordinator::on_destroy_island_node>(*this);
+
     registry.on_construct<island_container>().connect<&island_coordinator::on_construct_island_container>(*this);
     registry.on_destroy<island_container>().connect<&island_coordinator::on_destroy_island_container>(*this);
 
@@ -26,6 +27,11 @@ island_coordinator::~island_coordinator() {
         auto &ctx = pair.second;
         ctx->terminate();
     }
+}
+
+void island_coordinator::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
+    if (m_importing_delta) return;
+    edyn::on_destroy_island_node_parent(registry, entity);
 }
 
 void island_coordinator::on_construct_island_node(entt::registry &registry, entt::entity entity) {
@@ -68,6 +74,17 @@ void island_coordinator::on_destroy_island_container(entt::registry &registry, e
             ctx->m_delta_builder.destroyed(entity);
         }
     }
+}
+
+void island_coordinator::on_construct_constraint(entt::registry &registry, entt::entity entity) {
+    if (m_importing_delta) return;
+
+    auto &con = registry.get<constraint>(entity);
+
+    // Initialize constraint.
+    std::visit([&] (auto &&c) {
+        c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, registry, 0);
+    }, con.var);
 }
 
 void island_coordinator::init_new_island_nodes() {
@@ -315,22 +332,6 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
     return island_entity;
 }
 
-void island_coordinator::on_construct_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-
-    auto &con = registry.get<constraint>(entity);
-
-    // Initialize constraint.
-    std::visit([&] (auto &&c) {
-        c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, registry, 0);
-    }, con.var);
-}
-
-void island_coordinator::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-    edyn::on_destroy_island_node_parent(registry, entity);
-}
-
 void island_coordinator::refresh_dirty_entities() {
     auto view = m_registry->view<island_container, dirty>();
     view.each([&] (entt::entity entity, island_container &container, dirty &dirty) {
@@ -376,6 +377,7 @@ void island_coordinator::on_registry_delta(entt::entity source_island_entity, co
 }
 
 bool island_coordinator::should_split_island(const island_topology &topo) {
+    // TODO: Use a different condition to split islands.
     return !topo.count.empty();
 }
 

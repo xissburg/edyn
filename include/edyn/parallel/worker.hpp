@@ -7,6 +7,9 @@
 
 namespace edyn {
 
+/**
+ * A worker that runs jobs in a thread.
+ */
 class worker {
 public:
     void push_job(const job &j) {

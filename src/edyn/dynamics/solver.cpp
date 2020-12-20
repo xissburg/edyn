@@ -111,11 +111,11 @@ void update_inertia(entt::registry &registry) {
     });
 }
 
-solver::solver(entt::registry &reg) 
-    : m_registry(&reg)
+solver::solver(entt::registry &registry) 
+    : m_registry(&registry)
 {
-    reg.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
-    reg.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
+    registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
+    registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
 }
 
 void solver::update(scalar dt) {

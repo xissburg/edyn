@@ -106,6 +106,10 @@ struct island_topology {
     std::vector<size_t> count;
 };
 
+/**
+ * Holds a set of changes made in one registry that can be imported into another
+ * registry.
+ */
 class registry_delta {
 
     using map_of_component_map = std::unordered_map<entt::id_type, std::unique_ptr<component_map_base>>;

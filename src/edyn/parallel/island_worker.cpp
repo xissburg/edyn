@@ -113,9 +113,7 @@ void island_worker::on_destroy_island_node(entt::registry &registry, entt::entit
 }
 
 void island_worker::on_construct_island_container(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) {
-        return;
-    }
+    if (m_importing_delta) return;
     
     auto &container = registry.get<island_container>(entity);
     container.entities.insert(m_island_entity);
@@ -123,9 +121,8 @@ void island_worker::on_construct_island_container(entt::registry &registry, entt
 }
 
 void island_worker::on_destroy_island_container(entt::registry &registry, entt::entity entity) {
-    if (!m_importing_delta) {
-        m_delta_builder.destroyed(entity);
-    }
+    if (m_importing_delta) return;
+    m_delta_builder.destroyed(entity);
 }
 
 void island_worker::on_registry_delta(const registry_delta &delta) {

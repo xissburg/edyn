@@ -6,11 +6,11 @@
 
 namespace edyn {
 
-world::world(entt::registry &reg) 
-    : m_registry(&reg)
-    , m_solver(reg)
-    , m_bphase(reg)
-    , m_island_coordinator(reg)
+world::world(entt::registry &registry) 
+    : m_registry(&registry)
+    , m_solver(registry)
+    , m_bphase(registry)
+    , m_island_coordinator(registry)
 {
     job_dispatcher::global().assure_current_queue();
 }

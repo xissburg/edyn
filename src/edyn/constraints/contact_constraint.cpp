@@ -19,7 +19,7 @@ namespace edyn {
 
 void contact_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
     auto normal_row_entity = add_constraint_row(entity, con, registry, 0);
-    /* auto friction_row_entity =  */add_constraint_row(entity, con, registry, 1);
+    add_constraint_row(entity, con, registry, 1);
 
     auto &cp = registry.get<contact_point>(entity);
     auto &normal_row = registry.get<constraint_row>(normal_row_entity);
