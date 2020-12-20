@@ -70,6 +70,7 @@ struct dirty {
      */
     dirty & islands(entt::entity island_entity) {
         island_entities.insert(island_entity);
+        return *this;
     }
 
     /**
@@ -81,6 +82,7 @@ struct dirty {
     template<typename Iterator>
     dirty & islands(Iterator first, Iterator last) {
         island_entities.insert(first, last);
+        return *this;
     }
 
 private:
