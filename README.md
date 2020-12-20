@@ -99,7 +99,7 @@ auto &world = registry.set<edyn::world>(registry);
 
 // Create rigid bodies and constraints...
 
-// Call `edyn::world::update()` periodically in your main loop somwhere.
+// Call `edyn::world::update()` periodically in your main loop somewhere.
 for (;;) {
   world.update();
   // Do something with the results, e.g. render scene.
