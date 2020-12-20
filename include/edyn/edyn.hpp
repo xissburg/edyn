@@ -12,7 +12,7 @@
 #include "dynamics/world.hpp"
 #include "time/time.hpp"
 #include "util/rigidbody.hpp"
-#include "util/constraint.hpp"
+#include "util/constraint_util.hpp"
 #include "util/shape_util.hpp"
 #include "util/tuple.hpp"
 #include "util/island_util.hpp"

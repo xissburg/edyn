@@ -12,7 +12,7 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
-#include "edyn/util/constraint.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {

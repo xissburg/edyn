@@ -7,7 +7,7 @@
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/util/island_util.hpp"
-#include "edyn/util/constraint.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include "edyn/math/constants.hpp"
 #include <entt/entt.hpp>
 #include <vector>

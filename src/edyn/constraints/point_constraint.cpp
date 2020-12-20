@@ -5,7 +5,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
-#include "edyn/util/constraint.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {

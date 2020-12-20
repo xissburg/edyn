@@ -1,4 +1,4 @@
-#include "edyn/util/constraint.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/dirty.hpp"

@@ -7,7 +7,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/util/constraint.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
