@@ -145,6 +145,15 @@ target_include_directories(Edyn SYSTEM
 target_compile_features(Edyn PUBLIC cxx_std_17)
 
 #
+# Sanitize
+#
+
+if(CMAKE_BUILD_TYPE EQUAL "Debug")
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
+    target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
+endif()
+
+#
 # Examples
 #
 
