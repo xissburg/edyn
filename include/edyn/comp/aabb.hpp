@@ -20,6 +20,11 @@ struct AABB {
     inline vector3 center() const {
         return (min + max) * scalar(0.5);
     }
+
+    inline scalar area() const {
+        auto d = max - min;
+        return scalar{2} * (d.x * d.y + d.y * d.z + d.z * d.x);
+    }
 };
 
 inline bool intersect(const AABB &b0, const AABB &b1) {

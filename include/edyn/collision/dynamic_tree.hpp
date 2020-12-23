@@ -19,8 +19,8 @@ namespace edyn {
  */
 class dynamic_tree final {
 public:
-    using node_t = int32_t;
-    constexpr static node_t null_node = -1;
+    using node_id_t = uint32_t;
+    constexpr static node_id_t null_node_id = UINT32_MAX;
     constexpr static vector3 aabb_inset = vector3_one * scalar{-0.1};
 
     struct tree_node {
@@ -28,24 +28,29 @@ public:
         AABB aabb;
 
         union {
-            node_t parent;
-            node_t next;
+            node_id_t parent;
+            node_id_t next;
         };
 
-        node_t child1;
-        node_t child2;
+        node_id_t child1;
+        node_id_t child2;
+
+        // Height from the bottom of the tree, i.e. leaf = 0. If free, -1.
+        int height;
 
         bool leaf() const {
-            return child1 == null_node;
+            return child1 == null_node_id;
         }
     };
 
 private:
-    node_t create();
-    node_t create(const AABB &, entt::entity);
-    void destroy(node_t);
-    void insert(node_t);
-    void remove(node_t);
+    node_id_t allocate();
+    void free(node_id_t);
+    node_id_t create(const AABB &, entt::entity);
+    void destroy(node_id_t);
+    void insert(node_id_t);
+    void remove(node_id_t);
+    node_id_t balance(node_id_t);
 
 public:
     dynamic_tree();
@@ -56,37 +61,37 @@ public:
      * @tparam Func Inferred function parameter type.
      * @param aabb The query AABB.
      * @param func Function to be called for each overlapping node. It takes a
-     * single `dynamic_tree::node_t` parameter and returns a boolean which stops
+     * single `dynamic_tree::node_id_t` parameter and returns a boolean which stops
      * the query if false.
      */
     template<typename Func>
     void query(const AABB &aabb, Func func);
 
-    const tree_node & get_node(node_t) const;
+    const tree_node & get_node(node_id_t) const;
 
 private:
-    node_t m_root;
+    node_id_t m_root;
 
     std::vector<tree_node> m_nodes;
-    node_t m_free_list;
+    node_id_t m_free_list;
 };
 
 template<typename Func>
 void dynamic_tree::query(const AABB &aabb, Func func) {
-    std::vector<node_t> stack;
+    std::vector<node_id_t> stack;
     stack.push_back(m_root);
 
     while (!stack.empty()) {
-        auto node_id = stack.back();
+        auto id = stack.back();
         stack.pop_back();
 
-        if (node_id == null_node) continue;
+        if (id == null_node_id) continue;
 
-        auto &node = m_nodes[node_id];
+        auto &node = m_nodes[id];
 
         if (intersect(node.aabb, aabb)) {
             if (node.leaf()) {
-                if (!func(node_id)) {
+                if (!func(id)) {
                     return;
                 }
             } else {
