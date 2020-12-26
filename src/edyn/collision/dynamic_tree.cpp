@@ -55,32 +55,20 @@ void dynamic_tree::destroy(dynamic_tree::node_id_t id) {
     free(id);
 }
 
-bool dynamic_tree::move(node_id_t id, const AABB &aabb, const vector3 &displacement) {
+bool dynamic_tree::move(node_id_t id, const AABB &aabb) {
     auto &node = m_nodes[id];
     EDYN_ASSERT(node.leaf());
+
+    // If the entity's AABB hasn't moved outside the inflated node AABB,
+    // nothing has to be done.
+    if (node.aabb.contains(aabb)) {
+        return false;
+    }
 
     // Extend AABB.
     auto offset_aabb = aabb.inset(aabb_inset);
 
-    // Predict AABB movement.
-    auto d = scalar{4} * displacement;
-
-    for (size_t i = 0; i < 3; ++ i) {
-        if (d[i] < 0) {
-            offset_aabb.min[i] += d[i];
-        } else {
-            offset_aabb.max[i] += d[i];
-        }
-    }
-
-    if (node.aabb.contains(aabb)) {
-        auto big_aabb = offset_aabb.inset(aabb_inset * scalar{4});
-
-        if (big_aabb.contains(node.aabb)) {
-            return false;
-        }
-    }
-
+    // Reinsert node with updated AABB.
     remove(id);
     m_nodes[id].aabb = offset_aabb;
     insert(id);
@@ -89,21 +77,15 @@ bool dynamic_tree::move(node_id_t id, const AABB &aabb, const vector3 &displacem
     return true;
 }
 
-void dynamic_tree::insert(dynamic_tree::node_id_t leaf) {
-    if (m_root == null_node_id) {
-        m_root = leaf;
-        m_nodes[m_root].parent = null_node_id;
-        return;
-    }
+dynamic_tree::node_id_t dynamic_tree::best(const AABB &aabb) {
+    // Find leaf node that would be the best sibling for a new leaf with the
+    // given AABB.
+    auto id = m_root;
 
-    // Find the best sibling for this node.
-    auto leaf_aabb = m_nodes[leaf].aabb;
-    auto index = m_root;
+    while (!m_nodes[id].leaf()) {
+        auto &node = m_nodes[id];
 
-    while (!m_nodes[index].leaf()) {
-        auto &node = m_nodes[index];
-
-        auto enclosing_area = enclosing_aabb(node.aabb, leaf_aabb).area();
+        auto enclosing_area = enclosing_aabb(node.aabb, aabb).area();
 
         // Cost of creating a new parent for this node and the new leaf.
         auto cost = scalar{2} * enclosing_area;
@@ -113,7 +95,7 @@ void dynamic_tree::insert(dynamic_tree::node_id_t leaf) {
 
         // Cost of descending into child1.
         auto &child_node1 = m_nodes[node.child1];
-        auto enclosing_area_child1 = enclosing_aabb(child_node1.aabb, leaf_aabb).area();
+        auto enclosing_area_child1 = enclosing_aabb(child_node1.aabb, aabb).area();
 
         auto cost1 = child_node1.leaf() ?
             enclosing_area_child1 + inherit_cost :
@@ -121,7 +103,7 @@ void dynamic_tree::insert(dynamic_tree::node_id_t leaf) {
 
         // Cost of descending into child2.
         auto &child_node2 = m_nodes[node.child2];
-        auto enclosing_area_child2 = enclosing_aabb(child_node2.aabb, leaf_aabb).area();
+        auto enclosing_area_child2 = enclosing_aabb(child_node2.aabb, aabb).area();
 
         auto cost2 = child_node2.leaf() ?
             enclosing_area_child2 + inherit_cost :
@@ -134,10 +116,22 @@ void dynamic_tree::insert(dynamic_tree::node_id_t leaf) {
         }
 
         // Descend into the best child.
-        index = cost1 < cost2 ? node.child1 : node.child2;
+        id = cost1 < cost2 ? node.child1 : node.child2;
     }
 
-    const auto sibling = index;
+    return id;
+}
+
+void dynamic_tree::insert(dynamic_tree::node_id_t leaf) {
+    if (m_root == null_node_id) {
+        m_root = leaf;
+        m_nodes[m_root].parent = null_node_id;
+        return;
+    }
+
+    // Find the best sibling for this node.
+    auto leaf_aabb = m_nodes[leaf].aabb;
+    const auto sibling = best(leaf_aabb);
     auto &sibling_node = m_nodes[sibling];
 
     // Create new parent.
@@ -174,7 +168,7 @@ void dynamic_tree::insert(dynamic_tree::node_id_t leaf) {
     }
 
     // Walk back up the tree refitting AABBs.
-    adjust_bounds(leaf_node.parent);
+    refit(leaf_node.parent);
 }
 
 void dynamic_tree::remove(node_id_t leaf) {
@@ -209,11 +203,11 @@ void dynamic_tree::remove(node_id_t leaf) {
         sibling_node.parent = parent_node.parent;
         free(parent);
 
-        adjust_bounds(grandpa);
+        refit(grandpa);
     }
 }
 
-void dynamic_tree::adjust_bounds(dynamic_tree::node_id_t id) {
+void dynamic_tree::refit(dynamic_tree::node_id_t id) {
     while (id != null_node_id) {
         id = balance(id);
         auto &node = m_nodes[id];
@@ -259,6 +253,7 @@ dynamic_tree::node_id_t dynamic_tree::balance(dynamic_tree::node_id_t idA) {
             if (parent_nodeC.child1 == idA) {
                 parent_nodeC.child1 = idC;
             } else {
+                EDYN_ASSERT(parent_nodeC.child2 == idA);
                 parent_nodeC.child2 = idC;
             }
         } else {
@@ -301,7 +296,8 @@ dynamic_tree::node_id_t dynamic_tree::balance(dynamic_tree::node_id_t idA) {
         nodeB.parent = nodeA.parent;
         nodeA.parent = idB;
 
-        if (nodeB.parent == null_node_id) {
+        if (nodeB.parent != null_node_id) {
+            // A's old parent should point to B.
             auto &parent_nodeB = m_nodes[nodeB.parent];
             if (parent_nodeB.child1 == idA) {
                 parent_nodeB.child1 = idB;
@@ -338,6 +334,10 @@ dynamic_tree::node_id_t dynamic_tree::balance(dynamic_tree::node_id_t idA) {
     }
 
     return idA;
+}
+
+const dynamic_tree::tree_node & dynamic_tree::get_node(dynamic_tree::node_id_t id) const {
+    return m_nodes[id];
 }
 
 }

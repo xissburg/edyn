@@ -21,9 +21,20 @@ struct AABB {
         return (min + max) * scalar(0.5);
     }
 
+    // Returns this AABB's surface area. 
     inline scalar area() const {
         auto d = max - min;
         return scalar{2} * (d.x * d.y + d.y * d.z + d.z * d.x);
+    }
+
+    // Returns whether this AABB contains point `p`.
+    bool contains(const vector3 &p) const {
+        return min <= p && p <= max;
+    }
+
+    // Returns whether `aabb` is contained within this AABB.
+    bool contains(const AABB &aabb) const {
+        return contains(aabb.min) && contains(aabb.max);
     }
 };
 

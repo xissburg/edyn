@@ -17,7 +17,21 @@ namespace edyn {
 broadphase_worker::broadphase_worker(entt::registry &registry)
     : m_registry(&registry)
     , m_manifold_map(registry)
-{}
+{
+    registry.on_construct<AABB>().connect<&broadphase_worker::on_construct_aabb>(*this);
+    registry.on_destroy<AABB>().connect<&broadphase_worker::on_destroy_aabb>(*this);
+}
+
+void broadphase_worker::on_construct_aabb(entt::registry &registry, entt::entity entity) {
+    auto &aabb = registry.get<AABB>(entity);
+    auto id = m_tree.create(aabb, entity);
+    m_node_map[entity] = id;
+}
+
+void broadphase_worker::on_destroy_aabb(entt::registry &registry, entt::entity entity) {
+    m_tree.destroy(m_node_map[entity]);
+    m_node_map.erase(entity);
+}
 
 void broadphase_worker::update() {
     auto aabb_view = m_registry->view<AABB>();
@@ -37,33 +51,41 @@ void broadphase_worker::update() {
     // Search for new AABB intersections and create manifolds.
     const auto offset = vector3_one * -contact_breaking_threshold;
     const auto separation_threshold = contact_breaking_threshold * 4 * 1.3;
-    auto it = aabb_view.begin();
-    const auto it_end = aabb_view.end();
 
-    for (; it != it_end; ++it) {
-        auto e0 = *it;
-        auto &b0 = aabb_view.get(e0);
+    auto procedural_aabb_view = m_registry->view<AABB, procedural_tag>();
+    
+    procedural_aabb_view.each([&] (entt::entity entity, AABB &aabb) {
+        auto id = m_node_map[entity];
+        m_tree.move(id, aabb);
+    });
 
-        for (auto it1 = it + 1; it1 != it_end; ++it1) {
-            auto e1 = *it1;
+    procedural_aabb_view.each([&] (entt::entity entity, AABB &aabb) {
+        auto offset_aabb = aabb.inset(offset);
 
-            if (!should_collide(e0, e1)) {
-                continue;
-            }
+        m_tree.query(offset_aabb, [&] (dynamic_tree::node_id_t id) {
+            auto &node = m_tree.get_node(id);
 
-            auto &b1 = aabb_view.get(e1);
+            if (should_collide(entity, node.entity)) {
+                auto &other_aabb = aabb_view.get(node.entity);
 
-            if (intersect(b0.inset(offset), b1)) {
-                auto p = std::make_pair(e0, e1);
-                if (!m_manifold_map.contains(p)) {
-                    make_contact_manifold(*m_registry, e0, e1, separation_threshold);
+                if (intersect(offset_aabb, other_aabb)) {
+                    auto p = std::make_pair(entity, node.entity);
+                    if (!m_manifold_map.contains(p)) {
+                        make_contact_manifold(*m_registry, entity, node.entity, separation_threshold);
+                    }
                 }
             }
-        }
-    }
+
+            return true;
+        });
+    });
 }
 
 bool broadphase_worker::should_collide(entt::entity e0, entt::entity e1) const {
+    if (e0 == e1) {
+        return false;
+    }
+
     if ((m_registry->has<static_tag>(e0) || m_registry->has<kinematic_tag>(e0)) &&
         (m_registry->has<static_tag>(e1) || m_registry->has<kinematic_tag>(e1))) {
         return false;

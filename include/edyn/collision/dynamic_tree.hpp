@@ -46,16 +46,18 @@ public:
 private:
     node_id_t allocate();
     void free(node_id_t);
-    node_id_t create(const AABB &, entt::entity);
-    void destroy(node_id_t);
-    bool move(node_id_t, const AABB &, const vector3 &displacement);
+    node_id_t best(const AABB &);
     void insert(node_id_t);
     void remove(node_id_t);
-    void adjust_bounds(node_id_t);
+    void refit(node_id_t);
     node_id_t balance(node_id_t);
 
 public:
     dynamic_tree();
+
+    node_id_t create(const AABB &, entt::entity);
+    bool move(node_id_t, const AABB &);
+    void destroy(node_id_t);
 
     /**
      * @brief Call `func` for all nodes that overlap `aabb`.
