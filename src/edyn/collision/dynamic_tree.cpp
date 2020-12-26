@@ -55,6 +55,40 @@ void dynamic_tree::destroy(dynamic_tree::node_id_t id) {
     free(id);
 }
 
+bool dynamic_tree::move(node_id_t id, const AABB &aabb, const vector3 &displacement) {
+    auto &node = m_nodes[id];
+    EDYN_ASSERT(node.leaf());
+
+    // Extend AABB.
+    auto offset_aabb = aabb.inset(aabb_inset);
+
+    // Predict AABB movement.
+    auto d = scalar{4} * displacement;
+
+    for (size_t i = 0; i < 3; ++ i) {
+        if (d[i] < 0) {
+            offset_aabb.min[i] += d[i];
+        } else {
+            offset_aabb.max[i] += d[i];
+        }
+    }
+
+    if (node.aabb.contains(aabb)) {
+        auto big_aabb = offset_aabb.inset(aabb_inset * scalar{4});
+
+        if (big_aabb.contains(node.aabb)) {
+            return false;
+        }
+    }
+
+    remove(id);
+    m_nodes[id].aabb = offset_aabb;
+    insert(id);
+
+    // It moved.
+    return true;
+}
+
 void dynamic_tree::insert(dynamic_tree::node_id_t leaf) {
     if (m_root == null_node_id) {
         m_root = leaf;
@@ -140,16 +174,7 @@ void dynamic_tree::insert(dynamic_tree::node_id_t leaf) {
     }
 
     // Walk back up the tree refitting AABBs.
-    index = leaf_node.parent;
-    while (index != null_node_id) {
-        index = balance(index);
-        auto &node = m_nodes[index];
-        EDYN_ASSERT(node.child1 != null_node_id);
-        EDYN_ASSERT(node.child2 != null_node_id);
-        node.aabb = enclosing_aabb(m_nodes[node.child1].aabb, m_nodes[node.child2].aabb);
-        node.height = std::max(m_nodes[node.child1].height, m_nodes[node.child2].height) + 1;
-        index = node.parent;
-    }
+    adjust_bounds(leaf_node.parent);
 }
 
 void dynamic_tree::remove(node_id_t leaf) {
@@ -158,7 +183,161 @@ void dynamic_tree::remove(node_id_t leaf) {
         return;
     }
 
-    
+    auto &node = m_nodes[leaf];
+    auto parent = node.parent;
+    auto &parent_node = m_nodes[parent];
+    auto sibling = parent_node.child1 == leaf ? parent_node.child2 : parent_node.child1;
+    EDYN_ASSERT(sibling != null_node_id);
+    auto &sibling_node = m_nodes[sibling];
+
+    if (parent == m_root) {
+        m_root = sibling;
+        sibling_node.parent = null_node_id;
+        free(parent);
+    } else {
+        // Destroy parent and connect sibling to grand parent.
+        auto grandpa = parent_node.parent;
+        EDYN_ASSERT(grandpa != null_node_id);
+        auto &grandpa_node = m_nodes[grandpa];
+
+        if (grandpa_node.child1 == parent) {
+            grandpa_node.child1 = sibling;
+        } else {
+            grandpa_node.child2 = sibling;
+        }
+
+        sibling_node.parent = parent_node.parent;
+        free(parent);
+
+        adjust_bounds(grandpa);
+    }
+}
+
+void dynamic_tree::adjust_bounds(dynamic_tree::node_id_t id) {
+    while (id != null_node_id) {
+        id = balance(id);
+        auto &node = m_nodes[id];
+        EDYN_ASSERT(node.child1 != null_node_id);
+        EDYN_ASSERT(node.child2 != null_node_id);
+        node.aabb = enclosing_aabb(m_nodes[node.child1].aabb, m_nodes[node.child2].aabb);
+        node.height = std::max(m_nodes[node.child1].height, m_nodes[node.child2].height) + 1;
+        id = node.parent;
+    }
+}
+
+dynamic_tree::node_id_t dynamic_tree::balance(dynamic_tree::node_id_t idA) {
+    EDYN_ASSERT(idA != null_node_id);
+
+    auto &nodeA = m_nodes[idA];
+
+    if (nodeA.leaf() || nodeA.height < 2) {
+        return idA;
+    }
+
+    auto idB = nodeA.child1;
+    auto idC = nodeA.child2;
+    auto &nodeB = m_nodes[idB];
+    auto &nodeC = m_nodes[idC];
+
+    auto balance = nodeC.height - nodeB.height;
+
+    // Rotate C up.
+    if (balance > 1) {
+        auto idF = nodeC.child1;
+        auto idG = nodeC.child2;
+        auto &nodeF = m_nodes[idF];
+        auto &nodeG = m_nodes[idG];
+
+        // Swap A and C.
+        nodeC.child1 = idA;
+        nodeC.parent = nodeA.parent;
+        nodeA.parent = idC;
+
+        if (nodeC.parent != null_node_id) {
+            // A's old parent should point to C.
+            auto &parent_nodeC = m_nodes[nodeC.parent];
+            if (parent_nodeC.child1 == idA) {
+                parent_nodeC.child1 = idC;
+            } else {
+                parent_nodeC.child2 = idC;
+            }
+        } else {
+            m_root = idC;
+        }
+
+        // Rotate.
+        if (nodeF.height > nodeG.height) {
+            nodeC.child2 = idF;
+            nodeA.child2 = idG;
+            nodeG.parent = idA;
+            nodeA.aabb = enclosing_aabb(nodeB.aabb, nodeG.aabb);
+            nodeC.aabb = enclosing_aabb(nodeA.aabb, nodeF.aabb);
+
+            nodeA.height = std::max(nodeB.height, nodeG.height) + 1;
+            nodeC.height = std::max(nodeA.height, nodeF.height) + 1;
+        } else {
+            nodeC.child2 = idG;
+            nodeA.child2 = idF;
+            nodeF.parent = idA;
+            nodeA.aabb = enclosing_aabb(nodeB.aabb, nodeF.aabb);
+            nodeC.aabb = enclosing_aabb(nodeA.aabb, nodeG.aabb);
+
+            nodeA.height = std::max(nodeB.height, nodeF.height) + 1;
+            nodeC.height = std::max(nodeA.height, nodeG.height) + 1;
+        }
+
+        return idC;
+    }
+
+    // Rotate B up.
+    if (balance < -1) {
+        auto idD = nodeB.child1;
+        auto idE = nodeB.child2;
+        auto &nodeD = m_nodes[idD];
+        auto &nodeE = m_nodes[idE];
+
+        // Swap A and B.
+        nodeB.child1 = idA;
+        nodeB.parent = nodeA.parent;
+        nodeA.parent = idB;
+
+        if (nodeB.parent == null_node_id) {
+            auto &parent_nodeB = m_nodes[nodeB.parent];
+            if (parent_nodeB.child1 == idA) {
+                parent_nodeB.child1 = idB;
+            } else {
+                EDYN_ASSERT(parent_nodeB.child2 == idA);
+                parent_nodeB.child2 = idB;
+            }
+        } else {
+            m_root = idB;
+        }
+
+        // Rotate.
+        if (nodeD.height > nodeE.height) {
+            nodeB.child2 = idD;
+            nodeA.child1 = idE;
+            nodeE.parent = idA;
+            nodeA.aabb = enclosing_aabb(nodeC.aabb, nodeE.aabb);
+            nodeB.aabb = enclosing_aabb(nodeA.aabb, nodeD.aabb);
+
+            nodeA.height = std::max(nodeC.height, nodeE.height) + 1;
+            nodeB.height = std::max(nodeA.height, nodeD.height) + 1;
+        } else {
+            nodeB.child2 = idE;
+            nodeA.child1 = idD;
+            nodeD.parent = idA;
+            nodeA.aabb = enclosing_aabb(nodeC.aabb, nodeD.aabb);
+            nodeB.aabb = enclosing_aabb(nodeA.aabb, nodeE.aabb);
+
+            nodeA.height = std::max(nodeC.height, nodeD.height) + 1;
+            nodeB.height = std::max(nodeA.height, nodeE.height) + 1;
+        }
+
+        return idB;
+    }
+
+    return idA;
 }
 
 }
