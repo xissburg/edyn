@@ -24,8 +24,8 @@ class broadphase_main {
     constexpr static auto m_separation_threshold = m_threshold * 1.3;
 
     using aabb_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, AABB>;
-    void intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB, const aabb_view_t &);
-    void intersect_island_np(const tree_view &island_tree, entt::entity np_entity, const aabb_view_t &);
+    void intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB, const aabb_view_t &) const;
+    void intersect_island_np(const tree_view &island_tree, entt::entity np_entity, const aabb_view_t &) const;
 
 public:
     broadphase_main(entt::registry &);

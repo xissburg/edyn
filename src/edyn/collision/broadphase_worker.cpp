@@ -74,8 +74,6 @@ void broadphase_worker::update() {
                     make_contact_manifold(*m_registry, entity, node.entity, separation_threshold);
                 }
             }
-
-            return true;
         });
     });
 }

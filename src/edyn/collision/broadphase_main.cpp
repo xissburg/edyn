@@ -53,6 +53,7 @@ void broadphase_main::on_destroy_node_id(entt::registry &registry, entt::entity 
 void broadphase_main::update() {
     
     auto aabb_view = m_registry->view<AABB>();
+    auto container_view = m_registry->view<island_container>();
 
     // Update island AABBs in tree (ignore sleeping islands).
     auto exclude_sleeping = entt::exclude_t<sleeping_tag>{};
@@ -83,14 +84,13 @@ void broadphase_main::update() {
             auto island_entityB = m_tree.get_node(idB).entity;
 
             if (island_entityA == island_entityB) {
-                return true;
+                return;
             }
 
             // Look for AABB intersections between entities from different islands
             // and create manifolds.
             auto &tree_viewB = tree_view_view.get(island_entityB);
             intersect_islands(tree_viewA, tree_viewB, aabb_view);
-            return true;
         });
 
         // Query the non-procedural dynamic tree to find static and kinematic
@@ -98,30 +98,39 @@ void broadphase_main::update() {
         m_np_tree.query(island_aabb, [&] (tree_node_id_t id_np) {
             auto np_entity = m_np_tree.get_node(id_np).entity;
 
-            auto &container = m_registry->get<island_container>(np_entity);
-            if (container.entities.count(island_entityA) > 0) return true;
+            // Only proceed if the non-procedural entity is not in the island.
+            auto &container = container_view.get(np_entity);
+            if (container.entities.count(island_entityA) > 0) {
+                return;
+            }
 
             intersect_island_np(tree_viewA, np_entity, aabb_view);
-            return true;
         });
     }
 }
 
 void broadphase_main::intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB,
-                                        const aabb_view_t &aabb_view) {
+                                        const aabb_view_t &aabb_view) const {
+
+    // Only check procedural vs procedural entities. Non-procedural entities
+    // are handled separately.
     auto procedural_view = m_registry->view<procedural_tag>();
 
     tree_viewB.each([&] (const tree_view::tree_node &nodeB) {
         auto entityB = nodeB.entity;
 
-        if (!procedural_view.contains(entityB)) return;
+        if (!procedural_view.contains(entityB)) {
+            return;
+        }
 
         auto aabbB = aabb_view.get(entityB).inset(m_aabb_offset);
 
         tree_viewA.query(aabbB, [&] (tree_node_id_t idA) {
             auto entityA = tree_viewA.get_node(idA).entity;
 
-            if (!procedural_view.contains(entityA)) return true;
+            if (!procedural_view.contains(entityA)) {
+                return;
+            }
 
             if (should_collide(entityA, entityB) && 
                 !m_manifold_map.contains(std::make_pair(entityA, entityB))) {
@@ -132,14 +141,13 @@ void broadphase_main::intersect_islands(const tree_view &tree_viewA, const tree_
                     make_contact_manifold(*m_registry, entityA, entityB, m_separation_threshold);
                 }
             }
-
-            return true;
         });
     });
 }
 
 void broadphase_main::intersect_island_np(const tree_view &island_tree, entt::entity np_entity,
-                                          const aabb_view_t &aabb_view) {
+                                          const aabb_view_t &aabb_view) const {
+
     auto np_aabb = aabb_view.get(np_entity).inset(m_aabb_offset);
 
     island_tree.query(np_aabb, [&] (tree_node_id_t idA) {
@@ -154,8 +162,6 @@ void broadphase_main::intersect_island_np(const tree_view &island_tree, entt::en
                 make_contact_manifold(*m_registry, entity, np_entity, m_separation_threshold);
             }
         }
-
-        return true;
     });
 }
 

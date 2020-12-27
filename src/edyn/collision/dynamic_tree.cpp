@@ -346,6 +346,7 @@ const tree_node & dynamic_tree::get_node(tree_node_id_t id) const {
 
 tree_view dynamic_tree::view() const {
     std::vector<tree_view::tree_node> view_nodes;
+    view_nodes.reserve(m_nodes.size());
 
     for (auto &node : m_nodes) {
         view_nodes.push_back(tree_view::tree_node{node.entity, node.aabb, node.child1, node.child2});

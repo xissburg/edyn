@@ -75,9 +75,7 @@ void tree_view::query(const AABB &aabb, Func func) const {
 
         if (intersect(node.aabb, aabb)) {
             if (node.leaf()) {
-                if (!func(id)) {
-                    return;
-                }
+                func(id);
             } else {
                 stack.push_back(node.child1);
                 stack.push_back(node.child2);

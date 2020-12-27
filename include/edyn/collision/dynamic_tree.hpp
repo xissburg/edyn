@@ -72,8 +72,7 @@ public:
      * @tparam Func Inferred function parameter type.
      * @param aabb The query AABB.
      * @param func Function to be called for each overlapping node. It takes a
-     * single `tree_node_id_t` parameter and returns a boolean which stops
-     * the query if false.
+     * single `tree_node_id_t` parameter.
      */
     template<typename Func>
     void query(const AABB &aabb, Func func) const;
@@ -110,9 +109,7 @@ void dynamic_tree::query(const AABB &aabb, Func func) const {
 
         if (intersect(node.aabb, aabb)) {
             if (node.leaf()) {
-                if (!func(id)) {
-                    return;
-                }
+                func(id);
             } else {
                 stack.push_back(node.child1);
                 stack.push_back(node.child2);
