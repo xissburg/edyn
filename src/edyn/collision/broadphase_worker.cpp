@@ -19,17 +19,17 @@ broadphase_worker::broadphase_worker(entt::registry &registry)
     , m_manifold_map(registry)
 {
     registry.on_construct<AABB>().connect<&broadphase_worker::on_construct_aabb>(*this);
-    registry.on_destroy<dynamic_tree::node_id_t>().connect<&broadphase_worker::on_destroy_node_id>(*this);
+    registry.on_destroy<tree_node_id_t>().connect<&broadphase_worker::on_destroy_node_id>(*this);
 }
 
 void broadphase_worker::on_construct_aabb(entt::registry &registry, entt::entity entity) {
     auto &aabb = registry.get<AABB>(entity);
     auto id = m_tree.create(aabb, entity);
-    registry.emplace<dynamic_tree::node_id_t>(entity, id);
+    registry.emplace<tree_node_id_t>(entity, id);
 }
 
 void broadphase_worker::on_destroy_node_id(entt::registry &registry, entt::entity entity) {
-    auto id = registry.get<dynamic_tree::node_id_t>(entity);
+    auto id = registry.get<tree_node_id_t>(entity);
     m_tree.destroy(id);
 }
 
@@ -38,19 +38,19 @@ void broadphase_worker::update() {
     auto manifold_view = m_registry->view<contact_manifold>();
 
     // Destroy manifolds of pairs that are not intersecting anymore.
-    manifold_view.each([&] (auto ent, contact_manifold &manifold) {
+    manifold_view.each([&] (entt::entity entity, contact_manifold &manifold) {
         auto &b0 = aabb_view.get<AABB>(manifold.body[0]);
         auto &b1 = aabb_view.get<AABB>(manifold.body[1]);
         const auto separation_offset = vector3_one * -manifold.separation_threshold;
 
         if (!intersect(b0.inset(separation_offset), b1)) {
-            m_registry->destroy(ent);
+            m_registry->destroy(entity);
         }
     });
 
     // Update AABBs of procedural nodes in the dynamic tree.
-    auto aabb_node_proc_view = m_registry->view<AABB, dynamic_tree::node_id_t, procedural_tag>();
-    aabb_node_proc_view.each([&] (entt::entity entity, AABB &aabb, dynamic_tree::node_id_t node_id) {
+    auto aabb_node_proc_view = m_registry->view<AABB, tree_node_id_t, procedural_tag>();
+    aabb_node_proc_view.each([&] (entt::entity, AABB &aabb, tree_node_id_t node_id) {
         m_tree.move(node_id, aabb);
     });
 
@@ -62,7 +62,7 @@ void broadphase_worker::update() {
     aabb_proc_view.each([&] (entt::entity entity, AABB &aabb) {
         auto offset_aabb = aabb.inset(offset);
 
-        m_tree.query(offset_aabb, [&] (dynamic_tree::node_id_t id) {
+        m_tree.query(offset_aabb, [&] (tree_node_id_t id) {
             auto &node = m_tree.get_node(id);
             auto p = std::make_pair(entity, node.entity);
 

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <entt/fwd.hpp>
 #include "edyn/comp/aabb.hpp"
+#include "edyn/collision/tree_node.hpp"
 
 namespace edyn {
 
@@ -18,39 +19,16 @@ namespace edyn {
  *  - https://github.com/erincatto/box2d/blob/master/src/collision/b2_dynamic_tree.cpp
  */
 class dynamic_tree final {
-public:
-    using node_id_t = uint32_t;
-    constexpr static node_id_t null_node_id = UINT32_MAX;
     constexpr static vector3 aabb_inset = vector3_one * scalar{-0.1};
 
-    struct tree_node {
-        entt::entity entity;
-        AABB aabb;
-
-        union {
-            node_id_t parent;
-            node_id_t next;
-        };
-
-        node_id_t child1;
-        node_id_t child2;
-
-        // Height from the bottom of the tree, i.e. leaf = 0. If free, -1.
-        int height;
-
-        bool leaf() const {
-            return child1 == null_node_id;
-        }
-    };
-
 private:
-    node_id_t allocate();
-    void free(node_id_t);
-    node_id_t best(const AABB &);
-    void insert(node_id_t);
-    void remove(node_id_t);
-    void refit(node_id_t);
-    node_id_t balance(node_id_t);
+    tree_node_id_t allocate();
+    void free(tree_node_id_t);
+    tree_node_id_t best(const AABB &);
+    void insert(tree_node_id_t);
+    void remove(tree_node_id_t);
+    void refit(tree_node_id_t);
+    tree_node_id_t balance(tree_node_id_t);
 
 public:
     dynamic_tree();
@@ -64,7 +42,7 @@ public:
      * @param entity The entity associated with this node.
      * @return The new node id.
      */
-    node_id_t create(const AABB &, entt::entity);
+    tree_node_id_t create(const AABB &, entt::entity);
 
     /**
      * @brief Attempts to change the AABB of a node.
@@ -77,14 +55,14 @@ public:
      * @param aabb The new AABB.
      * @return Whether the AABB was changed.
      */
-    bool move(node_id_t, const AABB &);
+    bool move(tree_node_id_t, const AABB &);
 
     /**
      * @brief Destroys a node with the given id.
      * 
      * @param id The node id.
      */
-    void destroy(node_id_t);
+    void destroy(tree_node_id_t);
 
     /**
      * @brief Call `func` for all nodes that overlap `aabb`.
@@ -92,11 +70,11 @@ public:
      * @tparam Func Inferred function parameter type.
      * @param aabb The query AABB.
      * @param func Function to be called for each overlapping node. It takes a
-     * single `dynamic_tree::node_id_t` parameter and returns a boolean which stops
+     * single `tree_node_id_t` parameter and returns a boolean which stops
      * the query if false.
      */
     template<typename Func>
-    void query(const AABB &aabb, Func func);
+    void query(const AABB &aabb, Func func) const;
 
     /**
      * @brief Gets a tree node.
@@ -104,18 +82,18 @@ public:
      * @param id The node id.
      * @return A reference to the tree node.
      */
-    const tree_node & get_node(node_id_t) const;
+    const tree_node & get_node(tree_node_id_t) const;
 
 private:
-    node_id_t m_root;
+    tree_node_id_t m_root;
 
     std::vector<tree_node> m_nodes;
-    node_id_t m_free_list;
+    tree_node_id_t m_free_list;
 };
 
 template<typename Func>
-void dynamic_tree::query(const AABB &aabb, Func func) {
-    std::vector<node_id_t> stack;
+void dynamic_tree::query(const AABB &aabb, Func func) const {
+    std::vector<tree_node_id_t> stack;
     stack.push_back(m_root);
 
     while (!stack.empty()) {

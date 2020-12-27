@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 #include <entt/fwd.hpp>
+#include "edyn/collision/dynamic_tree.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 
 namespace edyn {
@@ -15,6 +16,7 @@ public:
 
 private:
     entt::registry *m_registry;
+    dynamic_tree m_tree;
     contact_manifold_map m_manifold_map;
 
     bool should_collide(entt::entity, entt::entity) const;

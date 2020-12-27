@@ -5,6 +5,8 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/collision/tree_view.hpp"
+#include "edyn/parallel/island_worker_context.hpp"
 #include <entt/entt.hpp>
 #include <vector>
 
@@ -16,7 +18,6 @@ broadphase_main::broadphase_main(entt::registry &registry)
 {}
 
 void broadphase_main::update() {
-    // Search for new AABB intersections and create manifolds.
     // A higher threshold is used in the main broadphase to create contact 
     // manifolds between different islands a little earlier and decrease the
     // probability they'll arrive in the corresponding island worker when the
@@ -25,34 +26,53 @@ void broadphase_main::update() {
     const auto offset = vector3_one * -threshold;
     const auto separation_threshold = threshold * 1.3;
 
-    auto aabb_view = m_registry->view<AABB>();
-    auto it = aabb_view.begin();
-    const auto it_end = aabb_view.end();
+    // Update AABBs in tree.
+    auto tree_view_node_view = m_registry->view<tree_view, tree_node_id_t>();
+    tree_view_node_view.each([&] (entt::entity, tree_view &tree_view, tree_node_id_t node_id) {
+        m_tree.move(node_id, tree_view.root_aabb());
+    });
 
-    for (; it != it_end; ++it) {
-        auto e0 = *it;
-        auto &b0 = aabb_view.get(e0);
+    // Search for island pairs with intersecting AABBs, i.e. the AABB of the root
+    // node of their trees intersect.
+    m_registry->view<tree_view>().each([&] (entt::entity island_entityA, tree_view &tree_viewA) {
+        auto island_aabb = tree_viewA.root_aabb().inset(offset);
+        
+        m_tree.query(island_aabb, [&] (tree_node_id_t id) {
+            auto island_entityB = m_tree.get_node(id).entity;
 
-        for (auto it1 = it + 1; it1 != it_end; ++it1) {
-            auto e1 = *it1;
+            // Look for AABB intersections between entities from different islands
+            // and create manifolds.
+            auto aabb_view = m_registry->view<AABB>();
+            auto &ctxB = m_registry->get<island_worker_context>(island_entityB);
 
-            if (!should_collide(e0, e1)) {
-                continue;
+            for (auto entity : ctxB.m_entities) {
+                auto offset_aabb = aabb_view.get(entity).inset(offset);
+                tree_viewA.query(offset_aabb, [&] (tree_node_id_t id) {
+                    auto &node = m_tree.get_node(id);
+                    auto p = std::make_pair(entity, node.entity);
+
+                    if (!m_manifold_map.contains(p) && should_collide(entity, node.entity)) {
+                        auto &other_aabb = aabb_view.get(node.entity);
+
+                        if (intersect(offset_aabb, other_aabb)) {
+                            make_contact_manifold(*m_registry, entity, node.entity, separation_threshold);
+                        }
+                    }
+
+                    return true;
+                });
             }
 
-            auto &b1 = aabb_view.get(e1);
-
-            if (intersect(b0.inset(offset), b1)) {
-                auto p = std::make_pair(e0, e1);
-                if (!m_manifold_map.contains(p)) {
-                    make_contact_manifold(*m_registry, e0, e1, separation_threshold);
-                }
-            }
-        }
-    }
+            return true;
+        });
+    });
 }
 
 bool broadphase_main::should_collide(entt::entity e0, entt::entity e1) const {
+    if (e0 == e1) {
+        return false;
+    }
+
     // Only consider nodes that reside in different islands.
     auto &container0 = m_registry->get<island_container>(e0);
     auto &container1 = m_registry->get<island_container>(e1);
