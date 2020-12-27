@@ -55,8 +55,35 @@ private:
 public:
     dynamic_tree();
 
+    /**
+     * @brief Creates a new leaf node with the given AABB and entity.
+     * 
+     * Inserts it at the best place into the tree.
+     * 
+     * @param aabb The leaf node AABB.
+     * @param entity The entity associated with this node.
+     * @return The new node id.
+     */
     node_id_t create(const AABB &, entt::entity);
+
+    /**
+     * @brief Attempts to change the AABB of a node.
+     * 
+     * If the provided AABB is not fully contained within the node's AABB (which
+     * is inflated internally), it changes the AABB of the node and reinserts
+     * it into the tree.
+     * 
+     * @param id The node id.
+     * @param aabb The new AABB.
+     * @return Whether the AABB was changed.
+     */
     bool move(node_id_t, const AABB &);
+
+    /**
+     * @brief Destroys a node with the given id.
+     * 
+     * @param id The node id.
+     */
     void destroy(node_id_t);
 
     /**
@@ -71,6 +98,12 @@ public:
     template<typename Func>
     void query(const AABB &aabb, Func func);
 
+    /**
+     * @brief Gets a tree node.
+     * 
+     * @param id The node id.
+     * @return A reference to the tree node.
+     */
     const tree_node & get_node(node_id_t) const;
 
 private:
