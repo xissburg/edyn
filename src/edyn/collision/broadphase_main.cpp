@@ -62,6 +62,7 @@ void broadphase_main::update() {
     });
 
     // Update kinematic AABBs in tree.
+    // TODO: only do this for kinematic entities that had their AABB updated.
     auto kinematic_aabb_node_view = m_registry->view<tree_node_id_t, AABB, kinematic_tag>();
     kinematic_aabb_node_view.each([&] (entt::entity, tree_node_id_t node_id, AABB &aabb) {
         m_np_tree.move(node_id, aabb);

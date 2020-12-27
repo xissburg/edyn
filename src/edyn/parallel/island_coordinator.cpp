@@ -369,6 +369,7 @@ void island_coordinator::on_registry_delta(entt::entity source_island_entity, co
     delta.import(*m_registry, source_ctx->m_entity_map);
     m_importing_delta = false;
 
+    // Insert entity mappings for new entities into the current delta.
     for (auto remote_entity : delta.created_entities()) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) continue;
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
