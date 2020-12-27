@@ -19,18 +19,18 @@ broadphase_worker::broadphase_worker(entt::registry &registry)
     , m_manifold_map(registry)
 {
     registry.on_construct<AABB>().connect<&broadphase_worker::on_construct_aabb>(*this);
-    registry.on_destroy<AABB>().connect<&broadphase_worker::on_destroy_aabb>(*this);
+    registry.on_destroy<dynamic_tree::node_id_t>().connect<&broadphase_worker::on_destroy_node_id>(*this);
 }
 
 void broadphase_worker::on_construct_aabb(entt::registry &registry, entt::entity entity) {
     auto &aabb = registry.get<AABB>(entity);
     auto id = m_tree.create(aabb, entity);
-    m_node_map[entity] = id;
+    registry.emplace<dynamic_tree::node_id_t>(entity, id);
 }
 
-void broadphase_worker::on_destroy_aabb(entt::registry &registry, entt::entity entity) {
-    m_tree.destroy(m_node_map[entity]);
-    m_node_map.erase(entity);
+void broadphase_worker::on_destroy_node_id(entt::registry &registry, entt::entity entity) {
+    auto id = registry.get<dynamic_tree::node_id_t>(entity);
+    m_tree.destroy(id);
 }
 
 void broadphase_worker::update() {
@@ -48,31 +48,29 @@ void broadphase_worker::update() {
         }
     });
 
+    // Update AABBs of procedural nodes in the dynamic tree.
+    auto aabb_node_proc_view = m_registry->view<AABB, dynamic_tree::node_id_t, procedural_tag>();
+    aabb_node_proc_view.each([&] (entt::entity entity, AABB &aabb, dynamic_tree::node_id_t node_id) {
+        m_tree.move(node_id, aabb);
+    });
+
     // Search for new AABB intersections and create manifolds.
     const auto offset = vector3_one * -contact_breaking_threshold;
     const auto separation_threshold = contact_breaking_threshold * 4 * 1.3;
 
-    auto procedural_aabb_view = m_registry->view<AABB, procedural_tag>();
-    
-    procedural_aabb_view.each([&] (entt::entity entity, AABB &aabb) {
-        auto id = m_node_map[entity];
-        m_tree.move(id, aabb);
-    });
-
-    procedural_aabb_view.each([&] (entt::entity entity, AABB &aabb) {
+    auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
+    aabb_proc_view.each([&] (entt::entity entity, AABB &aabb) {
         auto offset_aabb = aabb.inset(offset);
 
         m_tree.query(offset_aabb, [&] (dynamic_tree::node_id_t id) {
             auto &node = m_tree.get_node(id);
+            auto p = std::make_pair(entity, node.entity);
 
-            if (should_collide(entity, node.entity)) {
+            if (!m_manifold_map.contains(p) && should_collide(entity, node.entity)) {
                 auto &other_aabb = aabb_view.get(node.entity);
 
                 if (intersect(offset_aabb, other_aabb)) {
-                    auto p = std::make_pair(entity, node.entity);
-                    if (!m_manifold_map.contains(p)) {
-                        make_contact_manifold(*m_registry, entity, node.entity, separation_threshold);
-                    }
+                    make_contact_manifold(*m_registry, entity, node.entity, separation_threshold);
                 }
             }
 
