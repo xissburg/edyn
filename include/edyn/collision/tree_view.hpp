@@ -8,13 +8,35 @@ namespace edyn {
 
 class tree_view {
 public:
+    struct tree_node {
+        entt::entity entity;
+        AABB aabb;
+
+        tree_node_id_t child1;
+        tree_node_id_t child2;
+
+        bool leaf() const {
+            return child1 == null_node_id;
+        }
+    };
+
+    tree_view()
+        : m_root(null_node_id)
+    {}
+
     tree_view(const std::vector<tree_node> &nodes, tree_node_id_t root_id)
         : m_nodes(nodes)
         , m_root(root_id)
     {}
 
     template<typename Func>
-    void tree_view::query(const AABB &aabb, Func func) const;
+    void query(const AABB &aabb, Func func) const;
+
+    template<typename Func>
+    void each(Func func) const;
+
+    template<typename Func>
+    void each(Func func);
 
     const tree_node & get_node(tree_node_id_t id) const {
         return m_nodes[id];
@@ -24,8 +46,12 @@ public:
         return m_root;
     }
 
-    const AABB & root_aabb() const {
-        return m_nodes[m_root].aabb;
+    AABB root_aabb() const {
+        if (m_root != null_node_id) {
+            return m_nodes[m_root].aabb;
+        }
+
+        return {vector3_zero, vector3_zero};
     }
 
 private:
@@ -55,6 +81,24 @@ void tree_view::query(const AABB &aabb, Func func) const {
                 stack.push_back(node.child1);
                 stack.push_back(node.child2);
             }
+        }
+    }
+}
+
+template<typename Func>
+void tree_view::each(Func func) const {
+    for (const auto &node : m_nodes) {
+        if (node.leaf()) {
+            func(node);
+        }
+    }
+}
+
+template<typename Func>
+void tree_view::each(Func func) {
+    for (auto &node : m_nodes) {
+        if (node.leaf()) {
+            func(node);
         }
     }
 }

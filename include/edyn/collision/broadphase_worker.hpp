@@ -12,6 +12,7 @@ class broadphase_worker {
 public:
     broadphase_worker(entt::registry &);
     void update();
+    tree_view view() const;
 
     void on_construct_aabb(entt::registry &, entt::entity);
     void on_destroy_node_id(entt::registry &, entt::entity);

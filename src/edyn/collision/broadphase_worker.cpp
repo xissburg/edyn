@@ -6,6 +6,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/tree_view.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/math/constants.hpp"
@@ -94,6 +95,10 @@ bool broadphase_worker::should_collide(entt::entity e0, entt::entity e1) const {
     auto &filter1 = view.get(e1);
     return ((filter0.group & filter1.mask) > 0) && 
            ((filter1.group & filter0.mask) > 0);
+}
+
+tree_view broadphase_worker::view() const {
+    return m_tree.view();
 }
 
 }

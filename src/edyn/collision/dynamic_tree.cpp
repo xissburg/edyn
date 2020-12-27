@@ -1,4 +1,5 @@
 #include "edyn/collision/dynamic_tree.hpp"
+#include "edyn/collision/tree_view.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -35,6 +36,7 @@ tree_node_id_t dynamic_tree::allocate() {
 void dynamic_tree::free(tree_node_id_t id) {
     m_nodes[id].next = m_free_list;
     m_nodes[id].height = -1;
+    m_nodes[id].entity = entt::null;
     m_free_list = id;
 }
 
@@ -340,6 +342,16 @@ tree_node_id_t dynamic_tree::balance(tree_node_id_t idA) {
 
 const tree_node & dynamic_tree::get_node(tree_node_id_t id) const {
     return m_nodes[id];
+}
+
+tree_view dynamic_tree::view() const {
+    std::vector<tree_view::tree_node> view_nodes;
+
+    for (auto &node : m_nodes) {
+        view_nodes.push_back(tree_view::tree_node{node.entity, node.aabb, node.child1, node.child2});
+    }
+
+    return {view_nodes, m_root};
 }
 
 }
