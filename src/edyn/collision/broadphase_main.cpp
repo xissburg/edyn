@@ -97,6 +97,10 @@ void broadphase_main::update() {
         // entities that are intersecting this island.
         m_np_tree.query(island_aabb, [&] (tree_node_id_t id_np) {
             auto np_entity = m_np_tree.get_node(id_np).entity;
+
+            auto &container = m_registry->get<island_container>(np_entity);
+            if (container.entities.count(island_entityA) > 0) return true;
+
             intersect_island_np(tree_viewA, np_entity, aabb_view);
             return true;
         });
@@ -105,13 +109,19 @@ void broadphase_main::update() {
 
 void broadphase_main::intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB,
                                         const aabb_view_t &aabb_view) {
+    auto procedural_view = m_registry->view<procedural_tag>();
 
     tree_viewB.each([&] (const tree_view::tree_node &nodeB) {
         auto entityB = nodeB.entity;
+
+        if (!procedural_view.contains(entityB)) return;
+
         auto aabbB = aabb_view.get(entityB).inset(m_aabb_offset);
 
         tree_viewA.query(aabbB, [&] (tree_node_id_t idA) {
             auto entityA = tree_viewA.get_node(idA).entity;
+
+            if (!procedural_view.contains(entityA)) return true;
 
             if (should_collide(entityA, entityB) && 
                 !m_manifold_map.contains(std::make_pair(entityA, entityB))) {
