@@ -118,9 +118,6 @@ void broadphase_main::intersect_islands(const tree_view &tree_viewA, const tree_
 }
 
 void broadphase_main::intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB) const {
-    // Only check procedural vs procedural entities. Non-procedural entities
-    // are handled separately.
-    auto procedural_view = m_registry->view<procedural_tag>();
     auto aabb_view = m_registry->view<AABB>();
 
     // `tree_viewA` is iterated and for each node an AABB query is performed in
@@ -129,22 +126,12 @@ void broadphase_main::intersect_islands_a(const tree_view &tree_viewA, const tre
     tree_viewA.each([&] (const tree_view::tree_node &nodeA) {
         auto entityA = nodeA.entity;
 
-        if (!procedural_view.contains(entityA)) {
-            return;
-        }
-
         auto aabbA = aabb_view.get(entityA).inset(m_aabb_offset);
 
         tree_viewB.query(aabbA, [&] (tree_node_id_t idB) {
             auto entityB = tree_viewB.get_node(idB).entity;
 
-            if (!procedural_view.contains(entityB)) {
-                return;
-            }
-
-            if (should_collide(entityA, entityB) && 
-                !m_manifold_map.contains(std::make_pair(entityA, entityB))) {
-
+            if (should_collide(entityA, entityB) && !m_manifold_map.contains(entityA, entityB)) {
                 auto &aabbB = aabb_view.get(entityB);
 
                 if (intersect(aabbA, aabbB)) {
@@ -156,23 +143,13 @@ void broadphase_main::intersect_islands_a(const tree_view &tree_viewA, const tre
 }
 
 void broadphase_main::intersect_island_np(const tree_view &island_tree, entt::entity np_entity) const {
-
     auto aabb_view = m_registry->view<AABB>();
-    auto procedural_view = m_registry->view<procedural_tag>();
     auto np_aabb = aabb_view.get(np_entity).inset(m_aabb_offset);
 
     island_tree.query(np_aabb, [&] (tree_node_id_t idA) {
         auto entity = island_tree.get_node(idA).entity;
 
-        // Non-procedural entities can only collide with procedural entities,
-        // thus if the island entity is not procedural, do not proceed.
-        if (!procedural_view.contains(entity)) {
-            return;
-        }
-
-        if (should_collide(entity, np_entity) && 
-            !m_manifold_map.contains(std::make_pair(entity, np_entity))) {
-
+        if (should_collide(entity, np_entity) && !m_manifold_map.contains(entity, np_entity)) {
             auto &aabb = aabb_view.get(entity);
 
             if (intersect(aabb, np_aabb)) {

@@ -17,6 +17,7 @@ public:
     contact_manifold_map(entt::registry &);
 
     bool contains(const entity_pair &) const;
+    bool contains(entt::entity, entt::entity) const;
 
     void on_construct_contact_manifold(entt::registry &, entt::entity);
     void on_destroy_contact_manifold(entt::registry &, entt::entity);

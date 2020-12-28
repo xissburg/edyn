@@ -24,21 +24,43 @@ broadphase_worker::broadphase_worker(entt::registry &registry)
 }
 
 void broadphase_worker::on_construct_aabb(entt::registry &registry, entt::entity entity) {
-    auto &aabb = registry.get<AABB>(entity);
-    auto id = m_tree.create(aabb, entity);
-    registry.emplace<tree_node_id_t>(entity, id);
+    // Perform initialization later when the entity is fully constructed.
+    m_new_aabb_entities.push_back(entity);
 }
 
 void broadphase_worker::on_destroy_node_id(entt::registry &registry, entt::entity entity) {
     auto id = registry.get<tree_node_id_t>(entity);
-    m_tree.destroy(id);
+
+    if (registry.has<procedural_tag>(entity)) {
+        m_tree.destroy(id);
+    } else {
+        m_np_tree.destroy(id);
+    }
+}
+
+void broadphase_worker::init_new_aabb_entities() {
+    if (m_new_aabb_entities.empty()) {
+        return;
+    }
+
+    for (auto entity : m_new_aabb_entities) {
+        auto &aabb = m_registry->get<AABB>(entity);
+        tree_node_id_t id = m_registry->has<procedural_tag>(entity) ?
+            m_tree.create(aabb, entity) :
+            m_np_tree.create(aabb, entity);
+        m_registry->emplace<tree_node_id_t>(entity, id);
+    }
+
+    m_new_aabb_entities.clear();
 }
 
 void broadphase_worker::update() {
+    init_new_aabb_entities();
+
     auto aabb_view = m_registry->view<AABB>();
     auto manifold_view = m_registry->view<contact_manifold>();
 
-    // Destroy manifolds of pairs that are not intersecting anymore.
+    // Destroy manifolds of pairs whose AABBs are not intersecting anymore.
     manifold_view.each([&] (entt::entity entity, contact_manifold &manifold) {
         auto &b0 = aabb_view.get<AABB>(manifold.body[0]);
         auto &b1 = aabb_view.get<AABB>(manifold.body[1]);
@@ -50,41 +72,45 @@ void broadphase_worker::update() {
     });
 
     // Update AABBs of procedural nodes in the dynamic tree.
-    auto aabb_node_proc_view = m_registry->view<AABB, tree_node_id_t, procedural_tag>();
-    aabb_node_proc_view.each([&] (entt::entity, AABB &aabb, tree_node_id_t node_id) {
+    auto proc_aabb_node_view = m_registry->view<tree_node_id_t, AABB, procedural_tag>();
+    proc_aabb_node_view.each([&] (tree_node_id_t node_id, AABB &aabb) {
         m_tree.move(node_id, aabb);
     });
 
-    // Search for new AABB intersections and create manifolds.
-    const auto offset = vector3_one * -contact_breaking_threshold;
-    const auto separation_threshold = contact_breaking_threshold * 4 * 1.3;
+    // Update kinematic AABBs in non-procedural tree.
+    // TODO: only do this for kinematic entities that had their AABB updated.
+    auto kinematic_aabb_node_view = m_registry->view<tree_node_id_t, AABB, kinematic_tag>();
+    kinematic_aabb_node_view.each([&] (tree_node_id_t node_id, AABB &aabb) {
+        m_np_tree.move(node_id, aabb);
+    });
 
+    // Search for new AABB intersections and create manifolds.
     auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
     aabb_proc_view.each([&] (entt::entity entity, AABB &aabb) {
-        auto offset_aabb = aabb.inset(offset);
+        auto offset_aabb = aabb.inset(m_aabb_offset);
+        collide_tree(m_tree, entity, offset_aabb);
+        collide_tree(m_np_tree, entity, offset_aabb);
+    });
+}
 
-        m_tree.query(offset_aabb, [&] (tree_node_id_t id) {
-            auto &node = m_tree.get_node(id);
-            auto p = std::make_pair(entity, node.entity);
+void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb) {
+    auto aabb_view = m_registry->view<AABB>();
 
-            if (!m_manifold_map.contains(p) && should_collide(entity, node.entity)) {
-                auto &other_aabb = aabb_view.get(node.entity);
+    tree.query(offset_aabb, [&] (tree_node_id_t id) {
+        auto &node = tree.get_node(id);
 
-                if (intersect(offset_aabb, other_aabb)) {
-                    make_contact_manifold(*m_registry, entity, node.entity, separation_threshold);
-                }
+        if (should_collide(entity, node.entity) && !m_manifold_map.contains(entity, node.entity)) {
+            auto &other_aabb = aabb_view.get(node.entity);
+
+            if (intersect(offset_aabb, other_aabb)) {
+                make_contact_manifold(*m_registry, entity, node.entity, m_separation_threshold);
             }
-        });
+        }
     });
 }
 
 bool broadphase_worker::should_collide(entt::entity e0, entt::entity e1) const {
     if (e0 == e1) {
-        return false;
-    }
-
-    if ((m_registry->has<static_tag>(e0) || m_registry->has<kinematic_tag>(e0)) &&
-        (m_registry->has<static_tag>(e1) || m_registry->has<kinematic_tag>(e1))) {
         return false;
     }
 
