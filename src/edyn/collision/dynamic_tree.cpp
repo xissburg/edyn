@@ -136,8 +136,8 @@ void dynamic_tree::insert(tree_node_id_t leaf) {
     const auto sibling = best(leaf_aabb);
 
     // Create new parent.
-    // Careful keeping references to nodes in `m_nodes` before the call to
-    // `allocate` since it emplaces a new entry into the vector.
+    // Careful keeping references to nodes in `m_nodes` created before the call
+    // to `allocate` since it emplaces a new entry into the vector.
     auto old_parent = m_nodes[sibling].parent;
     auto new_parent = allocate();
     auto &parent_node = m_nodes[new_parent];
