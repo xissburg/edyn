@@ -4,7 +4,6 @@
 #include <map>
 #include <vector>
 #include <entt/fwd.hpp>
-#include <entt/entity/utility.hpp>
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
@@ -23,9 +22,9 @@ class broadphase_main {
     constexpr static auto m_aabb_offset = vector3_one * -m_threshold;
     constexpr static auto m_separation_threshold = m_threshold * 1.3;
 
-    using aabb_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, AABB>;
-    void intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB, const aabb_view_t &) const;
-    void intersect_island_np(const tree_view &island_tree, entt::entity np_entity, const aabb_view_t &) const;
+    void intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB) const;
+    void intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB) const;
+    void intersect_island_np(const tree_view &island_tree, entt::entity np_entity) const;
 
 public:
     broadphase_main(entt::registry &);
