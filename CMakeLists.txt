@@ -63,6 +63,7 @@ set(Edyn_SOURCES
     src/edyn/collision/broadphase_worker.cpp
     src/edyn/collision/narrowphase.cpp
     src/edyn/collision/contact_manifold_map.cpp
+    src/edyn/collision/dynamic_tree.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
     src/edyn/collision/collide_sphere_plane.cpp
     src/edyn/collision/collide_cylinder_cylinder.cpp
@@ -149,8 +150,8 @@ target_compile_features(Edyn PUBLIC cxx_std_17)
 #
 
 if(CMAKE_BUILD_TYPE EQUAL "Debug")
-    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
-    target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
+    #add_compile_options(-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
+    #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
 endif()
 
 #

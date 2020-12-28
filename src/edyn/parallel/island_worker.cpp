@@ -9,6 +9,7 @@
 #include "edyn/comp/shared_comp.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/util/island_util.hpp"
+#include "edyn/collision/tree_view.hpp"
 
 namespace edyn {
 
@@ -42,6 +43,9 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
     m_delta_builder.insert_entity_mapping(m_island_entity);
+
+    m_registry.emplace<tree_view>(m_island_entity);
+    m_delta_builder.created<tree_view>(m_island_entity, {});
 
     m_message_queue.sink<registry_delta>().connect<&island_worker::on_registry_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -244,6 +248,11 @@ void island_worker::step() {
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     isle_time.value += m_fixed_dt;
     m_delta_builder.updated<island_timestamp>(m_island_entity, isle_time);
+
+    // Update tree view.
+    auto tview = m_bphase.view();
+    m_registry.replace<tree_view>(m_island_entity, tview);
+    m_delta_builder.updated(m_island_entity, tview);
 
     maybe_go_to_sleep();
 

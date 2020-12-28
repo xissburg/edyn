@@ -13,6 +13,10 @@ bool contact_manifold_map::contains(const entity_pair &pair) const {
     return m_pair_map.count(pair) > 0;
 }
 
+bool contact_manifold_map::contains(entt::entity first, entt::entity second) const {
+    return contains(std::make_pair(first, second));
+}
+
 void contact_manifold_map::on_construct_contact_manifold(entt::registry &registry, entt::entity entity) {
     auto &manifold = registry.get<contact_manifold>(entity);
     // Insert all permutations.
