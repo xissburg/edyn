@@ -160,9 +160,7 @@ void broadphase_main::intersect_island_np(const tree_view &island_tree, entt::en
 }
 
 bool broadphase_main::should_collide(entt::entity e0, entt::entity e1) const {
-    if (e0 == e1) {
-        return false;
-    }
+    EDYN_ASSERT(e0 != e1);
 
     auto view = m_registry->view<const collision_filter>();
     auto &filter0 = view.get(e0);
