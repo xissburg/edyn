@@ -102,7 +102,7 @@ A traditional Sequential Impulse constraint solver is used.
 
 Many physics engines give special treatment to _contact constraints_ (aka _non-penetration constraints_). In _Edyn_ they are no different of other types of constraints. The `edyn::contact_constraint` is simply part of the `std::variant` in the `edyn::constraint` component.
 
-Collision detection is split in two phases: broad-phase and narrow-phase. In broad-phase potential collision pairs are found by checking if the AABBs of different entities are intersecting. Later, in the narrow-phase closest points are calculated for these pairs.
+Collision detection is split in two phases: broad-phase and narrow-phase. In broad-phase potential collision pairs are found by checking if the AABBs of different entities are intersecting. Later, in the narrow-phase, closest points are calculated for these pairs.
 
 During broad-phase, intersections between the AABBs of all entities are found using a _dynamic bounding volume tree_, according to [Dynamic Bounding Volume Hierarchies, Erin Catto, GDC 2019](https://box2d.org/files/ErinCatto_DynamicBVH_Full.pdf) and [Box2D](https://github.com/erincatto/box2d/blob/master/include/box2d/b2_dynamic_tree.h) [b2DynamicTree](https://github.com/erincatto/box2d/blob/master/src/collision/b2_dynamic_tree.cpp). The AABBs are inflated by a threshold so that contact pairs can be generated before the bodies start to penetrate thus generating contact points in advance. For any new intersection, an entity is created and a `edyn::contact_manifold` component is assigned to it. For any AABB intersection that ceased to exist, the entity is destroyed thus also destroying all components associated with it. The AABB is inflated a bit more when looking for separation to avoid a situation where they'd join and separate repeatedly. This is sometimes called _hysteresis_.
 
@@ -116,7 +116,7 @@ To enable collision response for an entity, a `edyn::material` component must be
 
 Collision events can be observed by listening to `on_construct<entt::contact_point>` or `on_destroy<entt::contact_point>` in the `entt::registry`.
 
-Due to the multi-threaded design of _Edyn_, the broad-phase and narrow-phase are setup in a non-conventional way. The main thread performs broad-phase among islands using the AABB of the root node of their dynamic tree and then drills down to perform finer queries between entities in different islands and narrow-phase is only performed in the island workers. More details are discussed in the [Multi-threading](#when-islands-collide) section.
+Due to the multi-threaded design of _Edyn_, the broad-phase and narrow-phase are setup in a non-conventional way. The main thread performs broad-phase among islands using the AABB of the root node of their dynamic tree and then drills down to perform finer queries between entities in different islands. Narrow-phase is only performed in the island workers. More details are discussed in the [Multi-threading](#when-islands-collide) section.
 
 # Shapes
 
@@ -202,7 +202,7 @@ The splitting operation is done in the `edyn::island_coordinator` and consists o
 
 The `edyn::island_coordinator` looks for entities from different islands that could collide during broad-phase collision detection. For any new pairs that are found, it is necessary to merge the islands together because one island is unaware of any other.
 
-Merging is done by selecting the biggest among the islands being merged and moving all entities from the other islands into it by inserting them into a `edyn::registry_delta` and sending it over to the existing big island.
+Merging is done by selecting the biggest among the islands being merged and moving all entities from the other islands into it by inserting them into a `edyn::registry_delta` and sending it over to the existing big island. Then the other islands can be destroyed and the workers can be terminated.
 
 ### When Islands Collide
 
@@ -210,7 +210,7 @@ The island worker runs a broad-phase collision detection using two dynamic trees
 
 The main thread runs its broad-phase using `edyn::broadphase_main`, which is responsible for creating `edyn::contact_manifold`s between nodes that reside in different islands, thus creating the connection between islands since they are unaware of each other. These manifolds also have an associated `edyn::island_node` which references both rigid bodies. As new `edyn::contact_manifold`s are created, the `edyn::island_coordinator` merges islands since they now form a single connected component. 
 
-`edyn::broadphase_main` has one dynamic tree for island AABBs and another dynamic tree for non-procedural entities. The former contains nodes for each island which are constructed from the AABB of the root node of the `edyn::tree_view` of that island, which is the AABB enclosing all procedural entities in the island. For each awake island, it queries the island dynamic tree to find other islands that could be intersecting. For each pair of islands that are found to be intersecting, it uses the `edyn::tree_view` of both to find pairs of procedural entities that could collide. It picks the smaller of the two trees and iterates its nodes and for each node it queries the other tree to find intersecting pairs. Then, it queries the non-procedural tree to find non-procedural entities that could collide with procedural entities in the island. Then it drills down a level and queries the island `edyn::tree_view` to find collision pairs.
+`edyn::broadphase_main` has one dynamic tree for island AABBs and another dynamic tree for non-procedural entities. The former contains nodes for each island which are constructed from the AABB of the root node of the `edyn::tree_view` of that island, which is the AABB enclosing all procedural entities in the island. For each awake island, it queries the island dynamic tree to find other islands that could be intersecting. For each pair of islands that are found to be intersecting, it uses the `edyn::tree_view` of both to find pairs of procedural entities that could collide. It picks the smaller of the two trees and iterates its leaf nodes and for each leaf it queries the other tree to find intersecting pairs. Then, it queries the non-procedural tree to find non-procedural entities that could collide with procedural entities in the island. Then it once again drills down a level and queries the island `edyn::tree_view` to find collision pairs.
 
 ### Entity Mapping
 
