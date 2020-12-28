@@ -28,7 +28,7 @@ void broadphase_main::on_construct_tree_view(entt::registry &registry, entt::ent
     EDYN_ASSERT(registry.has<island>(entity));
 
     auto &view = registry.get<tree_view>(entity);
-    auto id = m_tree.create(view.root_aabb(), entity);
+    auto id = m_island_tree.create(view.root_aabb(), entity);
     registry.emplace<tree_node_id_t>(entity, id);
 }
 
@@ -46,7 +46,7 @@ void broadphase_main::on_destroy_node_id(entt::registry &registry, entt::entity 
     if (registry.has<static_tag>(entity) || registry.has<kinematic_tag>(entity)) {
         m_np_tree.destroy(id);
     } else {
-        m_tree.destroy(id);
+        m_island_tree.destroy(id);
     }
 }
 
@@ -55,7 +55,7 @@ void broadphase_main::update() {
     auto exclude_sleeping = entt::exclude_t<sleeping_tag>{};
     auto tree_view_node_view = m_registry->view<tree_view, tree_node_id_t>(exclude_sleeping);
     tree_view_node_view.each([&] (entt::entity, tree_view &tree_view, tree_node_id_t node_id) {
-        m_tree.move(node_id, tree_view.root_aabb());
+        m_island_tree.move(node_id, tree_view.root_aabb());
     });
 
     // Update kinematic AABBs in tree.
@@ -77,8 +77,8 @@ void broadphase_main::update() {
         
         // Query the dynamic tree to find other islands whose AABB intersects the
         // current island's AABB.
-        m_tree.query(island_aabb, [&] (tree_node_id_t idB) {
-            auto island_entityB = m_tree.get_node(idB).entity;
+        m_island_tree.query(island_aabb, [&] (tree_node_id_t idB) {
+            auto island_entityB = m_island_tree.get_node(idB).entity;
 
             if (island_entityA == island_entityB) {
                 return;

@@ -37,7 +37,7 @@ public:
 
 private:
     entt::registry *m_registry;
-    dynamic_tree m_tree;
+    dynamic_tree m_island_tree; // Tree for island AABBs.
     dynamic_tree m_np_tree; // Tree for non-procedural entities.
     contact_manifold_map m_manifold_map;
 
