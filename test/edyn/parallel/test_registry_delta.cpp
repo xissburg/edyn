@@ -1,6 +1,14 @@
 #include "../common/common.hpp"
+#include <tuple>
+#include <memory>
+
+struct custom_component {
+    edyn::scalar value;
+    entt::entity entity;
+};
 
 TEST(registry_delta_test, test_registry_delta_export_import) {
+    edyn::register_external_components<custom_component>();
     edyn::init();
 
     entt::registry reg0;
@@ -11,6 +19,8 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
     auto ent1 = reg0.create();
     reg0.emplace<edyn::contact_point>(ent1, std::array<entt::entity, 2>{child0, child1});
     reg0.get<edyn::contact_point>(ent1).distance = 6.28;
+    auto ent2 = reg0.create();
+    reg0.emplace<custom_component>(ent2, 3.14, child1);
 
     auto map0 = edyn::entity_map{};
     auto builder = edyn::make_registry_delta_builder(map0);
@@ -20,6 +30,8 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
     builder->created(ent1, reg0.get<edyn::contact_point>(ent1));
     builder->created(child0);
     builder->created(child1);
+    builder->created(ent2);
+    builder->created(ent2, reg0.get<custom_component>(ent2));
 
     entt::registry reg1;
     auto map1 = edyn::entity_map{};
@@ -37,6 +49,8 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
     ASSERT_GT(reg1.get<edyn::island_node>(map1.remloc(ent0)).entities.count(map1.remloc(child1)), 0);
     ASSERT_EQ(map1.locrem(reg1.get<edyn::contact_point>(map1.remloc(ent1)).body[0]), child0);
     ASSERT_SCALAR_EQ(reg1.get<edyn::contact_point>(map1.remloc(ent1)).distance, 6.28);
+    ASSERT_SCALAR_EQ(reg1.get<custom_component>(map1.remloc(ent2)).value, 3.14);
+    ASSERT_EQ(reg1.get<custom_component>(map1.remloc(ent2)).entity, child1);
 
     // Replace some entities in `reg1`, export it and load it into `reg0`.
     auto &comp0 = reg1.get<edyn::island_node>(map1.remloc(ent0));

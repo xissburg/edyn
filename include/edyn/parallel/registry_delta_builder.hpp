@@ -153,10 +153,46 @@ public:
     }
 };
 
+/**
+ * @brief Function type of a factory function that creates instances of a 
+ * registry delta builder implementation.
+ */
 using make_registry_delta_builder_func_t = std::unique_ptr<registry_delta_builder>(*)(entity_map &);
+
+/**
+ * @brief Pointer to a factory function that makes new delta builders.
+ * 
+ * The default function returns a delta builder configured with all default 
+ * shared components (`edyn::shared_components`) but it can be replaced by
+ * a function that returns a builder which additionally handles external
+ * components set by the user.
+ */
 extern make_registry_delta_builder_func_t g_make_registry_delta_builder;
 
+/**
+ * @brief Creates a new delta builder.
+ * 
+ * Returns a delta builder implementation that supports handling all shared 
+ * component types plus any external component set by the user.
+ * 
+ * @return Safe pointer to an instance of a delta builder implementation.
+ */
 std::unique_ptr<registry_delta_builder> make_registry_delta_builder(entity_map &);
+
+/**
+ * @brief Registers external components to be shared between island coordinator
+ * and island workers. 
+ * @tparam Component External component types.
+ */
+template<typename... Component>
+void register_external_components() {
+    g_make_registry_delta_builder = [] (entity_map &map) {
+        auto external = std::tuple<Component...>{};
+        auto all_components = std::tuple_cat(edyn::shared_components{}, external);
+        return std::unique_ptr<edyn::registry_delta_builder>(
+            new edyn::registry_delta_builder_impl(map, all_components));
+    };
+}
 
 }
 

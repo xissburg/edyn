@@ -4,7 +4,8 @@
 namespace edyn {
 
 std::unique_ptr<registry_delta_builder> make_registry_delta_builder_default(entity_map &map) {
-    return std::unique_ptr<registry_delta_builder>(new registry_delta_builder_impl(map, shared_components{}));
+    return std::unique_ptr<registry_delta_builder>(
+        new registry_delta_builder_impl(map, shared_components{}));
 }
 
 make_registry_delta_builder_func_t g_make_registry_delta_builder = &make_registry_delta_builder_default;
