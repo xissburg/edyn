@@ -72,7 +72,7 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
 
     auto &custom = reg1.get<custom_component>(map1.remloc(ent2));
     custom.entity = map1.remloc(ent2);
-    builder1->updated<custom_component>(map1.remloc(ent2), reg1);
+    builder1->updated_all(map1.remloc(ent2), reg1);
     
     builder1->get_delta().import(reg0, map0);
 

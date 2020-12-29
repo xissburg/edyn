@@ -194,6 +194,11 @@ void register_external_components() {
     };
 }
 
+/**
+ * @brief Removes registered external components and resets to defaults.
+ */
+void remove_external_components();
+
 }
 
 #endif // EDYN_PARALLEL_REGISTRY_DELTA_BUILDER_HPP
