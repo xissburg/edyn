@@ -6,7 +6,6 @@
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
-#include "edyn/comp/shared_comp.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/collision/tree_view.hpp"
@@ -36,16 +35,16 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_bphase(m_registry)
     , m_nphase(m_registry)
     , m_solver(m_registry)
-    , m_delta_builder(m_entity_map)
+    , m_delta_builder(make_registry_delta_builder(m_entity_map))
     , m_importing_delta(false)
     , m_topology_changed(false)
 {
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
-    m_delta_builder.insert_entity_mapping(m_island_entity);
+    m_delta_builder->insert_entity_mapping(m_island_entity);
 
     m_registry.emplace<tree_view>(m_island_entity);
-    m_delta_builder.created<tree_view>(m_island_entity, {});
+    m_delta_builder->created<tree_view>(m_island_entity, {});
 
     m_message_queue.sink<registry_delta>().connect<&island_worker::on_registry_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -109,7 +108,7 @@ void island_worker::on_destroy_island_node(entt::registry &registry, entt::entit
         auto &other_node = registry.get<island_node>(other);
         other_node.entities.erase(entity);
         if (!m_importing_delta) {
-            m_delta_builder.updated<island_node>(other, other_node);
+            m_delta_builder->updated<island_node>(other, other_node);
         }
     }
 
@@ -121,12 +120,12 @@ void island_worker::on_construct_island_container(entt::registry &registry, entt
     
     auto &container = registry.get<island_container>(entity);
     container.entities.insert(m_island_entity);
-    m_delta_builder.created<island_container>(entity, container);
+    m_delta_builder->created<island_container>(entity, container);
 }
 
 void island_worker::on_destroy_island_container(entt::registry &registry, entt::entity entity) {
     if (m_importing_delta) return;
-    m_delta_builder.destroyed(entity);
+    m_delta_builder->destroyed(entity);
 }
 
 void island_worker::on_registry_delta(const registry_delta &delta) {
@@ -138,61 +137,57 @@ void island_worker::on_registry_delta(const registry_delta &delta) {
     for (auto remote_entity : delta.created_entities()) {
         if (!m_entity_map.has_rem(remote_entity)) continue;
         auto local_entity = m_entity_map.remloc(remote_entity);
-        m_delta_builder.insert_entity_mapping(local_entity);
+        m_delta_builder->insert_entity_mapping(local_entity);
     }
 }
 
 void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     if (!m_registry.has<sleeping_tag>(m_island_entity)) return;
 
-    auto builder = registry_delta_builder(m_entity_map);
+    auto builder = make_registry_delta_builder(m_entity_map);
 
     auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
     isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
-    builder.updated(m_island_entity, isle_timestamp);
+    builder->updated(m_island_entity, isle_timestamp);
 
     m_registry.view<sleeping_tag>().each([&] (entt::entity entity) {
-        builder.destroyed<sleeping_tag>(entity);
+        builder->destroyed<sleeping_tag>(entity);
     });
     m_registry.clear<sleeping_tag>();
 
-    m_message_queue.send<registry_delta>(std::move(builder.get_delta()));
+    m_message_queue.send<registry_delta>(std::move(builder->get_delta()));
 }
 
 void island_worker::sync() {
     // Always update AABBs since they're needed for broad-phase in the coordinator.
     m_registry.view<AABB>().each([&] (entt::entity entity, AABB &aabb) {
-        m_delta_builder.updated(entity, aabb);
+        m_delta_builder->updated(entity, aabb);
     });
 
     // Update continuous components.
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
-        m_delta_builder.updated(entity, m_registry,
-            cont.types.begin(), cont.types.end(),
-            shared_components{});
+        m_delta_builder->updated(entity, m_registry,
+            cont.types.begin(), cont.types.end());
     });
 
     // Update dirty components.
     m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
         if (dirty.is_new_entity) {
-            m_delta_builder.created(entity);
+            m_delta_builder->created(entity);
         }
 
-        m_delta_builder.created(entity, m_registry,
-            dirty.created_indexes.begin(), dirty.created_indexes.end(),
-            shared_components{});
-        m_delta_builder.updated(entity, m_registry,
-            dirty.updated_indexes.begin(), dirty.updated_indexes.end(),
-            shared_components{});
-        m_delta_builder.destroyed(entity,
-            dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end(),
-            shared_components{});
+        m_delta_builder->created(entity, m_registry,
+            dirty.created_indexes.begin(), dirty.created_indexes.end());
+        m_delta_builder->updated(entity, m_registry,
+            dirty.updated_indexes.begin(), dirty.updated_indexes.end());
+        m_delta_builder->destroyed(entity,
+            dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
     });
 
-    m_message_queue.send<registry_delta>(std::move(m_delta_builder.get_delta()));
+    m_message_queue.send<registry_delta>(std::move(m_delta_builder->get_delta()));
 
     // Clear delta for the next run.
-    m_delta_builder.clear();
+    m_delta_builder->clear();
     m_registry.clear<dirty>();
 }
 
@@ -215,7 +210,7 @@ void island_worker::update() {
                 auto remainder = dt - num_steps * m_fixed_dt;
                 auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
                 isle_time.value = time - (remainder + max_lagging_steps * m_fixed_dt);
-                m_delta_builder.updated<island_timestamp>(m_island_entity, isle_time);
+                m_delta_builder->updated<island_timestamp>(m_island_entity, isle_time);
             }
         }
     }
@@ -247,12 +242,12 @@ void island_worker::step() {
 
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     isle_time.value += m_fixed_dt;
-    m_delta_builder.updated<island_timestamp>(m_island_entity, isle_time);
+    m_delta_builder->updated<island_timestamp>(m_island_entity, isle_time);
 
     // Update tree view.
     auto tview = m_bphase.view();
     m_registry.replace<tree_view>(m_island_entity, tview);
-    m_delta_builder.updated(m_island_entity, tview);
+    m_delta_builder->updated(m_island_entity, tview);
 
     maybe_go_to_sleep();
 
@@ -350,22 +345,22 @@ bool island_worker::could_go_to_sleep() {
 
 void island_worker::go_to_sleep() {
     m_registry.emplace<sleeping_tag>(m_island_entity);
-    m_delta_builder.created(m_island_entity, sleeping_tag{});
+    m_delta_builder->created(m_island_entity, sleeping_tag{});
 
     // Assign `sleeping_tag` to all procedural entities.
     m_registry.view<procedural_tag>().each([&] (entt::entity entity) {
         if (auto *v = m_registry.try_get<linvel>(entity); v) {
             *v = vector3_zero;
-            m_delta_builder.updated(entity, *v);
+            m_delta_builder->updated(entity, *v);
         }
 
         if (auto *w = m_registry.try_get<angvel>(entity); w) {
             *w = vector3_zero;
-            m_delta_builder.updated(entity, *w);
+            m_delta_builder->updated(entity, *w);
         }
 
         m_registry.emplace<sleeping_tag>(entity);
-        m_delta_builder.created(entity, sleeping_tag{});
+        m_delta_builder->created(entity, sleeping_tag{});
     });
 }
 
@@ -422,7 +417,7 @@ void island_worker::calculate_topology() {
     for (auto &connected : connected_components) {
         topo.count.push_back(connected.size());
     }
-    m_delta_builder.topology(topo);
+    m_delta_builder->topology(topo);
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {

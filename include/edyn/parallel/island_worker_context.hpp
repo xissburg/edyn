@@ -1,11 +1,12 @@
 #ifndef EDYN_PARALLEL_ISLAND_WORKER_CONTEXT_HPP
 #define EDYN_PARALLEL_ISLAND_WORKER_CONTEXT_HPP
 
+#include <memory>
 #include <entt/fwd.hpp>
 #include "edyn/util/entity_set.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/registry_delta.hpp"
+#include "edyn/parallel/registry_delta_builder.hpp"
 
 namespace edyn {
 
@@ -23,7 +24,7 @@ class island_worker_context {
 public:
     entity_set m_entities;
     entity_map m_entity_map;
-    registry_delta_builder m_delta_builder;
+    std::unique_ptr<registry_delta_builder> m_delta_builder;
 
     using registry_delta_func_t = void(entt::entity, const registry_delta &);
     entt::sigh<registry_delta_func_t> m_registry_delta_signal;

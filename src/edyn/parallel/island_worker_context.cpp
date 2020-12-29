@@ -9,7 +9,7 @@ island_worker_context::island_worker_context(entt::entity island_entity,
     : m_island_entity(island_entity)
     , m_worker(worker)
     , m_message_queue(message_queue)
-    , m_delta_builder(m_entity_map)
+    , m_delta_builder(make_registry_delta_builder(m_entity_map))
     , m_pending_flush(false)
 {
     m_message_queue.sink<registry_delta>().connect<&island_worker_context::on_registry_delta>(*this);
@@ -24,7 +24,7 @@ void island_worker_context::on_registry_delta(const registry_delta &delta) {
 }
 
 bool island_worker_context::delta_empty() const {
-    return m_delta_builder.empty();
+    return m_delta_builder->empty();
 }
 
 void island_worker_context::read_messages() {
@@ -32,8 +32,8 @@ void island_worker_context::read_messages() {
 }
 
 void island_worker_context::send_delta() {
-    send<registry_delta>(std::move(m_delta_builder.get_delta()));
-    m_delta_builder.clear();
+    send<registry_delta>(std::move(m_delta_builder->get_delta()));
+    m_delta_builder->clear();
 }
 
 void island_worker_context::flush() {
