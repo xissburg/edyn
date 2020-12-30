@@ -9,6 +9,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/collision/tree_view.hpp"
+#include "edyn/parallel/external_system.hpp"
 
 namespace edyn {
 
@@ -64,6 +65,10 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
     
     m_registry.on_construct<contact_manifold>().connect<&island_worker::on_construct_contact_manifold>(*this);
+
+    if (g_external_system_init) {
+        (*g_external_system_init)(m_registry);
+    }
 }
 
 island_worker::~island_worker() {
@@ -235,6 +240,10 @@ void island_worker::update() {
 }
 
 void island_worker::step() {
+    if (g_external_system_pre_step) {
+        (*g_external_system_pre_step)(m_registry);
+    }
+
     init_new_imported_contact_manifolds();
     m_solver.update(m_fixed_dt);
     m_bphase.update();
@@ -255,6 +264,10 @@ void island_worker::step() {
         validate_island();
         calculate_topology();
         m_topology_changed = false;
+    }
+
+    if (g_external_system_post_step) {
+        (*g_external_system_post_step)(m_registry);
     }
 
     sync();
