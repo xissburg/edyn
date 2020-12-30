@@ -8,23 +8,46 @@
 
 namespace edyn {
 
+/**
+ * @brief Provides the means to build a `registry_delta`.
+ */
 class registry_delta_builder {
 public:
     registry_delta_builder(entity_map &map)
         : m_entity_map(&map)
     {}
 
+    /**
+     * @brief Inserts a mapping into the current delta for a local entity.
+     * Assumes a mapping exists in the entity map.
+     * @param entity An entity in the local registry.
+     */
     void insert_entity_mapping(entt::entity);
 
-    void created(entt::entity entity) {
-        m_delta.m_created_entities.insert(entity);
-    }
+    /**
+     * @brief Marks the given entity as newly created.
+     * @param entity The newly created entity.
+     */
+    void created(entt::entity entity);
 
+    /**
+     * @brief Adds the given components to the list of newly created components.
+     * @tparam Component Pack of component types.
+     * @param entity The entity the components have been assigned to.
+     * @param comp A pack of component instances.
+     */
     template<typename... Component>
     void created(entt::entity entity, const Component &... comp) {
         (m_delta.created(entity, comp), ...);
     }
 
+    /**
+     * @brief Fetches the requested components from the given registry and adds
+     * them to the list of newly created components.
+     * @tparam Component Pack of component types.
+     * @param entity The entity the components have been assigned to.
+     * @param registry The source registry.
+     */
     template<typename Component>
     void created(entt::entity entity, entt::registry &registry) {
         if constexpr(entt::is_eto_eligible_v<Component>) {
@@ -34,8 +57,24 @@ public:
         }
     }
 
+    /**
+     * @brief Fetches the requested component by id (i.e. `entt::id_type`) from
+     * the given registry and adds it to the list of newly created components.
+     * @param entity The entity the component has been assigned to.
+     * @param registry The source registry.
+     * @param id A component id obtained using `entt::type_index`.
+     */
     virtual void created(entt::entity entity, entt::registry &registry, entt::id_type id) = 0;
 
+    /**
+     * @brief Fetches the requested components by id (i.e. `entt::id_type`) from
+     * the given registry and adds them to the list of newly created components.
+     * @tparam It Type of input iterator.
+     * @param entity The entity the components have been assigned to.
+     * @param registry The source registry.
+     * @param first An iterator to the first element of a range of component ids.
+     * @param last An iterator past the last element of a range of component ids.
+     */
     template<typename It>
     void created(entt::entity entity, entt::registry &registry, It first, It last) {
         for (auto it = first; it != last; ++it) {
@@ -43,16 +82,33 @@ public:
         }
     }
 
+    /**
+     * @brief Marks all registered component types that the given entity has as
+     * newly created. Useful to be called for entities that have just been
+     * constructed.
+     * @param entity The entity the components have been assigned to.
+     * @param registry The source registry.
+     */
     virtual void created_all(entt::entity entity, entt::registry &registry) = 0;
 
     /**
-     * Adds components to be updated by the delta.
+     * @brief Adds the given components to the list of updated components.
+     * @tparam Component Pack of component types.
+     * @param entity The entity that owns the given components.
+     * @param comp A pack of component instances.
      */
     template<typename... Component>
     void updated(entt::entity entity, Component &... comp) {
         (m_delta.updated(entity, comp), ...);
     }
 
+    /**
+     * @brief Fetches the requested components from the given registry and adds
+     * them to the list of updated components.
+     * @tparam Component Pack of component types.
+     * @param entity The entity that owns the given components.
+     * @param registry The source registry.
+     */
     template<typename... Component>
     void updated(entt::entity entity, entt::registry &registry) {
         if constexpr(sizeof...(Component) <= 1) {
@@ -66,8 +122,25 @@ public:
         }
     }
 
+    /**
+     * @brief Fetches the requested component by id (i.e. `entt::id_type`) from
+     * the given registry and adds it to the list of updated components.
+     * @tparam It Type of input iterator.
+     * @param entity The entity the component has been assigned to.
+     * @param registry The source registry.
+     * @param id A component id obtained using `entt::type_index`.
+     */
     virtual void updated(entt::entity entity, entt::registry &registry, entt::id_type id) = 0;
 
+    /**
+     * @brief Fetches the requested components by id (i.e. `entt::id_type`) from
+     * the given registry and adds them to the list of updated components.
+     * @tparam It Type of input iterator.
+     * @param entity The entity the components have been assigned to.
+     * @param registry The source registry.
+     * @param first An iterator to the first element of a range of component ids.
+     * @param last An iterator past the last element of a range of component ids.
+     */
     template<typename It>
     void updated(entt::entity entity, entt::registry &registry, It first, It last) {
         for (auto it = first; it != last; ++it) {
@@ -75,11 +148,19 @@ public:
         }
     }
 
+    /**
+     * @brief Marks all registered component types that the given entity has as
+     * update.
+     * @param entity The entity that owns the components.
+     * @param registry The source registry.
+     */
     virtual void updated_all(entt::entity entity, entt::registry &registry) = 0;
 
     /**
-     * Marks components as deleted in this delta, or marks the entity as destroyed
-     * if no component is specified.
+     * @brief Marks components as deleted or marks the entity as destroyed if no
+     * component is specified.
+     * @tparam Component Pack of component types.
+     * @param entity The entity that owns the given components.
      */
     template<typename... Component>
     void destroyed(entt::entity entity) {
@@ -90,8 +171,20 @@ public:
         }
     }
 
+    /**
+     * @brief Marks components as deleted by id (i.e. `entt::id_type`).
+     * @param entity The entity that owned the deleted components.
+     * @param id A component id obtained using `entt::type_index`.
+     */
     virtual void destroyed(entt::entity entity, entt::id_type id) = 0;
 
+    /**
+     * @brief Marks components as deleted by id (i.e. `entt::id_type`).
+     * @tparam It Type of input iterator.
+     * @param entity The entity that owned the deleted components.
+     * @param first An iterator to the first element of a range of component ids.
+     * @param last An iterator past the last element of a range of component ids.
+     */
     template<typename It>
     void destroyed(entt::entity entity, It first, It last) {
         for (auto it = first; it != last; ++it) {
@@ -120,6 +213,21 @@ private:
     registry_delta m_delta;
 };
 
+/**
+ * @brief Implementation of `registry_delta_builder` which allows a list of
+ * support components to be specified.
+ * 
+ * @note
+ * When users find the need to add extra logic to the physics simulation, they'll
+ * need to have their custom components be shared between island coordinator and 
+ * island worker so that their custom system update functions can work on these
+ * components (functions assigned via `edyn::set_external_system_pre_step`, etc).
+ * This class provides implementations of the functions that update the 
+ * `registry_delta` by component id, which is required for functionalities such
+ * as marking all components as created/updated and marking components as dirty.
+ * 
+ * @tparam Component Pack of supported component types.
+ */
 template<typename... Component>
 class registry_delta_builder_impl: public registry_delta_builder {
 public:

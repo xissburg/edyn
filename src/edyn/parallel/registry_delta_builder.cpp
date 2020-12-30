@@ -18,6 +18,10 @@ void remove_external_components() {
     g_make_registry_delta_builder = &make_registry_delta_builder_default;
 }
 
+void registry_delta_builder::created(entt::entity entity) {
+    m_delta.m_created_entities.insert(entity);
+}
+
 void registry_delta_builder::insert_entity_mapping(entt::entity local_entity) {
     // Note that this is being called from the builder and the order is reversed,
     // i.e. (local, remote). When importing, the "correct" order is used, so the
