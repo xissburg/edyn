@@ -17,6 +17,8 @@ public:
         : m_entity_map(&map)
     {}
 
+    virtual ~registry_delta_builder() {}
+
     /**
      * @brief Inserts a mapping into the current delta for a local entity.
      * Assumes a mapping exists in the entity map.
