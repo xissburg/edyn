@@ -66,12 +66,4 @@ bool registry_delta::empty() const {
         m_destroyed_components.empty();
 }
 
-void registry_delta_builder::insert_entity_mapping(entt::entity local_entity) {
-    // Note that this is being called from the builder and the order is reversed,
-    // i.e. (local, remote). When importing, the "correct" order is used, so the
-    // first entity which is the remote, refers to the local entity in this registry.
-    auto remote_entity = m_entity_map->locrem(local_entity);
-    m_delta.m_entity_map.insert(local_entity, remote_entity);
-}
-
 }

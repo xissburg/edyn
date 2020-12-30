@@ -24,4 +24,4 @@
 #include "parallel/job_dispatcher.hpp"
 #include "parallel/parallel_for.hpp"
 #include "parallel/message_queue.hpp"
-#include "parallel/registry_delta.hpp"
+#include "parallel/registry_delta_builder.hpp"

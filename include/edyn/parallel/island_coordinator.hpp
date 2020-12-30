@@ -58,7 +58,7 @@ public:
         auto &container = m_registry->get<island_container>(entity);
         for (auto island_entity : container.entities) {
             auto &ctx = m_island_ctx_map.at(island_entity);
-            ctx->m_delta_builder.updated<Component...>(entity, *m_registry);
+            ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
         }
     }
 

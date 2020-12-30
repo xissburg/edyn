@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_ISLAND_WORKER_HPP
 
 #include <mutex>
+#include <memory>
 #include <atomic>
 #include <optional>
 #include <entt/entt.hpp>
@@ -11,7 +12,7 @@
 #include "edyn/parallel/message.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/registry_delta.hpp"
+#include "edyn/parallel/registry_delta_builder.hpp"
 #include "edyn/collision/broadphase_worker.hpp"
 
 namespace edyn {
@@ -83,7 +84,7 @@ private:
     std::optional<double> m_sleep_timestamp;
     bool m_paused;
 
-    registry_delta_builder m_delta_builder;
+    std::unique_ptr<registry_delta_builder> m_delta_builder;
     bool m_importing_delta;
     bool m_topology_changed;
 
