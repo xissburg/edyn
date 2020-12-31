@@ -21,6 +21,8 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/continuous.hpp"
+#include "edyn/comp/tire_material.hpp"
+#include "edyn/comp/tire_state.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 
@@ -51,6 +53,8 @@ using shared_components = std::tuple<
     mass, 
     mass_inv, 
     material, 
+    tire_material,
+    tire_state,
     orientation, 
     position,
     shape, 
