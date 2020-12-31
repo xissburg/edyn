@@ -2,32 +2,30 @@
 
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void differential_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
-    EDYN_ASSERT(rel.entity[2] != entt::null);
+void differential_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
+    EDYN_ASSERT(con.body[2] != entt::null);
 
-    con.num_rows = 1;
-    con.row[0] = registry.create();
-    auto &row = registry.assign<constraint_row>(con.row[0]);
-    row.entity = rel.entity;
-    row.priority = 200;
+    auto row_entity = add_constraint_row(entity, con, registry, 100);
+    auto &row = registry.get<constraint_row>(row_entity);
 
     for (size_t i = 0; i < 3; ++i) {
         row.use_spin[i] = true;
     }
 }
 
-void differential_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-    auto &ornA = registry.get<const orientation>(rel.entity[0]);
-    auto &ornB = registry.get<const orientation>(rel.entity[1]);
+void differential_constraint::prepare(entt::entity, constraint &con, 
+                                      entt::registry &registry, scalar dt) {
+    auto &ornA = registry.get<orientation>(con.body[0]);
+    auto &ornB = registry.get<orientation>(con.body[1]);
 
     auto axis0 = rotate(ornA, -vector3_x);
     auto axis1 = rotate(ornB, -vector3_x);

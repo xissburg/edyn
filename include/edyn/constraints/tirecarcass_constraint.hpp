@@ -17,9 +17,9 @@ struct tirecarcass_constraint : public constraint_base<tirecarcass_constraint> {
     scalar m_longitudinal_relspd;
     scalar m_torsional_relspd;
 
-    void init(entt::entity, constraint &, const relation &, entt::registry &);
-    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
-    void iteration(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, entt::registry &);
+    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
+    void iteration(entt::entity, constraint &, entt::registry &, scalar dt);
 };
 
 }

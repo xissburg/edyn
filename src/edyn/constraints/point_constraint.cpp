@@ -1,38 +1,32 @@
 #include "edyn/constraints/point_constraint.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void point_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = 3;
-
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        auto e = registry.create();
-        con.row[i] = e;
-        auto &row = registry.assign<constraint_row>(e);
-        row.entity = rel.entity;
-        row.priority = 100;
+void point_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
+    for (size_t i = 0; i < 3; ++i) {
+        add_constraint_row(entity, con, registry, 100);
     }
 }
 
-void point_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-    auto &posA = registry.get<const position>(rel.entity[0]);
-    auto &posB = registry.get<const position>(rel.entity[1]);
+void point_constraint::prepare(entt::entity, constraint &con, entt::registry &registry, scalar dt) {
+    auto &posA = registry.get<position>(con.body[0]);
+    auto &posB = registry.get<position>(con.body[1]);
 
     auto rA = pivot[0];
     auto rB = pivot[1];
 
-    auto &qA = registry.get<const orientation>(rel.entity[0]);
+    auto &qA = registry.get<orientation>(con.body[0]);
     rA = rotate(qA, rA);
 
-    auto &qB = registry.get<const orientation>(rel.entity[1]);
+    auto &qB = registry.get<orientation>(con.body[1]);
     rB = rotate(qB, rB);
 
     auto rA_skew = skew(rA);

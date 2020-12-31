@@ -1,14 +1,16 @@
 #ifndef EDYN_COLLISION_CONTACT_POINT_HPP
 #define EDYN_COLLISION_CONTACT_POINT_HPP
 
-#include <entt/fwd.hpp>
+#include <array>
 #include <cstdint>
+#include <entt/fwd.hpp>
+#include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
 
 namespace edyn {
 
 struct contact_point {
-    entt::entity parent;
+    std::array<entt::entity, 2> body {entt::null, entt::null};
     vector3 pivotA;
     vector3 pivotB;
     vector3 normalB;

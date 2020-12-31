@@ -5,13 +5,12 @@
 #include "edyn/math/math.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/dynamics/island_util.hpp"
 
 namespace edyn {
 
 inline void integrate_spin(entt::registry &registry, scalar dt) {
-    auto view = registry.view<dynamic_tag, spin_angle, const spin>(exclude_global);
-    view.each([&] (auto, auto, spin_angle &a, const spin &s) {
+    auto view = registry.view<spin_angle, spin, dynamic_tag>();
+    view.each([&] (spin_angle &a, spin &s) {
         // Keep angle in [0, 2π) interval by separating it into a complete turn
         // count (2π rad) and an angle in that interval.
         a += s * dt;

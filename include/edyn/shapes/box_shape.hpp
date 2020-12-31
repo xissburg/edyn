@@ -2,6 +2,8 @@
 #define EDYN_SHAPES_BOX_SHAPE_HPP
 
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/vector2.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
 #include <tuple>
@@ -165,6 +167,34 @@ struct box_shape {
      * @return Face normal in world space.
      */
     vector3 get_face_normal(size_t i, const quaternion &orn) const;
+
+    /**
+     * Get point at center of the i-th face in world space.
+     * @param i Face index in [0, 6).
+     * @param pos Position of geometric center of box.
+     * @param orn Orientation of the box.
+     * @return Point at center of the i-th face in world space.
+     */
+    vector3 get_face_center(size_t i, const vector3 &pos, const quaternion &orn) const;
+
+    /**
+     * Get a basis representing the tangent space of the i-th face where the x
+     * and z axes (i.e. columns 0 and 2 in the matrix) are tangent to the face
+     * and the y axis (i.e. column 1 in the matrix) is orthogonal to the face,
+     * pointing outside the box.
+     * @param i Face index in [0, 6).
+     * @param orn Orientation of the box.
+     * @return Matrix representing a tangent space basis on the i-th face.
+     */
+    matrix3x3 get_face_basis(size_t i, const quaternion &orn) const;
+
+    /**
+     * Get half of the extent of a rectangular face.
+     * @param i Face index in [0, 6).
+     * @return Half of the bidimensional extent of the rectangular face, 
+     *         according to the basis given by `get_face_basis`.
+     */
+    vector2 get_face_half_extents(size_t i) const;
 
     /**
      * Get edge index from vertex indices.

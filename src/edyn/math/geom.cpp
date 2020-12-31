@@ -95,12 +95,12 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                 s   = clamp_unit(std::min(-c * a_inv, -c1 * a_inv));
                 *sp = clamp_unit(std::max(-c * a_inv, -c1 * a_inv));
 
-                auto r2 = q1 - p2;
+                auto r2 = p2 - q1;
                 auto f2 = dot(d2, r2);
                 auto e_inv = 1 / e;
 
-                t   = clamp_unit(std::min(f * e_inv, f2 * e_inv));
-                *tp = clamp_unit(std::max(f * e_inv, f2 * e_inv));
+                t   = clamp_unit(std::min(-f * e_inv, -f2 * e_inv));
+                *tp = clamp_unit(std::max(-f * e_inv, -f2 * e_inv));
                 
                 if (std::abs(s - *sp) > EDYN_EPSILON) {
                     *num_points = 2;
@@ -489,7 +489,7 @@ scalar closest_point_circle_circle(
         auto d_p_phi = (u * -sin_phi + v * cos_phi) * radiusB;
         auto dd_p_phi = (u * -cos_phi + v * -sin_phi) * radiusB;
 
-        auto theta = atan2(p_phi.y, p_phi.z);
+        auto theta = std::atan2(p_phi.y, p_phi.z);
         auto cos_theta = std::cos(theta);
         auto sin_theta = std::sin(theta);
 
@@ -524,7 +524,7 @@ scalar closest_point_circle_circle(
     auto sin_phi = std::sin(phi);
     rB0 = posB_in_A + (u * cos_phi + v * sin_phi) * radiusB;
 
-    auto theta = atan2(rB0.y, rB0.z);
+    auto theta = std::atan2(rB0.y, rB0.z);
     auto cos_theta = std::cos(theta);
     auto sin_theta = std::sin(theta);
     rA0 = vector3{0, sin_theta * radiusA, cos_theta * radiusA};
@@ -690,6 +690,179 @@ scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, co
 	vector3 tmp2 = cross(a[2], b[2]);
 
 	return std::max(std::max(length_sqr(tmp0), length_sqr(tmp1)), length_sqr(tmp2));
+}
+
+bool point_in_quad(const vector3 &p, 
+                   const std::array<vector3, 4> &quad_vertices, 
+                   const vector3 &quad_normal) {
+
+    std::array<vector3, 4> quad_tangents;
+    for (int i = 0; i < 4; ++i) {
+        auto &v0 = quad_vertices[i];
+        auto &v1 = quad_vertices[(i + 1) % 4];
+        quad_tangents[i] = cross(quad_normal, v1 - v0);
+    }
+
+    scalar dots[4];
+    for (int i = 0; i < 4; ++i) {
+        dots[i] = dot(p - quad_vertices[i], quad_tangents[i]);
+    }
+
+    return dots[0] > -EDYN_EPSILON && dots[1] > -EDYN_EPSILON &&
+           dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON;
+}
+
+vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p) {
+    auto closest = p;
+    closest.x = std::min(half_extent.x, closest.x);
+    closest.x = std::max(-half_extent.x, closest.x);
+    closest.y = std::min(half_extent.y, closest.y);
+    closest.y = std::max(-half_extent.y, closest.y);
+    closest.z = std::min(half_extent.z, closest.z);
+    closest.z = std::max(-half_extent.z, closest.z);
+    return closest;
+}
+
+scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, vector3 &closest, vector3 &normal) {
+    EDYN_ASSERT(p >= -half_extent && p <= half_extent);
+
+    auto dist = half_extent.x - p.x;
+    auto min_dist = dist;
+    closest = vector3{half_extent.x, p.y, p.z};
+    normal = vector3{1, 0, 0};
+
+    dist = half_extent.x + p.x;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{-half_extent.x, p.y, p.z};
+        normal = vector3{-1, 0, 0};
+    }
+
+    dist = half_extent.y - p.y;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{p.x, half_extent.y, p.z};
+        normal = vector3{0, 1, 0};
+    }
+
+    dist = half_extent.y + p.y;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{p.x, -half_extent.y, p.z};
+        normal = vector3{0, -1, 0};
+    }
+
+    dist = half_extent.z - p.z;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{p.x, p.y, half_extent.z};
+        normal = vector3{0, 0, 1};
+    }
+
+    dist = half_extent.z + p.z;
+    if (dist < min_dist) {
+        min_dist = dist;
+        closest = vector3{p.x, p.y, -half_extent.z};
+        normal = vector3{0, 0, -1};
+    }
+
+    return dist;
+}
+
+size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
+                           const vector2 &aabb_min, const vector2 &aabb_max,
+                           scalar &s0, scalar &s1) {
+    size_t num_points = 0;
+    auto d = p1 - p0;
+    auto e = aabb_min - p0;
+    auto f = aabb_max - p0;
+
+    if (std::abs(d.x) < EDYN_EPSILON) {
+        // Line is vertical.
+        if (e.x <= 0 && f.x >= 0) {
+            s0 = e.y / d.y;
+            s1 = f.y / d.y;
+            num_points = 2; 
+        }
+
+        return num_points;
+    }
+
+    if (std::abs(d.y) < EDYN_EPSILON) {
+        // Line is horizontal.
+        if (e.y <= 0 && f.y >= 0) {
+            s0 = e.x / d.x;
+            s1 = f.x / d.x;
+            num_points = 2; 
+        }
+
+        return num_points;
+    }
+
+    /* Left edge. */ {
+        auto t = e.x / d.x;
+        auto qy = p0.y + d.y * t;
+        
+        if (qy >= aabb_min.y && qy < aabb_max.y) {
+            s0 = t;
+            ++num_points;
+        }
+    }
+
+    /* Right edge. */ {
+        auto t = f.x / d.x;
+        auto qy = p0.y + d.y * t;
+        
+        if (qy > aabb_min.y && qy <= aabb_max.y) {
+            if (num_points == 0) {
+                s0 = t;
+                ++num_points;
+            } else if (std::abs(t - s0) > EDYN_EPSILON) {
+                s1 = t;
+                ++num_points;
+            }
+        }
+    }
+
+    if (num_points == 2) {
+        return num_points;
+    }
+
+    /* Bottom edge. */ {
+        auto t = e.y / d.y;
+        auto qx = p0.x + d.x * t;
+        
+        if (qx >= aabb_min.x && qx < aabb_max.x) {
+            if (num_points == 0) {
+                s0 = t;
+                ++num_points;
+            } else if (std::abs(t - s0) > EDYN_EPSILON) {
+                s1 = t;
+                ++num_points;
+            }
+        }
+    }
+
+    if (num_points == 2) {
+        return num_points;
+    }
+
+    /* Top edge. */ {
+        auto t = f.y / d.y;
+        auto qx = p0.x + d.x * t;
+        
+        if (qx > aabb_min.x && qx <= aabb_max.x) {
+            if (num_points == 0) {
+                s0 = t;
+                ++num_points;
+            } else if (std::abs(t - s0) > EDYN_EPSILON) {
+                s1 = t;
+                ++num_points;
+            }
+        }
+    }
+
+    return num_points;
 }
 
 }

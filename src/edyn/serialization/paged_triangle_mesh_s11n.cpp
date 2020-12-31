@@ -3,6 +3,7 @@
 #include "edyn/serialization/static_tree_s11n.hpp"
 #include "edyn/serialization/math_s11n.hpp"
 #include "edyn/serialization/std_s11n.hpp"
+#include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 
 namespace edyn {
@@ -86,7 +87,6 @@ void serialize(paged_triangle_mesh_file_input_archive &archive,
         }
 
         archive.m_base_offset = archive.tell_position();
-        archive.m_mode = paged_triangle_mesh_serialization_mode::embedded;
     }
 
     // Resize LRU queue to have the number of submeshes.
@@ -97,45 +97,65 @@ void serialize(paged_triangle_mesh_file_input_archive &archive,
     paged_tri_mesh.m_is_loading_submesh.resize(num_submeshes, false);
 }
 
+template<typename Archive>
+void serialize(Archive &archive, load_mesh_context &ctx) {
+    archive(ctx.m_index);
+    archive(ctx.m_input);
+    archive(ctx.m_mesh);
+    archive(ctx.m_scheduler);
+}
+
 void paged_triangle_mesh_file_input_archive::load(size_t index) {
-    auto j = std::make_shared<load_mesh_job>(*this, index);
+    auto ctx = load_mesh_context();
+    ctx.m_input = reinterpret_cast<intptr_t>(this);
+    ctx.m_index = index;
+    ctx.m_mesh = reinterpret_cast<intptr_t>(new triangle_mesh);
+    ctx.m_scheduler = job_dispatcher::global().get_current_scheduler();
+
+    auto j = job();
+    j.func = &load_mesh_job_func;
+    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
+    serialize(archive, ctx);
     job_dispatcher::global().async(j);
 }
 
-load_mesh_job::load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index)
-    : m_input(&input)
-    , m_index(index)
-    , m_mesh(std::make_unique<triangle_mesh>())
-    , m_source_thread_id(std::this_thread::get_id())
-{}
+void load_mesh_job_func(job::data_type &data) {
+    load_mesh_context ctx;
+    auto archive = memory_input_archive(data.data(), data.size());
+    serialize(archive, ctx);
 
-void load_mesh_job::run() {
-    switch(m_input->m_mode) {
+    auto *input = reinterpret_cast<paged_triangle_mesh_file_input_archive *>(ctx.m_input);
+    auto *mesh = reinterpret_cast<triangle_mesh *>(ctx.m_mesh);
+
+    switch(input->m_mode) {
     case paged_triangle_mesh_serialization_mode::embedded:
-        m_input->seek_position(m_input->m_base_offset + m_input->m_offsets[m_index]);
-        serialize(*m_input, *m_mesh);
+        input->seek_position(input->m_base_offset + input->m_offsets[ctx.m_index]);
+        serialize(*input, *mesh);
         break;
     case paged_triangle_mesh_serialization_mode::external: {
-        auto tri_mesh_path = get_submesh_path(m_input->m_path, m_index);
-        auto archive = file_input_archive(tri_mesh_path);
-        serialize(archive, *m_mesh);
+        auto tri_mesh_path = get_submesh_path(input->m_path, ctx.m_index);
+        auto tri_mesh_archive = file_input_archive(tri_mesh_path);
+        serialize(tri_mesh_archive, *mesh);
         break;
     }
     }
 
-    auto j = std::make_shared<finish_load_mesh_job>(*m_input, m_index, m_mesh);
-    job_dispatcher::global().async(m_source_thread_id, j);
+    auto finish_job = job();
+    std::copy(data.begin(), data.end(), finish_job.data.begin());
+    finish_job.func = &finish_load_mesh_job_func;
+    ctx.m_scheduler.push(finish_job);
 }
 
-finish_load_mesh_job::finish_load_mesh_job(paged_triangle_mesh_file_input_archive &input, size_t index, 
-                   std::unique_ptr<triangle_mesh> &mesh)
-    : m_input(&input)
-    , m_index(index)
-    , m_mesh(std::move(mesh))
-{}
+void finish_load_mesh_job_func(job::data_type &data) {
+    load_mesh_context ctx;
+    auto archive = memory_input_archive(data.data(), data.size());
+    serialize(archive, ctx);
 
-void finish_load_mesh_job::run() {
-    m_input->m_loaded_mesh_signal.publish(m_index, m_mesh);
+    auto *mesh = reinterpret_cast<triangle_mesh *>(ctx.m_mesh);
+    auto mesh_ptr = std::unique_ptr<triangle_mesh>(mesh);
+    
+    auto *input = reinterpret_cast<paged_triangle_mesh_file_input_archive *>(ctx.m_input);
+    input->m_loaded_mesh_signal.publish(ctx.m_index, mesh_ptr);
 }
 
 }

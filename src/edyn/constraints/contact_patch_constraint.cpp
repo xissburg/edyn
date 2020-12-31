@@ -3,7 +3,6 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -13,28 +12,27 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/util/tire_util.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void contact_patch_constraint::init(entt::entity entity, constraint &con, 
-                              const relation &rel, entt::registry &registry) {
+void contact_patch_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
     // A spring row and a damper row for normal, longitudinal, lateral and 
     // torsional directions.
-    con.num_rows = 8;
+    auto num_rows = 8;
 
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        auto [row_entity, row] = registry.create<constraint_row>();
-        row.entity = rel.entity;
+    for (size_t i = 0; i < num_rows; ++i) {
         // Priority zero for normal constraint,
         // priority one for friction constraints.
-        row.priority = i == 0 || i == 1 ? 0 : 1;
+        auto priority = i == 0 || i == 1 ? 0 : 1;
+        auto row_entity = add_constraint_row(entity, con, registry, priority);
+        auto &row = registry.get<constraint_row>(row_entity);
         // Use spin only for longitudinal constraint.
         row.use_spin[0] = i == 2 || i == 3;
         row.use_spin[1] = i == 2 || i == 3;
-        con.row[i] = row_entity;
     }
 }
 
@@ -44,7 +42,7 @@ void contact_patch_constraint::clear(constraint &con, entt::registry &registry) 
         tread_row.bristles.clear();
     }
 
-    for (size_t i = 0; i < con.num_rows; ++i) {
+    for (size_t i = 0; i < con.num_rows(); ++i) {
         auto &row = registry.get<constraint_row>(con.row[i]);
         row.error = 0;
         row.lower_limit = row.upper_limit = 0;
@@ -53,8 +51,7 @@ void contact_patch_constraint::clear(constraint &con, entt::registry &registry) 
 }
 
 void contact_patch_constraint::prepare(entt::entity entity, constraint &con, 
-                                       const relation &rel, entt::registry &registry,
-                                       scalar dt) {
+                                       entt::registry &registry, scalar dt) {
     auto &cp = registry.get<contact_point>(entity);
 
     if (cp.distance > 0) {
@@ -62,29 +59,29 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
         return;
     }
 
-    const auto &posA = registry.get<position>(rel.entity[0]);
-    const auto &ornA = registry.get<orientation>(rel.entity[0]);
+    const auto &posA = registry.get<position>(con.body[0]);
+    const auto &ornA = registry.get<orientation>(con.body[0]);
     
     // Wheel spin axis in world space.
     const auto axis = quaternion_x(ornA);
     
-    const auto &spin_angleA = registry.get<spin_angle>(rel.entity[0]);
+    const auto &spin_angleA = registry.get<spin_angle>(con.body[0]);
     const auto spin_ornA = ornA * quaternion_axis_angle(vector3_x, spin_angleA);
 
-    const auto &posB = registry.get<position>(rel.entity[1]);
-    const auto &ornB = registry.get<orientation>(rel.entity[1]);
+    const auto &posB = registry.get<position>(con.body[1]);
+    const auto &ornB = registry.get<orientation>(con.body[1]);
     const auto ornB_conj = conjugate(ornB);
     
-    const auto &linvelA = registry.get<linvel>(rel.entity[0]);
-    const auto &angvelA = registry.get<angvel>(rel.entity[0]);
+    const auto &linvelA = registry.get<linvel>(con.body[0]);
+    const auto &angvelA = registry.get<angvel>(con.body[0]);
     
-    const auto &spinA = registry.get<spin>(rel.entity[0]);
+    const auto &spinA = registry.get<spin>(con.body[0]);
     const auto spin_angvelA = angvelA + axis * spinA;
 
-    const auto &linvelB = registry.get<linvel>(rel.entity[1]);
-    const auto &angvelB = registry.get<angvel>(rel.entity[1]);
+    const auto &linvelB = registry.get<linvel>(con.body[1]);
+    const auto &angvelB = registry.get<angvel>(con.body[1]);
 
-    const auto &shapeA = registry.get<shape>(rel.entity[0]);
+    const auto &shapeA = registry.get<shape>(con.body[0]);
     const auto &cyl = std::get<cylinder_shape>(shapeA.var);
     
     const auto normal = rotate(ornB, cp.normalB);
@@ -539,17 +536,16 @@ void contact_patch_constraint::prepare(entt::entity entity, constraint &con,
 }
 
 void contact_patch_constraint::iteration(entt::entity entity, constraint &con, 
-                                         const relation &rel, entt::registry &registry, 
-                                         scalar dt) {
-    if (con.num_rows == 0) {
+                                         entt::registry &registry, scalar dt) {
+    if (con.num_rows() == 0) {
         return;
     }
 
     // Adjust damping row limits to account for velocity changes during iterations.
-    auto &dvA = registry.get<delta_linvel>(rel.entity[0]);
-    auto &dwA = registry.get<delta_angvel>(rel.entity[0]);
-    auto &dvB = registry.get<delta_linvel>(rel.entity[1]);
-    auto &dwB = registry.get<delta_angvel>(rel.entity[1]);
+    auto &dvA = registry.get<delta_linvel>(con.body[0]);
+    auto &dwA = registry.get<delta_angvel>(con.body[0]);
+    auto &dvB = registry.get<delta_linvel>(con.body[1]);
+    auto &dwB = registry.get<delta_angvel>(con.body[1]);
 
     // Normal damping.
     {
@@ -608,7 +604,7 @@ void contact_patch_constraint::iteration(entt::entity entity, constraint &con,
     } */
 
     /* 
-    const auto &ornB = registry.get<orientation>(rel.entity[1]);
+    const auto &ornB = registry.get<orientation>(con.body[1]);
     auto &manifold = registry.get<contact_manifold>(entity);
     const auto normal = rotate(ornB, manifold.point[0].normalB);
 

@@ -63,9 +63,9 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
 
     void clear(constraint &, entt::registry &);
 
-    void init(entt::entity, constraint &, const relation &, entt::registry &);
-    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
-    void iteration(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, entt::registry &);
+    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
+    void iteration(entt::entity, constraint &, entt::registry &, scalar dt);
 };
 
 }

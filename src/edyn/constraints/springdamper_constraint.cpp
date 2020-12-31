@@ -6,29 +6,24 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/util/spring_util.hpp"
+#include "edyn/util/constraint_util.hpp"
 
 namespace edyn {
 
-void springdamper_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = 3;
-
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        auto e = registry.create();
-        con.row[i] = e;
-        auto &row = registry.assign<constraint_row>(e);
-        row.entity = rel.entity;
-        row.priority = 100;
+void springdamper_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
+    for (size_t i = 0; i < 3; ++i) {
+        add_constraint_row(entity, con, registry, 100);
     }
 }
 
-void springdamper_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-    auto &posA = registry.get<position>(rel.entity[0]);
-    auto &ornA = registry.get<orientation>(rel.entity[0]);
+void springdamper_constraint::prepare(entt::entity, constraint &con, entt::registry &registry, scalar dt) {
+    auto &posA = registry.get<position>(con.body[0]);
+    auto &ornA = registry.get<orientation>(con.body[0]);
     auto rA = rotate(ornA, m_pivotA);
     auto pA = posA + rA;
 
-    auto &posB = registry.get<position>(rel.entity[1]);
-    auto &ornB = registry.get<orientation>(rel.entity[1]);
+    auto &posB = registry.get<position>(con.body[1]);
+    auto &ornB = registry.get<orientation>(con.body[1]);
     auto rB = rotate(ornB, m_ctrl_arm_pivotB);
     auto pB = posB + rB;
 
@@ -68,10 +63,10 @@ void springdamper_constraint::prepare(entt::entity, constraint &con, const relat
 
     // Damper.
     {
-        auto &linvelA = registry.get<linvel>(rel.entity[0]);
-        auto &angvelA = registry.get<angvel>(rel.entity[0]);
-        auto &linvelB = registry.get<linvel>(rel.entity[1]);
-        auto &angvelB = registry.get<angvel>(rel.entity[1]);
+        auto &linvelA = registry.get<linvel>(con.body[0]);
+        auto &angvelA = registry.get<angvel>(con.body[0]);
+        auto &linvelB = registry.get<linvel>(con.body[1]);
+        auto &angvelB = registry.get<angvel>(con.body[1]);
 
         auto velA = linvelA + cross(angvelA, rA);
         auto vel_ctrl_armA = linvelA + cross(angvelA, rotate(ornA, m_ctrl_arm_pivotA));
@@ -127,14 +122,14 @@ void springdamper_constraint::set_dual_spring_stiffness(scalar primary_stiffness
                                              secondary_stiffness, secondary_max_defl);
 }
 
-scalar springdamper_constraint::get_spring_deflection(const relation &rel, entt::registry &registry) const {
-    auto &posA = registry.get<const position>(rel.entity[0]);
-    auto &ornA = registry.get<const orientation>(rel.entity[0]);
+scalar springdamper_constraint::get_spring_deflection(const constraint &con, entt::registry &registry) const {
+    auto &posA = registry.get<position>(con.body[0]);
+    auto &ornA = registry.get<orientation>(con.body[0]);
     auto rA = rotate(ornA, m_pivotA);
     auto pA = posA + rA;
 
-    auto &posB = registry.get<const position>(rel.entity[1]);
-    auto &ornB = registry.get<const orientation>(rel.entity[1]);
+    auto &posB = registry.get<position>(con.body[1]);
+    auto &ornB = registry.get<orientation>(con.body[1]);
     auto rB = rotate(ornB, m_ctrl_arm_pivotB);
     auto pB = posB + rB;
 
@@ -177,12 +172,12 @@ scalar springdamper_constraint::get_combined_spring_stiffness() const {
     return m_spring_stiffness;
 }
 
-vector3 springdamper_constraint::get_world_ctrl_arm_pivot(const relation &rel, entt::registry &registry) const {
-    auto &posA = registry.get<const position>(rel.entity[0]);
-    auto &ornA = registry.get<const orientation>(rel.entity[0]);
+vector3 springdamper_constraint::get_world_ctrl_arm_pivot(const constraint &con, entt::registry &registry) const {
+    auto &posA = registry.get<position>(con.body[0]);
+    auto &ornA = registry.get<orientation>(con.body[0]);
 
-    auto &posB = registry.get<const position>(rel.entity[1]);
-    auto &ornB = registry.get<const orientation>(rel.entity[1]);
+    auto &posB = registry.get<position>(con.body[1]);
+    auto &ornB = registry.get<orientation>(con.body[1]);
     auto rB = rotate(ornB, m_ctrl_arm_pivotB);
     auto pB = posB + rB;
 

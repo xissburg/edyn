@@ -3,47 +3,37 @@
 
 namespace edyn {
 
-void job_queue::push(std::shared_ptr<job> j) {
+void job_queue::push(const job &j) {
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_jobs.push_back(j);
+        m_jobs.push(j);
     }
     m_cv.notify_one();
 }
 
-std::shared_ptr<job> job_queue::pop() {
+job job_queue::pop() {
     std::unique_lock<std::mutex> lock(m_mutex);
     m_cv.wait(lock, [&] () {
-        return !m_jobs.empty() || m_unblock;
+        return !m_jobs.empty();
     });
 
-    if (m_unblock) {
-        m_unblock = false;
-        return {};
-    }
-
-    auto j = m_jobs.back();
-    m_jobs.pop_back();
+    auto j = m_jobs.front();
+    m_jobs.pop();
     return j;
 }
 
-std::shared_ptr<job> job_queue::try_pop() {
+bool job_queue::try_pop(job &j) {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_jobs.empty()) {
-        return {};
+        return false;
     }
 
-    auto j = m_jobs.back();
-    m_jobs.pop_back();
-    return j;
+    j = m_jobs.front();
+    m_jobs.pop();
+    return true;
 }
 
-void job_queue::unblock() {
-    m_unblock = true;
-    m_cv.notify_one();
-}
-
-size_t job_queue::size() {
+size_t job_queue::size() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_jobs.size();
 }

@@ -1,13 +1,22 @@
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/job_queue.hpp"
+#include "edyn/parallel/job_queue_scheduler.hpp"
+#include "edyn/parallel/worker.hpp"
 #include "edyn/config/config.h"
 #include <cstdint>
 
 namespace edyn {
 
+thread_local job_queue job_dispatcher::m_queue;
+
 job_dispatcher &job_dispatcher::global() {
-    static job_dispatcher singleton;
-    return singleton;
+    static job_dispatcher instance;
+    return instance;
 }
+
+job_dispatcher::job_dispatcher() 
+    : m_scheduler(*this)
+{}
 
 job_dispatcher::~job_dispatcher() {
     stop();
@@ -28,18 +37,19 @@ void job_dispatcher::start(size_t num_worker_threads) {
 
     for (size_t i = 0; i < num_worker_threads; ++i) {
         auto w = std::make_unique<worker>();
-        m_thief.add_queue(&w->get_queue());
-        w->set_thief(&m_thief);
-
         auto t = std::make_unique<std::thread>(&worker::run, w.get());
         auto id = t->get_id();
 
         m_threads.push_back(std::move(t));
         m_workers[id] = std::move(w);
     }
+
+    m_scheduler.start();
 }
 
 void job_dispatcher::stop() {
+    m_scheduler.stop();
+
     for (auto &pair : m_workers) {
         pair.second->stop();
     }
@@ -52,7 +62,7 @@ void job_dispatcher::stop() {
     m_threads.clear();
 }
 
-void job_dispatcher::async(std::shared_ptr<job> j) {
+void job_dispatcher::async(const job &j) {
     EDYN_ASSERT(!m_workers.empty());
 
     auto best_id = std::thread::id();
@@ -70,43 +80,37 @@ void job_dispatcher::async(std::shared_ptr<job> j) {
     m_workers[best_id]->push_job(j);
 }
 
-void job_dispatcher::async(std::thread::id id, std::shared_ptr<job> j) {
-    // Must not be called from a worker thread.
-    EDYN_ASSERT(!m_workers.count(id));
-
-    worker *w;
-    {
-        std::lock_guard<std::mutex> lock(m_external_workers_mutex);
-        EDYN_ASSERT(m_external_workers.count(id));    
-        w = m_external_workers[id].get();
-    }
-    w->push_job(j);
+void job_dispatcher::async_after(double delta_time, const job &j) {
+    m_scheduler.schedule_after(j, delta_time);
 }
 
-void job_dispatcher::assure_current_worker() {
+void job_dispatcher::async(std::thread::id id, const job &j) {
+    auto lock = std::shared_lock(m_queues_mutex);
+    EDYN_ASSERT(m_queues_map.count(id));
+    m_queues_map[id]->push(j);
+}
+
+job_queue_scheduler job_dispatcher::get_current_scheduler() {
+    auto id = std::this_thread::get_id();
+    auto lock = std::shared_lock(m_queues_mutex);
+    EDYN_ASSERT(m_queues_map.count(id));
+    return job_queue_scheduler(m_queues_map[id]);
+}
+
+void job_dispatcher::assure_current_queue() {
     auto id = std::this_thread::get_id();
     // Must not be called from a worker thread.
     EDYN_ASSERT(!m_workers.count(id));
 
-    std::lock_guard<std::mutex> lock(m_external_workers_mutex);
-
-    if (!m_external_workers.count(id)) {
-        m_external_workers[id] = std::make_unique<worker>();
-    }
+    auto lock = std::lock_guard(m_queues_mutex);
+    m_queues_map[id] = &m_queue;
 }
 
-void job_dispatcher::once_current_worker() {
-    auto id = std::this_thread::get_id();
-    // Must not be called from a worker thread.
-    EDYN_ASSERT(!m_workers.count(id));
-
-    worker *w;
-    {
-        std::lock_guard<std::mutex> lock(m_external_workers_mutex);
-        EDYN_ASSERT(m_external_workers.count(id));
-        w = m_external_workers[id].get();
+void job_dispatcher::once_current_queue() {
+    job j;
+    while (m_queue.try_pop(j)) {
+        j();
     }
-    w->once();
 }
 
 size_t job_dispatcher::num_workers() const {

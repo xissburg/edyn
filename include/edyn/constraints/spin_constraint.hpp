@@ -13,8 +13,8 @@ namespace edyn {
 struct spin_constraint : public constraint_base<spin_constraint> {
     scalar m_max_torque;
 
-    void init(entt::entity, constraint &, const relation &, entt::registry &);
-    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, entt::registry &);
+    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
 };
 
 }

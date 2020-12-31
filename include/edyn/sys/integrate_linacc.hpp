@@ -5,13 +5,13 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/linacc.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/dynamics/island_util.hpp"
+#include "edyn/util/island_util.hpp"
 
 namespace edyn {
 
 inline void integrate_linacc(entt::registry &registry, scalar dt) {
-    auto view = registry.view<linvel, const linacc, const dynamic_tag>(exclude_global);
-    view.each([&] (auto, linvel &vel, const linacc &acc, [[maybe_unused]] auto) {
+    auto view = registry.view<linvel, linacc, dynamic_tag>(entt::exclude<disabled_tag>);
+    view.each([&] (entt::entity, linvel &vel, linacc &acc) {
         vel += acc * dt;
     });
 }

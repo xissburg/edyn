@@ -1,29 +1,31 @@
 #ifndef EDYN_PARALLEL_JOB_HPP
 #define EDYN_PARALLEL_JOB_HPP
 
-#include <functional>
+#include <array>
+#include <cstdint>
 
 namespace edyn {
 
-class job {
-public:
-    virtual ~job() {}
+struct job {
+    static constexpr size_t pointer_size = sizeof(void(*)(void));
+    static constexpr size_t size = 64;
+    static constexpr size_t data_size = size - pointer_size;
 
-    virtual void run() = 0;
-};
+    using data_type = std::array<uint8_t, data_size>;
+    using function_type = void(data_type &);
 
-class std_function_job : public job {
-public:
-    std_function_job(const std::function<void(void)> &f)
-        : m_function(f)
-    {}
+    data_type data;
+    function_type *func;
 
-    void run() override {
-        m_function();
+    void operator()() {
+        (*func)(data);
     }
 
-private:
-    std::function<void(void)> m_function;
+    static auto noop() {
+        job j;
+        j.func = [] (data_type &) {};
+        return j;
+    }
 };
 
 }

@@ -2,31 +2,29 @@
 #define EDYN_PARALLEL_JOB_QUEUE_HPP
 
 #include <mutex>
-#include <atomic>
-#include <vector>
-#include <memory>
+#include <queue>
 #include <condition_variable>
 #include "edyn/parallel/job.hpp"
 
 namespace edyn {
 
+/**
+ * Thread-safe queue of jobs.
+ */
 class job_queue {
 public:
-    void push(std::shared_ptr<job> j);
+    void push(const job &);
 
-    std::shared_ptr<job> pop();
+    job pop();
 
-    std::shared_ptr<job> try_pop();
+    bool try_pop(job &);
 
-    void unblock();
-
-    size_t size();
+    size_t size() const;
 
 private:
-    std::mutex m_mutex;
-    std::vector<std::shared_ptr<job>> m_jobs;
+    mutable std::mutex m_mutex;
+    std::queue<job> m_jobs;
     std::condition_variable m_cv;
-    std::atomic_bool m_unblock {false};
 };
 
 }

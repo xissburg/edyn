@@ -1,6 +1,8 @@
 #include <entt/entt.hpp>
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/aabb.hpp"
+#include "edyn/comp/shape.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -15,6 +17,8 @@
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/tire_state.hpp"
+#include "edyn/comp/island.hpp"
+#include "edyn/comp/continuous.hpp"
 
 namespace edyn {
 
@@ -24,71 +28,98 @@ void rigidbody_def::update_inertia() {
     }, *shape_opt);
 }
 
-void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {
-    switch (def.kind) {
-    case rigidbody_kind::rb_dynamic:
-        registry.assign<dynamic_tag>(entity);
-        break;
-    case rigidbody_kind::rb_kinematic:
-        registry.assign<kinematic_tag>(entity);
-        break;
-    case rigidbody_kind::rb_static:
-        registry.assign<static_tag>(entity);
-        break;
-    }
-    
-    registry.assign<position>(entity, def.position);
-    registry.assign<orientation>(entity, def.orientation);
+void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {    
+    registry.emplace<position>(entity, def.position);
+    registry.emplace<orientation>(entity, def.orientation);
 
     if (def.kind == rigidbody_kind::rb_dynamic) {
-        registry.assign<mass>(entity, def.mass);
-        registry.assign<inertia>(entity, def.inertia);
+        EDYN_ASSERT(def.mass > 0);
+        registry.emplace<mass>(entity, def.mass);
+        registry.emplace<mass_inv>(entity, def.mass < EDYN_SCALAR_MAX ? 1 / def.mass : 0);
+        registry.emplace<inertia>(entity, def.inertia);
+        auto &invI = registry.emplace<inertia_inv>(entity, 
+            vector3 {
+                def.inertia.x < EDYN_SCALAR_MAX ? 1 / def.inertia.x : 0,
+                def.inertia.y < EDYN_SCALAR_MAX ? 1 / def.inertia.y : 0,
+                def.inertia.z < EDYN_SCALAR_MAX ? 1 / def.inertia.z : 0
+            });
+        registry.emplace<inertia_world_inv>(entity, diagonal(invI));
 
         if (def.spin_enabled) {
-            registry.assign<spin_angle>(entity, def.spin_angle);
-            registry.assign<spin>(entity, def.spin);
+            registry.emplace<spin_angle>(entity, def.spin_angle);
+            registry.emplace<spin>(entity, def.spin);
         }
     } else {
-        registry.assign<mass>(entity, EDYN_SCALAR_MAX);
-        registry.assign<inertia>(entity, vector3_max);
+        registry.emplace<mass>(entity, EDYN_SCALAR_MAX);
+        registry.emplace<mass_inv>(entity, 0);
+        registry.emplace<inertia>(entity, vector3_max);
+        registry.emplace<inertia_inv>(entity, vector3_zero);
+        registry.emplace<inertia_world_inv>(entity, matrix3x3_zero);
     }
 
     if (def.kind == rigidbody_kind::rb_static) {
-        registry.assign<linvel>(entity, vector3_zero);
-        registry.assign<angvel>(entity, vector3_zero);
+        registry.emplace<linvel>(entity, vector3_zero);
+        registry.emplace<angvel>(entity, vector3_zero);
     } else {
-        registry.assign<linvel>(entity, def.linvel);
-        registry.assign<angvel>(entity, def.angvel);
+        registry.emplace<linvel>(entity, def.linvel);
+        registry.emplace<angvel>(entity, def.angvel);
     }
 
     if (def.kind == rigidbody_kind::rb_dynamic && def.gravity != vector3_zero) {
-        registry.assign<linacc>(entity, def.gravity);
+        registry.emplace<linacc>(entity, def.gravity);
     }
 
     if (!def.sensor) {
-        registry.assign<material>(entity, def.restitution, def.friction,
+        registry.emplace<material>(entity, def.restitution, def.friction,
                                   def.stiffness, def.damping);
 
         if (def.is_tire) {
-            registry.assign<tire_material>(entity, def.lon_tread_stiffness,
-                                           def.lat_tread_stiffness, 
-                                           def.speed_sensitivity, def.load_sensitivity);
-            registry.assign<tire_state>(entity);
+            registry.emplace<tire_material>(entity, def.lon_tread_stiffness,
+                                            def.lat_tread_stiffness, 
+                                            def.speed_sensitivity, def.load_sensitivity);
+            registry.emplace<tire_state>(entity);
         }
     }
 
     if (def.presentation) {
-        registry.assign<present_position>(entity, def.position);
-        registry.assign<present_orientation>(entity, def.orientation);
+        registry.emplace<present_position>(entity, def.position);
+        registry.emplace<present_orientation>(entity, def.orientation);
     }
 
     if (auto opt = def.shape_opt) {
-        registry.assign<shape>(entity, *opt);
+        auto &sh = registry.emplace<shape>(entity, *opt);
 
-        auto &filter = registry.get<edyn::collision_filter>(entity);
+        std::visit([&] (auto &&s) {
+            registry.emplace<AABB>(entity, s.aabb(def.position, def.orientation));
+        }, sh.var);
+
+        auto &filter = registry.emplace<collision_filter>(entity);
         filter.group = def.collision_group;
         filter.mask = def.collision_mask;
     }
+
+    switch (def.kind) {
+    case rigidbody_kind::rb_dynamic:
+        registry.emplace<dynamic_tag>(entity);
+        registry.emplace<procedural_tag>(entity);
+        break;
+    case rigidbody_kind::rb_kinematic:
+        registry.emplace<kinematic_tag>(entity);
+        break;
+    case rigidbody_kind::rb_static:
+        registry.emplace<static_tag>(entity);
+        break;
+    }
+
+    if (def.kind == rigidbody_kind::rb_dynamic) {
+        // Instruct island worker to continuously send position, orientation and
+        // velocity updates back to coordinator. The velocity is needed for calculation
+        // of the present position and orientation in `update_presentation`.
+        registry.emplace<continuous>(entity).insert<position, orientation, linvel, angvel>();
+    }
+
+    registry.emplace<island_node>(entity);
+    registry.emplace<island_container>(entity);
 }
 
 entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) {
@@ -96,7 +127,6 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
     make_rigidbody(ent, registry, def);
     return ent;
 }
-
 
 void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar mass) {
     registry.replace<edyn::mass>(entity, mass);
@@ -116,8 +146,8 @@ void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
 
 void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity, 
                              const vector3 &impulse, const vector3 &rel_location) {
-    auto &m_inv = registry.get<const mass_inv>(entity);
-    auto &i_inv = registry.get<const inertia_world_inv>(entity);
+    auto &m_inv = registry.get<mass_inv>(entity);
+    auto &i_inv = registry.get<inertia_world_inv>(entity);
     registry.get<linvel>(entity) += impulse * m_inv;
     registry.get<angvel>(entity) += i_inv * cross(rel_location, impulse);
 }
@@ -149,6 +179,10 @@ void clear_kinematic_velocities(entt::registry &registry) {
     registry.view<kinematic_tag, spin>().each([] ([[maybe_unused]] auto, spin &s) {
         s.s = 0;
     });
+}
+
+bool validate_rigidbody(entt::entity entity, entt::registry &registry) {
+    return registry.has<position, orientation, linvel, angvel>(entity);
 }
 
 }

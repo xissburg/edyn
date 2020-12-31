@@ -28,7 +28,7 @@ inline
 collision_result collide(const plane_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Cylinder-Cylinder
@@ -46,7 +46,7 @@ inline
 collision_result collide(const plane_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const cylinder_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Cylinder-Sphere
@@ -59,7 +59,7 @@ inline
 collision_result collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const cylinder_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Capsule-Capsule
@@ -77,7 +77,7 @@ inline
 collision_result collide(const plane_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Capsule-Sphere
@@ -90,7 +90,7 @@ inline
 collision_result collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Capsule-Cylinder
@@ -103,7 +103,7 @@ inline
 collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Mesh-Mesh
@@ -127,7 +127,7 @@ inline
 collision_result collide(const mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const plane_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Sphere-Mesh
@@ -140,7 +140,7 @@ inline
 collision_result collide(const mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Capsule-Mesh
@@ -153,7 +153,7 @@ inline
 collision_result collide(const mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Cylinder-Mesh
@@ -166,7 +166,7 @@ inline
 collision_result collide(const mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const cylinder_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Box-Box
@@ -184,7 +184,7 @@ inline
 collision_result collide(const plane_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const box_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Sphere-Box
@@ -197,7 +197,7 @@ inline
 collision_result collide(const box_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Capsule-Box
@@ -210,7 +210,7 @@ inline
 collision_result collide(const box_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Cylinder-Box
@@ -223,7 +223,7 @@ inline
 collision_result collide(const box_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const cylinder_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Box-Mesh
@@ -236,7 +236,7 @@ inline
 collision_result collide(const mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const box_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Paged Mesh-Paged Mesh
@@ -260,7 +260,7 @@ inline
 collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const plane_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Sphere-Paged Mesh
@@ -273,7 +273,7 @@ inline
 collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Capsule-Paged Mesh
@@ -286,7 +286,7 @@ inline
 collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Cylinder-Paged Mesh
@@ -299,7 +299,7 @@ inline
 collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const cylinder_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Box-Paged Mesh
@@ -312,7 +312,7 @@ inline
 collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const box_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Mesh-Paged Mesh
@@ -328,13 +328,12 @@ inline
 collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
                          const mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
-    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornA, ornB);
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
 // Sphere-Triangle
-
 void collide_sphere_triangle(
-    const sphere_shape &sphere, const vector3 &sphere_pos, const quaternion &sphere_orn,
+    const sphere_shape &, const vector3 &sphere_pos, const quaternion &sphere_orn,
     const triangle_vertices &vertices, const std::array<bool, 3> &is_concave_edge, 
     const std::array<scalar, 3> &cos_angles, scalar threshold, collision_result &result);
 
@@ -345,6 +344,15 @@ void collide_cylinder_triangle(
     const vector3 &cylinder_axis, const triangle_vertices &, 
     const std::array<bool, 3> &is_concave_edge, const std::array<scalar, 3> &cos_angles, 
     scalar threshold, collision_result &);
+
+// Box-Triangle
+void collide_box_triangle(
+    const box_shape &, const vector3 &box_pos, const quaternion &box_orn,
+    const std::array<vector3, 3> box_axes, const triangle_vertices &vertices,
+    const std::array<bool, 3> &is_concave_edge, const std::array<scalar, 3> &cos_angles,
+    scalar threshold, collision_result &result);
+
 }
+
 
 #endif // EDYN_COLLISION_COLLIDE_HPP

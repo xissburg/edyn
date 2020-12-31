@@ -1,33 +1,31 @@
 #include "edyn/constraints/doublewishbone_constraint.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void doublewishbone_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = steerable ? 5 : 6;
+void doublewishbone_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
+    auto num_rows = steerable ? 5 : 6;
 
-    for (size_t i = 0; i < con.num_rows; ++i) {
-        con.row[i] = registry.create();
-        auto &row = registry.assign<constraint_row>(con.row[i]);
-        row.entity = rel.entity;
-        row.priority = 100;
+    for (size_t i = 0; i < num_rows; ++i) {
+        add_constraint_row(entity, con, registry, 100);
     }
 }
 
-void doublewishbone_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
+void doublewishbone_constraint::prepare(entt::entity, constraint &con, 
+                                        entt::registry &registry, scalar dt) {
     EDYN_ASSERT(side == 1 || side == -1);
 
-    auto &pA = registry.get<const position>(rel.entity[0]);
-    auto &qA = registry.get<const orientation>(rel.entity[0]);
-    auto &pB = registry.get<const position>(rel.entity[1]);
-    auto &qB = registry.get<const orientation>(rel.entity[1]);
+    auto &pA = registry.get<position>(con.body[0]);
+    auto &qA = registry.get<orientation>(con.body[0]);
+    auto &pB = registry.get<position>(con.body[1]);
+    auto &qB = registry.get<orientation>(con.body[1]);
     
     // Upper control arm locations.
     auto urA = rotate(qA, upper_pivotA);

@@ -5,13 +5,13 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/dynamics/island_util.hpp"
+#include "edyn/util/island_util.hpp"
 
 namespace edyn {
 
 inline void integrate_angvel(entt::registry &registry, scalar dt) {
-    auto view = registry.view<dynamic_tag, orientation, const angvel>(exclude_global);
-    view.each([&] (auto, auto, orientation &orn, const angvel &vel) {
+    auto view = registry.view<orientation, angvel, dynamic_tag>(entt::exclude<disabled_tag>);
+    view.each([&] (entt::entity, orientation &orn, angvel &vel) {
         orn = integrate(orn, vel, dt);
     });
 }

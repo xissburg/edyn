@@ -1,38 +1,33 @@
 #include "edyn/constraints/antiroll_constraint.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void antiroll_constraint::init(entt::entity, constraint &con, const relation &rel, entt::registry &registry) {
-    con.num_rows = 1;
-    con.row[0] = registry.create();
-    auto &row = registry.assign<constraint_row>(con.row[0]);
-    row.entity = rel.entity;
-    row.priority = 500;
-
+void antiroll_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
+    add_constraint_row(entity, con, registry, 500);
     EDYN_ASSERT(third_entity != entt::null);
 }
 
-void antiroll_constraint::prepare(entt::entity, constraint &con, const relation &rel, entt::registry &registry, scalar dt) {
-    auto &pA = registry.get<const position>(rel.entity[0]);
-    auto &qA = registry.get<const orientation>(rel.entity[0]);
+void antiroll_constraint::prepare(entt::entity, constraint &con, entt::registry &registry, scalar dt) {
+    auto &pA = registry.get<position>(con.body[0]);
+    auto &qA = registry.get<orientation>(con.body[0]);
     auto rA = rotate(qA, pivotA);
     auto posA = pA + rA;
 
-    auto &pB = registry.get<const position>(rel.entity[1]);
-    auto &qB = registry.get<const orientation>(rel.entity[1]);
+    auto &pB = registry.get<position>(con.body[1]);
+    auto &qB = registry.get<orientation>(con.body[1]);
     auto rB = rotate(qB, ctrl_arm_pivotB);
     auto posB = pB + rB;
 
-    auto &pC = registry.get<const position>(third_entity);
-    auto &qC = registry.get<const orientation>(third_entity);
+    auto &pC = registry.get<position>(third_entity);
+    auto &qC = registry.get<orientation>(third_entity);
     auto rC = rotate(qC, other_ctrl_arm_pivotC);
     auto posC = pC + rC;
 

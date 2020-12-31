@@ -60,8 +60,11 @@ set(Edyn_SOURCES
     src/edyn/math/geom.cpp
     src/edyn/math/quaternion.cpp
     src/edyn/math/linear_curve.cpp
-    src/edyn/collision/broadphase.cpp
+    src/edyn/collision/broadphase_main.cpp
+    src/edyn/collision/broadphase_worker.cpp
     src/edyn/collision/narrowphase.cpp
+    src/edyn/collision/contact_manifold_map.cpp
+    src/edyn/collision/dynamic_tree.cpp
     src/edyn/collision/collide_sphere_sphere.cpp
     src/edyn/collision/collide_sphere_plane.cpp
     src/edyn/collision/collide_cylinder_cylinder.cpp
@@ -86,6 +89,7 @@ set(Edyn_SOURCES
     src/edyn/collision/collide_sphere_box.cpp
     src/edyn/collision/collide_cylinder_triangle.cpp
     src/edyn/collision/collide_sphere_triangle.cpp
+    src/edyn/collision/collide_box_triangle.cpp
     src/edyn/collision/collision_result.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/contact_patch_constraint.cpp
@@ -102,14 +106,15 @@ set(Edyn_SOURCES
     src/edyn/constraints/spin_angle_constraint.cpp
     src/edyn/constraints/spin_constraint.cpp
     src/edyn/constraints/tirecarcass_constraint.cpp
-    src/edyn/dynamics/island_util.cpp
+    src/edyn/util/island_util.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp
+    src/edyn/sys/update_aabbs.cpp
     src/edyn/util/rigidbody.cpp
-    src/edyn/util/constraint.cpp
     src/edyn/util/spring_util.cpp
     src/edyn/util/tire_util.cpp
+    src/edyn/util/constraint_util.cpp
     src/edyn/util/shape_util.cpp
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
@@ -118,8 +123,17 @@ set(Edyn_SOURCES
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
+    src/edyn/parallel/job_scheduler.cpp
+    src/edyn/parallel/job_queue_scheduler.cpp
+    src/edyn/parallel/island_worker.cpp
+    src/edyn/parallel/island_coordinator.cpp
+    src/edyn/parallel/registry_delta.cpp
+    src/edyn/parallel/registry_delta_builder.cpp
+    src/edyn/parallel/island_worker_context.cpp
+    src/edyn/parallel/external_system.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/edyn.cpp
+    src/edyn/init.cpp
 )
 
 if(UNIX)
@@ -144,6 +158,15 @@ target_include_directories(Edyn SYSTEM
 )
 
 target_compile_features(Edyn PUBLIC cxx_std_17)
+
+#
+# Sanitize
+#
+
+if(CMAKE_BUILD_TYPE EQUAL "Debug")
+    #add_compile_options(-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
+    #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
+endif()
 
 #
 # Examples

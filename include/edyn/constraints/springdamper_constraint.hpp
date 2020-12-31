@@ -50,8 +50,8 @@ struct springdamper_constraint : public constraint_base<springdamper_constraint>
     vector3 m_spring_damper_dir;
     scalar m_inclination_factor;
 
-    void init(entt::entity, constraint &, const relation &, entt::registry &);
-    void prepare(entt::entity, constraint &, const relation &, entt::registry &, scalar dt);
+    void init(entt::entity, constraint &, entt::registry &);
+    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
 
     void set_constant_spring_stiffness();
     void set_constant_spring_stiffness(scalar stiffness, scalar max_defl);
@@ -60,10 +60,10 @@ struct springdamper_constraint : public constraint_base<springdamper_constraint>
     void set_dual_spring_stiffness(scalar primary_stiffness, scalar primary_max_defl,
                                    scalar secondary_stiffness, scalar secondary_max_defl);
 
-    scalar get_spring_deflection(const relation &, entt::registry &) const;
+    scalar get_spring_deflection(const constraint &, entt::registry &) const;
     scalar get_preload() const;
     scalar get_combined_spring_stiffness() const;
-    vector3 get_world_ctrl_arm_pivot(const relation &, entt::registry &) const;
+    vector3 get_world_ctrl_arm_pivot(const constraint &, entt::registry &) const;
     scalar get_damping_force(scalar speed) const;
 };
 

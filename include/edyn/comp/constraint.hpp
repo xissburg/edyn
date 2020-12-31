@@ -2,7 +2,8 @@
 #define EDYN_COMP_CONSTRAINT_HPP
 
 #include <variant>
-#include <entt/entt.hpp>
+#include <entt/fwd.hpp>
+#include <entt/entity/entity.hpp>
 #include "edyn/constraints/distance_constraint.hpp"
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/constraints/point_constraint.hpp"
@@ -25,6 +26,7 @@ namespace edyn {
 inline constexpr size_t max_constraint_rows = 16;
 
 struct constraint {
+    std::array<entt::entity, 3> body {entt::null, entt::null, entt::null};
     std::variant<contact_constraint, 
                  point_constraint, 
                  distance_constraint,
@@ -40,9 +42,18 @@ struct constraint {
                  springdamper_constraint,
                  spin_angle_constraint,
                  spin_constraint> var;
-    size_t num_rows {0};
     std::array<entt::entity, max_constraint_rows> row = 
         make_array<max_constraint_rows>(entt::entity{entt::null});
+
+    size_t num_rows() const {
+        size_t count = 0;
+        for (auto e : row) {
+            if (e != entt::null) {
+                ++count;
+            }
+        }
+        return count;
+    }
 };
 
 }

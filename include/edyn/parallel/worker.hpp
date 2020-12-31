@@ -4,13 +4,15 @@
 #include <atomic>
 #include <memory>
 #include "edyn/parallel/job_queue.hpp"
-#include "edyn/parallel/job_thief.hpp"
 
 namespace edyn {
 
+/**
+ * A worker that runs jobs in a thread.
+ */
 class worker {
 public:
-    void push_job(std::shared_ptr<job> j) {
+    void push_job(const job &j) {
         m_queue.push(j);
         ++m_size;
     }
@@ -19,31 +21,9 @@ public:
         m_running = true;
 
         for (;;) {
-            /* for (;;) {
-                once();
-
-                auto did_steal = false;
-
-                if (m_thief) {
-                    auto j = m_thief->try_steal();
-                    if (j) {
-                        j->run();
-                        did_steal = true;
-                    }
-                }
-
-                if (!did_steal) {
-                    break;
-                }
-            } */
-
             auto j = m_queue.pop();
-
-            if (j) {
-                j->run();
-                --m_size;
-            }
-
+            j();
+            --m_size;
 
             if (!m_running) {
                 break;
@@ -52,23 +32,20 @@ public:
     }
 
     void once() {
-        while (auto j = m_queue.try_pop()) {
-            j->run();
+        job j;
+        while (m_queue.try_pop(j)) {
+            j();
             --m_size;
         }
     }
 
     void stop() {
         m_running = false;
-        m_queue.unblock();
+        m_queue.push(job::noop()); // Unblock queue with a no-op job.
     }
 
     size_t size() {
         return m_size.load();
-    }
-
-    void set_thief(job_thief *thief) {
-        m_thief = thief;
     }
 
     job_queue &get_queue() {
@@ -78,7 +55,6 @@ public:
 private:
     std::atomic_bool m_running {false};
     job_queue m_queue;
-    job_thief *m_thief { nullptr };
     std::atomic<size_t> m_size;
 };
 

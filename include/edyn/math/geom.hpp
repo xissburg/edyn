@@ -260,6 +260,49 @@ size_t insert_index(std::array<vector3, N> points,
     return N;
 }
 
+bool point_in_quad(const vector3 &p, 
+                   const std::array<vector3, 4> &quad_vertices, 
+                   const vector3 &quad_normal);
+
+/** 
+ * Finds the point closest to `p` on the surface of the axis-aligned box
+ * with the given half extent if `p` is outside the box.
+ * @param half_extent Half the extent on the box along each axis.
+ * @param p The query point.
+ * @return Point on the box surface closest to `p`, or `p` if `p` is contained
+ *         in the box.
+ */
+vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p);
+
+/**
+ * Finds the point closest to the internal point `p` on the surface of the
+ * axis-aligned box with the given half extent. `p` must be contained within
+ * the box.
+ * @param half_extent Half the extent on the box along each axis.
+ * @param p The query point.
+ * @param closest Outputs the closest point on the surface of the box.
+ * @param normal Outputs the normal of the face where `closest` is located.
+ * @return Distance between closest points.
+ */
+scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, 
+                                vector3 &closest, vector3 &normal);
+
+/**
+ * Intersect a line with an AABB in the Cartesian plane.
+ * @param p0 Point in the line.
+ * @param p1 Another point in the line.
+ * @param aabb_min Minimum of AABB, i.e. lower left corner.
+ * @param aabb_max Maximum of AABB, i.e. upper right corner.
+ * @param s0 Outputs the parameter of one point in the line defined by `p0` and
+ *        `p1` where it intersects the AABB.
+ * @param s1 Outputs the parameters of another point where the line intersects
+ *        the AABB.
+ * @return Number of intersections in [0, 2].
+ */
+size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
+                           const vector2 &aabb_min, const vector2 &aabb_max,
+                           scalar &s0, scalar &s1);
+
 }
 
 #endif // EDYN_MATH_GEOM_HPP

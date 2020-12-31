@@ -3,9 +3,9 @@
 
 #include <entt/entt.hpp>
 #include "edyn/comp/tire_state.hpp"
-#include "edyn/comp/relation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 
@@ -13,12 +13,12 @@ namespace edyn {
 
 inline
 void update_tire_state(entt::registry &registry, scalar dt) {
-    auto ts_view = registry.view<const relation_container, tire_state>();
-    auto orn_view = registry.view< orientation>();
+    auto ts_view = registry.view<island_node, tire_state>();
+    auto orn_view = registry.view<orientation>();
     auto vel_view = registry.view<linvel, angvel>();
     auto con_row_view = registry.view<constraint_row>();
 
-    ts_view.each([&] (auto entity, const relation_container &rels, tire_state &ts) {
+    ts_view.each([&] (auto entity, island_node &node, tire_state &ts) {
         ts.other_entity = entt::null;
 
         auto &ornA = orn_view.get(entity);
@@ -27,23 +27,22 @@ void update_tire_state(entt::registry &registry, scalar dt) {
         const auto &spinA = registry.get<spin>(entity);
         const auto spin_angvelA = angvelA + quaternion_x(ornA) * spinA;
 
-        for (auto rel_ent : rels.entities) {
+        for (auto rel_ent : node.entities) {
             auto *manifold = registry.try_get<contact_manifold>(rel_ent);
             if (!manifold) {
                 continue;
             }
 
-            auto manifold_rel = registry.get<relation>(rel_ent);
-            ts.other_entity = manifold_rel.entity[1];
-            ts.num_contacts = manifold->num_points;
+            ts.other_entity = manifold->body[1];
+            ts.num_contacts = manifold->num_points();
             
             if (ts.num_contacts == 0) continue;
 
-            auto ornB = orn_view.get(manifold_rel.entity[1]);
-            auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(manifold_rel.entity[1]);
+            auto ornB = orn_view.get(manifold->body[1]);
+            auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(manifold->body[1]);
 
-            for (size_t i = 0; i < manifold->num_points; ++i) {
-                auto [con, cp] = registry.get<constraint, contact_point>(manifold->point_entity[i]);
+            for (size_t i = 0; i < manifold->num_points(); ++i) {
+                auto [con, cp] = registry.get<constraint, contact_point>(manifold->point[i]);
                 auto &contact_patch = std::get<contact_patch_constraint>(con.var);
 
                 auto velA = linvelA + cross(spin_angvelA, rotate(ornA, cp.pivotA));

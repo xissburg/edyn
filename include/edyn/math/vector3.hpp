@@ -25,6 +25,9 @@ struct vector3 {
 // Zero vector.
 inline constexpr vector3 vector3_zero {0, 0, 0};
 
+// Vector with all elements set to 1.
+inline constexpr vector3 vector3_one {1, 1, 1};
+
 // Unit vector pointing in the x direction.
 inline constexpr vector3 vector3_x {1, 0, 0};
 
@@ -77,7 +80,7 @@ inline vector3 operator*(const vector3 &v, const vector3 &w) {
 }
 
 // Multiply vector by scalar.
-inline vector3 operator*(const vector3& v, scalar s) {
+inline constexpr vector3 operator*(const vector3& v, scalar s) {
     return {v.x * s, v.y * s, v.z * s};
 }
 
@@ -131,6 +134,16 @@ inline bool operator>(const vector3 &v, const vector3 &w) {
 // Check if a vector is smaller than another component-wise.
 inline bool operator<(const vector3 &v, const vector3 &w) {
     return v.x < w.x && v.y < w.y && v.z < w.z;
+}
+
+// Check if a vector is greater than or equal to another component-wise.
+inline bool operator>=(const vector3 &v, const vector3 &w) {
+    return v.x >= w.x && v.y >= w.y && v.z >= w.z;
+}
+
+// Check if a vector is less than or equal to another component-wise.
+inline bool operator<=(const vector3 &v, const vector3 &w) {
+    return v.x <= w.x && v.y <= w.y && v.z <= w.z;
 }
 
 // Dot product between vectors.
@@ -192,7 +205,7 @@ inline vector3 max(const vector3 &v, const vector3 &w) {
     return {std::max(v.x, w.x), std::max(v.y, w.y), std::max(v.z, w.z)};
 }
 
-// Returns the index of the axis with greatest value.
+// Returns the index of the coordinate with greatest value.
 inline size_t max_index(const vector3 &v) {
     auto max_val = v.x;
     size_t max_idx = 0;

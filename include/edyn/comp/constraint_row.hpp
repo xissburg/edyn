@@ -3,19 +3,21 @@
 
 #include <array>
 #include <entt/fwd.hpp>
-#include "relation.hpp"
+#include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
 
-struct constraint_row {
-    std::array<entt::entity, max_relations> entity {make_array<max_relations>(entt::entity{entt::null})};
-    std::array<bool, max_relations> use_spin {make_array<max_relations>(false)};
+static constexpr size_t max_constrained_entities = 3;
 
-    // Jacobian.
-    std::array<vector3, max_relations * 2> J;
-    
+struct constraint_row {
+    std::array<entt::entity, max_constrained_entities> entity =
+        make_array<max_constrained_entities>(entt::entity{entt::null});
+    std::array<bool, max_constrained_entities> use_spin =
+        make_array<max_constrained_entities>(false);
+
+    std::array<vector3, max_constrained_entities * 2> J;
     scalar error;
     scalar lower_limit;
     scalar upper_limit;

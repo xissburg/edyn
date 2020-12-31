@@ -106,6 +106,7 @@ void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, 
 void update_kinematic_orientation(entt::registry &, entt::entity, const quaternion &, scalar dt);
 void clear_kinematic_velocities(entt::registry &);
 
+bool validate_rigidbody(entt::entity &, entt::registry &);
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP
