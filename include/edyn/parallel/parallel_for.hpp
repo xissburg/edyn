@@ -275,6 +275,19 @@ void parallel_for_job_func(job::data_type &data) {
 
 } // namespace detail
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element starting at `first` and incrementing by `step` until `last`.
+ * 
+ * @tparam IndexType Type of the index values.
+ * @tparam Function Type of function to be invoked.
+ * @param dispatcher The `edyn::job_dispatcher` where the parallel jobs will be run.
+ * @param first Index of the first element in the range.
+ * @param last Index past the last element in the range.
+ * @param step The size of each increment from `first` to `last`.
+ * @param func Function that will be called for each increment of index from `first`
+ * to `last` incrementing by `step`. Expected signature `void(IndexType)`.
+ */
 template<typename IndexType, typename Function>
 void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, IndexType step, Function func) {
     EDYN_ASSERT(step > IndexType{0});
@@ -290,35 +303,71 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
 
     // Create child job which will steal a range of the for-loop if it gets a
     // chance to be executed before the loop is finished.
-    {
-        pool->add_ref();
+    pool->add_ref();
 
-        auto child_job = job();
-        child_job.func = &detail::parallel_for_job_func<IndexType, Function>;
+    auto child_job = job();
+    child_job.func = &detail::parallel_for_job_func<IndexType, Function>;
 
-        auto archive = fixed_memory_output_archive(child_job.data.data(), child_job.data.size());
-        auto ctx = detail::parallel_for_context<IndexType, Function>(pool, &dispatcher, pool->root());
-        archive(ctx);
+    auto archive = fixed_memory_output_archive(child_job.data.data(), child_job.data.size());
+    auto ctx = detail::parallel_for_context<IndexType, Function>(pool, &dispatcher, pool->root());
+    archive(ctx);
 
-        dispatcher.async(child_job);
-    }
+    dispatcher.async(child_job);
 
+    // Run the root loop in the calling thread.
     pool->root()->run();
 
     // Wait for all for-loops to complete.
     pool->wait();
 }
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element starting at `first` and incrementing by `step` until `last`.
+ * Tasks are run in the default global `edyn::job_dispatcher`.
+ * 
+ * @tparam IndexType Type of the index values.
+ * @tparam Function Type of function to be invoked.
+ * @param first Index of the first element in the range.
+ * @param last Index past the last element in the range.
+ * @param step The size of each increment from `first` to `last`.
+ * @param func Function that will be called for each increment of index from `first`
+ * to `last` incrementing by `step`. Expected signature `void(IndexType)`.
+ */
 template<typename IndexType, typename Function>
 void parallel_for(IndexType first, IndexType last, IndexType step, Function func) {
     parallel_for(job_dispatcher::global(), first, last, step, func);
 }
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element` in the range. Tasks are run in the default global 
+ * `edyn::job_dispatcher`.
+ * 
+ * @tparam IndexType Type of the index values.
+ * @tparam Function Type of function to be invoked.
+ * @param first Index of the first element in the range.
+ * @param last Index past the last element in the range.
+ * @param func Function that will be called for each index in `[first, last)`. 
+ * Expected signature `void(IndexType)`.
+ */
 template<typename IndexType, typename Function>
 void parallel_for(IndexType first, IndexType last, Function func) {
     parallel_for(first, last, IndexType {1}, func);
 }
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element` in the range.
+ * 
+ * @tparam Type of input iterator.
+ * @tparam Function Type of function to be invoked.
+ * @param dispatcher The `edyn::job_dispatcher` where the parallel jobs will be run.
+ * @param first An iterator to the first element.
+ * @param last An iterator past the last element.
+ * @param func Function that will be called for each element `[first, last)`. 
+ * Expected signature `void(Iterator)`.
+ */
 template<typename Iterator, typename Function>
 void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last, Function func) {
     auto count = std::distance(first, last);
@@ -328,6 +377,18 @@ void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last
     });
 }
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element` in the range. Tasks are run in the default global 
+ * `edyn::job_dispatcher`.
+ * 
+ * @tparam Type of input iterator.
+ * @tparam Function Type of function to be invoked.
+ * @param first An iterator to the first element.
+ * @param last An iterator past the last element.
+ * @param func Function that will be called for each element `[first, last)`. 
+ * Expected signature `void(Iterator)`.
+ */
 template<typename Iterator, typename Function>
 void parallel_for_each(Iterator first, Iterator last, Function func) {
     parallel_for_each(job_dispatcher::global(), first, last, func);
