@@ -13,7 +13,7 @@ void apply_gravity(entt::registry &registry, scalar dt) {
     auto gravity_view = registry.view<gravity>(entt::exclude<disabled_tag>);
     auto inner_view = registry.view<position, mass, linvel>(entt::exclude<disabled_tag>);
 
-    gravity_view.each([&] (auto, gravity &g) {
+    gravity_view.each([&] (gravity &g) {
         auto [posA, mA, linvelA] = inner_view.get<position, mass, linvel>(g.body[0]);
         auto [posB, mB, linvelB] = inner_view.get<position, mass, linvel>(g.body[1]);
 

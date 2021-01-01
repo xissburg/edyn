@@ -1,4 +1,5 @@
 #include "edyn/shapes/paged_triangle_mesh.hpp"
+#include "edyn/parallel/parallel_for.hpp"
 
 namespace edyn {
 

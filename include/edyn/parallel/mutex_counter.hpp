@@ -9,6 +9,10 @@ namespace edyn {
 
 class mutex_counter {
 public:
+    mutex_counter(size_t count = 0) 
+        : m_count(count)
+    {}
+
     auto count() {
         std::lock_guard lock(m_mutex);
         return m_count;
@@ -34,7 +38,7 @@ public:
     }
 
 private:
-    size_t m_count {0};
+    size_t m_count;
     std::mutex m_mutex;
     std::condition_variable m_cv;
 };

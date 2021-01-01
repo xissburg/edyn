@@ -9,7 +9,6 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
-#include "edyn/parallel/parallel_for.hpp"
 
 namespace edyn {
 

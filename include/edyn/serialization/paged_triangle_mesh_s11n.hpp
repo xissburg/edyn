@@ -6,6 +6,7 @@
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
 #include "edyn/serialization/file_archive.hpp"
 #include "edyn/parallel/job_queue_scheduler.hpp"
+#include "edyn/parallel/job.hpp"
 
 #include <entt/signal/sigh.hpp>
 
