@@ -1,5 +1,5 @@
-#ifndef EDYN_PARALLEL_RESULT_ACCUMULATOR_HPP
-#define EDYN_PARALLEL_RESULT_ACCUMULATOR_HPP
+#ifndef EDYN_PARALLEL_RESULT_COLLECTOR_HPP
+#define EDYN_PARALLEL_RESULT_COLLECTOR_HPP
 
 #include <array>
 #include <atomic>
@@ -7,22 +7,24 @@
 
 namespace edyn {
 
+/**
+ * @brief Thread-safe utility to store results of a parallel computation.
+ */
 template<typename T, size_t N>
-class result_accumulator {
+class result_collector {
     struct block {
         std::array<T, N> array;
         block *next {nullptr};
     };
 
 public:
-    result_accumulator()
+    result_collector()
         : m_last_block(&m_first_block)
         , m_block_count(1)
         , m_size(0)
-        , m_lock(false)
     {}
 
-    ~result_accumulator() {
+    ~result_collector() {
         auto *block = m_first_block.next;
 
         while (block) {
@@ -44,11 +46,16 @@ public:
             m_last_block = last_block;
             m_block_count.fetch_add(1, std::memory_order_release);
         } else if (index > capacity) {
+            // Spin until the capacity grows.
             while (1) {
                 auto curr_count = m_block_count.load(std::memory_order_acquire);
                 if (curr_count != block_count) {
+                    // This value could be destined to be inserted in a block after
+                    // the one that was just added, hmm...
                     auto curr_capacity = curr_count * N;
-                    EDYN_ASSERT(index < curr_capacity);
+                    if (index >= curr_capacity) {
+                        EDYN_ASSERT(false);
+                    }
                     break;
                 }
             }
@@ -78,9 +85,8 @@ private:
     block *m_last_block;
     std::atomic<size_t> m_block_count;
     std::atomic<size_t> m_size;
-    std::atomic<bool> m_lock;
 };
 
 }
 
-#endif // EDYN_PARALLEL_RESULT_ACCUMULATOR_HPP
+#endif // EDYN_PARALLEL_RESULT_COLLECTOR_HPP

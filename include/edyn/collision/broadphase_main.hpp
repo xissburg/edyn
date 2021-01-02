@@ -7,7 +7,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
-#include "edyn/parallel/result_accumulator.hpp"
+#include "edyn/parallel/result_collector.hpp"
 
 namespace edyn {
 
@@ -23,7 +23,7 @@ class broadphase_main {
     constexpr static auto m_aabb_offset = vector3_one * -m_threshold;
     constexpr static auto m_separation_threshold = m_threshold * 1.3;
 
-    using intersect_result = result_accumulator<entity_pair, 16>;
+    using intersect_result = result_collector<entity_pair, 16>;
 
     void intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB, intersect_result &) const;
     void intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB, intersect_result &) const;
