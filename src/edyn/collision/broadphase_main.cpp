@@ -7,6 +7,7 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/parallel/parallel_for.hpp"
 #include <entt/entt.hpp>
 #include <vector>
 
@@ -71,7 +72,15 @@ void broadphase_main::update() {
     auto tree_view_view = m_registry->view<tree_view>();
     auto tree_view_not_sleeping_view = m_registry->view<tree_view>(exclude_sleeping);
 
-    for (auto island_entityA : tree_view_not_sleeping_view) {
+    std::vector<entt::entity> awake_island_entities;
+    tree_view_not_sleeping_view.each([&awake_island_entities] (entt::entity entity, tree_view &) {
+        awake_island_entities.push_back(entity);
+    });
+
+    intersect_result result;
+
+    parallel_for_each(awake_island_entities.begin(), awake_island_entities.end(), [&] (auto it) {
+        auto island_entityA = *it;
         auto &tree_viewA = tree_view_not_sleeping_view.get(island_entityA);
         auto island_aabb = tree_viewA.root_aabb().inset(m_aabb_offset);
         
@@ -87,7 +96,7 @@ void broadphase_main::update() {
             // Look for AABB intersections between entities from different islands
             // and create manifolds.
             auto &tree_viewB = tree_view_view.get(island_entityB);
-            intersect_islands(tree_viewA, tree_viewB);
+            intersect_islands(tree_viewA, tree_viewB, result);
         });
 
         // Query the non-procedural dynamic tree to find static and kinematic
@@ -102,22 +111,28 @@ void broadphase_main::update() {
                 return;
             }
 
-            intersect_island_np(tree_viewA, np_entity);
+            intersect_island_np(tree_viewA, np_entity, result);
         });
-    }
+    });
+
+    result.each([&] (entity_pair &pair) {
+        if (!m_manifold_map.contains(pair)) {
+            make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);
+        }
+    });
 }
 
-void broadphase_main::intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB) const {
+void broadphase_main::intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB, intersect_result &result) const {
     // Query one tree for each node of the other tree. Pick the smaller tree
     // for the iteration and use the bigger one for the query.
     if (tree_viewA.size() < tree_viewB.size()) {
-        intersect_islands_a(tree_viewA, tree_viewB);
+        intersect_islands_a(tree_viewA, tree_viewB, result);
     } else {
-        intersect_islands_a(tree_viewB, tree_viewA);
+        intersect_islands_a(tree_viewB, tree_viewA, result);
     }
 }
 
-void broadphase_main::intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB) const {
+void broadphase_main::intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB, intersect_result &result) const {
     auto aabb_view = m_registry->view<AABB>();
 
     // `tree_viewA` is iterated and for each node an AABB query is performed in
@@ -135,14 +150,14 @@ void broadphase_main::intersect_islands_a(const tree_view &tree_viewA, const tre
                 auto &aabbB = aabb_view.get(entityB);
 
                 if (intersect(aabbA, aabbB)) {
-                    make_contact_manifold(*m_registry, entityA, entityB, m_separation_threshold);
+                    result.append(entity_pair(entityA, entityB));
                 }
             }
         });
     });
 }
 
-void broadphase_main::intersect_island_np(const tree_view &island_tree, entt::entity np_entity) const {
+void broadphase_main::intersect_island_np(const tree_view &island_tree, entt::entity np_entity, intersect_result &result) const {
     auto aabb_view = m_registry->view<AABB>();
     auto np_aabb = aabb_view.get(np_entity).inset(m_aabb_offset);
 
@@ -153,7 +168,7 @@ void broadphase_main::intersect_island_np(const tree_view &island_tree, entt::en
             auto &aabb = aabb_view.get(entity);
 
             if (intersect(aabb, np_aabb)) {
-                make_contact_manifold(*m_registry, entity, np_entity, m_separation_threshold);
+                result.append(entity_pair(entity, np_entity));
             }
         }
     });
