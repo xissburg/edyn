@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_PARALLEL_FOR_HPP
 
 #include <atomic>
+#include <iterator>
 #include "edyn/config/config.h"
 #include "edyn/parallel/mutex_counter.hpp"
 #include "edyn/parallel/job.hpp"
@@ -291,6 +292,8 @@ void parallel_for_job_func(job::data_type &data) {
 template<typename IndexType, typename Function>
 void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, IndexType step, Function func) {
     EDYN_ASSERT(step > IndexType{0});
+    EDYN_ASSERT(first < last);
+    EDYN_ASSERT(last - first > IndexType{1});
 
     // The last job to finish running will delete `pool`.
     auto *pool = new detail::for_loop_range_pool<IndexType, Function>(first, last, step, &func);

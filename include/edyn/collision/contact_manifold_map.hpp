@@ -4,10 +4,9 @@
 #include <map>
 #include <utility>
 #include <entt/fwd.hpp>
+#include "edyn/util/entity_pair.hpp"
 
 namespace edyn {
-
-using entity_pair = std::pair<entt::entity, entt::entity>;
 
 /**
  * Maps a pair of entities to their contact manifold.
