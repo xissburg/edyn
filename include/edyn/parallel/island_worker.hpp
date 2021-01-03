@@ -24,6 +24,26 @@ void island_worker_func(job::data_type &);
  */
 class island_worker final {
 
+    enum class state {
+        init,
+        step,
+        begin_step,
+        solve,
+        broadphase,
+        narrowphase,
+        finish_step
+    };
+
+    void init();
+    void process_messages();
+    void maybe_step();
+    void begin_step();
+    void run_solver();
+    void run_broadphase();
+    void run_narrowphase();
+    void finish_step();
+    void reschedule_now();
+    void maybe_reschedule();
     void reschedule_later();
     void calculate_topology();
     void do_terminate();
@@ -32,6 +52,9 @@ class island_worker final {
     void maybe_go_to_sleep();
     bool could_go_to_sleep();
     void go_to_sleep();
+    void sync();
+    void update();
+    job make_job();
 
 public:
     island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue);
@@ -39,12 +62,6 @@ public:
     ~island_worker();
 
     void on_registry_delta(const registry_delta &delta);
-
-    void sync();
-
-    void update();
-
-    void step();
 
     void reschedule();
 
@@ -80,8 +97,13 @@ private:
     narrowphase m_nphase;
     solver m_solver;
     message_queue_in_out m_message_queue;
+
     double m_fixed_dt;
+    double m_step_start_time;
     std::optional<double> m_sleep_timestamp;
+
+    state m_state;
+
     bool m_paused;
 
     std::unique_ptr<registry_delta_builder> m_delta_builder;
@@ -91,6 +113,7 @@ private:
     std::vector<entt::entity> m_new_imported_contact_manifolds;
 
     std::atomic<int> m_reschedule_counter {0};
+
     std::atomic<bool> m_terminating {false};
     std::atomic<bool> m_terminated {false};
     std::mutex m_terminate_mutex;
