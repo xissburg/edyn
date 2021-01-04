@@ -22,6 +22,6 @@
 #include "shapes/create_paged_triangle_mesh.hpp"
 #include "serialization/s11n.hpp"
 #include "parallel/job_dispatcher.hpp"
-#include "parallel/parallel_for.hpp"
+#include "parallel/parallel_for_async.hpp"
 #include "parallel/message_queue.hpp"
 #include "parallel/registry_delta_builder.hpp"
