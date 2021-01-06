@@ -1,0 +1,15 @@
+#ifndef EDYN_UTIL_ENTITY_PAIR
+#define EDYN_UTIL_ENTITY_PAIR
+
+#include <vector>
+#include <utility>
+#include <entt/fwd.hpp>
+
+namespace edyn {
+
+using entity_pair = std::pair<entt::entity, entt::entity>;
+using entity_pair_vector = std::vector<entity_pair>;
+
+}
+
+#endif // EDYN_UTIL_ENTITY_PAIR

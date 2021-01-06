@@ -1,6 +1,7 @@
 #include "../common/common.hpp"
 
 #include <array>
+#include <atomic>
 
 class job_dispatcher_test: public ::testing::Test {
 protected:
@@ -12,7 +13,9 @@ protected:
         dispatcher.stop();
     }
 
+public:
     edyn::job_dispatcher dispatcher;
+    std::atomic<bool> done {false};
 };
 
 TEST_F(job_dispatcher_test, parallel_for) {
@@ -65,6 +68,45 @@ TEST_F(job_dispatcher_test, parallel_for_small) {
         ASSERT_EQ(values[i], 27 + 18);
     });
 }
+
+void parallel_for_async_completion(edyn::job::data_type &data) {
+    auto archive = edyn::memory_input_archive(data.data(), data.size());
+    intptr_t self_ptr;
+    archive(self_ptr);
+    auto self = reinterpret_cast<job_dispatcher_test *>(self_ptr);
+    self->done.store(true, std::memory_order_relaxed);
+}
+
+TEST_F(job_dispatcher_test, parallel_for_async) {
+    constexpr size_t num_samples = 3591833;
+    std::vector<int> values(num_samples);
+    done.store(false, std::memory_order_relaxed);
+
+    // Job that will be called when the async for loop is done. It sets a 
+    // flag to true.
+    auto completion_job = edyn::job();
+    auto archive = edyn::fixed_memory_output_archive(completion_job.data.data(), completion_job.data.size());
+    auto self_ptr = reinterpret_cast<intptr_t>(this);
+    archive(self_ptr);
+    completion_job.func = &parallel_for_async_completion;
+
+    edyn::parallel_for_async(dispatcher, size_t{0}, num_samples, size_t{1}, completion_job, [&] (size_t i) {
+        values[i] = 31;
+    });
+
+    while (true) {
+        if (done.load(std::memory_order_relaxed)) {
+            break;
+        }
+
+        edyn::delay(11);
+    }
+
+    for (auto value : values) {
+        ASSERT_EQ(value, 31);
+    }
+}
+
 /*
 TEST_F(job_dispatcher_test, nested_parallel_for) {
     constexpr size_t rows = 2012;

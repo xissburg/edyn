@@ -8,6 +8,7 @@
 #include "edyn/collision/dynamic_tree.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/parallel/result_collector.hpp"
+#include "edyn/util/entity_pair.hpp"
 
 namespace edyn {
 
@@ -25,9 +26,10 @@ class broadphase_main {
 
     using intersect_result = result_collector<entity_pair, 16>;
 
-    void intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB, intersect_result &) const;
-    void intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB, intersect_result &) const;
-    void intersect_island_np(const tree_view &island_tree, entt::entity np_entity, intersect_result &) const;
+    entity_pair_vector intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB) const;
+    entity_pair_vector intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB) const;
+    entity_pair_vector intersect_island_np(const tree_view &island_tree, entt::entity np_entity) const;
+    entity_pair_vector find_intersecting_islands(entt::entity island_entityA) const;
 
 public:
     broadphase_main(entt::registry &);

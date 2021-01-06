@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include "edyn/config/config.h"
+#include "edyn/parallel/atomic_counter.hpp"
 #include "edyn/parallel/mutex_counter.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
@@ -15,13 +16,13 @@ namespace detail {
 /**
  * @brief A for-loop with an atomic editable range.
  */
-template<typename IndexType, typename Function>
+template<typename IndexType, typename Function, typename CounterType>
 struct for_loop_range {
     using atomic_index_type = std::atomic<IndexType>;
 
     for_loop_range(IndexType first, IndexType last, 
                    IndexType step, Function *func,
-                   mutex_counter &loop_counter)
+                   CounterType &loop_counter)
         : m_first(first)
         , m_last(last)
         , m_step(step)
@@ -49,8 +50,8 @@ struct for_loop_range {
     atomic_index_type m_step;
     atomic_index_type m_current;
     Function *m_func;
-    mutex_counter *m_loop_counter;
-    for_loop_range<IndexType, Function> *m_next;
+    CounterType *m_loop_counter;
+    for_loop_range<IndexType, Function, CounterType> *m_next;
 };
 
 /**
@@ -59,7 +60,7 @@ struct for_loop_range {
 template<typename IndexType, typename Function>
 class for_loop_range_pool {
 public:
-    using for_loop_range_type = for_loop_range<IndexType, Function>;
+    using for_loop_range_type = for_loop_range<IndexType, Function, mutex_counter>;
 
     /**
      * @brief Constructs the pool with one initial root for-loop containing
@@ -139,7 +140,7 @@ private:
 template<typename IndexType, typename Function>
 struct parallel_for_context {
     using for_loop_range_pool_type = for_loop_range_pool<IndexType, Function>;
-    using for_loop_range_type = for_loop_range<IndexType, Function>;
+    using for_loop_range_type = for_loop_range<IndexType, Function, mutex_counter>;
 
     for_loop_range_pool_type *m_loop_pool;
     job_dispatcher *m_dispatcher;
@@ -176,7 +177,7 @@ void serialize(Archive &archive, parallel_for_context<IndexType, Function> &ctx)
         archive(intptr);
         ctx.m_dispatcher = reinterpret_cast<job_dispatcher *>(intptr);
         archive(intptr);
-        ctx.m_parent = reinterpret_cast<for_loop_range<IndexType, Function> *>(intptr);
+        ctx.m_parent = reinterpret_cast<for_loop_range<IndexType, Function, mutex_counter> *>(intptr);
     }
 }
 
