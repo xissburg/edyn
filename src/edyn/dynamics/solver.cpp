@@ -17,6 +17,7 @@
 #include "edyn/dynamics/solver_stage.hpp"
 #include "edyn/util/array.hpp"
 #include "edyn/util/rigidbody.hpp"
+#include "edyn/comp/con_row_iter_data.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -116,6 +117,7 @@ solver::solver(entt::registry &registry)
 {
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
+    registry.on_construct<constraint_row>().connect<&entt::registry::emplace<con_row_iter_data>>();
 }
 
 void solver::update(scalar dt) {
@@ -124,10 +126,9 @@ void solver::update(scalar dt) {
     apply_gravity(*m_registry, dt);
 
     // Setup constraints.
-    auto mass_delta_group = m_registry->group<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
-    auto vel_group = m_registry->group<linvel, angvel>();
+    auto body_view = m_registry->view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
     auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
-    auto row_view = m_registry->view<constraint_row>(entt::exclude<disabled_tag>);
+    auto row_view = m_registry->view<constraint_row, con_row_iter_data>(entt::exclude<disabled_tag>);
 
     con_view.each([&] (entt::entity entity, constraint &con) {
         std::visit([&] (auto &&c) {
@@ -139,26 +140,28 @@ void solver::update(scalar dt) {
         return lhs.priority > rhs.priority;
     });
 
-    con_view.each([&] (entt::entity entity, constraint &con) {
-        auto [inv_mA, inv_IA, dvA, dwA] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [linvelA, angvelA] = vel_group.get<linvel, angvel>(con.body[0]);
+    row_view.each([&] (constraint_row &row, con_row_iter_data &iter_data) {
+        auto [inv_mA, inv_IA, linvelA, angvelA, dvA, dwA] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[0]);
+        auto [inv_mB, inv_IB, linvelB, angvelB, dvB, dwB] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[1]);
 
-        auto [inv_mB, inv_IB, dvB, dwB] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
-        auto [linvelB, angvelB] = vel_group.get<linvel, angvel>(con.body[1]);
+        prepare(row, 
+                inv_mA, inv_mB, 
+                inv_IA, inv_IB, 
+                linvelA, linvelB, 
+                angvelA, angvelB);
+        warm_start(row, 
+                   inv_mA, inv_mB, 
+                   inv_IA, inv_IB, 
+                   dvA, dvB, dwA, dwB);
 
-        for (size_t i = 0; i < con.num_rows(); ++i) {
-            auto &row = row_view.get(con.row[i]);
-            EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
-            prepare(row, 
-                    inv_mA, inv_mB, 
-                    inv_IA, inv_IB, 
-                    linvelA, linvelB, 
-                    angvelA, angvelB);
-            warm_start(row, 
-                       inv_mA, inv_mB, 
-                       inv_IA, inv_IB, 
-                       dvA, dvB, dwA, dwB);
-        }
+        iter_data.inv_mA = inv_mA;
+        iter_data.inv_mB = inv_mB;
+        iter_data.inv_IA = inv_IA;
+        iter_data.inv_IB = inv_IB;
+        iter_data.dvA = &dvA;
+        iter_data.dvB = &dvB;
+        iter_data.dwA = &dwA;
+        iter_data.dwB = &dwB;
     });
 
     // Solve constraints.
@@ -171,14 +174,13 @@ void solver::update(scalar dt) {
         });
 
         // Solve rows.
-        row_view.each([&] (entt::entity entity, constraint_row &row) {
-            auto [inv_mA, inv_IA, dvA, dwA] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(row.entity[0]);
-            auto [inv_mB, inv_IB, dvB, dwB] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(row.entity[1]);
-
-            auto delta_impulse = solve(row, dvA, dvB, dwA, dwB);
+        row_view.each([&] (constraint_row &row, con_row_iter_data &iter_data) {
+            auto delta_impulse = solve(row, *iter_data.dvA, *iter_data.dvB, *iter_data.dwA, *iter_data.dwB);
             apply_impulse(delta_impulse, row, 
-                          inv_mA, inv_mB, inv_IA, inv_IB, 
-                          dvA, dvB, dwA, dwB);
+                          iter_data.inv_mA, iter_data.inv_mB, 
+                          iter_data.inv_IA, iter_data.inv_IB, 
+                          *iter_data.dvA, *iter_data.dvB, 
+                          *iter_data.dwA, *iter_data.dwB);
         });
     }
 
