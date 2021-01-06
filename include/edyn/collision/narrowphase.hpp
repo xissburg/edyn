@@ -12,11 +12,16 @@
 namespace edyn {
 
 struct contact_manifold;
+struct job;
 
 class narrowphase {
 public:
     narrowphase(entt::registry &);
+
+    bool parallelizable() const;
     void update();
+    void update_async(job &completion_job);
+    void finish_async_update();
 
     using body_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, AABB, shape, position, orientation>; 
     using contact_manifold_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_manifold>;

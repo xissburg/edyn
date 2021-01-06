@@ -98,6 +98,7 @@ void island_worker::on_construct_contact_manifold(entt::registry &registry, entt
     if (m_importing_delta) {
         m_new_imported_contact_manifolds.push_back(entity);
     }
+    registry.emplace<collision_result>(entity);
 }
 
 void island_worker::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
@@ -233,6 +234,12 @@ void island_worker::update() {
         break;
     case state::narrowphase:
         run_narrowphase();
+        if (m_state != state::narrowphase_async) {
+            reschedule_now();
+        }
+        break;
+    case state::narrowphase_async:
+        finish_narrowphase();
         reschedule_now();
         break;
     case state::finish_step:
@@ -291,7 +298,20 @@ void island_worker::run_broadphase() {
 
 void island_worker::run_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase);
-    m_nphase.update();
+
+    if (m_nphase.parallelizable()) {
+        m_state = state::narrowphase_async;
+        auto completion_job = make_job();
+        m_nphase.update_async(completion_job);
+    } else {
+        m_nphase.update();
+        m_state = state::finish_step;
+    }
+}
+
+void island_worker::finish_narrowphase() {
+    EDYN_ASSERT(m_state == state::narrowphase_async);
+    m_nphase.finish_async_update();
     m_state = state::finish_step;
 }
 

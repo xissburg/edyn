@@ -21,7 +21,7 @@ struct for_loop_range {
     using atomic_index_type = std::atomic<IndexType>;
 
     for_loop_range(IndexType first, IndexType last, 
-                   IndexType step, Function *func,
+                   IndexType step, Function func,
                    CounterType &loop_counter)
         : m_first(first)
         , m_last(last)
@@ -39,7 +39,7 @@ struct for_loop_range {
     void run() {
         auto i = m_current.load(std::memory_order_relaxed);
         while (i < m_last.load(std::memory_order_acquire)) {
-            (*m_func)(i);
+            m_func(i);
             i = m_current.fetch_add(m_step, std::memory_order_release) + m_step;
         }
         m_loop_counter->decrement();
@@ -49,7 +49,7 @@ struct for_loop_range {
     atomic_index_type m_last;
     atomic_index_type m_step;
     atomic_index_type m_current;
-    Function *m_func;
+    Function m_func;
     CounterType *m_loop_counter;
     for_loop_range<IndexType, Function, CounterType> *m_next;
 };
@@ -67,7 +67,7 @@ public:
      * the whole range.
      */
     for_loop_range_pool(IndexType first, IndexType last, 
-                        IndexType step, Function *func)
+                        IndexType step, Function func)
         : m_first(first)
         , m_last(last)
         , m_step(step)
@@ -130,7 +130,7 @@ private:
     const IndexType m_first;
     const IndexType m_last;
     const IndexType m_step;
-    Function *m_func;
+    Function m_func;
     mutex_counter m_loop_counter;
     std::atomic<for_loop_range_type *> m_head;
     for_loop_range_type *m_root;
@@ -294,7 +294,7 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
     EDYN_ASSERT(step > IndexType{0});
 
     // The last job to finish running will delete `pool`.
-    auto *pool = new detail::for_loop_range_pool<IndexType, Function>(first, last, step, &func);
+    auto *pool = new detail::for_loop_range_pool<IndexType, Function>(first, last, step, func);
 
     // On exit decrement reference count and if zero delete `pool`.
     auto defer = std::shared_ptr<void>(nullptr, [pool] (void *) { 
