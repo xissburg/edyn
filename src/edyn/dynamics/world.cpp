@@ -4,8 +4,6 @@
 #include "edyn/time/time.hpp"
 #include <entt/entt.hpp>
 
-#include <iostream>
-
 namespace edyn {
 
 world::world(entt::registry &registry) 
@@ -22,8 +20,6 @@ world::~world() {
 }
 
 void world::update() {
-    auto freq = performance_frequency();
-    auto time0 = performance_counter();
     // Run jobs scheduled in physics thread.
     job_dispatcher::global().once_current_queue();
 
@@ -36,10 +32,6 @@ void world::update() {
         auto time = (double)performance_counter() / (double)performance_frequency();
         update_presentation(*m_registry, time);
     }
-
-    auto time1 = performance_counter();
-    auto dt = (double)(time1 - time0) / freq;
-    std::cout << dt * 1000 << std::endl;
 }
 
 void world::set_paused(bool paused) {
