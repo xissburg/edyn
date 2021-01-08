@@ -186,11 +186,15 @@ void parallel_for_async_partition(job::data_type &data) {
     current = parent->m_current.load(std::memory_order_acquire);
     auto new_first = current >= middle ? current : middle;
 
+    if (!(last - new_first > 0)) {
+        return;
+    }
+
     auto *loop = pool->create(new_first, last);
 
     // Dispatch one child job that will split the parent job range if it is
     // executed before the parent job is nearly done.
-    {
+    if (current < middle && middle - current > 1) {
         pool->add_ref();
 
         auto child_job = job();
@@ -205,7 +209,7 @@ void parallel_for_async_partition(job::data_type &data) {
 
     // Dispatch another child job which will split this range if it is executed
     // before this job is nearly done.
-    {
+    if (last - new_first > 1) {
         pool->add_ref();
 
         auto child_job = job();
