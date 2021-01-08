@@ -18,6 +18,7 @@
 #include "edyn/util/array.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/con_row_iter_data.hpp"
+#include "edyn/comp/edge_color.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -118,6 +119,7 @@ solver::solver(entt::registry &registry)
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
     registry.on_construct<constraint_row>().connect<&entt::registry::emplace<con_row_iter_data>>();
+    registry.on_construct<constraint_row>().connect<&entt::registry::emplace<edge_color>>();
 }
 
 void solver::update(scalar dt) {
