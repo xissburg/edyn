@@ -132,15 +132,26 @@ void solver::update(scalar dt) {
     auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
     auto row_view = m_registry->view<constraint_row, con_row_iter_data>(entt::exclude<disabled_tag>);
 
+    m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
+        return lhs.priority > rhs.priority;
+    });
+
     con_view.each([&] (entt::entity entity, constraint &con) {
         std::visit([&] (auto &&c) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *m_registry, dt);
         }, con.var);
     });
 
-    m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
-        return lhs.priority > rhs.priority;
-    });
+    // If any constraint_row has been created or destroyed between updates:
+    // 1. Assign edge_color::none to all edge_color values.
+    // 2. For each island_node with a procedural_tag, visit its neighbors which
+    // hold an edge_color and if their color is edge_color::none, assign the 
+    // lowest color value that's unique among all neighbors.
+    // 3. Sort edge_color components by value (none of them should be edge_color::none
+    // at this point).
+    // 4. Run one parallel_for_async for each range of identical values running a
+    // `solve` followed by `apply_impulse` on the corresponding constraint_row.
+    // Reapeat for multiple iterations.
 
     row_view.each([&] (constraint_row &row, con_row_iter_data &iter_data) {
         auto [inv_mA, inv_IA, linvelA, angvelA, dvA, dwA] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[0]);
