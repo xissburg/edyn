@@ -344,7 +344,9 @@ void island_worker::finish_step() {
     maybe_go_to_sleep();
 
     if (m_topology_changed) {
+    #ifdef DEBUG
         validate_island();
+    #endif
         calculate_topology();
         m_topology_changed = false;
     }
