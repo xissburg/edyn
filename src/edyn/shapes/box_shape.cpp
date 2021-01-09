@@ -57,40 +57,46 @@ vector3 box_shape::support_point(const vector3 &pos, const quaternion &orn, cons
 void box_shape::support_feature(const vector3 &dir, box_feature &feature, 
                                 size_t &feature_index, scalar &projection,
                                 scalar threshold) const {
-    std::array<scalar, 8> projections;
+    // Find face that's the closest to being a support face for `dir` and then
+    // check if an edge or a vertex of this face would be the support feature
+    // instead by calculating the highest projection onto dir and which other
+    // vertices have a projection that fall within the `threshold`.
+    auto candidate_face = support_face_index(dir);
+    std::array<scalar, 4> projections;
     projection = -EDYN_SCALAR_MAX;
+    std::array<size_t, 4> vertex_indices;
 
-    for (size_t i = 0; i < 8; ++i) {
-        auto v = get_vertex(i);
+    // Vertex index on face [0, 4) of vertices within threshold. There's always
+    // at least one (i.e. the one furthest along `dir`).
+    std::array<size_t, 4> indices; 
+    size_t count = 1;
+
+    for (size_t i = 0; i < projections.size(); ++i) {
+        auto vertex_idx = get_vertex_index_from_face(candidate_face, i);
+        vertex_indices[i] = vertex_idx;
+        auto v = get_vertex(vertex_idx);
         auto proj = dot(v, dir);
         projections[i] = proj;
 
         if (proj > projection) {
             projection = proj;
+            indices[0] = i;
         }
     }
 
-    std::array<size_t, 4> indices;
-    size_t count = 0;
-
-    for (size_t i = 0; i < 8; ++i) {
+    for (size_t i = 1; i < projections.size(); ++i) {
         if (projections[i] > projection - threshold) {
             indices[count++] = i;
-
-            if (count == 4) {
-                break;
-            }
         }
     }
-
-    EDYN_ASSERT(count > 0);
 
     if (count == 1) {
         feature = BOX_FEATURE_VERTEX;
-        feature_index = indices[0];
+        feature_index = vertex_indices[indices[0]];
     } else if (count == 2) {
         feature = BOX_FEATURE_EDGE;
-        feature_index = get_edge_index(indices[0], indices[1]);
+        feature_index = get_edge_index(vertex_indices[indices[0]], 
+                                       vertex_indices[indices[1]]);
     } else if (count == 3) {
         feature = BOX_FEATURE_EDGE;
         // Select 2 points among the 3 with the higher projections.
@@ -99,15 +105,18 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
         auto proj2 = projections[indices[2]];
 
         if (proj0 <= proj1 && proj0 <= proj2) {
-            feature_index = get_edge_index(indices[1], indices[2]);
+            feature_index = get_edge_index(vertex_indices[indices[1]], 
+                                           vertex_indices[indices[2]]);
         } else if (proj1 <= proj0 && proj1 <= proj2) {
-            feature_index = get_edge_index(indices[0], indices[2]);
+            feature_index = get_edge_index(vertex_indices[indices[0]], 
+                                           vertex_indices[indices[2]]);
         } else { // if (proj2 <= proj0 && proj2 <= proj1) {
-            feature_index = get_edge_index(indices[0], indices[1]);
+            feature_index = get_edge_index(vertex_indices[indices[0]], 
+                                           vertex_indices[indices[1]]);
         }
     } else {
         feature = BOX_FEATURE_FACE;
-        feature_index = support_face_index(dir);
+        feature_index = candidate_face;
     }
 }
 
@@ -240,23 +249,23 @@ size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {
         }
     }
 
+    EDYN_ASSERT(false);
+
     return SIZE_MAX;
 }
 
 size_t box_shape::support_face_index(const vector3 &dir) const {
-    size_t best_idx = SIZE_MAX;
-    scalar highest_dot = 0;
-
-    for (size_t i = 0; i < 6; ++i) {
-        auto n = get_face_normal(i);
-        auto d = dot(n, dir);
-        if (d > highest_dot) {
-            highest_dot = d;
-            best_idx = i;
-        }
+    auto max_idx = max_index(dir);
+        
+    if (dir[max_idx] < 0) {
+        return max_idx * 2 + 1;
+    } else {
+        return max_idx * 2;
     }
+}
 
-    return best_idx;
+size_t box_shape::get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const {
+    return face_indices[face_idx * 4 + face_vertex_idx];
 }
 
 

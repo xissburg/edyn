@@ -211,6 +211,8 @@ struct box_shape {
      * @return Face index.
      */
     size_t support_face_index(const vector3 &dir) const;
+
+    size_t get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const;
 };
 
 }
