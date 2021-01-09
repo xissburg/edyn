@@ -87,16 +87,18 @@ void contact_constraint::prepare(entt::entity entity, constraint &con, entt::reg
     friction_row.error = 0;
     // friction_row limits are calculated in `iteration(...)` using the normal impulse.
     friction_row.lower_limit = friction_row.upper_limit = 0;
+
+    // Cache these values to be used in `contact_constraint::iteration` directly,
+    // eliminating the need to call `registry.get`.
+    m_friction = cp.friction;
+    m_normal_row = &normal_row;
+    m_friction_row = &friction_row;
 }
 
 void contact_constraint::iteration(entt::entity entity, constraint &con, entt::registry &registry, scalar dt) {
-    auto &cp = registry.get<contact_point>(entity);
-    auto &normal_row = registry.get<constraint_row>(con.row[0]);
-    auto friction_impulse = std::abs(normal_row.impulse * cp.friction);
-
-    auto &friction_row = registry.get<constraint_row>(con.row[1]);
-    friction_row.lower_limit = -friction_impulse;
-    friction_row.upper_limit = friction_impulse;
+    auto friction_impulse = std::abs(m_normal_row->impulse * m_friction);
+    m_friction_row->lower_limit = -friction_impulse;
+    m_friction_row->upper_limit = friction_impulse;
 }
 
 }
