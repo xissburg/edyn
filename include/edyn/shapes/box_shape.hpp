@@ -206,16 +206,11 @@ struct box_shape {
     size_t get_edge_index(size_t v0_idx, size_t v1_idx) const;
 
     /**
-     * Get face index from vertex indices.
-     * @param v0_idx Index of first vertex.
-     * @param v1_idx Index of second vertex.
-     * @param v2_idx Index of third vertex.
-     * @param v3_idx Index of fourth vertex.
+     * Get face index whose normal best aligns with the given direction.
+     * @param dir Direction vector.
      * @return Face index.
-     * @remarks Order does not matter.
      */
-    size_t get_face_index(size_t v0_idx, size_t v1_idx,
-                          size_t v2_idx, size_t v3_idx) const;
+    size_t support_face_index(const vector3 &dir) const;
 };
 
 }
