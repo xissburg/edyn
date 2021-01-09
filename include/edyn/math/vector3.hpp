@@ -205,6 +205,11 @@ inline vector3 max(const vector3 &v, const vector3 &w) {
     return {std::max(v.x, w.x), std::max(v.y, w.y), std::max(v.z, w.z)};
 }
 
+// Performs element-wise absolute.
+inline vector3 abs(const vector3 &v) {
+    return {std::abs(v.x), std::abs(v.y), std::abs(v.z)};
+}
+
 // Returns the index of the coordinate with greatest value.
 inline size_t max_index(const vector3 &v) {
     auto max_val = v.x;
@@ -221,6 +226,11 @@ inline size_t max_index(const vector3 &v) {
     }
 
     return max_idx;
+}
+
+// Returns the index of the coordinate with greatest absolute value.
+inline size_t max_index_abs(const vector3 &v) {
+    return max_index(abs(v));
 }
 
 }

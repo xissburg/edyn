@@ -70,6 +70,7 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
     // at least one (i.e. the one furthest along `dir`).
     std::array<size_t, 4> indices; 
     size_t count = 1;
+    size_t max_proj_idx;
 
     for (size_t i = 0; i < projections.size(); ++i) {
         auto vertex_idx = get_vertex_index_from_face(candidate_face, i);
@@ -81,11 +82,12 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
         if (proj > projection) {
             projection = proj;
             indices[0] = i;
+            max_proj_idx = i;
         }
     }
 
-    for (size_t i = 1; i < projections.size(); ++i) {
-        if (projections[i] > projection - threshold) {
+    for (size_t i = 0; i < projections.size(); ++i) {
+        if (i != max_proj_idx && projections[i] > projection - threshold) {
             indices[count++] = i;
         }
     }
@@ -255,7 +257,7 @@ size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {
 }
 
 size_t box_shape::support_face_index(const vector3 &dir) const {
-    auto max_idx = max_index(dir);
+    auto max_idx = max_index_abs(dir);
         
     if (dir[max_idx] < 0) {
         return max_idx * 2 + 1;
