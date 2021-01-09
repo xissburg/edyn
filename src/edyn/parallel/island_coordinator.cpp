@@ -523,7 +523,10 @@ void island_coordinator::update() {
     split_islands();
     refresh_dirty_entities();
     sync();
+
+#ifdef DEBUG
     validate();
+#endif
 }
 
 void island_coordinator::set_paused(bool paused) {

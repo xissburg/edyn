@@ -1,7 +1,5 @@
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/math/matrix3x3.hpp"
-#include <map>
-#include <unordered_set>
 #include <cstdint>
 
 namespace edyn {
@@ -109,7 +107,7 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
         }
     } else {
         feature = BOX_FEATURE_FACE;
-        feature_index = get_face_index(indices[0], indices[1], indices[2], indices[3]);
+        feature_index = support_face_index(dir);
     }
 }
 
@@ -245,24 +243,21 @@ size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {
     return SIZE_MAX;
 }
 
-size_t box_shape::get_face_index(size_t v0_idx, size_t v1_idx,
-                                 size_t v2_idx, size_t v3_idx) const {
-    const auto vidx_set = std::unordered_set<size_t>{v0_idx, v1_idx, v2_idx, v3_idx};
-    
-    for (size_t i = 0; i < 6; ++i) {
-        const auto idx_set = std::unordered_set<size_t>{
-            face_indices[i * 4 + 0],
-            face_indices[i * 4 + 1],
-            face_indices[i * 4 + 2],
-            face_indices[i * 4 + 3]
-        };
+size_t box_shape::support_face_index(const vector3 &dir) const {
+    size_t best_idx = SIZE_MAX;
+    scalar highest_dot = 0;
 
-        if (vidx_set == idx_set) {
-            return i;
+    for (size_t i = 0; i < 6; ++i) {
+        auto n = get_face_normal(i);
+        auto d = dot(n, dir);
+        if (d > highest_dot) {
+            highest_dot = d;
+            best_idx = i;
         }
     }
 
-    return SIZE_MAX;
+    return best_idx;
 }
+
 
 }

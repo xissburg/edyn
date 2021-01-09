@@ -125,6 +125,10 @@ void solver::update(scalar dt) {
     integrate_linacc(*m_registry, dt);
     apply_gravity(*m_registry, dt);
 
+    m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
+        return lhs.priority > rhs.priority;
+    });
+
     // Setup constraints.
     auto body_view = m_registry->view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
     auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
@@ -134,10 +138,6 @@ void solver::update(scalar dt) {
         std::visit([&] (auto &&c) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *m_registry, dt);
         }, con.var);
-    });
-
-    m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
-        return lhs.priority > rhs.priority;
     });
 
     row_view.each([&] (constraint_row &row, con_row_iter_data &iter_data) {

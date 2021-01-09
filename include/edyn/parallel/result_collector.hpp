@@ -42,8 +42,8 @@ public:
 
         if (index == capacity) {
             auto *last_block = new block;
-            m_last_block->next = last_block;
-            m_last_block = last_block;
+            m_last_block.load(std::memory_order_relaxed)->next = last_block;
+            m_last_block.store(last_block, std::memory_order_release);
             m_block_count.fetch_add(1, std::memory_order_release);
         } else if (index > capacity) {
             // Spin until the capacity grows.
@@ -61,7 +61,7 @@ public:
             }
         }
 
-        m_last_block->array[block_index] = value;
+        m_last_block.load(std::memory_order_acquire)->array[block_index] = value;
     }
 
     template<typename Function>
@@ -72,7 +72,7 @@ public:
         for (size_t i = 0; i < size; ++i) {
             auto block_index = i % N;
 
-            if (i > 0 && block_index == 0) {
+            if (block_index == 0 && i > 0) {
                 block = block->next;
             }
 
@@ -82,7 +82,7 @@ public:
 
 private:
     block m_first_block;
-    block *m_last_block;
+    std::atomic<block *> m_last_block;
     std::atomic<size_t> m_block_count;
     std::atomic<size_t> m_size;
 };

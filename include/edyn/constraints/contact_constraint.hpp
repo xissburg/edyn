@@ -8,6 +8,8 @@
 
 namespace edyn {
 
+struct constraint_row;
+
 struct contact_constraint : public constraint_base<contact_constraint> {
     scalar stiffness {large_scalar};
     scalar damping {large_scalar};
@@ -15,6 +17,11 @@ struct contact_constraint : public constraint_base<contact_constraint> {
     void init(entt::entity, constraint &, entt::registry &);
     void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
     void iteration(entt::entity, constraint &, entt::registry &, scalar dt);
+
+private:
+    scalar m_friction;
+    constraint_row *m_normal_row;
+    constraint_row *m_friction_row;
 };
 
 }
