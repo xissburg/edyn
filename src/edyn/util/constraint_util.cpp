@@ -60,13 +60,17 @@ void limit_dirty_to_island_of_procedural(entt::registry &registry, entt::entity 
     if (!registry.has<procedural_tag>(ent0)) {
         EDYN_ASSERT(registry.has<procedural_tag>(ent1));
         auto &container = registry.get<island_container>(ent1);
-        registry.get_or_emplace<dirty>(ent0).islands(*container.entities.begin());
+        if (!container.entities.empty()) {
+            registry.get_or_emplace<dirty>(ent0).islands(*container.entities.begin());
+        }
     }
 
     if (!registry.has<procedural_tag>(ent1)) {
         EDYN_ASSERT(registry.has<procedural_tag>(ent0));
         auto &container = registry.get<island_container>(ent0);
-        registry.get_or_emplace<dirty>(ent1).islands(*container.entities.begin());
+        if (!container.entities.empty()) {
+            registry.get_or_emplace<dirty>(ent1).islands(*container.entities.begin());
+        }
     }
 }
 
