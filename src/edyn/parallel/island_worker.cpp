@@ -407,7 +407,7 @@ void island_worker::calculate_topology() {
             auto is_procedural = m_registry.has<procedural_tag>(entity);
 
             for (auto other : curr_node.entities) {
-                auto already_visited = connected.contains(other);
+                auto already_visited = connected.count(other);
                 if (already_visited) continue;
 
                 // Non-procedural nodes should only connect non-procedural nodes
@@ -480,7 +480,7 @@ void island_worker::validate_island() {
         auto &node = node_view.get(entity);
         for (auto other : node.entities) {
             auto &other_node = node_view.get(other);
-            EDYN_ASSERT(other_node.entities.contains(entity));
+            EDYN_ASSERT(other_node.entities.count(entity));
         }
     }
 
@@ -493,7 +493,7 @@ void island_worker::validate_island() {
     for (entt::entity entity : container_view) {
         auto &container = container_view.get(entity);
         EDYN_ASSERT(container.entities.size() == 1);
-        EDYN_ASSERT(container.entities.contains(m_island_entity));
+        EDYN_ASSERT(container.entities.count(m_island_entity));
     }
 
     // Parent nodes that are not a child should be an `island_node`.
@@ -516,7 +516,7 @@ void island_worker::validate_island() {
 
     m_registry.view<island_node_child>().each([&] (entt::entity child_entity, island_node_child &child) {
         auto &parent = m_registry.get<island_node_parent>(child.parent);
-        EDYN_ASSERT(parent.children.contains(child_entity));
+        EDYN_ASSERT(parent.children.count(child_entity));
     });
 }
 

@@ -30,7 +30,7 @@ void merge_entity_set(const Component *old_comp,
         // Reinsert entities from old which are still valid.
         for (auto old_entity : old_comp->*member) {
             if (!ctx.registry->valid(old_entity)) continue;
-            if ((new_comp.*member).contains(old_entity)) continue;
+            if ((new_comp.*member).count(old_entity)) continue;
             (new_comp.*member).insert(old_entity);
         }
     }
