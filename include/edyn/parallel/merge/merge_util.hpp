@@ -10,7 +10,7 @@
 namespace edyn {
 
 template<merge_type MergeType, typename Component>
-void merge_unordered_set(const Component *old_comp, 
+void merge_entity_set(const Component *old_comp, 
                          Component &new_comp, 
                          entity_set Component:: *member, 
                          const merge_context &ctx) {
@@ -30,17 +30,17 @@ void merge_unordered_set(const Component *old_comp,
         // Reinsert entities from old which are still valid.
         for (auto old_entity : old_comp->*member) {
             if (!ctx.registry->valid(old_entity)) continue;
-            if ((new_comp.*member).count(old_entity)) continue;
+            if ((new_comp.*member).contains(old_entity)) continue;
             (new_comp.*member).insert(old_entity);
         }
     }
 }
 
 template<merge_type MergeType, typename Component, std::size_t N>
-void merge_array(const Component *old_comp, 
-                 Component &new_comp, 
-                 std::array<entt::entity, N> Component:: *member, 
-                 const merge_context &ctx) {
+void merge_entity_array(const Component *old_comp, 
+                        Component &new_comp, 
+                        std::array<entt::entity, N> Component:: *member, 
+                        const merge_context &ctx) {
     
     for (auto &entity : new_comp.*member) {
         if (entity == entt::null) continue;

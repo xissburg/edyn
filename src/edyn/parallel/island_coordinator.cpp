@@ -67,7 +67,7 @@ void island_coordinator::on_destroy_island_container(entt::registry &registry, e
     // Remove from islands.
     for (auto island_entity : container.entities) {
         auto &ctx = m_island_ctx_map.at(island_entity);
-        EDYN_ASSERT(ctx->m_entities.count(entity) > 0);
+        EDYN_ASSERT(ctx->m_entities.contains(entity));
         ctx->m_entities.erase(entity);
         if (!m_importing_delta)  {
             ctx->m_delta_builder->destroyed(entity);
@@ -130,7 +130,7 @@ void island_coordinator::init_new_island_nodes() {
             auto &curr_node = m_registry->get<island_node>(curr_entity);
 
             for (auto other_entity : curr_node.entities) {
-                auto already_visited = connected.count(other_entity) > 0;
+                auto already_visited = connected.contains(other_entity);
                 if (already_visited) continue;
 
                 if (m_registry->has<procedural_tag>(other_entity)) {
@@ -179,7 +179,7 @@ void island_coordinator::init_new_island_nodes() {
             for (auto entity : connected) {
                 // Assign island to containers.
                 auto &container = m_registry->get<island_container>(entity);
-                if (container.entities.count(island_entity) == 0) {
+                if (!container.entities.contains(island_entity)) {
                     container.entities.insert(island_entity);
                     // Add new entities to the delta builder.
                     ctx->m_delta_builder->created(entity);
@@ -211,7 +211,7 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
         auto &ctx = m_island_ctx_map.at(island_entity);
         ctx->m_entities.insert(node_entity);
 
-        if (container.entities.count(island_entity) == 0) {
+        if (!container.entities.contains(island_entity)) {
             container.entities.insert(island_entity);
             ctx->m_delta_builder->created(node_entity);
             ctx->m_delta_builder->created_all(node_entity, *m_registry);
@@ -303,7 +303,7 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
         // since the island is supposed to be awake after a merge.
         m_registry->remove_if_exists<sleeping_tag>(entity);
 
-        if (ctx->m_entities.count(entity) == 0) {
+        if (!ctx->m_entities.contains(entity)) {
             // Include all components in delta because this is a new entity
             // in the selected island.
             builder->created(entity);
@@ -383,7 +383,7 @@ bool island_coordinator::should_split_island(const island_topology &topo) {
 }
 
 void island_coordinator::split_islands() {
-    for (auto &split_island_entity : m_islands_to_split) {
+    for (auto split_island_entity : m_islands_to_split) {
         split_island(split_island_entity);
     }
 
@@ -434,7 +434,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
             auto is_procedural = m_registry->has<procedural_tag>(entity);
 
             for (auto other : curr_node.entities) {
-                auto already_visited = connected.count(other) > 0;
+                auto already_visited = connected.contains(other);
                 if (already_visited) continue;
 
                 // Non-procedural nodes should only connect non-procedural nodes
@@ -555,7 +555,7 @@ void island_coordinator::validate() {
         auto &node = node_view.get(entity);
         for (auto other : node.entities) {
             auto &other_node = node_view.get(other);
-            EDYN_ASSERT(other_node.entities.count(entity) > 0);
+            EDYN_ASSERT(other_node.entities.contains(entity));
         }
     }
 

@@ -13,7 +13,7 @@ void merge(const contact_manifold *old_comp, contact_manifold &new_comp, merge_c
         entity = ctx.map->remloc(entity);
     }
 
-    merge_array<MergeType>(old_comp, new_comp, &contact_manifold::point, ctx);
+    merge_entity_array<MergeType>(old_comp, new_comp, &contact_manifold::point, ctx);
 }
 
 }

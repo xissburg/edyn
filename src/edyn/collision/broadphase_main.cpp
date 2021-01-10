@@ -139,7 +139,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
         // Only proceed if the non-procedural entity is not in the island,
         // because if it is already, collisions are handled in the island worker.
         auto &container = container_view.get(np_entity);
-        if (container.entities.count(island_entityA) > 0) {
+        if (container.entities.contains(island_entityA)) {
             return;
         }
 
