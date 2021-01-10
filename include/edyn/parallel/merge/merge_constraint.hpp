@@ -13,7 +13,7 @@ void merge(const constraint *old_comp, constraint &new_comp, merge_context &ctx)
         entity = ctx.map->remloc(entity);
     }
 
-    merge_array<MergeType>(old_comp, new_comp, &constraint::row, ctx);
+    merge_entity_array<MergeType>(old_comp, new_comp, &constraint::row, ctx);
 }
 
 }
