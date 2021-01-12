@@ -20,8 +20,8 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                          const box_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
     // Box-Box SAT. Normal of 3 faces of A, normal of 3 faces of B, 3 * 3 edge
-    // cross-products.
-    std::array<box_box_separating_axis, 3 + 3 + 3 * 3> sep_axes;
+    // cross-products. Find axis with greatest projection.
+    std::array<scalar, 3 + 3 + 3 * 3> projections;
 
     auto axesA = std::array<vector3, 3>{
         quaternion_x(ornA),
@@ -39,101 +39,128 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
     // A's faces.
     for (size_t i = 0; i < 3; ++i) {
-        auto &axisA = axesA[i];
-        auto &axis = sep_axes[axis_idx++];
-        axis.featureA = BOX_FEATURE_FACE;
-
-        if (dot(posB - posA, axisA) > 0) {
-            axis.feature_indexA = i * 2; // Positive face along axis.
-            axis.dir = -axisA; // Point towards A.
-        } else {
-            axis.feature_indexA = i * 2 + 1; // Negative face along axis.
-            axis.dir = axisA; // Point towards A.
+        auto dir = axesA[i];
+        if (dot(posB - posA, dir) > 0) {
+            dir = -dir; // Point towards A.
         }
 
-        shB.support_feature(posB, ornB, posA, axis.dir, 
-                            axis.featureB, axis.feature_indexB, 
-                            axis.distance, threshold);
-        // `axis.distance` contains the projection of the furthest feature with
-        // respect to the center of A, thus it's necessary to add half the extent
-        // of A to push it to the surface.
-        // It also has to be negated because the projection given by `support_feature`
-        // is in the direction `axis.dir` which points towards A and thus positive
-        // projection has to be turned into penetration, which is intepreted as
-        // negative distance.
-        axis.distance = -(shA.half_extents[i] + axis.distance);
+        auto p = shB.support_point(posB, ornB, dir);
+        auto proj = dot(dir, p - posA);
+        projections[axis_idx++] = -(proj + shA.half_extents[i]);
     }
 
     // B's faces.
     for (size_t i = 0; i < 3; ++i) {
-        auto &axisB = axesB[i];
-        auto &axis = sep_axes[axis_idx++];
-        axis.featureB = BOX_FEATURE_FACE;
-
-        if (dot(posA - posB, axisB) > 0) {
-            axis.feature_indexB = i * 2; // Positive face along axis.
-            axis.dir = axisB; // Point towards A.
-        } else {
-            axis.feature_indexB = i * 2 + 1; // Negative face along axis.
-            axis.dir = -axisB; // Point towards A.
+        auto dir = axesB[i];
+        if (dot(posA - posB, dir) > 0) {
+            dir = -dir; // Point towards B.
         }
 
-        shA.support_feature(posA, ornA, posB, -axis.dir, 
-                            axis.featureA, axis.feature_indexA, 
-                            axis.distance, threshold);
-        axis.distance = -(shB.half_extents[i] + axis.distance);
+        auto p = shA.support_point(posA, ornA, dir);
+        auto proj = dot(dir, p - posB);
+        projections[axis_idx++] = -(proj + shB.half_extents[i]);
     }
 
     // Edge-edge.
     for (size_t i = 0; i < 3; ++i) {
-        auto &axisA = axesA[i];
-
         for (size_t j = 0; j < 3; ++j) {
-            auto &axisB = axesB[j];
-            auto &axis = sep_axes[axis_idx];
-            axis.dir = cross(axisA, axisB);
-            auto dir_len_sqr = length_sqr(axis.dir);
+            auto dir = cross(axesA[i], axesB[j]);
+            auto dir_len_sqr = length_sqr(dir);
 
             if (dir_len_sqr <= EDYN_EPSILON) {
+                projections[axis_idx++] = -EDYN_SCALAR_MAX;
                 continue;
             }
 
-            axis.dir /= std::sqrt(dir_len_sqr);
+            dir /= std::sqrt(dir_len_sqr);
 
-            if (dot(posA - posB, axis.dir) < 0) {
+            if (dot(posA - posB, dir) < 0) {
                 // Make it point towards A.
-                axis.dir *= -1;
+                dir *= -1;
             }
-
-            scalar projA, projB;
-            shA.support_feature(posA, ornA, posB, -axis.dir, 
-                                axis.featureA, axis.feature_indexA, 
-                                projA, threshold);
-            shB.support_feature(posB, ornB, posB, axis.dir, 
-                                axis.featureB, axis.feature_indexB, 
-                                projB, threshold);
-            axis.distance = -(projA + projB);
-
-            ++axis_idx;
+            
+            auto pA = shA.support_point(posA, ornA, -dir);
+            auto pB = shB.support_point(posB, ornB, dir);
+            auto projA = dot(pA - posA, -dir);
+            auto projB = dot(pB - posA, dir);
+            projections[axis_idx++] = -(projA + projB);
         }
     }
 
-    auto greatest_distance = -EDYN_SCALAR_MAX;
+    auto greatest = -EDYN_SCALAR_MAX;
     size_t sep_axis_idx;
 
-    for (size_t i = 0; i < axis_idx; ++i) {
-        auto &sep_axis = sep_axes[i];
-        
-        if (sep_axis.distance > greatest_distance) {
-            greatest_distance = sep_axis.distance;
+    for (size_t i = 0; i < projections.size(); ++i) {
+        if (projections[i] > greatest) {
+            greatest = projections[i];
             sep_axis_idx = i;
         }
     }
 
-    auto &sep_axis = sep_axes[sep_axis_idx];
-
-    if (sep_axis.distance > threshold) {
+    if (projections[sep_axis_idx] > threshold) {
         return {};
+    }
+
+    box_box_separating_axis sep_axis;
+    sep_axis.distance = projections[sep_axis_idx];
+
+    // Obtain support features for the chosen separating axis.
+    if (sep_axis_idx < 3) {
+        // A's faces.
+        auto i = sep_axis_idx;
+        auto &axisA = axesA[i];
+        sep_axis.featureA = BOX_FEATURE_FACE;
+
+        if (dot(posB - posA, axisA) > 0) {
+            sep_axis.feature_indexA = i * 2; // Positive face along axis.
+            sep_axis.dir = -axisA; // Point towards A.
+        } else {
+            sep_axis.feature_indexA = i * 2 + 1; // Negative face along axis.
+            sep_axis.dir = axisA; // Point towards A.
+        }
+
+        scalar distance;
+        shB.support_feature(posB, ornB, posA, sep_axis.dir, 
+                            sep_axis.featureB, sep_axis.feature_indexB, 
+                            distance, threshold);
+    } else if (sep_axis_idx < 6) {
+        // B's faces.
+        auto i = sep_axis_idx - 3;
+        auto &axisB = axesB[i];
+        sep_axis.featureB = BOX_FEATURE_FACE;
+
+        if (dot(posA - posB, axisB) > 0) {
+            sep_axis.feature_indexB = i * 2; // Positive face along axis.
+            sep_axis.dir = axisB; // Point towards A.
+        } else {
+            sep_axis.feature_indexB = i * 2 + 1; // Negative face along axis.
+            sep_axis.dir = -axisB; // Point towards A.
+        }
+
+        scalar distance;
+        shA.support_feature(posA, ornA, posB, -sep_axis.dir, 
+                            sep_axis.featureA, sep_axis.feature_indexA, 
+                            distance, threshold);
+    } else {
+        // Edge-edge.
+        auto i = (sep_axis_idx - 6) / 3;
+        auto j = (sep_axis_idx - 6) % 3;
+        auto &axisA = axesA[i];
+        auto &axisB = axesB[j];
+        sep_axis.dir = normalize(cross(axisA, axisB));
+
+        if (dot(posA - posB, sep_axis.dir) < 0) {
+            // Make it point towards A.
+            sep_axis.dir *= -1;
+        }
+
+        scalar projA, projB;
+        shA.support_feature(posA, ornA, posB, -sep_axis.dir, 
+                            sep_axis.featureA, sep_axis.feature_indexA, 
+                            projA, threshold);
+        shB.support_feature(posB, ornB, posB, sep_axis.dir, 
+                            sep_axis.featureB, sep_axis.feature_indexB, 
+                            projB, threshold);
     }
 
     auto result = collision_result{};
