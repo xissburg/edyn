@@ -17,7 +17,6 @@ void serialize(Archive &archive, constraint_row &r) {
     archive(r.erp);
     archive(r.relvel);
     archive(r.restitution);
-    archive(r.impulse);
     archive(r.priority);
 }
 

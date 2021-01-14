@@ -9,10 +9,16 @@ struct delta_linvel;
 struct delta_angvel;
 
 struct con_row_iter_data {
-    scalar inv_mA, inv_mB;
-    matrix3x3 inv_IA, inv_IB;
+    std::array<vector3, 2 * 2> J;
     delta_linvel *dvA, *dvB;
     delta_angvel *dwA, *dwB;
+    scalar rhs;
+    scalar eff_mass;
+    scalar lower_limit;
+    scalar upper_limit;
+    scalar impulse;
+    scalar inv_mA, inv_mB;
+    matrix3x3 inv_IA, inv_IB;
 };
 
 }

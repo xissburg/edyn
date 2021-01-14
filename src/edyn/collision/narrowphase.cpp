@@ -5,6 +5,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/island.hpp"
@@ -73,8 +74,8 @@ void contact_point_changed(entt::entity entity, entt::registry &registry,
     // One of the existing contacts has been replaced. Update its rows.
     // Zero out warm-starting impulses.
     for (size_t i = 0; i < con.num_rows(); ++i) {
-        auto &row = registry.get<constraint_row>(con.row[i]);
-        row.impulse = 0;
+        auto &data = registry.get<con_row_iter_data>(con.row[i]);
+        data.impulse = 0;
     }
 }
 
