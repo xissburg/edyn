@@ -1,6 +1,8 @@
 #ifndef EDYN_PARALLEL_DELTA_COMPONENT_MAP_HPP
 #define EDYN_PARALLEL_DELTA_COMPONENT_MAP_HPP
 
+#include <vector>
+#include <utility>
 #include <entt/fwd.hpp>
 #include "edyn/util/entity_map.hpp"
 #include "edyn/util/entity_set.hpp"
@@ -24,10 +26,10 @@ struct component_map_base {
 
 template<typename Component>
 struct updated_component_map: public component_map_base {
-    std::unordered_map<entt::entity, Component> pairs;
+    std::vector<std::pair<entt::entity, Component>> pairs;
 
     void insert(entt::entity entity, const Component &comp) {
-        pairs.insert_or_assign(entity, comp);
+        pairs.emplace_back(entity, comp);
     }
 
     void import(const registry_delta &delta, entt::registry &registry, entity_map &map) const override {
@@ -51,10 +53,10 @@ struct updated_component_map: public component_map_base {
 
 template<typename Component>
 struct created_component_map: public component_map_base {
-    std::unordered_map<entt::entity, Component> pairs;
+    std::vector<std::pair<entt::entity, Component>> pairs;
 
     void insert(entt::entity entity, const Component &comp) {
-        pairs.insert_or_assign(entity, comp);
+        pairs.emplace_back(entity, comp);
     }
 
     void import(const registry_delta &delta, entt::registry &registry, entity_map &map) const override {
@@ -65,6 +67,7 @@ struct created_component_map: public component_map_base {
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);
             if (!registry.valid(local_entity)) continue;
+            if (registry.has<Component>(local_entity)) continue;
 
             if constexpr(std::is_empty_v<Component>) {
                 registry.emplace<Component>(local_entity);
@@ -79,10 +82,10 @@ struct created_component_map: public component_map_base {
 
 template<typename Component>
 struct destroyed_component_map: public component_map_base {
-    entity_set entities;
+    std::vector<entt::entity> entities;
 
     void insert(entt::entity entity) {
-        entities.insert(entity);
+        entities.push_back(entity);
     }
 
     void import(const registry_delta &, entt::registry &registry, entity_map &map) const override {
