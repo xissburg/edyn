@@ -64,6 +64,8 @@ public:
 
     bool empty() const;
 
+    void clear();
+
     const auto created_entities() const { return m_created_entities; }
 
     template<typename Component>

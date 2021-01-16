@@ -49,6 +49,10 @@ struct updated_component_map: public component_map_base {
             }
         }
     }
+
+    void clear() {
+        pairs.clear();
+    }
 };
 
 template<typename Component>
@@ -78,6 +82,10 @@ struct created_component_map: public component_map_base {
             }
         }
     }
+
+    void clear() {
+        pairs.clear();
+    }
 };
 
 template<typename Component>
@@ -98,6 +106,10 @@ struct destroyed_component_map: public component_map_base {
                 registry.remove<Component>(local_entity);
             }
         }
+    }
+
+    void clear() {
+        entities.clear();
     }
 };
 

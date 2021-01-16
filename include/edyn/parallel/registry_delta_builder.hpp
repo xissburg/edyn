@@ -199,7 +199,7 @@ public:
     }
 
     void clear() {
-        m_delta = {};
+        m_delta.clear();
     }
 
     bool empty() const {

@@ -66,4 +66,13 @@ bool registry_delta::empty() const {
         m_destroyed_components.empty();
 }
 
+void registry_delta::clear() {
+    m_entity_map.clear();
+    m_created_entities.clear();
+    m_destroyed_entities.clear();
+    m_created_components.clear();
+    m_updated_components.clear();
+    m_destroyed_components.clear();
+}
+
 }
