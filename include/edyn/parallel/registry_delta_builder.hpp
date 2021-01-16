@@ -167,7 +167,7 @@ public:
     template<typename... Component>
     void destroyed(entt::entity entity) {
         if constexpr(sizeof...(Component) == 0) {
-            m_delta.m_destroyed_entities.insert(entity);
+            m_delta.m_destroyed_entities.push_back(entity);
         } else {
             (m_delta.destroyed<Component>(entity), ...);
         }

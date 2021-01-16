@@ -336,7 +336,13 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
 void island_coordinator::refresh_dirty_entities() {
     auto view = m_registry->view<island_container, dirty>();
     view.each([&] (entt::entity entity, island_container &container, dirty &dirty) {
-        const auto &island_entities = dirty.island_entities.empty() ? container.entities : dirty.island_entities;
+        std::vector<entt::entity> island_entities;
+        
+        if (dirty.island_entities.empty()) {
+            island_entities.insert(island_entities.end(), container.entities.begin(), container.entities.end());
+        } else {
+            island_entities = dirty.island_entities;
+        }
 
         for (auto island_entity : island_entities) {
             if (!m_island_ctx_map.count(island_entity)) continue;

@@ -13,6 +13,7 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -226,18 +227,9 @@ void prune(entt::registry &registry, entt::entity entity,
     }
 }
 
-narrowphase::narrowphase(entt::registry &reg)
-    : m_registry(&reg)
-{}
+void detect_collision(contact_manifold &manifold, collision_result &result, const body_view_t &body_view) {
+    result = collision_result{};
 
-void narrowphase::update() {
-    update_contact_distances(*m_registry);
-
-    auto manifold_view = m_registry->view<contact_manifold>();
-    update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
-}
-
-void narrowphase::update_contact_manifold(entt::entity entity, contact_manifold &manifold, narrowphase::body_view_t &body_view) {
     auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
     auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
     const auto offset = vector3_one * -contact_breaking_threshold;
@@ -250,7 +242,6 @@ void narrowphase::update_contact_manifold(entt::entity entity, contact_manifold 
         auto &shapeA = body_view.get<shape>(manifold.body[0]);
         auto &shapeB = body_view.get<shape>(manifold.body[1]);
 
-        auto result = collision_result{};
         // Structured binding is not captured by lambda, thus use an explicit
         // capture list (https://stackoverflow.com/a/48103632/749818).
         std::visit([&result, &shapeB, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA) {
@@ -259,11 +250,26 @@ void narrowphase::update_contact_manifold(entt::entity entity, contact_manifold 
                                     contact_breaking_threshold);
             }, shapeB.var);
         }, shapeA.var);
-
-        process_collision(*m_registry, entity, manifold, result);
     }
+}
 
-    prune(*m_registry, entity, manifold, posA, ornA, posB, ornB);
+void process_result(entt::registry &registry, entt::entity manifold_entity, contact_manifold &manifold, collision_result &result, const transform_view_t &tr_view) {
+    process_collision(registry, manifold_entity, manifold, result);
+
+    auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
+    auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
+    prune(registry, manifold_entity, manifold, posA, ornA, posB, ornB);
+}
+
+narrowphase::narrowphase(entt::registry &reg)
+    : m_registry(&reg)
+{}
+
+void narrowphase::update() {
+    update_contact_distances(*m_registry);
+
+    auto manifold_result_view = m_registry->view<contact_manifold, collision_result>();
+    update_contact_manifolds(manifold_result_view.begin(), manifold_result_view.end(), manifold_result_view);
 }
 
 }
