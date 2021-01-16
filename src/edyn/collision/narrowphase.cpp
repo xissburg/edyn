@@ -228,67 +228,9 @@ void prune(entt::registry &registry, entt::entity entity,
     }
 }
 
-narrowphase::narrowphase(entt::registry &reg)
-    : m_registry(&reg)
-{}
+void detect_collision(contact_manifold &manifold, collision_result &result, const body_view_t &body_view) {
+    result = collision_result{};
 
-bool narrowphase::parallelizable() const {
-    return m_registry->size<contact_manifold>() > 1;
-}
-
-void narrowphase::update() {
-    update_contact_distances(*m_registry);
-
-    auto manifold_view = m_registry->view<contact_manifold>();
-    update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
-}
-
-void narrowphase::update_async(job &completion_job) {
-    EDYN_ASSERT(parallelizable());
-
-    auto manifold_view = m_registry->view<contact_manifold>();
-    auto result_view = m_registry->view<collision_result>();
-    auto body_view = m_registry->view<AABB, shape, position, orientation>();
-    auto &dispatcher = job_dispatcher::global();
-
-    parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, 
-            [manifold_view, body_view, result_view] (size_t i) {
-
-        auto &manifold = manifold_view.get(manifold_view[i]);
-        auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
-        auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
-        const auto offset = vector3_one * -contact_breaking_threshold;
-
-        if (intersect(aabbA.inset(offset), aabbB)) {
-            auto &shapeA = body_view.get<shape>(manifold.body[0]);
-            auto &shapeB = body_view.get<shape>(manifold.body[1]);
-
-            auto &result = result_view.get(result_view[i]);
-
-            std::visit([&result, &shapeB, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA) {
-                std::visit([&] (auto &&sB) {
-                    result = collide(sA, pA, oA, sB, pB, oB, 
-                                        contact_breaking_threshold);
-                }, shapeB.var);
-            }, shapeA.var);
-        }
-    });
-}
-
-void narrowphase::finish_async_update() {
-    auto manifold_result_view = m_registry->view<contact_manifold, collision_result>();
-    auto tr_view = m_registry->view<position, orientation>();
-
-    manifold_result_view.each([&] (entt::entity entity, contact_manifold &manifold, collision_result &result) {
-        process_collision(*m_registry, entity, manifold, result);
-
-        auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
-        auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
-        prune(*m_registry, entity, manifold, posA, ornA, posB, ornB);
-    });
-}
-
-void narrowphase::update_contact_manifold(entt::entity entity, contact_manifold &manifold, narrowphase::body_view_t &body_view) {
     auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
     auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
     const auto offset = vector3_one * -contact_breaking_threshold;
@@ -301,7 +243,6 @@ void narrowphase::update_contact_manifold(entt::entity entity, contact_manifold 
         auto &shapeA = body_view.get<shape>(manifold.body[0]);
         auto &shapeB = body_view.get<shape>(manifold.body[1]);
 
-        auto result = collision_result{};
         // Structured binding is not captured by lambda, thus use an explicit
         // capture list (https://stackoverflow.com/a/48103632/749818).
         std::visit([&result, &shapeB, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA) {
@@ -310,11 +251,57 @@ void narrowphase::update_contact_manifold(entt::entity entity, contact_manifold 
                                     contact_breaking_threshold);
             }, shapeB.var);
         }, shapeA.var);
-
-        process_collision(*m_registry, entity, manifold, result);
     }
+}
 
-    prune(*m_registry, entity, manifold, posA, ornA, posB, ornB);
+void process_result(entt::registry &registry, entt::entity manifold_entity, contact_manifold &manifold, collision_result &result, const transform_view_t &tr_view) {
+    process_collision(registry, manifold_entity, manifold, result);
+
+    auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
+    auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
+    prune(registry, manifold_entity, manifold, posA, ornA, posB, ornB);
+}
+
+narrowphase::narrowphase(entt::registry &reg)
+    : m_registry(&reg)
+{}
+
+bool narrowphase::parallelizable() const {
+    return m_registry->size<contact_manifold>() > 1;
+}
+
+void narrowphase::update() {
+    update_contact_distances(*m_registry);
+
+    auto manifold_result_view = m_registry->view<contact_manifold, collision_result>();
+    update_contact_manifolds(manifold_result_view.begin(), manifold_result_view.end(), manifold_result_view);
+}
+
+void narrowphase::update_async(job &completion_job) {
+    update_contact_distances(*m_registry);
+
+    EDYN_ASSERT(parallelizable());
+
+    auto manifold_view = m_registry->view<contact_manifold>();
+    auto body_view = m_registry->view<AABB, shape, position, orientation>();
+    auto result_view = m_registry->view<collision_result>();
+    auto &dispatcher = job_dispatcher::global();
+
+    parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, 
+            [body_view, manifold_view, result_view] (size_t i) {
+        auto &manifold = manifold_view.get(manifold_view[i]);
+        auto &result = result_view.get(result_view[i]);
+        detect_collision(manifold, result, body_view);
+    });
+}
+
+void narrowphase::finish_async_update() {
+    auto manifold_result_view = m_registry->view<contact_manifold, collision_result>();
+    auto tr_view = m_registry->view<position, orientation>();
+
+    manifold_result_view.each([&] (entt::entity entity, contact_manifold &manifold, collision_result &result) {
+        process_result(*m_registry, entity, manifold, result, tr_view);
+    });
 }
 
 }
