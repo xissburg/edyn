@@ -4,7 +4,6 @@
 #include <utility>
 #include <unordered_map>
 #include <entt/fwd.hpp>
-#include "edyn/util/entity_map.hpp"
 #include "edyn/util/entity_set.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/merge/merge_island.hpp"
