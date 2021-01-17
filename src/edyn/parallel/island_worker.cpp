@@ -213,12 +213,21 @@ void island_worker::update() {
         break;
     case state::step:
         process_messages();
-        maybe_step();
-        if (m_state != state::step) {
-            reschedule_now();
+
+        if (should_step()) {
+            begin_step();
+            run_solver();
+            run_broadphase();
+            run_narrowphase();
+
+            if (m_state != state::narrowphase_async) {
+                finish_step();
+                maybe_reschedule();
+            }
         } else {
             maybe_reschedule();
         }
+
         break;
     case state::begin_step:
         begin_step();
@@ -240,7 +249,8 @@ void island_worker::update() {
         break;
     case state::narrowphase_async:
         finish_narrowphase();
-        reschedule_now();
+        finish_step();
+        maybe_reschedule();
         break;
     case state::finish_step:
         finish_step();
@@ -253,24 +263,29 @@ void island_worker::process_messages() {
     m_message_queue.update();
 }
 
-void island_worker::maybe_step() {
+bool island_worker::should_step() {
+    auto time = (double)performance_counter() / (double)performance_frequency();
+
+    if (m_state == state::begin_step) {
+        m_step_start_time = time;
+        return true;
+    }
+
     if (m_paused || m_registry.has<sleeping_tag>(m_island_entity)) {
-        return;
+        return false;
     }
 
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
-    auto time = (double)performance_counter() / (double)performance_frequency();
     auto dt = time - isle_time.value;
 
     if (dt < m_fixed_dt) {
-        return;
+        return false;
     }
 
     m_step_start_time = time;
-
     m_state = state::begin_step;
 
-    begin_step();
+    return true;
 }
 
 void island_worker::begin_step() {

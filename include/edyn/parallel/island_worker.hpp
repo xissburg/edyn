@@ -37,7 +37,7 @@ class island_worker final {
 
     void init();
     void process_messages();
-    void maybe_step();
+    bool should_step();
     void begin_step();
     void run_solver();
     void run_broadphase();
