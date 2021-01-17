@@ -15,6 +15,8 @@ class result_collector {
     struct block {
         std::array<T, N> array;
         block *next {nullptr};
+        block *prev {nullptr};
+        size_t index {0};
     };
 
 public:
@@ -38,11 +40,12 @@ public:
         auto index = m_size.fetch_add(1, std::memory_order_relaxed);
         auto block_count = m_block_count.load(std::memory_order_relaxed);
         auto capacity = block_count * N;
-        auto block_index = index % N;
 
         if (index == capacity) {
             auto *last_block = new block;
-            m_last_block.load(std::memory_order_relaxed)->next = last_block;
+            last_block->prev = m_last_block.load(std::memory_order_relaxed);
+            last_block->prev->next = last_block;
+            last_block->index = last_block->prev->index + 1;
             m_last_block.store(last_block, std::memory_order_release);
             m_block_count.fetch_add(1, std::memory_order_release);
         } else if (index > capacity) {
@@ -61,7 +64,13 @@ public:
             }
         }
 
-        m_last_block.load(std::memory_order_acquire)->array[block_index] = value;
+        auto index_in_block = index % N;
+        auto block_index = index / N;
+        auto *block = m_last_block.load(std::memory_order_acquire);
+        while (block->index != block_index) {
+            block = block->prev;
+        }
+        block->array[index_in_block] = value;
     }
 
     template<typename Function>
@@ -70,13 +79,13 @@ public:
         auto size = m_size.load(std::memory_order_relaxed);
         
         for (size_t i = 0; i < size; ++i) {
-            auto block_index = i % N;
+            auto index_in_block = i % N;
 
-            if (block_index == 0 && i > 0) {
+            if (index_in_block == 0 && i > 0) {
                 block = block->next;
             }
 
-            func(block->array[block_index]);
+            func(block->array[index_in_block]);
         }
     }
 
