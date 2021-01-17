@@ -79,13 +79,13 @@ public:
         auto size = m_size.load(std::memory_order_relaxed);
         
         for (size_t i = 0; i < size; ++i) {
-            auto block_index = i % N;
+            auto index_in_block = i % N;
 
-            if (block_index == 0 && i > 0) {
+            if (index_in_block == 0 && i > 0) {
                 block = block->next;
             }
 
-            func(block->array[block_index]);
+            func(block->array[index_in_block]);
         }
     }
 
