@@ -244,12 +244,10 @@ void detect_collision(contact_manifold &manifold, collision_result &result, cons
 
         // Structured binding is not captured by lambda, thus use an explicit
         // capture list (https://stackoverflow.com/a/48103632/749818).
-        std::visit([&result, &shapeB, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA) {
-            std::visit([&] (auto &&sB) {
-                result = collide(sA, pA, oA, sB, pB, oB, 
-                                    contact_breaking_threshold);
-            }, shapeB.var);
-        }, shapeA.var);
+        std::visit([&result, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA, auto &&sB) {
+            result = collide(sA, pA, oA, sB, pB, oB, 
+                             contact_breaking_threshold);
+        }, shapeA.var, shapeB.var);
     }
 }
 
