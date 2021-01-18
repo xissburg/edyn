@@ -1,6 +1,7 @@
 #ifndef EDYN_COLLISION_NARROWPHASE_HPP
 #define EDYN_COLLISION_NARROWPHASE_HPP
 
+#include <memory>
 #include <entt/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/aabb.hpp"
@@ -9,6 +10,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/collision_result.hpp"
+#include "edyn/parallel/result_collector.hpp"
 
 namespace edyn {
 
@@ -23,6 +25,16 @@ void detect_collision(contact_manifold &, collision_result &, const body_view_t 
 void process_result(entt::registry &, entt::entity manifold_entity, contact_manifold &, collision_result &, const transform_view_t &);
 
 class narrowphase {
+    struct contact_point_construction_info {
+        entt::entity manifold_entity;
+        collision_result::collision_point rp;
+    };
+
+    struct contact_point_destruction_info {
+        entt::entity manifold_entity;
+        entt::entity contact_entity;
+    };
+
 public:
     narrowphase(entt::registry &);
 
@@ -59,6 +71,8 @@ public:
 
 private:
     entt::registry *m_registry;
+    std::unique_ptr<result_collector<contact_point_construction_info, 16>> m_cp_construction_results;
+    std::unique_ptr<result_collector<contact_point_destruction_info, 16>> m_cp_destruction_results;
 };
 
 }
