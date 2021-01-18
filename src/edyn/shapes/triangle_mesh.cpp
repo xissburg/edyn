@@ -70,7 +70,7 @@ void triangle_mesh::calculate_edge_angles() {
                 auto next_m = (m + 1) % 3;
                 if (shared_idx[m] && shared_idx[next_m]) {
                     // Find index of the vertex in triangle k not in edge m.
-                    uint16_t other_idx;
+                    uint16_t other_idx = 0;
 
                     for (size_t j = 0; j < 3; ++j) {
                         if (k_idx[j] != i_idx[m] && k_idx[j] != i_idx[next_m]) {
@@ -100,7 +100,7 @@ void triangle_mesh::calculate_edge_angles() {
                     cos_angles[i * 3 + m] = cos_angle;
 
                     // Find shared edge index in triangle k.
-                    size_t n;
+                    size_t n = 0;
                     for (size_t j = 0; j < 3; ++j) {
                         if (k_idx[j] != other_idx && k_idx[(j + 1) % 3] != other_idx) {
                             n = j;
