@@ -1,6 +1,7 @@
 #include "edyn/constraints/hinge_constraint.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/constants.hpp"
@@ -57,11 +58,12 @@ void hinge_constraint::prepare(entt::entity, constraint &con, entt::registry &re
     constexpr auto I = matrix3x3_identity;
 
     for (size_t i = 0; i < 3; ++i) {
+        auto &data = registry.get<con_row_iter_data>(con.row[i]);
+        data.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
+        data.lower_limit = -EDYN_SCALAR_MAX;
+        data.upper_limit = EDYN_SCALAR_MAX;
         auto &row = registry.get<constraint_row>(con.row[i]);
-        row.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
         row.error = (posA[i] + rA[i] - posB[i] - rB[i]) / dt;
-        row.lower_limit = -EDYN_SCALAR_MAX;
-        row.upper_limit = EDYN_SCALAR_MAX;
     }
 
     const auto n = rotate(ornA, frame[0].column(2));
@@ -72,19 +74,21 @@ void hinge_constraint::prepare(entt::entity, constraint &con, entt::registry &re
     const auto u = cross(n, m);
 
     {
+        auto &data = registry.get<con_row_iter_data>(con.row[3]);
+        data.J = {vector3_zero, p, vector3_zero, -p};
+        data.lower_limit = -EDYN_SCALAR_MAX;
+        data.upper_limit = EDYN_SCALAR_MAX;
         auto &row = registry.get<constraint_row>(con.row[3]);
-        row.J = {vector3_zero, p, vector3_zero, -p};
         row.error = dot(u, p) / dt;
-        row.lower_limit = -EDYN_SCALAR_MAX;
-        row.upper_limit = EDYN_SCALAR_MAX;
     }
 
     {
+        auto &data = registry.get<con_row_iter_data>(con.row[4]);
+        data.J = {vector3_zero, q, vector3_zero, -q};
+        data.lower_limit = -EDYN_SCALAR_MAX;
+        data.upper_limit = EDYN_SCALAR_MAX;
         auto &row = registry.get<constraint_row>(con.row[4]);
-        row.J = {vector3_zero, q, vector3_zero, -q};
         row.error = dot(u, q) / dt;
-        row.lower_limit = -EDYN_SCALAR_MAX;
-        row.upper_limit = EDYN_SCALAR_MAX;
     }
 }
 

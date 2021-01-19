@@ -8,14 +8,8 @@ namespace edyn {
 template<typename Archive>
 void serialize(Archive &archive, constraint_row &r) {
     archive(r.entity);
-    archive(r.J);
     archive(r.error);
-    archive(r.lower_limit);
-    archive(r.upper_limit);
-    archive(r.eff_mass);
-    archive(r.rhs);
     archive(r.erp);
-    archive(r.relvel);
     archive(r.restitution);
     archive(r.priority);
 }

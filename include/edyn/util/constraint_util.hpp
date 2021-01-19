@@ -12,6 +12,8 @@
 
 namespace edyn {
 
+struct con_row_iter_data;
+
 namespace internal {
     void pre_make_constraint(entt::entity entity, entt::registry &registry, 
                              entt::entity body0, entt::entity body1, 
@@ -121,9 +123,7 @@ void make_contact_manifold(entt::entity contact_entity, entt::registry &,
  */
 void set_constraint_enabled(entt::entity, entt::registry &, bool enabled);
 
-scalar get_effective_mass(const constraint_row &, 
-                          const mass_inv &inv_mA, const inertia_world_inv &inv_IA,
-                          const mass_inv &inv_mB, const inertia_world_inv &inv_IB);
+scalar get_effective_mass(const con_row_iter_data &);
 
 }
 

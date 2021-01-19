@@ -1,6 +1,7 @@
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -49,18 +50,20 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
         auto spring_force = stiffness * error;
         auto spring_impulse = spring_force * dt;
 
+        auto &data = registry.get<con_row_iter_data>(con.row[0]);
+        data.J = {dn, p, -dn, -q};
+        data.lower_limit = std::min(spring_impulse, scalar(0));
+        data.upper_limit = std::max(scalar(0), spring_impulse);
         auto &row = registry.get<constraint_row>(con.row[0]);
-        row.J = {dn, p, -dn, -q};
         row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
-        row.lower_limit = std::min(spring_impulse, scalar(0));
-        row.upper_limit = std::max(scalar(0), spring_impulse);
     }
 
     {
         // Damping row. It functions like friction where the force is
         // proportional to the relative speed.
+        auto &data = registry.get<con_row_iter_data>(con.row[1]);
+        data.J = {dn, p, -dn, -q};
         auto &row = registry.get<constraint_row>(con.row[1]);
-        row.J = {dn, p, -dn, -q};
         row.error = 0;
 
         auto &linvelA = registry.get<linvel>(con.body[0]);
@@ -68,16 +71,16 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
         auto &linvelB = registry.get<linvel>(con.body[1]);
         auto &angvelB = registry.get<angvel>(con.body[1]);
 
-        auto relspd = dot(row.J[0], linvelA) + 
-                      dot(row.J[1], angvelA) +
-                      dot(row.J[2], linvelB) +
-                      dot(row.J[3], angvelB);
+        auto relspd = dot(data.J[0], linvelA) + 
+                      dot(data.J[1], angvelA) +
+                      dot(data.J[2], linvelB) +
+                      dot(data.J[3], angvelB);
         auto damping_force = damping * relspd;
         auto damping_impulse = damping_force * dt;
         auto impulse = std::abs(damping_impulse);
 
-        row.lower_limit = -impulse;
-        row.upper_limit =  impulse;
+        data.lower_limit = -impulse;
+        data.upper_limit =  impulse;
 
         m_relspd = relspd;
     }
@@ -91,11 +94,11 @@ void soft_distance_constraint::iteration(entt::entity entity, constraint &con,
     auto &dvB = registry.get<delta_linvel>(con.body[1]);
     auto &dwB = registry.get<delta_angvel>(con.body[1]);
 
-    auto &row = registry.get<constraint_row>(con.row[1]);
-    auto delta_relspd = dot(row.J[0], dvA) + 
-                        dot(row.J[1], dwA) +
-                        dot(row.J[2], dvB) +
-                        dot(row.J[3], dwB);
+    auto &data = registry.get<con_row_iter_data>(con.row[1]);
+    auto delta_relspd = dot(data.J[0], dvA) + 
+                        dot(data.J[1], dwA) +
+                        dot(data.J[2], dvB) +
+                        dot(data.J[3], dwB);
 
     auto relspd = m_relspd + delta_relspd;
 
@@ -103,8 +106,8 @@ void soft_distance_constraint::iteration(entt::entity entity, constraint &con,
     auto damping_impulse = damping_force * dt;
     auto impulse = std::abs(damping_impulse);
 
-    row.lower_limit = -impulse;
-    row.upper_limit =  impulse;
+    data.lower_limit = -impulse;
+    data.upper_limit =  impulse;
 }
 
 }

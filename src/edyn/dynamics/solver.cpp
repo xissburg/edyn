@@ -30,25 +30,22 @@ scalar restitution_curve(scalar restitution, scalar relvel) {
 }
 
 static
-void prepare(constraint_row &row, 
-             scalar inv_mA, scalar inv_mB, 
-             const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
+void prepare(constraint_row &row, con_row_iter_data &data,
              const vector3 &linvelA, const vector3 &linvelB,
              const vector3 &angvelA, const vector3 &angvelB) {
-    auto J_invM_JT = dot(row.J[0], row.J[0]) * inv_mA +
-                     dot(inv_IA * row.J[1], row.J[1]) +
-                     dot(row.J[2], row.J[2]) * inv_mB +
-                     dot(inv_IB * row.J[3], row.J[3]);
-    row.eff_mass = 1 / J_invM_JT;
+    auto J_invM_JT = dot(data.J[0], data.J[0]) * data.inv_mA +
+                     dot(data.inv_IA * data.J[1], data.J[1]) +
+                     dot(data.J[2], data.J[2]) * data.inv_mB +
+                     dot(data.inv_IB * data.J[3], data.J[3]);
+    data.eff_mass = 1 / J_invM_JT;
 
-    auto relvel = dot(row.J[0], linvelA) + 
-                  dot(row.J[1], angvelA) +
-                  dot(row.J[2], linvelB) +
-                  dot(row.J[3], angvelB);
-    row.relvel = relvel;
+    auto relvel = dot(data.J[0], linvelA) + 
+                  dot(data.J[1], angvelA) +
+                  dot(data.J[2], linvelB) +
+                  dot(data.J[3], angvelB);
     
-    auto restitution = restitution_curve(row.restitution, row.relvel);
-    row.rhs = -(row.error * row.erp + relvel * (1 + restitution));
+    auto restitution = restitution_curve(row.restitution, relvel);
+    data.rhs = -(row.error * row.erp + relvel * (1 + restitution));
 }
 
 static
@@ -99,10 +96,20 @@ void update_inertia(entt::registry &registry) {
 
 solver::solver(entt::registry &registry) 
     : m_registry(&registry)
+    , m_constraints_changed(false)
 {
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
-    registry.on_construct<constraint_row>().connect<&entt::registry::emplace<con_row_iter_data>>();
+    registry.on_construct<constraint_row>().connect<&solver::on_construct_constraint_row>(*this);
+    registry.on_destroy<constraint_row>().connect<&solver::on_destroy_constraint_row>(*this);
+}
+
+void solver::on_construct_constraint_row(entt::registry &, entt::entity) {
+    m_constraints_changed = true;
+}
+
+void solver::on_destroy_constraint_row(entt::registry &, entt::entity) {
+    m_constraints_changed = true;
 }
 
 void solver::update(scalar dt) {
@@ -110,9 +117,13 @@ void solver::update(scalar dt) {
     integrate_linacc(*m_registry, dt);
     apply_gravity(*m_registry, dt);
 
-    /* m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
-        return lhs.priority > rhs.priority;
-    }); */
+    if (m_constraints_changed) {
+        m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
+            return lhs.priority > rhs.priority;
+        });
+        m_registry->sort<con_row_iter_data, constraint_row>();
+        m_constraints_changed = false;
+    }
 
     // Setup constraints.
     auto body_view = m_registry->view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
@@ -130,26 +141,17 @@ void solver::update(scalar dt) {
         auto [inv_mA, inv_IA, linvelA, angvelA, dvA, dwA] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[0]);
         auto [inv_mB, inv_IB, linvelB, angvelB, dvB, dwB] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[1]);
 
-        prepare(row, 
-                inv_mA, inv_mB, 
-                inv_IA, inv_IB, 
-                linvelA, linvelB, 
-                angvelA, angvelB);
-
-        iter_data.J = row.J;
-        iter_data.dvA = &dvA;
-        iter_data.dvB = &dvB;
-        iter_data.dwA = &dwA;
-        iter_data.dwB = &dwB;
-        iter_data.rhs = row.rhs;
-        iter_data.eff_mass = row.eff_mass;
-        iter_data.lower_limit = row.lower_limit;
-        iter_data.upper_limit = row.upper_limit;
         iter_data.inv_mA = inv_mA;
         iter_data.inv_mB = inv_mB;
         iter_data.inv_IA = inv_IA;
         iter_data.inv_IB = inv_IB;
 
+        iter_data.dvA = &dvA;
+        iter_data.dvB = &dvB;
+        iter_data.dwA = &dwA;
+        iter_data.dwB = &dwB;
+
+        prepare(row, iter_data, linvelA, linvelB, angvelA, angvelB);
         warm_start(iter_data);
     });
 
@@ -170,16 +172,12 @@ void solver::update(scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    auto linvel_view = m_registry->view<linvel, delta_linvel, dynamic_tag>(entt::exclude<disabled_tag>);
-    linvel_view.each([] (auto, linvel &vel, delta_linvel &delta) {
-        vel += delta;
-        delta = vector3_zero;
-    });
-
-    auto angvel_view = m_registry->view<angvel, delta_angvel, dynamic_tag>(entt::exclude<disabled_tag>);
-    angvel_view.each([] (auto, angvel &vel, delta_angvel &delta) {
-        vel += delta;
-        delta = vector3_zero;
+    auto vel_view = m_registry->view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>(entt::exclude<disabled_tag>);
+    vel_view.each([] (linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
+        v += dv;
+        w += dw;
+        dv = vector3_zero;
+        dw = vector3_zero;
     });
 
     // Integrate velocities to obtain new transforms.
