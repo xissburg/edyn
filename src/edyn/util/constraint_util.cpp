@@ -2,6 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/dirty.hpp"
+#include "edyn/comp/con_row_iter_data.hpp"
 
 namespace edyn {
 
@@ -85,6 +86,7 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     row.entity = con.body;
     row.priority = priority;
 
+    registry.emplace<con_row_iter_data>(row_entity);
     registry.emplace<procedural_tag>(row_entity);
 
     // The constraint row is a child of the constraint.
@@ -100,7 +102,7 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
 
     registry.get_or_emplace<dirty>(row_entity)
         .set_new()
-        .created<island_node_child, island_container, procedural_tag, constraint_row>();
+        .created<island_node_child, island_container, procedural_tag, constraint_row, con_row_iter_data>();
 
     return row_entity;
 }
@@ -155,13 +157,11 @@ void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool 
     }
 }
 
-scalar get_effective_mass(const constraint_row &row, 
-                          const mass_inv &inv_mA, const inertia_world_inv &inv_IA,
-                          const mass_inv &inv_mB, const inertia_world_inv &inv_IB) {
-    auto J_invM_JT = dot(row.J[0], row.J[0]) * inv_mA +
-                     dot(inv_IA * row.J[1], row.J[1]) +
-                     dot(row.J[2], row.J[2]) * inv_mB +
-                     dot(inv_IB * row.J[3], row.J[3]);
+scalar get_effective_mass(const con_row_iter_data &row) {
+    auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
+                     dot(row.inv_IA * row.J[1], row.J[1]) +
+                     dot(row.J[2], row.J[2]) * row.inv_mB +
+                     dot(row.inv_IB * row.J[3], row.J[3]);
     auto eff_mass = scalar(1) / J_invM_JT;
     return eff_mass;
 }

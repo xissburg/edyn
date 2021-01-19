@@ -14,6 +14,7 @@
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape.hpp"
@@ -42,6 +43,7 @@ using shared_components = std::tuple<
     collision_filter, 
     constraint, 
     constraint_row, 
+    con_row_iter_data,
     gravity, 
     inertia, 
     inertia_inv, 

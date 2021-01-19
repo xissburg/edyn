@@ -5,6 +5,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/island.hpp"
@@ -138,7 +139,7 @@ void destroy_contact_point(entt::registry &registry, entt::entity manifold_entit
 }
 
 using contact_point_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_point, constraint>; 
-using constraint_row_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, constraint_row>; 
+using constraint_row_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, con_row_iter_data>; 
 
 template<typename Function> static
 void process_collision(entt::entity manifold_entity, contact_manifold &manifold, 
@@ -253,18 +254,16 @@ void detect_collision(contact_manifold &manifold, collision_result &result, cons
 
         // Structured binding is not captured by lambda, thus use an explicit
         // capture list (https://stackoverflow.com/a/48103632/749818).
-        std::visit([&result, &shapeB, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA) {
-            std::visit([&] (auto &&sB) {
-                result = collide(sA, pA, oA, sB, pB, oB, 
-                                    contact_breaking_threshold);
-            }, shapeB.var);
-        }, shapeA.var);
+        std::visit([&result, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA, auto &&sB) {
+            result = collide(sA, pA, oA, sB, pB, oB, 
+                             contact_breaking_threshold);
+        }, shapeA.var, shapeB.var);
     }
 }
 
 void process_result(entt::registry &registry, entt::entity manifold_entity, contact_manifold &manifold, collision_result &result, const transform_view_t &tr_view) {
     auto cp_view = registry.view<contact_point, constraint>();
-    auto cr_view = registry.view<constraint_row>();
+    auto cr_view = registry.view<con_row_iter_data>();
     process_collision(manifold_entity, manifold, result, cp_view, cr_view,
                       [&] (const collision_result::collision_point &rp) {
         create_contact_point(registry, manifold_entity, manifold, rp);
@@ -302,7 +301,7 @@ void narrowphase::update_async(job &completion_job) {
     auto body_view = m_registry->view<AABB, shape, position, orientation>();
     auto result_view = m_registry->view<collision_result>();
     auto cp_view = m_registry->view<contact_point, constraint>();
-    auto cr_view = m_registry->view<constraint_row>();
+    auto cr_view = m_registry->view<con_row_iter_data>();
     m_cp_construction_results = std::make_unique<result_collector<contact_point_construction_info, 16>>();
     m_cp_destruction_results = std::make_unique<result_collector<contact_point_destruction_info, 16>>();
     auto &dispatcher = job_dispatcher::global();

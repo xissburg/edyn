@@ -362,7 +362,7 @@ void island_worker::finish_step() {
     #ifdef DEBUG
         validate_island();
     #endif
-        calculate_topology();
+        //calculate_topology();
         m_topology_changed = false;
     }
 

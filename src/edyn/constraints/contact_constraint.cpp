@@ -1,6 +1,7 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/shape.hpp"
@@ -27,15 +28,11 @@ void contact_constraint::init(entt::entity entity, constraint &con, entt::regist
 }
 
 void contact_constraint::prepare(entt::entity entity, constraint &con, entt::registry &registry, scalar dt) {
-    auto &posA = registry.get<position   >(con.body[0]);
-    auto &ornA = registry.get<orientation>(con.body[0]);
-    auto &posB = registry.get<position   >(con.body[1]);
-    auto &ornB = registry.get<orientation>(con.body[1]);
-    
-    auto &linvelA = registry.get<linvel>(con.body[0]);
-    auto &angvelA = registry.get<angvel>(con.body[0]);
-    auto &linvelB = registry.get<linvel>(con.body[1]);
-    auto &angvelB = registry.get<angvel>(con.body[1]);
+    auto body_view = registry.view<position, orientation, linvel, angvel>();
+    auto row_view = registry.view<constraint_row, con_row_iter_data>();
+
+    auto [posA, ornA, linvelA, angvelA] = body_view.get<position, orientation, linvel, angvel>(con.body[0]);
+    auto [posB, ornB, linvelB, angvelB] = body_view.get<position, orientation, linvel, angvel>(con.body[1]);
 
     auto &cp = registry.get<contact_point>(entity);
 
@@ -48,17 +45,18 @@ void contact_constraint::prepare(entt::entity entity, constraint &con, entt::reg
     auto relvel = vA - vB;
     auto normal_relvel = dot(relvel, normal);
 
-    auto &normal_row = registry.get<constraint_row>(con.row[0]);
-    normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-    normal_row.lower_limit = 0;
+    auto &normal_data = row_view.get<con_row_iter_data>(con.row[0]);
+    normal_data.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
+    normal_data.lower_limit = 0;
+    auto &normal_row = row_view.get<constraint_row>(con.row[0]);
     normal_row.restitution = cp.restitution;
 
     if (stiffness < large_scalar) {
         auto spring_force = cp.distance * stiffness;
         auto damper_force = normal_relvel * damping;
-        normal_row.upper_limit = std::abs(spring_force + damper_force) * dt;
+        normal_data.upper_limit = std::abs(spring_force + damper_force) * dt;
     } else {
-        normal_row.upper_limit = large_scalar;
+        normal_data.upper_limit = large_scalar;
     }
 
     auto penetration = dot(posA + rA - posB - rB, normal);
@@ -82,23 +80,24 @@ void contact_constraint::prepare(entt::entity entity, constraint &con, entt::reg
     auto tangent_relspd = length(tangent_relvel);
     auto tangent = tangent_relspd > EDYN_EPSILON ? tangent_relvel / tangent_relspd : vector3_x;
 
-    auto &friction_row = registry.get<constraint_row>(con.row[1]);
-    friction_row.J = {tangent, cross(rA, tangent), -tangent, -cross(rB, tangent)};
-    friction_row.error = 0;
+    auto &friction_data = row_view.get<con_row_iter_data>(con.row[1]);
+    friction_data.J = {tangent, cross(rA, tangent), -tangent, -cross(rB, tangent)};
     // friction_row limits are calculated in `iteration(...)` using the normal impulse.
-    friction_row.lower_limit = friction_row.upper_limit = 0;
+    friction_data.lower_limit = friction_data.upper_limit = 0;
+    auto &friction_row = row_view.get<constraint_row>(con.row[1]);
+    friction_row.error = 0;
 
     // Cache these values to be used in `contact_constraint::iteration` directly,
     // eliminating the need to call `registry.get`.
     m_friction = cp.friction;
-    m_normal_row = &normal_row;
-    m_friction_row = &friction_row;
+    m_normal_iter_data = &normal_data;
+    m_friction_iter_data = &friction_data;
 }
 
 void contact_constraint::iteration(entt::entity entity, constraint &con, entt::registry &registry, scalar dt) {
-    auto friction_impulse = std::abs(m_normal_row->impulse * m_friction);
-    m_friction_row->lower_limit = -friction_impulse;
-    m_friction_row->upper_limit = friction_impulse;
+    auto friction_impulse = std::abs(m_normal_iter_data->impulse * m_friction);
+    m_friction_iter_data->lower_limit = -friction_impulse;
+    m_friction_iter_data->upper_limit = friction_impulse;
 }
 
 }
