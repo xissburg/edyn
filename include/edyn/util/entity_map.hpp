@@ -52,6 +52,11 @@ public:
         return m_remloc.empty();
     }
 
+    void clear() {
+        m_remloc.clear();
+        m_locrem.clear();
+    }
+
     template<typename Func>
     void each(Func func) const {
         for (auto &pair : m_remloc) {

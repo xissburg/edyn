@@ -19,7 +19,7 @@ void remove_external_components() {
 }
 
 void registry_delta_builder::created(entt::entity entity) {
-    m_delta.m_created_entities.insert(entity);
+    m_delta.m_created_entities.push_back(entity);
 }
 
 void registry_delta_builder::insert_entity_mapping(entt::entity local_entity) {

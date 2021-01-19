@@ -1,6 +1,8 @@
 #ifndef EDYN_PARALLEL_DELTA_COMPONENT_MAP_HPP
 #define EDYN_PARALLEL_DELTA_COMPONENT_MAP_HPP
 
+#include <utility>
+#include <unordered_map>
 #include <entt/fwd.hpp>
 #include "edyn/util/entity_map.hpp"
 #include "edyn/util/entity_set.hpp"
@@ -19,7 +21,9 @@ class registry_delta;
 
 struct component_map_base {
     virtual ~component_map_base() {}
-    virtual void import(const registry_delta &, entt::registry &, entity_map &) const = 0;
+    virtual void import(const registry_delta &, entt::registry &, entity_map &) = 0;
+    virtual bool empty() const = 0;
+    virtual void clear() = 0;
 };
 
 template<typename Component>
@@ -30,8 +34,9 @@ struct updated_component_map: public component_map_base {
         pairs.insert_or_assign(entity, comp);
     }
 
-    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) const override {
+    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) override {
         auto ctx = merge_context{&registry, &map, &delta};
+        auto view = registry.view<Component>();
 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
@@ -40,12 +45,19 @@ struct updated_component_map: public component_map_base {
             if (!registry.valid(local_entity)) continue;
 
             if constexpr(!std::is_empty_v<Component>) {
-                auto new_component = pair.second;
-                auto &old_component = registry.get<Component>(local_entity);
-                merge<merge_type::updated>(&old_component, new_component, ctx);
-                registry.replace<Component>(local_entity, new_component);
+                auto &old_component = view.get(local_entity);
+                merge<merge_type::updated>(&old_component, pair.second, ctx);
+                registry.replace<Component>(local_entity, pair.second);
             }
         }
+    }
+
+    bool empty() const override {
+        return pairs.empty();
+    }
+
+    void clear() override {
+        pairs.clear();
     }
 };
 
@@ -57,7 +69,7 @@ struct created_component_map: public component_map_base {
         pairs.insert_or_assign(entity, comp);
     }
 
-    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) const override {
+    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) override {
         auto ctx = merge_context{&registry, &map, &delta};
 
         for (auto &pair : pairs) {
@@ -65,15 +77,23 @@ struct created_component_map: public component_map_base {
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);
             if (!registry.valid(local_entity)) continue;
+            if (registry.has<Component>(local_entity)) continue;
 
             if constexpr(std::is_empty_v<Component>) {
                 registry.emplace<Component>(local_entity);
             } else {
-                auto new_component = pair.second;
-                merge<merge_type::created>(static_cast<Component *>(nullptr), new_component, ctx);
-                registry.emplace<Component>(local_entity, new_component);
+                merge<merge_type::created>(static_cast<Component *>(nullptr), pair.second, ctx);
+                registry.emplace<Component>(local_entity, pair.second);
             }
         }
+    }
+
+    bool empty() const override {
+        return pairs.empty();
+    }
+
+    void clear() override {
+        pairs.clear();
     }
 };
 
@@ -85,7 +105,7 @@ struct destroyed_component_map: public component_map_base {
         entities.insert(entity);
     }
 
-    void import(const registry_delta &, entt::registry &registry, entity_map &map) const override {
+    void import(const registry_delta &, entt::registry &registry, entity_map &map) override {
         for (auto remote_entity : entities) {
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);
@@ -95,6 +115,14 @@ struct destroyed_component_map: public component_map_base {
                 registry.remove<Component>(local_entity);
             }
         }
+    }
+
+    bool empty() const override {
+        return entities.empty();
+    }
+
+    void clear() override {
+        entities.clear();
     }
 };
 

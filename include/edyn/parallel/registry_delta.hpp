@@ -64,6 +64,8 @@ public:
 
     bool empty() const;
 
+    void clear();
+
     const auto created_entities() const { return m_created_entities; }
 
     template<typename Component>
@@ -96,8 +98,8 @@ public:
 
 private:
     entity_map m_entity_map;
-    entity_set m_created_entities;
-    entity_set m_destroyed_entities;
+    std::vector<entt::entity> m_created_entities;
+    std::vector<entt::entity> m_destroyed_entities;
 
     map_of_component_map m_created_components;
     map_of_component_map m_updated_components;

@@ -90,6 +90,7 @@ void island_worker::on_construct_contact_manifold(entt::registry &registry, entt
     if (m_importing_delta) {
         m_new_imported_contact_manifolds.push_back(entity);
     }
+    registry.emplace<collision_result>(entity);
 }
 
 void island_worker::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {

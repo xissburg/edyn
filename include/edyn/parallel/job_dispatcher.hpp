@@ -76,6 +76,8 @@ private:
     static thread_local job_queue m_queue;
 
     job_scheduler m_scheduler;
+
+    std::atomic<size_t> m_start;
 };
 
 }
