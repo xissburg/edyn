@@ -237,9 +237,8 @@ void prune(contact_manifold &manifold,
     }
 }
 
-void detect_collision(contact_manifold &manifold, collision_result &result, const body_view_t &body_view) {
-    result = collision_result{};
-
+void detect_collision(const contact_manifold &manifold, collision_result &result, 
+                      const body_view_t &body_view) {
     auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
     auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
     const auto offset = vector3_one * -contact_breaking_threshold;
@@ -258,10 +257,14 @@ void detect_collision(contact_manifold &manifold, collision_result &result, cons
             result = collide(sA, pA, oA, sB, pB, oB, 
                              contact_breaking_threshold);
         }, shapeA.var, shapeB.var);
+    } else {
+        result.num_points = 0;
     }
 }
 
-void process_result(entt::registry &registry, entt::entity manifold_entity, contact_manifold &manifold, collision_result &result, const transform_view_t &tr_view) {
+void process_result(entt::registry &registry, entt::entity manifold_entity, 
+                    contact_manifold &manifold, const collision_result &result, 
+                    const transform_view_t &tr_view) {
     auto cp_view = registry.view<contact_point, constraint>();
     auto cr_view = registry.view<con_row_iter_data>();
     process_collision(manifold_entity, manifold, result, cp_view, cr_view,
@@ -288,8 +291,8 @@ bool narrowphase::parallelizable() const {
 void narrowphase::update() {
     update_contact_distances(*m_registry);
 
-    auto manifold_result_view = m_registry->view<contact_manifold, collision_result>();
-    update_contact_manifolds(manifold_result_view.begin(), manifold_result_view.end(), manifold_result_view);
+    auto manifold_view = m_registry->view<contact_manifold>();
+    update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
 }
 
 void narrowphase::update_async(job &completion_job) {
@@ -299,7 +302,6 @@ void narrowphase::update_async(job &completion_job) {
 
     auto manifold_view = m_registry->view<contact_manifold>();
     auto body_view = m_registry->view<AABB, shape, position, orientation>();
-    auto result_view = m_registry->view<collision_result>();
     auto cp_view = m_registry->view<contact_point, constraint>();
     auto cr_view = m_registry->view<con_row_iter_data>();
     m_cp_construction_results = std::make_unique<result_collector<contact_point_construction_info, 16>>();
@@ -307,10 +309,10 @@ void narrowphase::update_async(job &completion_job) {
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, 
-            [this, body_view, manifold_view, result_view, cp_view, cr_view] (size_t i) {
+            [this, body_view, manifold_view, cp_view, cr_view] (size_t i) {
         auto entity = manifold_view[i];
         auto &manifold = manifold_view.get(entity);
-        auto &result = result_view.get(entity);
+        collision_result result;
         detect_collision(manifold, result, body_view);
         process_collision(entity, manifold, result, cp_view, cr_view,
                       [this, entity] (const collision_result::collision_point &rp) {
@@ -335,7 +337,7 @@ void narrowphase::finish_async_update() {
         create_contact_point(*m_registry, info.manifold_entity, manifold, info.rp);
     });
 
-    //m_results.clear();
+    //m_cp_construction_results.clear();
 
     m_cp_destruction_results->each([&] (contact_point_destruction_info &info) {
         destroy_contact_point(*m_registry, info.manifold_entity, info.contact_entity);
