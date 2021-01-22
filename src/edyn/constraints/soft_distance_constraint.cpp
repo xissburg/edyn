@@ -1,7 +1,6 @@
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -50,7 +49,7 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
         auto spring_force = stiffness * error;
         auto spring_impulse = spring_force * dt;
 
-        auto &data = registry.get<con_row_iter_data>(con.row[0]);
+        auto &data = registry.get<constraint_row_data>(con.row[0]);
         data.J = {dn, p, -dn, -q};
         data.lower_limit = std::min(spring_impulse, scalar(0));
         data.upper_limit = std::max(scalar(0), spring_impulse);
@@ -61,7 +60,7 @@ void soft_distance_constraint::prepare(entt::entity, constraint &con,
     {
         // Damping row. It functions like friction where the force is
         // proportional to the relative speed.
-        auto &data = registry.get<con_row_iter_data>(con.row[1]);
+        auto &data = registry.get<constraint_row_data>(con.row[1]);
         data.J = {dn, p, -dn, -q};
         auto &row = registry.get<constraint_row>(con.row[1]);
         row.error = 0;
@@ -94,7 +93,7 @@ void soft_distance_constraint::iteration(entt::entity entity, constraint &con,
     auto &dvB = registry.get<delta_linvel>(con.body[1]);
     auto &dwB = registry.get<delta_angvel>(con.body[1]);
 
-    auto &data = registry.get<con_row_iter_data>(con.row[1]);
+    auto &data = registry.get<constraint_row_data>(con.row[1]);
     auto delta_relspd = dot(data.J[0], dvA) + 
                         dot(data.J[1], dwA) +
                         dot(data.J[2], dvB) +

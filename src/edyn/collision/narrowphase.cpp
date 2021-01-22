@@ -5,7 +5,6 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/island.hpp"
@@ -139,13 +138,13 @@ void destroy_contact_point(entt::registry &registry, entt::entity manifold_entit
 }
 
 using contact_point_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_point, constraint>; 
-using constraint_row_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, con_row_iter_data>; 
+using constraint_row_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, constraint_row_data>; 
 
 template<typename Function> static
 void process_collision(entt::entity manifold_entity, contact_manifold &manifold, 
                        const collision_result &result,
                        const contact_point_view_t &cp_view, 
-                       const constraint_row_view_t &cr_view, Function func) {
+                       const constraint_row_view_t &cr_view, Function new_point_func) {
     // Merge new with existing contact points.
     for (size_t i = 0; i < result.num_points; ++i) {
         auto &rp = result.point[i];
@@ -184,7 +183,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                 auto is_new_contact = idx == manifold.num_points();
 
                 if (is_new_contact) {
-                    func(rp);
+                    new_point_func(rp);
                 } else {
                     // Replace existing contact point.
                     auto contact_entity = manifold.point[idx];
@@ -207,7 +206,7 @@ template<typename ContactPointViewType, typename Function> static
 void prune(contact_manifold &manifold,
            const vector3 &posA, const quaternion &ornA, 
            const vector3 &posB, const quaternion &ornB,
-           const ContactPointViewType &cp_view, Function func) {
+           const ContactPointViewType &cp_view, Function destroy_point_func) {
     constexpr auto threshold_sqr = contact_breaking_threshold * contact_breaking_threshold;
 
     // Remove separating contact points.
@@ -232,7 +231,7 @@ void prune(contact_manifold &manifold,
 
             manifold.point[last_idx] = entt::null;
 
-            func(point_entity);
+            destroy_point_func(point_entity);
         }
     }
 }
@@ -266,7 +265,7 @@ void process_result(entt::registry &registry, entt::entity manifold_entity,
                     contact_manifold &manifold, const collision_result &result, 
                     const transform_view_t &tr_view) {
     auto cp_view = registry.view<contact_point, constraint>();
-    auto cr_view = registry.view<con_row_iter_data>();
+    auto cr_view = registry.view<constraint_row_data>();
     process_collision(manifold_entity, manifold, result, cp_view, cr_view,
                       [&] (const collision_result::collision_point &rp) {
         create_contact_point(registry, manifold_entity, manifold, rp);
@@ -303,7 +302,7 @@ void narrowphase::update_async(job &completion_job) {
     auto manifold_view = m_registry->view<contact_manifold>();
     auto body_view = m_registry->view<AABB, shape, position, orientation>();
     auto cp_view = m_registry->view<contact_point, constraint>();
-    auto cr_view = m_registry->view<con_row_iter_data>();
+    auto cr_view = m_registry->view<constraint_row_data>();
     m_cp_construction_results = std::make_unique<result_collector<contact_point_construction_info, 16>>();
     m_cp_destruction_results = std::make_unique<result_collector<contact_point_destruction_info, 16>>();
     auto &dispatcher = job_dispatcher::global();

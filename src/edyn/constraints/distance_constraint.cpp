@@ -1,7 +1,6 @@
 #include "edyn/constraints/distance_constraint.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -34,7 +33,7 @@ void distance_constraint::prepare(entt::entity, constraint &con, entt::registry 
         d = vector3_x;
     }
 
-    auto &data = registry.get<con_row_iter_data>(con.row[0]);
+    auto &data = registry.get<constraint_row_data>(con.row[0]);
     data.J = {d, cross(rA, d), -d, -cross(rB, d)};
     data.lower_limit = -large_scalar;
     data.upper_limit =  large_scalar;

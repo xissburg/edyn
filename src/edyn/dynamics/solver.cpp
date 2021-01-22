@@ -17,7 +17,6 @@
 #include "edyn/dynamics/solver_stage.hpp"
 #include "edyn/util/array.hpp"
 #include "edyn/util/rigidbody.hpp"
-#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/edge_color.hpp"
 #include <entt/entt.hpp>
 
@@ -31,7 +30,7 @@ scalar restitution_curve(scalar restitution, scalar relvel) {
 }
 
 static
-void prepare(constraint_row &row, con_row_iter_data &data,
+void prepare(constraint_row &row, constraint_row_data &data,
              const vector3 &linvelA, const vector3 &linvelB,
              const vector3 &angvelA, const vector3 &angvelB) {
     auto J_invM_JT = dot(data.J[0], data.J[0]) * data.inv_mA +
@@ -50,7 +49,7 @@ void prepare(constraint_row &row, con_row_iter_data &data,
 }
 
 static
-void apply_impulse(scalar impulse, con_row_iter_data &data) {
+void apply_impulse(scalar impulse, constraint_row_data &data) {
     // Apply linear impulse.
     *data.dvA += data.inv_mA * data.J[0] * impulse;
     *data.dvB += data.inv_mB * data.J[2] * impulse;
@@ -61,27 +60,27 @@ void apply_impulse(scalar impulse, con_row_iter_data &data) {
 }
 
 static
-void warm_start(con_row_iter_data &data) {
+void warm_start(constraint_row_data &data) {
     apply_impulse(data.impulse, data);
 }
 
 static
-scalar solve(con_row_iter_data &row) {
-    auto delta_relvel = dot(row.J[0], *row.dvA) + 
-                        dot(row.J[1], *row.dwA) +
-                        dot(row.J[2], *row.dvB) +
-                        dot(row.J[3], *row.dwB);
-    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
-    auto impulse = row.impulse + delta_impulse;
+scalar solve(constraint_row_data &data) {
+    auto delta_relvel = dot(data.J[0], *data.dvA) + 
+                        dot(data.J[1], *data.dwA) +
+                        dot(data.J[2], *data.dvB) +
+                        dot(data.J[3], *data.dwB);
+    auto delta_impulse = (data.rhs - delta_relvel) * data.eff_mass;
+    auto impulse = data.impulse + delta_impulse;
 
-    if (impulse < row.lower_limit) {
-        delta_impulse = row.lower_limit - row.impulse;
-        row.impulse = row.lower_limit;
-    } else if (impulse > row.upper_limit) {
-        delta_impulse = row.upper_limit - row.impulse;
-        row.impulse = row.upper_limit;
+    if (impulse < data.lower_limit) {
+        delta_impulse = data.lower_limit - data.impulse;
+        data.impulse = data.lower_limit;
+    } else if (impulse > data.upper_limit) {
+        delta_impulse = data.upper_limit - data.impulse;
+        data.impulse = data.upper_limit;
     } else {
-        row.impulse = impulse;
+        data.impulse = impulse;
     }
 
     return delta_impulse;
@@ -123,15 +122,15 @@ void solver::update(scalar dt) {
         m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
             return lhs.priority > rhs.priority;
         });
-        m_registry->sort<con_row_iter_data, constraint_row>();
+        m_registry->sort<constraint_row_data, constraint_row>();
         m_constraints_changed = false;
     }
 
     // Setup constraints.
     auto body_view = m_registry->view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
     auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
-    auto row_view = m_registry->view<constraint_row, con_row_iter_data>(entt::exclude<disabled_tag>);
-    auto iter_data_view = m_registry->view<con_row_iter_data>(entt::exclude<disabled_tag>);
+    auto row_view = m_registry->view<constraint_row, constraint_row_data>(entt::exclude<disabled_tag>);
+    auto data_view = m_registry->view<constraint_row_data>(entt::exclude<disabled_tag>);
 
     con_view.each([&] (entt::entity entity, constraint &con) {
         std::visit([&] (auto &&c) {
@@ -150,22 +149,22 @@ void solver::update(scalar dt) {
     // `solve` followed by `apply_impulse` on the corresponding constraint_row.
     // Reapeat for multiple iterations.
 
-    row_view.each([&] (constraint_row &row, con_row_iter_data &iter_data) {
+    row_view.each([&] (constraint_row &row, constraint_row_data &data) {
         auto [inv_mA, inv_IA, linvelA, angvelA, dvA, dwA] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[0]);
         auto [inv_mB, inv_IB, linvelB, angvelB, dvB, dwB] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[1]);
 
-        iter_data.inv_mA = inv_mA;
-        iter_data.inv_mB = inv_mB;
-        iter_data.inv_IA = inv_IA;
-        iter_data.inv_IB = inv_IB;
+        data.inv_mA = inv_mA;
+        data.inv_mB = inv_mB;
+        data.inv_IA = inv_IA;
+        data.inv_IB = inv_IB;
 
-        iter_data.dvA = &dvA;
-        iter_data.dvB = &dvB;
-        iter_data.dwA = &dwA;
-        iter_data.dwB = &dwB;
+        data.dvA = &dvA;
+        data.dvB = &dvB;
+        data.dwA = &dwA;
+        data.dwB = &dwB;
 
-        prepare(row, iter_data, linvelA, linvelB, angvelA, angvelB);
-        warm_start(iter_data);
+        prepare(row, data, linvelA, linvelB, angvelA, angvelB);
+        warm_start(data);
     });
 
     // Solve constraints.
@@ -178,7 +177,7 @@ void solver::update(scalar dt) {
         });
 
         // Solve rows.
-        iter_data_view.each([&] (con_row_iter_data &data) {
+        data_view.each([&] (constraint_row_data &data) {
             auto delta_impulse = solve(data);
             apply_impulse(delta_impulse, data);
         });

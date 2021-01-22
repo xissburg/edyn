@@ -89,6 +89,11 @@ public:
         }
     }
 
+    void clear() {
+        m_last_block.store(&m_first_block, std::memory_order_relaxed);
+        m_size.store(0, std::memory_order_relaxed);
+    }
+
 private:
     block m_first_block;
     std::atomic<block *> m_last_block;

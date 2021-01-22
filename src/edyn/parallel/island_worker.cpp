@@ -11,6 +11,8 @@
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/parallel/external_system.hpp"
 
+#include <iostream>
+
 namespace edyn {
 
 void island_worker_func(job::data_type &data) {
@@ -98,7 +100,6 @@ void island_worker::on_construct_contact_manifold(entt::registry &registry, entt
     if (m_importing_delta) {
         m_new_imported_contact_manifolds.push_back(entity);
     }
-    registry.emplace<collision_result>(entity);
 }
 
 void island_worker::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
@@ -335,6 +336,10 @@ void island_worker::finish_step() {
 
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto dt = m_step_start_time - isle_time.value;
+
+    auto time = (double)performance_counter() / (double)performance_frequency();
+    auto step_dt = (time - m_step_start_time) * 1000;
+    std::cout << entt::to_integral(m_entity_map.locrem(m_island_entity)) << " dt " << step_dt << std::endl;
 
     // Set a limit on the number of steps the worker can lag behind the current
     // time to prevent it from getting stuck in the past in case of a

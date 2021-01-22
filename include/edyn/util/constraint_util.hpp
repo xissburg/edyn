@@ -12,7 +12,7 @@
 
 namespace edyn {
 
-struct con_row_iter_data;
+struct constraint_row_data;
 
 namespace internal {
     void pre_make_constraint(entt::entity entity, entt::registry &registry, 
@@ -123,7 +123,7 @@ void make_contact_manifold(entt::entity contact_entity, entt::registry &,
  */
 void set_constraint_enabled(entt::entity, entt::registry &, bool enabled);
 
-scalar get_effective_mass(const con_row_iter_data &);
+scalar get_effective_mass(const constraint_row_data &);
 
 }
 

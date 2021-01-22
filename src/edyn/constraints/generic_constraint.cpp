@@ -1,7 +1,6 @@
 #include "edyn/constraints/generic_constraint.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/con_row_iter_data.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/constants.hpp"
@@ -34,7 +33,7 @@ void generic_constraint::prepare(entt::entity, constraint &con, entt::registry &
 
     // Linear.
     for (size_t i = 0; i < 3; ++i) {
-        auto &data = registry.get<con_row_iter_data>(con.row[i]);
+        auto &data = registry.get<constraint_row_data>(con.row[i]);
         auto p = rotate(ornA, I.row[i]);
         data.J = {p, rA_skew.row[i], -p, -rB_skew.row[i]};
         data.lower_limit = -large_scalar;
@@ -50,7 +49,7 @@ void generic_constraint::prepare(entt::entity, constraint &con, entt::registry &
         auto m = rotate(ornB, I.row[(i+2)%3]);
         auto error = dot(n, m);
 
-        auto &data = registry.get<con_row_iter_data>(con.row[i + 3]);
+        auto &data = registry.get<constraint_row_data>(con.row[i + 3]);
         data.J = {vector3_zero, axis, vector3_zero, -axis};
         data.lower_limit = -large_scalar;
         data.upper_limit = large_scalar;
