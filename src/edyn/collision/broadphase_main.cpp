@@ -80,22 +80,22 @@ void broadphase_main::update() {
     }
 
     if (awake_island_entities.size() > 1) {
-        intersect_result result;
+        m_pair_results.resize(awake_island_entities.size());
 
         parallel_for(size_t{0}, awake_island_entities.size(), [&] (size_t index) {
             auto island_entityA = awake_island_entities[index];
-            auto pairs = find_intersecting_islands(island_entityA);
-
-            for (auto &pair : pairs) {
-                result.append(pair);
-            }
+            m_pair_results[index] = find_intersecting_islands(island_entityA);
         });
 
-        result.each([&] (entity_pair &pair) {
-            if (!m_manifold_map.contains(pair)) {
-                make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);
+        for (auto &results : m_pair_results) {
+            for (auto &pair : results) {
+                if (!m_manifold_map.contains(pair)) {
+                    make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);
+                }
             }
-        });
+        }
+
+        m_pair_results.clear();
     } else {
         for (auto island_entityA : awake_island_entities) {
             auto pairs = find_intersecting_islands(island_entityA);

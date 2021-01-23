@@ -1,7 +1,7 @@
 #ifndef EDYN_COLLISION_NARROWPHASE_HPP
 #define EDYN_COLLISION_NARROWPHASE_HPP
 
-#include <memory>
+#include <array>
 #include <entt/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/aabb.hpp"
@@ -10,7 +10,6 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/collision_result.hpp"
-#include "edyn/parallel/result_collector.hpp"
 
 namespace edyn {
 
@@ -29,13 +28,13 @@ void process_result(entt::registry &, entt::entity manifold_entity,
 
 class narrowphase {
     struct contact_point_construction_info {
-        entt::entity manifold_entity;
-        collision_result::collision_point rp;
+        std::array<collision_result::collision_point, max_contacts> point;
+        size_t count {0};
     };
 
     struct contact_point_destruction_info {
-        entt::entity manifold_entity;
-        entt::entity contact_entity;
+        std::array<entt::entity, max_contacts> contact_entity;
+        size_t count {0};
     };
 
 public:
@@ -68,8 +67,8 @@ public:
 
 private:
     entt::registry *m_registry;
-    std::unique_ptr<result_collector<contact_point_construction_info, 16>> m_cp_construction_results;
-    std::unique_ptr<result_collector<contact_point_destruction_info, 16>> m_cp_destruction_results;
+    std::vector<contact_point_construction_info> m_cp_construction_infos;
+    std::vector<contact_point_destruction_info> m_cp_destruction_infos;
 };
 
 }

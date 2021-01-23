@@ -303,27 +303,33 @@ void narrowphase::update_async(job &completion_job) {
     auto body_view = m_registry->view<AABB, shape, position, orientation>();
     auto cp_view = m_registry->view<contact_point, constraint>();
     auto cr_view = m_registry->view<constraint_row_data>();
-    m_cp_construction_results = std::make_unique<result_collector<contact_point_construction_info, 16>>();
-    m_cp_destruction_results = std::make_unique<result_collector<contact_point_destruction_info, 16>>();
+
+    // Resize result collection vectors to allocate one slot for each iteration
+    // of the parallel_for.
+    m_cp_construction_infos.resize(manifold_view.size());
+    m_cp_destruction_infos.resize(manifold_view.size());
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, 
-            [this, body_view, manifold_view, cp_view, cr_view] (size_t i) {
-        auto entity = manifold_view[i];
+            [this, body_view, manifold_view, cp_view, cr_view] (size_t index) {
+        auto entity = manifold_view[index];
         auto &manifold = manifold_view.get(entity);
         collision_result result;
+        auto &construction_info = m_cp_construction_infos[index];
+
         detect_collision(manifold, result, body_view);
         process_collision(entity, manifold, result, cp_view, cr_view,
-                      [this, entity] (const collision_result::collision_point &rp) {
-            auto info = contact_point_construction_info{entity, rp};
-            m_cp_construction_results->append(info);
+                          [&construction_info] (const collision_result::collision_point &rp) {
+            construction_info.point[construction_info.count++] = rp;
         });
         
+        auto &destruction_info = m_cp_destruction_infos[index];
         auto [posA, ornA] = body_view.get<position, orientation>(manifold.body[0]);
         auto [posB, ornB] = body_view.get<position, orientation>(manifold.body[1]);
-        prune(manifold, posA, ornA, posB, ornB, cp_view, [&] (entt::entity contact_entity) {
-            auto info = contact_point_destruction_info{entity, contact_entity};
-            m_cp_destruction_results->append(info);
+
+        prune(manifold, posA, ornA, posB, ornB, cp_view, 
+              [&destruction_info] (entt::entity contact_entity) {
+            destruction_info.contact_entity[destruction_info.count++] = contact_entity;
         });
     });
 }
@@ -331,16 +337,30 @@ void narrowphase::update_async(job &completion_job) {
 void narrowphase::finish_async_update() {
     auto manifold_view = m_registry->view<contact_manifold>();
 
-    m_cp_construction_results->each([&] (contact_point_construction_info &info) {
-        auto &manifold = manifold_view.get(info.manifold_entity);
-        create_contact_point(*m_registry, info.manifold_entity, manifold, info.rp);
-    });
+    // Create contact points.
+    for (size_t i = 0; i < manifold_view.size(); ++i) {
+        auto entity = manifold_view[i];
+        auto &manifold = manifold_view.get(entity);
+        auto &info_result = m_cp_construction_infos[i];
 
-    //m_cp_construction_results.clear();
+        for (size_t j = 0; j < info_result.count; ++j) {
+            create_contact_point(*m_registry, entity, manifold, info_result.point[j]);
+        }
+    }
 
-    m_cp_destruction_results->each([&] (contact_point_destruction_info &info) {
-        destroy_contact_point(*m_registry, info.manifold_entity, info.contact_entity);
-    });
+    m_cp_construction_infos.clear();
+
+    // Destroy contact points.
+    for (size_t i = 0; i < manifold_view.size(); ++i) {
+        auto entity = manifold_view[i];
+        auto &info_result = m_cp_destruction_infos[i];
+
+        for (size_t j = 0; j < info_result.count; ++j) {
+            destroy_contact_point(*m_registry, entity, info_result.contact_entity[j]);
+        }
+    }
+
+    m_cp_destruction_infos.clear();
 }
 
 }
