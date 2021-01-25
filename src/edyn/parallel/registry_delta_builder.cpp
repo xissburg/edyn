@@ -30,4 +30,32 @@ void registry_delta_builder::insert_entity_mapping(entt::entity local_entity) {
     m_delta.m_entity_map.insert(local_entity, remote_entity);
 }
 
+bool registry_delta_builder::empty() const {
+    if (!m_delta.m_entity_map.empty() || 
+        !m_delta.m_created_entities.empty() || 
+        !m_delta.m_destroyed_entities.empty()) {
+        return false;
+    }
+
+    for (auto &pair : m_created_components) {
+        if (!pair.second->empty()) {
+            return false;
+        }
+    }
+
+    for (auto &pair : m_updated_components) {
+        if (!pair.second->empty()) {
+            return false;
+        }
+    }
+    
+    for (auto &pair : m_destroyed_components) {
+        if (!pair.second->empty()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 }

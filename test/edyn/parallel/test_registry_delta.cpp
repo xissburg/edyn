@@ -44,7 +44,9 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
 
     entt::registry reg1;
     auto map1 = edyn::entity_map{};
-    builder->get_delta().import(reg1, map1);
+
+    auto delta = builder->finish();
+    delta.import(reg1, map1);
 
     auto builder1 = edyn::make_registry_delta_builder(map1);
 
@@ -52,7 +54,7 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
     // entities are created on import and mappings are added to `map1`).
     // It is necessary to insert these mappings in `builder1` so when the delta
     // is exported and then imported into `reg0`, it can map the entities back.
-    for (auto remote_entity : builder->get_delta().created_entities()) {
+    for (auto remote_entity : delta.created_entities()) {
         auto local_entity = map1.remloc(remote_entity);
         builder1->insert_entity_mapping(local_entity);
     }
@@ -74,7 +76,7 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
     custom.entity = map1.remloc(ent2);
     builder1->updated_all(map1.remloc(ent2), reg1);
     
-    builder1->get_delta().import(reg0, map0);
+    builder1->finish().import(reg0, map0);
 
     ASSERT_TRUE(reg0.get<edyn::island_node>(ent0).entities.count(ent1));
     ASSERT_TRUE(reg0.get<edyn::island_node>(ent0).entities.count(child1));

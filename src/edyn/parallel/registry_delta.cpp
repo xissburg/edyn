@@ -56,48 +56,4 @@ void registry_delta::import(entt::registry &registry, entity_map &map) const {
     import_destroyed_components(registry, map);
 }
 
-bool registry_delta::empty() const {
-    if (!m_entity_map.empty() || !m_created_entities.empty() || !m_destroyed_entities.empty()) {
-        return false;
-    }
-
-    for (auto &pair : m_created_components) {
-        if (!pair.second->empty()) {
-            return false;
-        }
-    }
-
-    for (auto &pair : m_updated_components) {
-        if (!pair.second->empty()) {
-            return false;
-        }
-    }
-    
-    for (auto &pair : m_destroyed_components) {
-        if (!pair.second->empty()) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-void registry_delta::clear() {
-    m_entity_map.clear();
-    m_created_entities.clear();
-    m_destroyed_entities.clear();
-
-    for (auto &pair : m_created_components) {
-        pair.second->clear();
-    };
-
-    for (auto &pair : m_updated_components) {
-        pair.second->clear();
-    }
-
-    for (auto &pair : m_destroyed_components) {
-        pair.second->clear();
-    }
-}
-
 }

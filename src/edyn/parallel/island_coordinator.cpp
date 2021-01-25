@@ -244,7 +244,8 @@ entt::entity island_coordinator::create_island(double timestamp) {
     auto builder = make_registry_delta_builder(ctx->m_entity_map);
     builder->created(entity);
     builder->created(entity, isle_time);
-    ctx->send<registry_delta>(std::move(builder->get_delta()));
+    auto delta = builder->finish();
+    ctx->send<registry_delta>(std::move(delta));
 
     if (m_paused) {
         ctx->send<msg::set_paused>(true);

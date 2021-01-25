@@ -170,7 +170,8 @@ void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     });
     m_registry.clear<sleeping_tag>();
 
-    m_message_queue.send<registry_delta>(std::move(builder->get_delta()));
+    auto delta = builder->finish();
+    m_message_queue.send<registry_delta>(std::move(delta));
 }
 
 void island_worker::sync() {
@@ -199,10 +200,9 @@ void island_worker::sync() {
             dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
     });
 
-    m_message_queue.send<registry_delta>(std::move(m_delta_builder->get_delta()));
+    auto delta = m_delta_builder->finish();
+    m_message_queue.send<registry_delta>(std::move(delta));
 
-    // Clear delta for the next run.
-    m_delta_builder->clear();
     m_registry.clear<dirty>();
 }
 
