@@ -54,9 +54,7 @@ void parallel_for_async_job_func(job::data_type &data) {
         }
     }
 
-    ctx->counter.decrement();
-
-    if (!ctx->counter.valid()) {
+    if (!ctx->counter.decrement()) {
         delete ctx;
     }
 }
