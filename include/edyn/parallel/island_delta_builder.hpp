@@ -1,18 +1,18 @@
-#ifndef EDYN_PARALLEL_REGISTRY_DELTA_BUILDER_HPP
-#define EDYN_PARALLEL_REGISTRY_DELTA_BUILDER_HPP
+#ifndef EDYN_PARALLEL_ISLAND_DELTA_BUILDER_HPP
+#define EDYN_PARALLEL_ISLAND_DELTA_BUILDER_HPP
 
 #include <tuple>
 #include <memory>
 #include <utility>
-#include "edyn/parallel/registry_delta.hpp"
+#include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/entity_component_map.hpp"
 
 namespace edyn {
 
 /**
- * @brief Provides the means to build a `registry_delta`.
+ * @brief Provides the means to build a `island_delta`.
  */
-class registry_delta_builder {
+class island_delta_builder {
     using map_of_component_map = std::unordered_map<entt::id_type, std::unique_ptr<entity_component_map_base>>;
 
     template<typename Component>
@@ -78,11 +78,11 @@ class registry_delta_builder {
     }
 
 public:
-    registry_delta_builder(entity_map &map)
+    island_delta_builder(entity_map &map)
         : m_entity_map(&map)
     {}
 
-    virtual ~registry_delta_builder() {}
+    virtual ~island_delta_builder() {}
 
     /**
      * @brief Inserts a mapping into the current delta for a local entity.
@@ -265,7 +265,7 @@ public:
 
     bool empty() const;
 
-    registry_delta finish() {
+    island_delta finish() {
         // Load components into delta.
         for (auto &pair : m_delta.m_created_components) {
             pair.second->load(*m_created_components.at(pair.first));
@@ -305,11 +305,11 @@ private:
     map_of_component_map m_updated_components;
     map_of_component_map m_destroyed_components;
 
-    registry_delta m_delta;
+    island_delta m_delta;
 };
 
 /**
- * @brief Implementation of `registry_delta_builder` which allows a list of
+ * @brief Implementation of `island_delta_builder` which allows a list of
  * support components to be specified.
  * 
  * @note
@@ -318,41 +318,41 @@ private:
  * island worker so that their custom system update functions can work on these
  * components (functions assigned via `edyn::set_external_system_pre_step`, etc).
  * This class provides implementations of the functions that update the 
- * `registry_delta` by component id, which is required for functionalities such
+ * `island_delta` by component id, which is required for functionalities such
  * as marking all components as created/updated and marking components as dirty.
  * 
  * @tparam Component Pack of supported component types.
  */
 template<typename... Component>
-class registry_delta_builder_impl: public registry_delta_builder {
+class island_delta_builder_impl: public island_delta_builder {
 public:
-    registry_delta_builder_impl(entity_map &map, [[maybe_unused]] std::tuple<Component...>)
-        : registry_delta_builder(map)
+    island_delta_builder_impl(entity_map &map, [[maybe_unused]] std::tuple<Component...>)
+        : island_delta_builder(map)
     {}
 
     void created(entt::entity entity, entt::registry &registry, entt::id_type id) override {
         ((entt::type_index<Component>::value() == id ? 
-            registry_delta_builder::created<Component>(entity, registry) : (void)0), ...);
+            island_delta_builder::created<Component>(entity, registry) : (void)0), ...);
     }
 
     void created_all(entt::entity entity, entt::registry &registry) override {
         ((registry.has<Component>(entity) ? 
-            registry_delta_builder::created<Component>(entity, registry) : (void)0), ...);
+            island_delta_builder::created<Component>(entity, registry) : (void)0), ...);
     }
 
     void updated(entt::entity entity, entt::registry &registry, entt::id_type id) override {
         ((entt::type_index<Component>::value() == id ? 
-            registry_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
+            island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
     }
 
     void updated_all(entt::entity entity, entt::registry &registry) override {
         ((registry.has<Component>(entity) ? 
-            registry_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
+            island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
     }
 
     void destroyed(entt::entity entity, entt::id_type id) override {
         ((entt::type_index<Component>::value() == id ? 
-            registry_delta_builder::destroyed<Component>(entity) : (void)0), ...);
+            island_delta_builder::destroyed<Component>(entity) : (void)0), ...);
     }
 };
 
@@ -360,7 +360,7 @@ public:
  * @brief Function type of a factory function that creates instances of a 
  * registry delta builder implementation.
  */
-using make_registry_delta_builder_func_t = std::unique_ptr<registry_delta_builder>(*)(entity_map &);
+using make_island_delta_builder_func_t = std::unique_ptr<island_delta_builder>(*)(entity_map &);
 
 /**
  * @brief Pointer to a factory function that makes new delta builders.
@@ -370,7 +370,7 @@ using make_registry_delta_builder_func_t = std::unique_ptr<registry_delta_builde
  * a function that returns a builder which additionally handles external
  * components set by the user.
  */
-extern make_registry_delta_builder_func_t g_make_registry_delta_builder;
+extern make_island_delta_builder_func_t g_make_island_delta_builder;
 
 /**
  * @brief Creates a new delta builder.
@@ -380,7 +380,7 @@ extern make_registry_delta_builder_func_t g_make_registry_delta_builder;
  * 
  * @return Safe pointer to an instance of a delta builder implementation.
  */
-std::unique_ptr<registry_delta_builder> make_registry_delta_builder(entity_map &);
+std::unique_ptr<island_delta_builder> make_island_delta_builder(entity_map &);
 
 /**
  * @brief Registers external components to be shared between island coordinator
@@ -389,11 +389,11 @@ std::unique_ptr<registry_delta_builder> make_registry_delta_builder(entity_map &
  */
 template<typename... Component>
 void register_external_components() {
-    g_make_registry_delta_builder = [] (entity_map &map) {
+    g_make_island_delta_builder = [] (entity_map &map) {
         auto external = std::tuple<Component...>{};
         auto all_components = std::tuple_cat(edyn::shared_components{}, external);
-        return std::unique_ptr<edyn::registry_delta_builder>(
-            new edyn::registry_delta_builder_impl(map, all_components));
+        return std::unique_ptr<edyn::island_delta_builder>(
+            new edyn::island_delta_builder_impl(map, all_components));
     };
 }
 
@@ -404,4 +404,4 @@ void remove_external_components();
 
 }
 
-#endif // EDYN_PARALLEL_REGISTRY_DELTA_BUILDER_HPP
+#endif // EDYN_PARALLEL_ISLAND_DELTA_BUILDER_HPP

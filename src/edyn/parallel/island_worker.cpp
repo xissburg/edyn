@@ -39,7 +39,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_bphase(m_registry)
     , m_nphase(m_registry)
     , m_solver(m_registry)
-    , m_delta_builder(make_registry_delta_builder(m_entity_map))
+    , m_delta_builder(make_island_delta_builder(m_entity_map))
     , m_importing_delta(false)
     , m_topology_changed(false)
 {
@@ -71,7 +71,7 @@ void island_worker::init() {
     
     m_registry.on_construct<contact_manifold>().connect<&island_worker::on_construct_contact_manifold>(*this);
 
-    m_message_queue.sink<registry_delta>().connect<&island_worker::on_registry_delta>(*this);
+    m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
@@ -143,7 +143,7 @@ void island_worker::on_destroy_island_container(entt::registry &registry, entt::
     m_delta_builder->destroyed(entity);
 }
 
-void island_worker::on_registry_delta(const registry_delta &delta) {
+void island_worker::on_island_delta(const island_delta &delta) {
     // Import components from main registry.
     m_importing_delta = true;
     delta.import(m_registry, m_entity_map);
@@ -159,7 +159,7 @@ void island_worker::on_registry_delta(const registry_delta &delta) {
 void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     if (!m_registry.has<sleeping_tag>(m_island_entity)) return;
 
-    auto builder = make_registry_delta_builder(m_entity_map);
+    auto builder = make_island_delta_builder(m_entity_map);
 
     auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
     isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
@@ -171,7 +171,7 @@ void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     m_registry.clear<sleeping_tag>();
 
     auto delta = builder->finish();
-    m_message_queue.send<registry_delta>(std::move(delta));
+    m_message_queue.send<island_delta>(std::move(delta));
 }
 
 void island_worker::sync() {
@@ -201,7 +201,7 @@ void island_worker::sync() {
     });
 
     auto delta = m_delta_builder->finish();
-    m_message_queue.send<registry_delta>(std::move(delta));
+    m_message_queue.send<island_delta>(std::move(delta));
 
     m_registry.clear<dirty>();
 }

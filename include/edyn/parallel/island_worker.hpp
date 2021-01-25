@@ -12,7 +12,7 @@
 #include "edyn/parallel/message.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/registry_delta_builder.hpp"
+#include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/collision/broadphase_worker.hpp"
 
 namespace edyn {
@@ -63,7 +63,7 @@ public:
 
     ~island_worker();
 
-    void on_registry_delta(const registry_delta &delta);
+    void on_island_delta(const island_delta &delta);
 
     void reschedule();
 
@@ -108,7 +108,7 @@ private:
 
     bool m_paused;
 
-    std::unique_ptr<registry_delta_builder> m_delta_builder;
+    std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_importing_delta;
     bool m_topology_changed;
 

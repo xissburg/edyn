@@ -16,11 +16,11 @@
 
 namespace edyn {
 
-class registry_delta;
+class island_delta;
 
 struct entity_component_container_base {
     virtual ~entity_component_container_base() {}
-    virtual void import(const registry_delta &, entt::registry &, entity_map &) = 0;
+    virtual void import(const island_delta &, entt::registry &, entity_map &) = 0;
     virtual void load(const entity_component_map_base &) = 0;
     virtual bool empty() const = 0;
     virtual void clear() = 0;
@@ -37,7 +37,7 @@ struct updated_entity_component_container: public entity_component_container_bas
         }
     }
 
-    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) override {
+    void import(const island_delta &delta, entt::registry &registry, entity_map &map) override {
         auto ctx = merge_context{&registry, &map, &delta};
         auto view = registry.view<Component>();
 
@@ -75,7 +75,7 @@ struct created_entity_component_container: public entity_component_container_bas
         }
     }
 
-    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) override {
+    void import(const island_delta &delta, entt::registry &registry, entity_map &map) override {
         auto ctx = merge_context{&registry, &map, &delta};
 
         for (auto &pair : pairs) {
@@ -114,7 +114,7 @@ struct destroyed_entity_component_container: public entity_component_container_b
         }
     }
 
-    void import(const registry_delta &, entt::registry &registry, entity_map &map) override {
+    void import(const island_delta &, entt::registry &registry, entity_map &map) override {
         for (auto remote_entity : entities) {
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);

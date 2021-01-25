@@ -1,5 +1,5 @@
-#ifndef EDYN_PARALLEL_REGISTRY_DELTA_HPP
-#define EDYN_PARALLEL_REGISTRY_DELTA_HPP
+#ifndef EDYN_PARALLEL_ISLAND_DELTA_HPP
+#define EDYN_PARALLEL_ISLAND_DELTA_HPP
 
 #include <vector>
 #include <entt/fwd.hpp>
@@ -19,7 +19,7 @@ struct island_topology {
  * @brief Holds a set of changes made in one registry that can be imported
  * into another registry.
  */
-class registry_delta {
+class island_delta {
 
     using typed_component_container_vector = std::vector<std::pair<entt::id_type, std::unique_ptr<entity_component_container_base>>>;
 
@@ -59,7 +59,7 @@ public:
 
     const auto created_entities() const { return m_created_entities; }
 
-    friend class registry_delta_builder;
+    friend class island_delta_builder;
 
     double m_timestamp;
 
@@ -77,4 +77,4 @@ private:
 
 }
 
-#endif // EDYN_PARALLEL_REGISTRY_DELTA_HPP
+#endif // EDYN_PARALLEL_ISLAND_DELTA_HPP

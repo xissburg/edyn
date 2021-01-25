@@ -237,15 +237,15 @@ entt::entity island_coordinator::create_island(double timestamp) {
     auto ctx = std::make_unique<island_worker_context>(entity, worker, message_queue_in_out(isle_queue_input, main_queue_output));
     
     // Register to receive delta.
-    ctx->registry_delta_sink().connect<&island_coordinator::on_registry_delta>(*this);
+    ctx->island_delta_sink().connect<&island_coordinator::on_island_delta>(*this);
 
     // Send over a delta containing this island entity to the island worker
     // before it even starts.
-    auto builder = make_registry_delta_builder(ctx->m_entity_map);
+    auto builder = make_island_delta_builder(ctx->m_entity_map);
     builder->created(entity);
     builder->created(entity, isle_time);
     auto delta = builder->finish();
-    ctx->send<registry_delta>(std::move(delta));
+    ctx->send<island_delta>(std::move(delta));
 
     if (m_paused) {
         ctx->send<msg::set_paused>(true);
@@ -366,7 +366,7 @@ void island_coordinator::refresh_dirty_entities() {
     m_registry->clear<dirty>();
 }
 
-void island_coordinator::on_registry_delta(entt::entity source_island_entity, const registry_delta &delta) {
+void island_coordinator::on_island_delta(entt::entity source_island_entity, const island_delta &delta) {
     m_importing_delta = true;
     auto &source_ctx = m_island_ctx_map.at(source_island_entity);
     delta.import(*m_registry, source_ctx->m_entity_map);

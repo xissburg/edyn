@@ -11,7 +11,7 @@
 namespace edyn {
 
 class island_worker;
-class registry_delta;
+class island_delta;
 
 /**
  * Manages all simulation islands. Creates and destroys island workers as necessary
@@ -43,7 +43,7 @@ public:
     void on_destroy_island_node(entt::registry &, entt::entity);
     void on_construct_island_container(entt::registry &, entt::entity);
     void on_destroy_island_container(entt::registry &, entt::entity);
-    void on_registry_delta(entt::entity, const registry_delta &);
+    void on_island_delta(entt::entity, const island_delta &);
     
     void on_construct_constraint(entt::registry &, entt::entity);
 

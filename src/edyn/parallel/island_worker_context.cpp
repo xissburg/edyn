@@ -9,18 +9,18 @@ island_worker_context::island_worker_context(entt::entity island_entity,
     : m_island_entity(island_entity)
     , m_worker(worker)
     , m_message_queue(message_queue)
-    , m_delta_builder(make_registry_delta_builder(m_entity_map))
+    , m_delta_builder(make_island_delta_builder(m_entity_map))
     , m_pending_flush(false)
 {
-    m_message_queue.sink<registry_delta>().connect<&island_worker_context::on_registry_delta>(*this);
+    m_message_queue.sink<island_delta>().connect<&island_worker_context::on_island_delta>(*this);
 }
 
 island_worker_context::~island_worker_context() {
-    m_message_queue.sink<registry_delta>().disconnect(*this);
+    m_message_queue.sink<island_delta>().disconnect(*this);
 }
 
-void island_worker_context::on_registry_delta(const registry_delta &delta) {
-    m_registry_delta_signal.publish(m_island_entity, delta);
+void island_worker_context::on_island_delta(const island_delta &delta) {
+    m_island_delta_signal.publish(m_island_entity, delta);
 }
 
 bool island_worker_context::delta_empty() const {
@@ -33,7 +33,7 @@ void island_worker_context::read_messages() {
 
 void island_worker_context::send_delta() {
     auto delta = m_delta_builder->finish();
-    send<registry_delta>(std::move(delta));
+    send<island_delta>(std::move(delta));
 }
 
 void island_worker_context::flush() {
