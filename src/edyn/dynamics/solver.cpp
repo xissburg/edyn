@@ -18,6 +18,8 @@
 #include "edyn/util/array.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/edge_color.hpp"
+#include "edyn/parallel/parallel_for_async.hpp"
+#include "edyn/parallel/job.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -105,26 +107,49 @@ solver::solver(entt::registry &registry)
     registry.on_destroy<constraint_row>().connect<&solver::on_destroy_constraint_row>(*this);
 }
 
-void solver::on_construct_constraint_row(entt::registry &, entt::entity) {
+void solver::on_construct_constraint_row(entt::registry &registry, entt::entity entity) {
     m_constraints_changed = true;
+
+    auto node_view = registry.view<island_node>();
+    auto edge_view = registry.view<edge_color>();
+
+    auto &node = node_view.get(entity);
+    std::vector<bool> colors;
+
+    for (auto other : node.entities) {
+        auto &other_node = node_view.get(other);
+
+        for (auto other_entity : other_node.entities) {
+            if (!edge_view.contains(other_entity)) continue;
+
+            auto &edge = edge_view.get(other_entity);
+
+            if (edge.value >= colors.size()) {
+                colors.resize(edge.value + 1, false);
+            }
+
+            colors[edge.value] = true;
+        }
+    }
+
+    for (int i = 0; i < colors.size(); ++i) {
+        if (!colors[i]) {
+            registry.emplace<edge_color>(entity, i);
+            return;
+        }
+    }
+
+    registry.emplace<edge_color>(entity, colors.size());
 }
 
 void solver::on_destroy_constraint_row(entt::registry &, entt::entity) {
-    m_constraints_changed = true;
+
 }
 
 void solver::update(scalar dt) {
     // Apply forces and acceleration.
     integrate_linacc(*m_registry, dt);
     apply_gravity(*m_registry, dt);
-
-    if (m_constraints_changed) {
-        m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
-            return lhs.priority > rhs.priority;
-        });
-        m_registry->sort<constraint_row_data, constraint_row>();
-        m_constraints_changed = false;
-    }
 
     // Setup constraints.
     auto body_view = m_registry->view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
@@ -137,17 +162,6 @@ void solver::update(scalar dt) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *m_registry, dt);
         }, con.var);
     });
-
-    // If any constraint_row has been created or destroyed between updates:
-    // 1. Assign edge_color::none to all edge_color values.
-    // 2. For each island_node with a procedural_tag, visit its neighbors which
-    // hold an edge_color and if their color is edge_color::none, assign the 
-    // lowest color value that's unique among all neighbors.
-    // 3. Sort edge_color components by value (none of them should be edge_color::none
-    // at this point).
-    // 4. Run one parallel_for_async for each range of identical values running a
-    // `solve` followed by `apply_impulse` on the corresponding constraint_row.
-    // Reapeat for multiple iterations.
 
     row_view.each([&] (constraint_row &row, constraint_row_data &data) {
         auto [inv_mA, inv_IA, linvelA, angvelA, dvA, dwA] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[0]);
@@ -199,6 +213,137 @@ void solver::update(scalar dt) {
     
     // Update world-space moment of inertia.
     update_inertia(*m_registry);
+}
+
+void solver::start_async_update(scalar dt) {
+    // Apply forces and acceleration.
+    integrate_linacc(*m_registry, dt);
+    apply_gravity(*m_registry, dt);
+
+    // If any constraint_row has been created or destroyed between updates:
+    // 1. Assign edge_color::none to all edge_color values.
+    // 2. For each island_node with a procedural_tag, visit its neighbors which
+    // hold an edge_color and if their color is edge_color::none, assign the 
+    // lowest color value that's unique among all neighbors.
+    // 3. Sort edge_color components by value (none of them should be edge_color::none
+    // at this point).
+    // 4. Run one parallel_for_async for each range of identical values running a
+    // `solve` followed by `apply_impulse` on the corresponding constraint_row.
+    // Reapeat for multiple iterations.
+
+    if (m_constraints_changed) {
+        m_registry->sort<edge_color>([] (const auto &lhs, const auto &rhs) {
+            return lhs.value < rhs.value;
+        });
+        m_registry->sort<constraint_row_data, edge_color>();
+
+        m_constraints_changed = false;
+    }
+
+    // Setup constraints.
+    auto body_view = m_registry->view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
+    auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
+    auto row_view = m_registry->view<constraint_row, constraint_row_data>(entt::exclude<disabled_tag>);
+
+    con_view.each([&] (entt::entity entity, constraint &con) {
+        std::visit([&] (auto &&c) {
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *m_registry, dt);
+        }, con.var);
+    });
+
+    row_view.each([&] (constraint_row &row, constraint_row_data &data) {
+        auto [inv_mA, inv_IA, linvelA, angvelA, dvA, dwA] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[0]);
+        auto [inv_mB, inv_IB, linvelB, angvelB, dvB, dwB] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[1]);
+
+        data.inv_mA = inv_mA;
+        data.inv_mB = inv_mB;
+        data.inv_IA = inv_IA;
+        data.inv_IB = inv_IB;
+
+        data.dvA = &dvA;
+        data.dvB = &dvB;
+        data.dwA = &dwA;
+        data.dwB = &dwB;
+
+        prepare(row, data, linvelA, linvelB, angvelA, angvelB);
+        warm_start(data);
+    });
+
+    m_state.dt = dt;
+    m_state.color = 0;
+    m_state.edge_index = 0;
+    m_state.iteration = 0;
+}
+
+bool solver::continue_async_update(const job &completion) {
+    auto edge_view = m_registry->view<edge_color>();
+    
+    if (m_state.edge_index == edge_view.size()) {
+        m_state.color = 0;
+        m_state.edge_index = 0;
+        ++m_state.iteration;
+    }
+
+    if (m_state.iteration < iterations) {
+        size_t first = m_state.edge_index;
+        size_t last = first;
+        
+        while (last < edge_view.size() && 
+               edge_view.get(edge_view[last]).value == m_state.color) {
+            ++last;
+        }
+
+        if (m_state.color == 0) {
+            // Prepare constraints for iteration.
+            auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
+            con_view.each([&] (entt::entity entity, constraint &con) {
+                std::visit([&] (auto &&c) {
+                    c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *m_registry, m_state.dt);
+                }, con.var);
+            });
+        }
+
+        ++m_state.color;
+        m_state.edge_index = last;
+
+        auto &dispatcher = job_dispatcher::global();
+        auto data_view = m_registry->view<constraint_row_data>();
+
+        parallel_for_async(dispatcher, first, last, size_t{1}, completion, [data_view] (size_t index) {
+            // Solve rows.
+            auto &data = data_view.get(data_view[index]);
+            auto delta_impulse = solve(data);
+            apply_impulse(delta_impulse, data);
+        });
+
+        return false;
+    } else {
+        finish_async_update();
+        return true;
+    }
+}
+
+void solver::finish_async_update() {
+    // Apply constraint velocity correction.
+    auto vel_view = m_registry->view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>(entt::exclude<disabled_tag>);
+    vel_view.each([] (linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
+        v += dv;
+        w += dw;
+        dv = vector3_zero;
+        dw = vector3_zero;
+    });
+
+    // Integrate velocities to obtain new transforms.
+    integrate_linvel(*m_registry, m_state.dt);
+    integrate_angvel(*m_registry, m_state.dt);
+    update_aabbs(*m_registry);
+    
+    // Update world-space moment of inertia.
+    update_inertia(*m_registry);
+
+    m_state.color = 0;
+    m_state.edge_index = 0;
+    m_state.iteration = 0;
 }
 
 }

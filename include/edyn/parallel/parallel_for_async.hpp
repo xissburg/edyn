@@ -22,7 +22,7 @@ struct parallel_for_async_context {
     Function func;
 
     parallel_for_async_context(IndexType first, IndexType last, IndexType step, 
-                               IndexType chunk_size, size_t num_jobs, job &completion, 
+                               IndexType chunk_size, size_t num_jobs, const job &completion, 
                                job_dispatcher &dispatcher, Function func) 
         : current(first)
         , last(last)
@@ -62,7 +62,7 @@ void parallel_for_async_job_func(job::data_type &data) {
 } // namespace detail
 
 template<typename IndexType, typename Function>
-void parallel_for_async(job_dispatcher &dispatcher, IndexType first, IndexType last, IndexType step, job &completion, Function func) {
+void parallel_for_async(job_dispatcher &dispatcher, IndexType first, IndexType last, IndexType step, const job &completion, Function func) {
     EDYN_ASSERT(first < last);
     EDYN_ASSERT(step > IndexType{0});
 

@@ -9,7 +9,7 @@ namespace edyn {
 
 class atomic_counter {
 public:
-    atomic_counter(job &j, size_t count = 0, job_dispatcher &dispatcher = job_dispatcher::global())
+    atomic_counter(const job &j, size_t count = 0, job_dispatcher &dispatcher = job_dispatcher::global())
         : m_job(j)
         , m_dispatcher(&dispatcher)
         , m_count(static_cast<int>(count))
