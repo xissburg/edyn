@@ -29,6 +29,7 @@ class island_worker final {
         step,
         begin_step,
         solve,
+        solve_async,
         broadphase,
         narrowphase,
         narrowphase_async,
@@ -56,7 +57,6 @@ class island_worker final {
     void go_to_sleep();
     void sync();
     void update();
-    job make_job();
 
 public:
     island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue);
@@ -120,6 +120,8 @@ private:
     std::atomic<bool> m_terminated {false};
     std::mutex m_terminate_mutex;
     std::condition_variable m_terminate_cv;
+
+    job m_this_job;
 };
 
 }

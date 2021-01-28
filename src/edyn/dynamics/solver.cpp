@@ -17,7 +17,7 @@
 #include "edyn/dynamics/solver_stage.hpp"
 #include "edyn/util/array.hpp"
 #include "edyn/util/rigidbody.hpp"
-#include "edyn/comp/edge_color.hpp"
+#include "edyn/comp/constraint_color.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/parallel/job.hpp"
 #include <entt/entt.hpp>
@@ -102,51 +102,82 @@ solver::solver(entt::registry &registry)
 {
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
-    registry.on_construct<constraint_row>().connect<&entt::registry::emplace<edge_color>>();
     registry.on_construct<constraint_row>().connect<&solver::on_construct_constraint_row>(*this);
     registry.on_destroy<constraint_row>().connect<&solver::on_destroy_constraint_row>(*this);
 }
 
 void solver::on_construct_constraint_row(entt::registry &registry, entt::entity entity) {
     m_constraints_changed = true;
-
-    auto node_view = registry.view<island_node>();
-    auto edge_view = registry.view<edge_color>();
-
-    auto &node = node_view.get(entity);
-    std::vector<bool> colors;
-
-    for (auto other : node.entities) {
-        auto &other_node = node_view.get(other);
-
-        for (auto other_entity : other_node.entities) {
-            if (!edge_view.contains(other_entity)) continue;
-
-            auto &edge = edge_view.get(other_entity);
-
-            if (edge.value >= colors.size()) {
-                colors.resize(edge.value + 1, false);
-            }
-
-            colors[edge.value] = true;
-        }
-    }
-
-    for (int i = 0; i < colors.size(); ++i) {
-        if (!colors[i]) {
-            registry.emplace<edge_color>(entity, i);
-            return;
-        }
-    }
-
-    registry.emplace<edge_color>(entity, colors.size());
+    m_new_rows.push_back(entity);
 }
 
 void solver::on_destroy_constraint_row(entt::registry &, entt::entity) {
+    m_constraints_changed = true;
+}
 
+void solver::init_new_rows() {
+    if (m_new_rows.empty()) return;
+    
+    auto node_view = m_registry->view<island_node>();
+    auto parent_view = m_registry->view<island_node_parent>();
+    auto color_view = m_registry->view<constraint_color>();
+
+    for (auto entity : m_new_rows) {
+        auto &row = m_registry->get<constraint_row>(entity);
+
+        std::vector<bool> colors;
+
+        for (auto other : row.entity) {
+            auto &other_node = node_view.get(other);
+
+            for (auto other_entity : other_node.entities) {
+                if (!parent_view.contains(other_entity)) continue;
+
+                auto &grandpa = parent_view.get(other_entity);
+
+                for (auto parent_entity : grandpa.children) {
+                    auto &parent = parent_view.get(parent_entity);
+
+                    for (auto row_entity : parent.children) {
+                        if (!color_view.contains(row_entity)) continue;
+
+                        auto &color = color_view.get(row_entity);
+
+                        if (color.value >= colors.size()) {
+                            colors.resize(color.value + 1, false);
+                        }
+
+                        colors[color.value] = true;
+                    }
+                }
+            }
+        }
+
+        auto emplaced = false;
+
+        for (size_t i = 0; i < colors.size(); ++i) {
+            if (!colors[i]) {
+                m_registry->emplace<constraint_color>(entity, i);
+                emplaced = true;
+                break;
+            }
+        }
+
+        if (!emplaced) {
+            m_registry->emplace<constraint_color>(entity, colors.size());
+        }
+    }
+
+    m_new_rows.clear();
+}
+
+bool solver::parallelizable() const {
+    return m_registry->size<constraint_color>() > 1;
 }
 
 void solver::update(scalar dt) {
+    init_new_rows();
+
     // Apply forces and acceleration.
     integrate_linacc(*m_registry, dt);
     apply_gravity(*m_registry, dt);
@@ -216,26 +247,28 @@ void solver::update(scalar dt) {
 }
 
 void solver::start_async_update(scalar dt) {
+    init_new_rows();
+
     // Apply forces and acceleration.
     integrate_linacc(*m_registry, dt);
     apply_gravity(*m_registry, dt);
 
     // If any constraint_row has been created or destroyed between updates:
-    // 1. Assign edge_color::none to all edge_color values.
+    // 1. Assign constraint_color::none to all constraint_color values.
     // 2. For each island_node with a procedural_tag, visit its neighbors which
-    // hold an edge_color and if their color is edge_color::none, assign the 
+    // hold an constraint_color and if their color is constraint_color::none, assign the 
     // lowest color value that's unique among all neighbors.
-    // 3. Sort edge_color components by value (none of them should be edge_color::none
+    // 3. Sort constraint_color components by value (none of them should be constraint_color::none
     // at this point).
     // 4. Run one parallel_for_async for each range of identical values running a
     // `solve` followed by `apply_impulse` on the corresponding constraint_row.
     // Reapeat for multiple iterations.
 
     if (m_constraints_changed) {
-        m_registry->sort<edge_color>([] (const auto &lhs, const auto &rhs) {
+        m_registry->sort<constraint_color>([] (const auto &lhs, const auto &rhs) {
             return lhs.value < rhs.value;
         });
-        m_registry->sort<constraint_row_data, edge_color>();
+        m_registry->sort<constraint_row_data, constraint_color>();
 
         m_constraints_changed = false;
     }
@@ -270,30 +303,30 @@ void solver::start_async_update(scalar dt) {
     });
 
     m_state.dt = dt;
-    m_state.color = 0;
-    m_state.edge_index = 0;
+    m_state.color_value = 0;
+    m_state.color_index = 0;
     m_state.iteration = 0;
 }
 
 bool solver::continue_async_update(const job &completion) {
-    auto edge_view = m_registry->view<edge_color>();
+    auto color_view = m_registry->view<constraint_color>();
     
-    if (m_state.edge_index == edge_view.size()) {
-        m_state.color = 0;
-        m_state.edge_index = 0;
+    if (m_state.color_index == color_view.size()) {
+        m_state.color_value = 0;
+        m_state.color_index = 0;
         ++m_state.iteration;
     }
 
     if (m_state.iteration < iterations) {
-        size_t first = m_state.edge_index;
+        size_t first = m_state.color_index;
         size_t last = first;
         
-        while (last < edge_view.size() && 
-               edge_view.get(edge_view[last]).value == m_state.color) {
+        while (last < color_view.size() && 
+               color_view.get(color_view[last]).value == m_state.color_value) {
             ++last;
         }
 
-        if (m_state.color == 0) {
+        if (m_state.color_value == 0) {
             // Prepare constraints for iteration.
             auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
             con_view.each([&] (entt::entity entity, constraint &con) {
@@ -303,8 +336,8 @@ bool solver::continue_async_update(const job &completion) {
             });
         }
 
-        ++m_state.color;
-        m_state.edge_index = last;
+        ++m_state.color_value;
+        m_state.color_index = last;
 
         auto &dispatcher = job_dispatcher::global();
         auto data_view = m_registry->view<constraint_row_data>();
@@ -341,8 +374,8 @@ void solver::finish_async_update() {
     // Update world-space moment of inertia.
     update_inertia(*m_registry);
 
-    m_state.color = 0;
-    m_state.edge_index = 0;
+    m_state.color_value = 0;
+    m_state.color_index = 0;
     m_state.iteration = 0;
 }
 

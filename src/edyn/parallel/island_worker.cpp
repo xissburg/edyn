@@ -45,6 +45,11 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 {
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
+
+    m_this_job.func = &island_worker_func;
+    auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
+    auto ctx_intptr = reinterpret_cast<intptr_t>(this);
+    archive(ctx_intptr);
 }
 
 island_worker::~island_worker() {
@@ -218,12 +223,25 @@ void island_worker::update() {
         if (should_step()) {
             begin_step();
             run_solver();
-            run_broadphase();
-            run_narrowphase();
 
-            if (m_state != state::narrowphase_async) {
-                finish_step();
-                maybe_reschedule();
+            if (m_state != state::solve_async) {
+                run_broadphase();
+                run_narrowphase();
+
+                if (m_state != state::narrowphase_async) {
+                    finish_step();
+                    maybe_reschedule();
+                }
+            } else if (m_solver.continue_async_update(m_this_job)) {
+                m_state = state::broadphase;
+
+                run_broadphase();
+                run_narrowphase();
+
+                if (m_state != state::narrowphase_async) {
+                    finish_step();
+                    maybe_reschedule();
+                }
             }
         } else {
             maybe_reschedule();
@@ -237,6 +255,19 @@ void island_worker::update() {
     case state::solve:
         run_solver();
         reschedule_now();
+        break;
+    case state::solve_async:
+        if (m_solver.continue_async_update(m_this_job)) {
+            m_state = state::broadphase;
+
+            run_broadphase();
+            run_narrowphase();
+
+            if (m_state != state::narrowphase_async) {
+                finish_step();
+                maybe_reschedule();
+            }
+        }
         break;
     case state::broadphase:
         run_broadphase();
@@ -302,8 +333,14 @@ void island_worker::begin_step() {
 
 void island_worker::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(m_fixed_dt);
-    m_state = state::broadphase;
+
+    if (m_solver.parallelizable()) {
+        m_state = state::solve_async;
+        m_solver.start_async_update(m_fixed_dt);
+    } else {
+        m_solver.update(m_fixed_dt);
+        m_state = state::broadphase;
+    }
 }
 
 void island_worker::run_broadphase() {
@@ -317,8 +354,7 @@ void island_worker::run_narrowphase() {
 
     if (m_nphase.parallelizable()) {
         m_state = state::narrowphase_async;
-        auto completion_job = make_job();
-        m_nphase.update_async(completion_job);
+        m_nphase.update_async(m_this_job);
     } else {
         m_nphase.update();
         m_state = state::finish_step;
@@ -381,8 +417,7 @@ void island_worker::finish_step() {
 }
 
 void island_worker::reschedule_now() {
-    auto j = make_job();
-    job_dispatcher::global().async(j);
+    job_dispatcher::global().async(m_this_job);
 }
 
 void island_worker::maybe_reschedule() {
@@ -416,12 +451,11 @@ void island_worker::reschedule_later() {
     auto time = (double)performance_counter() / (double)performance_frequency();
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto delta_time = isle_time.value + m_fixed_dt - time;
-    auto j = make_job();
 
     if (delta_time > 0) {
-        job_dispatcher::global().async_after(delta_time, j);
+        job_dispatcher::global().async_after(delta_time, m_this_job);
     } else {
-        job_dispatcher::global().async(j);
+        job_dispatcher::global().async(m_this_job);
     }
 }
 
@@ -430,17 +464,7 @@ void island_worker::reschedule() {
     auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
     if (reschedule_count > 0) return;
 
-    auto j = make_job();
-    job_dispatcher::global().async(j);
-}
-
-job island_worker::make_job() {
-    auto j = job();
-    j.func = &island_worker_func;
-    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
-    auto ctx_intptr = reinterpret_cast<intptr_t>(this);
-    archive(ctx_intptr);
-    return j;
+    job_dispatcher::global().async(m_this_job);
 }
 
 void island_worker::init_new_imported_contact_manifolds() {

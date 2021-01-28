@@ -81,8 +81,7 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     auto row_entity = registry.create();
     con.row[con.num_rows()] = row_entity;
 
-    auto &row = registry.emplace<constraint_row>(row_entity);
-    row.entity = con.body;
+    auto &row = registry.emplace<constraint_row>(row_entity, con.body);
     row.priority = priority;
 
     registry.emplace<constraint_row_data>(row_entity);

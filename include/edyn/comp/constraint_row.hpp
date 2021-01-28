@@ -5,7 +5,6 @@
 #include <entt/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
-#include "edyn/util/array.hpp"
 #include "edyn/math/matrix3x3.hpp"
 
 namespace edyn {
@@ -21,8 +20,7 @@ static constexpr size_t max_constrained_entities = 2;
  * for performance reasons.
  */
 struct constraint_row {
-    std::array<entt::entity, max_constrained_entities> entity =
-        make_array<max_constrained_entities>(entt::entity{entt::null});
+    std::array<entt::entity, max_constrained_entities> entity;
 
     scalar error;
 
