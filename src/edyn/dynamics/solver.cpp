@@ -15,14 +15,30 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/dynamics/solver_stage.hpp"
-#include "edyn/util/array.hpp"
 #include "edyn/util/rigidbody.hpp"
-#include "edyn/comp/constraint_color.hpp"
+#include "edyn/comp/constraint_group.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/parallel/job.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/serialization/memory_archive.hpp"
 #include <entt/entt.hpp>
+#include <atomic>
 
 namespace edyn {
+
+// Solver context for the parallel solver iterations.
+struct solver_context {
+    using row_data_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, constraint_row_data>;
+    row_data_view_t data_view;
+    std::vector<size_t> ranges;
+    std::atomic<uint32_t> group_index;
+    std::atomic<unsigned> counter;
+    job completion;
+
+    solver_context(const row_data_view_t &view)
+        : data_view(view)
+    {}
+};
 
 static
 scalar restitution_curve(scalar restitution, scalar relvel) {
@@ -88,6 +104,38 @@ scalar solve(constraint_row_data &data) {
     return delta_impulse;
 }
 
+static
+void solver_job_func(job::data_type &data) {
+    auto archive = memory_input_archive(data.data(), data.size());
+    intptr_t ctx_ptr;
+    archive(ctx_ptr);
+    auto *ctx = reinterpret_cast<solver_context *>(ctx_ptr);
+
+    while (true) {
+        auto group = ctx->group_index.fetch_add(1, std::memory_order_relaxed);
+
+        if (group + 1 >= ctx->ranges.size()) {
+            break;
+        }
+
+        auto first = ctx->ranges[group];
+        auto last = ctx->ranges[group + 1];
+
+        for (size_t i = first; i < last; ++i) {
+            auto &data = ctx->data_view.get(ctx->data_view[i]);
+            auto delta_impulse = solve(data);
+            apply_impulse(delta_impulse, data);
+        }
+
+        auto remaining = ctx->counter.fetch_sub(1, std::memory_order_relaxed) - 1;
+
+        if (remaining == 0) {
+            job_dispatcher::global().async(ctx->completion);
+            break;
+        }
+    }
+}
+
 void update_inertia(entt::registry &registry) {
     auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(entt::exclude<disabled_tag>);
     view.each([] (auto, orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
@@ -99,12 +147,16 @@ void update_inertia(entt::registry &registry) {
 solver::solver(entt::registry &registry) 
     : m_registry(&registry)
     , m_constraints_changed(false)
+    , m_num_constraint_groups(0)
+    , m_context(std::make_unique<solver_context>(registry.view<constraint_row_data>()))
 {
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
     registry.on_construct<constraint_row>().connect<&solver::on_construct_constraint_row>(*this);
     registry.on_destroy<constraint_row>().connect<&solver::on_destroy_constraint_row>(*this);
 }
+
+solver::~solver() = default;
 
 void solver::on_construct_constraint_row(entt::registry &registry, entt::entity entity) {
     m_constraints_changed = true;
@@ -117,62 +169,16 @@ void solver::on_destroy_constraint_row(entt::registry &, entt::entity) {
 
 void solver::init_new_rows() {
     if (m_new_rows.empty()) return;
-    
-    auto node_view = m_registry->view<island_node>();
-    auto parent_view = m_registry->view<island_node_parent>();
-    auto color_view = m_registry->view<constraint_color>();
 
     for (auto entity : m_new_rows) {
-        auto &row = m_registry->get<constraint_row>(entity);
-
-        std::vector<bool> colors;
-
-        for (auto other : row.entity) {
-            auto &other_node = node_view.get(other);
-
-            for (auto other_entity : other_node.entities) {
-                if (!parent_view.contains(other_entity)) continue;
-
-                auto &grandpa = parent_view.get(other_entity);
-
-                for (auto parent_entity : grandpa.children) {
-                    auto &parent = parent_view.get(parent_entity);
-
-                    for (auto row_entity : parent.children) {
-                        if (!color_view.contains(row_entity)) continue;
-
-                        auto &color = color_view.get(row_entity);
-
-                        if (color.value >= colors.size()) {
-                            colors.resize(color.value + 1, false);
-                        }
-
-                        colors[color.value] = true;
-                    }
-                }
-            }
-        }
-
-        auto emplaced = false;
-
-        for (size_t i = 0; i < colors.size(); ++i) {
-            if (!colors[i]) {
-                m_registry->emplace<constraint_color>(entity, i);
-                emplaced = true;
-                break;
-            }
-        }
-
-        if (!emplaced) {
-            m_registry->emplace<constraint_color>(entity, colors.size());
-        }
+        m_registry->emplace<constraint_group>(entity);
     }
 
     m_new_rows.clear();
 }
 
 bool solver::parallelizable() const {
-    return m_registry->size<constraint_color>() > 1;
+    return m_num_constraint_groups > 1;
 }
 
 void solver::update(scalar dt) {
@@ -246,29 +252,18 @@ void solver::update(scalar dt) {
     update_inertia(*m_registry);
 }
 
-void solver::start_async_update(scalar dt) {
+void solver::start_async_update(scalar dt, const job &completion) {
     init_new_rows();
 
     // Apply forces and acceleration.
     integrate_linacc(*m_registry, dt);
     apply_gravity(*m_registry, dt);
 
-    // If any constraint_row has been created or destroyed between updates:
-    // 1. Assign constraint_color::none to all constraint_color values.
-    // 2. For each island_node with a procedural_tag, visit its neighbors which
-    // hold an constraint_color and if their color is constraint_color::none, assign the 
-    // lowest color value that's unique among all neighbors.
-    // 3. Sort constraint_color components by value (none of them should be constraint_color::none
-    // at this point).
-    // 4. Run one parallel_for_async for each range of identical values running a
-    // `solve` followed by `apply_impulse` on the corresponding constraint_row.
-    // Reapeat for multiple iterations.
-
     if (m_constraints_changed) {
-        m_registry->sort<constraint_color>([] (const auto &lhs, const auto &rhs) {
+        m_registry->sort<constraint_group>([] (const auto &lhs, const auto &rhs) {
             return lhs.value < rhs.value;
         });
-        m_registry->sort<constraint_row_data, constraint_color>();
+        m_registry->sort<constraint_row_data, constraint_group>();
 
         m_constraints_changed = false;
     }
@@ -303,52 +298,89 @@ void solver::start_async_update(scalar dt) {
     });
 
     m_state.dt = dt;
-    m_state.color_value = 0;
-    m_state.color_index = 0;
     m_state.iteration = 0;
-}
 
-bool solver::continue_async_update(const job &completion) {
-    auto color_view = m_registry->view<constraint_color>();
-    
-    if (m_state.color_index == color_view.size()) {
-        m_state.color_value = 0;
-        m_state.color_index = 0;
-        ++m_state.iteration;
+    // Prepare solver context to start async iterations. Calculate the range of 
+    // each constraint group in the sorted `constraint_group` view.
+    auto group_view = m_registry->view<constraint_group>();
+    EDYN_ASSERT(group_view.size() > 1);
+
+    m_context->completion = completion;
+    m_context->ranges.clear();
+    m_context->ranges.push_back(0);
+
+    auto group_value = group_view.get(group_view[0]).value;
+    m_num_constraint_groups = 0;
+    size_t index = 1;
+
+    // Loop through the sorted constraint group view until the stitch group
+    // is reached (it is always the last).
+    while (true) {
+        auto curr_value = group_view.get(group_view[index]).value;
+
+        if (curr_value == group_value) {
+            ++index;
+            continue;
+        }
+
+        m_context->ranges.push_back(index);
+        ++m_num_constraint_groups;
+
+        if (curr_value != constraint_group::stitch_group) {
+            group_value = curr_value;
+        } else {
+            break;
+        }
     }
 
+    // Dispatch first iteration.
+    run_async_iteration();
+}
+
+void solver::run_async_iteration() {
+    // Prepare constraints for iteration.
+    auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
+    con_view.each([&] (entt::entity entity, constraint &con) {
+        std::visit([&] (auto &&c) {
+            c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *m_registry, m_state.dt);
+        }, con.var);
+    });
+
+    // Solve the stitch constraint group.
+    auto data_view = m_registry->view<constraint_row_data>();
+    auto first = m_context->ranges.back();
+    auto last = data_view.size();
+
+    for (size_t i = first; i < last; ++i) {
+        auto &data = data_view.get(data_view[i]);
+        auto delta_impulse = solve(data);
+        apply_impulse(delta_impulse, data);
+    }
+
+    // Dispatch disjoint groups to be solved in parallel.
+    dispatch_solver_job();
+}
+
+void solver::dispatch_solver_job() {
+    m_context->counter.store(m_num_constraint_groups, std::memory_order_relaxed);
+    m_context->group_index.store(0, std::memory_order_relaxed);
+
+    auto solver_job = job();
+    solver_job.func = &solver_job_func;
+    auto archive = fixed_memory_output_archive(solver_job.data.data(), solver_job.data.size());
+    auto ctx_ptr = reinterpret_cast<intptr_t>(m_context.get());
+    archive(ctx_ptr);
+
+    for (size_t i = 0; i < m_num_constraint_groups; ++i) {
+        job_dispatcher::global().async(solver_job);
+    }
+}
+
+bool solver::continue_async_update() {
+    ++m_state.iteration;
+
     if (m_state.iteration < iterations) {
-        size_t first = m_state.color_index;
-        size_t last = first;
-        
-        while (last < color_view.size() && 
-               color_view.get(color_view[last]).value == m_state.color_value) {
-            ++last;
-        }
-
-        if (m_state.color_value == 0) {
-            // Prepare constraints for iteration.
-            auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
-            con_view.each([&] (entt::entity entity, constraint &con) {
-                std::visit([&] (auto &&c) {
-                    c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *m_registry, m_state.dt);
-                }, con.var);
-            });
-        }
-
-        ++m_state.color_value;
-        m_state.color_index = last;
-
-        auto &dispatcher = job_dispatcher::global();
-        auto data_view = m_registry->view<constraint_row_data>();
-
-        parallel_for_async(dispatcher, first, last, size_t{1}, completion, [data_view] (size_t index) {
-            // Solve rows.
-            auto &data = data_view.get(data_view[index]);
-            auto delta_impulse = solve(data);
-            apply_impulse(delta_impulse, data);
-        });
-
+        run_async_iteration();
         return false;
     } else {
         finish_async_update();
@@ -373,10 +405,6 @@ void solver::finish_async_update() {
     
     // Update world-space moment of inertia.
     update_inertia(*m_registry);
-
-    m_state.color_value = 0;
-    m_state.color_index = 0;
-    m_state.iteration = 0;
 }
 
 }

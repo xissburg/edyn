@@ -2,29 +2,34 @@
 #define EDYN_DYNAMICS_SOLVER_HPP
 
 #include <vector>
+#include <memory>
+#include <cstdint>
 #include <entt/fwd.hpp>
 #include "edyn/math/scalar.hpp"
 
 namespace edyn {
 
 struct job;
+struct solver_context;
 
 class solver {
     struct state {
-        size_t color_value {0};
-        size_t color_index {0};
         size_t iteration {0};
         scalar dt;
     };
 
+    void run_async_iteration();
+    void dispatch_solver_job();
+
 public:
     solver(entt::registry &);
+    ~solver();
 
     bool parallelizable() const;
     void init_new_rows();
     void update(scalar dt);
-    void start_async_update(scalar dt);
-    bool continue_async_update(const job &completion);
+    void start_async_update(scalar dt, const job &completion);
+    bool continue_async_update();
     void finish_async_update();
 
     void on_construct_constraint_row(entt::registry &, entt::entity);
@@ -37,6 +42,8 @@ private:
     bool m_constraints_changed;
     state m_state;
     std::vector<entt::entity> m_new_rows;
+    std::unique_ptr<solver_context> m_context;
+    size_t m_num_constraint_groups;
 };
 
 }
