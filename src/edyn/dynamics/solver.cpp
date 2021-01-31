@@ -189,7 +189,7 @@ void solver::partite_constraint_graph() {
     });
 
     constraint_group::value_t current_group = 1;
-    const auto desired_group_size = graph_edge_view.size() / job_dispatcher::global().num_workers();
+    const size_t desired_group_size = std::ceil(graph_node_view.size() / job_dispatcher::global().num_workers());
 
     while (!node_entities.empty()) {
         size_t group_size = 0;
@@ -212,11 +212,6 @@ void solver::partite_constraint_graph() {
             for (auto edge_entity : curr_node.entities) {
                 if (!graph_edge_view.contains(edge_entity)) continue;
 
-                auto already_visited = connected.count(edge_entity);
-                if (already_visited) continue;
-
-                connected.insert(edge_entity);
-
                 auto &edge_node = node_view.get(edge_entity);
                 EDYN_ASSERT(edge_node.entities.size() == 2);
 
@@ -228,37 +223,18 @@ void solver::partite_constraint_graph() {
                     break;
                 }
 
-                auto edge_group_value = current_group;
+                auto already_visited = connected.count(other_entity);
+                if (already_visited) continue;
+
+                connected.insert(other_entity);
 
                 auto &other_group = group_view.get(other_entity);
 
                 if (other_group.value == 0) {
                     to_visit.push_back(other_entity);
                     other_group.value = current_group;
-                } else if (other_group.value != current_group) {
-                    edge_group_value = constraint_group::stitch_group;
-                }
-
-                group_view.get(edge_entity).value = edge_group_value;
-
-                // Assign current group to all rows of this constraint graph edge.
-                if (auto *manifold = m_registry->try_get<contact_manifold>(edge_entity); manifold) {
-                    for (size_t i = 0; i < manifold->num_points(); ++i) {
-                        auto contact_entity = manifold->point[i];
-                        auto &con = constraint_view.get(contact_entity);
-                        group_view.get(contact_entity).value = edge_group_value;
-
-                        for (size_t j = 0; j < con.num_rows(); ++j) {
-                            auto row_entity = con.row[j];
-                            group_view.get(row_entity).value = edge_group_value;
-                        }
-                    }
-                }
-
-                // If the edge is in the current group, increment the size.
-                if (edge_group_value == current_group) {
                     ++group_size;
-
+                    
                     // If the group is bigger than the desired size, start a new group.
                     if (group_size > desired_group_size) {
                         ++current_group;
@@ -274,6 +250,36 @@ void solver::partite_constraint_graph() {
     }
 
     m_num_constraint_groups = current_group - 1;
+
+    auto edge_view = m_registry->view<constraint_group, island_node, constraint_graph_edge>();
+    edge_view.each([&] (entt::entity edge_entity, constraint_group &edge_group, island_node &edge_node) {
+        EDYN_ASSERT(edge_node.entities.size() == 2);
+
+        auto it = edge_node.entities.begin();
+        auto group0 = group_view.get(*it).value;
+        std::advance(it, 1);
+        auto group1 = group_view.get(*it).value;
+
+        if (group0 == group1) {
+            edge_group.value = group0;
+        } else {
+            edge_group.value = constraint_group::stitch_group;
+        }
+
+        // Assign current group to all rows of this constraint graph edge.
+        if (auto *manifold = m_registry->try_get<contact_manifold>(edge_entity); manifold) {
+            for (size_t i = 0; i < manifold->num_points(); ++i) {
+                auto contact_entity = manifold->point[i];
+                auto &con = constraint_view.get(contact_entity);
+                group_view.get(contact_entity).value = edge_group.value;
+
+                for (size_t j = 0; j < con.num_rows(); ++j) {
+                    auto row_entity = con.row[j];
+                    group_view.get(row_entity).value = edge_group.value;
+                }
+            }
+        }
+    });
 
     // Sort constraint rows by group.
     m_registry->sort<constraint_group>([] (const auto &lhs, const auto &rhs) {
