@@ -234,7 +234,7 @@ void solver::partite_constraint_graph() {
 
                 if (other_group.value == 0) {
                     to_visit.push_back(other_entity);
-                    group_view.get(other_entity).value = current_group;
+                    other_group.value = current_group;
                 } else if (other_group.value != current_group) {
                     edge_group_value = constraint_group::stitch_group;
                 }
@@ -268,7 +268,9 @@ void solver::partite_constraint_graph() {
             }
         }
 
-        ++current_group;
+        if (group_size > 0) {
+            ++current_group;
+        }
     }
 
     m_num_constraint_groups = current_group - 1;
