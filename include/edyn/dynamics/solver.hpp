@@ -18,6 +18,8 @@ class solver {
         scalar dt;
     };
 
+    void init_new_rows();
+    void partite_constraint_graph();
     void run_async_iteration();
     void dispatch_solver_job();
 
@@ -26,14 +28,12 @@ public:
     ~solver();
 
     bool parallelizable() const;
-    void init_new_rows();
     void update(scalar dt);
     void start_async_update(scalar dt, const job &completion);
     bool continue_async_update();
     void finish_async_update();
 
-    void on_construct_constraint_row(entt::registry &, entt::entity);
-    void on_destroy_constraint_row(entt::registry &, entt::entity);
+    void on_change_constraint_graph(entt::registry &, entt::entity);
 
     uint32_t iterations {10};
 

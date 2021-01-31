@@ -2,6 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/dirty.hpp"
+#include "edyn/comp/constraint_group.hpp"
 
 namespace edyn {
 
@@ -18,11 +19,14 @@ namespace internal {
         // into which `constraint_row`s will be added.
         if (parent_entity) {
             registry.emplace<island_node_child>(entity, *parent_entity);
-            
+
             auto &node_parent = registry.get<island_node_parent>(*parent_entity);
             node_parent.children.insert(entity);
+            registry.emplace<constraint_group>(entity, registry.get<constraint_group>(*parent_entity).value);
         } else {
             registry.emplace<island_node>(entity, entity_set{body0, body1});
+            registry.emplace<constraint_graph_edge>(entity);
+            registry.emplace<constraint_group>(entity);
         }
 
         // A constraint is a parent of its rows, thus it needs an `island_node_parent`.
@@ -45,13 +49,13 @@ namespace internal {
 
         auto &constraint_dirty = registry.get_or_emplace<dirty>(entity)
             .set_new()
-            .created<procedural_tag, constraint, island_node_parent, island_container>();
+            .created<procedural_tag, constraint, island_node_parent, island_container, constraint_group>();
 
         if (parent_entity) {
             constraint_dirty.created<island_node_child>();
             registry.get_or_emplace<dirty>(*parent_entity).updated<island_node_parent>();
         } else {
-            constraint_dirty.created<island_node>();
+            constraint_dirty.created<island_node, constraint_graph_edge>();
         }
     }
 }
@@ -86,6 +90,7 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
 
     registry.emplace<constraint_row_data>(row_entity);
     registry.emplace<procedural_tag>(row_entity);
+    registry.emplace<constraint_group>(row_entity, registry.get<constraint_group>(entity).value);
 
     // The constraint row is a child of the constraint.
     auto &row_child_node = registry.emplace<island_node_child>(row_entity);
@@ -100,7 +105,7 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
 
     registry.get_or_emplace<dirty>(row_entity)
         .set_new()
-        .created<island_node_child, island_container, procedural_tag, constraint_row, constraint_row_data>();
+        .created<island_node_child, island_container, procedural_tag, constraint_group, constraint_row, constraint_row_data>();
 
     return row_entity;
 }
@@ -118,6 +123,8 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     registry.emplace<island_node_parent>(manifold_entity);
     registry.emplace<island_container>(manifold_entity);
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
+    registry.emplace<constraint_graph_edge>(manifold_entity);
+    registry.emplace<constraint_group>(manifold_entity);
 
     // Assign a reference to the contact entity in the body nodes.
     auto &node0 = registry.get<island_node>(body0);
@@ -132,7 +139,13 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 
     registry.get_or_emplace<dirty>(manifold_entity)
         .set_new()
-        .created<procedural_tag, island_node, island_node_parent, island_container, contact_manifold>();
+        .created<procedural_tag, 
+                 island_node, 
+                 island_node_parent, 
+                 island_container, 
+                 contact_manifold,
+                 constraint_graph_edge,
+                 constraint_group>();
 
     limit_dirty_to_island_of_procedural(registry, body0, body1);
 }
