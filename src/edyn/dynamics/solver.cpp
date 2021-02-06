@@ -192,27 +192,41 @@ void solver::partite_constraint_graph() {
 
     auto group_view = m_registry->view<constraint_group>();
     group_view.each([] (constraint_group &group) {
-        group.value = 0;
+        group.value = constraint_group::null_group;
     });
 
-    constraint_group::value_t current_group = 1;
-    const size_t desired_group_size = std::ceil(graph_node_view.size() / job_dispatcher::global().num_workers());
+    const size_t min_group_size = 64;
+    const size_t nodes_per_worker = std::ceil(graph_node_view.size() / job_dispatcher::global().num_workers());
+    const size_t desired_group_size = std::max(min_group_size, nodes_per_worker);
+    auto current_group = constraint_group::first_group;
+    size_t group_size = 0;
+    std::vector<entt::entity> to_visit;
 
+    // Starting at an arbitrary graph node, traverse the graph collecting nodes 
+    // into the current group until it reaches the desired group size. Then move
+    // over to the next group and continue traversal again collecting nodes into
+    // the current group, and so on...
     while (!node_entities.empty()) {
-        size_t group_size = 0;
-        entity_set connected;
-        std::vector<entt::entity> to_visit;
-
         auto node_entity = *node_entities.begin();
         to_visit.push_back(node_entity);
-
-        group_view.get(node_entity).value = current_group;
 
         while (!to_visit.empty()) {
             auto entity = to_visit.back();
             to_visit.pop_back();
-
             node_entities.erase(entity);
+
+            auto &group = group_view.get(entity);
+
+            if (group.value != constraint_group::null_group) continue;
+
+            group.value = current_group;
+            ++group_size;
+
+            // If the group is bigger than the desired size, start a new group.
+            if (group_size >= desired_group_size) {
+                ++current_group;
+                group_size = 0;
+            }
 
             auto &curr_node = node_view.get(entity);
 
@@ -230,33 +244,15 @@ void solver::partite_constraint_graph() {
                     break;
                 }
 
-                auto already_visited = connected.count(other_entity);
-                if (already_visited) continue;
+                auto visited = node_entities.count(other_entity) == 0;
+                if (visited) continue;
 
-                connected.insert(other_entity);
-
-                auto &other_group = group_view.get(other_entity);
-
-                if (other_group.value == 0) {
-                    to_visit.push_back(other_entity);
-                    other_group.value = current_group;
-                    ++group_size;
-                    
-                    // If the group is bigger than the desired size, start a new group.
-                    if (group_size > desired_group_size) {
-                        ++current_group;
-                        group_size = 0;
-                    }
-                }
+                to_visit.push_back(other_entity);
             }
-        }
-
-        if (group_size > 0) {
-            ++current_group;
         }
     }
 
-    m_num_constraint_groups = current_group - 1;
+    m_num_constraint_groups = current_group;
 
     auto edge_view = m_registry->view<constraint_group, island_node, constraint_graph_edge>();
     edge_view.each([&] (entt::entity edge_entity, constraint_group &edge_group, island_node &edge_node) {
@@ -270,7 +266,7 @@ void solver::partite_constraint_graph() {
         if (group0 == group1) {
             edge_group.value = group0;
         } else {
-            edge_group.value = constraint_group::stitch_group;
+            edge_group.value = constraint_group::seam_group;
         }
 
         // Assign current group to all rows of this constraint graph edge.
@@ -284,6 +280,11 @@ void solver::partite_constraint_graph() {
                     auto row_entity = con.row[j];
                     group_view.get(row_entity).value = edge_group.value;
                 }
+            }
+        } else if (auto *con = m_registry->try_get<constraint>(edge_entity); con) {
+            for (size_t j = 0; j < con->num_rows(); ++j) {
+                auto row_entity = con->row[j];
+                group_view.get(row_entity).value = edge_group.value;
             }
         }
     });
@@ -306,9 +307,46 @@ void solver::prepare_constraint_graph() {
         m_constraints_changed = false;
     } 
     
-    if (m_constraint_rows_changed) {
+    // Constraint rows do not need to be sorted and the context does not need
+    // to be updated if the solver is not parallelizable since these changes
+    // would not affect the serial solver.
+    if (m_constraint_rows_changed && parallelizable()) {
         sort_constraint_rows();
         m_constraint_rows_changed = false;
+
+        // Calculate the range of each constraint group in the sorted
+        // `constraint_row` view.
+        auto group_view = m_registry->view<constraint_group>();
+        auto row_view = m_registry->view<constraint_row>();
+        EDYN_ASSERT(group_view.size() > 1);
+
+        m_context->ranges.clear();
+        m_context->ranges.push_back(0);
+
+        auto group_value = constraint_group::first_group;
+        m_num_constraint_groups = 0;
+        size_t index = 1;
+
+        // Loop through the sorted constraint row data view until the seam group
+        // is reached (it is always the last).
+        while (true) {
+            auto curr_value = group_view.get(row_view[index]).value;
+            EDYN_ASSERT(curr_value != constraint_group::null_group);
+
+            if (curr_value == group_value) {
+                ++index;
+                continue;
+            }
+
+            m_context->ranges.push_back(index);
+            ++m_num_constraint_groups;
+
+            if (curr_value != constraint_group::seam_group) {
+                group_value = curr_value;
+            } else {
+                break;
+            }
+        }
     }
 }
 
@@ -428,39 +466,7 @@ void solver::start_async_update(scalar dt, const job &completion) {
     m_state.dt = dt;
     m_state.iteration = 0;
 
-    // Prepare solver context to start async iterations. Calculate the range of 
-    // each constraint group in the sorted `constraint_group` view.
-    auto group_view = m_registry->view<constraint_group>();
-    auto data_view = m_registry->view<constraint_row_data>();
-    EDYN_ASSERT(group_view.size() > 1);
-
     m_context->completion = completion;
-    m_context->ranges.clear();
-    m_context->ranges.push_back(0);
-
-    auto group_value = group_view.get(group_view[0]).value;
-    m_num_constraint_groups = 0;
-    size_t index = 1;
-
-    // Loop through the sorted constraint row data view until the stitch group
-    // is reached (it is always the last).
-    while (true) {
-        auto curr_value = group_view.get(data_view[index]).value;
-
-        if (curr_value == group_value) {
-            ++index;
-            continue;
-        }
-
-        m_context->ranges.push_back(index);
-        ++m_num_constraint_groups;
-
-        if (curr_value != constraint_group::stitch_group) {
-            group_value = curr_value;
-        } else {
-            break;
-        }
-    }
 
     // Dispatch first iteration.
     run_async_iteration();
@@ -475,7 +481,7 @@ void solver::run_async_iteration() {
         }, con.var);
     });
 
-    // Solve the stitch constraint group.
+    // Solve the seam constraint group.
     auto data_view = m_registry->view<constraint_row_data>();
     auto first = m_context->ranges.back();
     auto last = data_view.size();

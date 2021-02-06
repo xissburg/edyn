@@ -8,7 +8,8 @@ namespace edyn {
 struct constraint_group {
     using value_t = uint32_t;
     static constexpr value_t null_group = 0;
-    static constexpr value_t stitch_group = std::numeric_limits<value_t>::max();
+    static constexpr value_t first_group = 1;
+    static constexpr value_t seam_group = std::numeric_limits<value_t>::max();
     value_t value;
 };
 
