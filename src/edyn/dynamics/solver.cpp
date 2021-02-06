@@ -149,6 +149,7 @@ void update_inertia(entt::registry &registry) {
 solver::solver(entt::registry &registry) 
     : m_registry(&registry)
     , m_constraints_changed(false)
+    , m_constraint_rows_changed(false)
     , m_num_constraint_groups(0)
     , m_context(std::make_unique<solver_context>(registry.view<constraint_row_data>()))
 {
@@ -158,12 +159,18 @@ solver::solver(entt::registry &registry)
     registry.on_destroy<constraint_graph_node>().connect<&solver::on_change_constraint_graph>(*this);
     registry.on_construct<constraint_graph_edge>().connect<&solver::on_change_constraint_graph>(*this);
     registry.on_destroy<constraint_graph_edge>().connect<&solver::on_change_constraint_graph>(*this);
+    registry.on_construct<constraint_row>().connect<&solver::on_change_constraint_rows>(*this);
+    registry.on_destroy<constraint_row>().connect<&solver::on_change_constraint_rows>(*this);
 }
 
 solver::~solver() = default;
 
 void solver::on_change_constraint_graph(entt::registry &registry, entt::entity entity) {
     m_constraints_changed = true;
+}
+
+void solver::on_change_constraint_rows(entt::registry &registry, entt::entity entity) {
+    m_constraint_rows_changed = true;
 }
 
 void solver::init_new_rows() {
@@ -281,12 +288,28 @@ void solver::partite_constraint_graph() {
         }
     });
 
+    m_constraint_rows_changed = true;
+}
+
+void solver::sort_constraint_rows() {
+    auto group_view = m_registry->view<constraint_group>();
     // Sort constraint rows by group.
-    m_registry->sort<constraint_group>([] (const auto &lhs, const auto &rhs) {
-        EDYN_ASSERT(lhs.value != 0 && rhs.value != 0);
-        return lhs.value < rhs.value;
+    m_registry->sort<constraint_row>([&group_view] (entt::entity lhs, entt::entity rhs) {
+        return group_view.get(lhs).value < group_view.get(rhs).value;
     });
-    m_registry->sort<constraint_row_data, constraint_group>();
+    m_registry->sort<constraint_row_data, constraint_row>();
+}
+
+void solver::prepare_constraint_graph() {
+    if (m_constraints_changed) {
+        partite_constraint_graph();
+        m_constraints_changed = false;
+    } 
+    
+    if (m_constraint_rows_changed) {
+        sort_constraint_rows();
+        m_constraint_rows_changed = false;
+    }
 }
 
 bool solver::parallelizable() const {
@@ -295,11 +318,7 @@ bool solver::parallelizable() const {
 
 void solver::update(scalar dt) {
     init_new_rows();
-
-    if (m_constraints_changed) {
-        partite_constraint_graph();
-        m_constraints_changed = false;
-    }
+    prepare_constraint_graph();
 
     // Apply forces and acceleration.
     integrate_linacc(*m_registry, dt);
@@ -371,15 +390,11 @@ void solver::update(scalar dt) {
 
 void solver::start_async_update(scalar dt, const job &completion) {
     init_new_rows();
+    prepare_constraint_graph();
 
     // Apply forces and acceleration.
     integrate_linacc(*m_registry, dt);
     apply_gravity(*m_registry, dt);
-
-    if (m_constraints_changed) {
-        partite_constraint_graph();
-        m_constraints_changed = false;
-    }
 
     // Setup constraints.
     auto body_view = m_registry->view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();

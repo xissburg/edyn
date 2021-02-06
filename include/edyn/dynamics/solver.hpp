@@ -20,6 +20,8 @@ class solver {
 
     void init_new_rows();
     void partite_constraint_graph();
+    void sort_constraint_rows();
+    void prepare_constraint_graph();
     void run_async_iteration();
     void dispatch_solver_job();
 
@@ -34,12 +36,14 @@ public:
     void finish_async_update();
 
     void on_change_constraint_graph(entt::registry &, entt::entity);
+    void on_change_constraint_rows(entt::registry &, entt::entity);
 
     uint32_t iterations {10};
 
 private:
     entt::registry *m_registry;
     bool m_constraints_changed;
+    bool m_constraint_rows_changed;
     state m_state;
     std::vector<entt::entity> m_new_rows;
     std::unique_ptr<solver_context> m_context;
