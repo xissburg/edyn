@@ -9,6 +9,7 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/math/scalar.hpp"
 #include "edyn/comp/constraint_group.hpp"
+#include "edyn/util/entity_set.hpp"
 
 namespace edyn {
 
@@ -35,9 +36,10 @@ class solver {
     template<typename It>
     void refresh_edges(It first, It last);
 
-    using group_node_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, constraint_group, island_node>; 
+    using node_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, island_node>; 
+    using group_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, constraint_group>; 
     using constraint_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, constraint>; 
-    void refresh_edge(entt::entity, group_node_view_t &, constraint_view_t &);
+    void refresh_edge(entt::entity, node_view_t &, group_view_t &, constraint_view_t &);
 
 public:
     solver(entt::registry &);
@@ -59,26 +61,26 @@ public:
 
 private:
     entt::registry *m_registry;
-    bool m_constraints_changed;
+    bool m_groups_changed;
     bool m_constraint_rows_changed;
-    bool m_nodes_destroyed;
     state m_state;
-    std::vector<entt::entity> m_new_nodes;
-    std::vector<entt::entity> m_new_edges;
+    entity_set m_new_nodes;
+    entity_set m_new_edges;
     std::unordered_map<constraint_group::value_t, size_t> m_group_sizes;
     std::unique_ptr<solver_context> m_context;
     size_t m_num_constraint_groups;
-    static const size_t m_max_group_size {128};
+    static const size_t m_max_group_size {768};
 };
 
 template<typename It>
 void solver::refresh_edges(It first, It last) {
-    auto group_node_view = m_registry->view<constraint_group, island_node>();
+    auto node_view = m_registry->view<island_node>();
+    auto group_view = m_registry->view<constraint_group>();
     auto constraint_view = m_registry->view<constraint>();
     
     for (auto it = first; it != last; ++it) {
         auto edge_entity = *it;
-        refresh_edge(edge_entity, group_node_view, constraint_view);
+        refresh_edge(edge_entity, node_view, group_view, constraint_view);
     }
 }
 

@@ -10,11 +10,13 @@ struct constraint_group {
     static constexpr value_t null_group = 0;
     static constexpr value_t first_group = 1;
     static constexpr value_t seam_group = std::numeric_limits<value_t>::max();
-    value_t value;
+    value_t value {null_group};
 };
 
 struct constraint_graph_node {};
-struct constraint_graph_edge {};
+struct constraint_graph_edge {
+    constraint_group::value_t value {constraint_group::null_group};
+};
 
 }
 

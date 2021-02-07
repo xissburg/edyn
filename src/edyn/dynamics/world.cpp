@@ -8,7 +8,6 @@ namespace edyn {
 
 world::world(entt::registry &registry) 
     : m_registry(&registry)
-    , m_solver(registry)
     , m_bphase(registry)
     , m_island_coordinator(registry)
 {
