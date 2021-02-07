@@ -16,7 +16,6 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/dynamics/solver_stage.hpp"
 #include "edyn/util/rigidbody.hpp"
-#include "edyn/comp/constraint_group.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
@@ -150,44 +149,138 @@ solver::solver(entt::registry &registry)
     : m_registry(&registry)
     , m_constraints_changed(false)
     , m_constraint_rows_changed(false)
+    , m_nodes_destroyed(false)
     , m_num_constraint_groups(0)
     , m_context(std::make_unique<solver_context>(registry.view<constraint_row_data>()))
 {
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
-    registry.on_construct<constraint_graph_node>().connect<&solver::on_change_constraint_graph>(*this);
-    registry.on_destroy<constraint_graph_node>().connect<&solver::on_change_constraint_graph>(*this);
-    registry.on_construct<constraint_graph_edge>().connect<&solver::on_change_constraint_graph>(*this);
-    registry.on_destroy<constraint_graph_edge>().connect<&solver::on_change_constraint_graph>(*this);
+    registry.on_construct<constraint_graph_node>().connect<&solver::on_construct_constraint_graph_node>(*this);
+    registry.on_destroy<constraint_graph_node>().connect<&solver::on_destroy_constraint_graph_node>(*this);
+    registry.on_construct<constraint_graph_edge>().connect<&solver::on_construct_constraint_graph_edge>(*this);
+    registry.on_destroy<constraint_graph_edge>().connect<&solver::on_destroy_constraint_graph_edge>(*this);
     registry.on_construct<constraint_row>().connect<&solver::on_change_constraint_rows>(*this);
     registry.on_destroy<constraint_row>().connect<&solver::on_change_constraint_rows>(*this);
 }
 
 solver::~solver() = default;
 
-void solver::on_change_constraint_graph(entt::registry &registry, entt::entity entity) {
-    m_constraints_changed = true;
+void solver::on_construct_constraint_graph_node(entt::registry &, entt::entity entity) {
+    m_new_nodes.push_back(entity);
+}
+
+void solver::on_destroy_constraint_graph_node(entt::registry &registry, entt::entity entity) {
+    auto &group = registry.get<constraint_group>(entity);
+    --m_group_sizes.at(group.value);
+    m_nodes_destroyed = true;
+}
+
+void solver::on_construct_constraint_graph_edge(entt::registry &, entt::entity entity) {
+    m_new_edges.push_back(entity);
+}
+
+void solver::on_destroy_constraint_graph_edge(entt::registry &, entt::entity) {
+
 }
 
 void solver::on_change_constraint_rows(entt::registry &registry, entt::entity entity) {
     m_constraint_rows_changed = true;
 }
 
-void solver::init_new_rows() {
-    /*if (m_new_rows.empty()) return;
+void solver::init_new_nodes() {
+    if (m_new_nodes.empty()) return;
 
-    for (auto entity : m_new_rows) {
+    while (!m_new_nodes.empty()) {
+        auto entity = m_new_nodes.back();
+        m_new_nodes.pop_back();
+
+        // Traverse graph trying to find another node which is already in a group
+        // then assign that group to all nodes visited so far.
         
     }
+}
 
-    m_new_rows.clear();*/
+void solver::init_new_edges() {
+    if (m_new_edges.empty()) return;
+
+    refresh_edges(m_new_edges.begin(), m_new_edges.end());
+
+    m_new_edges.clear();
+}
+
+void solver::refresh_edge(entt::entity edge_entity, 
+                          solver::group_node_view_t &group_node_view,
+                          solver::constraint_view_t &constraint_view) {
+    auto [edge_group, edge_node] = group_node_view.get<constraint_group, island_node>(edge_entity);
+
+    EDYN_ASSERT(edge_node.entities.size() == 2);
+
+    auto it = edge_node.entities.begin();
+    auto group0 = group_node_view.get<constraint_group>(*it).value;
+    std::advance(it, 1);
+    auto group1 = group_node_view.get<constraint_group>(*it).value;
+
+    if (group0 == group1) {
+        edge_group.value = group0;
+    } else {
+        edge_group.value = constraint_group::seam_group;
+    }
+
+    // Assign current group to all rows of this constraint graph edge.
+    if (auto *manifold = m_registry->try_get<contact_manifold>(edge_entity); manifold) {
+        for (size_t i = 0; i < manifold->num_points(); ++i) {
+            auto contact_entity = manifold->point[i];
+            auto &con = constraint_view.get(contact_entity);
+            group_node_view.get<constraint_group>(contact_entity).value = edge_group.value;
+
+            for (size_t j = 0; j < con.num_rows(); ++j) {
+                auto row_entity = con.row[j];
+                group_node_view.get<constraint_group>(row_entity).value = edge_group.value;
+            }
+        }
+    } else if (constraint_view.contains(edge_entity)) {
+        auto &con = constraint_view.get(edge_entity);
+        for (size_t j = 0; j < con.num_rows(); ++j) {
+            auto row_entity = con.row[j];
+            group_node_view.get<constraint_group>(row_entity).value = edge_group.value;
+        }
+    }
+}
+
+bool solver::is_constraint_graph_unbalanced() const {
+    auto num_groups = m_group_sizes.size();
+
+    if (num_groups < job_dispatcher::global().num_workers()) {
+        for (auto &pair : m_group_sizes) {
+            if (pair.second > m_max_group_size) {
+                return true;
+            }
+        }
+    }
+
+    double average = 0;
+
+    for (auto &pair : m_group_sizes) {
+        average += (double)pair.second;
+    }
+
+    average /= (double)num_groups;
+    double variance = 0;
+
+    for (auto &pair : m_group_sizes) {
+        auto d = (double)pair.second - average;
+        variance += d * d;
+    }
+
+    variance /= (double)num_groups;
+
+    return variance > m_max_group_size / 5;
 }
 
 void solver::partite_constraint_graph() {
     auto node_view = m_registry->view<island_node>();
     auto graph_node_view = m_registry->view<constraint_graph_node>();
     auto graph_edge_view = m_registry->view<constraint_graph_edge>();
-    auto constraint_view = m_registry->view<constraint>();
     auto node_entities = entity_set(graph_node_view.begin(), graph_node_view.end());
 
     auto group_view = m_registry->view<constraint_group>();
@@ -195,9 +288,8 @@ void solver::partite_constraint_graph() {
         group.value = constraint_group::null_group;
     });
 
-    const size_t min_group_size = 64;
     const size_t nodes_per_worker = std::ceil(graph_node_view.size() / job_dispatcher::global().num_workers());
-    const size_t desired_group_size = std::max(min_group_size, nodes_per_worker);
+    const size_t desired_group_size = std::max(m_max_group_size / 2, nodes_per_worker);
     auto current_group = constraint_group::first_group;
     size_t group_size = 0;
     std::vector<entt::entity> to_visit;
@@ -254,40 +346,8 @@ void solver::partite_constraint_graph() {
 
     m_num_constraint_groups = current_group;
 
-    auto edge_view = m_registry->view<constraint_group, island_node, constraint_graph_edge>();
-    edge_view.each([&] (entt::entity edge_entity, constraint_group &edge_group, island_node &edge_node) {
-        EDYN_ASSERT(edge_node.entities.size() == 2);
-
-        auto it = edge_node.entities.begin();
-        auto group0 = group_view.get(*it).value;
-        std::advance(it, 1);
-        auto group1 = group_view.get(*it).value;
-
-        if (group0 == group1) {
-            edge_group.value = group0;
-        } else {
-            edge_group.value = constraint_group::seam_group;
-        }
-
-        // Assign current group to all rows of this constraint graph edge.
-        if (auto *manifold = m_registry->try_get<contact_manifold>(edge_entity); manifold) {
-            for (size_t i = 0; i < manifold->num_points(); ++i) {
-                auto contact_entity = manifold->point[i];
-                auto &con = constraint_view.get(contact_entity);
-                group_view.get(contact_entity).value = edge_group.value;
-
-                for (size_t j = 0; j < con.num_rows(); ++j) {
-                    auto row_entity = con.row[j];
-                    group_view.get(row_entity).value = edge_group.value;
-                }
-            }
-        } else if (auto *con = m_registry->try_get<constraint>(edge_entity); con) {
-            for (size_t j = 0; j < con->num_rows(); ++j) {
-                auto row_entity = con->row[j];
-                group_view.get(row_entity).value = edge_group.value;
-            }
-        }
-    });
+    auto edge_view = m_registry->view<constraint_graph_edge>();
+    refresh_edges(edge_view.begin(), edge_view.end());
 
     m_constraint_rows_changed = true;
 }
@@ -355,7 +415,8 @@ bool solver::parallelizable() const {
 }
 
 void solver::update(scalar dt) {
-    init_new_rows();
+    init_new_nodes();
+    init_new_edges();
     prepare_constraint_graph();
 
     // Apply forces and acceleration.
@@ -427,7 +488,8 @@ void solver::update(scalar dt) {
 }
 
 void solver::start_async_update(scalar dt, const job &completion) {
-    init_new_rows();
+    init_new_nodes();
+    init_new_edges();
     prepare_constraint_graph();
 
     // Apply forces and acceleration.
