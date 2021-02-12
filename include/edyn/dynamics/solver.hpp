@@ -4,7 +4,6 @@
 #include <vector>
 #include <memory>
 #include <cstdint>
-#include <unordered_map>
 #include <entt/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include "edyn/math/scalar.hpp"
@@ -66,10 +65,9 @@ private:
     state m_state;
     entity_set m_new_nodes;
     entity_set m_new_edges;
-    std::unordered_map<constraint_group::value_t, size_t> m_group_sizes;
     std::unique_ptr<solver_context> m_context;
     size_t m_num_constraint_groups;
-    static const size_t m_max_group_size {768};
+    static const size_t m_max_group_size {256};
 };
 
 template<typename It>

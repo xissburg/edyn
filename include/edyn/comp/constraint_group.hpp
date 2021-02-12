@@ -13,9 +13,12 @@ struct constraint_group {
     value_t value {null_group};
 };
 
-struct constraint_graph_node {};
+struct constraint_graph_node {
+    constraint_group::value_t group_value {constraint_group::null_group};
+};
+
 struct constraint_graph_edge {
-    constraint_group::value_t value {constraint_group::null_group};
+    constraint_group::value_t group_value {constraint_group::null_group};
 };
 
 }
