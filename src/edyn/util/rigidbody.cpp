@@ -14,7 +14,6 @@
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
-#include "edyn/comp/constraint_group.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/continuous.hpp"
 
@@ -104,8 +103,6 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<continuous>(entity).insert<position, orientation, linvel, angvel>();
     }
 
-    registry.emplace<constraint_graph_node>(entity);
-    registry.emplace<constraint_group>(entity);
     registry.emplace<island_node>(entity);
     registry.emplace<island_container>(entity);
 }

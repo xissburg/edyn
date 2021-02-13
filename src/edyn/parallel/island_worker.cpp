@@ -223,15 +223,12 @@ void island_worker::update() {
         if (should_step()) {
             begin_step();
             run_solver();
+            run_broadphase();
+            run_narrowphase();
 
-            if (m_state != state::solve_async) {
-                run_broadphase();
-                run_narrowphase();
-
-                if (m_state != state::narrowphase_async) {
-                    finish_step();
-                    maybe_reschedule();
-                }
+            if (m_state != state::narrowphase_async) {
+                finish_step();
+                maybe_reschedule();
             }
         } else {
             maybe_reschedule();
@@ -245,19 +242,6 @@ void island_worker::update() {
     case state::solve:
         run_solver();
         reschedule_now();
-        break;
-    case state::solve_async:
-        if (m_solver.continue_async_update()) {
-            m_state = state::broadphase;
-
-            run_broadphase();
-            run_narrowphase();
-
-            if (m_state != state::narrowphase_async) {
-                finish_step();
-                maybe_reschedule();
-            }
-        }
         break;
     case state::broadphase:
         run_broadphase();
@@ -323,14 +307,8 @@ void island_worker::begin_step() {
 
 void island_worker::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
-
-    if (m_solver.parallelizable()) {
-        m_state = state::solve_async;
-        m_solver.start_async_update(m_fixed_dt, m_this_job);
-    } else {
-        m_solver.update(m_fixed_dt);
-        m_state = state::broadphase;
-    }
+    m_solver.update(m_fixed_dt);
+    m_state = state::broadphase;
 }
 
 void island_worker::run_broadphase() {

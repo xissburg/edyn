@@ -29,7 +29,6 @@ class island_worker final {
         step,
         begin_step,
         solve,
-        solve_async,
         broadphase,
         narrowphase,
         narrowphase_async,

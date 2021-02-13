@@ -14,7 +14,6 @@
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/constraint_group.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape.hpp"
@@ -59,9 +58,6 @@ using shared_components = std::tuple<
     contact_manifold, 
     contact_point, 
     continuous,
-    constraint_graph_node,
-    constraint_graph_edge,
-    constraint_group,
     dynamic_tag, 
     kinematic_tag, 
     static_tag, 
