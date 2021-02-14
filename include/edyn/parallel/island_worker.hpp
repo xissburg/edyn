@@ -41,9 +41,9 @@ class island_worker final {
     bool should_step();
     void begin_step();
     void run_solver();
-    void run_broadphase();
+    bool run_broadphase();
     void finish_broadphase();
-    void run_narrowphase();
+    bool run_narrowphase();
     void finish_narrowphase();
     void finish_step();
     void reschedule_now();
@@ -112,6 +112,9 @@ private:
     std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_importing_delta;
     bool m_topology_changed;
+    bool m_pending_topology_calculation;
+    double m_calculate_topology_delay;
+    double m_calculate_topology_timestamp;
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;
 

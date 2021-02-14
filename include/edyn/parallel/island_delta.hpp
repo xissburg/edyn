@@ -11,10 +11,6 @@
 
 namespace edyn {
 
-struct island_topology {
-    std::vector<size_t> count;
-};
-
 /**
  * @brief Holds a set of changes made in one registry that can be imported
  * into another registry.
@@ -62,8 +58,6 @@ public:
     friend class island_delta_builder;
 
     double m_timestamp;
-
-    island_topology m_island_topology;
 
 private:
     entity_map m_entity_map;

@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <entt/fwd.hpp>
+#include "edyn/parallel/island_delta.hpp"
 #include "edyn/util/entity_set.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
@@ -11,6 +12,8 @@
 namespace edyn {
 
 class island_worker;
+struct island_topology;
+
 /**
  * Context of an island worker in the main thread in an island coordinator.
  */
@@ -28,6 +31,9 @@ public:
 
     using island_delta_func_t = void(entt::entity, const island_delta &);
     entt::sigh<island_delta_func_t> m_island_delta_signal;
+
+    using island_topology_func_t = void(entt::entity, const island_topology &);
+    entt::sigh<island_topology_func_t> m_island_topology_signal;
 
     island_worker_context(entt::entity island_entity,
                 island_worker *worker,
@@ -66,6 +72,12 @@ public:
 
     auto island_delta_sink() {
         return entt::sink {m_island_delta_signal};
+    }
+
+    void on_island_topology(const island_topology &);
+
+    auto island_topology_sink() {
+        return entt::sink {m_island_topology_signal};
     }
 
     /**

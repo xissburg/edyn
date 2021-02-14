@@ -6,12 +6,14 @@
 #include <unordered_map>
 #include <entt/fwd.hpp>
 #include "edyn/math/scalar.hpp"
+#include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
 
 namespace edyn {
 
 class island_worker;
 class island_delta;
+struct island_topology;
 
 /**
  * Manages all simulation islands. Creates and destroys island workers as necessary
@@ -44,6 +46,7 @@ public:
     void on_construct_island_container(entt::registry &, entt::entity);
     void on_destroy_island_container(entt::registry &, entt::entity);
     void on_island_delta(entt::entity, const island_delta &);
+    void on_island_topology(entt::entity, const island_topology &);
     
     void on_construct_constraint(entt::registry &, entt::entity);
 

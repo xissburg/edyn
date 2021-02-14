@@ -1,5 +1,7 @@
 #include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/parallel/island_topology.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/time/time.hpp"
@@ -238,6 +240,7 @@ entt::entity island_coordinator::create_island(double timestamp) {
     
     // Register to receive delta.
     ctx->island_delta_sink().connect<&island_coordinator::on_island_delta>(*this);
+    ctx->island_topology_sink().connect<&island_coordinator::on_island_topology>(*this);
 
     // Send over a delta containing this island entity to the island worker
     // before it even starts.
@@ -378,20 +381,23 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
         source_ctx->m_delta_builder->insert_entity_mapping(local_entity);
     }
+}
 
-    if (should_split_island(delta.m_island_topology)) {
+void island_coordinator::on_island_topology(entt::entity source_island_entity, const island_topology &topology) {
+    if (should_split_island(topology)) {
         m_islands_to_split.insert(source_island_entity);
     }
 }
 
 bool island_coordinator::should_split_island(const island_topology &topo) {
-    // TODO: Use a different condition to split islands.
-    return !topo.count.empty();
+    // TODO: Use a different condition to split islands, e.g. calculate variance
+    // in size of connected components and only split if there isn't much variance.
+    return topo.component_sizes.size() > 1;
 }
 
 void island_coordinator::split_islands() {
     for (auto split_island_entity : m_islands_to_split) {
-        //split_island(split_island_entity);
+        split_island(split_island_entity);
     }
 
     m_islands_to_split.clear();

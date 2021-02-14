@@ -4,6 +4,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/island_topology.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
@@ -11,8 +12,6 @@
 #include "edyn/util/island_util.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/parallel/external_system.hpp"
-
-#include <iostream>
 
 namespace edyn {
 
@@ -43,6 +42,9 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_delta_builder(make_island_delta_builder(m_entity_map))
     , m_importing_delta(false)
     , m_topology_changed(false)
+    , m_pending_topology_calculation(false)
+    , m_calculate_topology_delay(1.1)
+    , m_calculate_topology_timestamp(0)
 {
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
@@ -222,12 +224,8 @@ void island_worker::update() {
         if (should_step()) {
             begin_step();
             run_solver();
-            run_broadphase();
-
-            if (m_state != state::broadphase_async) {
-                run_narrowphase();
-
-                if (m_state != state::narrowphase_async) {
+            if (run_broadphase()) {
+                if (run_narrowphase()) {
                     finish_step();
                     maybe_reschedule();
                 }
@@ -246,22 +244,19 @@ void island_worker::update() {
         reschedule_now();
         break;
     case state::broadphase:
-        run_broadphase();
-        if (m_state != state::broadphase_async) {
+        if (run_broadphase()) {
             reschedule_now();
         }
         break;
     case state::broadphase_async:
         finish_broadphase();
-        run_narrowphase();
-        if (m_state != state::narrowphase_async) {
+        if (run_narrowphase()) {
             finish_step();
             maybe_reschedule();
         }
         break;
     case state::narrowphase:
-        run_narrowphase();
-        if (m_state != state::narrowphase_async) {
+        if (run_narrowphase()) {
             finish_step();
             maybe_reschedule();
         }
@@ -324,15 +319,17 @@ void island_worker::run_solver() {
     m_state = state::broadphase;
 }
 
-void island_worker::run_broadphase() {
+bool island_worker::run_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase);
 
     if (m_bphase.parallelizable()) {
         m_state = state::broadphase_async;
         m_bphase.update_async(m_this_job);
+        return false;
     } else {
         m_bphase.update();
         m_state = state::narrowphase;
+        return true;
     }
 }
 
@@ -342,15 +339,17 @@ void island_worker::finish_broadphase() {
     m_state = state::narrowphase;
 }
 
-void island_worker::run_narrowphase() {
+bool island_worker::run_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase);
 
     if (m_nphase.parallelizable()) {
         m_state = state::narrowphase_async;
         m_nphase.update_async(m_this_job);
+        return false;
     } else {
         m_nphase.update();
         m_state = state::finish_step;
+        return true;
     }
 }
 
@@ -365,10 +364,6 @@ void island_worker::finish_step() {
 
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto dt = m_step_start_time - isle_time.value;
-
-    auto time = (double)performance_counter() / (double)performance_frequency();
-    auto step_dt = (time - m_step_start_time) * 1000;
-    std::cout << entt::to_integral(m_entity_map.locrem(m_island_entity)) << " dt " << step_dt << std::endl;
 
     // Set a limit on the number of steps the worker can lag behind the current
     // time to prevent it from getting stuck in the past in case of a
@@ -393,11 +388,21 @@ void island_worker::finish_step() {
     maybe_go_to_sleep();
 
     if (m_topology_changed) {
-    #ifdef DEBUG
-        validate_island();
-    #endif
-        //calculate_topology();
-        m_topology_changed = false;
+        auto time = (double)performance_counter() / (double)performance_frequency();
+
+        if (m_pending_topology_calculation) {
+            if (time - m_calculate_topology_timestamp > m_calculate_topology_delay) {
+                m_pending_topology_calculation = false;
+            #ifdef DEBUG
+                validate_island();
+            #endif
+                calculate_topology();
+                m_topology_changed = false;
+            }            
+        } else {
+            m_pending_topology_calculation = true;
+            m_calculate_topology_timestamp = time;
+        }
     }
 
     if (g_external_system_post_step) {
@@ -538,14 +543,14 @@ void island_worker::calculate_topology() {
 
     while (!node_entities.empty()) {
         entity_set connected;
-        std::vector<entt::entity> to_visit;
+        entity_set to_visit;
 
         auto node_entity = *node_entities.begin();
-        to_visit.push_back(node_entity);
+        to_visit.insert(node_entity);
 
         while (!to_visit.empty()) {
-            auto entity = to_visit.back();
-            to_visit.pop_back();
+            auto entity = *to_visit.begin();
+            to_visit.erase(entity);
 
             // Add to connected component.
             connected.insert(entity);
@@ -565,7 +570,7 @@ void island_worker::calculate_topology() {
                 // because a procedural node cannot affect another through a
                 // non-procedural node.
                 if (is_procedural || (!is_procedural && !m_registry.has<procedural_tag>(other))) {
-                    to_visit.push_back(other);
+                    to_visit.insert(other);
                 }
             }
         }
@@ -579,9 +584,9 @@ void island_worker::calculate_topology() {
     // be split and run in parallel in two or more workers.
     island_topology topo;
     for (auto &connected : connected_components) {
-        topo.count.push_back(connected.size());
+        topo.component_sizes.push_back(connected.size());
     }
-    m_delta_builder->topology(topo);
+    m_message_queue.send<island_topology>(topo);
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {

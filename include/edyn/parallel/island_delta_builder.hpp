@@ -259,10 +259,6 @@ public:
         }
     }
 
-    void topology(const island_topology &topo) {
-        m_delta.m_island_topology = topo;
-    }
-
     bool empty() const;
 
     island_delta finish() {
