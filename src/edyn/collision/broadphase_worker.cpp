@@ -152,11 +152,8 @@ void broadphase_worker::update_async(job &completion_job) {
     m_pair_results.resize(count);
     auto &dispatcher = job_dispatcher::global();
 
-    parallel_for_async(dispatcher, size_t{0}, count, size_t{1}, completion_job, 
-            [this, aabb_proc_view] (size_t index) {
-        auto it = aabb_proc_view.begin();
-        std::advance(it, index);
-        auto entity = *it;
+    parallel_for_each_async(dispatcher, aabb_proc_view.begin(), aabb_proc_view.end(), completion_job, 
+            [this, aabb_proc_view] (entt::entity entity, size_t index) {
         auto &aabb = aabb_proc_view.get<AABB>(entity);
         auto offset_aabb = aabb.inset(m_aabb_offset);
         collide_tree_async(m_tree, entity, offset_aabb, index);
