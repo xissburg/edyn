@@ -251,7 +251,7 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
 
     if (sleeping) {
         m_registry->emplace<sleeping_tag>(entity);
-        ctx->m_delta_builder->created(entity, sleeping_tag{});
+        builder->created(entity, sleeping_tag{});
     }
 
     auto delta = builder->finish();
