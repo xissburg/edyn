@@ -73,7 +73,8 @@ void parallel_for_async(job_dispatcher &dispatcher, IndexType first, IndexType l
     auto count = last - first;
 
     // Size of chunk that will be processed per job iteration.
-    auto chunk_size = std::max(count / num_workers, IndexType{1});
+    auto count_per_worker_ceil = count / num_workers + IndexType{count % num_workers != 0};
+    auto chunk_size = std::max(count_per_worker_ceil, IndexType{1});
 
     // Number of jobs that will be dispatched. Must not be greater than number
     // of workers.
