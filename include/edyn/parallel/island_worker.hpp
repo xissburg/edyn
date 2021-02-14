@@ -30,6 +30,7 @@ class island_worker final {
         begin_step,
         solve,
         broadphase,
+        broadphase_async,
         narrowphase,
         narrowphase_async,
         finish_step
@@ -41,6 +42,7 @@ class island_worker final {
     void begin_step();
     void run_solver();
     void run_broadphase();
+    void finish_broadphase();
     void run_narrowphase();
     void finish_narrowphase();
     void finish_step();

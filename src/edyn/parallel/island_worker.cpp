@@ -1,4 +1,5 @@
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/config/config.h"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/time/time.hpp"
@@ -52,9 +53,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     archive(ctx_intptr);
 }
 
-island_worker::~island_worker() {
-
-}
+island_worker::~island_worker() = default;
 
 void island_worker::init() {
     m_delta_builder->insert_entity_mapping(m_island_entity);
@@ -224,11 +223,14 @@ void island_worker::update() {
             begin_step();
             run_solver();
             run_broadphase();
-            run_narrowphase();
 
-            if (m_state != state::narrowphase_async) {
-                finish_step();
-                maybe_reschedule();
+            if (m_state != state::broadphase_async) {
+                run_narrowphase();
+
+                if (m_state != state::narrowphase_async) {
+                    finish_step();
+                    maybe_reschedule();
+                }
             }
         } else {
             maybe_reschedule();
@@ -245,12 +247,23 @@ void island_worker::update() {
         break;
     case state::broadphase:
         run_broadphase();
-        reschedule_now();
+        if (m_state != state::broadphase_async) {
+            reschedule_now();
+        }
+        break;
+    case state::broadphase_async:
+        finish_broadphase();
+        run_narrowphase();
+        if (m_state != state::narrowphase_async) {
+            finish_step();
+            maybe_reschedule();
+        }
         break;
     case state::narrowphase:
         run_narrowphase();
         if (m_state != state::narrowphase_async) {
-            reschedule_now();
+            finish_step();
+            maybe_reschedule();
         }
         break;
     case state::narrowphase_async:
@@ -313,7 +326,19 @@ void island_worker::run_solver() {
 
 void island_worker::run_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase);
-    m_bphase.update();
+
+    if (m_bphase.parallelizable()) {
+        m_state = state::broadphase_async;
+        m_bphase.update_async(m_this_job);
+    } else {
+        m_bphase.update();
+        m_state = state::narrowphase;
+    }
+}
+
+void island_worker::finish_broadphase() {
+    EDYN_ASSERT(m_state == state::broadphase_async);
+    m_bphase.finish_async_update();
     m_state = state::narrowphase;
 }
 

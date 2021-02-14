@@ -3,11 +3,15 @@
 
 #include <vector>
 #include <entt/fwd.hpp>
+#include <entt/entity/registry.hpp>
 #include "edyn/comp/aabb.hpp"
+#include "edyn/util/entity_pair.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 
 namespace edyn {
+
+struct job;
 
 class broadphase_worker {
     // Offset applied to AABBs when querying the trees.
@@ -18,12 +22,19 @@ class broadphase_worker {
 
     void init_new_aabb_entities();
     bool should_collide(entt::entity, entt::entity) const;
+
     void collide_tree(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb);
+    void collide_tree_async(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb, size_t result_index);
+
+    void common_update();
 
 public:
 
     broadphase_worker(entt::registry &);
+    bool parallelizable() const;
     void update();
+    void update_async(job &completion_job);
+    void finish_async_update();
 
     /**
      * @brief Returns a view of the procedural dynamic tree.
@@ -40,6 +51,7 @@ private:
     dynamic_tree m_np_tree; // Non-procedural dynamic tree.
     contact_manifold_map m_manifold_map;
     std::vector<entt::entity> m_new_aabb_entities;
+    std::vector<entity_pair_vector> m_pair_results;
 };
 
 }

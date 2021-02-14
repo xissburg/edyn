@@ -9,7 +9,6 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/parallel/parallel_for.hpp"
 #include <entt/entt.hpp>
-#include <vector>
 
 namespace edyn {
 
