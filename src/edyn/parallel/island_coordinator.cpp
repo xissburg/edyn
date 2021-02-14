@@ -1,4 +1,5 @@
 #include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/parallel/island_topology.hpp"
@@ -159,7 +160,7 @@ void island_coordinator::init_new_island_nodes() {
 
         if (island_entities.empty()) {
             const auto timestamp = (double)performance_counter() / (double)performance_frequency();
-            auto island_entity = create_island(timestamp);
+            auto island_entity = create_island(timestamp, false);
 
             auto &ctx = m_island_ctx_map.at(island_entity);
             ctx->m_entities = connected;
@@ -221,7 +222,7 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
     }
 }
 
-entt::entity island_coordinator::create_island(double timestamp) {
+entt::entity island_coordinator::create_island(double timestamp, bool sleeping) {
     auto entity = m_registry->create();
     m_registry->emplace<island>(entity);
     auto &isle_time = m_registry->emplace<island_timestamp>(entity);
@@ -247,6 +248,12 @@ entt::entity island_coordinator::create_island(double timestamp) {
     auto builder = make_island_delta_builder(ctx->m_entity_map);
     builder->created(entity);
     builder->created(entity, isle_time);
+
+    if (sleeping) {
+        m_registry->emplace<sleeping_tag>(entity);
+        ctx->m_delta_builder->created(entity, sleeping_tag{});
+    }
+
     auto delta = builder->finish();
     ctx->send<island_delta>(std::move(delta));
 
@@ -384,23 +391,38 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
 }
 
 void island_coordinator::on_island_topology(entt::entity source_island_entity, const island_topology &topology) {
-    if (should_split_island(topology)) {
-        m_islands_to_split.insert(source_island_entity);
-    }
-}
-
-bool island_coordinator::should_split_island(const island_topology &topo) {
     // TODO: Use a different condition to split islands, e.g. calculate variance
     // in size of connected components and only split if there isn't much variance.
-    return topo.component_sizes.size() > 1;
+    auto &source_ctx = m_island_ctx_map.at(source_island_entity);
+    if (source_ctx->m_pending_split) {
+        if (topology.component_sizes.size() <= 1) {
+            // Cancel split.
+            source_ctx->m_pending_split = false;
+        }
+    } else if (topology.component_sizes.size() > 1) {
+        source_ctx->m_split_timestamp = (double)performance_counter() / (double)performance_frequency();
+        source_ctx->m_pending_split = true;
+    }
 }
 
 void island_coordinator::split_islands() {
-    for (auto split_island_entity : m_islands_to_split) {
-        split_island(split_island_entity);
+    std::vector<entt::entity> islands_to_split;
+    auto time = (double)performance_counter() / (double)performance_frequency();
+
+    for (auto &pair : m_island_ctx_map) {
+        auto &ctx = pair.second;
+        if (!ctx->m_pending_split) continue;
+
+        auto dt = time - ctx->m_split_timestamp;
+        if (dt > m_island_split_delay) {
+            ctx->m_pending_split = false;
+            islands_to_split.push_back(pair.first);
+        }
     }
 
-    m_islands_to_split.clear();
+    for (auto split_island_entity : islands_to_split) {
+        split_island(split_island_entity);
+    }
 }
 
 void island_coordinator::split_island(entt::entity split_island_entity) {
@@ -468,6 +490,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
     if (connected_components.size() == 1) return;
 
     auto timestamp = m_registry->get<island_timestamp>(split_island_entity).value;
+    bool sleeping = m_registry->has<sleeping_tag>(split_island_entity);
     auto container_view = m_registry->view<island_container>();
 
     for (auto &connected : connected_components) {
@@ -487,7 +510,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
         // contain any procedural node. 
         if (!contains_procedural) continue;
 
-        auto island_entity = create_island(timestamp);
+        auto island_entity = create_island(timestamp, sleeping);
         auto &ctx = m_island_ctx_map.at(island_entity);
         ctx->m_entities = connected;
 

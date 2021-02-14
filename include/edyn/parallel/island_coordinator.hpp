@@ -23,14 +23,14 @@ class island_coordinator final {
 
     void init_new_island_nodes();
     void init_new_non_procedural_island_node(entt::entity);
-    entt::entity create_island(double timestamp);
+    entt::entity create_island(double timestamp, bool sleeping);
     entt::entity merge_islands(const entity_set &island_entities,
                                const entity_set &new_entities);
     void split_islands();
     void split_island(entt::entity);
     void wake_up_island(entt::entity);
     void refresh_dirty_entities();
-    bool should_split_island(const island_topology &);
+    bool should_split_island(entt::entity source_island_entity, const island_topology &);
     void sync();
 
     void validate();
@@ -72,7 +72,7 @@ private:
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;
 
     std::vector<entt::entity> m_new_island_nodes;
-    entity_set m_islands_to_split;
+    double m_island_split_delay {2.25};
     bool m_importing_delta {false};
     bool m_paused {false};
 };

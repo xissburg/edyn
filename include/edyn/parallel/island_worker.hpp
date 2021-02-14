@@ -115,6 +115,7 @@ private:
     bool m_pending_topology_calculation;
     double m_calculate_topology_delay;
     double m_calculate_topology_timestamp;
+    size_t m_number_of_connected_components;
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;
 

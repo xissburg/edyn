@@ -45,6 +45,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_pending_topology_calculation(false)
     , m_calculate_topology_delay(1.1)
     , m_calculate_topology_timestamp(0)
+    , m_number_of_connected_components(1)
 {
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
@@ -578,15 +579,14 @@ void island_worker::calculate_topology() {
         connected_components.push_back(connected);
     }
 
-    if (connected_components.size() == 1) return;
-
-    // There's more than one island in this worker which means the work can now
-    // be split and run in parallel in two or more workers.
-    island_topology topo;
-    for (auto &connected : connected_components) {
-        topo.component_sizes.push_back(connected.size());
+    if (connected_components.size() != m_number_of_connected_components) {
+        m_number_of_connected_components = connected_components.size();
+        island_topology topo;
+        for (auto &connected : connected_components) {
+            topo.component_sizes.push_back(connected.size());
+        }
+        m_message_queue.send<island_topology>(topo);
     }
-    m_message_queue.send<island_topology>(topo);
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {
