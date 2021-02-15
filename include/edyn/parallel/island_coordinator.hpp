@@ -72,7 +72,7 @@ private:
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;
 
     std::vector<entt::entity> m_new_island_nodes;
-    double m_island_split_delay {2.25};
+    double m_island_split_delay {2};
     bool m_importing_delta {false};
     bool m_paused {false};
 };

@@ -164,15 +164,19 @@ void island_coordinator::init_new_island_nodes() {
 
             auto &ctx = m_island_ctx_map.at(island_entity);
             ctx->m_entities = connected;
+            auto builder = make_island_delta_builder(ctx->m_entity_map);
 
             for (auto entity : connected) {
                 // Assign island to containers.
                 auto &container = m_registry->get<island_container>(entity);
                 container.entities.insert(island_entity);
                 // Add new entities to the delta builder.
-                ctx->m_delta_builder->created(entity);
-                ctx->m_delta_builder->created_all(entity, *m_registry);
+                builder->created(entity);
+                builder->created_all(entity, *m_registry);
             }
+
+            auto delta = builder->finish();
+            ctx->send<island_delta>(std::move(delta));
         } else if (island_entities.size() == 1) {
             auto island_entity = *island_entities.begin();
             
@@ -515,6 +519,8 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
         ctx->m_entities = connected;
 
         // Make containers point to the new island and add entities to the delta builder.
+        auto builder = make_island_delta_builder(ctx->m_entity_map);
+
         for (auto entity : connected) {
             auto &container = container_view.get(entity);
             container.entities.insert(island_entity);
@@ -523,9 +529,12 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
                 EDYN_ASSERT(container.entities.size() <= 1);
             }
 
-            ctx->m_delta_builder->created(entity);
-            ctx->m_delta_builder->created_all(entity, *m_registry);
+            builder->created(entity);
+            builder->created_all(entity, *m_registry);
         }
+
+        auto delta = builder->finish();
+        ctx->send<island_delta>(std::move(delta));
     }
 
     split_ctx->terminate();
