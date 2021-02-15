@@ -61,9 +61,6 @@ island_worker::~island_worker() = default;
 void island_worker::init() {
     m_delta_builder->insert_entity_mapping(m_island_entity);
 
-    m_registry.emplace<tree_view>(m_island_entity);
-    m_delta_builder->created<tree_view>(m_island_entity, {});
-
     // Destroy children when parents are destroyed.
     m_registry.on_destroy<island_node_parent>().connect<&island_worker::on_destroy_island_node_parent>(*this);
 
@@ -88,6 +85,16 @@ void island_worker::init() {
     if (g_external_system_init) {
         (*g_external_system_init)(m_registry);
     }
+
+    // Assign tree view containing the updated broad-phase tree.
+    m_bphase.update();
+    auto tview = m_bphase.view();
+    m_registry.emplace<tree_view>(m_island_entity, tview);
+    m_delta_builder->created(m_island_entity, tview);
+
+    // Sync components that were created/updated during initialization
+    // including the updated `tree_view` from above.
+    sync();
 
     m_state = state::step;
 }
