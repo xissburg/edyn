@@ -1,12 +1,7 @@
 #ifndef EDYN_DYNAMICS_WORLD_HPP
 #define EDYN_DYNAMICS_WORLD_HPP
 
-#include <atomic>
-#include <mutex>
-#include <vector>
-#include <unordered_map>
 #include <entt/fwd.hpp>
-
 #include "edyn/math/scalar.hpp"
 #include "edyn/collision/broadphase_main.hpp"
 #include "edyn/parallel/island_coordinator.hpp"

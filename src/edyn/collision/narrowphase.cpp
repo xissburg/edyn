@@ -14,7 +14,6 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
-#include "edyn/parallel/job_dispatcher.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
