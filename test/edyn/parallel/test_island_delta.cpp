@@ -16,7 +16,7 @@ namespace edyn {
     }
 }
 
-TEST(registry_delta_test, test_registry_delta_export_import) {
+TEST(island_delta_test, test_island_delta_export_import) {
     edyn::register_external_components<custom_component>();
     edyn::init();
 
@@ -32,7 +32,7 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
     reg0.emplace<custom_component>(ent2, 3.14, child0);
 
     auto map0 = edyn::entity_map{};
-    auto builder = edyn::make_registry_delta_builder(map0);
+    auto builder = edyn::make_island_delta_builder(map0);
     builder->created(ent0);
     builder->created(ent0, reg0.get<edyn::island_node>(ent0));
     builder->created(ent1);
@@ -44,15 +44,17 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
 
     entt::registry reg1;
     auto map1 = edyn::entity_map{};
-    builder->get_delta().import(reg1, map1);
 
-    auto builder1 = edyn::make_registry_delta_builder(map1);
+    auto delta = builder->finish();
+    delta.import(reg1, map1);
+
+    auto builder1 = edyn::make_island_delta_builder(map1);
 
     // `map1` contains the entity mapping between reg0 and reg1 (corresponding
     // entities are created on import and mappings are added to `map1`).
     // It is necessary to insert these mappings in `builder1` so when the delta
     // is exported and then imported into `reg0`, it can map the entities back.
-    for (auto remote_entity : builder->get_delta().created_entities()) {
+    for (auto remote_entity : delta.created_entities()) {
         auto local_entity = map1.remloc(remote_entity);
         builder1->insert_entity_mapping(local_entity);
     }
@@ -74,7 +76,7 @@ TEST(registry_delta_test, test_registry_delta_export_import) {
     custom.entity = map1.remloc(ent2);
     builder1->updated_all(map1.remloc(ent2), reg1);
     
-    builder1->get_delta().import(reg0, map0);
+    builder1->finish().import(reg0, map0);
 
     ASSERT_TRUE(reg0.get<edyn::island_node>(ent0).entities.count(ent1));
     ASSERT_TRUE(reg0.get<edyn::island_node>(ent0).entities.count(child1));

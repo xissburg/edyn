@@ -42,6 +42,7 @@ using shared_components = std::tuple<
     collision_filter, 
     constraint, 
     constraint_row, 
+    constraint_row_data,
     gravity, 
     inertia, 
     inertia_inv, 

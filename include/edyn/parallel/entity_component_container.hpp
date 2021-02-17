@@ -1,11 +1,10 @@
-#ifndef EDYN_PARALLEL_DELTA_COMPONENT_MAP_HPP
-#define EDYN_PARALLEL_DELTA_COMPONENT_MAP_HPP
+#ifndef EDYN_PARALLEL_ENTITY_COMPONENT_CONTAINER_HPP
+#define EDYN_PARALLEL_ENTITY_COMPONENT_CONTAINER_HPP
 
+#include <vector>
 #include <utility>
-#include <unordered_map>
 #include <entt/fwd.hpp>
-#include "edyn/util/entity_map.hpp"
-#include "edyn/util/entity_set.hpp"
+#include "edyn/parallel/entity_component_map.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/merge/merge_island.hpp"
 #include "edyn/parallel/merge/merge_contact_point.hpp"
@@ -17,24 +16,28 @@
 
 namespace edyn {
 
-class registry_delta;
+class island_delta;
 
-struct component_map_base {
-    virtual ~component_map_base() {}
-    virtual void import(const registry_delta &, entt::registry &, entity_map &) = 0;
+struct entity_component_container_base {
+    virtual ~entity_component_container_base() {}
+    virtual void import(const island_delta &, entt::registry &, entity_map &) = 0;
+    virtual void load(const entity_component_map_base &) = 0;
     virtual bool empty() const = 0;
     virtual void clear() = 0;
 };
 
 template<typename Component>
-struct updated_component_map: public component_map_base {
-    std::unordered_map<entt::entity, Component> pairs;
+struct updated_entity_component_container: public entity_component_container_base {
+    std::vector<std::pair<entt::entity, Component>> pairs;
 
-    void insert(entt::entity entity, const Component &comp) {
-        pairs.insert_or_assign(entity, comp);
+    void load(const entity_component_map_base &comp_map_base) override {
+        const auto &comp_map = static_cast<const entity_component_map<Component> &>(comp_map_base);
+        for (auto &pair : comp_map.map) {
+            pairs.push_back(pair);
+        }
     }
 
-    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) override {
+    void import(const island_delta &delta, entt::registry &registry, entity_map &map) override {
         auto ctx = merge_context{&registry, &map, &delta};
         auto view = registry.view<Component>();
 
@@ -62,14 +65,17 @@ struct updated_component_map: public component_map_base {
 };
 
 template<typename Component>
-struct created_component_map: public component_map_base {
-    std::unordered_map<entt::entity, Component> pairs;
+struct created_entity_component_container: public entity_component_container_base {
+    std::vector<std::pair<entt::entity, Component>> pairs;
 
-    void insert(entt::entity entity, const Component &comp) {
-        pairs.insert_or_assign(entity, comp);
+    void load(const entity_component_map_base &comp_map_base) override {
+        const auto &comp_map = static_cast<const entity_component_map<Component> &>(comp_map_base);
+        for (const auto &pair : comp_map.map) {
+            pairs.push_back(pair);
+        }
     }
 
-    void import(const registry_delta &delta, entt::registry &registry, entity_map &map) override {
+    void import(const island_delta &delta, entt::registry &registry, entity_map &map) override {
         auto ctx = merge_context{&registry, &map, &delta};
 
         for (auto &pair : pairs) {
@@ -98,14 +104,17 @@ struct created_component_map: public component_map_base {
 };
 
 template<typename Component>
-struct destroyed_component_map: public component_map_base {
-    entity_set entities;
+struct destroyed_entity_component_container: public entity_component_container_base {
+    std::vector<entt::entity> entities;
 
-    void insert(entt::entity entity) {
-        entities.insert(entity);
+    void load(const entity_component_map_base &comp_map_base) override {
+        const auto &comp_set = static_cast<const entity_component_set<Component> &>(comp_map_base);
+        for (auto entity : comp_set.set) {
+            entities.push_back(entity);
+        }
     }
 
-    void import(const registry_delta &, entt::registry &registry, entity_map &map) override {
+    void import(const island_delta &, entt::registry &registry, entity_map &map) override {
         for (auto remote_entity : entities) {
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);
@@ -128,4 +137,4 @@ struct destroyed_component_map: public component_map_base {
 
 }
 
-#endif // EDYN_PARALLEL_DELTA_COMPONENT_MAP_HPP
+#endif // EDYN_PARALLEL_ENTITY_COMPONENT_CONTAINER_HPP

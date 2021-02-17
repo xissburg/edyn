@@ -33,12 +33,13 @@ void generic_constraint::prepare(entt::entity, constraint &con, entt::registry &
 
     // Linear.
     for (size_t i = 0; i < 3; ++i) {
-        auto &row = registry.get<constraint_row>(con.row[i]);
+        auto &data = registry.get<constraint_row_data>(con.row[i]);
         auto p = rotate(ornA, I.row[i]);
-        row.J = {p, rA_skew.row[i], -p, -rB_skew.row[i]};
+        data.J = {p, rA_skew.row[i], -p, -rB_skew.row[i]};
+        data.lower_limit = -large_scalar;
+        data.upper_limit = large_scalar;
+        auto &row = registry.get<constraint_row>(con.row[i]);
         row.error = dot(p, d) / dt;
-        row.lower_limit = -large_scalar;
-        row.upper_limit = large_scalar;
     }
 
     // Angular.
@@ -48,11 +49,12 @@ void generic_constraint::prepare(entt::entity, constraint &con, entt::registry &
         auto m = rotate(ornB, I.row[(i+2)%3]);
         auto error = dot(n, m);
 
+        auto &data = registry.get<constraint_row_data>(con.row[i + 3]);
+        data.J = {vector3_zero, axis, vector3_zero, -axis};
+        data.lower_limit = -large_scalar;
+        data.upper_limit = large_scalar;
         auto &row = registry.get<constraint_row>(con.row[i + 3]);
-        row.J = {vector3_zero, axis, vector3_zero, -axis};
         row.error = error / dt;
-        row.lower_limit = -large_scalar;
-        row.upper_limit = large_scalar;
     }
 }
 

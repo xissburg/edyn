@@ -21,7 +21,6 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                          scalar threshold) {
     // Box-Box SAT. Normal of 3 faces of A, normal of 3 faces of B, 3 * 3 edge
     // cross-products. Find axis with greatest projection.
-    std::array<scalar, 3 + 3 + 3 * 3> projections;
 
     auto axesA = std::array<vector3, 3>{
         quaternion_x(ornA),
@@ -35,7 +34,8 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         quaternion_z(ornB)
     };
 
-    size_t axis_idx = 0;
+    auto greatest_proj = -EDYN_SCALAR_MAX;
+    size_t sep_axis_idx;
 
     // A's faces.
     for (size_t i = 0; i < 3; ++i) {
@@ -45,8 +45,12 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         }
 
         auto p = shB.support_point(posB, ornB, dir);
-        auto proj = dot(dir, p - posA);
-        projections[axis_idx++] = -(proj + shA.half_extents[i]);
+        auto proj = -(dot(dir, p - posA) + shA.half_extents[i]);
+
+        if (proj > greatest_proj) {
+            greatest_proj = proj;
+            sep_axis_idx = i;
+        }
     }
 
     // B's faces.
@@ -57,8 +61,12 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         }
 
         auto p = shA.support_point(posA, ornA, dir);
-        auto proj = dot(dir, p - posB);
-        projections[axis_idx++] = -(proj + shB.half_extents[i]);
+        auto proj = -(dot(dir, p - posB) + shB.half_extents[i]);
+
+        if (proj > greatest_proj) {
+            greatest_proj = proj;
+            sep_axis_idx = 3 + i;
+        }
     }
 
     // Edge-edge.
@@ -68,7 +76,6 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             auto dir_len_sqr = length_sqr(dir);
 
             if (dir_len_sqr <= EDYN_EPSILON) {
-                projections[axis_idx++] = -EDYN_SCALAR_MAX;
                 continue;
             }
 
@@ -83,26 +90,21 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
             auto pB = shB.support_point(posB, ornB, dir);
             auto projA = dot(pA - posA, -dir);
             auto projB = dot(pB - posA, dir);
-            projections[axis_idx++] = -(projA + projB);
+            auto proj = -(projA + projB);
+
+            if (proj > greatest_proj) {
+                greatest_proj = proj;
+                sep_axis_idx = 6 + i * 3 + j;
+            }
         }
     }
 
-    auto greatest = -EDYN_SCALAR_MAX;
-    size_t sep_axis_idx;
-
-    for (size_t i = 0; i < projections.size(); ++i) {
-        if (projections[i] > greatest) {
-            greatest = projections[i];
-            sep_axis_idx = i;
-        }
-    }
-
-    if (projections[sep_axis_idx] > threshold) {
+    if (greatest_proj > threshold) {
         return {};
     }
 
     box_box_separating_axis sep_axis;
-    sep_axis.distance = projections[sep_axis_idx];
+    sep_axis.distance = greatest_proj;
 
     // Obtain support features for the chosen separating axis.
     if (sep_axis_idx < 3) {

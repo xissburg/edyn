@@ -5,7 +5,7 @@
 
 namespace edyn {
 
-class registry_delta;
+class island_delta;
 class entity_map;
 
 enum class merge_type : int {
@@ -16,7 +16,7 @@ enum class merge_type : int {
 struct merge_context {
     const entt::registry *registry;
     const entity_map *map;
-    const registry_delta *delta;
+    const island_delta *delta;
 };
 
 template<merge_type, typename Component>

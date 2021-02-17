@@ -3,14 +3,17 @@
 
 #include <memory>
 #include <entt/fwd.hpp>
+#include "edyn/parallel/island_delta.hpp"
 #include "edyn/util/entity_set.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/registry_delta_builder.hpp"
+#include "edyn/parallel/island_delta_builder.hpp"
 
 namespace edyn {
 
 class island_worker;
+struct island_topology;
+
 /**
  * Context of an island worker in the main thread in an island coordinator.
  */
@@ -24,10 +27,16 @@ class island_worker_context {
 public:
     entity_set m_entities;
     entity_map m_entity_map;
-    std::unique_ptr<registry_delta_builder> m_delta_builder;
+    std::unique_ptr<island_delta_builder> m_delta_builder;
 
-    using registry_delta_func_t = void(entt::entity, const registry_delta &);
-    entt::sigh<registry_delta_func_t> m_registry_delta_signal;
+    using island_delta_func_t = void(entt::entity, const island_delta &);
+    entt::sigh<island_delta_func_t> m_island_delta_signal;
+
+    using island_topology_func_t = void(entt::entity, const island_topology &);
+    entt::sigh<island_topology_func_t> m_island_topology_signal;
+
+    bool m_pending_split;
+    double m_split_timestamp;
 
     island_worker_context(entt::entity island_entity,
                 island_worker *worker,
@@ -62,10 +71,16 @@ public:
         m_pending_flush = true;
     }
     
-    void on_registry_delta(const registry_delta &);
+    void on_island_delta(const island_delta &);
 
-    auto registry_delta_sink() {
-        return entt::sink {m_registry_delta_signal};
+    auto island_delta_sink() {
+        return entt::sink {m_island_delta_signal};
+    }
+
+    void on_island_topology(const island_topology &);
+
+    auto island_topology_sink() {
+        return entt::sink {m_island_topology_signal};
     }
 
     /**

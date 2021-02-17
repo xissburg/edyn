@@ -1,13 +1,7 @@
 #ifndef EDYN_DYNAMICS_WORLD_HPP
 #define EDYN_DYNAMICS_WORLD_HPP
 
-#include <atomic>
-#include <mutex>
-#include <vector>
-#include <unordered_map>
 #include <entt/fwd.hpp>
-
-#include "solver.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/collision/broadphase_main.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
@@ -35,7 +29,6 @@ public:
     }
 
     scalar m_fixed_dt {1.0/60};
-    solver m_solver;
 
 private:
     entt::registry* m_registry;

@@ -115,8 +115,8 @@ set(Edyn_SOURCES
     src/edyn/parallel/job_queue_scheduler.cpp
     src/edyn/parallel/island_worker.cpp
     src/edyn/parallel/island_coordinator.cpp
-    src/edyn/parallel/registry_delta.cpp
-    src/edyn/parallel/registry_delta_builder.cpp
+    src/edyn/parallel/island_delta.cpp
+    src/edyn/parallel/island_delta_builder.cpp
     src/edyn/parallel/island_worker_context.cpp
     src/edyn/parallel/external_system.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
@@ -151,8 +151,8 @@ target_compile_features(Edyn PUBLIC cxx_std_17)
 # Sanitize
 #
 
-if(CMAKE_BUILD_TYPE EQUAL "Debug")
-    #add_compile_options(-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    #target_compile_options(Edyn PUBLIC -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
     #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
 endif()
 

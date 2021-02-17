@@ -18,7 +18,7 @@ namespace internal {
         // into which `constraint_row`s will be added.
         if (parent_entity) {
             registry.emplace<island_node_child>(entity, *parent_entity);
-            
+
             auto &node_parent = registry.get<island_node_parent>(*parent_entity);
             node_parent.children.insert(entity);
         } else {
@@ -50,8 +50,6 @@ namespace internal {
         if (parent_entity) {
             constraint_dirty.created<island_node_child>();
             registry.get_or_emplace<dirty>(*parent_entity).updated<island_node_parent>();
-        } else {
-            constraint_dirty.created<island_node>();
         }
     }
 }
@@ -81,10 +79,10 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     auto row_entity = registry.create();
     con.row[con.num_rows()] = row_entity;
 
-    auto &row = registry.emplace<constraint_row>(row_entity);
-    row.entity = con.body;
+    auto &row = registry.emplace<constraint_row>(row_entity, con.body);
     row.priority = priority;
 
+    registry.emplace<constraint_row_data>(row_entity);
     registry.emplace<procedural_tag>(row_entity);
 
     // The constraint row is a child of the constraint.
@@ -100,7 +98,7 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
 
     registry.get_or_emplace<dirty>(row_entity)
         .set_new()
-        .created<island_node_child, island_container, procedural_tag, constraint_row>();
+        .created<island_node_child, island_container, procedural_tag, constraint_row, constraint_row_data>();
 
     return row_entity;
 }
@@ -132,7 +130,11 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 
     registry.get_or_emplace<dirty>(manifold_entity)
         .set_new()
-        .created<procedural_tag, island_node, island_node_parent, island_container, contact_manifold>();
+        .created<procedural_tag, 
+                 island_node, 
+                 island_node_parent, 
+                 island_container, 
+                 contact_manifold>();
 
     limit_dirty_to_island_of_procedural(registry, body0, body1);
 }
@@ -155,13 +157,11 @@ void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool 
     }
 }
 
-scalar get_effective_mass(const constraint_row &row, 
-                          const mass_inv &inv_mA, const inertia_world_inv &inv_IA,
-                          const mass_inv &inv_mB, const inertia_world_inv &inv_IB) {
-    auto J_invM_JT = dot(row.J[0], row.J[0]) * inv_mA +
-                     dot(inv_IA * row.J[1], row.J[1]) +
-                     dot(row.J[2], row.J[2]) * inv_mB +
-                     dot(inv_IB * row.J[3], row.J[3]);
+scalar get_effective_mass(const constraint_row_data &row) {
+    auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
+                     dot(row.inv_IA * row.J[1], row.J[1]) +
+                     dot(row.J[2], row.J[2]) * row.inv_mB +
+                     dot(row.inv_IB * row.J[3], row.J[3]);
     auto eff_mass = scalar(1) / J_invM_JT;
     return eff_mass;
 }

@@ -34,11 +34,12 @@ void point_constraint::prepare(entt::entity, constraint &con, entt::registry &re
     constexpr auto I = matrix3x3_identity;
 
     for (size_t i = 0; i < 3; ++i) {
+        auto &data = registry.get<constraint_row_data>(con.row[i]);
+        data.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
+        data.lower_limit = -EDYN_SCALAR_MAX;
+        data.upper_limit = EDYN_SCALAR_MAX;
         auto &row = registry.get<constraint_row>(con.row[i]);
-        row.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
         row.error = (posA[i] + rA[i] - posB[i] - rB[i]) / dt;
-        row.lower_limit = -EDYN_SCALAR_MAX;
-        row.upper_limit = EDYN_SCALAR_MAX;
     }
 }
 

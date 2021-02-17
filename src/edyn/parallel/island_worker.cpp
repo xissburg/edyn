@@ -1,8 +1,10 @@
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/config/config.h"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/island_topology.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
@@ -33,24 +35,31 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     : m_message_queue(message_queue)
     , m_fixed_dt(fixed_dt)
     , m_paused(false)
+    , m_state(state::init)
     , m_bphase(m_registry)
     , m_nphase(m_registry)
     , m_solver(m_registry)
-    , m_delta_builder(make_registry_delta_builder(m_entity_map))
+    , m_delta_builder(make_island_delta_builder(m_entity_map))
     , m_importing_delta(false)
     , m_topology_changed(false)
+    , m_pending_topology_calculation(false)
+    , m_calculate_topology_delay(1.1)
+    , m_calculate_topology_timestamp(0)
+    , m_number_of_connected_components(1)
 {
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
+
+    m_this_job.func = &island_worker_func;
+    auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
+    auto ctx_intptr = reinterpret_cast<intptr_t>(this);
+    archive(ctx_intptr);
+}
+
+island_worker::~island_worker() = default;
+
+void island_worker::init() {
     m_delta_builder->insert_entity_mapping(m_island_entity);
-
-    m_registry.emplace<tree_view>(m_island_entity);
-    m_delta_builder->created<tree_view>(m_island_entity, {});
-
-    m_message_queue.sink<registry_delta>().connect<&island_worker::on_registry_delta>(*this);
-    m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
-    m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
-    m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
 
     // Destroy children when parents are destroyed.
     m_registry.on_destroy<island_node_parent>().connect<&island_worker::on_destroy_island_node_parent>(*this);
@@ -66,13 +75,28 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     
     m_registry.on_construct<contact_manifold>().connect<&island_worker::on_construct_contact_manifold>(*this);
 
+    m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
+    m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
+    m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
+    m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
+
+    process_messages();
+
     if (g_external_system_init) {
         (*g_external_system_init)(m_registry);
     }
-}
 
-island_worker::~island_worker() {
+    // Assign tree view containing the updated broad-phase tree.
+    m_bphase.update();
+    auto tview = m_bphase.view();
+    m_registry.emplace<tree_view>(m_island_entity, tview);
+    m_delta_builder->created(m_island_entity, tview);
 
+    // Sync components that were created/updated during initialization
+    // including the updated `tree_view` from above.
+    sync();
+
+    m_state = state::step;
 }
 
 void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
@@ -90,7 +114,6 @@ void island_worker::on_construct_contact_manifold(entt::registry &registry, entt
     if (m_importing_delta) {
         m_new_imported_contact_manifolds.push_back(entity);
     }
-    registry.emplace<collision_result>(entity);
 }
 
 void island_worker::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
@@ -134,7 +157,7 @@ void island_worker::on_destroy_island_container(entt::registry &registry, entt::
     m_delta_builder->destroyed(entity);
 }
 
-void island_worker::on_registry_delta(const registry_delta &delta) {
+void island_worker::on_island_delta(const island_delta &delta) {
     // Import components from main registry.
     m_importing_delta = true;
     delta.import(m_registry, m_entity_map);
@@ -150,7 +173,7 @@ void island_worker::on_registry_delta(const registry_delta &delta) {
 void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     if (!m_registry.has<sleeping_tag>(m_island_entity)) return;
 
-    auto builder = make_registry_delta_builder(m_entity_map);
+    auto builder = make_island_delta_builder(m_entity_map);
 
     auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
     isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
@@ -161,7 +184,8 @@ void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     });
     m_registry.clear<sleeping_tag>();
 
-    m_message_queue.send<registry_delta>(std::move(builder->get_delta()));
+    auto delta = builder->finish();
+    m_message_queue.send<island_delta>(std::move(delta));
 }
 
 void island_worker::sync() {
@@ -190,68 +214,178 @@ void island_worker::sync() {
             dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
     });
 
-    m_message_queue.send<registry_delta>(std::move(m_delta_builder->get_delta()));
+    auto delta = m_delta_builder->finish();
+    m_message_queue.send<island_delta>(std::move(delta));
 
-    // Clear delta for the next run.
-    m_delta_builder->clear();
     m_registry.clear<dirty>();
 }
 
 void island_worker::update() {
-    // Process messages.
-    m_message_queue.update();
+    switch (m_state) {
+    case state::init:
+        init();
+        maybe_reschedule();
+        break;
+    case state::step:
+        process_messages();
 
-    if (!m_paused && !m_registry.has<sleeping_tag>(m_island_entity)) {
-        auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
-        auto time = (double)performance_counter() / (double)performance_frequency();
-        auto dt = time - isle_time.value;
-
-        if (dt >= m_fixed_dt) {
-            step();
-
-            constexpr int max_lagging_steps = 10;
-            auto num_steps = int(std::floor(dt / m_fixed_dt));
-
-            if (num_steps > max_lagging_steps) {
-                auto remainder = dt - num_steps * m_fixed_dt;
-                auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
-                isle_time.value = time - (remainder + max_lagging_steps * m_fixed_dt);
-                m_delta_builder->updated<island_timestamp>(m_island_entity, isle_time);
+        if (should_step()) {
+            begin_step();
+            run_solver();
+            if (run_broadphase()) {
+                if (run_narrowphase()) {
+                    finish_step();
+                    maybe_reschedule();
+                }
             }
+        } else {
+            maybe_reschedule();
         }
-    }
 
-    // Reschedule this job only if not paused nor sleeping.
-    auto sleeping = m_registry.has<sleeping_tag>(m_island_entity);
-    auto paused = m_paused;
-
-    // The update is done and this job can be rescheduled after this point. That
-    // means it's safe to call this `update` function in another thread after
-    // the line below.
-    auto reschedule_count = m_reschedule_counter.exchange(0, std::memory_order_acq_rel);
-    EDYN_ASSERT(reschedule_count != 0);
-
-    if (reschedule_count == 1) {
-        if (!paused && !sleeping) {
-            reschedule_later();
+        break;
+    case state::begin_step:
+        begin_step();
+        reschedule_now();
+        break;
+    case state::solve:
+        run_solver();
+        reschedule_now();
+        break;
+    case state::broadphase:
+        if (run_broadphase()) {
+            reschedule_now();
         }
-    } else {
-        reschedule();
+        break;
+    case state::broadphase_async:
+        finish_broadphase();
+        if (run_narrowphase()) {
+            finish_step();
+            maybe_reschedule();
+        }
+        break;
+    case state::narrowphase:
+        if (run_narrowphase()) {
+            finish_step();
+            maybe_reschedule();
+        }
+        break;
+    case state::narrowphase_async:
+        finish_narrowphase();
+        finish_step();
+        maybe_reschedule();
+        break;
+    case state::finish_step:
+        finish_step();
+        maybe_reschedule();
+        break;
     }
 }
 
-void island_worker::step() {
+void island_worker::process_messages() {
+    m_message_queue.update();
+}
+
+bool island_worker::should_step() {
+    auto time = (double)performance_counter() / (double)performance_frequency();
+
+    if (m_state == state::begin_step) {
+        m_step_start_time = time;
+        return true;
+    }
+
+    if (m_paused || m_registry.has<sleeping_tag>(m_island_entity)) {
+        return false;
+    }
+
+    auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
+    auto dt = time - isle_time.value;
+
+    if (dt < m_fixed_dt) {
+        return false;
+    }
+
+    m_step_start_time = time;
+    m_state = state::begin_step;
+
+    return true;
+}
+
+void island_worker::begin_step() {
+    EDYN_ASSERT(m_state == state::begin_step);
     if (g_external_system_pre_step) {
         (*g_external_system_pre_step)(m_registry);
     }
 
     init_new_imported_contact_manifolds();
+
+    m_state = state::solve;
+}
+
+void island_worker::run_solver() {
+    EDYN_ASSERT(m_state == state::solve);
     m_solver.update(m_fixed_dt);
-    m_bphase.update();
-    m_nphase.update();
+    m_state = state::broadphase;
+}
+
+bool island_worker::run_broadphase() {
+    EDYN_ASSERT(m_state == state::broadphase);
+
+    if (m_bphase.parallelizable()) {
+        m_state = state::broadphase_async;
+        m_bphase.update_async(m_this_job);
+        return false;
+    } else {
+        m_bphase.update();
+        m_state = state::narrowphase;
+        return true;
+    }
+}
+
+void island_worker::finish_broadphase() {
+    EDYN_ASSERT(m_state == state::broadphase_async);
+    m_bphase.finish_async_update();
+    m_state = state::narrowphase;
+}
+
+bool island_worker::run_narrowphase() {
+    EDYN_ASSERT(m_state == state::narrowphase);
+
+    if (m_nphase.parallelizable()) {
+        m_state = state::narrowphase_async;
+        m_nphase.update_async(m_this_job);
+        return false;
+    } else {
+        m_nphase.update();
+        m_state = state::finish_step;
+        return true;
+    }
+}
+
+void island_worker::finish_narrowphase() {
+    EDYN_ASSERT(m_state == state::narrowphase_async);
+    m_nphase.finish_async_update();
+    m_state = state::finish_step;
+}
+
+void island_worker::finish_step() {
+    EDYN_ASSERT(m_state == state::finish_step);
 
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
-    isle_time.value += m_fixed_dt;
+    auto dt = m_step_start_time - isle_time.value;
+
+    // Set a limit on the number of steps the worker can lag behind the current
+    // time to prevent it from getting stuck in the past in case of a
+    // substantial slowdown.
+    constexpr int max_lagging_steps = 10;
+    auto num_steps = int(std::floor(dt / m_fixed_dt));
+
+    if (num_steps > max_lagging_steps) {
+        auto remainder = dt - num_steps * m_fixed_dt;
+        isle_time.value = m_step_start_time - (remainder + max_lagging_steps * m_fixed_dt);
+    } else {
+        isle_time.value += m_fixed_dt;
+    }
+
     m_delta_builder->updated<island_timestamp>(m_island_entity, isle_time);
 
     // Update tree view.
@@ -262,9 +396,21 @@ void island_worker::step() {
     maybe_go_to_sleep();
 
     if (m_topology_changed) {
-        validate_island();
-        calculate_topology();
-        m_topology_changed = false;
+        auto time = (double)performance_counter() / (double)performance_frequency();
+
+        if (m_pending_topology_calculation) {
+            if (time - m_calculate_topology_timestamp > m_calculate_topology_delay) {
+                m_pending_topology_calculation = false;
+            #ifdef DEBUG
+                validate_island();
+            #endif
+                calculate_topology();
+                m_topology_changed = false;
+            }            
+        } else {
+            m_pending_topology_calculation = true;
+            m_calculate_topology_timestamp = time;
+        }
     }
 
     if (g_external_system_post_step) {
@@ -272,6 +418,33 @@ void island_worker::step() {
     }
 
     sync();
+
+    m_state = state::step;
+}
+
+void island_worker::reschedule_now() {
+    job_dispatcher::global().async(m_this_job);
+}
+
+void island_worker::maybe_reschedule() {
+    // Reschedule this job only if not paused nor sleeping.
+    auto sleeping = m_registry.has<sleeping_tag>(m_island_entity);
+    auto paused = m_paused;
+
+    // The update is done and this job can be rescheduled after this point
+    auto reschedule_count = m_reschedule_counter.exchange(0, std::memory_order_acq_rel);
+    EDYN_ASSERT(reschedule_count != 0);
+
+    // If the number of reschedule requests is greater than one, it means there
+    // are external requests involved, not just the normal internal reschedule.
+    // Always reschedule for immediate execution in that case
+    if (reschedule_count == 1) {
+        if (!paused && !sleeping) {
+            reschedule_later();
+        }
+    } else {
+        reschedule();
+    }
 }
 
 void island_worker::reschedule_later() {
@@ -279,20 +452,16 @@ void island_worker::reschedule_later() {
     auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
     if (reschedule_count > 0) return;
 
-    auto j = job();
-    j.func = &island_worker_func;
-    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
-    auto ctx_intptr = reinterpret_cast<intptr_t>(this);
-    archive(ctx_intptr);
-
+    // If the timestamp of the current registry state is more that `m_fixed_dt`
+    // before the current time, schedule it to run at a later time.
     auto time = (double)performance_counter() / (double)performance_frequency();
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto delta_time = isle_time.value + m_fixed_dt - time;
 
     if (delta_time > 0) {
-        job_dispatcher::global().async_after(delta_time, j);
+        job_dispatcher::global().async_after(delta_time, m_this_job);
     } else {
-        job_dispatcher::global().async(j);
+        job_dispatcher::global().async(m_this_job);
     }
 }
 
@@ -301,13 +470,7 @@ void island_worker::reschedule() {
     auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
     if (reschedule_count > 0) return;
 
-    auto j = job();
-    j.func = &island_worker_func;
-    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
-    auto ctx_intptr = reinterpret_cast<intptr_t>(this);
-    archive(ctx_intptr);
-
-    job_dispatcher::global().async(j);
+    job_dispatcher::global().async(m_this_job);
 }
 
 void island_worker::init_new_imported_contact_manifolds() {
@@ -388,14 +551,14 @@ void island_worker::calculate_topology() {
 
     while (!node_entities.empty()) {
         entity_set connected;
-        std::vector<entt::entity> to_visit;
+        entity_set to_visit;
 
         auto node_entity = *node_entities.begin();
-        to_visit.push_back(node_entity);
+        to_visit.insert(node_entity);
 
         while (!to_visit.empty()) {
-            auto entity = to_visit.back();
-            to_visit.pop_back();
+            auto entity = *to_visit.begin();
+            to_visit.erase(entity);
 
             // Add to connected component.
             connected.insert(entity);
@@ -415,7 +578,7 @@ void island_worker::calculate_topology() {
                 // because a procedural node cannot affect another through a
                 // non-procedural node.
                 if (is_procedural || (!is_procedural && !m_registry.has<procedural_tag>(other))) {
-                    to_visit.push_back(other);
+                    to_visit.insert(other);
                 }
             }
         }
@@ -423,15 +586,14 @@ void island_worker::calculate_topology() {
         connected_components.push_back(connected);
     }
 
-    if (connected_components.size() == 1) return;
-
-    // There's more than one island in this worker which means the work can now
-    // be split and run in parallel in two or more workers.
-    island_topology topo;
-    for (auto &connected : connected_components) {
-        topo.count.push_back(connected.size());
+    if (connected_components.size() != m_number_of_connected_components) {
+        m_number_of_connected_components = connected_components.size();
+        island_topology topo;
+        for (auto &connected : connected_components) {
+            topo.component_sizes.push_back(connected.size());
+        }
+        m_message_queue.send<island_topology>(topo);
     }
-    m_delta_builder->topology(topo);
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {
@@ -443,7 +605,7 @@ void island_worker::on_set_paused(const msg::set_paused &msg) {
 
 void island_worker::on_step_simulation(const msg::step_simulation &) {
     if (!m_registry.has<sleeping_tag>(m_island_entity)) {
-        step();
+        m_state = state::begin_step;
     }
 }
 

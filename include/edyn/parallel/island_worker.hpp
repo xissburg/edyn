@@ -12,7 +12,7 @@
 #include "edyn/parallel/message.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/registry_delta_builder.hpp"
+#include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/collision/broadphase_worker.hpp"
 
 namespace edyn {
@@ -24,6 +24,30 @@ void island_worker_func(job::data_type &);
  */
 class island_worker final {
 
+    enum class state {
+        init,
+        step,
+        begin_step,
+        solve,
+        broadphase,
+        broadphase_async,
+        narrowphase,
+        narrowphase_async,
+        finish_step
+    };
+
+    void init();
+    void process_messages();
+    bool should_step();
+    void begin_step();
+    void run_solver();
+    bool run_broadphase();
+    void finish_broadphase();
+    bool run_narrowphase();
+    void finish_narrowphase();
+    void finish_step();
+    void reschedule_now();
+    void maybe_reschedule();
     void reschedule_later();
     void calculate_topology();
     void do_terminate();
@@ -32,19 +56,15 @@ class island_worker final {
     void maybe_go_to_sleep();
     bool could_go_to_sleep();
     void go_to_sleep();
+    void sync();
+    void update();
 
 public:
     island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue);
 
     ~island_worker();
 
-    void on_registry_delta(const registry_delta &delta);
-
-    void sync();
-
-    void update();
-
-    void step();
+    void on_island_delta(const island_delta &delta);
 
     void reschedule();
 
@@ -80,21 +100,33 @@ private:
     narrowphase m_nphase;
     solver m_solver;
     message_queue_in_out m_message_queue;
+
     double m_fixed_dt;
+    double m_step_start_time;
     std::optional<double> m_sleep_timestamp;
+
+    state m_state;
+
     bool m_paused;
 
-    std::unique_ptr<registry_delta_builder> m_delta_builder;
+    std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_importing_delta;
     bool m_topology_changed;
+    bool m_pending_topology_calculation;
+    double m_calculate_topology_delay;
+    double m_calculate_topology_timestamp;
+    size_t m_number_of_connected_components;
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;
 
     std::atomic<int> m_reschedule_counter {0};
+
     std::atomic<bool> m_terminating {false};
     std::atomic<bool> m_terminated {false};
     std::mutex m_terminate_mutex;
     std::condition_variable m_terminate_cv;
+
+    job m_this_job;
 };
 
 }

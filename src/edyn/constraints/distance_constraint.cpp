@@ -33,11 +33,12 @@ void distance_constraint::prepare(entt::entity, constraint &con, entt::registry 
         d = vector3_x;
     }
 
+    auto &data = registry.get<constraint_row_data>(con.row[0]);
+    data.J = {d, cross(rA, d), -d, -cross(rB, d)};
+    data.lower_limit = -large_scalar;
+    data.upper_limit =  large_scalar;
     auto &row = registry.get<constraint_row>(con.row[0]);
-    row.J = {d, cross(rA, d), -d, -cross(rB, d)};
     row.error = scalar(0.5) * (l2 - distance * distance) / dt;
-    row.lower_limit = -large_scalar;
-    row.upper_limit =  large_scalar;
 }
 
 }

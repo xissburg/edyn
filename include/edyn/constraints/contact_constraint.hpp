@@ -8,7 +8,7 @@
 
 namespace edyn {
 
-struct constraint_row;
+struct constraint_row_data;
 
 struct contact_constraint : public constraint_base<contact_constraint> {
     scalar stiffness {large_scalar};
@@ -20,8 +20,8 @@ struct contact_constraint : public constraint_base<contact_constraint> {
 
 private:
     scalar m_friction;
-    constraint_row *m_normal_row;
-    constraint_row *m_friction_row;
+    constraint_row_data *m_normal_data;
+    constraint_row_data *m_friction_data;
 };
 
 }

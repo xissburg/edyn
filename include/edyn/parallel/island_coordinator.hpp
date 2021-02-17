@@ -6,12 +6,14 @@
 #include <unordered_map>
 #include <entt/fwd.hpp>
 #include "edyn/math/scalar.hpp"
+#include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
 
 namespace edyn {
 
 class island_worker;
-class registry_delta;
+class island_delta;
+struct island_topology;
 
 /**
  * Manages all simulation islands. Creates and destroys island workers as necessary
@@ -21,14 +23,14 @@ class island_coordinator final {
 
     void init_new_island_nodes();
     void init_new_non_procedural_island_node(entt::entity);
-    entt::entity create_island(double timestamp);
+    entt::entity create_island(double timestamp, bool sleeping);
     entt::entity merge_islands(const entity_set &island_entities,
                                const entity_set &new_entities);
     void split_islands();
     void split_island(entt::entity);
     void wake_up_island(entt::entity);
     void refresh_dirty_entities();
-    bool should_split_island(const island_topology &);
+    bool should_split_island(entt::entity source_island_entity, const island_topology &);
     void sync();
 
     void validate();
@@ -43,7 +45,8 @@ public:
     void on_destroy_island_node(entt::registry &, entt::entity);
     void on_construct_island_container(entt::registry &, entt::entity);
     void on_destroy_island_container(entt::registry &, entt::entity);
-    void on_registry_delta(entt::entity, const registry_delta &);
+    void on_island_delta(entt::entity, const island_delta &);
+    void on_island_topology(entt::entity, const island_topology &);
     
     void on_construct_constraint(entt::registry &, entt::entity);
 
@@ -69,7 +72,7 @@ private:
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;
 
     std::vector<entt::entity> m_new_island_nodes;
-    entity_set m_islands_to_split;
+    double m_island_split_delay {2};
     bool m_importing_delta {false};
     bool m_paused {false};
 };

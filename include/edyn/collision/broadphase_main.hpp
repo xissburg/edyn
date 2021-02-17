@@ -7,7 +7,6 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
-#include "edyn/parallel/result_collector.hpp"
 #include "edyn/util/entity_pair.hpp"
 
 namespace edyn {
@@ -23,8 +22,6 @@ class broadphase_main {
     constexpr static auto m_threshold = contact_breaking_threshold * 4;
     constexpr static auto m_aabb_offset = vector3_one * -m_threshold;
     constexpr static auto m_separation_threshold = m_threshold * 1.3;
-
-    using intersect_result = result_collector<entity_pair, 16>;
 
     entity_pair_vector intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB) const;
     entity_pair_vector intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB) const;
@@ -45,6 +42,7 @@ private:
     dynamic_tree m_island_tree; // Tree for island AABBs.
     dynamic_tree m_np_tree; // Tree for non-procedural entities.
     contact_manifold_map m_manifold_map;
+    std::vector<entity_pair_vector> m_pair_results;
 
     bool should_collide(entt::entity, entt::entity) const;
 };
