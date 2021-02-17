@@ -8,8 +8,6 @@
 namespace edyn {
 
 class solver {
-    void sort_rows();
-
 public:
     solver(entt::registry &);
     ~solver();
