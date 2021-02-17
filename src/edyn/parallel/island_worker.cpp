@@ -4,7 +4,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
-#include "edyn/parallel/island_topology.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
@@ -12,6 +12,7 @@
 #include "edyn/util/island_util.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/parallel/external_system.hpp"
+#include "edyn/parallel/graph.hpp"
 
 namespace edyn {
 
@@ -42,11 +43,13 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_delta_builder(make_island_delta_builder(m_entity_map))
     , m_importing_delta(false)
     , m_topology_changed(false)
-    , m_pending_topology_calculation(false)
-    , m_calculate_topology_delay(1.1)
-    , m_calculate_topology_timestamp(0)
+    , m_pending_split_calculation(false)
+    , m_calculate_split_delay(1.1)
+    , m_calculate_split_timestamp(0)
     , m_number_of_connected_components(1)
 {
+    m_registry.set<graph>();
+
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
 
@@ -398,18 +401,20 @@ void island_worker::finish_step() {
     if (m_topology_changed) {
         auto time = (double)performance_counter() / (double)performance_frequency();
 
-        if (m_pending_topology_calculation) {
-            if (time - m_calculate_topology_timestamp > m_calculate_topology_delay) {
-                m_pending_topology_calculation = false;
-            #ifdef DEBUG
-                validate_island();
-            #endif
-                calculate_topology();
+        if (m_pending_split_calculation) {
+            if (time - m_calculate_split_timestamp > m_calculate_split_delay) {
+                m_pending_split_calculation = false;
+
+                // If the graph has more than one connected component, it means
+                // this island could be split.
+                if (!m_registry.ctx<graph>().is_single_connected_component()) {
+                    m_message_queue.send<msg::split_island>();
+                }
                 m_topology_changed = false;
             }            
         } else {
-            m_pending_topology_calculation = true;
-            m_calculate_topology_timestamp = time;
+            m_pending_split_calculation = true;
+            m_calculate_split_timestamp = time;
         }
     }
 
@@ -541,61 +546,6 @@ void island_worker::go_to_sleep() {
     });
 }
 
-void island_worker::calculate_topology() {
-    auto node_view = m_registry.view<island_node>();
-    if (node_view.empty()) return;
-
-    auto node_entities = entity_set(node_view.begin(), node_view.end());
-
-    std::vector<entity_set> connected_components;
-
-    while (!node_entities.empty()) {
-        entity_set connected;
-        entity_set to_visit;
-
-        auto node_entity = *node_entities.begin();
-        to_visit.insert(node_entity);
-
-        while (!to_visit.empty()) {
-            auto entity = *to_visit.begin();
-            to_visit.erase(entity);
-
-            // Add to connected component.
-            connected.insert(entity);
-
-            // Remove from main set.
-            node_entities.erase(entity);
-
-            // Add related entities to be visited next.
-            auto &curr_node = node_view.get(entity);
-            auto is_procedural = m_registry.has<procedural_tag>(entity);
-
-            for (auto other : curr_node.entities) {
-                auto already_visited = connected.count(other);
-                if (already_visited) continue;
-
-                // Non-procedural nodes should only connect non-procedural nodes
-                // because a procedural node cannot affect another through a
-                // non-procedural node.
-                if (is_procedural || (!is_procedural && !m_registry.has<procedural_tag>(other))) {
-                    to_visit.insert(other);
-                }
-            }
-        }
-
-        connected_components.push_back(connected);
-    }
-
-    if (connected_components.size() != m_number_of_connected_components) {
-        m_number_of_connected_components = connected_components.size();
-        island_topology topo;
-        for (auto &connected : connected_components) {
-            topo.component_sizes.push_back(connected.size());
-        }
-        m_message_queue.send<island_topology>(topo);
-    }
-}
-
 void island_worker::on_set_paused(const msg::set_paused &msg) {
     m_paused = msg.paused;
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
@@ -633,54 +583,6 @@ void island_worker::do_terminate() {
 void island_worker::join() {
     auto lock = std::unique_lock(m_terminate_mutex);
     m_terminate_cv.wait(lock, [&] { return is_terminated(); });
-}
-
-void island_worker::validate_island() {
-    const auto &node_view = m_registry.view<const island_node>();
-
-    // All siblings of a node should point back to itself.
-    for (entt::entity entity : node_view) {
-        auto &node = node_view.get(entity);
-        for (auto other : node.entities) {
-            auto &other_node = node_view.get(other);
-            EDYN_ASSERT(other_node.entities.count(entity));
-        }
-    }
-
-    auto container_view = m_registry.view<const island_container>();
-
-    // All island containers should only contain the local island. Non-procedural
-    // entities can be present in multiple islands but this island is not aware
-    // of the other islands thus these islands are removed from the entity set
-    // during import of the registry delta.
-    for (entt::entity entity : container_view) {
-        auto &container = container_view.get(entity);
-        EDYN_ASSERT(container.entities.size() == 1);
-        EDYN_ASSERT(container.entities.count(m_island_entity));
-    }
-
-    // Parent nodes that are not a child should be an `island_node`.
-    m_registry.view<island_node_parent>(entt::exclude_t<island_node_child>{}).each([&] (entt::entity entity, island_node_parent &) {
-        EDYN_ASSERT(m_registry.has<island_node>(entity));
-    });
-
-    // Parent nodes that are a child should not be an `island_node`.
-    m_registry.view<island_node_parent, island_node_child>().each([&] (entt::entity entity, auto, auto) {
-        EDYN_ASSERT(!m_registry.has<island_node>(entity));
-    });
-
-    // Parent and child nodes should reference each other.
-    m_registry.view<island_node_parent>().each([&] (entt::entity parent_entity, island_node_parent &parent) {
-        for (auto child_entity : parent.children) {
-            auto &child = m_registry.get<island_node_child>(child_entity);
-            EDYN_ASSERT(child.parent == parent_entity);
-        }
-    });
-
-    m_registry.view<island_node_child>().each([&] (entt::entity child_entity, island_node_child &child) {
-        auto &parent = m_registry.get<island_node_parent>(child.parent);
-        EDYN_ASSERT(parent.children.count(child_entity));
-    });
 }
 
 }

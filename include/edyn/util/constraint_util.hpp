@@ -7,7 +7,6 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
-#include "edyn/comp/island.hpp"
 #include "edyn/comp/dirty.hpp"
 
 namespace edyn {
@@ -16,8 +15,7 @@ struct constraint_row_data;
 
 namespace internal {
     void pre_make_constraint(entt::entity entity, entt::registry &registry, 
-                             entt::entity body0, entt::entity body1, 
-                             entt::entity *parent_entity);
+                             entt::entity body0, entt::entity body1, bool is_graph_edge);
 }
 
 /**
@@ -50,10 +48,9 @@ void limit_dirty_to_island_of_procedural(entt::registry &, entt::entity ent0, en
  */
 template<typename T> inline
 void make_constraint(entt::entity entity, entt::registry &registry, T&& con, 
-                     entt::entity body0, entt::entity body1, 
-                     entt::entity *parent_entity = nullptr) {
+                     entt::entity body0, entt::entity body1, bool is_graph_edge = true) {
 
-    internal::pre_make_constraint(entity, registry, body0, body1, parent_entity);
+    internal::pre_make_constraint(entity, registry, body0, body1, is_graph_edge);
     registry.emplace<constraint>(entity, std::array<entt::entity, 2>{body0, body1}, std::forward<T>(con));
 }
 
@@ -61,9 +58,9 @@ void make_constraint(entt::entity entity, entt::registry &registry, T&& con,
 template<typename T> inline
 entt::entity make_constraint(entt::registry &registry, T&& con, 
                              entt::entity ent0, entt::entity ent1, 
-                             entt::entity *parent_entity = nullptr) {
+                             bool is_graph_edge = true) {
     auto ent = registry.create();
-    make_constraint<T>(ent, registry, std::forward<T>(con), ent0, ent1, parent_entity);
+    make_constraint<T>(ent, registry, std::forward<T>(con), ent0, ent1, is_graph_edge);
     return ent;
 }
 

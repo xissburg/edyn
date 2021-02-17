@@ -7,7 +7,6 @@
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
-#include "edyn/comp/island.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collide.hpp"
@@ -65,7 +64,10 @@ void create_contact_constraint(entt::registry &registry, entt::entity manifold_e
     contact.stiffness = stiffness;
     contact.damping = damping;
 
-    make_constraint(contact_entity, registry, std::move(contact), cp.body[0], cp.body[1], &manifold_entity);
+    // Contact constraints are never graph edges since they're effectively
+    // a child of a manifold and the manifold is the graph edge.
+    constexpr auto is_graph_edge = false;
+    make_constraint(contact_entity, registry, std::move(contact), cp.body[0], cp.body[1], is_graph_edge);
 }
 
 template<typename ContactPointViewType> static 

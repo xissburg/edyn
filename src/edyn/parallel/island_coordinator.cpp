@@ -2,7 +2,6 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
-#include "edyn/parallel/island_topology.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/time/time.hpp"
@@ -245,7 +244,7 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     
     // Register to receive delta.
     ctx->island_delta_sink().connect<&island_coordinator::on_island_delta>(*this);
-    ctx->island_topology_sink().connect<&island_coordinator::on_island_topology>(*this);
+    ctx->split_island_sink().connect<&island_coordinator::on_split_island>(*this);
 
     // Send over a delta containing this island entity to the island worker
     // before it even starts.
@@ -394,16 +393,9 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     }
 }
 
-void island_coordinator::on_island_topology(entt::entity source_island_entity, const island_topology &topology) {
-    // TODO: Use a different condition to split islands, e.g. calculate variance
-    // in size of connected components and only split if there isn't much variance.
+void island_coordinator::on_split_island(entt::entity source_island_entity, const msg::split_island &) {
     auto &source_ctx = m_island_ctx_map.at(source_island_entity);
-    if (source_ctx->m_pending_split) {
-        if (topology.component_sizes.size() <= 1) {
-            // Cancel split.
-            source_ctx->m_pending_split = false;
-        }
-    } else if (topology.component_sizes.size() > 1) {
+    if (!source_ctx->m_pending_split) {
         source_ctx->m_split_timestamp = (double)performance_counter() / (double)performance_frequency();
         source_ctx->m_pending_split = true;
     }

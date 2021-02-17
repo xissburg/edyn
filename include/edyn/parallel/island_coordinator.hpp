@@ -8,12 +8,12 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
+#include "edyn/parallel/message.hpp"
 
 namespace edyn {
 
 class island_worker;
 class island_delta;
-struct island_topology;
 
 /**
  * Manages all simulation islands. Creates and destroys island workers as necessary
@@ -30,7 +30,7 @@ class island_coordinator final {
     void split_island(entt::entity);
     void wake_up_island(entt::entity);
     void refresh_dirty_entities();
-    bool should_split_island(entt::entity source_island_entity, const island_topology &);
+    bool should_split_island(entt::entity source_island_entity);
     void sync();
 
     void validate();
@@ -46,7 +46,7 @@ public:
     void on_construct_island_container(entt::registry &, entt::entity);
     void on_destroy_island_container(entt::registry &, entt::entity);
     void on_island_delta(entt::entity, const island_delta &);
-    void on_island_topology(entt::entity, const island_topology &);
+    void on_split_island(entt::entity, const msg::split_island &);
     
     void on_construct_constraint(entt::registry &, entt::entity);
 

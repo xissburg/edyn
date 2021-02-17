@@ -1,7 +1,6 @@
 #include "edyn/parallel/island_worker_context.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
-#include "edyn/parallel/island_topology.hpp"
 
 namespace edyn {
 
@@ -16,7 +15,7 @@ island_worker_context::island_worker_context(entt::entity island_entity,
     , m_pending_split(false)
 {
     m_message_queue.sink<island_delta>().connect<&island_worker_context::on_island_delta>(*this);
-    m_message_queue.sink<island_topology>().connect<&island_worker_context::on_island_topology>(*this);
+    m_message_queue.sink<split_island>().connect<&island_worker_context::on_split_island>(*this);
 }
 
 island_worker_context::~island_worker_context() {
@@ -27,8 +26,8 @@ void island_worker_context::on_island_delta(const island_delta &delta) {
     m_island_delta_signal.publish(m_island_entity, delta);
 }
 
-void island_worker_context::on_island_topology(const island_topology &topo) {
-    m_island_topology_signal.publish(m_island_entity, topo);
+void island_worker_context::on_split_island(const msg::split_island &topo) {
+    m_split_island_signal.publish(m_island_entity, topo);
 }
 
 bool island_worker_context::delta_empty() const {

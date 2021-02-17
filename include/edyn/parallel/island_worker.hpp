@@ -49,9 +49,7 @@ class island_worker final {
     void reschedule_now();
     void maybe_reschedule();
     void reschedule_later();
-    void calculate_topology();
     void do_terminate();
-    void validate_island();
     void init_new_imported_contact_manifolds();
     void maybe_go_to_sleep();
     bool could_go_to_sleep();
@@ -112,9 +110,9 @@ private:
     std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_importing_delta;
     bool m_topology_changed;
-    bool m_pending_topology_calculation;
-    double m_calculate_topology_delay;
-    double m_calculate_topology_timestamp;
+    bool m_pending_split_calculation;
+    double m_calculate_split_delay;
+    double m_calculate_split_timestamp;
     size_t m_number_of_connected_components;
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;

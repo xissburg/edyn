@@ -8,11 +8,11 @@
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/island_delta_builder.hpp"
+#include "edyn/parallel/message.hpp"
 
 namespace edyn {
 
 class island_worker;
-struct island_topology;
 
 /**
  * Context of an island worker in the main thread in an island coordinator.
@@ -32,8 +32,8 @@ public:
     using island_delta_func_t = void(entt::entity, const island_delta &);
     entt::sigh<island_delta_func_t> m_island_delta_signal;
 
-    using island_topology_func_t = void(entt::entity, const island_topology &);
-    entt::sigh<island_topology_func_t> m_island_topology_signal;
+    using split_island_func_t = void(entt::entity, const msg::split_island &);
+    entt::sigh<split_island_func_t> m_split_island_signal;
 
     bool m_pending_split;
     double m_split_timestamp;
@@ -77,10 +77,10 @@ public:
         return entt::sink {m_island_delta_signal};
     }
 
-    void on_island_topology(const island_topology &);
+    void on_split_island(const msg::split_island &);
 
-    auto island_topology_sink() {
-        return entt::sink {m_island_topology_signal};
+    auto split_island_sink() {
+        return entt::sink {m_split_island_signal};
     }
 
     /**
