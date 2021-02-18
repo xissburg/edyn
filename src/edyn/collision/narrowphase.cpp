@@ -130,12 +130,7 @@ void create_contact_point(entt::registry &registry, entt::entity manifold_entity
 static
 void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity, entt::entity contact_entity) {
     registry.destroy(contact_entity);
-
-    auto &node_parent = registry.get<island_node_parent>(manifold_entity);
-    node_parent.children.erase(contact_entity);
-
-    registry.get_or_emplace<dirty>(manifold_entity)
-        .updated<contact_manifold, island_node_parent>();
+    registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold>();
 }
 
 using contact_point_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_point, constraint>; 

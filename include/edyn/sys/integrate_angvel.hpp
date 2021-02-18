@@ -5,7 +5,6 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/util/island_util.hpp"
 
 namespace edyn {
 

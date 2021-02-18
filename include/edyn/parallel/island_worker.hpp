@@ -68,16 +68,9 @@ public:
 
     void on_construct_constraint(entt::registry &, entt::entity);
 
-    void on_construct_contact_manifold(entt::registry &, entt::entity);
-
-    void on_destroy_island_node_parent(entt::registry &, entt::entity);
-    
-    void on_construct_island_node(entt::registry &, entt::entity);
-    void on_update_island_node(entt::registry &, entt::entity);
-    void on_destroy_island_node(entt::registry &, entt::entity);
-
-    void on_construct_island_container(entt::registry &, entt::entity);
-    void on_destroy_island_container(entt::registry &, entt::entity);
+    void on_construct_graph_node_or_edge(entt::registry &, entt::entity);
+    void on_destroy_graph_node(entt::registry &, entt::entity);
+    void on_destroy_graph_edge(entt::registry &, entt::entity);
 
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);

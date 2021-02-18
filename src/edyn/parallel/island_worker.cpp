@@ -8,11 +8,13 @@
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
+#include "edyn/comp/graph_node.hpp"
+#include "edyn/comp/graph_edge.hpp"
 #include "edyn/math/constants.hpp"
-#include "edyn/util/island_util.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/parallel/external_system.hpp"
 #include "edyn/parallel/graph.hpp"
+#include <variant>
 
 namespace edyn {
 
@@ -64,19 +66,10 @@ island_worker::~island_worker() = default;
 void island_worker::init() {
     m_delta_builder->insert_entity_mapping(m_island_entity);
 
-    // Destroy children when parents are destroyed.
-    m_registry.on_destroy<island_node_parent>().connect<&island_worker::on_destroy_island_node_parent>(*this);
-
-    m_registry.on_construct<island_node>().connect<&island_worker::on_construct_island_node>(*this);
-    m_registry.on_update<island_node>().connect<&island_worker::on_update_island_node>(*this);
-    m_registry.on_destroy<island_node>().connect<&island_worker::on_destroy_island_node>(*this);
-
-    m_registry.on_construct<island_container>().connect<&island_worker::on_construct_island_container>(*this);
-    m_registry.on_destroy<island_container>().connect<&island_worker::on_destroy_island_container>(*this);
-
-    m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
-    
-    m_registry.on_construct<contact_manifold>().connect<&island_worker::on_construct_contact_manifold>(*this);
+    m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_graph_node_or_edge>(*this);
+    m_registry.on_construct<graph_edge>().connect<&island_worker::on_construct_graph_node_or_edge>(*this);
+    m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
+    m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
 
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -113,64 +106,80 @@ void island_worker::on_construct_constraint(entt::registry &registry, entt::enti
     }, con.var);
 }
 
-void island_worker::on_construct_contact_manifold(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) {
-        m_new_imported_contact_manifolds.push_back(entity);
-    }
-}
-
-void island_worker::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
+void island_worker::on_construct_graph_node_or_edge(entt::registry &registry, entt::entity entity) {
     if (m_importing_delta) return;
-    edyn::on_destroy_island_node_parent(registry, entity);
-}
 
-void island_worker::on_construct_island_node(entt::registry &registry, entt::entity entity) {
-
-}
-
-void island_worker::on_update_island_node(entt::registry &registry, entt::entity entity) {
-    m_topology_changed = true;
-}
-
-void island_worker::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
-    // Remove from connected nodes.
-    auto &node = registry.get<island_node>(entity);
-
-    for (auto other : node.entities) {
-        auto &other_node = registry.get<island_node>(other);
-        other_node.entities.erase(entity);
-        if (!m_importing_delta) {
-            m_delta_builder->updated<island_node>(other, other_node);
-        }
-    }
-
-    m_topology_changed = true;
-}
-
-void island_worker::on_construct_island_container(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-    
     auto &container = registry.get<island_container>(entity);
     container.entities.insert(m_island_entity);
     m_delta_builder->created<island_container>(entity, container);
 }
 
-void island_worker::on_destroy_island_container(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-    m_delta_builder->destroyed(entity);
+void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
+    auto &node = registry.get<graph_node>(entity);
+    registry.ctx<graph>().remove_node(node.node_index);
+
+    if (!m_importing_delta) {
+        m_delta_builder->destroyed(entity);
+    }
+}
+
+void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
+    auto &edge = registry.get<graph_edge>(entity);
+    registry.ctx<graph>().remove_node(edge.edge_index);
+
+    if (!m_importing_delta) {
+        m_delta_builder->destroyed(entity);
+    }
+
+    m_topology_changed = true;
 }
 
 void island_worker::on_island_delta(const island_delta &delta) {
     // Import components from main registry.
     m_importing_delta = true;
     delta.import(m_registry, m_entity_map);
-    m_importing_delta = false;
 
     for (auto remote_entity : delta.created_entities()) {
         if (!m_entity_map.has_rem(remote_entity)) continue;
         auto local_entity = m_entity_map.remloc(remote_entity);
         m_delta_builder->insert_entity_mapping(local_entity);
     }
+
+    // Insert nodes in the graph for each rigid body.
+    auto &gra = m_registry.ctx<graph>();
+    auto insert_node = [&] (entt::entity entity, auto &) {
+        auto node_index = gra.insert_node(entity);
+        m_registry.emplace<graph_node>(entity, node_index);
+    };
+
+    delta.created_for_each<dynamic_tag>(insert_node);
+    delta.created_for_each<static_tag>(insert_node);
+    delta.created_for_each<kinematic_tag>(insert_node);
+
+    auto node_view = m_registry.view<graph_node>();
+
+    // Insert edges in the graph for contact manifolds.
+    delta.created_for_each<contact_manifold>([&] (entt::entity entity, const contact_manifold &manifold) {
+        auto &node0 = node_view.get(manifold.body[0]);
+        auto &node1 = node_view.get(manifold.body[1]);
+        auto edge_index = gra.insert_edge(entity, node0.node_index, node1.node_index);
+        m_registry.emplace<graph_edge>(entity, edge_index);
+        m_new_imported_contact_manifolds.push_back(entity);
+    });
+
+    // Insert edges in the graph for constraints (except contact constraints).
+    delta.created_for_each<constraint>([&] (entt::entity entity, const constraint &con) {
+        // Contact constraints are not added as edges to the graph.
+        // The contact manifold which owns them is added instead.
+        if (std::holds_alternative<contact_constraint>(con.var)) return;
+
+        auto &node0 = node_view.get(con.body[0]);
+        auto &node1 = node_view.get(con.body[1]);
+        auto edge_index = gra.insert_edge(entity, node0.node_index, node1.node_index);
+        m_registry.emplace<graph_edge>(entity, edge_index);
+    });
+
+    m_importing_delta = false;
 }
 
 void island_worker::on_wake_up_island(const msg::wake_up_island &) {

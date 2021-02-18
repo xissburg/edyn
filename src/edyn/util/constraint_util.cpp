@@ -4,6 +4,7 @@
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/comp/island.hpp"
 
 namespace edyn {
 
@@ -36,17 +37,17 @@ namespace internal {
 void limit_dirty_to_island_of_procedural(entt::registry &registry, entt::entity ent0, entt::entity ent1) {
     if (!registry.has<procedural_tag>(ent0)) {
         EDYN_ASSERT(registry.has<procedural_tag>(ent1));
-        auto &container = registry.get<island_container>(ent1);
-        if (!container.entities.empty()) {
-            registry.get_or_emplace<dirty>(ent0).islands(*container.entities.begin());
+        auto *container = registry.try_get<island_container>(ent1);
+        if (container && !container->entities.empty()) {
+            registry.get_or_emplace<dirty>(ent0).islands(*container->entities.begin());
         }
     }
 
     if (!registry.has<procedural_tag>(ent1)) {
         EDYN_ASSERT(registry.has<procedural_tag>(ent0));
-        auto &container = registry.get<island_container>(ent0);
-        if (!container.entities.empty()) {
-            registry.get_or_emplace<dirty>(ent1).islands(*container.entities.begin());
+        auto *container = registry.try_get<island_container>(ent0);
+        if (container && !container->entities.empty()) {
+            registry.get_or_emplace<dirty>(ent1).islands(*container->entities.begin());
         }
     }
 }

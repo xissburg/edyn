@@ -31,11 +31,6 @@ namespace edyn {
  * island workers.
  */
 using shared_components = std::tuple<
-    island, 
-    island_node, 
-    island_container,
-    island_node_parent,
-    island_node_child,
     island_timestamp,
     AABB, 
     angvel, 

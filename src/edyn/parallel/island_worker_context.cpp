@@ -15,7 +15,7 @@ island_worker_context::island_worker_context(entt::entity island_entity,
     , m_pending_split(false)
 {
     m_message_queue.sink<island_delta>().connect<&island_worker_context::on_island_delta>(*this);
-    m_message_queue.sink<split_island>().connect<&island_worker_context::on_split_island>(*this);
+    m_message_queue.sink<msg::split_island>().connect<&island_worker_context::on_split_island>(*this);
 }
 
 island_worker_context::~island_worker_context() {

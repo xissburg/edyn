@@ -2,7 +2,6 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
-#include "edyn/util/island_util.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/time/time.hpp"
 #include <entt/entt.hpp>
@@ -12,8 +11,6 @@ namespace edyn {
 island_coordinator::island_coordinator(entt::registry &registry)
     : m_registry(&registry)
 {
-    registry.on_destroy<island_node_parent>().connect<&island_coordinator::on_destroy_island_node_parent>(*this);
-
     registry.on_construct<island_node>().connect<&island_coordinator::on_construct_island_node>(*this);
     registry.on_destroy<island_node>().connect<&island_coordinator::on_destroy_island_node>(*this);
 
@@ -28,11 +25,6 @@ island_coordinator::~island_coordinator() {
         auto &ctx = pair.second;
         ctx->terminate();
     }
-}
-
-void island_coordinator::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-    edyn::on_destroy_island_node_parent(registry, entity);
 }
 
 void island_coordinator::on_construct_island_node(entt::registry &registry, entt::entity entity) {

@@ -5,7 +5,6 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/util/island_util.hpp"
 
 namespace edyn {
 

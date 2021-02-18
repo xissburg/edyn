@@ -3,7 +3,6 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/util/island_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/comp/tag.hpp"

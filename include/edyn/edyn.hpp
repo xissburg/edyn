@@ -15,7 +15,6 @@
 #include "util/constraint_util.hpp"
 #include "util/shape_util.hpp"
 #include "util/tuple.hpp"
-#include "util/island_util.hpp"
 #include "util/entity_set.hpp"
 #include "collision/contact_manifold.hpp"
 #include "collision/contact_point.hpp"

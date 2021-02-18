@@ -6,7 +6,6 @@
 #include <entt/fwd.hpp>
 #include "edyn/parallel/entity_component_map.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
-#include "edyn/parallel/merge/merge_island.hpp"
 #include "edyn/parallel/merge/merge_contact_point.hpp"
 #include "edyn/parallel/merge/merge_contact_manifold.hpp"
 #include "edyn/parallel/merge/merge_constraint_row.hpp"
