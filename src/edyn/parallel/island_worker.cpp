@@ -125,7 +125,7 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
 
 void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
     auto &edge = registry.get<graph_edge>(entity);
-    registry.ctx<graph>().remove_node(edge.edge_index);
+    registry.ctx<graph>().remove_edge(edge.edge_index);
 
     if (!m_importing_delta) {
         m_delta_builder->destroyed(entity);
