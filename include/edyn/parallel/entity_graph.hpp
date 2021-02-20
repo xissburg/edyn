@@ -1,5 +1,5 @@
-#ifndef EDYN_PARALLEL_GRAPH_HPP
-#define EDYN_PARALLEL_GRAPH_HPP
+#ifndef EDYN_PARALLEL_ENTITY_GRAPH_HPP
+#define EDYN_PARALLEL_ENTITY_GRAPH_HPP
 
 #include <vector>
 #include <cstdint>
@@ -10,7 +10,7 @@
 
 namespace edyn {
 
-class graph final {
+class entity_graph final {
 public:
     using index_type = size_t;
     constexpr static index_type null_index = std::numeric_limits<index_type>::max();
@@ -75,7 +75,7 @@ private:
 };
 
 template<typename It, typename VisitFunc, typename ShouldFunc, typename ComponentFunc>
-void graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc) const {
+void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc) const {
     index_type min_index = std::numeric_limits<index_type>::max();
     index_type max_index = std::numeric_limits<index_type>::min();
 
@@ -143,4 +143,4 @@ void graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc,
 
 }
 
-#endif // EDYN_PARALLEL_GRAPH_HPP
+#endif // EDYN_PARALLEL_ENTITY_GRAPH_HPP

@@ -20,7 +20,7 @@ namespace internal {
         if (is_graph_edge) {
             auto node_index0 = registry.get<graph_node>(body0).node_index;
             auto node_index1 = registry.get<graph_node>(body1).node_index;
-            auto edge_index = registry.ctx<graph>().insert_edge(entity, node_index0, node_index1);
+            auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
             registry.emplace<graph_edge>(entity, edge_index);
         }
 
@@ -85,7 +85,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 
     auto node_index0 = registry.get<graph_node>(body0).node_index;
     auto node_index1 = registry.get<graph_node>(body1).node_index;
-    auto edge_index = registry.ctx<graph>().insert_edge(manifold_entity, node_index0, node_index1);
+    auto edge_index = registry.ctx<entity_graph>().insert_edge(manifold_entity, node_index0, node_index1);
     registry.emplace<graph_edge>(manifold_entity, edge_index);
 
     registry.get_or_emplace<dirty>(manifold_entity)

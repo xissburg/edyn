@@ -13,7 +13,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/parallel/external_system.hpp"
-#include "edyn/parallel/graph.hpp"
+#include "edyn/parallel/entity_graph.hpp"
 #include <variant>
 
 namespace edyn {
@@ -50,7 +50,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_calculate_split_timestamp(0)
     , m_number_of_connected_components(1)
 {
-    m_registry.set<graph>();
+    m_registry.set<entity_graph>();
 
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
@@ -116,7 +116,7 @@ void island_worker::on_construct_graph_node_or_edge(entt::registry &registry, en
 
 void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
-    registry.ctx<graph>().remove_node(node.node_index);
+    registry.ctx<entity_graph>().remove_node(node.node_index);
 
     if (!m_importing_delta) {
         m_delta_builder->destroyed(entity);
@@ -125,7 +125,7 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
 
 void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
     auto &edge = registry.get<graph_edge>(entity);
-    registry.ctx<graph>().remove_edge(edge.edge_index);
+    registry.ctx<entity_graph>().remove_edge(edge.edge_index);
 
     if (!m_importing_delta) {
         m_delta_builder->destroyed(entity);
@@ -146,7 +146,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
     }
 
     // Insert nodes in the graph for each rigid body.
-    auto &gra = m_registry.ctx<graph>();
+    auto &gra = m_registry.ctx<entity_graph>();
     auto insert_node = [&] (entt::entity entity, auto &) {
         auto node_index = gra.insert_node(entity);
         m_registry.emplace<graph_node>(entity, node_index);
@@ -416,7 +416,7 @@ void island_worker::finish_step() {
 
                 // If the graph has more than one connected component, it means
                 // this island could be split.
-                if (!m_registry.ctx<graph>().is_single_connected_component()) {
+                if (!m_registry.ctx<entity_graph>().is_single_connected_component()) {
                     m_message_queue.send<msg::split_island>();
                 }
                 m_topology_changed = false;

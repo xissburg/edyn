@@ -103,7 +103,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<continuous>(entity).insert<position, orientation, linvel, angvel>();
     }
 
-    auto node_index = registry.ctx<graph>().insert_node(entity);
+    auto node_index = registry.ctx<entity_graph>().insert_node(entity);
     registry.emplace<graph_node>(entity, node_index);
 }
 

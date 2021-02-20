@@ -4,7 +4,9 @@
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/time/time.hpp"
-#include "edyn/parallel/graph.hpp"
+#include "edyn/parallel/entity_graph.hpp"
+#include "edyn/comp/graph_node.hpp"
+#include "edyn/comp/graph_edge.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -35,12 +37,12 @@ void island_coordinator::on_construct_island_node(entt::registry &registry, entt
 
 void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
-    registry.ctx<graph>().remove_node(node.node_index);
+    registry.ctx<entity_graph>().remove_node(node.node_index);
 }
 
 void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
     auto &edge = registry.get<graph_edge>(entity);
-    registry.ctx<graph>().remove_edge(edge.edge_index);
+    registry.ctx<entity_graph>().remove_edge(edge.edge_index);
 }
 
 void island_coordinator::on_destroy_island_container(entt::registry &registry, entt::entity entity) {
@@ -84,17 +86,17 @@ void island_coordinator::init_new_island_nodes() {
     m_new_island_nodes.clear();
     std::vector<entt::entity> connected;
     entity_set island_entities;
-    auto &gra = m_registry->ctx<graph>();
+    auto &graph = m_registry->ctx<entity_graph>();
 
-    gra.reach(
+    graph.reach(
         procedural_node_entities.begin(), 
         procedural_node_entities.end(),
-        [&] (graph::index_type node_index) {
-            auto entity = gra.entity(node_index);
+        [&] (entity_graph::index_type node_index) {
+            auto entity = graph.entity(node_index);
             connected.push_back(entity);
         },
-        [&] (graph::index_type node_index) {
-            auto other_entity = gra.entity(node_index);
+        [&] (entity_graph::index_type node_index) {
+            auto other_entity = graph.entity(node_index);
 
             if (m_registry->has<procedural_tag>(other_entity)) {
                 // Collect islands involved in this connected component.

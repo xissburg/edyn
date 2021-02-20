@@ -1,12 +1,12 @@
 #ifndef EDYN_COMP_GRAPH_EDGE_HPP
 #define EDYN_COMP_GRAPH_EDGE_HPP
 
-#include "edyn/parallel/graph.hpp"
+#include "edyn/parallel/entity_graph.hpp"
 
 namespace edyn {
 
 struct graph_edge {
-    graph::index_type edge_index;
+    entity_graph::index_type edge_index;
 };
 
 }
