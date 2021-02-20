@@ -115,6 +115,7 @@ void island_coordinator::init_new_island_nodes() {
                 // Non-procedural nodes must not be visited because they do
                 // not provide a path to connect other nodes through itself.
                 connected.push_back(other_entity);
+                return false;
             }
         },
         [&] () {
