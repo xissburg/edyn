@@ -74,9 +74,10 @@ size_t find_nearest_contact(const contact_manifold &manifold,
                             const collision_result::collision_point &coll_pt,
                             const ContactPointViewType &cp_view) {
     auto shortest_dist = contact_caching_threshold * contact_caching_threshold;
-    auto nearest_idx = manifold.num_points();
+    auto num_points = manifold.num_points();
+    auto nearest_idx = num_points;
 
-    for (size_t i = 0; i < manifold.num_points(); ++i) {
+    for (size_t i = 0; i < num_points; ++i) {
         auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
         auto dA = length_sqr(coll_pt.pivotA - cp.pivotA);
         auto dB = length_sqr(coll_pt.pivotB - cp.pivotB);
@@ -157,17 +158,18 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
             // Find best insertion index. Try pivotA first.
             std::array<vector3, max_contacts> pivots;
             std::array<scalar, max_contacts> distances;
-            for (size_t i = 0; i < manifold.num_points(); ++i) {
+            auto num_points = manifold.num_points();
+            for (size_t i = 0; i < num_points; ++i) {
                 auto &cp = cp_view.get<contact_point>(manifold.point[i]);
                 pivots[i] = cp.pivotB;
                 distances[i] = cp.distance;
             }
 
-            auto idx = insert_index(pivots, distances, manifold.num_points(), rp.pivotB, rp.distance);
+            auto idx = insert_index(pivots, distances, num_points, rp.pivotB, rp.distance);
 
             // No closest point found for pivotA, try pivotB.
-            if (idx >= manifold.num_points()) {
-                for (size_t i = 0; i < manifold.num_points(); ++i) {
+            if (idx >= num_points) {
+                for (size_t i = 0; i < num_points; ++i) {
                     auto &cp = cp_view.get<contact_point>(manifold.point[i]);
                     pivots[i] = cp.pivotB;
                 }
@@ -189,7 +191,8 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
 
                     // Zero out warm-starting impulses.
                     auto &con = cp_view.get<constraint>(contact_entity);
-                    for (size_t i = 0; i < con.num_rows(); ++i) {
+                    auto num_rows = con.num_rows();
+                    for (size_t i = 0; i < num_rows; ++i) {
                         cr_view.get(con.row[i]).impulse = 0;
                     }
                 }

@@ -5,6 +5,7 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/parallel/entity_graph.hpp"
 
 namespace edyn {
 
@@ -99,17 +100,18 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 
 void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {
     auto& con = registry.get<constraint>(entity);
+    auto num_rows = con.num_rows();
     
     if (enabled) {
         registry.remove<disabled_tag>(entity);
 
-        for (size_t i = 0; i < con.num_rows(); ++i) {
+        for (size_t i = 0; i < num_rows; ++i) {
             registry.remove<disabled_tag>(con.row[i]);
         }
     } else {
         registry.emplace_or_replace<disabled_tag>(entity);
 
-        for (size_t i = 0; i < con.num_rows(); ++i) {
+        for (size_t i = 0; i < num_rows; ++i) {
             registry.emplace_or_replace<disabled_tag>(con.row[i]);
         }
     }
