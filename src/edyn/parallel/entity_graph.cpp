@@ -4,6 +4,8 @@
 namespace edyn {
 
 entity_graph::index_type entity_graph::insert_node(entt::entity entity) {
+    EDYN_ASSERT(entity != entt::null);
+
     if (m_nodes_free_list == null_index) {
         m_nodes_free_list = m_nodes.size();
         m_nodes.resize(m_nodes.size() + 16);
@@ -41,6 +43,7 @@ entt::entity entity_graph::node_entity(index_type node_index) const {
 }
 
 entity_graph::index_type entity_graph::insert_edge(entt::entity entity, index_type node_index0, index_type node_index1) {
+    EDYN_ASSERT(entity != entt::null);
     EDYN_ASSERT(node_index0 < m_nodes.size() && node_index1 < m_nodes.size());
     EDYN_ASSERT(m_nodes[node_index0].entity != entt::null);
     EDYN_ASSERT(m_nodes[node_index1].entity != entt::null);

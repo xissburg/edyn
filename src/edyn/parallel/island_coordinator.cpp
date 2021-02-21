@@ -1,5 +1,7 @@
 #include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/comp/dirty.hpp"
@@ -14,8 +16,10 @@ namespace edyn {
 island_coordinator::island_coordinator(entt::registry &registry)
     : m_registry(&registry)
 {
-    registry.on_construct<island_node>().connect<&island_coordinator::on_construct_island_node>(*this);
-    registry.on_destroy<island_node>().connect<&island_coordinator::on_destroy_island_node>(*this);
+    registry.on_construct<graph_node>().connect<&island_coordinator::on_construct_graph_node>(*this);
+    registry.on_destroy<graph_node>().connect<&island_coordinator::on_destroy_graph_node>(*this);
+    registry.on_construct<graph_edge>().connect<&island_coordinator::on_construct_graph_edge>(*this);
+    registry.on_destroy<graph_edge>().connect<&island_coordinator::on_destroy_graph_edge>(*this);
 
     registry.on_destroy<island_container>().connect<&island_coordinator::on_destroy_island_container>(*this);
 
@@ -29,10 +33,16 @@ island_coordinator::~island_coordinator() {
     }
 }
 
-void island_coordinator::on_construct_island_node(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
+void island_coordinator::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
+    if (!m_importing_delta) {
+        m_new_graph_nodes.push_back(entity);
+    }
+}
 
-    m_new_island_nodes.push_back(entity);
+void island_coordinator::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
+    if (!m_importing_delta) {
+        m_new_graph_edges.push_back(entity);
+    }
 }
 
 void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -71,11 +81,11 @@ void island_coordinator::on_construct_constraint(entt::registry &registry, entt:
 }
 
 void island_coordinator::init_new_island_nodes() {
-    if (m_new_island_nodes.empty()) return;
+    if (m_new_graph_nodes.empty()) return;
 
     std::vector<entt::entity> procedural_node_entities;
 
-    for (auto entity : m_new_island_nodes) {
+    for (auto entity : m_new_graph_nodes) {
         if (m_registry->has<procedural_tag>(entity)) {
             procedural_node_entities.push_back(entity);
         } else {
@@ -83,20 +93,25 @@ void island_coordinator::init_new_island_nodes() {
         }
     }
 
-    m_new_island_nodes.clear();
-    std::vector<entt::entity> connected;
+    m_new_graph_nodes.clear();
+    std::vector<entt::entity> connected_nodes;
+    std::vector<entt::entity> connected_edges;
     entity_set island_entities;
     auto &graph = m_registry->ctx<entity_graph>();
 
     graph.reach(
         procedural_node_entities.begin(), 
         procedural_node_entities.end(),
-        [&] (entity_graph::index_type node_index) {
-            auto entity = graph.entity(node_index);
-            connected.push_back(entity);
+        [&] (entity_graph::index_type node_index, entity_graph::index_type adj_index) { // visitFunc
+            auto entity = graph.node_entity(node_index);
+            connected_nodes.push_back(entity);
+
+            graph.visit_edges(adj_index, [&connected_edges] (entt::entity edge_entity) {
+                connected_edges.push_back(edge_entity);
+            });
         },
-        [&] (entity_graph::index_type node_index) {
-            auto other_entity = graph.entity(node_index);
+        [&] (entity_graph::index_type node_index) { // shouldVisitFunc
+            auto other_entity = graph.node_entity(node_index);
 
             if (m_registry->has<procedural_tag>(other_entity)) {
                 // Collect islands involved in this connected component.
@@ -107,8 +122,8 @@ void island_coordinator::init_new_island_nodes() {
                     auto island_entity = *other_container.entities.begin();
                     island_entities.insert(island_entity);
                     // This entity must not be visited because it is already in an
-                    // island and thus would be added again, plus it prevents 
-                    // visiting the entire island which could be quite a ride.
+                    // island. This prevents visiting the entire island which 
+                    // would be wasteful.
                     return false;
                 } else {
                     return true;
@@ -116,159 +131,40 @@ void island_coordinator::init_new_island_nodes() {
             } else {
                 // Non-procedural nodes must not be visited because they do
                 // not provide a path to connect other nodes through itself.
-                connected.push_back(other_entity);
+                connected_nodes.push_back(other_entity);
                 return false;
             }
         },
-        [&] () {
+        [&] () { // connectedComponentFunc
             if (island_entities.empty()) {
                 const auto timestamp = (double)performance_counter() / (double)performance_frequency();
                 auto island_entity = create_island(timestamp, false);
-
-                auto &ctx = m_island_ctx_map.at(island_entity);
-                ctx->m_entities = connected;
-                auto builder = make_island_delta_builder(ctx->m_entity_map);
-
-                for (auto entity : connected) {
-                    // Assign island to containers.
-                    auto &container = m_registry->get<island_container>(entity);
-                    container.entities.insert(island_entity);
-                    // Add new entities to the delta builder.
-                    builder->created(entity);
-                    builder->created_all(entity, *m_registry);
-                }
-
-                auto delta = builder->finish();
-                ctx->send<island_delta>(std::move(delta));
+                insert_to_island(island_entity, connected_nodes, connected_edges);
             } else if (island_entities.size() == 1) {
                 auto island_entity = *island_entities.begin();
-                
-                auto &ctx = m_island_ctx_map.at(island_entity);
-                ctx->m_entities.insert(connected.begin(), connected.end());
-
-                for (auto entity : connected) {
-                    // Assign island to containers.
-                    auto &container = m_registry->get<island_container>(entity);
-                    if (!container.entities.count(island_entity)) {
-                        container.entities.insert(island_entity);
-                        // Add new entities to the delta builder.
-                        ctx->m_delta_builder->created(entity);
-                        ctx->m_delta_builder->created_all(entity, *m_registry);
-                    } else {
-                        ctx->m_delta_builder->updated_all(entity, *m_registry);
-                    }
-                }
+                insert_to_island(island_entity, connected_nodes, connected_edges);
             } else {
-                merge_islands(island_entities, connected);
+                merge_islands(island_entities, connected_nodes, connected_edges);
             }
 
-            connected.clear();
+            connected_nodes.clear();
+            connected_edges.clear();
             island_entities.clear();
         });
-    /*
-    while (!procedural_node_entities.empty()) {
-        // Find connected components to build new islands for procedural entities.
-        entity_set island_entities;
-        entity_set connected;
-        std::vector<entt::entity> to_visit;
-
-        auto node_entity = *procedural_node_entities.begin();
-        to_visit.push_back(node_entity);
-
-        while (!to_visit.empty()) {
-            auto curr_entity = to_visit.back();
-            to_visit.pop_back();
-
-            // Add to connected component.
-            connected.insert(curr_entity);
-
-            // Remove from main set.
-            procedural_node_entities.erase(curr_entity);
-
-            // Add related entities to be visited next.
-            auto &curr_node = m_registry->get<island_node>(curr_entity);
-
-            for (auto other_entity : curr_node.entities) {
-                auto already_visited = connected.count(other_entity);
-                if (already_visited) continue;
-
-                if (m_registry->has<procedural_tag>(other_entity)) {
-                    // Collect islands involved in this connected component.
-                    auto &other_container = m_registry->get<island_container>(other_entity);
-                    if (!other_container.entities.empty()) {
-                        // Procedural entity must be in only one island.
-                        EDYN_ASSERT(other_container.entities.size() == 1);
-                        auto island_entity = *other_container.entities.begin();
-                        island_entities.insert(island_entity);
-                        // This entity must not be visited because it is already in an
-                        // island and thus would be added again, plus it prevents 
-                        // visiting the entire island which could be quite a ride.
-                    } else {
-                        to_visit.push_back(other_entity);
-                    }
-                } else {
-                    // Non-procedural nodes must not be visited because they do
-                    // not provide a path to connect other nodes through itself.
-                    connected.insert(other_entity);
-                }
-            }
-        }
-
-        if (island_entities.empty()) {
-            const auto timestamp = (double)performance_counter() / (double)performance_frequency();
-            auto island_entity = create_island(timestamp, false);
-
-            auto &ctx = m_island_ctx_map.at(island_entity);
-            ctx->m_entities = connected;
-            auto builder = make_island_delta_builder(ctx->m_entity_map);
-
-            for (auto entity : connected) {
-                // Assign island to containers.
-                auto &container = m_registry->get<island_container>(entity);
-                container.entities.insert(island_entity);
-                // Add new entities to the delta builder.
-                builder->created(entity);
-                builder->created_all(entity, *m_registry);
-            }
-
-            auto delta = builder->finish();
-            ctx->send<island_delta>(std::move(delta));
-        } else if (island_entities.size() == 1) {
-            auto island_entity = *island_entities.begin();
-            
-            auto &ctx = m_island_ctx_map.at(island_entity);
-            ctx->m_entities.insert(connected.begin(), connected.end());
-
-            for (auto entity : connected) {
-                // Assign island to containers.
-                auto &container = m_registry->get<island_container>(entity);
-                if (!container.entities.count(island_entity)) {
-                    container.entities.insert(island_entity);
-                    // Add new entities to the delta builder.
-                    ctx->m_delta_builder->created(entity);
-                    ctx->m_delta_builder->created_all(entity, *m_registry);
-                } else {
-                    ctx->m_delta_builder->updated_all(entity, *m_registry);
-                }
-            }
-        } else {
-            merge_islands(island_entities, connected);
-        }
-    }*/
 }
 
 void island_coordinator::init_new_non_procedural_island_node(entt::entity node_entity) {
-    auto &node = m_registry->get<island_node>(node_entity);
+    auto &node = m_registry->get<graph_node>(node_entity);
     auto &container = m_registry->get<island_container>(node_entity);
 
     EDYN_ASSERT(!(m_registry->has<procedural_tag>(node_entity)));
 
-    // Add new non-procedural entity to islands of related procedural entities.
-    for (auto other : node.entities) {
-        if (!m_registry->has<procedural_tag>(other)) continue;
+    // Add new non-procedural entity to islands of neighboring procedural entities.
+    m_registry->ctx<entity_graph>().visit_neighbors(node.node_index, [&] (entt::entity other) {
+        if (!m_registry->has<procedural_tag>(other)) return;
 
         auto &other_container = m_registry->get<island_container>(other);
-        if (other_container.entities.empty()) continue;
+        if (other_container.entities.empty()) return;
 
         auto island_entity = *other_container.entities.begin();
         auto &ctx = m_island_ctx_map.at(island_entity);
@@ -279,7 +175,7 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
             ctx->m_delta_builder->created(node_entity);
             ctx->m_delta_builder->created_all(node_entity, *m_registry);
         }
-    }
+    });
 }
 
 entt::entity island_coordinator::create_island(double timestamp, bool sleeping) {
@@ -326,8 +222,73 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     return entity;
 }
 
+void island_coordinator::insert_to_island(entt::entity island_entity, 
+                                          const std::vector<entt::entity> &nodes,
+                                          const std::vector<entt::entity> &edges) {
+
+    auto &ctx = m_island_ctx_map.at(island_entity);
+    ctx->m_entities.insert(nodes.begin(), nodes.end());
+    ctx->m_entities.insert(edges.begin(), edges.end());
+    
+    auto builder = make_island_delta_builder(ctx->m_entity_map);
+
+    for (auto entity : nodes) {
+        // Assign island to containers.
+        auto &container = m_registry->get<island_container>(entity);
+
+        // Non-procedural entity might already be in this island.
+        if (container.entities.count(island_entity)) {
+            builder->updated_all(entity, *m_registry);
+        } else {
+            container.entities.insert(island_entity);
+            // Add new entities to the delta builder.
+            builder->created(entity);
+            builder->created_all(entity, *m_registry);
+        }
+    }
+
+    for (auto entity : edges) {
+        // Assign island to containers.
+        auto &container = m_registry->get<island_container>(entity);
+        container.entities.insert(island_entity);
+        // Add new entities to the delta builder.
+        builder->created(entity);
+        builder->created_all(entity, *m_registry);
+
+        // Add child entities.
+        if (auto *manifold = m_registry->try_get<contact_manifold>(entity); manifold) {
+            auto num_points = manifold->num_points();
+            for (size_t i = 0; i < num_points; ++i) {
+                auto point_entity = manifold->point[i];
+                builder->created(point_entity);
+                builder->created_all(point_entity, *m_registry);
+
+                auto &con = m_registry->get<constraint>(point_entity);
+                auto num_rows = con.num_rows();
+                for (size_t j = 0; j < num_rows; ++j) {
+                    auto row_entity = con.row[j];
+                    builder->created(row_entity);
+                    builder->created_all(row_entity, *m_registry);
+                }
+            }
+        } else {
+            auto &con = m_registry->get<constraint>(entity);
+            auto num_rows = con.num_rows();
+            for (size_t i = 0; i < num_rows; ++i) {
+                auto row_entity = con.row[i];
+                builder->created(row_entity);
+                builder->created_all(row_entity, *m_registry);
+            }
+        }
+    }
+
+    auto delta = builder->finish();
+    ctx->send<island_delta>(std::move(delta));
+}
+
 entt::entity island_coordinator::merge_islands(const entity_set &island_entities,
-                                               const entity_set &new_entities) {
+                                               const std::vector<entt::entity> &new_nodes,
+                                               const std::vector<entt::entity> &new_edges) {
     EDYN_ASSERT(island_entities.size() > 1);
 
     // Pick biggest island and move the other entities into it.
@@ -336,7 +297,7 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
 
     for (auto entity : island_entities) {
         auto &ctx = m_island_ctx_map.at(entity);
-        
+
         if (ctx->m_entities.size() > biggest_size) {
             biggest_size = ctx->m_entities.size();
             island_entity = entity;
@@ -346,45 +307,32 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
     auto other_island_entities = island_entities;
     other_island_entities.erase(island_entity);
 
-    auto all_entities = new_entities;
+    auto all_nodes = new_nodes;
+    auto all_edges = new_edges;
 
     for (auto other_island_entity : other_island_entities) {
         auto &ctx = m_island_ctx_map.at(other_island_entity);
-        all_entities.insert(ctx->m_entities.begin(), ctx->m_entities.end());
+
+        for (auto entity : ctx->m_entities) {
+            if (m_registry->has<graph_node>(entity)) {
+                all_nodes.push_back(entity);
+            } else {
+                EDYN_ASSERT(m_registry->has<graph_edge>(entity));
+                all_edges.push_back(entity);
+            }
+        }
     }
 
-    auto &ctx = m_island_ctx_map.at(island_entity);
-    auto &builder = ctx->m_delta_builder;
-
-    for (auto entity : all_entities) {
-        // Point container to its new island.
-        auto &container = m_registry->get<island_container>(entity);
-
-        for (auto other_island_entity : other_island_entities) {
-            container.entities.erase(other_island_entity);
-        }
-
-        container.entities.insert(island_entity);
-
-        if (m_registry->has<procedural_tag>(entity)) {
-            EDYN_ASSERT(container.entities.size() <= 1);
-        }
-
-        // Entity might be coming from a sleeping island. Remove `sleeping_tag`s
-        // since the island is supposed to be awake after a merge.
+    // Entity might be coming from a sleeping island. Remove `sleeping_tag`s
+    // since the island is supposed to be awake after a merge.
+    for (auto entity : all_nodes) {
         m_registry->remove_if_exists<sleeping_tag>(entity);
-
-        if (!ctx->m_entities.count(entity)) {
-            // Include all components in delta because this is a new entity
-            // in the selected island.
-            builder->created(entity);
-            builder->created_all(entity, *m_registry);
-        } else {
-            builder->updated_all(entity, *m_registry);
-        }
+    }
+    for (auto entity : all_edges) {
+        m_registry->remove_if_exists<sleeping_tag>(entity);
     }
 
-    ctx->m_entities.insert(all_entities.begin(), all_entities.end());
+    insert_to_island(island_entity, all_nodes, all_edges);
 
     // Destroy empty islands.
     for (auto other_island_entity : other_island_entities) {
@@ -440,7 +388,6 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     m_importing_delta = true;
     auto &source_ctx = m_island_ctx_map.at(source_island_entity);
     delta.import(*m_registry, source_ctx->m_entity_map);
-    m_importing_delta = false;
 
     // Insert entity mappings for new entities into the current delta.
     for (auto remote_entity : delta.created_entities()) {
@@ -448,6 +395,48 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
         source_ctx->m_delta_builder->insert_entity_mapping(local_entity);
     }
+
+    // Assign `island_container` to entities created in the island worker and
+    // associate them with the source island entity.
+    for (auto entity : delta.created_entities()) {
+        auto &container = m_registry->emplace<island_container>(entity);
+        container.entities.insert(source_island_entity);
+    }
+
+    // Insert nodes in the graph for each rigid body.
+    auto &graph = m_registry->ctx<entity_graph>();
+    auto insert_node = [&] (entt::entity entity, auto &) {
+        auto node_index = graph.insert_node(entity);
+        m_registry->emplace<graph_node>(entity, node_index);
+    };
+
+    delta.created_for_each<dynamic_tag>(insert_node);
+    delta.created_for_each<static_tag>(insert_node);
+    delta.created_for_each<kinematic_tag>(insert_node);
+
+    auto node_view = m_registry->view<graph_node>();
+
+    // Insert edges in the graph for contact manifolds.
+    delta.created_for_each<contact_manifold>([&] (entt::entity entity, const contact_manifold &manifold) {
+        auto &node0 = node_view.get(manifold.body[0]);
+        auto &node1 = node_view.get(manifold.body[1]);
+        auto edge_index = graph.insert_edge(entity, node0.node_index, node1.node_index);
+        m_registry->emplace<graph_edge>(entity, edge_index);
+    });
+
+    // Insert edges in the graph for constraints (except contact constraints).
+    delta.created_for_each<constraint>([&] (entt::entity entity, const constraint &con) {
+        // Contact constraints are not added as edges to the graph.
+        // The contact manifold which owns them is added instead.
+        if (std::holds_alternative<contact_constraint>(con.var)) return;
+
+        auto &node0 = node_view.get(con.body[0]);
+        auto &node1 = node_view.get(con.body[1]);
+        auto edge_index = graph.insert_edge(entity, node0.node_index, node1.node_index);
+        m_registry->emplace<graph_edge>(entity, edge_index);
+    });
+
+    m_importing_delta = false;
 }
 
 void island_coordinator::on_split_island(entt::entity source_island_entity, const msg::split_island &) {

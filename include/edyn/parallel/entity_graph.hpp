@@ -56,6 +56,12 @@ public:
 
     bool is_single_connected_component() const;
 
+    template<typename Func>
+    void visit_neighbors(index_type node_index, Func func) const;
+
+    template<typename Func>
+    void visit_edges(index_type adj_index, Func func) const;
+
     template<typename It, typename VisitFunc, typename ShouldFunc, typename ComponentFunc>
     void reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc) const;
 
@@ -73,6 +79,38 @@ private:
     size_t m_edges_free_list;
     size_t m_adjacencies_free_list;
 };
+
+template<typename Func>
+void entity_graph::visit_neighbors(index_type node_index, Func func) const {
+    EDYN_ASSERT(node_index < m_nodes.size());
+    EDYN_ASSERT(m_nodes[node_index].entity != entt::null);
+
+    auto adj_index = m_nodes[node_index].adjacency_index;
+
+    while (adj_index != null_index) {
+        auto &adj = m_adjacencies[adj_index];
+        auto &neighbor = m_nodes[adj.node_index];
+        EDYN_ASSERT(neighbor.entity != entt::null);
+        func(neighbor.entity);
+        adj_index = adj.next;
+    }
+}
+
+template<typename Func>
+void entity_graph::visit_edges(index_type adj_index, Func func) const {
+    EDYN_ASSERT(adj_index < m_adjacencies.size());
+    EDYN_ASSERT(m_adjacencies[adj_index].node_index != null_index);
+    EDYN_ASSERT(m_adjacencies[adj_index].edge_index != null_index);
+
+    auto edge_index = m_adjacencies[adj_index].edge_index;
+
+    while (edge_index != null_index) {
+        auto &edge = m_edges[edge_index];
+        EDYN_ASSERT(edge.entity != entt::null);
+        func(edge.entity);
+        edge_index = edge.next;
+    }
+}
 
 template<typename It, typename VisitFunc, typename ShouldFunc, typename ComponentFunc>
 void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc) const {
@@ -93,31 +131,31 @@ void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shou
 
     auto dist = max_index - min_index + 1;
     std::vector<bool> visited(dist, false);
+    // Pairs of node index and adjacency index.
     std::vector<std::pair<index_type, index_type>> to_visit;
     to_visit.emplace_back(*first, null_index);
 
     while (true) {
         // Visit nodes reachable from the initial node inserted into `to_visit`.
         while (!to_visit.empty()) {
-            auto [node_index, edge_index] = to_visit.back();
+            auto [node_index, adj_index] = to_visit.back();
             to_visit.pop_back();
 
             visited[node_index - min_index] = true;
 
-            visitFunc(node_index, edge_index);
+            visitFunc(node_index, adj_index);
 
-            auto adj = m_nodes[node_index].adjacency_index;
+            adj_index = m_nodes[node_index].adjacency_index;
 
-            while (adj != null_index) {
-                auto neighbor_index = m_adjacencies[adj].node_index;
-                adj = m_adjacencies[adj].next;
+            while (adj_index != null_index) {
+                auto neighbor_index = m_adjacencies[adj_index].node_index;
+                adj_index = m_adjacencies[adj_index].next;
 
                 if (shouldFunc(neighbor_index) &&
                     neighbor_index >= min_index && 
                     neighbor_index <= max_index && 
                     !visited[neighbor_index - min_index]) {
-                    auto edge_index =  m_adjacencies[adj].edge_index;
-                    to_visit.emplace_back(neighbor_index, edge_index);
+                    to_visit.emplace_back(neighbor_index, adj_index);
                 }
             }
         }
