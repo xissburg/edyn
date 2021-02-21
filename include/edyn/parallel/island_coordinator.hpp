@@ -21,8 +21,9 @@ class island_delta;
  */
 class island_coordinator final {
 
-    void init_new_island_nodes();
-    void init_new_non_procedural_island_node(entt::entity);
+    void init_new_nodes();
+    void init_new_edges();
+    void init_new_non_procedural_node(entt::entity);
     entt::entity create_island(double timestamp, bool sleeping);
     void insert_to_island(entt::entity island_entity, 
                           const std::vector<entt::entity> &nodes,

@@ -147,8 +147,9 @@ void island_worker::on_island_delta(const island_delta &delta) {
     // Insert nodes in the graph for each rigid body.
     auto &gra = m_registry.ctx<entity_graph>();
     auto insert_node = [&] (entt::entity entity, auto &) {
-        auto node_index = gra.insert_node(entity);
-        m_registry.emplace<graph_node>(entity, node_index);
+        auto local_entity = m_entity_map.remloc(entity);
+        auto node_index = gra.insert_node(local_entity);
+        m_registry.emplace<graph_node>(local_entity, node_index);
     };
 
     delta.created_for_each<dynamic_tag>(insert_node);
@@ -159,11 +160,12 @@ void island_worker::on_island_delta(const island_delta &delta) {
 
     // Insert edges in the graph for contact manifolds.
     delta.created_for_each<contact_manifold>([&] (entt::entity entity, const contact_manifold &manifold) {
+        auto local_entity = m_entity_map.remloc(entity);
         auto &node0 = node_view.get(manifold.body[0]);
         auto &node1 = node_view.get(manifold.body[1]);
-        auto edge_index = gra.insert_edge(entity, node0.node_index, node1.node_index);
-        m_registry.emplace<graph_edge>(entity, edge_index);
-        m_new_imported_contact_manifolds.push_back(entity);
+        auto edge_index = gra.insert_edge(local_entity, node0.node_index, node1.node_index);
+        m_registry.emplace<graph_edge>(local_entity, edge_index);
+        m_new_imported_contact_manifolds.push_back(local_entity);
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
@@ -172,10 +174,11 @@ void island_worker::on_island_delta(const island_delta &delta) {
         // The contact manifold which owns them is added instead.
         if (std::holds_alternative<contact_constraint>(con.var)) return;
 
+        auto local_entity = m_entity_map.remloc(entity);
         auto &node0 = node_view.get(con.body[0]);
         auto &node1 = node_view.get(con.body[1]);
-        auto edge_index = gra.insert_edge(entity, node0.node_index, node1.node_index);
-        m_registry.emplace<graph_edge>(entity, edge_index);
+        auto edge_index = gra.insert_edge(local_entity, node0.node_index, node1.node_index);
+        m_registry.emplace<graph_edge>(local_entity, edge_index);
     });
 
     m_importing_delta = false;

@@ -1,4 +1,5 @@
 #include <entt/entt.hpp>
+#include "edyn/comp/island.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -16,6 +17,7 @@
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/comp/island.hpp"
 
 namespace edyn {
 
@@ -105,6 +107,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     auto node_index = registry.ctx<entity_graph>().insert_node(entity);
     registry.emplace<graph_node>(entity, node_index);
+    registry.emplace<island_container>(entity);
 }
 
 entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) {

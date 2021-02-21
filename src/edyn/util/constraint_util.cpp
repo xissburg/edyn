@@ -23,6 +23,7 @@ namespace internal {
             auto node_index1 = registry.get<graph_node>(body1).node_index;
             auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
             registry.emplace<graph_edge>(entity, edge_index);
+            registry.emplace<island_container>(entity);
         }
 
         auto &constraint_dirty = registry.get_or_emplace<dirty>(entity)
@@ -88,6 +89,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     auto node_index1 = registry.get<graph_node>(body1).node_index;
     auto edge_index = registry.ctx<entity_graph>().insert_edge(manifold_entity, node_index0, node_index1);
     registry.emplace<graph_edge>(manifold_entity, edge_index);
+    registry.emplace<island_container>(manifold_entity);
 
     registry.get_or_emplace<dirty>(manifold_entity)
         .set_new()

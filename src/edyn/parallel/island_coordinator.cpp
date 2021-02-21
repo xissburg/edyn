@@ -81,7 +81,7 @@ void island_coordinator::on_construct_constraint(entt::registry &registry, entt:
     }, con.var);
 }
 
-void island_coordinator::init_new_island_nodes() {
+void island_coordinator::init_new_nodes() {
     if (m_new_graph_nodes.empty()) return;
 
     auto node_view = m_registry->view<graph_node>();
@@ -92,7 +92,7 @@ void island_coordinator::init_new_island_nodes() {
             auto &node = node_view.get(entity);
             procedural_node_indices.push_back(node.node_index);
         } else {
-            init_new_non_procedural_island_node(entity);
+            init_new_non_procedural_node(entity);
         }
     }
 
@@ -109,6 +109,7 @@ void island_coordinator::init_new_island_nodes() {
             auto entity = graph.node_entity(node_index);
             connected_nodes.push_back(entity);
 
+            if (adj_index == entity_graph::null_index) return;
             graph.visit_edges(adj_index, [&connected_edges] (entt::entity edge_entity) {
                 connected_edges.push_back(edge_entity);
             });
@@ -156,7 +157,7 @@ void island_coordinator::init_new_island_nodes() {
         });
 }
 
-void island_coordinator::init_new_non_procedural_island_node(entt::entity node_entity) {
+void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) {
     auto &node = m_registry->get<graph_node>(node_entity);
     auto &container = m_registry->get<island_container>(node_entity);
 
@@ -179,6 +180,22 @@ void island_coordinator::init_new_non_procedural_island_node(entt::entity node_e
             ctx->m_delta_builder->created_all(node_entity, *m_registry);
         }
     });
+}
+
+void island_coordinator::init_new_edges() {
+    if (m_new_graph_edges.empty()) return;
+
+    auto container_view = m_registry->view<island_container>();
+
+    for (auto entity : m_new_graph_edges) {
+        // Check if edge is already part of an island.
+        auto &container = container_view.get(entity);
+        if (!container.entities.empty()) continue;
+
+        
+    }
+
+    m_new_graph_edges.clear();
 }
 
 entt::entity island_coordinator::create_island(double timestamp, bool sleeping) {
@@ -391,20 +408,18 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) continue;
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
         source_ctx->m_delta_builder->insert_entity_mapping(local_entity);
-    }
-
-    // Assign `island_container` to entities created in the island worker and
-    // associate them with the source island entity.
-    for (auto entity : delta.created_entities()) {
-        auto &container = m_registry->emplace<island_container>(entity);
+        // Assign `island_container` to entities created in the island worker and
+        // associate them with the source island entity.
+        auto &container = m_registry->emplace<island_container>(local_entity);
         container.entities.insert(source_island_entity);
     }
 
     // Insert nodes in the graph for each rigid body.
     auto &graph = m_registry->ctx<entity_graph>();
     auto insert_node = [&] (entt::entity entity, auto &) {
-        auto node_index = graph.insert_node(entity);
-        m_registry->emplace<graph_node>(entity, node_index);
+        auto local_entity = source_ctx->m_entity_map.remloc(entity);
+        auto node_index = graph.insert_node(local_entity);
+        m_registry->emplace<graph_node>(local_entity, node_index);
     };
 
     delta.created_for_each<dynamic_tag>(insert_node);
@@ -415,10 +430,11 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
 
     // Insert edges in the graph for contact manifolds.
     delta.created_for_each<contact_manifold>([&] (entt::entity entity, const contact_manifold &manifold) {
+        auto local_entity = source_ctx->m_entity_map.remloc(entity);
         auto &node0 = node_view.get(manifold.body[0]);
         auto &node1 = node_view.get(manifold.body[1]);
-        auto edge_index = graph.insert_edge(entity, node0.node_index, node1.node_index);
-        m_registry->emplace<graph_edge>(entity, edge_index);
+        auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
+        m_registry->emplace<graph_edge>(local_entity, edge_index);
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
@@ -427,10 +443,11 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         // The contact manifold which owns them is added instead.
         if (std::holds_alternative<contact_constraint>(con.var)) return;
 
+        auto local_entity = source_ctx->m_entity_map.remloc(entity);
         auto &node0 = node_view.get(con.body[0]);
         auto &node1 = node_view.get(con.body[1]);
-        auto edge_index = graph.insert_edge(entity, node0.node_index, node1.node_index);
-        m_registry->emplace<graph_edge>(entity, edge_index);
+        auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
+        m_registry->emplace<graph_edge>(local_entity, edge_index);
     });
 
     m_importing_delta = false;
@@ -549,7 +566,8 @@ void island_coordinator::update() {
         pair.second->read_messages();
     }
 
-    init_new_island_nodes();
+    init_new_nodes();
+    init_new_edges();
     split_islands();
     refresh_dirty_entities();
     sync();
