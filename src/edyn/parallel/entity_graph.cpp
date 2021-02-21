@@ -10,9 +10,11 @@ entity_graph::index_type entity_graph::insert_node(entt::entity entity) {
         m_nodes_free_list = m_nodes.size();
         m_nodes.resize(m_nodes.size() + 16);
 
-        for (auto i = m_nodes_free_list; i < m_nodes.size() - 1; ++i) {
-            m_nodes[i].next = i + 1;
-            m_nodes[i].entity = entt::null;
+        for (auto i = m_nodes_free_list; i < m_nodes.size(); ++i) {
+            auto &node = m_nodes[i];
+            node.next = i + 1;
+            node.adjacency_index = null_index;
+            node.entity = entt::null;
         }
 
         m_nodes.back().next = null_index;
@@ -52,9 +54,14 @@ entity_graph::index_type entity_graph::insert_edge(entt::entity entity, index_ty
         m_edges_free_list = m_edges.size();
         m_edges.resize(m_edges.size() + 16);
 
-        for (auto i = m_edges_free_list; i < m_edges.size() - 1; ++i) {
-            m_edges[i].next = i + 1;
-            m_edges[i].entity = entt::null;
+        for (auto i = m_edges_free_list; i < m_edges.size(); ++i) {
+            auto &edge = m_edges[i];
+            edge.next = i + 1;
+            edge.node_index0 = null_index;
+            edge.node_index1 = null_index;
+            edge.adj_index0 = null_index;
+            edge.adj_index1 = null_index;
+            edge.entity = entt::null;
         }
 
         m_edges.back().next = null_index;
@@ -169,7 +176,7 @@ entity_graph::index_type entity_graph::create_adjacency(index_type node_index, i
         m_adjacencies_free_list = m_adjacencies.size();
         m_adjacencies.resize(m_adjacencies.size() + 16);
 
-        for (auto i = m_adjacencies_free_list; i < m_adjacencies.size() - 1; ++i) {
+        for (auto i = m_adjacencies_free_list; i < m_adjacencies.size(); ++i) {
             m_adjacencies[i].next = i + 1;
             m_adjacencies[i].node_index = null_index;
             m_adjacencies[i].edge_index = null_index;

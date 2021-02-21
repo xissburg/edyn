@@ -88,8 +88,8 @@ private:
     size_t m_edge_count;
 
     size_t m_nodes_free_list {null_index};
-    size_t m_edges_free_list;
-    size_t m_adjacencies_free_list;
+    size_t m_edges_free_list {null_index};
+    size_t m_adjacencies_free_list {null_index};
 };
 
 template<typename Func>
@@ -148,11 +148,12 @@ void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shou
 
             while (adj_index != null_index) {
                 auto neighbor_index = m_adjacencies[adj_index].node_index;
-                adj_index = m_adjacencies[adj_index].next;
 
                 if (!m_visited[neighbor_index] && shouldFunc(neighbor_index)) {
                     to_visit.emplace_back(neighbor_index, adj_index);
                 }
+
+                adj_index = m_adjacencies[adj_index].next;
             }
         }
 
@@ -210,12 +211,13 @@ entity_graph::connected_components_t entity_graph::connected_components(It first
 
             while (adj_index != null_index) {
                 auto neighbor_index = m_adjacencies[adj_index].node_index;
-                adj_index = m_adjacencies[adj_index].next;
 
                 if (!m_visited[neighbor_index] && 
                     shouldFunc(node.entity, m_nodes[neighbor_index].entity)) {
                     to_visit.emplace_back(neighbor_index, adj_index);
                 }
+
+                adj_index = m_adjacencies[adj_index].next;
             }
         }
 
