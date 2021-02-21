@@ -106,7 +106,6 @@ private:
     bool m_pending_split_calculation;
     double m_calculate_split_delay;
     double m_calculate_split_timestamp;
-    size_t m_number_of_connected_components;
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;
 

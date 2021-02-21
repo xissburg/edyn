@@ -25,7 +25,8 @@ class island_worker_context {
     bool m_pending_flush;
 
 public:
-    entity_set m_entities;
+    entity_set m_nodes;
+    entity_set m_edges;
     entity_map m_entity_map;
     std::unique_ptr<island_delta_builder> m_delta_builder;
 

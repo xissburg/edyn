@@ -62,9 +62,14 @@ public:
     template<typename Component, typename Func>
     void created_for_each(Func func) const {
         auto id = entt::type_index<Component>::value();
-        auto *container = static_cast<const created_entity_component_container<Component> *>(m_created_components.at(id).get());
-        for (auto &pair : container->pairs) {
-            func(pair.first, pair.second);
+        for (auto &pair : m_created_components) {
+            if (pair.first == id) {
+                auto *container = static_cast<const created_entity_component_container<Component> *>(pair.second.get());
+                for (auto &pair : container->pairs) {
+                    func(pair.first, pair.second);
+                }
+                break;
+            }
         }
     }
 

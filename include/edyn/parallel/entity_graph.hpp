@@ -15,6 +15,11 @@ public:
     using index_type = size_t;
     constexpr static index_type null_index = std::numeric_limits<index_type>::max();
 
+    struct connected_component {
+        std::vector<entt::entity> nodes;
+        std::vector<entt::entity> edges;
+    };
+
 private:
     struct node {
         entt::entity entity;
@@ -54,7 +59,7 @@ public:
     entt::entity edge_entity(index_type edge_index) const;
     bool has_edge(index_type node_index0, index_type node_index1) const;
 
-    bool is_single_connected_component() const;
+    bool is_single_connected_component();
 
     template<typename Func>
     void visit_neighbors(index_type node_index, Func func) const;
@@ -63,7 +68,12 @@ public:
     void visit_edges(index_type adj_index, Func func) const;
 
     template<typename It, typename VisitFunc, typename ShouldFunc, typename ComponentFunc>
-    void reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc) const;
+    void reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc);
+    
+    using connected_components_t = std::vector<connected_component>;
+
+    template<typename It, typename ShouldFunc>
+    connected_components_t connected_components(It first, It last, ShouldFunc shouldFunc);
 
     void optimize_if_needed();
 
@@ -71,6 +81,8 @@ private:
     std::vector<node> m_nodes;
     std::vector<edge> m_edges;
     std::vector<adjacency> m_adjacencies;
+
+    std::vector<bool> m_visited;
 
     size_t m_node_count;
     size_t m_edge_count;
@@ -113,24 +125,11 @@ void entity_graph::visit_edges(index_type adj_index, Func func) const {
 }
 
 template<typename It, typename VisitFunc, typename ShouldFunc, typename ComponentFunc>
-void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc) const {
-    index_type min_index = std::numeric_limits<index_type>::max();
-    index_type max_index = std::numeric_limits<index_type>::min();
+void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc) {
+    EDYN_ASSERT(std::distance(first, last) > 0);
 
-    for (auto it = first; it != last; ++it) {
-        if (*it < min_index) {
-            min_index = *it;
-        }
-        if (*it > max_index) {
-            max_index = *it;
-        }
-    }
+    m_visited.assign(m_nodes.size(), false);
 
-    EDYN_ASSERT(min_index < m_nodes.size());
-    EDYN_ASSERT(max_index < m_nodes.size());
-
-    auto dist = max_index - min_index + 1;
-    std::vector<bool> visited(dist, false);
     // Pairs of node index and adjacency index.
     std::vector<std::pair<index_type, index_type>> to_visit;
     to_visit.emplace_back(*first, null_index);
@@ -141,7 +140,7 @@ void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shou
             auto [node_index, adj_index] = to_visit.back();
             to_visit.pop_back();
 
-            visited[node_index - min_index] = true;
+            m_visited[node_index] = true;
 
             visitFunc(node_index, adj_index);
 
@@ -151,10 +150,7 @@ void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shou
                 auto neighbor_index = m_adjacencies[adj_index].node_index;
                 adj_index = m_adjacencies[adj_index].next;
 
-                if (shouldFunc(neighbor_index) &&
-                    neighbor_index >= min_index && 
-                    neighbor_index <= max_index && 
-                    !visited[neighbor_index - min_index]) {
+                if (!m_visited[neighbor_index] && shouldFunc(neighbor_index)) {
                     to_visit.emplace_back(neighbor_index, adj_index);
                 }
             }
@@ -166,8 +162,8 @@ void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shou
         for (auto it = first; it != last; ++it) {
             auto node_index = *it;
             if (m_nodes[node_index].entity != entt::null && 
-                !visited[node_index - min_index]) {
-                to_visit.push_back(node_index);
+                !m_visited[node_index]) {
+                to_visit.emplace_back(node_index, null_index);
                 break;
             }
         }
@@ -178,6 +174,70 @@ void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shou
         }
     }
 }
+
+
+template<typename It, typename ShouldFunc>
+entity_graph::connected_components_t entity_graph::connected_components(It first, It last, ShouldFunc shouldFunc) {
+    EDYN_ASSERT(std::distance(first, last) > 0);
+
+    auto components = entity_graph::connected_components_t{};
+    m_visited.assign(m_nodes.size(), false);
+
+    // Pairs of node index and adjacency index.
+    std::vector<std::pair<index_type, index_type>> to_visit;
+    to_visit.emplace_back(*first, null_index);
+
+    while (true) {
+        auto &connected = components.emplace_back();
+
+        // Visit nodes reachable from the initial node inserted into `to_visit`.
+        while (!to_visit.empty()) {
+            auto [node_index, adj_index] = to_visit.back();
+            to_visit.pop_back();
+
+            m_visited[node_index] = true;
+
+            auto &node = m_nodes[node_index];
+            connected.nodes.push_back(node.entity);
+
+            if (adj_index != null_index) {
+                visit_edges(adj_index, [&connected] (entt::entity edge_entity) {
+                    connected.edges.push_back(edge_entity);
+                });
+            }
+
+            adj_index = node.adjacency_index;
+
+            while (adj_index != null_index) {
+                auto neighbor_index = m_adjacencies[adj_index].node_index;
+                adj_index = m_adjacencies[adj_index].next;
+
+                if (!m_visited[neighbor_index] && 
+                    shouldFunc(node.entity, m_nodes[neighbor_index].entity)) {
+                    to_visit.emplace_back(neighbor_index, adj_index);
+                }
+            }
+        }
+
+        // Look for a node in the list that has not yet been visited.
+        for (auto it = first; it != last; ++it) {
+            auto node_index = *it;
+            if (m_nodes[node_index].entity != entt::null && 
+                !m_visited[node_index]) {
+                to_visit.emplace_back(node_index, null_index);
+                break;
+            }
+        }
+
+        // No more nodes left to visit.
+        if (to_visit.empty()) {
+            break;
+        }
+    }
+
+    return components;
+}
+
 
 }
 

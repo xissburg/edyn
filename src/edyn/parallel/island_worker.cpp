@@ -48,7 +48,6 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_pending_split_calculation(false)
     , m_calculate_split_delay(1.1)
     , m_calculate_split_timestamp(0)
-    , m_number_of_connected_components(1)
 {
     m_registry.set<entity_graph>();
 
