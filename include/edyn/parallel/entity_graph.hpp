@@ -7,6 +7,7 @@
 #include <entt/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include "edyn/config/config.h"
+#include "edyn/util/entity_pair.hpp"
 
 namespace edyn {
 
@@ -35,14 +36,15 @@ private:
     };
 
     struct adjacency {
-        index_type node_index;
+        index_type source_node_index;
+        index_type destination_node_index;
         index_type edge_index;
         index_type next;
     };
 
     void insert_adjacency(index_type node_index0, index_type node_index1, index_type edge_index);
     index_type insert_adjacency_one_way(index_type node_index0, index_type node_index1, index_type edge_index);
-    index_type create_adjacency(index_type node_index, index_type edge_index);
+    index_type create_adjacency(index_type source_node_index, index_type destination_node_index, index_type edge_index);
     void remove_adjacency_edge(index_type adj_index, index_type edge_index);
     void remove_adjacency(index_type adj_index);
 
@@ -58,6 +60,7 @@ public:
     void remove_edge(index_type edge_index);
     entt::entity edge_entity(index_type edge_index) const;
     bool has_edge(index_type node_index0, index_type node_index1) const;
+    entity_pair edge_node_entities(index_type edge_index) const;
 
     bool is_single_connected_component();
 
@@ -65,10 +68,17 @@ public:
     void visit_neighbors(index_type node_index, Func func) const;
 
     template<typename Func>
+    void visit_edges(index_type node_index0, index_type node_index1, Func func) const;
+
+    template<typename Func>
     void visit_edges(index_type adj_index, Func func) const;
 
-    template<typename It, typename VisitFunc, typename ShouldFunc, typename ComponentFunc>
-    void reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc);
+    template<typename It, typename VisitNodeFunc, 
+             typename VisitEdgeFunc, typename ShouldFunc, 
+             typename ComponentFunc>
+    void reach(It first, It last, VisitNodeFunc visitNodeFunc, 
+               VisitEdgeFunc visitEdgeFunc, ShouldFunc shouldFunc, 
+               ComponentFunc componentFunc);
     
     using connected_components_t = std::vector<connected_component>;
 
@@ -101,7 +111,7 @@ void entity_graph::visit_neighbors(index_type node_index, Func func) const {
 
     while (adj_index != null_index) {
         auto &adj = m_adjacencies[adj_index];
-        auto &neighbor = m_nodes[adj.node_index];
+        auto &neighbor = m_nodes[adj.destination_node_index];
         EDYN_ASSERT(neighbor.entity != entt::null);
         func(neighbor.entity);
         adj_index = adj.next;
@@ -109,9 +119,30 @@ void entity_graph::visit_neighbors(index_type node_index, Func func) const {
 }
 
 template<typename Func>
+void entity_graph::visit_edges(index_type node_index0, index_type node_index1, Func func) const {
+    EDYN_ASSERT(node_index0 < m_nodes.size());
+    EDYN_ASSERT(node_index1 < m_nodes.size());
+
+    auto adj_index = m_nodes[node_index0].adjacency_index;
+    while (adj_index != null_index) {
+        auto &adj = m_adjacencies[adj_index];
+        if (adj.destination_node_index == node_index1) {
+            auto edge_index = adj.edge_index;
+            while (edge_index != null_index) {
+                auto &edge = m_edges[edge_index];
+                EDYN_ASSERT(edge.entity != entt::null);
+                func(edge.entity);
+                edge_index = edge.next;
+            }
+            break;
+        }
+        adj_index = adj.next;
+    }
+}
+
+template<typename Func>
 void entity_graph::visit_edges(index_type adj_index, Func func) const {
     EDYN_ASSERT(adj_index < m_adjacencies.size());
-    EDYN_ASSERT(m_adjacencies[adj_index].node_index != null_index);
     EDYN_ASSERT(m_adjacencies[adj_index].edge_index != null_index);
 
     auto edge_index = m_adjacencies[adj_index].edge_index;
@@ -124,8 +155,12 @@ void entity_graph::visit_edges(index_type adj_index, Func func) const {
     }
 }
 
-template<typename It, typename VisitFunc, typename ShouldFunc, typename ComponentFunc>
-void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shouldFunc, ComponentFunc componentFunc) {
+template<typename It, typename VisitNodeFunc, 
+         typename VisitEdgeFunc, typename ShouldFunc, 
+         typename ComponentFunc>
+void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc, 
+                         VisitEdgeFunc visitEdgeFunc, ShouldFunc shouldFunc, 
+                         ComponentFunc componentFunc) {
     EDYN_ASSERT(std::distance(first, last) > 0);
 
     m_visited.assign(m_nodes.size(), false);
@@ -142,12 +177,24 @@ void entity_graph::reach(It first, It last, VisitFunc visitFunc, ShouldFunc shou
 
             m_visited[node_index] = true;
 
-            visitFunc(node_index, adj_index);
+            const auto &node = m_nodes[node_index];
+            EDYN_ASSERT(node.entity != entt::null);
+            visitNodeFunc(node.entity);
 
-            adj_index = m_nodes[node_index].adjacency_index;
+            if (adj_index != null_index) {
+                auto edge_index = m_adjacencies[adj_index].edge_index;
+                while (edge_index != null_index) {
+                    const auto &edge = m_edges[edge_index];
+                    EDYN_ASSERT(edge.entity != entt::null);
+                    visitEdgeFunc(edge.entity);
+                    edge_index = edge.next;
+                }
+            }
+
+            adj_index = node.adjacency_index;
 
             while (adj_index != null_index) {
-                auto neighbor_index = m_adjacencies[adj_index].node_index;
+                auto neighbor_index = m_adjacencies[adj_index].destination_node_index;
 
                 if (!m_visited[neighbor_index] && shouldFunc(neighbor_index)) {
                     to_visit.emplace_back(neighbor_index, adj_index);
@@ -210,7 +257,7 @@ entity_graph::connected_components_t entity_graph::connected_components(It first
             adj_index = node.adjacency_index;
 
             while (adj_index != null_index) {
-                auto neighbor_index = m_adjacencies[adj_index].node_index;
+                auto neighbor_index = m_adjacencies[adj_index].destination_node_index;
 
                 if (!m_visited[neighbor_index] && 
                     shouldFunc(node.entity, m_nodes[neighbor_index].entity)) {
