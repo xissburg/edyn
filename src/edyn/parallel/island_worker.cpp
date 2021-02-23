@@ -150,7 +150,8 @@ void island_worker::on_island_delta(const island_delta &delta) {
     auto &gra = m_registry.ctx<entity_graph>();
     auto insert_node = [&] (entt::entity entity, auto &) {
         auto local_entity = m_entity_map.remloc(entity);
-        auto node_index = gra.insert_node(local_entity);
+        auto non_connecting = !m_registry.has<procedural_tag>(local_entity);
+        auto node_index = gra.insert_node(local_entity, non_connecting);
         m_registry.emplace<graph_node>(local_entity, node_index);
     };
 

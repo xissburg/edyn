@@ -25,9 +25,7 @@ TEST(entity_graph_test, test_basics) {
     node_indices.push_back(node_index0);
     node_indices.push_back(node_index1);
 
-    auto connected_components = graph.connected_components(
-        node_indices.begin(), node_indices.end(), 
-        [] (auto, auto) { return true; });
+    auto connected_components = graph.connected_components(node_indices.begin(), node_indices.end());
 
     ASSERT_EQ(connected_components.size(), 1);
 

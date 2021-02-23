@@ -3,7 +3,7 @@
 
 namespace edyn {
 
-entity_graph::index_type entity_graph::insert_node(entt::entity entity) {
+entity_graph::index_type entity_graph::insert_node(entt::entity entity, bool non_connecting) {
     EDYN_ASSERT(entity != entt::null);
 
     if (m_nodes_free_list == null_index) {
@@ -21,8 +21,10 @@ entity_graph::index_type entity_graph::insert_node(entt::entity entity) {
     }
 
     auto index = m_nodes_free_list;
-    m_nodes_free_list = m_nodes[index].next;
-    m_nodes[index].entity = entity;
+    auto &node = m_nodes[index];
+    m_nodes_free_list = node.next;
+    node.entity = entity;
+    node.non_connecting = non_connecting;
     ++m_node_count;
 
     return index;
@@ -79,7 +81,7 @@ entity_graph::index_type entity_graph::insert_edge(entt::entity entity, index_ty
     auto adj_index = m_nodes[node_index0].adjacency_index;
 
     while (adj_index != null_index) {
-        if (m_adjacencies[adj_index].destination_node_index == node_index1) {
+        if (m_adjacencies[adj_index].node_index == node_index1) {
             break; // Adjacency between node_index0 and node_index1 exists.
         }
         adj_index = m_adjacencies[adj_index].next;
@@ -99,7 +101,7 @@ entity_graph::index_type entity_graph::insert_edge(entt::entity entity, index_ty
         adj_index = m_nodes[node_index1].adjacency_index;
 
         while (adj_index != null_index) {
-            if (m_adjacencies[adj_index].destination_node_index == node_index0) {
+            if (m_adjacencies[adj_index].node_index == node_index0) {
                 break;
             }
             adj_index = m_adjacencies[adj_index].next;
@@ -129,20 +131,22 @@ void entity_graph::remove_edge(index_type edge_index) {
     auto &node1 = m_nodes[edge.node_index1];
 
     auto adj_index0 = node0.adjacency_index;
-    while (m_adjacencies[adj_index0].destination_node_index != edge.node_index1) {
+    while (m_adjacencies[adj_index0].node_index != edge.node_index1) {
+        EDYN_ASSERT(adj_index0 != null_index);
         adj_index0 = m_adjacencies[adj_index0].next;
     }
 
     auto adj_index1 = node1.adjacency_index;
-    while (m_adjacencies[adj_index1].destination_node_index != edge.node_index0) {
+    while (m_adjacencies[adj_index1].node_index != edge.node_index0) {
+        EDYN_ASSERT(adj_index1 != null_index);
         adj_index1 = m_adjacencies[adj_index1].next;
     }
 
     EDYN_ASSERT(m_adjacencies[adj_index0].edge_index == m_adjacencies[adj_index1].edge_index);
     auto first_edge_index = m_adjacencies[adj_index0].edge_index;
 
-    remove_adjacency_edge(adj_index0, edge_index);
-    remove_adjacency_edge(adj_index1, edge_index);
+    remove_adjacency_edge(edge.node_index0, adj_index0, edge_index);
+    remove_adjacency_edge(edge.node_index1, adj_index1, edge_index);
 
     if (edge_index != first_edge_index) {
         // Find edge before the one being removed.
@@ -172,7 +176,7 @@ bool entity_graph::has_edge(index_type node_index0, index_type node_index1) cons
     auto adj_index = m_nodes[node_index0].adjacency_index;
 
     while (adj_index != null_index) {
-        if (m_adjacencies[adj_index].destination_node_index == node_index1) {
+        if (m_adjacencies[adj_index].node_index == node_index1) {
             return true;
         }
         adj_index = m_adjacencies[adj_index].next;
@@ -197,21 +201,20 @@ entity_graph::index_type entity_graph::insert_adjacency_one_way(index_type node_
     // Should not have duplicate adjacencies.
     EDYN_ASSERT(!has_edge(node_index0, node_index1));
 
-    auto adj_index = create_adjacency(node_index0, node_index1, edge_index);
+    auto adj_index = create_adjacency(node_index1, edge_index);
     m_adjacencies[adj_index].next = m_nodes[node_index0].adjacency_index;
     m_nodes[node_index0].adjacency_index = adj_index;
     return adj_index;
 }
 
-entity_graph::index_type entity_graph::create_adjacency(index_type source_node_index, index_type destination_node_index, index_type edge_index) {
+entity_graph::index_type entity_graph::create_adjacency(index_type destination_node_index, index_type edge_index) {
     if (m_adjacencies_free_list == null_index) {
         m_adjacencies_free_list = m_adjacencies.size();
         m_adjacencies.resize(m_adjacencies.size() + 16);
 
         for (auto i = m_adjacencies_free_list; i < m_adjacencies.size(); ++i) {
             m_adjacencies[i].next = i + 1;
-            m_adjacencies[i].source_node_index = null_index;
-            m_adjacencies[i].destination_node_index = null_index;
+            m_adjacencies[i].node_index = null_index;
             m_adjacencies[i].edge_index = null_index;
         }
 
@@ -221,15 +224,14 @@ entity_graph::index_type entity_graph::create_adjacency(index_type source_node_i
     auto index = m_adjacencies_free_list;
     auto &adj = m_adjacencies[index];
     m_adjacencies_free_list = adj.next;
-    adj.source_node_index = source_node_index;
-    adj.destination_node_index = destination_node_index;
+    adj.node_index = destination_node_index;
     adj.edge_index = edge_index;
     adj.next = null_index;
 
     return index;
 }
 
-void entity_graph::remove_adjacency_edge(index_type adj_index, index_type edge_index) {
+void entity_graph::remove_adjacency_edge(index_type source_node_index, index_type adj_index, index_type edge_index) {
     auto &adj = m_adjacencies[adj_index];
     const auto &edge = m_edges[edge_index];
 
@@ -239,11 +241,11 @@ void entity_graph::remove_adjacency_edge(index_type adj_index, index_type edge_i
     }
 
     if (adj.edge_index == null_index) {
-        remove_adjacency(adj_index);
+        remove_adjacency(source_node_index, adj_index);
     }
 }
 
-void entity_graph::remove_adjacency(index_type adj_index) {
+void entity_graph::remove_adjacency(index_type source_node_index, index_type adj_index) {
     EDYN_ASSERT(adj_index < m_adjacencies.size());
     auto &adj = m_adjacencies[adj_index];
 
@@ -251,7 +253,7 @@ void entity_graph::remove_adjacency(index_type adj_index) {
     EDYN_ASSERT(adj.edge_index == null_index);
 
     // Remove from node's adjacency list.
-    auto &node = m_nodes[adj.source_node_index];
+    auto &node = m_nodes[source_node_index];
     auto idx = node.adjacency_index;
 
     if (idx == adj_index) {
@@ -267,8 +269,7 @@ void entity_graph::remove_adjacency(index_type adj_index) {
         m_adjacencies[idx].next = adj.next;
     }
 
-    adj.source_node_index = null_index;
-    adj.destination_node_index = null_index;
+    adj.node_index = null_index;
     adj.edge_index = null_index;
     adj.next = m_adjacencies_free_list;
     m_adjacencies_free_list = adj_index;
@@ -296,7 +297,7 @@ bool entity_graph::is_single_connected_component() {
         auto adj_index = m_nodes[node_index].adjacency_index;
 
         while (adj_index != null_index) {
-            auto neighbor_index = m_adjacencies[adj_index].destination_node_index;
+            auto neighbor_index = m_adjacencies[adj_index].node_index;
             adj_index = m_adjacencies[adj_index].next;
 
             if (!m_visited[neighbor_index]) {
@@ -325,7 +326,13 @@ double entity_graph::efficiency() const {
 
 void entity_graph::optimize() {
     // Remove all the rightmost free entries and sort the free lists.
+    /*for (size_t i = m_nodes.size() - 1; i > 0; --i) {
+        if (m_nodes[i].entity != entt::null) {
+            m_nodes.resize(i + 1);
 
+            break;
+        }
+    }*/
 }
 
 void entity_graph::optimize_if_needed() {

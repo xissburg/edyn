@@ -465,7 +465,8 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     auto &graph = m_registry->ctx<entity_graph>();
     auto insert_node = [&] (entt::entity entity, auto &) {
         auto local_entity = source_ctx->m_entity_map.remloc(entity);
-        auto node_index = graph.insert_node(local_entity);
+        auto non_connecting = !m_registry->has<procedural_tag>(local_entity);
+        auto node_index = graph.insert_node(local_entity, non_connecting);
         m_registry->emplace<graph_node>(local_entity, node_index);
     };
 
@@ -542,15 +543,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
 
     auto &graph = m_registry->ctx<entity_graph>();
 
-    auto connected_components = graph.connected_components(
-        node_indices.begin(), node_indices.end(), 
-        [&] (entt::entity current, entt::entity neighbor) {
-            // Non-procedural nodes should only connect non-procedural nodes
-            // because a procedural node cannot affect another through a
-            // non-procedural node.
-            auto is_procedural = m_registry->has<procedural_tag>(current);
-            return is_procedural || (!is_procedural && !m_registry->has<procedural_tag>(neighbor));
-        });
+    auto connected_components = graph.connected_components(node_indices.begin(), node_indices.end());
 
     EDYN_ASSERT(!connected_components.empty());
 
