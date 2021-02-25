@@ -69,6 +69,45 @@ void island_coordinator::on_destroy_island_container(entt::registry &registry, e
             ctx->m_delta_builder->destroyed(entity);
         }
     }
+
+    if (m_importing_delta) return;
+
+    if (auto *manifold = registry.try_get<contact_manifold>(entity)) {
+        auto num_points = manifold->num_points();
+        for (size_t i = 0; i < num_points; ++i) {
+            auto contact_entity = manifold->point[i];
+            auto &con = registry.get<constraint>(contact_entity);
+
+            auto num_rows = con.num_rows();
+            for (size_t j = 0; j < num_rows; ++j) {
+                auto row_entity = con.row[j];
+                registry.destroy(row_entity);
+
+                for (auto island_entity : container.entities) {
+                    auto &ctx = m_island_ctx_map.at(island_entity);
+                    ctx->m_delta_builder->destroyed(row_entity);
+                }
+            }
+
+            registry.destroy(contact_entity);
+
+            for (auto island_entity : container.entities) {
+                auto &ctx = m_island_ctx_map.at(island_entity);
+                ctx->m_delta_builder->destroyed(contact_entity);
+            }
+        }
+    } else if (auto *con = registry.try_get<constraint>(entity)) {
+        auto num_rows = con->num_rows();
+        for (size_t i = 0; i < num_rows; ++i) {
+            auto row_entity = con->row[i];
+            registry.destroy(row_entity);
+
+            for (auto island_entity : container.entities) {
+                auto &ctx = m_island_ctx_map.at(island_entity);
+                ctx->m_delta_builder->destroyed(row_entity);
+            }
+        }
+    }
 }
 
 void island_coordinator::on_construct_constraint(entt::registry &registry, entt::entity entity) {
