@@ -314,9 +314,9 @@ void island_coordinator::init_new_edges() {
 }
 
 entt::entity island_coordinator::create_island(double timestamp, bool sleeping) {
-    auto entity = m_registry->create();
-    m_registry->emplace<island>(entity);
-    auto &isle_time = m_registry->emplace<island_timestamp>(entity);
+    auto island_entity = m_registry->create();
+    m_registry->emplace<island>(island_entity);
+    auto &isle_time = m_registry->emplace<island_timestamp>(island_entity);
     isle_time.value = timestamp;
 
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
@@ -327,9 +327,15 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     // `update` function which reschedules itself to be run over and over again.
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
-    auto *worker = new island_worker(entity, m_fixed_dt, message_queue_in_out(main_queue_input, isle_queue_output));
-    auto ctx = std::make_unique<island_worker_context>(entity, worker, message_queue_in_out(isle_queue_input, main_queue_output));
+    auto *worker = new island_worker(island_entity, m_fixed_dt, 
+                                     message_queue_in_out(main_queue_input, isle_queue_output));
+    auto ctx = std::make_unique<island_worker_context>(island_entity, worker, 
+                                                       message_queue_in_out(isle_queue_input, main_queue_output));
     
+    // Insert the first entity mapping between the remote island entity and
+    // the local island entity.
+    ctx->m_entity_map.insert(worker->island_entity(), island_entity);
+
     // Register to receive delta.
     ctx->island_delta_sink().connect<&island_coordinator::on_island_delta>(*this);
     ctx->split_island_sink().connect<&island_coordinator::on_split_island>(*this);
@@ -337,12 +343,11 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     // Send over a delta containing this island entity to the island worker
     // before it even starts.
     auto builder = make_island_delta_builder(ctx->m_entity_map);
-    builder->created(entity);
-    builder->created(entity, isle_time);
+    builder->created(island_entity, isle_time);
 
     if (sleeping) {
-        m_registry->emplace<sleeping_tag>(entity);
-        builder->created(entity, sleeping_tag{});
+        m_registry->emplace<sleeping_tag>(island_entity);
+        builder->created(island_entity, sleeping_tag{});
     }
 
     auto delta = builder->finish();
@@ -352,9 +357,9 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
         ctx->send<msg::set_paused>(true);
     }
 
-    m_island_ctx_map.emplace(entity, std::move(ctx));
+    m_island_ctx_map.emplace(island_entity, std::move(ctx));
 
-    return entity;
+    return island_entity;
 }
 
 void island_coordinator::insert_to_island(entt::entity island_entity, 
@@ -518,15 +523,7 @@ entt::entity island_coordinator::merge_islands(const entity_set &island_entities
 void island_coordinator::refresh_dirty_entities() {
     auto view = m_registry->view<island_container, dirty>();
     view.each([&] (entt::entity entity, island_container &container, dirty &dirty) {
-        std::vector<entt::entity> island_entities;
-
-        if (dirty.island_entities.empty()) {
-            island_entities.insert(island_entities.end(), container.entities.begin(), container.entities.end());
-        } else {
-            island_entities = dirty.island_entities;
-        }
-
-        for (auto island_entity : island_entities) {
+        for (auto island_entity : container.entities) {
             if (!m_island_ctx_map.count(island_entity)) continue;
             auto &ctx = m_island_ctx_map.at(island_entity);
             auto &builder = ctx->m_delta_builder;

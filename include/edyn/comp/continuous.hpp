@@ -1,7 +1,7 @@
 #ifndef EDYN_COMP_CONTINUOUS_HPP
 #define EDYN_COMP_CONTINUOUS_HPP
 
-#include <unordered_set>
+#include <vector>
 #include <entt/core/type_info.hpp>
 
 namespace edyn {
@@ -11,11 +11,11 @@ namespace edyn {
  * the coordinator after every step of the simulation.
  */
 struct continuous {
-    std::unordered_set<entt::id_type> types;
+    std::vector<entt::id_type> types;
 
     template<typename... Component>
     void insert() {
-        (types.insert(entt::type_index<Component>::value()), ...);
+        (types.push_back(entt::type_index<Component>::value()), ...);
     }
 };
 

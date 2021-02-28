@@ -65,8 +65,6 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 island_worker::~island_worker() = default;
 
 void island_worker::init() {
-    m_delta_builder->insert_entity_mapping(m_island_entity);
-
     m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_graph_node_or_edge>(*this);
     m_registry.on_construct<graph_edge>().connect<&island_worker::on_construct_graph_node_or_edge>(*this);
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);

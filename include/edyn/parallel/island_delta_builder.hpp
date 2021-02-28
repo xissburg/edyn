@@ -4,8 +4,8 @@
 #include <tuple>
 #include <memory>
 #include <utility>
+#include "edyn/parallel/entity_component_container.hpp"
 #include "edyn/parallel/island_delta.hpp"
-#include "edyn/parallel/entity_component_map.hpp"
 
 namespace edyn {
 
@@ -13,68 +13,56 @@ namespace edyn {
  * @brief Provides the means to build a `island_delta`.
  */
 class island_delta_builder {
-    using map_of_component_map = std::unordered_map<entt::id_type, std::unique_ptr<entity_component_map_base>>;
 
     template<typename Component>
     void _created(entt::entity entity, const Component &component) {
-        auto id = entt::type_index<Component>::value();
-        
-        if (m_created_components.count(id) == 0) {
-            auto map = std::make_unique<entity_component_map<Component>>();
-            map->insert(entity, component);
-            m_created_components.insert({id, std::move(map)});
-            m_delta.prepare_created<Component>();
-        } else {
-            auto &map = static_cast<entity_component_map<Component> &>(*m_created_components.at(id));
+        using container_type = created_entity_component_container<Component>;
+        const auto index = entt::type_index<Component>::value();
 
-            if (map.empty()) {
-                // Empty means this was cleared before and needs to be initialized
-                // again in the current delta.
-                m_delta.prepare_created<Component>();
-            }
-
-            map.insert(entity, component);
+        if (!(index < m_delta.m_created_components.size())) {
+            m_delta.m_created_components.resize(index + 1);
         }
+
+        if (auto &ptr = m_delta.m_created_components[index]; !ptr) {
+            ptr.reset(new container_type());
+        }
+
+        auto *container = static_cast<container_type *>(m_delta.m_created_components[index].get());
+        container->insert(entity, component);
     }
 
     template<typename Component>
     void _updated(entt::entity entity, const Component &component) {
-        auto id = entt::type_index<Component>::value();
+        using container_type = updated_entity_component_container<Component>;
+        const auto index = entt::type_index<Component>::value();
 
-        if (m_updated_components.count(id) == 0) {
-            auto map = std::make_unique<entity_component_map<Component>>();
-            map->insert(entity, component);
-            m_updated_components.insert({id, std::move(map)});
-            m_delta.prepare_updated<Component>();
-        } else {
-            auto &map = static_cast<entity_component_map<Component> &>(*m_updated_components.at(id));
-
-            if (map.empty()) {
-                m_delta.prepare_updated<Component>();
-            }
-
-            map.insert(entity, component);
+        if (!(index < m_delta.m_updated_components.size())) {
+            m_delta.m_updated_components.resize(index + 1);
         }
+
+        if (auto &ptr = m_delta.m_updated_components[index]; !ptr) {
+            ptr.reset(new container_type());
+        }
+
+        auto *container = static_cast<container_type *>(m_delta.m_updated_components[index].get());
+        container->insert(entity, component);
     }
 
     template<typename Component>
     void _destroyed(entt::entity entity) {
-        auto id = entt::type_index<Component>::value();
+        using container_type = destroyed_entity_component_container<Component>;
+        const auto index = entt::type_index<Component>::value();
 
-        if (m_destroyed_components.count(id) == 0) {
-            auto set = std::make_unique<entity_component_set<Component>>();
-            set->insert(entity);
-            m_destroyed_components.insert({id, std::move(set)});
-            m_delta.prepare_destroyed<Component>();
-        } else {
-            auto &set = static_cast<entity_component_set<Component> &>(*m_destroyed_components.at(id));
-
-            if (set.empty()) {
-                m_delta.prepare_destroyed<Component>();
-            }
-
-            set.insert(entity);
+        if (!(index < m_delta.m_destroyed_components.size())) {
+            m_delta.m_destroyed_components.resize(index + 1);
         }
+
+        if (auto &ptr = m_delta.m_destroyed_components[index]; !ptr) {
+            ptr.reset(new container_type());
+        }
+
+        auto *container = static_cast<container_type *>(m_delta.m_destroyed_components[index].get());
+        container->entities.push_back(entity);
     }
 
 public:
@@ -262,32 +250,6 @@ public:
     bool empty() const;
 
     island_delta finish() {
-        // Load components into delta.
-        for (auto &pair : m_delta.m_created_components) {
-            pair.second->load(*m_created_components.at(pair.first));
-        }
-
-        for (auto &pair : m_delta.m_updated_components) {
-            pair.second->load(*m_updated_components.at(pair.first));
-        }
-
-        for (auto &pair : m_delta.m_destroyed_components) {
-            pair.second->load(*m_destroyed_components.at(pair.first));
-        }
-
-        // Clear containers of local components.
-        for (auto &pair : m_created_components) {
-            pair.second->clear();
-        }
-
-        for (auto &pair : m_updated_components) {
-            pair.second->clear();
-        }
-
-        for (auto &pair : m_destroyed_components) {
-            pair.second->clear();
-        }
-
         // Move the contents of `m_delta` into the returned object, effectively
         // clearing out the contents of `m_delta` making it ready for the next
         // set of updates.
@@ -296,11 +258,6 @@ public:
 
 private:
     entity_map *m_entity_map;
-
-    map_of_component_map m_created_components;
-    map_of_component_map m_updated_components;
-    map_of_component_map m_destroyed_components;
-
     island_delta m_delta;
 };
 

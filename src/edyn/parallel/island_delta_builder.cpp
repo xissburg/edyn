@@ -37,20 +37,20 @@ bool island_delta_builder::empty() const {
         return false;
     }
 
-    for (auto &pair : m_created_components) {
-        if (!pair.second->empty()) {
+    for (auto &ptr : m_delta.m_created_components) {
+        if (ptr && !ptr->empty()) {
             return false;
         }
     }
 
-    for (auto &pair : m_updated_components) {
-        if (!pair.second->empty()) {
+    for (auto &ptr : m_delta.m_updated_components) {
+        if (ptr && !ptr->empty()) {
             return false;
         }
     }
     
-    for (auto &pair : m_destroyed_components) {
-        if (!pair.second->empty()) {
+    for (auto &ptr : m_delta.m_destroyed_components) {
+        if (ptr && !ptr->empty()) {
             return false;
         }
     }

@@ -169,6 +169,8 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
 
     std::vector<index_type> to_visit;
     to_visit.push_back(*first);
+    // All provided nodes are expected to be connecting.
+    EDYN_ASSERT(!m_nodes[*first].non_connecting);
 
     std::vector<index_type> non_connecting_indices;
 
@@ -229,6 +231,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
             auto node_index = *it;
             if (m_nodes[node_index].entity != entt::null && 
                 !m_visited[node_index]) {
+                EDYN_ASSERT(!m_nodes[node_index].non_connecting);
                 to_visit.emplace_back(node_index);
                 break;
             }
@@ -252,7 +255,8 @@ entity_graph::connected_components_t entity_graph::connected_components(It first
     std::vector<index_type> to_visit;
 
     for (auto it = first; it != last; ++it) {
-        if (!m_nodes[*it].non_connecting) {
+        auto &node = m_nodes[*it];
+        if (node.entity != entt::null && !node.non_connecting) {
             to_visit.push_back(*it);
             break;
         }
@@ -317,7 +321,9 @@ entity_graph::connected_components_t entity_graph::connected_components(It first
         for (auto it = first; it != last; ++it) {
             auto node_index = *it;
             EDYN_ASSERT(m_nodes[node_index].entity != entt::null);
-            if (!m_visited[node_index] && !m_nodes[node_index].non_connecting) {
+            if (!m_visited[node_index] && 
+                m_nodes[node_index].entity != entt::null &&
+                !m_nodes[node_index].non_connecting) {
                 to_visit.push_back(node_index);
                 break;
             }

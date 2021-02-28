@@ -62,6 +62,10 @@ public:
 
     ~island_worker();
 
+    entt::entity island_entity() const {
+        return m_island_entity;
+    }
+
     void on_island_delta(const island_delta &delta);
 
     void reschedule();

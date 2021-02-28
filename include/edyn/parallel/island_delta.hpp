@@ -6,7 +6,6 @@
 #include <entt/core/type_info.hpp>
 #include "edyn/comp/shared_comp.hpp"
 #include "edyn/util/entity_map.hpp"
-#include "edyn/parallel/entity_component_map.hpp"
 #include "edyn/parallel/entity_component_container.hpp"
 
 namespace edyn {
@@ -17,25 +16,7 @@ namespace edyn {
  */
 class island_delta {
 
-    using typed_component_container_vector = std::vector<std::pair<entt::id_type, std::unique_ptr<entity_component_container_base>>>;
-
-    template<typename Component>
-    void prepare_created() {
-        auto id = entt::type_index<Component>::value();
-        m_created_components.emplace_back(id, std::make_unique<created_entity_component_container<Component>>());
-    }
-
-    template<typename Component>
-    void prepare_updated() {
-        auto id = entt::type_index<Component>::value();
-        m_updated_components.emplace_back(id, std::make_unique<updated_entity_component_container<Component>>());
-    }
-
-    template<typename Component>
-    void prepare_destroyed() {
-        auto id = entt::type_index<Component>::value();
-        m_destroyed_components.emplace_back(id, std::make_unique<destroyed_entity_component_container<Component>>());
-    }
+    using typed_component_container_vector = std::vector<std::unique_ptr<entity_component_container_base>>;
 
     void import_created_entities(entt::registry &, entity_map &) const;
     void import_destroyed_entities(entt::registry &, entity_map &) const;
@@ -55,23 +36,23 @@ public:
 
     const auto created_entities() const { return m_created_entities; }
 
-    friend class island_delta_builder;
-
-    double m_timestamp;
-
     template<typename Component, typename Func>
     void created_for_each(Func func) const {
-        auto id = entt::type_index<Component>::value();
-        for (auto &pair : m_created_components) {
-            if (pair.first == id) {
-                auto *container = static_cast<const created_entity_component_container<Component> *>(pair.second.get());
-                for (auto &pair : container->pairs) {
-                    func(pair.first, pair.second);
-                }
-                break;
+        auto index = entt::type_index<Component>::value();
+        if (!(index < m_created_components.size())) return;
+
+        if (auto &created_ptr = m_created_components[index]; created_ptr) {
+            using container_type = created_entity_component_container<Component>;
+            auto *container = static_cast<const container_type *>(created_ptr.get());
+            for (auto &pair : container->pairs) {
+                func(pair.first, pair.second);
             }
         }
     }
+
+    friend class island_delta_builder;
+
+    double m_timestamp;
 
 private:
     entity_map m_entity_map;

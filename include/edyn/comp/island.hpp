@@ -17,6 +17,10 @@ struct island_timestamp {
     double value;
 };
 
+struct island_container_single {
+    entt::entity island_entity;
+};
+
 struct island_container {
     entity_set entities;
 };
