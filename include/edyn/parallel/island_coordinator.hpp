@@ -54,7 +54,10 @@ public:
     void on_island_delta(entt::entity, const island_delta &);
     void on_split_island(entt::entity, const msg::split_island &);
     
+    void on_destroy_contact_manifold(entt::registry &, entt::entity);
+
     void on_construct_constraint(entt::registry &, entt::entity);
+    void on_destroy_constraint(entt::registry &, entt::entity);
 
     void update();
 

@@ -4,14 +4,14 @@
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
-#include "edyn/comp/island.hpp"
+#include "edyn/comp/constraint_row.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 
 namespace edyn {
 
 namespace internal {
     void pre_make_constraint(entt::entity entity, entt::registry &registry, 
-                            entt::entity body0, entt::entity body1, bool is_graph_edge) {
+                             entt::entity body0, entt::entity body1, bool is_graph_edge) {
 
         registry.emplace<procedural_tag>(entity);
 
@@ -23,34 +23,11 @@ namespace internal {
             auto node_index1 = registry.get<graph_node>(body1).node_index;
             auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
             registry.emplace<graph_edge>(entity, edge_index);
-            registry.emplace<island_container>(entity);
         }
 
-        auto &constraint_dirty = registry.get_or_emplace<dirty>(entity)
+        registry.get_or_emplace<dirty>(entity)
             .set_new()
             .created<procedural_tag, constraint>();
-
-        if (is_graph_edge) {
-            constraint_dirty.created<graph_edge>();
-        }
-    }
-}
-
-void limit_dirty_to_island_of_procedural(entt::registry &registry, entt::entity ent0, entt::entity ent1) {
-    if (!registry.has<procedural_tag>(ent0)) {
-        EDYN_ASSERT(registry.has<procedural_tag>(ent1));
-        auto *container = registry.try_get<island_container>(ent1);
-        if (container && !container->entities.empty()) {
-            registry.get_or_emplace<dirty>(ent0).islands(*container->entities.begin());
-        }
-    }
-
-    if (!registry.has<procedural_tag>(ent1)) {
-        EDYN_ASSERT(registry.has<procedural_tag>(ent0));
-        auto *container = registry.try_get<island_container>(ent0);
-        if (container && !container->entities.empty()) {
-            registry.get_or_emplace<dirty>(ent1).islands(*container->entities.begin());
-        }
     }
 }
 
@@ -89,15 +66,11 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     auto node_index1 = registry.get<graph_node>(body1).node_index;
     auto edge_index = registry.ctx<entity_graph>().insert_edge(manifold_entity, node_index0, node_index1);
     registry.emplace<graph_edge>(manifold_entity, edge_index);
-    registry.emplace<island_container>(manifold_entity);
 
     registry.get_or_emplace<dirty>(manifold_entity)
         .set_new()
-        .created<procedural_tag, 
-                 graph_edge, 
+        .created<procedural_tag,
                  contact_manifold>();
-
-    limit_dirty_to_island_of_procedural(registry, body0, body1);
 }
 
 void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {

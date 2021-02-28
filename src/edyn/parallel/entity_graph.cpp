@@ -282,7 +282,8 @@ bool entity_graph::is_single_connected_component() {
     std::vector<index_type> to_visit;
 
     for (index_type i = 0; i < m_nodes.size(); ++i) {
-        if (m_nodes[i].entity != entt::null) {
+        if (!m_nodes[i].non_connecting) {
+            EDYN_ASSERT(m_nodes[i].entity != entt::null);
             to_visit.push_back(i);
             break;
         }
@@ -293,22 +294,28 @@ bool entity_graph::is_single_connected_component() {
         to_visit.pop_back();
 
         m_visited[node_index] = true;
+        auto &node = m_nodes[node_index];
 
-        auto adj_index = m_nodes[node_index].adjacency_index;
+        if (node.non_connecting) {
+            continue;
+        }
+
+        auto adj_index = node.adjacency_index;
 
         while (adj_index != null_index) {
             auto neighbor_index = m_adjacencies[adj_index].node_index;
-            adj_index = m_adjacencies[adj_index].next;
 
             if (!m_visited[neighbor_index]) {
                 to_visit.push_back(neighbor_index);
             }
+
+            adj_index = m_adjacencies[adj_index].next;
         }
     }
 
-    // Check if there's any one node that has not been visited.
+    // Check if there's any one connecting node that has not been visited.
     for (size_t i = 0; i < m_visited.size(); ++i) {
-        if (!m_visited[i] && m_nodes[i].entity != entt::null) {
+        if (!m_visited[i] && !m_nodes[i].non_connecting) {
             return false;
         }
     }

@@ -5,7 +5,7 @@
 #include <memory>
 #include <atomic>
 #include <optional>
-#include <entt/entt.hpp>
+#include <entt/fwd.hpp>
 #include <condition_variable>
 #include "edyn/parallel/job.hpp"
 #include "edyn/dynamics/solver.hpp"
@@ -66,7 +66,10 @@ public:
 
     void reschedule();
 
+    void on_destroy_contact_manifold(entt::registry &, entt::entity);
+
     void on_construct_constraint(entt::registry &, entt::entity);
+    void on_destroy_constraint(entt::registry &, entt::entity);
 
     void on_construct_graph_node_or_edge(entt::registry &, entt::entity);
     void on_destroy_graph_node(entt::registry &, entt::entity);

@@ -93,6 +93,7 @@ private:
     std::vector<adjacency> m_adjacencies;
 
     std::vector<bool> m_visited;
+    std::vector<bool> m_visited_edges;
 
     size_t m_node_count;
     size_t m_edge_count;
@@ -164,15 +165,17 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
     EDYN_ASSERT(std::distance(first, last) > 0);
 
     m_visited.assign(m_nodes.size(), false);
+    m_visited_edges.assign(m_edges.size(), false);
 
-    // Pairs of node index and adjacency index.
-    std::vector<std::pair<index_type, index_type>> to_visit;
-    to_visit.emplace_back(*first, null_index);
+    std::vector<index_type> to_visit;
+    to_visit.push_back(*first);
+
+    std::vector<index_type> non_connecting_indices;
 
     while (true) {
         // Visit nodes reachable from the initial node inserted into `to_visit`.
         while (!to_visit.empty()) {
-            auto [node_index, adj_index] = to_visit.back();
+            auto node_index = to_visit.back();
             to_visit.pop_back();
 
             m_visited[node_index] = true;
@@ -181,37 +184,52 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
             EDYN_ASSERT(node.entity != entt::null);
             visitNodeFunc(node.entity);
 
-            if (adj_index != null_index) {
-                auto edge_index = m_adjacencies[adj_index].edge_index;
-                while (edge_index != null_index) {
-                    const auto &edge = m_edges[edge_index];
-                    EDYN_ASSERT(edge.entity != entt::null);
-                    visitEdgeFunc(edge.entity);
-                    edge_index = edge.next;
-                }
+            if (node.non_connecting) {
+                non_connecting_indices.push_back(node_index);
+                continue;
             }
 
-            adj_index = node.adjacency_index;
+            auto adj_index = node.adjacency_index;
 
             while (adj_index != null_index) {
-                auto neighbor_index = m_adjacencies[adj_index].node_index;
+                auto &adj = m_adjacencies[adj_index];
+                auto edge_index = adj.edge_index;
 
-                if (!m_visited[neighbor_index] && shouldFunc(neighbor_index)) {
-                    to_visit.emplace_back(neighbor_index, adj_index);
+                while (edge_index != null_index) {
+                    auto &edge = m_edges[edge_index];
+
+                    if (!m_visited_edges[edge_index]) {
+                        EDYN_ASSERT(edge.entity != entt::null);
+                        visitEdgeFunc(edge.entity);
+                        m_visited_edges[edge_index] = true;
+                    }
+
+                    edge_index = edge.next;
                 }
 
-                adj_index = m_adjacencies[adj_index].next;
+                auto neighbor_index = adj.node_index;
+
+                if (!m_visited[neighbor_index] && shouldFunc(neighbor_index)) {
+                    to_visit.emplace_back(neighbor_index);
+                }
+
+                adj_index = adj.next;
             }
         }
 
         componentFunc();
+
+        for (auto node_index : non_connecting_indices) {
+            m_visited[node_index] = false;
+        }
+        non_connecting_indices.clear();
 
         // Look for a node in the list that has not yet been visited.
         for (auto it = first; it != last; ++it) {
             auto node_index = *it;
             if (m_nodes[node_index].entity != entt::null && 
                 !m_visited[node_index]) {
-                to_visit.emplace_back(node_index, null_index);
+                to_visit.emplace_back(node_index);
                 break;
             }
         }
@@ -223,20 +241,19 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
     }
 }
 
-
 template<typename It>
 entity_graph::connected_components_t entity_graph::connected_components(It first, It last) {
     EDYN_ASSERT(std::distance(first, last) > 0);
 
     auto components = entity_graph::connected_components_t{};
     m_visited.assign(m_nodes.size(), false);
+    m_visited_edges.assign(m_edges.size(), false);
 
-    // Pairs of node index and adjacency index.
-    std::vector<std::pair<index_type, index_type>> to_visit;
+    std::vector<index_type> to_visit;
 
     for (auto it = first; it != last; ++it) {
         if (!m_nodes[*it].non_connecting) {
-            to_visit.emplace_back(*it, null_index);
+            to_visit.push_back(*it);
             break;
         }
     }
@@ -248,38 +265,49 @@ entity_graph::connected_components_t entity_graph::connected_components(It first
 
         // Visit nodes reachable from the initial node inserted into `to_visit`.
         while (!to_visit.empty()) {
-            auto [node_index, adj_index] = to_visit.back();
+            auto node_index = to_visit.back();
             to_visit.pop_back();
 
             m_visited[node_index] = true;
 
-            auto &node = m_nodes[node_index];
+            const auto &node = m_nodes[node_index];
             connected.nodes.push_back(node.entity);
-
-            if (adj_index != null_index) {
-                visit_edges(adj_index, [&connected] (entt::entity edge_entity) {
-                    connected.edges.push_back(edge_entity);
-                });
-            }
 
             if (node.non_connecting) {
                 non_connecting_indices.push_back(node_index);
                 continue;
             }
 
-            adj_index = node.adjacency_index;
+            auto adj_index = node.adjacency_index;
 
             while (adj_index != null_index) {
-                auto neighbor_index = m_adjacencies[adj_index].node_index;
+                auto &adj = m_adjacencies[adj_index];
+                auto edge_index = adj.edge_index;
 
-                if (!m_visited[neighbor_index]) {
-                    to_visit.emplace_back(neighbor_index, adj_index);
+                while (edge_index != null_index) {
+                    auto &edge = m_edges[edge_index];
+
+                    if (!m_visited_edges[edge_index]) {
+                        EDYN_ASSERT(edge.entity != entt::null);
+                        connected.edges.push_back(edge.entity);
+                        m_visited_edges[edge_index] = true;
+                    }
+
+                    edge_index = edge.next;
                 }
 
-                adj_index = m_adjacencies[adj_index].next;
+                auto neighbor_index = adj.node_index;
+
+                if (!m_visited[neighbor_index]) {
+                    to_visit.emplace_back(neighbor_index);
+                }
+
+                adj_index = adj.next;
             }
         }
 
+        // Mark non-connecting nodes as unvisited so they'll be visited again
+        // once while traversing the next connected component.
         for (auto node_index : non_connecting_indices) {
             m_visited[node_index] = false;
         }
@@ -290,7 +318,7 @@ entity_graph::connected_components_t entity_graph::connected_components(It first
             auto node_index = *it;
             EDYN_ASSERT(m_nodes[node_index].entity != entt::null);
             if (!m_visited[node_index] && !m_nodes[node_index].non_connecting) {
-                to_visit.emplace_back(node_index, null_index);
+                to_visit.push_back(node_index);
                 break;
             }
         }

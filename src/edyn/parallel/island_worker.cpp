@@ -1,4 +1,5 @@
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/config/config.h"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
@@ -15,6 +16,7 @@
 #include "edyn/parallel/external_system.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include <variant>
+#include <entt/entt.hpp>
 
 namespace edyn {
 
@@ -70,7 +72,10 @@ void island_worker::init() {
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
 
+    m_registry.on_destroy<contact_manifold>().connect<&island_worker::on_destroy_contact_manifold>(*this);
+
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
+    m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
 
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -96,6 +101,21 @@ void island_worker::init() {
     m_state = state::step;
 }
 
+void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
+    if (m_importing_delta) return;
+
+    m_delta_builder->destroyed(entity);
+
+    auto &manifold = registry.get<contact_manifold>(entity);
+    auto num_points = manifold.num_points();
+
+    for (size_t i = 0; i < num_points; ++i) {
+        auto contact_entity = manifold.point[i];
+        registry.destroy(contact_entity);
+        m_delta_builder->destroyed(contact_entity);
+    }
+}
+
 void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
     if (m_importing_delta) return;
 
@@ -107,12 +127,22 @@ void island_worker::on_construct_constraint(entt::registry &registry, entt::enti
     }, con.var);
 }
 
-void island_worker::on_construct_graph_node_or_edge(entt::registry &registry, entt::entity entity) {
+void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
     if (m_importing_delta) return;
 
-    auto &container = registry.get<island_container>(entity);
-    container.entities.insert(m_island_entity);
-    m_delta_builder->created<island_container>(entity, container);
+    m_delta_builder->destroyed(entity);
+
+    auto &con = registry.get<constraint>(entity);
+    auto num_rows = con.num_rows();
+
+    for (size_t i = 0; i < num_rows; ++i) {
+        registry.destroy(con.row[i]);
+        m_delta_builder->destroyed(con.row[i]);
+    }
+}
+
+void island_worker::on_construct_graph_node_or_edge(entt::registry &registry, entt::entity entity) {
+
 }
 
 void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
