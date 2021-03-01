@@ -13,7 +13,8 @@ namespace internal {
     void pre_make_constraint(entt::entity entity, entt::registry &registry, 
                              entt::entity body0, entt::entity body1, bool is_graph_edge) {
 
-        registry.emplace<procedural_tag>(entity);
+        auto &con_dirty = registry.get_or_emplace<dirty>(entity);
+        con_dirty.set_new().created<constraint>();
 
         // If the constraint is not a graph edge (e.g. when it's a `contact_constraint`
         // in a contact manifold), it means it is handled as a child of another entity
@@ -23,11 +24,10 @@ namespace internal {
             auto node_index1 = registry.get<graph_node>(body1).node_index;
             auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
             registry.emplace<graph_edge>(entity, edge_index);
+            registry.emplace<procedural_tag>(entity);
+            con_dirty.created<procedural_tag>();
         }
 
-        registry.get_or_emplace<dirty>(entity)
-            .set_new()
-            .created<procedural_tag, constraint>();
     }
 }
 
@@ -42,11 +42,10 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     row.priority = priority;
 
     registry.emplace<constraint_row_data>(row_entity);
-    registry.emplace<procedural_tag>(row_entity);
 
     registry.get_or_emplace<dirty>(row_entity)
         .set_new()
-        .created<procedural_tag, constraint_row, constraint_row_data>();
+        .created<constraint_row, constraint_row_data>();
 
     return row_entity;
 }

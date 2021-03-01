@@ -1,5 +1,6 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
@@ -393,40 +394,57 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
         }
     }
 
+    auto manifold_view = m_registry->view<contact_manifold>();
+    auto point_view = m_registry->view<contact_point>();
+    auto constraint_view = m_registry->view<constraint>();
+    auto row_view = m_registry->view<constraint_row, constraint_row_data>();
+
     for (auto entity : edges) {
         // Assign island to residents.
         auto &resident = resident_view.get(entity);
         resident.island_entity = island_entity;
         // Add new entities to the delta builder.
         ctx->m_delta_builder->created(entity);
-        ctx->m_delta_builder->created_all(entity, *m_registry);
 
         // Add child entities.
-        if (auto *manifold = m_registry->try_get<contact_manifold>(entity); manifold) {
-            auto num_points = manifold->num_points();
+        if (manifold_view.contains(entity)) {
+            auto &manifold = manifold_view.get(entity);
+            ctx->m_delta_builder->created(entity, manifold);
+            ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
+
+            auto num_points = manifold.num_points();
 
             for (size_t i = 0; i < num_points; ++i) {
-                auto point_entity = manifold->point[i];
+                auto point_entity = manifold.point[i];
+                auto &point = point_view.get(point_entity);
+                auto &con = constraint_view.get(point_entity);
                 ctx->m_delta_builder->created(point_entity);
-                ctx->m_delta_builder->created_all(point_entity, *m_registry);
+                ctx->m_delta_builder->created(point_entity, point);
+                ctx->m_delta_builder->created(point_entity, con);
 
-                auto &con = m_registry->get<constraint>(point_entity);
                 auto num_rows = con.num_rows();
 
                 for (size_t j = 0; j < num_rows; ++j) {
                     auto row_entity = con.row[j];
+                    auto [row, data] = row_view.get<constraint_row, constraint_row_data>(row_entity);
                     ctx->m_delta_builder->created(row_entity);
-                    ctx->m_delta_builder->created_all(row_entity, *m_registry);
+                    ctx->m_delta_builder->created(row_entity, row);
+                    ctx->m_delta_builder->created(row_entity, data);
                 }
             }
         } else {
-            auto &con = m_registry->get<constraint>(entity);
+            auto &con = constraint_view.get(entity);
+            ctx->m_delta_builder->created(entity, con);
+            ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
+
             auto num_rows = con.num_rows();
 
             for (size_t i = 0; i < num_rows; ++i) {
                 auto row_entity = con.row[i];
+                auto [row, data] = row_view.get<constraint_row, constraint_row_data>(row_entity);
                 ctx->m_delta_builder->created(row_entity);
-                ctx->m_delta_builder->created_all(row_entity, *m_registry);
+                ctx->m_delta_builder->created(row_entity, row);
+                ctx->m_delta_builder->created(row_entity, data);
             }
         }
     }
