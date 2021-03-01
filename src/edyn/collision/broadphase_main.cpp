@@ -127,7 +127,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
         results.insert(results.end(), pairs.begin(), pairs.end());
     });
 
-    auto container_view = m_registry->view<island_container>();
+    auto resident_view = m_registry->view<multi_island_resident>();
 
     // Query the non-procedural dynamic tree to find static and kinematic
     // entities that are intersecting this island.
@@ -135,9 +135,10 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
         auto np_entity = m_np_tree.get_node(id_np).entity;
 
         // Only proceed if the non-procedural entity is not in the island,
-        // because if it is already, collisions are handled in the island worker.
-        auto &container = container_view.get(np_entity);
-        if (container.entities.count(island_entityA)) {
+        // because if it is already in, collisions are handled in the
+        // island worker.
+        auto &resident = resident_view.get(np_entity);
+        if (resident.island_entities.count(island_entityA)) {
             return;
         }
 

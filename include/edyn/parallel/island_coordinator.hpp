@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <entt/fwd.hpp>
 #include "edyn/math/scalar.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
 #include "edyn/parallel/message.hpp"
@@ -28,7 +29,7 @@ class island_coordinator final {
     void insert_to_island(entt::entity island_entity, 
                           const std::vector<entt::entity> &nodes,
                           const std::vector<entt::entity> &edges);
-    entt::entity merge_islands(const entity_set &island_entities,
+    entt::entity merge_islands(const std::vector<entt::entity> &island_entities,
                                const std::vector<entt::entity> &new_nodes,
                                const std::vector<entt::entity> &new_edges);
     void split_islands();
@@ -37,8 +38,6 @@ class island_coordinator final {
     void refresh_dirty_entities();
     bool should_split_island(entt::entity source_island_entity);
     void sync();
-
-    void validate();
 
 public:
     island_coordinator(entt::registry &);
@@ -50,7 +49,8 @@ public:
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
 
-    void on_destroy_island_container(entt::registry &, entt::entity);
+    void on_destroy_island_resident(entt::registry &, entt::entity);
+    void on_destroy_multi_island_resident(entt::registry &, entt::entity);
     void on_island_delta(entt::entity, const island_delta &);
     void on_split_island(entt::entity, const msg::split_island &);
     
@@ -65,14 +65,7 @@ public:
     void step_simulation();
 
     template<typename... Component>
-    void refresh(entt::entity entity) {
-        static_assert(sizeof...(Component) > 0);
-        auto &container = m_registry->get<island_container>(entity);
-        for (auto island_entity : container.entities) {
-            auto &ctx = m_island_ctx_map.at(island_entity);
-            ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
-        }
-    }
+    void refresh(entt::entity entity);
 
     scalar m_fixed_dt {1.0/60};
 
@@ -87,6 +80,23 @@ private:
     bool m_importing_delta {false};
     bool m_paused {false};
 };
+
+template<typename... Component>
+void island_coordinator::refresh(entt::entity entity) {
+    static_assert(sizeof...(Component) > 0);
+
+    if (m_registry->has<island_resident>(entity)) {
+        auto &resident = m_registry->get<island_resident>(entity);
+        auto &ctx = m_island_ctx_map.at(resident.island_entity);
+        ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
+    } else {
+        auto &resident = m_registry->get<multi_island_resident>(entity);
+        for (auto island_entity : resident.island_entities) {
+            auto &ctx = m_island_ctx_map.at(island_entity);
+            ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
+        }
+    }
+}
 
 }
 
