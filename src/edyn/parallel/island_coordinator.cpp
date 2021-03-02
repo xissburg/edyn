@@ -1,5 +1,6 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
@@ -373,6 +374,42 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
+    auto manifold_view = m_registry->view<contact_manifold>();
+    auto point_view = m_registry->view<contact_point>();
+    auto constraint_view = m_registry->view<constraint>();
+    auto row_view = m_registry->view<constraint_row, constraint_row_data>();
+
+    size_t total_num_rows = 0;
+    size_t total_num_points = 0;
+    size_t total_num_constraints = 0;
+
+    for (auto entity : edges) {
+        if (manifold_view.contains(entity)) {
+            auto &manifold = manifold_view.get(entity);
+
+            auto num_points = manifold.num_points();
+            total_num_points += num_points;
+            total_num_constraints += num_points;
+
+            for (size_t i = 0; i < num_points; ++i) {
+                auto point_entity = manifold.point[i];
+                auto &con = constraint_view.get(point_entity);
+                auto num_rows = con.num_rows();
+                total_num_rows += num_rows;
+            }
+        } else {
+            auto &con = constraint_view.get(entity);
+            total_num_constraints += 1;
+            auto num_rows = con.num_rows();
+            total_num_rows += num_rows;
+        }
+    }
+
+    ctx->m_delta_builder->reserve_created(nodes.size() + edges.size() + total_num_rows + total_num_constraints);
+    ctx->m_delta_builder->reserve_created<constraint_row, constraint_row_data>(total_num_rows);
+    ctx->m_delta_builder->reserve_created<constraint>(total_num_constraints);
+    ctx->m_delta_builder->reserve_created<contact_point>(total_num_points);
+    ctx->m_delta_builder->reserve_created<continuous>(nodes.size());
 
     for (auto entity : nodes) {
         // Assign island to residents.
@@ -393,11 +430,6 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
             }
         }
     }
-
-    auto manifold_view = m_registry->view<contact_manifold>();
-    auto point_view = m_registry->view<contact_point>();
-    auto constraint_view = m_registry->view<constraint>();
-    auto row_view = m_registry->view<constraint_row, constraint_row_data>();
 
     for (auto entity : edges) {
         // Assign island to residents.

@@ -241,8 +241,9 @@ void island_worker::sync() {
 
     // Update continuous components.
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
-        m_delta_builder->updated(entity, m_registry,
-            cont.types.begin(), cont.types.end());
+        for (size_t i = 0; i < cont.size; ++i) {
+            m_delta_builder->updated(entity, m_registry, cont.types[i]);
+        }
     });
 
     // Update dirty components.

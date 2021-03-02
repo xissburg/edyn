@@ -18,6 +18,12 @@ class island_delta {
 
     using typed_component_container_vector = std::vector<std::unique_ptr<entity_component_container_base>>;
 
+    template<typename... Component>
+    void reserve_created(size_t size);
+    
+    template<typename Component>
+    void _reserve_created(size_t size);
+
     void import_created_entities(entt::registry &, entity_map &) const;
     void import_destroyed_entities(entt::registry &, entity_map &) const;
 

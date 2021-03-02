@@ -19,6 +19,7 @@ class island_delta;
 struct entity_component_container_base {
     virtual ~entity_component_container_base() {}
     virtual void import(const island_delta &, entt::registry &, entity_map &) = 0;
+    virtual void reserve(size_t size) = 0;
     virtual bool empty() const = 0;
     virtual void clear() = 0;
 };
@@ -45,6 +46,10 @@ struct updated_entity_component_container: public entity_component_container_bas
                 registry.replace<Component>(local_entity, pair.second);
             }
         }
+    }
+
+    void reserve(size_t size) override {
+        pairs.reserve(size);
     }
 
     bool empty() const override {
@@ -93,6 +98,10 @@ struct created_entity_component_container: public entity_component_container_bas
         }
     }
 
+    void reserve(size_t size) override {
+        pairs.reserve(size);
+    }
+
     bool empty() const override {
         return pairs.empty();
     }
@@ -112,6 +121,10 @@ struct destroyed_entity_component_container: public entity_component_container_b
             auto local_entity = map.remloc(remote_entity);
             registry.remove<Component>(local_entity);
         }
+    }
+
+    void reserve(size_t size) override {
+        entities.reserve(size);
     }
 
     bool empty() const override {

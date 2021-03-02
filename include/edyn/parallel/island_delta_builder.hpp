@@ -65,6 +65,9 @@ class island_delta_builder {
         container->entities.push_back(entity);
     }
 
+    template<typename Component>
+    void _reserve_created(size_t size);
+
 public:
     island_delta_builder(entity_map &map)
         : m_entity_map(&map)
@@ -247,6 +250,9 @@ public:
         }
     }
 
+    template<typename... Component>
+    void reserve_created(size_t size);
+
     bool empty() const;
 
     island_delta finish() {
@@ -260,6 +266,32 @@ private:
     entity_map *m_entity_map;
     island_delta m_delta;
 };
+
+template<typename... Component>
+void island_delta_builder::reserve_created(size_t size) {
+    if constexpr(sizeof...(Component) == 0) {
+        m_delta.m_created_entities.reserve(size);
+    } else {
+        (_reserve_created<Component>(size), ...);
+    }
+}
+
+template<typename Component>
+void island_delta_builder::_reserve_created(size_t size) {
+    using container_type = created_entity_component_container<Component>;
+    const auto index = entt::type_index<Component>::value();
+
+    if (!(index < m_delta.m_created_components.size())) {
+        m_delta.m_created_components.resize(index + 1);
+    }
+
+    if (auto &ptr = m_delta.m_created_components[index]; !ptr) {
+        ptr.reset(new container_type());
+    }
+
+    auto *container = static_cast<container_type *>(m_delta.m_created_components[index].get());
+    container->reserve(size);
+}
 
 /**
  * @brief Implementation of `island_delta_builder` which allows a list of
