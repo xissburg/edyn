@@ -307,6 +307,7 @@ bool entity_graph::is_single_connected_component() {
 
             if (!m_visited[neighbor_index]) {
                 to_visit.push_back(neighbor_index);
+                m_visited[neighbor_index] = true;
             }
 
             adj_index = m_adjacencies[adj_index].next;

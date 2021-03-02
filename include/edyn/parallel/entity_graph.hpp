@@ -213,6 +213,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
 
                 if (!m_visited[neighbor_index] && shouldFunc(neighbor_index)) {
                     to_visit.emplace_back(neighbor_index);
+                    m_visited[neighbor_index] = true;
                 }
 
                 adj_index = adj.next;
@@ -303,7 +304,10 @@ entity_graph::connected_components_t entity_graph::connected_components(It first
                 auto neighbor_index = adj.node_index;
 
                 if (!m_visited[neighbor_index]) {
-                    to_visit.emplace_back(neighbor_index);
+                    to_visit.push_back(neighbor_index);
+                    // Mark as visited in advance to prevent inserting the same node index
+                    // in the `to_visit` array more than once.
+                    m_visited[neighbor_index] = true;
                 }
 
                 adj_index = adj.next;
