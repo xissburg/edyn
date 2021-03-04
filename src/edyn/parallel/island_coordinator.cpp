@@ -2,7 +2,10 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/present_orientation.hpp"
+#include "edyn/comp/present_position.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/contact_constraint.hpp"
@@ -13,6 +16,7 @@
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
+#include "edyn/util/vector.hpp"
 #include <entt/entt.hpp>
 #include <variant>
 
@@ -27,6 +31,7 @@ island_coordinator::island_coordinator(entt::registry &registry)
     registry.on_destroy<graph_edge>().connect<&island_coordinator::on_destroy_graph_edge>(*this);
 
     registry.on_destroy<island_resident>().connect<&island_coordinator::on_destroy_island_resident>(*this);
+    registry.on_destroy<multi_island_resident>().connect<&island_coordinator::on_destroy_multi_island_resident>(*this);
     
     registry.on_destroy<contact_manifold>().connect<&island_coordinator::on_destroy_contact_manifold>(*this);
 
@@ -87,6 +92,20 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
             on_destroy_contact_manifold(registry, entity);
         } else if (registry.has<constraint>(entity)) {
             on_destroy_constraint(registry, entity);
+        }
+    }
+}
+
+void island_coordinator::on_destroy_multi_island_resident(entt::registry &registry, entt::entity entity) {
+    auto &resident = registry.get<multi_island_resident>(entity);
+
+    // Remove from islands.
+    for (auto island_entity : resident.island_entities) {
+        auto &ctx = m_island_ctx_map.at(island_entity);
+        ctx->m_nodes.erase(entity);
+
+        if (!m_importing_delta)  {
+            ctx->m_delta_builder->destroyed(entity);
         }
     }
 }
@@ -199,8 +218,8 @@ void island_coordinator::init_new_nodes() {
                 return true;
             }
 
-            auto contains_island = std::find(island_entities.begin(), island_entities.end(), 
-                                             other_resident.island_entity) != island_entities.end();
+            auto contains_island = vector_contains(island_entities, other_resident.island_entity);
+
             if (!contains_island) {
                 island_entities.push_back(other_resident.island_entity);
             }
@@ -411,22 +430,103 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     ctx->m_delta_builder->reserve_created<contact_point>(total_num_points);
     ctx->m_delta_builder->reserve_created<continuous>(nodes.size());
 
+    // Insert created/updated components one-by-one explicitly. Could use
+    // created_all/updated_all but this is more efficient.
+    auto tr_view = m_registry->view<position, orientation>();
+    auto vel_view = m_registry->view<linvel, angvel>();
+    auto mass_view = m_registry->view<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>();
+    auto acc_view = m_registry->view<linacc>();
+    auto material_view = m_registry->view<material>();
+    auto presentation_view = m_registry->view<present_position, present_orientation>();
+    auto shape_view = m_registry->view<shape, AABB, collision_filter>();
+    auto procedural_view = m_registry->view<procedural_tag>();
+    auto continuous_view = m_registry->view<continuous>();
+    auto static_view = m_registry->view<static_tag>();
+
     for (auto entity : nodes) {
-        // Assign island to residents.
-        if (resident_view.contains(entity)) {
+        if (procedural_view.contains(entity)) {
             auto &resident = resident_view.get(entity);
             resident.island_entity = island_entity;
+            
             ctx->m_delta_builder->created(entity);
-            ctx->m_delta_builder->created_all(entity, *m_registry);
+
+            ctx->m_delta_builder->created(entity, tr_view.get<position>(entity));
+            ctx->m_delta_builder->created(entity, tr_view.get<orientation>(entity));
+            
+            ctx->m_delta_builder->created(entity, vel_view.get<linvel>(entity));
+            ctx->m_delta_builder->created(entity, vel_view.get<angvel>(entity));
+
+            ctx->m_delta_builder->created(entity, mass_view.get<mass>(entity));
+            ctx->m_delta_builder->created(entity, mass_view.get<mass_inv>(entity));
+            ctx->m_delta_builder->created(entity, mass_view.get<inertia>(entity));
+            ctx->m_delta_builder->created(entity, mass_view.get<inertia_inv>(entity));
+            ctx->m_delta_builder->created(entity, mass_view.get<inertia_world_inv>(entity));
+
+            if (acc_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, acc_view.get(entity));
+            }
+
+            if (material_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, material_view.get(entity));
+            }
+
+            if (presentation_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, presentation_view.get<present_position>(entity));   
+                ctx->m_delta_builder->created(entity, presentation_view.get<present_orientation>(entity));   
+            }
+
+            if (shape_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, shape_view.get<shape>(entity));   
+                ctx->m_delta_builder->created(entity, shape_view.get<AABB>(entity));   
+                ctx->m_delta_builder->created(entity, shape_view.get<collision_filter>(entity));   
+            }
+            
+            ctx->m_delta_builder->created(entity, dynamic_tag{});
+            ctx->m_delta_builder->created(entity, procedural_tag{});
+            ctx->m_delta_builder->created(entity, continuous_view.get(entity));   
         } else {
             auto &resident = multi_resident_view.get(entity);
-            // Non-procedural entity might already be in this island.
-            if (resident.island_entities.count(island_entity)) {
-                ctx->m_delta_builder->updated_all(entity, *m_registry);
-            } else {
+            if (resident.island_entities.count(island_entity) == 0) {
+                // Non-procedural entity is not yet in this island, thus create it.
                 resident.island_entities.insert(island_entity);
+
                 ctx->m_delta_builder->created(entity);
-                ctx->m_delta_builder->created_all(entity, *m_registry);
+
+                ctx->m_delta_builder->created(entity, tr_view.get<position>(entity));
+                ctx->m_delta_builder->created(entity, tr_view.get<orientation>(entity));
+
+                ctx->m_delta_builder->created(entity, vel_view.get<linvel>(entity));
+                ctx->m_delta_builder->created(entity, vel_view.get<angvel>(entity));
+
+                ctx->m_delta_builder->created(entity, mass_view.get<mass>(entity));
+                ctx->m_delta_builder->created(entity, mass_view.get<mass_inv>(entity));
+                ctx->m_delta_builder->created(entity, mass_view.get<inertia>(entity));
+                ctx->m_delta_builder->created(entity, mass_view.get<inertia_inv>(entity));
+                ctx->m_delta_builder->created(entity, mass_view.get<inertia_world_inv>(entity));
+
+                if (material_view.contains(entity)) {
+                    ctx->m_delta_builder->created(entity, material_view.get(entity));
+                }
+
+                if (shape_view.contains(entity)) {
+                    ctx->m_delta_builder->created(entity, shape_view.get<shape>(entity));   
+                    ctx->m_delta_builder->created(entity, shape_view.get<AABB>(entity));   
+                    ctx->m_delta_builder->created(entity, shape_view.get<collision_filter>(entity));   
+                }
+
+                if (static_view.contains(entity)) {
+                    ctx->m_delta_builder->created(entity, static_tag{});
+                } else {
+                    ctx->m_delta_builder->created(entity, kinematic_tag{});
+                }
+            } else if (!static_view.contains(entity)) {
+                // Non-procedural entity is already in this island.
+                // If kinematic, update transform and velocity.
+                ctx->m_delta_builder->updated(entity, tr_view.get<position>(entity));
+                ctx->m_delta_builder->updated(entity, tr_view.get<orientation>(entity));
+
+                ctx->m_delta_builder->updated(entity, vel_view.get<linvel>(entity));
+                ctx->m_delta_builder->updated(entity, vel_view.get<angvel>(entity));
             }
         }
     }
@@ -683,81 +783,79 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
 }
 
 void island_coordinator::on_split_island(entt::entity source_island_entity, const msg::split_island &) {
-    auto &source_ctx = m_island_ctx_map.at(source_island_entity);
-    if (!source_ctx->m_pending_split) {
-        source_ctx->m_split_timestamp = (double)performance_counter() / (double)performance_frequency();
-        source_ctx->m_pending_split = true;
-    }
+    m_islands_to_split.push_back(source_island_entity);
 }
 
 void island_coordinator::split_islands() {
-    std::vector<entt::entity> islands_to_split;
-    auto time = (double)performance_counter() / (double)performance_frequency();
-
-    for (auto &pair : m_island_ctx_map) {
-        auto &ctx = pair.second;
-        if (!ctx->m_pending_split) continue;
-
-        auto dt = time - ctx->m_split_timestamp;
-        if (dt > m_island_split_delay) {
-            ctx->m_pending_split = false;
-            islands_to_split.push_back(pair.first);
-        }
+    for (auto island_entity : m_islands_to_split) {
+        split_island(island_entity);
     }
-
-    for (auto split_island_entity : islands_to_split) {
-        split_island(split_island_entity);
-    }
+    m_islands_to_split.clear();
 }
 
 void island_coordinator::split_island(entt::entity split_island_entity) {
-    if (m_island_ctx_map.count(split_island_entity) == 0) return;
+    auto &ctx = m_island_ctx_map.at(split_island_entity);
+    auto connected_components = ctx->worker()->split();
 
-    auto &split_ctx = m_island_ctx_map.at(split_island_entity);
-    auto node_view = m_registry->view<graph_node>();
-    std::vector<entity_graph::index_type> node_indices;
+    if (connected_components.size() <= 1) return;
 
-    for (auto entity : split_ctx->m_nodes) {
-        auto &node = node_view.get(entity);
-        node_indices.push_back(node.node_index);
+    // Process any new messages enqueued during the split.
+    ctx->read_messages();
+
+    // Map entities to the coordinator space.
+    for (auto &connected_component : connected_components) {
+        for (auto &entity : connected_component.nodes) {
+            entity = ctx->m_entity_map.remloc(entity);
+        }
+
+        for (auto &entity : connected_component.edges) {
+            entity = ctx->m_entity_map.remloc(entity);
+        }
     }
-
-    auto &graph = m_registry->ctx<entity_graph>();
-
-    auto connected_components = graph.connected_components(node_indices.begin(), node_indices.end());
-
-    EDYN_ASSERT(!connected_components.empty());
-
-    if (connected_components.size() == 1) return;
 
     auto timestamp = m_registry->get<island_timestamp>(split_island_entity).value;
     bool sleeping = m_registry->has<sleeping_tag>(split_island_entity);
     auto multi_resident_view = m_registry->view<multi_island_resident>();
+    auto procedural_view = m_registry->view<procedural_tag>();
 
-    for (auto &connected : connected_components) {
+    // Collect non-procedural entities that are still in the island that was split.
+    auto &source_connected_component = connected_components.front();
+    std::vector<entt::entity> remaining_non_procedural_entities;
+
+    for (auto entity : source_connected_component.nodes) {
+        if (!procedural_view.contains(entity)) {
+            remaining_non_procedural_entities.push_back(entity);
+        }
+    }
+
+    for (size_t i = 1; i < connected_components.size(); ++i) {
+        auto &connected = connected_components[i];
         bool contains_procedural = false;
 
-        // Remove deceased island from multi-residents.
         for (auto entity : connected.nodes) {
-            if (m_registry->has<procedural_tag>(entity)) {
+            if (procedural_view.contains(entity)) {
                 contains_procedural = true;
-            } else {
+                ctx->m_nodes.erase(entity);
+            } else if (!vector_contains(remaining_non_procedural_entities, entity)) {
+                // Remove island that was split from multi-residents if they're not 
+                // present in the source island.
                 auto &resident = multi_resident_view.get(entity);
                 resident.island_entities.erase(split_island_entity);
+                ctx->m_nodes.erase(entity);
             }
         }
 
+        for (auto entity : connected.edges) {
+            ctx->m_edges.erase(entity);
+        }
+
         // Do not create a new island if this connected component does not
-        // contain any procedural node. 
+        // contain any procedural node.
         if (!contains_procedural) continue;
 
         auto island_entity = create_island(timestamp, sleeping);
         insert_to_island(island_entity, connected.nodes, connected.edges);
     }
-
-    split_ctx->terminate();
-    m_island_ctx_map.erase(split_island_entity);
-    m_registry->destroy(split_island_entity);
 }
 
 void island_coordinator::sync() {

@@ -1,4 +1,5 @@
 #include "edyn/collision/broadphase_main.hpp"
+#include "edyn/collision/tree_node.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
@@ -20,7 +21,7 @@ broadphase_main::broadphase_main(entt::registry &registry)
     registry.on_construct<tree_view>().connect<&broadphase_main::on_construct_tree_view>(*this);
     registry.on_construct<static_tag>().connect<&broadphase_main::on_construct_static_kinematic_tag>(*this);
     registry.on_construct<kinematic_tag>().connect<&broadphase_main::on_construct_static_kinematic_tag>(*this);
-    registry.on_destroy<tree_node_id_t>().connect<&broadphase_main::on_destroy_node_id>(*this);
+    registry.on_destroy<tree_node_comp>().connect<&broadphase_main::on_destroy_tree_node>(*this);
 }
 
 void broadphase_main::on_construct_tree_view(entt::registry &registry, entt::entity entity) {
@@ -28,7 +29,7 @@ void broadphase_main::on_construct_tree_view(entt::registry &registry, entt::ent
 
     auto &view = registry.get<tree_view>(entity);
     auto id = m_island_tree.create(view.root_aabb(), entity);
-    registry.emplace<tree_node_id_t>(entity, id);
+    registry.emplace<tree_node_comp>(entity, id, true);
 }
 
 void broadphase_main::on_construct_static_kinematic_tag(entt::registry &registry, entt::entity entity) {
@@ -36,32 +37,32 @@ void broadphase_main::on_construct_static_kinematic_tag(entt::registry &registry
 
     auto &aabb = registry.get<AABB>(entity);
     auto id = m_np_tree.create(aabb, entity);
-    registry.emplace<tree_node_id_t>(entity, id);
+    registry.emplace<tree_node_comp>(entity, id, false);
 }
 
-void broadphase_main::on_destroy_node_id(entt::registry &registry, entt::entity entity) {
-    auto id = registry.get<tree_node_id_t>(entity);
+void broadphase_main::on_destroy_tree_node(entt::registry &registry, entt::entity entity) {
+    auto &node = registry.get<tree_node_comp>(entity);
 
-    if (registry.has<static_tag>(entity) || registry.has<kinematic_tag>(entity)) {
-        m_np_tree.destroy(id);
+    if (node.procedural) {
+        m_island_tree.destroy(node.id);
     } else {
-        m_island_tree.destroy(id);
+        m_np_tree.destroy(node.id);
     }
 }
 
 void broadphase_main::update() {
     // Update island AABBs in tree (ignore sleeping islands).
     auto exclude_sleeping = entt::exclude_t<sleeping_tag>{};
-    auto tree_view_node_view = m_registry->view<tree_view, tree_node_id_t>(exclude_sleeping);
-    tree_view_node_view.each([&] (entt::entity, tree_view &tree_view, tree_node_id_t node_id) {
-        m_island_tree.move(node_id, tree_view.root_aabb());
+    auto tree_view_node_view = m_registry->view<tree_view, tree_node_comp>(exclude_sleeping);
+    tree_view_node_view.each([&] (entt::entity, tree_view &tree_view, tree_node_comp &node) {
+        m_island_tree.move(node.id, tree_view.root_aabb());
     });
 
     // Update kinematic AABBs in tree.
     // TODO: only do this for kinematic entities that had their AABB updated.
-    auto kinematic_aabb_node_view = m_registry->view<tree_node_id_t, AABB, kinematic_tag>();
-    kinematic_aabb_node_view.each([&] (entt::entity, tree_node_id_t node_id, AABB &aabb) {
-        m_np_tree.move(node_id, aabb);
+    auto kinematic_aabb_node_view = m_registry->view<tree_node_comp, AABB, kinematic_tag>();
+    kinematic_aabb_node_view.each([&] (entt::entity, tree_node_comp &node, AABB &aabb) {
+        m_np_tree.move(node.id, aabb);
     });
 
     // Search for island pairs with intersecting AABBs, i.e. the AABB of the root
@@ -208,7 +209,9 @@ entity_pair_vector broadphase_main::intersect_island_np(const tree_view &island_
 }
 
 bool broadphase_main::should_collide(entt::entity e0, entt::entity e1) const {
-    EDYN_ASSERT(e0 != e1);
+    //EDYN_ASSERT(e0 != e1);
+
+    if (e0 == e1) return false;
 
     auto view = m_registry->view<const collision_filter>();
     auto &filter0 = view.get(e0);

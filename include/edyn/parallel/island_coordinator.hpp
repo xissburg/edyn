@@ -75,8 +75,8 @@ private:
 
     std::vector<entt::entity> m_new_graph_nodes;
     std::vector<entt::entity> m_new_graph_edges;
+    std::vector<entt::entity> m_islands_to_split;
 
-    double m_island_split_delay {2};
     bool m_importing_delta {false};
     bool m_paused {false};
 };

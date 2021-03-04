@@ -12,7 +12,6 @@ island_worker_context::island_worker_context(entt::entity island_entity,
     , m_message_queue(message_queue)
     , m_delta_builder(make_island_delta_builder(m_entity_map))
     , m_pending_flush(false)
-    , m_pending_split(false)
 {
     m_message_queue.sink<island_delta>().connect<&island_worker_context::on_island_delta>(*this);
     m_message_queue.sink<msg::split_island>().connect<&island_worker_context::on_split_island>(*this);

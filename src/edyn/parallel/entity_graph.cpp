@@ -326,6 +326,98 @@ bool entity_graph::is_single_connected_component() {
     return true;
 }
 
+entity_graph::connected_components_t entity_graph::connected_components() {
+    auto components = entity_graph::connected_components_t{};
+    m_visited.assign(m_nodes.size(), false);
+    m_visited_edges.assign(m_edges.size(), false);
+
+    std::vector<index_type> to_visit;
+
+    for (size_t node_index = 0; node_index < m_nodes.size(); ++node_index) {
+        auto &node = m_nodes[node_index];
+        if (node.entity != entt::null && !node.non_connecting) {
+            to_visit.push_back(node_index);
+            break;
+        }
+    }
+
+    std::vector<index_type> non_connecting_indices;
+
+    while (true) {
+        auto &connected = components.emplace_back();
+
+        // Visit nodes reachable from the initial node inserted into `to_visit`.
+        while (!to_visit.empty()) {
+            auto node_index = to_visit.back();
+            to_visit.pop_back();
+
+            m_visited[node_index] = true;
+
+            const auto &node = m_nodes[node_index];
+            connected.nodes.push_back(node.entity);
+
+            if (node.non_connecting) {
+                non_connecting_indices.push_back(node_index);
+                continue;
+            }
+
+            auto adj_index = node.adjacency_index;
+
+            while (adj_index != null_index) {
+                auto &adj = m_adjacencies[adj_index];
+                auto edge_index = adj.edge_index;
+
+                while (edge_index != null_index) {
+                    auto &edge = m_edges[edge_index];
+
+                    if (!m_visited_edges[edge_index]) {
+                        EDYN_ASSERT(edge.entity != entt::null);
+                        connected.edges.push_back(edge.entity);
+                        m_visited_edges[edge_index] = true;
+                    }
+
+                    edge_index = edge.next;
+                }
+
+                auto neighbor_index = adj.node_index;
+
+                if (!m_visited[neighbor_index]) {
+                    to_visit.push_back(neighbor_index);
+                    // Mark as visited in advance to prevent inserting the same node index
+                    // in the `to_visit` array more than once.
+                    m_visited[neighbor_index] = true;
+                }
+
+                adj_index = adj.next;
+            }
+        }
+
+        // Mark non-connecting nodes as unvisited so they'll be visited again
+        // once while traversing the next connected component.
+        for (auto node_index : non_connecting_indices) {
+            m_visited[node_index] = false;
+        }
+        non_connecting_indices.clear();
+
+        // Look for a connecting node that has not yet been visited.
+        for (size_t node_index = 0; node_index < m_nodes.size(); ++node_index) {
+            if (!m_visited[node_index] && 
+                m_nodes[node_index].entity != entt::null &&
+                !m_nodes[node_index].non_connecting) {
+                to_visit.push_back(node_index);
+                break;
+            }
+        }
+
+        // No more nodes left to visit.
+        if (to_visit.empty()) {
+            break;
+        }
+    }
+
+    return components;
+}
+
 double entity_graph::efficiency() const {
     if (m_nodes.empty()) {
         return 0;

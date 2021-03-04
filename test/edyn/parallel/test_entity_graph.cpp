@@ -21,11 +21,7 @@ TEST(entity_graph_test, test_basics) {
         ASSERT_TRUE(neighbor == node_entity1);
     });
 
-    std::vector<edyn::entity_graph::index_type> node_indices;
-    node_indices.push_back(node_index0);
-    node_indices.push_back(node_index1);
-
-    auto connected_components = graph.connected_components(node_indices.begin(), node_indices.end());
+    auto connected_components = graph.connected_components();
 
     ASSERT_EQ(connected_components.size(), 1);
 

@@ -11,9 +11,10 @@
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/collision/narrowphase.hpp"
+#include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/island_delta_builder.hpp"
-#include "edyn/collision/broadphase_worker.hpp"
+#include "edyn/parallel/entity_graph.hpp"
 
 namespace edyn {
 
@@ -83,6 +84,8 @@ public:
     void on_step_simulation(const msg::step_simulation &msg);
     void on_wake_up_island(const msg::wake_up_island &);
 
+    entity_graph::connected_components_t split();
+
     bool is_terminated() const;
     bool is_terminating() const;
     void terminate();
@@ -104,8 +107,8 @@ private:
     std::optional<double> m_sleep_timestamp;
 
     state m_state;
-
     bool m_paused;
+    std::atomic<bool> m_splitting;
 
     std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_importing_delta;

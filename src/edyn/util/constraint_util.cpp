@@ -23,8 +23,8 @@ namespace internal {
             auto node_index0 = registry.get<graph_node>(body0).node_index;
             auto node_index1 = registry.get<graph_node>(body1).node_index;
             auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
-            registry.emplace<graph_edge>(entity, edge_index);
             registry.emplace<procedural_tag>(entity);
+            registry.emplace<graph_edge>(entity, edge_index);
             con_dirty.created<procedural_tag>();
         }
 

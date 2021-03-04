@@ -2,6 +2,7 @@
 #define EDYN_COLLISION_TREE_VIEW_HPP
 
 #include <vector>
+#include <entt/entity/entity.hpp>
 #include "edyn/collision/tree_node.hpp"
 
 namespace edyn {
@@ -152,7 +153,7 @@ void tree_view::query(const AABB &aabb, Func func) const {
 template<typename Func>
 void tree_view::each(Func func) const {
     for (const auto &node : m_nodes) {
-        if (node.leaf()) {
+        if (node.entity != entt::null) {
             func(node);
         }
     }
@@ -161,7 +162,7 @@ void tree_view::each(Func func) const {
 template<typename Func>
 void tree_view::each(Func func) {
     for (auto &node : m_nodes) {
-        if (node.leaf()) {
+        if (node.entity != entt::null) {
             func(node);
         }
     }

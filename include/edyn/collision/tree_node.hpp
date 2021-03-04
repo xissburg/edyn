@@ -30,6 +30,11 @@ struct tree_node {
     }
 };
 
+struct tree_node_comp {
+    tree_node_id_t id;
+    bool procedural;
+};
+
 }
 
 #endif // EDYN_COLLISION_TREE_NODE_HPP

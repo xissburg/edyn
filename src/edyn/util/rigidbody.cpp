@@ -57,7 +57,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<angvel>(entity, def.angvel);
     }
 
-    if (def.kind == rigidbody_kind::rb_dynamic && def.gravity != vector3_zero) {
+    if (def.gravity != vector3_zero && def.kind == rigidbody_kind::rb_dynamic) {
         registry.emplace<linacc>(entity, def.gravity);
     }
 
@@ -66,7 +66,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
                                   def.stiffness, def.damping);
     }
 
-    if (def.presentation) {
+    if (def.presentation && def.kind == rigidbody_kind::rb_dynamic) {
         registry.emplace<present_position>(entity, def.position);
         registry.emplace<present_orientation>(entity, def.orientation);
     }

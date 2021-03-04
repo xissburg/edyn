@@ -36,13 +36,14 @@ public:
     using split_island_func_t = void(entt::entity, const msg::split_island &);
     entt::sigh<split_island_func_t> m_split_island_signal;
 
-    bool m_pending_split;
-    double m_split_timestamp;
-
     island_worker_context(entt::entity island_entity,
                 island_worker *worker,
                 message_queue_in_out message_queue);
     ~island_worker_context();
+
+    island_worker *worker() {
+        return m_worker;
+    }
 
     /**
      * Returns whether the current delta doesn't contain any changes.
