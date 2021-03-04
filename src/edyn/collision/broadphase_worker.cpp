@@ -7,6 +7,7 @@
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/tree_view.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
@@ -43,10 +44,17 @@ void broadphase_worker::init_new_aabb_entities() {
         return;
     }
 
+    auto aabb_view = m_registry->view<AABB>();
+    auto procedural_view = m_registry->view<procedural_tag>();
+
     for (auto entity : m_new_aabb_entities) {
-        auto &aabb = m_registry->get<AABB>(entity);
-        bool procedural = m_registry->has<procedural_tag>(entity);
-        tree_node_id_t id = procedural ? m_tree.create(aabb, entity) : m_np_tree.create(aabb, entity);
+        // Entity might've been destroyed, thus skip it.
+        if (!m_registry->valid(entity)) continue;
+
+        auto &aabb = aabb_view.get(entity);
+        bool procedural = procedural_view.contains(entity);
+        auto &tree = procedural ? m_tree : m_np_tree;
+        tree_node_id_t id = tree.create(aabb, entity);
         m_registry->emplace<tree_node_comp>(entity, id, procedural);
     }
 

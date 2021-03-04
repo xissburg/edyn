@@ -516,6 +516,14 @@ void island_worker::finish_step() {
 
     m_state = state::step;
 
+    // Unfortunately, an island cannot be split immediately, because a merge could
+    // happen at the same time in the coordinator, which might reference entities
+    // that won't be present here anymore in the next update because they were moved
+    // into another island which the coordinator could not be aware of at the 
+    // moment it was merging this island with another. Thus, this island sets its
+    // splitting flag to true and sends the split request to the coordinator and it
+    // is put to sleep until the coordinator calls `split()` which executes the
+    // split and puts it back to run.
     if (should_split) {
         m_splitting.store(true, std::memory_order_relaxed);
         m_message_queue.send<msg::split_island>();
@@ -581,6 +589,19 @@ void island_worker::reschedule() {
 }
 
 void island_worker::init_new_imported_contact_manifolds() {
+    // Entities in the new imported contact manifolds array might've been
+    // destroyed. Remove invalid entities before proceeding.
+    for (size_t i = 0; i < m_new_imported_contact_manifolds.size();) {
+        if (m_registry.valid(m_new_imported_contact_manifolds[i])) {
+            ++i;
+        } else {
+            m_new_imported_contact_manifolds[i] = m_new_imported_contact_manifolds.back();
+            m_new_imported_contact_manifolds.pop_back();
+        }
+    }
+
+    if (m_new_imported_contact_manifolds.empty()) return;
+
     // Find contact points for new manifolds imported from the main registry.
     m_nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
                                       m_new_imported_contact_manifolds.end());
@@ -708,7 +729,8 @@ entity_graph::connected_components_t island_worker::split() {
         auto &connected_component = connected_components[i];
 
         for (auto entity : connected_component.nodes) {
-            if (!vector_contains(remaining_non_procedural_entities, entity)) {
+            if (!vector_contains(remaining_non_procedural_entities, entity) &&
+                m_registry.valid(entity)) {
                 m_registry.destroy(entity);
             }
         }

@@ -602,10 +602,7 @@ entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &
     }
 
     auto other_island_entities = island_entities;
-
-    other_island_entities.erase(
-        std::remove(other_island_entities.begin(), other_island_entities.end(), 
-        island_entity), other_island_entities.end());
+    vector_erase(other_island_entities, island_entity);
 
     auto all_nodes = new_nodes;
     auto all_edges = new_edges;
@@ -704,7 +701,7 @@ void island_coordinator::refresh_dirty_entities() {
     dirty_view.each([&] (entt::entity entity, dirty &dirty) {
         if (resident_view.contains(entity)) {
             refresh(entity, dirty, resident_view.get(entity).island_entity);
-        } else {
+        } else if (multi_resident_view.contains(entity)) {
             auto &resident = multi_resident_view.get(entity);
             for (auto island_entity : resident.island_entities) {
                 refresh(entity, dirty, island_entity);

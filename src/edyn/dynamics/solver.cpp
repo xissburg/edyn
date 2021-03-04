@@ -83,7 +83,7 @@ scalar solve(constraint_row_data &data) {
 }
 
 void update_inertia(entt::registry &registry) {
-    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(entt::exclude<disabled_tag>);
+    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
     view.each([] (auto, orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
@@ -106,9 +106,9 @@ void solver::update(scalar dt) {
 
     // Setup constraints.
     auto body_view = m_registry->view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
-    auto con_view = m_registry->view<constraint>(entt::exclude<disabled_tag>);
-    auto row_view = m_registry->view<constraint_row, constraint_row_data>(entt::exclude<disabled_tag>);
-    auto data_view = m_registry->view<constraint_row_data>(entt::exclude<disabled_tag>);
+    auto con_view = m_registry->view<constraint>();
+    auto row_view = m_registry->view<constraint_row, constraint_row_data>();
+    auto data_view = m_registry->view<constraint_row_data>();
 
     con_view.each([&] (entt::entity entity, constraint &con) {
         std::visit([&] (auto &&c) {
@@ -151,7 +151,7 @@ void solver::update(scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    auto vel_view = m_registry->view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>(entt::exclude<disabled_tag>);
+    auto vel_view = m_registry->view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>();
     vel_view.each([] (linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
         v += dv;
         w += dw;
