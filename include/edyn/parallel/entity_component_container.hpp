@@ -33,7 +33,7 @@ struct updated_entity_component_container: public entity_component_container_bas
     }
 
     void import(const island_delta &delta, entt::registry &registry, entity_map &map) override {
-        auto ctx = merge_context{&registry, &map, &delta};
+        auto ctx = merge_context{&registry, &map};
         auto view = registry.view<Component>();
 
         for (auto &pair : pairs) {
@@ -70,7 +70,7 @@ struct created_entity_component_container: public entity_component_container_bas
     }
 
     void import(const island_delta &delta, entt::registry &registry, entity_map &map) override {
-        auto ctx = merge_context{&registry, &map, &delta};
+        auto ctx = merge_context{&registry, &map};
         size_t index = 0;
 
         while (index < pairs.size()) {

@@ -194,7 +194,9 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
         m_delta_builder->destroyed(entity);
     }
 
-    m_entity_map.erase_loc(entity);
+    if (m_entity_map.has_loc(entity)) {
+        m_entity_map.erase_loc(entity);
+    }
 }
 
 void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {

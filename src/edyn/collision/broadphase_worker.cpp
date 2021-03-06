@@ -5,6 +5,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
+#include "edyn/comp/tree_resident.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/comp/tag.hpp"
@@ -21,7 +22,7 @@ broadphase_worker::broadphase_worker(entt::registry &registry)
     , m_manifold_map(registry)
 {
     registry.on_construct<AABB>().connect<&broadphase_worker::on_construct_aabb>(*this);
-    registry.on_destroy<tree_node_comp>().connect<&broadphase_worker::on_destroy_tree_node>(*this);
+    registry.on_destroy<tree_resident>().connect<&broadphase_worker::on_destroy_tree_resident>(*this);
 }
 
 void broadphase_worker::on_construct_aabb(entt::registry &registry, entt::entity entity) {
@@ -29,8 +30,8 @@ void broadphase_worker::on_construct_aabb(entt::registry &registry, entt::entity
     m_new_aabb_entities.push_back(entity);
 }
 
-void broadphase_worker::on_destroy_tree_node(entt::registry &registry, entt::entity entity) {
-    auto &node = registry.get<tree_node_comp>(entity);
+void broadphase_worker::on_destroy_tree_resident(entt::registry &registry, entt::entity entity) {
+    auto &node = registry.get<tree_resident>(entity);
 
     if (node.procedural) {
         m_tree.destroy(node.id);
@@ -55,7 +56,7 @@ void broadphase_worker::init_new_aabb_entities() {
         bool procedural = procedural_view.contains(entity);
         auto &tree = procedural ? m_tree : m_np_tree;
         tree_node_id_t id = tree.create(aabb, entity);
-        m_registry->emplace<tree_node_comp>(entity, id, procedural);
+        m_registry->emplace<tree_resident>(entity, id, procedural);
     }
 
     m_new_aabb_entities.clear();
@@ -120,15 +121,15 @@ void broadphase_worker::common_update() {
     destroy_separated_manifolds(*m_registry);
 
     // Update AABBs of procedural nodes in the dynamic tree.
-    auto proc_aabb_node_view = m_registry->view<tree_node_comp, AABB, procedural_tag>();
-    proc_aabb_node_view.each([&] (tree_node_comp &node, AABB &aabb) {
+    auto proc_aabb_node_view = m_registry->view<tree_resident, AABB, procedural_tag>();
+    proc_aabb_node_view.each([&] (tree_resident &node, AABB &aabb) {
         m_tree.move(node.id, aabb);
     });
 
     // Update kinematic AABBs in non-procedural tree.
     // TODO: only do this for kinematic entities that had their AABB updated.
-    auto kinematic_aabb_node_view = m_registry->view<tree_node_comp, AABB, kinematic_tag>();
-    kinematic_aabb_node_view.each([&] (tree_node_comp &node, AABB &aabb) {
+    auto kinematic_aabb_node_view = m_registry->view<tree_resident, AABB, kinematic_tag>();
+    kinematic_aabb_node_view.each([&] (tree_resident &node, AABB &aabb) {
         m_np_tree.move(node.id, aabb);
     });
 }

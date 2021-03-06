@@ -147,13 +147,16 @@ void island_coordinator::on_construct_constraint(entt::registry &registry, entt:
 }
 
 void island_coordinator::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
+    // Destroy constraint rows. If importing delta, it's unecessary to destroy
+    // rows here because the rows are also added as destroyed entities in the
+    // delta and they'll be destroyed as part of the importing process.
     if (m_importing_delta) return;
 
-    // Destroy constraint rows. If this constraint doesn't have an `island_resident`
-    // assigned, it means that either the `island_resident` was removed first and
-    // this function was called explicitly (see `on_destroy_island_resident`) or
-    // that this is a contact constraint and this isn't a graph edge which means it
-    // hasn't got an `island_resident` assigned to it since that's done on the 
+    // If this constraint doesn't have an `island_resident` assigned, it means
+    // that either the `island_resident` was removed first and this function
+    // was called explicitly (see `on_destroy_island_resident`) or that this is
+    // a contact constraint and this isn't a graph edge which means it hasn't
+    // got an `island_resident` assigned to it since that's done on the 
     // `contact_manifold` that owns this contact.
     if (!registry.has<island_resident>(entity)) return;
 
@@ -791,12 +794,17 @@ void island_coordinator::split_islands() {
 }
 
 void island_coordinator::split_island(entt::entity split_island_entity) {
+    if (m_island_ctx_map.count(split_island_entity) == 0) return;
+
     auto &ctx = m_island_ctx_map.at(split_island_entity);
-    auto connected_components = ctx->worker()->split();
+    auto connected_components = ctx->split();
 
     if (connected_components.size() <= 1) return;
 
-    // Process any new messages enqueued during the split.
+    // Process any new messages enqueued during the split, such as created
+    // entities that need to have their entity mappings added and the
+    // update AABB `tree_view` of this island, which removes entities that
+    // have moved due to the split.
     ctx->read_messages();
 
     // Map entities to the coordinator space.
@@ -879,9 +887,9 @@ void island_coordinator::update() {
 
     init_new_nodes();
     init_new_edges();
-    split_islands();
     refresh_dirty_entities();
     sync();
+    split_islands();
 }
 
 void island_coordinator::set_paused(bool paused) {

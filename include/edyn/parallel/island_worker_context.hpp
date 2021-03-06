@@ -9,10 +9,9 @@
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/message.hpp"
+#include "edyn/parallel/island_worker.hpp"
 
 namespace edyn {
-
-class island_worker;
 
 /**
  * Context of an island worker in the main thread in an island coordinator.
@@ -41,10 +40,6 @@ public:
                 message_queue_in_out message_queue);
     ~island_worker_context();
 
-    island_worker *worker() {
-        return m_worker;
-    }
-
     /**
      * Returns whether the current delta doesn't contain any changes.
      */
@@ -66,6 +61,10 @@ public:
      * in case it is sleeping.
      */
     void flush();
+
+    auto split() {
+        return m_worker->split();
+    }
 
     template<typename Message, typename... Args>
     void send(Args &&... args) {
