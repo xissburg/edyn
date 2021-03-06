@@ -38,6 +38,7 @@ struct updated_entity_component_container: public entity_component_container_bas
 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
+            if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);
 
             if constexpr(!std::is_empty_v<Component>) {
@@ -76,6 +77,12 @@ struct created_entity_component_container: public entity_component_container_bas
         while (index < pairs.size()) {
             auto &pair = pairs[index];
             auto remote_entity = pair.first;
+
+            if (!map.has_rem(remote_entity)) {
+                ++index;
+                continue;
+            }
+
             auto local_entity = map.remloc(remote_entity);
 
             // If it's a duplicate, remove it from the array by swapping with last

@@ -10,7 +10,7 @@ island_worker_context::island_worker_context(entt::entity island_entity,
     : m_island_entity(island_entity)
     , m_worker(worker)
     , m_message_queue(message_queue)
-    , m_delta_builder(make_island_delta_builder(m_entity_map))
+    , m_delta_builder(make_island_delta_builder())
     , m_pending_flush(false)
 {
     m_message_queue.sink<island_delta>().connect<&island_worker_context::on_island_delta>(*this);

@@ -47,7 +47,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_bphase(m_registry)
     , m_nphase(m_registry)
     , m_solver(m_registry)
-    , m_delta_builder(make_island_delta_builder(m_entity_map))
+    , m_delta_builder(make_island_delta_builder())
     , m_importing_delta(false)
     , m_topology_changed(false)
     , m_pending_split_calculation(false)
@@ -218,13 +218,14 @@ void island_worker::on_island_delta(const island_delta &delta) {
     for (auto remote_entity : delta.created_entities()) {
         if (!m_entity_map.has_rem(remote_entity)) continue;
         auto local_entity = m_entity_map.remloc(remote_entity);
-        m_delta_builder->insert_entity_mapping(local_entity);
+        m_delta_builder->insert_entity_mapping(remote_entity, local_entity);
     }
 
     // Insert nodes in the graph for each rigid body.
     auto &gra = m_registry.ctx<entity_graph>();
-    auto insert_node = [&] (entt::entity entity, auto &) {
-        auto local_entity = m_entity_map.remloc(entity);
+    auto insert_node = [&] (entt::entity remote_entity, auto &) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+        auto local_entity = m_entity_map.remloc(remote_entity);
         auto non_connecting = !m_registry.has<procedural_tag>(local_entity);
         auto node_index = gra.insert_node(local_entity, non_connecting);
         m_registry.emplace<graph_node>(local_entity, node_index);
@@ -237,8 +238,10 @@ void island_worker::on_island_delta(const island_delta &delta) {
     auto node_view = m_registry.view<graph_node>();
 
     // Insert edges in the graph for contact manifolds.
-    delta.created_for_each<contact_manifold>([&] (entt::entity entity, const contact_manifold &manifold) {
-        auto local_entity = m_entity_map.remloc(entity);
+    delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+
+        auto local_entity = m_entity_map.remloc(remote_entity);
         auto &node0 = node_view.get(manifold.body[0]);
         auto &node1 = node_view.get(manifold.body[1]);
         auto edge_index = gra.insert_edge(local_entity, node0.node_index, node1.node_index);
@@ -247,12 +250,14 @@ void island_worker::on_island_delta(const island_delta &delta) {
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each<constraint>([&] (entt::entity entity, const constraint &con) {
+    delta.created_for_each<constraint>([&] (entt::entity remote_entity, const constraint &con) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if (std::holds_alternative<contact_constraint>(con.var)) return;
 
-        auto local_entity = m_entity_map.remloc(entity);
+        auto local_entity = m_entity_map.remloc(remote_entity);
         auto &node0 = node_view.get(con.body[0]);
         auto &node1 = node_view.get(con.body[1]);
         auto edge_index = gra.insert_edge(local_entity, node0.node_index, node1.node_index);
@@ -265,7 +270,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
 void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     if (!m_registry.has<sleeping_tag>(m_island_entity)) return;
 
-    auto builder = make_island_delta_builder(m_entity_map);
+    auto builder = make_island_delta_builder();
 
     auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
     isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
@@ -763,6 +768,7 @@ bool island_worker::is_terminating() const {
 }
 
 void island_worker::terminate() {
+    m_splitting.store(false, std::memory_order_release); // Cancel split.
     m_terminating.store(true, std::memory_order_release);
     reschedule();
 }

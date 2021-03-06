@@ -69,18 +69,15 @@ class island_delta_builder {
     void _reserve_created(size_t size);
 
 public:
-    island_delta_builder(entity_map &map)
-        : m_entity_map(&map)
-    {}
-
     virtual ~island_delta_builder() {}
 
     /**
-     * @brief Inserts a mapping into the current delta for a local entity.
-     * Assumes a mapping exists in the entity map.
-     * @param entity An entity in the local registry.
+     * @brief Inserts a mapping into the current delta between a remote entity
+     * and a local entity.
+     * @param remote_entity Corresponding entity in the remote registry.
+     * @param local_entity An entity in the local registry.
      */
-    void insert_entity_mapping(entt::entity);
+    void insert_entity_mapping(entt::entity remote_entity, entt::entity local_entity);
 
     /**
      * @brief Marks the given entity as newly created.
@@ -263,7 +260,6 @@ public:
     }
 
 private:
-    entity_map *m_entity_map;
     island_delta m_delta;
 };
 
@@ -311,8 +307,7 @@ void island_delta_builder::_reserve_created(size_t size) {
 template<typename... Component>
 class island_delta_builder_impl: public island_delta_builder {
 public:
-    island_delta_builder_impl(entity_map &map, [[maybe_unused]] std::tuple<Component...>)
-        : island_delta_builder(map)
+    island_delta_builder_impl([[maybe_unused]] std::tuple<Component...>)
     {}
 
     void created(entt::entity entity, entt::registry &registry, entt::id_type id) override {
@@ -345,7 +340,7 @@ public:
  * @brief Function type of a factory function that creates instances of a 
  * registry delta builder implementation.
  */
-using make_island_delta_builder_func_t = std::unique_ptr<island_delta_builder>(*)(entity_map &);
+using make_island_delta_builder_func_t = std::unique_ptr<island_delta_builder>(*)();
 
 /**
  * @brief Pointer to a factory function that makes new delta builders.
@@ -365,7 +360,7 @@ extern make_island_delta_builder_func_t g_make_island_delta_builder;
  * 
  * @return Safe pointer to an instance of a delta builder implementation.
  */
-std::unique_ptr<island_delta_builder> make_island_delta_builder(entity_map &);
+std::unique_ptr<island_delta_builder> make_island_delta_builder();
 
 /**
  * @brief Registers external components to be shared between island coordinator
@@ -374,11 +369,11 @@ std::unique_ptr<island_delta_builder> make_island_delta_builder(entity_map &);
  */
 template<typename... Component>
 void register_external_components() {
-    g_make_island_delta_builder = [] (entity_map &map) {
+    g_make_island_delta_builder = [] () {
         auto external = std::tuple<Component...>{};
         auto all_components = std::tuple_cat(edyn::shared_components{}, external);
         return std::unique_ptr<edyn::island_delta_builder>(
-            new edyn::island_delta_builder_impl(map, all_components));
+            new edyn::island_delta_builder_impl(all_components));
     };
 }
 
