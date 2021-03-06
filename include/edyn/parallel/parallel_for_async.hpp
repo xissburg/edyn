@@ -4,7 +4,6 @@
 #include <atomic>
 #include <iterator>
 #include "edyn/config/config.h"
-#include "edyn/parallel/atomic_counter.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/memory_archive.hpp"
@@ -16,20 +15,28 @@ namespace detail {
 template<typename IndexType, typename Function>
 struct parallel_for_async_context {
     std::atomic<IndexType> current;
+    const IndexType first;
     const IndexType last;
     const IndexType step;
     const IndexType chunk_size;
-    atomic_counter counter;
+    std::atomic<int> completed_counter;
+    std::atomic<int> ref_counter;
+    job_dispatcher *dispatcher;
+    job completion;
     Function func;
 
     parallel_for_async_context(IndexType first, IndexType last, IndexType step, 
                                IndexType chunk_size, size_t num_jobs, const job &completion, 
                                job_dispatcher &dispatcher, Function func) 
         : current(first)
+        , first(first)
         , last(last)
         , step(step)
         , chunk_size(chunk_size)
-        , counter(completion, num_jobs, dispatcher)
+        , completed_counter(0)
+        , ref_counter(num_jobs)
+        , dispatcher(&dispatcher)
+        , completion(completion)
         , func(func)
     {}
 };
@@ -40,22 +47,34 @@ void parallel_for_async_job_func(job::data_type &data) {
     intptr_t ctx_ptr;
     archive(ctx_ptr);
     auto *ctx = reinterpret_cast<parallel_for_async_context<IndexType, Function> *>(ctx_ptr);
+    const auto total = ctx->last - ctx->first;
 
     while (true) {
         auto begin = ctx->current.fetch_add(ctx->chunk_size, std::memory_order_relaxed);
+        auto end = std::min(begin + ctx->chunk_size, ctx->last);
 
-        if (begin >= ctx->last) {
+        if (begin >= end) {
             break;
         }
-
-        auto end = std::min(begin + ctx->chunk_size, ctx->last);
 
         for (size_t i = begin; i < end; i += ctx->step) {
             ctx->func(i);
         }
+
+        const auto progress = end - begin;
+        const auto completed = ctx->completed_counter.fetch_add(progress, std::memory_order_relaxed) + progress;
+        EDYN_ASSERT(completed <= total);
+
+        if (completed == total) {
+            ctx->dispatcher->async(ctx->completion);
+            break;
+        }
     }
 
-    if (!ctx->counter.decrement()) {
+    auto ref_count = ctx->ref_counter.fetch_sub(1, std::memory_order_relaxed) - 1;
+    EDYN_ASSERT(ref_count >= 0);
+
+    if (ref_count == 0) {
         delete ctx;
     }
 }
@@ -156,7 +175,8 @@ void parallel_for_async(job_dispatcher &dispatcher, IndexType first, IndexType l
 
     // Context that's shared among all jobs. It is deallocated when the last
     // job finishes.
-    auto *context = new detail::parallel_for_async_context<IndexType, Function>(first, last, step, chunk_size, num_jobs, completion, dispatcher, func);
+    using context_type = detail::parallel_for_async_context<IndexType, Function>;
+    auto *context = new context_type(first, last, step, chunk_size, num_jobs, completion, dispatcher, func);
 
     // Job that'll process chunks of data in worker threads.
     auto child_job = job();
@@ -182,7 +202,8 @@ void parallel_for_each_async(job_dispatcher &dispatcher, Iterator first, Iterato
     auto count = static_cast<size_t>(std::distance(first, last));
 
     // Size of chunk that will be processed per job iteration.
-    auto chunk_size = count / num_workers + static_cast<size_t>(count % num_workers != 0);
+    auto count_per_worker_ceil = count / num_workers + static_cast<size_t>(count % num_workers != 0);
+    auto chunk_size = std::max(count_per_worker_ceil, size_t{1});
 
     // Number of jobs that will be dispatched. Must not be greater than number
     // of workers.
@@ -190,7 +211,8 @@ void parallel_for_each_async(job_dispatcher &dispatcher, Iterator first, Iterato
 
     // Context that's shared among all jobs. It is deallocated when the last
     // job finishes.
-    auto *context = new detail::parallel_for_each_async_context<Iterator, Function>(first, last, count, chunk_size, num_jobs, completion, dispatcher, func);
+    using context_type = detail::parallel_for_each_async_context<Iterator, Function>;
+    auto *context = new context_type(first, last, count, chunk_size, num_jobs, completion, dispatcher, func);
 
     // Job that'll process chunks of data in worker threads.
     auto child_job = job();
