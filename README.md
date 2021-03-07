@@ -12,6 +12,9 @@ Examples are located in a separate repository: [Edyn Testbed](https://github.com
 
 A compiler with C++17 support is required, along with `CMake` version 3.12.4 or above.
 
+Dependencies:
+- [EnTT](https://github.com/skypjack/entt) (installed via [Conan](https://conan.io/))
+
 ## Steps
 
 In the _Edyn_ directory:
