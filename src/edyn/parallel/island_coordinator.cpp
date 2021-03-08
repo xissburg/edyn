@@ -401,6 +401,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto constraint_view = m_registry->view<constraint>();
     auto row_view = m_registry->view<constraint_row, constraint_row_data>();
 
+    // Calculate total number of certain kinds of entities to later reserve
+    // the expected number of components for better performance.
     size_t total_num_rows = 0;
     size_t total_num_points = 0;
     size_t total_num_constraints = 0;
@@ -431,7 +433,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     ctx->m_delta_builder->reserve_created<constraint_row, constraint_row_data>(total_num_rows);
     ctx->m_delta_builder->reserve_created<constraint>(total_num_constraints);
     ctx->m_delta_builder->reserve_created<contact_point>(total_num_points);
-    ctx->m_delta_builder->reserve_created<continuous>(nodes.size());
+    ctx->m_delta_builder->reserve_created<position, orientation, linvel, angvel, continuous>(nodes.size());
+    ctx->m_delta_builder->reserve_created<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>(nodes.size());
 
     // Insert created/updated components one-by-one explicitly. Could use
     // created_all/updated_all but this is more efficient.
@@ -442,20 +445,19 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto material_view = m_registry->view<material>();
     auto presentation_view = m_registry->view<present_position, present_orientation>();
     auto shape_view = m_registry->view<shape, AABB, collision_filter>();
-    auto procedural_view = m_registry->view<procedural_tag>();
     auto continuous_view = m_registry->view<continuous>();
+    auto procedural_view = m_registry->view<procedural_tag>();
     auto static_view = m_registry->view<static_tag>();
 
     for (auto entity : nodes) {
         if (procedural_view.contains(entity)) {
             auto &resident = resident_view.get(entity);
             resident.island_entity = island_entity;
-            
+
             ctx->m_delta_builder->created(entity);
 
             ctx->m_delta_builder->created(entity, tr_view.get<position>(entity));
             ctx->m_delta_builder->created(entity, tr_view.get<orientation>(entity));
-            
             ctx->m_delta_builder->created(entity, vel_view.get<linvel>(entity));
             ctx->m_delta_builder->created(entity, vel_view.get<angvel>(entity));
 
@@ -489,6 +491,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
             ctx->m_delta_builder->created(entity, continuous_view.get(entity));   
         } else {
             auto &resident = multi_resident_view.get(entity);
+
             if (resident.island_entities.count(island_entity) == 0) {
                 // Non-procedural entity is not yet in this island, thus create it.
                 resident.island_entities.insert(island_entity);
@@ -497,7 +500,6 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
                 ctx->m_delta_builder->created(entity, tr_view.get<position>(entity));
                 ctx->m_delta_builder->created(entity, tr_view.get<orientation>(entity));
-
                 ctx->m_delta_builder->created(entity, vel_view.get<linvel>(entity));
                 ctx->m_delta_builder->created(entity, vel_view.get<angvel>(entity));
 
@@ -527,7 +529,6 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 // If kinematic, update transform and velocity.
                 ctx->m_delta_builder->updated(entity, tr_view.get<position>(entity));
                 ctx->m_delta_builder->updated(entity, tr_view.get<orientation>(entity));
-
                 ctx->m_delta_builder->updated(entity, vel_view.get<linvel>(entity));
                 ctx->m_delta_builder->updated(entity, vel_view.get<angvel>(entity));
             }
@@ -535,7 +536,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     }
 
     for (auto entity : edges) {
-        // Assign island to residents.
+        // Assign island to residents. All edges are procedural, thus having an
+        // `island_resident`, which refers to a single island.
         auto &resident = resident_view.get(entity);
         resident.island_entity = island_entity;
         // Add new entities to the delta builder.
