@@ -59,4 +59,32 @@ void island_delta::import(entt::registry &registry, entity_map &map) const {
     import_destroyed_components(registry, map);
 }
 
+bool island_delta::empty() const {
+    if (!m_entity_map.empty() || 
+        !m_created_entities.empty() || 
+        !m_destroyed_entities.empty()) {
+        return false;
+    }
+
+    for (auto &ptr : m_created_components) {
+        if (ptr && !ptr->empty()) {
+            return false;
+        }
+    }
+
+    for (auto &ptr : m_updated_components) {
+        if (ptr && !ptr->empty()) {
+            return false;
+        }
+    }
+    
+    for (auto &ptr : m_destroyed_components) {
+        if (ptr && !ptr->empty()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 }

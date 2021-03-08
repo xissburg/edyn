@@ -46,6 +46,12 @@ public:
     bool delta_empty() const;
 
     /**
+     * Returns whether the island needs to be waken up after sending the 
+     * current delta to it.
+     */
+    bool delta_needs_wakeup() const;
+
+    /**
      * Reads messages sent by worker.
      */
     void read_messages();

@@ -247,10 +247,30 @@ public:
         }
     }
 
+    /**
+     * @brief Reserves the given amount of entries in the vector for created components
+     * of the given type for more performant insertion. If no component is provided
+     * it reserves the given amount of entries in the vector for created entities.
+     * @tparam Component The type to be reserved.
+     * @param size The number of entries to be reserved.
+     */
     template<typename... Component>
     void reserve_created(size_t size);
 
+    /**
+     * @brief Returns whether the current delta contains no changes.
+     * @return Whether the current delta contains no changes.
+     */
     bool empty() const;
+
+    /**
+     * @brief Returns whether an island worker should be woken up to process the current
+     * delta. Waking up is usually not necessary if the delta does not include
+     * changes that would be applied to the registry, e.g. if it only contains
+     * entity mappings.
+     * @return Whether destination will have to be woken up to process the current delta.
+     */
+    bool needs_wakeup() const;
 
     island_delta finish() {
         // Move the contents of `m_delta` into the returned object, effectively

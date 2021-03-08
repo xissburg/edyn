@@ -30,31 +30,34 @@ void island_delta_builder::insert_entity_mapping(entt::entity remote_entity, ent
 }
 
 bool island_delta_builder::empty() const {
-    if (!m_delta.m_entity_map.empty() || 
-        !m_delta.m_created_entities.empty() || 
+    return m_delta.empty();
+}
+
+bool island_delta_builder::needs_wakeup() const {
+    if (!m_delta.m_created_entities.empty() || 
         !m_delta.m_destroyed_entities.empty()) {
-        return false;
+        return true;
     }
 
     for (auto &ptr : m_delta.m_created_components) {
         if (ptr && !ptr->empty()) {
-            return false;
+            return true;
         }
     }
 
     for (auto &ptr : m_delta.m_updated_components) {
         if (ptr && !ptr->empty()) {
-            return false;
+            return true;
         }
     }
     
     for (auto &ptr : m_delta.m_destroyed_components) {
         if (ptr && !ptr->empty()) {
-            return false;
+            return true;
         }
     }
 
-    return true;
+    return false;
 }
 
 }

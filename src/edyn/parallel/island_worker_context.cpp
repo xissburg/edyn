@@ -33,6 +33,10 @@ bool island_worker_context::delta_empty() const {
     return m_delta_builder->empty();
 }
 
+bool island_worker_context::delta_needs_wakeup() const {
+    return m_delta_builder->needs_wakeup();
+}
+
 void island_worker_context::read_messages() {
     m_message_queue.update();
 }

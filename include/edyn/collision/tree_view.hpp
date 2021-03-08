@@ -128,7 +128,6 @@ private:
 template<typename Func>
 void tree_view::query(const AABB &aabb, Func func) const {
     std::vector<tree_node_id_t> stack;
-    stack.reserve(m_nodes.size());
     stack.push_back(m_root);
 
     while (!stack.empty()) {

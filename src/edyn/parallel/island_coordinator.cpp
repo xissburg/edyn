@@ -830,6 +830,8 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
     auto procedural_view = m_registry->view<procedural_tag>();
 
     // Collect non-procedural entities that are still in the island that was split.
+    // The first connected component in the array is the one left in the island
+    // that was split.
     auto &source_connected_component = connected_components.front();
     std::vector<entt::entity> remaining_non_procedural_entities;
 
@@ -875,9 +877,10 @@ void island_coordinator::sync() {
         auto &ctx = pair.second;
 
         if (!ctx->delta_empty()) {
+            auto needs_wakeup = ctx->delta_needs_wakeup();
             ctx->send_delta();
 
-            if (m_registry->has<sleeping_tag>(island_entity)) {
+            if (needs_wakeup && m_registry->has<sleeping_tag>(island_entity)) {
                 ctx->send<msg::wake_up_island>();
             }
         }
