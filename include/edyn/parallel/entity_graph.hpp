@@ -11,6 +11,10 @@
 
 namespace edyn {
 
+/**
+ * A non-directed, unweighted graph where multiple edges can exist between
+ * the same pair of nodes and each node and edge hold an `entt::entity` payload.
+ */
 class entity_graph final {
 public:
     using index_type = size_t;
@@ -62,26 +66,63 @@ public:
     bool has_edge(index_type node_index0, index_type node_index1) const;
     entity_pair edge_node_entities(index_type edge_index) const;
 
+    /**
+     * @brief Calculate whether this graph contains a single connected component.
+     * @return Whether this graph is a single connected component.
+     */
     bool is_single_connected_component();
 
+    /**
+     * @brief Visit neighboring nodes of a node.
+     * @tparam Func Visitor function type.
+     * @param node_index Index of node to be visited.
+     * @param func Visitor function with signature `void(entt::entity)`.
+     */
     template<typename Func>
     void visit_neighbors(index_type node_index, Func func) const;
 
+    /** 
+     * @brief Visit all edges between two nodes.
+     * @tparam Func Visitor function type.
+     * @param node_index0 Index of first node.
+     * @param node_index1 Index of second node.
+     * @param func Vistor function with signature `void(entt::entity)`.
+     */
     template<typename Func>
     void visit_edges(index_type node_index0, index_type node_index1, Func func) const;
 
-    template<typename Func>
-    void visit_edges(index_type adj_index, Func func) const;
-
+    /**
+     * @brief Visits nodes and edges that can be reached from the provided range
+     * of nodes.
+     * @tparam It Node container iterator type.
+     * @tparam VisitNodeFunc Type of node visitor function.
+     * @tparam VisitEdgeFunc Type of edge visitor function.
+     * @tparam ShouldFunc Type of function that decides whether to visit a node.
+     * @tparam ComponentFunc Type of function that's called for every connected
+     * component found. 
+     * @param first An iterator to the first element of a range of node indices.
+     * @param last An iterator past the last element of a range of node indices.
+     * @param visitNodeFunc Function called for each node being visited.
+     * @param visitEdgeFunc Function called for each edge being visited.
+     * @param shouldFunc Function that returns whether to proceed visitng node.
+     * @param componentFunc Function called for each connected component that is 
+     * formed.
+     */
     template<typename It, typename VisitNodeFunc, 
              typename VisitEdgeFunc, typename ShouldFunc, 
              typename ComponentFunc>
     void reach(It first, It last, VisitNodeFunc visitNodeFunc, 
                VisitEdgeFunc visitEdgeFunc, ShouldFunc shouldFunc, 
                ComponentFunc componentFunc);
-    
+
     using connected_components_t = std::vector<connected_component>;
 
+    /**
+     * Calculates and returns all connected components of this graph.
+     * Non-connecting nodes are not walked through and can be present in 
+     * multiple connected components.
+     * @return The connected components.
+     */
     connected_components_t connected_components();
 
     void optimize_if_needed();
@@ -137,21 +178,6 @@ void entity_graph::visit_edges(index_type node_index0, index_type node_index1, F
             break;
         }
         adj_index = adj.next;
-    }
-}
-
-template<typename Func>
-void entity_graph::visit_edges(index_type adj_index, Func func) const {
-    EDYN_ASSERT(adj_index < m_adjacencies.size());
-    EDYN_ASSERT(m_adjacencies[adj_index].edge_index != null_index);
-
-    auto edge_index = m_adjacencies[adj_index].edge_index;
-
-    while (edge_index != null_index) {
-        auto &edge = m_edges[edge_index];
-        EDYN_ASSERT(edge.entity != entt::null);
-        func(edge.entity);
-        edge_index = edge.next;
     }
 }
 

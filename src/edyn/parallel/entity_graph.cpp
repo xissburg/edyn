@@ -427,7 +427,7 @@ double entity_graph::efficiency() const {
 }
 
 void entity_graph::optimize() {
-    // Remove all the rightmost free entries and sort the free lists.
+    // TODO: Remove all the rightmost free entries and sort the free lists.
     /*for (size_t i = m_nodes.size() - 1; i > 0; --i) {
         if (m_nodes[i].entity != entt::null) {
             m_nodes.resize(i + 1);
