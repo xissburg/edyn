@@ -559,6 +559,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 ctx->m_delta_builder->created(point_entity, point);
                 ctx->m_delta_builder->created(point_entity, con);
 
+                if (continuous_view.contains(point_entity)) {
+                    ctx->m_delta_builder->created(point_entity, continuous_view.get(point_entity));
+                }
+
                 auto num_rows = con.num_rows();
 
                 for (size_t j = 0; j < num_rows; ++j) {
