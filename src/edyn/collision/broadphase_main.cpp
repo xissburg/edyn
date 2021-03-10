@@ -103,7 +103,7 @@ void broadphase_main::update() {
         m_pair_results.clear();
     } else {
         for (auto island_entityA : awake_island_entities) {
-            auto pairs = find_intersecting_islands(island_entityA, aabb_view,  multi_resident_view, tree_view_view, filter_view);
+            auto pairs = find_intersecting_islands(island_entityA, aabb_view, multi_resident_view, tree_view_view, filter_view);
 
             for (auto &pair : pairs) {
                 make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);

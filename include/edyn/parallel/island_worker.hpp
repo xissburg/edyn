@@ -55,6 +55,7 @@ class island_worker final {
     void maybe_go_to_sleep();
     bool could_go_to_sleep();
     void go_to_sleep();
+    bool should_split();
     void sync();
     void update();
 
@@ -76,7 +77,6 @@ public:
     void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
 
-    void on_construct_graph_node_or_edge(entt::registry &, entt::entity);
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
 

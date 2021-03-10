@@ -68,8 +68,6 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 island_worker::~island_worker() = default;
 
 void island_worker::init() {
-    m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_graph_node_or_edge>(*this);
-    m_registry.on_construct<graph_edge>().connect<&island_worker::on_construct_graph_node_or_edge>(*this);
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
 
@@ -180,10 +178,6 @@ void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity
     if (m_entity_map.has_loc(entity)) {
         m_entity_map.erase_loc(entity);
     }
-}
-
-void island_worker::on_construct_graph_node_or_edge(entt::registry &registry, entt::entity entity) {
-
 }
 
 void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -493,28 +487,6 @@ void island_worker::finish_step() {
 
     maybe_go_to_sleep();
 
-    bool should_split = false;
-
-    if (m_topology_changed) {
-        auto time = (double)performance_counter() / (double)performance_frequency();
-
-        if (m_pending_split_calculation) {
-            if (time - m_calculate_split_timestamp > m_calculate_split_delay) {
-                m_pending_split_calculation = false;
-
-                // If the graph has more than one connected component, it means
-                // this island could be split.
-                if (!m_registry.ctx<entity_graph>().is_single_connected_component()) {
-                    should_split = true;
-                }
-                m_topology_changed = false;
-            }            
-        } else {
-            m_pending_split_calculation = true;
-            m_calculate_split_timestamp = time;
-        }
-    }
-
     if (g_external_system_post_step) {
         (*g_external_system_post_step)(m_registry);
     }
@@ -531,10 +503,34 @@ void island_worker::finish_step() {
     // splitting flag to true and sends the split request to the coordinator and it
     // is put to sleep until the coordinator calls `split()` which executes the
     // split and puts it back to run.
-    if (should_split) {
-        m_splitting.store(true, std::memory_order_relaxed);
+    if (should_split()) {
+        m_splitting.store(true, std::memory_order_release);
         m_message_queue.send<msg::split_island>();
     }
+}
+
+bool island_worker::should_split() {
+    if (!m_topology_changed) return false;
+
+    auto time = (double)performance_counter() / (double)performance_frequency();
+
+    if (m_pending_split_calculation) {
+        if (time - m_calculate_split_timestamp > m_calculate_split_delay) {
+            m_pending_split_calculation = false;
+            m_topology_changed = false;
+
+            // If the graph has more than one connected component, it means
+            // this island could be split.
+            if (!m_registry.ctx<entity_graph>().is_single_connected_component()) {
+                return true;
+            }
+        }            
+    } else {
+        m_pending_split_calculation = true;
+        m_calculate_split_timestamp = time;
+    }
+
+    return false;
 }
 
 void island_worker::reschedule_now() {
