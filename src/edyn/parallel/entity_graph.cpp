@@ -3,12 +3,14 @@
 
 namespace edyn {
 
+static constexpr size_t allocation_size = 16;
+
 entity_graph::index_type entity_graph::insert_node(entt::entity entity, bool non_connecting) {
     EDYN_ASSERT(entity != entt::null);
 
     if (m_nodes_free_list == null_index) {
         m_nodes_free_list = m_nodes.size();
-        m_nodes.resize(m_nodes.size() + 16);
+        m_nodes.resize(m_nodes.size() + allocation_size);
 
         for (auto i = m_nodes_free_list; i < m_nodes.size(); ++i) {
             auto &node = m_nodes[i];
@@ -54,7 +56,7 @@ entity_graph::index_type entity_graph::insert_edge(entt::entity entity, index_ty
 
     if (m_edges_free_list == null_index) {
         m_edges_free_list = m_edges.size();
-        m_edges.resize(m_edges.size() + 16);
+        m_edges.resize(m_edges.size() + allocation_size);
 
         for (auto i = m_edges_free_list; i < m_edges.size(); ++i) {
             auto &edge = m_edges[i];
@@ -210,7 +212,7 @@ entity_graph::index_type entity_graph::insert_adjacency_one_way(index_type node_
 entity_graph::index_type entity_graph::create_adjacency(index_type destination_node_index, index_type edge_index) {
     if (m_adjacencies_free_list == null_index) {
         m_adjacencies_free_list = m_adjacencies.size();
-        m_adjacencies.resize(m_adjacencies.size() + 16);
+        m_adjacencies.resize(m_adjacencies.size() + allocation_size);
 
         for (auto i = m_adjacencies_free_list; i < m_adjacencies.size(); ++i) {
             m_adjacencies[i].next = i + 1;
