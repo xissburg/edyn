@@ -1,7 +1,7 @@
 #include "../common/common.hpp"
 #include <edyn/parallel/entity_graph.hpp>
 
-TEST(entity_graph_test, test_basics) {
+TEST(entity_graph_test, test_connected_components) {
     auto registry = entt::registry();
     auto graph = edyn::entity_graph();
 
@@ -21,9 +21,20 @@ TEST(entity_graph_test, test_basics) {
         ASSERT_TRUE(neighbor == node_entity1);
     });
 
+    auto node_entity2 = registry.create();
+    auto node_index2 = graph.insert_node(node_entity2);
+
+    ASSERT_FALSE(graph.is_single_connected_component());
+
     auto connected_components = graph.connected_components();
 
-    ASSERT_EQ(connected_components.size(), 1);
+    ASSERT_EQ(connected_components.size(), 2);
+    ASSERT_EQ(connected_components[0].nodes.size(), 2);
+    ASSERT_EQ(connected_components[0].edges.size(), 2);
+    ASSERT_EQ(connected_components[1].nodes.size(), 1);
+    ASSERT_EQ(connected_components[1].edges.size(), 0);
+
+    ASSERT_EQ(connected_components[1].nodes[0], node_entity2);
 
     ASSERT_NE(std::find(
         connected_components.front().nodes.begin(),
