@@ -143,7 +143,6 @@ struct load_mesh_context {
     intptr_t m_input;
     size_t m_index;
     intptr_t m_mesh;
-    job_queue_scheduler m_scheduler;
 };
 
 void load_mesh_job_func(job::data_type &);

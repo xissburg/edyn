@@ -102,7 +102,6 @@ void serialize(Archive &archive, load_mesh_context &ctx) {
     archive(ctx.m_index);
     archive(ctx.m_input);
     archive(ctx.m_mesh);
-    archive(ctx.m_scheduler);
 }
 
 void paged_triangle_mesh_file_input_archive::load(size_t index) {
@@ -110,7 +109,6 @@ void paged_triangle_mesh_file_input_archive::load(size_t index) {
     ctx.m_input = reinterpret_cast<intptr_t>(this);
     ctx.m_index = index;
     ctx.m_mesh = reinterpret_cast<intptr_t>(new triangle_mesh);
-    ctx.m_scheduler = job_dispatcher::global().get_current_scheduler();
 
     auto j = job();
     j.func = &load_mesh_job_func;
@@ -143,7 +141,7 @@ void load_mesh_job_func(job::data_type &data) {
     auto finish_job = job();
     std::copy(data.begin(), data.end(), finish_job.data.begin());
     finish_job.func = &finish_load_mesh_job_func;
-    ctx.m_scheduler.push(finish_job);
+    job_dispatcher::global().async(finish_job);
 }
 
 void finish_load_mesh_job_func(job::data_type &data) {
