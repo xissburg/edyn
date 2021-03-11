@@ -56,6 +56,20 @@ public:
         }
     }
 
+    template<typename Component, typename Func>
+    void updated_for_each(Func func) const {
+        auto index = entt::type_index<Component>::value();
+        if (!(index < m_updated_components.size())) return;
+
+        if (auto &updated_ptr = m_updated_components[index]; updated_ptr) {
+            using container_type = updated_entity_component_container<Component>;
+            auto *container = static_cast<const container_type *>(updated_ptr.get());
+            for (auto &pair : container->pairs) {
+                func(pair.first, pair.second);
+            }
+        }
+    }
+
     friend class island_delta_builder;
 
     double m_timestamp;
