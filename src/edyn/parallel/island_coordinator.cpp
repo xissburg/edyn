@@ -553,6 +553,9 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
             for (size_t i = 0; i < num_points; ++i) {
                 auto point_entity = manifold.point[i];
+                auto &point_resident = resident_view.get(point_entity);
+                point_resident.island_entity = island_entity;
+
                 auto &point = point_view.get(point_entity);
                 auto &con = constraint_view.get(point_entity);
                 ctx->m_delta_builder->created(point_entity);
@@ -734,6 +737,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     }
 
     auto procedural_view = m_registry->view<procedural_tag>();
+    auto node_view = m_registry->view<graph_node>();
 
     // Insert nodes in the graph for each rigid body.
     auto &graph = m_registry->ctx<entity_graph>();
@@ -759,7 +763,17 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     delta.created_for_each<static_tag>(insert_node);
     delta.created_for_each<kinematic_tag>(insert_node);
 
-    auto node_view = m_registry->view<graph_node>();
+    auto assign_island_to_contact_points = [&] (const contact_manifold &manifold) {
+        auto num_points = manifold.num_points();
+
+        for (size_t i = 0; i < num_points; ++i) {
+            auto point_entity = manifold.point[i];
+
+            if (m_registry->valid(point_entity) && !m_registry->has<island_resident>(point_entity)) {
+                m_registry->emplace<island_resident>(point_entity, source_island_entity);
+            }
+        }
+    };
 
     // Insert edges in the graph for contact manifolds.
     delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
@@ -772,6 +786,8 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         m_registry->emplace<graph_edge>(local_entity, edge_index);
         m_registry->emplace<island_resident>(local_entity, source_island_entity);
         source_ctx->m_edges.insert(local_entity);
+
+        assign_island_to_contact_points(manifold);
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
@@ -789,6 +805,10 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         m_registry->emplace<graph_edge>(local_entity, edge_index);
         m_registry->emplace<island_resident>(local_entity, source_island_entity);
         source_ctx->m_edges.insert(local_entity);
+    });
+
+    delta.updated_for_each<contact_manifold>([&] (entt::entity, const contact_manifold &manifold) {
+        assign_island_to_contact_points(manifold);
     });
 
     m_importing_delta = false;
