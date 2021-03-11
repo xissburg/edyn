@@ -14,8 +14,8 @@
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
-#include "edyn/comp/island.hpp"
 #include "edyn/comp/continuous.hpp"
+#include "edyn/comp/graph_node.hpp"
 
 namespace edyn {
 
@@ -57,7 +57,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<angvel>(entity, def.angvel);
     }
 
-    if (def.kind == rigidbody_kind::rb_dynamic && def.gravity != vector3_zero) {
+    if (def.gravity != vector3_zero && def.kind == rigidbody_kind::rb_dynamic) {
         registry.emplace<linacc>(entity, def.gravity);
     }
 
@@ -66,7 +66,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
                                   def.stiffness, def.damping);
     }
 
-    if (def.presentation) {
+    if (def.presentation && def.kind == rigidbody_kind::rb_dynamic) {
         registry.emplace<present_position>(entity, def.position);
         registry.emplace<present_orientation>(entity, def.orientation);
     }
@@ -103,8 +103,9 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<continuous>(entity).insert<position, orientation, linvel, angvel>();
     }
 
-    registry.emplace<island_node>(entity);
-    registry.emplace<island_container>(entity);
+    auto non_connecting = def.kind != rigidbody_kind::rb_dynamic;
+    auto node_index = registry.ctx<entity_graph>().insert_node(entity, non_connecting);
+    registry.emplace<graph_node>(entity, node_index);
 }
 
 entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) {

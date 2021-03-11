@@ -96,7 +96,6 @@ set(Edyn_SOURCES
     src/edyn/constraints/point_constraint.cpp
     src/edyn/constraints/hinge_constraint.cpp
     src/edyn/constraints/generic_constraint.cpp
-    src/edyn/util/island_util.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp
@@ -109,6 +108,7 @@ set(Edyn_SOURCES
     src/edyn/shapes/triangle_shape.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
+    src/edyn/parallel/entity_graph.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
     src/edyn/parallel/job_scheduler.cpp

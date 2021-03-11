@@ -7,7 +7,6 @@
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
-#include "edyn/comp/island.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collide.hpp"
@@ -64,7 +63,10 @@ void create_contact_constraint(entt::registry &registry, entt::entity manifold_e
     contact.stiffness = stiffness;
     contact.damping = damping;
 
-    make_constraint(contact_entity, registry, std::move(contact), cp.body[0], cp.body[1], &manifold_entity);
+    // Contact constraints are never graph edges since they're effectively
+    // a child of a manifold and the manifold is the graph edge.
+    constexpr auto is_graph_edge = false;
+    make_constraint(contact_entity, registry, std::move(contact), cp.body[0], cp.body[1], is_graph_edge);
 }
 
 template<typename ContactPointViewType> static 
@@ -72,9 +74,10 @@ size_t find_nearest_contact(const contact_manifold &manifold,
                             const collision_result::collision_point &coll_pt,
                             const ContactPointViewType &cp_view) {
     auto shortest_dist = contact_caching_threshold * contact_caching_threshold;
-    auto nearest_idx = manifold.num_points();
+    auto num_points = manifold.num_points();
+    auto nearest_idx = num_points;
 
-    for (size_t i = 0; i < manifold.num_points(); ++i) {
+    for (size_t i = 0; i < num_points; ++i) {
         auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
         auto dA = length_sqr(coll_pt.pivotA - cp.pivotA);
         auto dB = length_sqr(coll_pt.pivotB - cp.pivotB);
@@ -128,12 +131,7 @@ void create_contact_point(entt::registry &registry, entt::entity manifold_entity
 static
 void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity, entt::entity contact_entity) {
     registry.destroy(contact_entity);
-
-    auto &node_parent = registry.get<island_node_parent>(manifold_entity);
-    node_parent.children.erase(contact_entity);
-
-    registry.get_or_emplace<dirty>(manifold_entity)
-        .updated<contact_manifold, island_node_parent>();
+    registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold>();
 }
 
 using contact_point_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_point, constraint>; 
@@ -160,17 +158,18 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
             // Find best insertion index. Try pivotA first.
             std::array<vector3, max_contacts> pivots;
             std::array<scalar, max_contacts> distances;
-            for (size_t i = 0; i < manifold.num_points(); ++i) {
+            auto num_points = manifold.num_points();
+            for (size_t i = 0; i < num_points; ++i) {
                 auto &cp = cp_view.get<contact_point>(manifold.point[i]);
                 pivots[i] = cp.pivotB;
                 distances[i] = cp.distance;
             }
 
-            auto idx = insert_index(pivots, distances, manifold.num_points(), rp.pivotB, rp.distance);
+            auto idx = insert_index(pivots, distances, num_points, rp.pivotB, rp.distance);
 
             // No closest point found for pivotA, try pivotB.
-            if (idx >= manifold.num_points()) {
-                for (size_t i = 0; i < manifold.num_points(); ++i) {
+            if (idx >= num_points) {
+                for (size_t i = 0; i < num_points; ++i) {
                     auto &cp = cp_view.get<contact_point>(manifold.point[i]);
                     pivots[i] = cp.pivotB;
                 }
@@ -192,7 +191,8 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
 
                     // Zero out warm-starting impulses.
                     auto &con = cp_view.get<constraint>(contact_entity);
-                    for (size_t i = 0; i < con.num_rows(); ++i) {
+                    auto num_rows = con.num_rows();
+                    for (size_t i = 0; i < num_rows; ++i) {
                         cr_view.get(con.row[i]).impulse = 0;
                     }
                 }

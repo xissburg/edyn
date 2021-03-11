@@ -1,17 +1,24 @@
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/config/config.h"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
-#include "edyn/parallel/island_topology.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
+#include "edyn/comp/graph_node.hpp"
+#include "edyn/comp/graph_edge.hpp"
 #include "edyn/math/constants.hpp"
-#include "edyn/util/island_util.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/parallel/external_system.hpp"
+#include "edyn/parallel/entity_graph.hpp"
+#include "edyn/util/vector.hpp"
+#include <atomic>
+#include <variant>
+#include <entt/entt.hpp>
 
 namespace edyn {
 
@@ -35,18 +42,20 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     : m_message_queue(message_queue)
     , m_fixed_dt(fixed_dt)
     , m_paused(false)
+    , m_splitting(false)
     , m_state(state::init)
     , m_bphase(m_registry)
     , m_nphase(m_registry)
     , m_solver(m_registry)
-    , m_delta_builder(make_island_delta_builder(m_entity_map))
+    , m_delta_builder(make_island_delta_builder())
     , m_importing_delta(false)
     , m_topology_changed(false)
-    , m_pending_topology_calculation(false)
-    , m_calculate_topology_delay(1.1)
-    , m_calculate_topology_timestamp(0)
-    , m_number_of_connected_components(1)
+    , m_pending_split_calculation(false)
+    , m_calculate_split_delay(0.6)
+    , m_calculate_split_timestamp(0)
 {
+    m_registry.set<entity_graph>();
+
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
 
@@ -59,21 +68,13 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
 island_worker::~island_worker() = default;
 
 void island_worker::init() {
-    m_delta_builder->insert_entity_mapping(m_island_entity);
+    m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
+    m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
 
-    // Destroy children when parents are destroyed.
-    m_registry.on_destroy<island_node_parent>().connect<&island_worker::on_destroy_island_node_parent>(*this);
-
-    m_registry.on_construct<island_node>().connect<&island_worker::on_construct_island_node>(*this);
-    m_registry.on_update<island_node>().connect<&island_worker::on_update_island_node>(*this);
-    m_registry.on_destroy<island_node>().connect<&island_worker::on_destroy_island_node>(*this);
-
-    m_registry.on_construct<island_container>().connect<&island_worker::on_construct_island_container>(*this);
-    m_registry.on_destroy<island_container>().connect<&island_worker::on_destroy_island_container>(*this);
+    m_registry.on_destroy<contact_manifold>().connect<&island_worker::on_destroy_contact_manifold>(*this);
 
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
-    
-    m_registry.on_construct<contact_manifold>().connect<&island_worker::on_construct_contact_manifold>(*this);
+    m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
 
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -99,6 +100,45 @@ void island_worker::init() {
     m_state = state::step;
 }
 
+void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
+    const auto importing = m_importing_delta;
+    const auto splitting = m_splitting.load(std::memory_order_relaxed);
+
+    // If importing, do not insert this event into the delta because the entity
+    // was already destroyed in the coordinator.
+    // If splitting, do not insert this destruction event into the delta because
+    // the entity is not actually being destroyed, it's just being moved into
+    // another island.
+    if (!importing && !splitting) {
+        m_delta_builder->destroyed(entity);
+    }
+
+    auto &manifold = registry.get<contact_manifold>(entity);
+    auto num_points = manifold.num_points();
+
+    for (size_t i = 0; i < num_points; ++i) {
+        auto contact_entity = manifold.point[i];
+
+        if (!importing) {
+            registry.destroy(contact_entity);
+        }
+
+        if (!importing && !splitting) {
+            m_delta_builder->destroyed(contact_entity);
+        }
+
+        if (m_entity_map.has_loc(contact_entity)) {
+            m_entity_map.erase_loc(contact_entity);
+        }
+    }
+
+    // Mapping might not yet exist if this entity was just created locally and
+    // the coordinator has not yet replied back with the main entity id.
+    if (m_entity_map.has_loc(entity)) {
+        m_entity_map.erase_loc(entity);
+    }
+}
+
 void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
     if (m_importing_delta) return;
 
@@ -110,70 +150,121 @@ void island_worker::on_construct_constraint(entt::registry &registry, entt::enti
     }, con.var);
 }
 
-void island_worker::on_construct_contact_manifold(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) {
-        m_new_imported_contact_manifolds.push_back(entity);
+void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
+    const auto importing = m_importing_delta;
+    const auto splitting = m_splitting.load(std::memory_order_relaxed);
+
+    if (!importing && !splitting) {
+        m_delta_builder->destroyed(entity);
     }
-}
 
-void island_worker::on_destroy_island_node_parent(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-    edyn::on_destroy_island_node_parent(registry, entity);
-}
+    auto &con = registry.get<constraint>(entity);
+    auto num_rows = con.num_rows();
 
-void island_worker::on_construct_island_node(entt::registry &registry, entt::entity entity) {
+    for (size_t i = 0; i < num_rows; ++i) {
+        if (!importing) {
+            registry.destroy(con.row[i]);
+        }
 
-}
+        if (!importing && !splitting) {
+            m_delta_builder->destroyed(con.row[i]);
+        }
 
-void island_worker::on_update_island_node(entt::registry &registry, entt::entity entity) {
-    m_topology_changed = true;
-}
-
-void island_worker::on_destroy_island_node(entt::registry &registry, entt::entity entity) {
-    // Remove from connected nodes.
-    auto &node = registry.get<island_node>(entity);
-
-    for (auto other : node.entities) {
-        auto &other_node = registry.get<island_node>(other);
-        other_node.entities.erase(entity);
-        if (!m_importing_delta) {
-            m_delta_builder->updated<island_node>(other, other_node);
+        if (m_entity_map.has_loc(con.row[i])) {
+            m_entity_map.erase_loc(con.row[i]);
         }
     }
 
+    if (m_entity_map.has_loc(entity)) {
+        m_entity_map.erase_loc(entity);
+    }
+}
+
+void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
+    auto &node = registry.get<graph_node>(entity);
+    registry.ctx<entity_graph>().remove_node(node.node_index);
+
+    if (!m_importing_delta && !m_splitting.load(std::memory_order_relaxed)) {
+        m_delta_builder->destroyed(entity);
+    }
+
+    if (m_entity_map.has_loc(entity)) {
+        m_entity_map.erase_loc(entity);
+    }
+}
+
+void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
+    auto &edge = registry.get<graph_edge>(entity);
+    registry.ctx<entity_graph>().remove_edge(edge.edge_index);
+
+    if (!m_importing_delta && !m_splitting.load(std::memory_order_relaxed)) {
+        m_delta_builder->destroyed(entity);
+    }
+
     m_topology_changed = true;
-}
-
-void island_worker::on_construct_island_container(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-    
-    auto &container = registry.get<island_container>(entity);
-    container.entities.insert(m_island_entity);
-    m_delta_builder->created<island_container>(entity, container);
-}
-
-void island_worker::on_destroy_island_container(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-    m_delta_builder->destroyed(entity);
 }
 
 void island_worker::on_island_delta(const island_delta &delta) {
     // Import components from main registry.
     m_importing_delta = true;
     delta.import(m_registry, m_entity_map);
-    m_importing_delta = false;
 
     for (auto remote_entity : delta.created_entities()) {
         if (!m_entity_map.has_rem(remote_entity)) continue;
         auto local_entity = m_entity_map.remloc(remote_entity);
-        m_delta_builder->insert_entity_mapping(local_entity);
+        m_delta_builder->insert_entity_mapping(remote_entity, local_entity);
     }
+
+    // Insert nodes in the graph for each rigid body.
+    auto &gra = m_registry.ctx<entity_graph>();
+    auto insert_node = [&] (entt::entity remote_entity, auto &) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto non_connecting = !m_registry.has<procedural_tag>(local_entity);
+        auto node_index = gra.insert_node(local_entity, non_connecting);
+        m_registry.emplace<graph_node>(local_entity, node_index);
+    };
+
+    delta.created_for_each<dynamic_tag>(insert_node);
+    delta.created_for_each<static_tag>(insert_node);
+    delta.created_for_each<kinematic_tag>(insert_node);
+
+    auto node_view = m_registry.view<graph_node>();
+
+    // Insert edges in the graph for contact manifolds.
+    delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+
+        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto &node0 = node_view.get(manifold.body[0]);
+        auto &node1 = node_view.get(manifold.body[1]);
+        auto edge_index = gra.insert_edge(local_entity, node0.node_index, node1.node_index);
+        m_registry.emplace<graph_edge>(local_entity, edge_index);
+        m_new_imported_contact_manifolds.push_back(local_entity);
+    });
+
+    // Insert edges in the graph for constraints (except contact constraints).
+    delta.created_for_each<constraint>([&] (entt::entity remote_entity, const constraint &con) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+
+        // Contact constraints are not added as edges to the graph.
+        // The contact manifold which owns them is added instead.
+        if (std::holds_alternative<contact_constraint>(con.var)) return;
+
+        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto &node0 = node_view.get(con.body[0]);
+        auto &node1 = node_view.get(con.body[1]);
+        auto edge_index = gra.insert_edge(local_entity, node0.node_index, node1.node_index);
+        m_registry.emplace<graph_edge>(local_entity, edge_index);
+    });
+
+    m_importing_delta = false;
 }
 
 void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     if (!m_registry.has<sleeping_tag>(m_island_entity)) return;
 
-    auto builder = make_island_delta_builder(m_entity_map);
+    auto builder = make_island_delta_builder();
 
     auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
     isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
@@ -196,8 +287,9 @@ void island_worker::sync() {
 
     // Update continuous components.
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
-        m_delta_builder->updated(entity, m_registry,
-            cont.types.begin(), cont.types.end());
+        for (size_t i = 0; i < cont.size; ++i) {
+            m_delta_builder->updated(entity, m_registry, cont.types[i]);
+        }
     });
 
     // Update dirty components.
@@ -395,24 +487,6 @@ void island_worker::finish_step() {
 
     maybe_go_to_sleep();
 
-    if (m_topology_changed) {
-        auto time = (double)performance_counter() / (double)performance_frequency();
-
-        if (m_pending_topology_calculation) {
-            if (time - m_calculate_topology_timestamp > m_calculate_topology_delay) {
-                m_pending_topology_calculation = false;
-            #ifdef DEBUG
-                validate_island();
-            #endif
-                calculate_topology();
-                m_topology_changed = false;
-            }            
-        } else {
-            m_pending_topology_calculation = true;
-            m_calculate_topology_timestamp = time;
-        }
-    }
-
     if (g_external_system_post_step) {
         (*g_external_system_post_step)(m_registry);
     }
@@ -420,6 +494,43 @@ void island_worker::finish_step() {
     sync();
 
     m_state = state::step;
+
+    // Unfortunately, an island cannot be split immediately, because a merge could
+    // happen at the same time in the coordinator, which might reference entities
+    // that won't be present here anymore in the next update because they were moved
+    // into another island which the coordinator could not be aware of at the 
+    // moment it was merging this island with another. Thus, this island sets its
+    // splitting flag to true and sends the split request to the coordinator and it
+    // is put to sleep until the coordinator calls `split()` which executes the
+    // split and puts it back to run.
+    if (should_split()) {
+        m_splitting.store(true, std::memory_order_release);
+        m_message_queue.send<msg::split_island>();
+    }
+}
+
+bool island_worker::should_split() {
+    if (!m_topology_changed) return false;
+
+    auto time = (double)performance_counter() / (double)performance_frequency();
+
+    if (m_pending_split_calculation) {
+        if (time - m_calculate_split_timestamp > m_calculate_split_delay) {
+            m_pending_split_calculation = false;
+            m_topology_changed = false;
+
+            // If the graph has more than one connected component, it means
+            // this island could be split.
+            if (!m_registry.ctx<entity_graph>().is_single_connected_component()) {
+                return true;
+            }
+        }            
+    } else {
+        m_pending_split_calculation = true;
+        m_calculate_split_timestamp = time;
+    }
+
+    return false;
 }
 
 void island_worker::reschedule_now() {
@@ -427,7 +538,9 @@ void island_worker::reschedule_now() {
 }
 
 void island_worker::maybe_reschedule() {
-    // Reschedule this job only if not paused nor sleeping.
+    // Reschedule this job only if not paused nor sleeping nor splitting.
+    if (m_splitting.load(std::memory_order_relaxed)) return;
+
     auto sleeping = m_registry.has<sleeping_tag>(m_island_entity);
     auto paused = m_paused;
 
@@ -437,7 +550,7 @@ void island_worker::maybe_reschedule() {
 
     // If the number of reschedule requests is greater than one, it means there
     // are external requests involved, not just the normal internal reschedule.
-    // Always reschedule for immediate execution in that case
+    // Always reschedule for immediate execution in that case.
     if (reschedule_count == 1) {
         if (!paused && !sleeping) {
             reschedule_later();
@@ -466,6 +579,11 @@ void island_worker::reschedule_later() {
 }
 
 void island_worker::reschedule() {
+    // Do not reschedule if it's awaiting a split to be completed. The main 
+    // thread modifies the worker's registry during a split so this job must
+    // not be run in parallel with that task.
+    if (m_splitting.load(std::memory_order_relaxed)) return;
+
     // Only reschedule if it has not been scheduled and updated already.
     auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
     if (reschedule_count > 0) return;
@@ -474,6 +592,19 @@ void island_worker::reschedule() {
 }
 
 void island_worker::init_new_imported_contact_manifolds() {
+    // Entities in the new imported contact manifolds array might've been
+    // destroyed. Remove invalid entities before proceeding.
+    for (size_t i = 0; i < m_new_imported_contact_manifolds.size();) {
+        if (m_registry.valid(m_new_imported_contact_manifolds[i])) {
+            ++i;
+        } else {
+            m_new_imported_contact_manifolds[i] = m_new_imported_contact_manifolds.back();
+            m_new_imported_contact_manifolds.pop_back();
+        }
+    }
+
+    if (m_new_imported_contact_manifolds.empty()) return;
+
     // Find contact points for new manifolds imported from the main registry.
     m_nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
                                       m_new_imported_contact_manifolds.end());
@@ -541,61 +672,6 @@ void island_worker::go_to_sleep() {
     });
 }
 
-void island_worker::calculate_topology() {
-    auto node_view = m_registry.view<island_node>();
-    if (node_view.empty()) return;
-
-    auto node_entities = entity_set(node_view.begin(), node_view.end());
-
-    std::vector<entity_set> connected_components;
-
-    while (!node_entities.empty()) {
-        entity_set connected;
-        entity_set to_visit;
-
-        auto node_entity = *node_entities.begin();
-        to_visit.insert(node_entity);
-
-        while (!to_visit.empty()) {
-            auto entity = *to_visit.begin();
-            to_visit.erase(entity);
-
-            // Add to connected component.
-            connected.insert(entity);
-
-            // Remove from main set.
-            node_entities.erase(entity);
-
-            // Add related entities to be visited next.
-            auto &curr_node = node_view.get(entity);
-            auto is_procedural = m_registry.has<procedural_tag>(entity);
-
-            for (auto other : curr_node.entities) {
-                auto already_visited = connected.count(other);
-                if (already_visited) continue;
-
-                // Non-procedural nodes should only connect non-procedural nodes
-                // because a procedural node cannot affect another through a
-                // non-procedural node.
-                if (is_procedural || (!is_procedural && !m_registry.has<procedural_tag>(other))) {
-                    to_visit.insert(other);
-                }
-            }
-        }
-
-        connected_components.push_back(connected);
-    }
-
-    if (connected_components.size() != m_number_of_connected_components) {
-        m_number_of_connected_components = connected_components.size();
-        island_topology topo;
-        for (auto &connected : connected_components) {
-            topo.component_sizes.push_back(connected.size());
-        }
-        m_message_queue.send<island_topology>(topo);
-    }
-}
-
 void island_worker::on_set_paused(const msg::set_paused &msg) {
     m_paused = msg.paused;
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
@@ -609,6 +685,76 @@ void island_worker::on_step_simulation(const msg::step_simulation &) {
     }
 }
 
+entity_graph::connected_components_t island_worker::split() {
+    EDYN_ASSERT(m_splitting.load(std::memory_order_relaxed));
+
+    // Process any pending messages before splitting to ensure the registry
+    // is up to date. This message usually would be a merge with another
+    // island.
+    process_messages();
+
+    auto &graph = m_registry.ctx<entity_graph>();
+    auto connected_components = graph.connected_components();
+
+    if (connected_components.size() <= 1) {
+        m_splitting.store(false, std::memory_order_release);
+        reschedule_now();
+        return {};
+    }
+
+    // Sort connected components by size. The biggest component will stay
+    // in this island worker.
+    std::sort(connected_components.begin(), connected_components.end(), 
+        [] (auto &lhs, auto &rhs) {
+            auto lsize = lhs.nodes.size() + lhs.edges.size();
+            auto rsize = rhs.nodes.size() + rhs.edges.size();
+            return lsize > rsize;
+        });
+
+    // Collect non-procedural entities that remain in this island. Since
+    // they can be present in multiple islands, it must not be removed
+    // from this island in the next step.
+    auto procedural_view = m_registry.view<procedural_tag>();
+    auto &resident_connected_component = connected_components.front();
+    std::vector<entt::entity> remaining_non_procedural_entities;
+
+    for (auto entity : resident_connected_component.nodes) {
+        if (!procedural_view.contains(entity)) {
+            remaining_non_procedural_entities.push_back(entity);
+        }
+    }
+
+    // Remove entities in the smaller connected components from this worker.
+    // Non-procedural entities can be present in more that one connected component.
+    // Do not remove entities that are still present in the biggest connected
+    // component.
+    for (size_t i = 1; i < connected_components.size(); ++i) {
+        auto &connected_component = connected_components[i];
+
+        for (auto entity : connected_component.nodes) {
+            if (!vector_contains(remaining_non_procedural_entities, entity) &&
+                m_registry.valid(entity)) {
+                m_registry.destroy(entity);
+            }
+        }
+
+        m_registry.destroy(connected_component.edges.begin(), connected_component.edges.end());
+    }
+
+    // Refresh island tree view after nodes are removed and send it back to
+    // the coordinator via the message queue.
+    auto tview = m_bphase.view();
+    m_registry.replace<tree_view>(m_island_entity, tview);
+    m_delta_builder->updated(m_island_entity, tview);
+    auto delta = m_delta_builder->finish();
+    m_message_queue.send<island_delta>(std::move(delta));
+
+    m_splitting.store(false, std::memory_order_release);
+    reschedule_now();
+
+    return connected_components;
+}
+
 bool island_worker::is_terminated() const {
     return m_terminated.load(std::memory_order_acquire);
 }
@@ -618,6 +764,7 @@ bool island_worker::is_terminating() const {
 }
 
 void island_worker::terminate() {
+    m_splitting.store(false, std::memory_order_release); // Cancel split.
     m_terminating.store(true, std::memory_order_release);
     reschedule();
 }
@@ -633,54 +780,6 @@ void island_worker::do_terminate() {
 void island_worker::join() {
     auto lock = std::unique_lock(m_terminate_mutex);
     m_terminate_cv.wait(lock, [&] { return is_terminated(); });
-}
-
-void island_worker::validate_island() {
-    const auto &node_view = m_registry.view<const island_node>();
-
-    // All siblings of a node should point back to itself.
-    for (entt::entity entity : node_view) {
-        auto &node = node_view.get(entity);
-        for (auto other : node.entities) {
-            auto &other_node = node_view.get(other);
-            EDYN_ASSERT(other_node.entities.count(entity));
-        }
-    }
-
-    auto container_view = m_registry.view<const island_container>();
-
-    // All island containers should only contain the local island. Non-procedural
-    // entities can be present in multiple islands but this island is not aware
-    // of the other islands thus these islands are removed from the entity set
-    // during import of the registry delta.
-    for (entt::entity entity : container_view) {
-        auto &container = container_view.get(entity);
-        EDYN_ASSERT(container.entities.size() == 1);
-        EDYN_ASSERT(container.entities.count(m_island_entity));
-    }
-
-    // Parent nodes that are not a child should be an `island_node`.
-    m_registry.view<island_node_parent>(entt::exclude_t<island_node_child>{}).each([&] (entt::entity entity, island_node_parent &) {
-        EDYN_ASSERT(m_registry.has<island_node>(entity));
-    });
-
-    // Parent nodes that are a child should not be an `island_node`.
-    m_registry.view<island_node_parent, island_node_child>().each([&] (entt::entity entity, auto, auto) {
-        EDYN_ASSERT(!m_registry.has<island_node>(entity));
-    });
-
-    // Parent and child nodes should reference each other.
-    m_registry.view<island_node_parent>().each([&] (entt::entity parent_entity, island_node_parent &parent) {
-        for (auto child_entity : parent.children) {
-            auto &child = m_registry.get<island_node_child>(child_entity);
-            EDYN_ASSERT(child.parent == parent_entity);
-        }
-    });
-
-    m_registry.view<island_node_child>().each([&] (entt::entity child_entity, island_node_child &child) {
-        auto &parent = m_registry.get<island_node_parent>(child.parent);
-        EDYN_ASSERT(parent.children.count(child_entity));
-    });
 }
 
 }

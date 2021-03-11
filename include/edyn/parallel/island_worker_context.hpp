@@ -8,11 +8,10 @@
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/island_delta_builder.hpp"
+#include "edyn/parallel/message.hpp"
+#include "edyn/parallel/island_worker.hpp"
 
 namespace edyn {
-
-class island_worker;
-struct island_topology;
 
 /**
  * Context of an island worker in the main thread in an island coordinator.
@@ -25,18 +24,16 @@ class island_worker_context {
     bool m_pending_flush;
 
 public:
-    entity_set m_entities;
+    entity_set m_nodes;
+    entity_set m_edges;
     entity_map m_entity_map;
     std::unique_ptr<island_delta_builder> m_delta_builder;
 
     using island_delta_func_t = void(entt::entity, const island_delta &);
     entt::sigh<island_delta_func_t> m_island_delta_signal;
 
-    using island_topology_func_t = void(entt::entity, const island_topology &);
-    entt::sigh<island_topology_func_t> m_island_topology_signal;
-
-    bool m_pending_split;
-    double m_split_timestamp;
+    using split_island_func_t = void(entt::entity, const msg::split_island &);
+    entt::sigh<split_island_func_t> m_split_island_signal;
 
     island_worker_context(entt::entity island_entity,
                 island_worker *worker,
@@ -47,6 +44,12 @@ public:
      * Returns whether the current delta doesn't contain any changes.
      */
     bool delta_empty() const;
+
+    /**
+     * Returns whether the island needs to be waken up after sending the 
+     * current delta to it.
+     */
+    bool delta_needs_wakeup() const;
 
     /**
      * Reads messages sent by worker.
@@ -65,6 +68,10 @@ public:
      */
     void flush();
 
+    auto split() {
+        return m_worker->split();
+    }
+
     template<typename Message, typename... Args>
     void send(Args &&... args) {
         m_message_queue.send<Message>(std::forward<Args>(args)...);
@@ -77,10 +84,10 @@ public:
         return entt::sink {m_island_delta_signal};
     }
 
-    void on_island_topology(const island_topology &);
+    void on_split_island(const msg::split_island &);
 
-    auto island_topology_sink() {
-        return entt::sink {m_island_topology_signal};
+    auto split_island_sink() {
+        return entt::sink {m_split_island_signal};
     }
 
     /**

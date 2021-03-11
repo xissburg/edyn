@@ -2,9 +2,9 @@
 #define EDYN_PARALLEL_MERGE_MERGE_UTIL_HPP
 
 #include <array>
-#include <unordered_set>
 #include <entt/entity/registry.hpp>
 #include "edyn/parallel/merge/merge_component.hpp"
+#include "edyn/util/entity_set.hpp"
 #include "edyn/util/entity_map.hpp"
 
 namespace edyn {

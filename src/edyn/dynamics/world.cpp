@@ -2,6 +2,7 @@
 #include "edyn/sys/update_presentation.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/time/time.hpp"
+#include "edyn/parallel/entity_graph.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -12,6 +13,7 @@ world::world(entt::registry &registry)
     , m_island_coordinator(registry)
 {
     job_dispatcher::global().assure_current_queue();
+    registry.set<entity_graph>();
 }
 
 world::~world() {

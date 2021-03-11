@@ -43,7 +43,7 @@ public:
     tree_view view() const;
 
     void on_construct_aabb(entt::registry &, entt::entity);
-    void on_destroy_node_id(entt::registry &, entt::entity);
+    void on_destroy_tree_resident(entt::registry &, entt::entity);
 
 private:
     entt::registry *m_registry;
