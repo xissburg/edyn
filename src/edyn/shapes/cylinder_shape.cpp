@@ -21,7 +21,7 @@ void cylinder_shape::support_feature(const vector3 &dir, cylinder_feature &out_f
     auto edge_angle_sqr = dir.x * dir.x / (dir.y * dir.y + dir.z * dir.z);
 
     if (edge_angle_sqr < max_edge_angle * max_edge_angle) {
-        out_feature = cylinder_feature::edge;
+        out_feature = cylinder_feature::side_edge;
         return;
     }
 
@@ -33,7 +33,7 @@ void cylinder_shape::support_feature(const vector3 &dir, cylinder_feature &out_f
         out_feature_index = dir.x > 0 ? 0 : 1;
         out_projection = half_length;
     } else if (std::abs(dir.x) < EDYN_EPSILON) {
-        out_feature = cylinder_feature::edge;
+        out_feature = cylinder_feature::side_edge;
         out_projection = radius;
     } else {
         out_feature = cylinder_feature::cap_edge;

@@ -100,6 +100,11 @@ inline scalar perp_product(const vector2 &v, const vector2 &w) {
     return v.x * w.y - v.y * w.x;
 }
 
+// Vector perpendicular to argument, i.e. rotated 90 degrees counter-clockwise.
+inline vector2 perpendicular(const vector2 &v) {
+    return {-v.y, v.x};
+}
+
 // Square length of a vector.
 inline scalar length_sqr(const vector2 &v) {
     return dot(v, v);
@@ -108,6 +113,23 @@ inline scalar length_sqr(const vector2 &v) {
 // Length of a vector.
 inline scalar length(const vector2 &v) {
     return std::sqrt(length_sqr(v));
+}
+
+// Distance between two points.
+inline scalar distance(const vector2 &p0, const vector2 &p1) {
+    return length(p0 - p1);
+}
+
+// Squared distance between two points.
+inline scalar distance_sqr(const vector2 &p0, const vector2 &p1) {
+    return length_sqr(p0 - p1);
+}
+
+// Normalized vector (unit length). Asserts if the vector's length is zero.
+inline vector2 normalize(const vector2 &v) {
+    auto l = length(v);
+    EDYN_ASSERT(l > EDYN_EPSILON);
+    return v / l;
 }
 
 }

@@ -148,7 +148,7 @@ void collide_cylinder_triangle(
             if (t > 0 && t < 1) {
                 // Within segment.
                 auto axis = separating_axis_cyl_tri{};
-                axis.cyl_feature = cylinder_feature::edge;
+                axis.cyl_feature = cylinder_feature::side_edge;
                 axis.dir = cross(edges[i], cylinder_axis);
 
                 if (length_sqr(axis.dir) <= EDYN_EPSILON) {
@@ -186,7 +186,7 @@ void collide_cylinder_triangle(
                 // Ignore points at the extremes.
                 if (r > 0 && r < 1 && dist_sqr > EDYN_EPSILON) {
                     auto axis = separating_axis_cyl_tri{};
-                    axis.cyl_feature = cylinder_feature::edge;
+                    axis.cyl_feature = cylinder_feature::side_edge;
                     auto dist = std::sqrt(dist_sqr);
                     axis.dir = (closest - v0) / dist;
 
@@ -390,7 +390,7 @@ void collide_cylinder_triangle(
     }
     break;
 
-    case cylinder_feature::edge:
+    case cylinder_feature::side_edge:
         switch (sep_axis.tri_feature) {
         case TRIANGLE_FEATURE_FACE: {
             // Cylinder is on its side laying on the triangle face.

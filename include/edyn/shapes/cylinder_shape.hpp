@@ -10,7 +10,7 @@ enum class cylinder_feature {
     // Either of the two cylinder caps.
     face,
     // An edge on the side wall of the cylinder.
-    edge,
+    side_edge,
     // The edge/border of a cylinder cap.
     cap_edge,
 };

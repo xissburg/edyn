@@ -323,7 +323,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                     result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                 }
             }
-        }        
+        }
     } else if (sep_axis.featureA == box_feature::edge && sep_axis.featureB == box_feature::edge) {
         // Edge-Edge.
         scalar s[2], t[2];

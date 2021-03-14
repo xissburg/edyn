@@ -190,6 +190,11 @@ vector3 to_object_space(const vector3 &p, const vector3 &pos, const quaternion &
     return rotate(conjugate(orn), p - pos);
 }
 
+inline
+vector3 to_world_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
+    return pos + rotate(orn, p);
+}
+
 }
 
 #endif // EDYN_MATH_QUATERNION_HPP

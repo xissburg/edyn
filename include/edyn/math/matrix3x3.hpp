@@ -153,6 +153,11 @@ vector3 to_object_space(const vector3 &p, const vector3 &pos, const matrix3x3 &b
     return transpose(basis) * (p - pos);
 }
 
+inline
+vector3 to_world_space(const vector3 &p, const vector3 &pos, const matrix3x3 &basis) {
+    return pos + basis * p;
+}
+
 }
 
 #endif // EDYN_MATH_MATRIX3X3_HPP
