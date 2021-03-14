@@ -7,6 +7,7 @@
 #include <memory>
 #include <variant>
 #include <type_traits>
+#include <entt/core/ident.hpp>
 #include "edyn/util/tuple.hpp"
 
 namespace edyn {

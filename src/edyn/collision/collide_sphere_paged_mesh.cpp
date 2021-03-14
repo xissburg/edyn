@@ -19,7 +19,7 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
 
         std::array<bool, 3> is_concave_edge;
         std::array<scalar, 3> cos_angles;
-        auto *trimesh = shB.trimesh->get_submesh(mesh_idx);
+        auto trimesh = shB.trimesh->get_submesh(mesh_idx);
 
         for (int i = 0; i < 3; ++i) {
             is_concave_edge[i] = trimesh->is_concave_edge[tri_idx * 3 + i];

@@ -1,11 +1,10 @@
 #ifndef EDYN_SHAPES_PAGED_TRIANGLE_MESH_HPP
 #define EDYN_SHAPES_PAGED_TRIANGLE_MESH_HPP
 
-#include <map>
+#include <mutex>
 #include <vector>
+#include <atomic>
 #include <memory>
-#include <iterator>
-#include <entt/entt.hpp>
 #include "edyn/math/constants.hpp"
 #include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
@@ -28,15 +27,11 @@ public:
     struct triangle_mesh_node {
         size_t num_vertices;
         size_t num_indices;
-        // Triangle mesh unique pointer. Will be nullptr if mesh is not loaded.
-        std::unique_ptr<triangle_mesh> trimesh;
+        // Triangle mesh pointer. Will be nullptr if mesh is not loaded.
+        std::shared_ptr<triangle_mesh> trimesh;
     };
 
-    paged_triangle_mesh(std::shared_ptr<triangle_mesh_page_loader_base> loader)
-        : m_page_loader(loader)
-    {
-        m_page_loader->loaded_mesh_sink().connect<&paged_triangle_mesh::assign_mesh>(*this);
-    }
+    paged_triangle_mesh(std::shared_ptr<triangle_mesh_page_loader_base> loader);
 
     /**
      * @brief Visits all triangles that intersect the given AABB.
@@ -60,10 +55,10 @@ public:
         
         m_tree.visit(inset_aabb, [&] (auto trimesh_idx) {
             load_node_if_needed(trimesh_idx);
-            auto &node = m_cache[trimesh_idx];
+            auto trimesh = m_cache[trimesh_idx].trimesh;
 
-            if (node.trimesh) {
-                node.trimesh->visit(inset_aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
+            if (trimesh) {
+                trimesh->visit(inset_aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
                     func(trimesh_idx, tri_idx, vertices);
                 });
                 mark_recent_visit(trimesh_idx);
@@ -85,10 +80,10 @@ public:
     void visit_all(Func func) {        
         for (size_t i = 0; i < m_cache.size(); ++i) {
             load_node_if_needed(i);
-            auto &node = m_cache[i];
+            auto trimesh = m_cache[i].trimesh;
 
-            if (node.trimesh) {
-                node.trimesh->visit_all([=] (uint32_t tri_idx, const triangle_vertices &vertices) {
+            if (trimesh) {
+                trimesh->visit_all([=] (uint32_t tri_idx, const triangle_vertices &vertices) {
                     func(i, tri_idx, vertices);
                 });
             }
@@ -111,10 +106,10 @@ public:
     template<typename Func>
     void visit_cache(const AABB &aabb, Func func) const {
         for (size_t i = 0; i < m_cache.size(); ++i) {
-            auto &node = m_cache[i];
+            auto trimesh = m_cache[i].trimesh;
 
-            if (node.trimesh) {
-                node.trimesh->visit(aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
+            if (trimesh) {
+                trimesh->visit(aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
                     func(i, tri_idx, vertices);
                 });
             }
@@ -122,7 +117,7 @@ public:
     }
 
     /**
-     * @brief Visits all cached triangles of all nodes.
+     * @brief Visits all triangles of all cached nodes.
      * @param func An element into which the `operator()` will be called.
      *      The expected signature is: 
      *      `void(uint32_t trimesh_idx, uint32_t tri_idx, const triangle_vertices &vertices)`
@@ -134,19 +129,18 @@ public:
     template<typename Func>
     void visit_cache_all(Func func) const {
         for (size_t i = 0; i < m_cache.size(); ++i) {
-            auto &node = m_cache[i];
+            auto trimesh = m_cache[i].trimesh;
 
-            if (node.trimesh) {
-                node.trimesh->visit_all( [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
+            if (trimesh) {
+                trimesh->visit_all( [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
                     func(i, tri_idx, vertices);
                 });
             }
         }
     }
 
-    const AABB &get_aabb() const {
-        EDYN_ASSERT(!m_tree.m_nodes.empty());
-        return m_tree.m_nodes.front().aabb;
+    AABB get_aabb() const {
+        return m_tree.root_aabb();
     }
 
     /**
@@ -155,11 +149,11 @@ public:
      */
     size_t cache_num_vertices() const;
 
-    triangle_mesh *get_submesh(size_t idx);
+    std::shared_ptr<triangle_mesh> get_submesh(size_t idx);
 
     void clear_cache();
 
-    void assign_mesh(size_t index, std::unique_ptr<triangle_mesh> &);
+    void assign_mesh(size_t index, std::unique_ptr<triangle_mesh>);
 
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
@@ -192,13 +186,13 @@ private:
     void load_node_if_needed(size_t trimesh_idx);
     void mark_recent_visit(size_t trimesh_idx);
     void unload_least_recently_visited_node();
-    void unload_node(triangle_mesh_node &node);
     void calculate_edge_angles(scalar merge_distance);
 
     static_tree m_tree;
     std::vector<triangle_mesh_node> m_cache;
     std::vector<size_t> m_lru_indices;
-    std::vector<bool> m_is_loading_submesh;
+    std::mutex m_lru_mutex;
+    std::unique_ptr<std::atomic<bool>[]> m_is_loading_submesh;
     std::shared_ptr<triangle_mesh_page_loader_base> m_page_loader;
 };
 

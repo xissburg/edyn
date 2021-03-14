@@ -2,6 +2,7 @@
 #define EDYN_SHAPES_CREATE_PAGED_TRIANGLE_MESH_HPP
 
 #include <cstdint>
+#include <memory>
 #include "edyn/shapes/paged_triangle_mesh.hpp"
 #include "edyn/parallel/parallel_for.hpp"
 
@@ -116,7 +117,7 @@ void create_paged_triangle_mesh(
         size_t max_tri_per_submesh) {
 
     // Only allowed to create a mesh if this instance is empty.
-    EDYN_ASSERT(paged_tri_mesh.m_tree.m_nodes.empty() && paged_tri_mesh.m_cache.empty());
+    EDYN_ASSERT(paged_tri_mesh.m_tree.empty() && paged_tri_mesh.m_cache.empty());
 
     // Do not limit cache size when building the triangle mesh. Keep all submeshes
     // in memory to later calculate edge angles (adjacency).
@@ -125,7 +126,7 @@ void create_paged_triangle_mesh(
 
     auto num_indices = std::distance(index_begin, index_end);
     auto num_triangles = num_indices / 3;
-    
+
     // Calculate AABB of each triangle.
     std::vector<AABB> aabbs(num_triangles);
 
@@ -150,7 +151,7 @@ void create_paged_triangle_mesh(
     std::iota(paged_tri_mesh.m_lru_indices.begin(), 
               paged_tri_mesh.m_lru_indices.end(), 0);
 
-    paged_tri_mesh.m_is_loading_submesh.resize(paged_tri_mesh.m_cache.size(), false);
+    paged_tri_mesh.m_is_loading_submesh = std::make_unique<std::atomic<bool>[]>(paged_tri_mesh.m_cache.size());
     
     // Calculate edge angles.
     constexpr scalar merge_distance = 0.01;

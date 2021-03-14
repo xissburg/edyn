@@ -13,7 +13,8 @@ namespace edyn {
 
 /**
  * A non-directed, unweighted graph where multiple edges can exist between
- * the same pair of nodes and each node and edge hold an `entt::entity` payload.
+ * the same pair of nodes (i.e. multigraph) and each node and edge hold an
+ * `entt::entity` payload.
  */
 class entity_graph final {
 public:
