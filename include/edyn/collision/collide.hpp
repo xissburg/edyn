@@ -332,7 +332,6 @@ collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const
 }
 
 // Sphere-Triangle
-
 void collide_sphere_triangle(
     const sphere_shape &, const vector3 &sphere_pos, const quaternion &sphere_orn,
     const triangle_vertices &vertices, const std::array<bool, 3> &is_concave_edge, 

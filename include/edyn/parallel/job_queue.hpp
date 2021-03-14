@@ -8,6 +8,9 @@
 
 namespace edyn {
 
+/**
+ * Thread-safe queue of jobs.
+ */
 class job_queue {
 public:
     void push(const job &);
@@ -16,10 +19,10 @@ public:
 
     bool try_pop(job &);
 
-    size_t size();
+    size_t size() const;
 
 private:
-    std::mutex m_mutex;
+    mutable std::mutex m_mutex;
     std::queue<job> m_jobs;
     std::condition_variable m_cv;
 };

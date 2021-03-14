@@ -5,12 +5,14 @@
 #include "edyn/serialization/std_s11n.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/shapes/triangle_mesh.hpp"
+#include <memory>
 
 namespace edyn {
 
 std::string get_submesh_path(const std::string &paged_triangle_mesh_path, size_t index) {
     auto submesh_path = paged_triangle_mesh_path;
-    auto dot_pos = submesh_path.find(".");
+    auto dot_pos = submesh_path.rfind('.');
 
     if (dot_pos != std::string::npos) {
         submesh_path.insert(dot_pos, std::to_string(index));
@@ -38,6 +40,9 @@ void paged_triangle_mesh_file_output_archive::operator()(triangle_mesh &tri_mesh
 
 void serialize(paged_triangle_mesh_file_output_archive &archive, 
                paged_triangle_mesh &paged_tri_mesh) {
+
+    archive.m_triangle_mesh_index = 0;
+
     archive(paged_tri_mesh.m_tree);
     auto num_submeshes = paged_tri_mesh.m_cache.size();
     archive(num_submeshes);
@@ -94,23 +99,19 @@ void serialize(paged_triangle_mesh_file_input_archive &archive,
     std::iota(paged_tri_mesh.m_lru_indices.begin(), 
               paged_tri_mesh.m_lru_indices.end(), 0);
 
-    paged_tri_mesh.m_is_loading_submesh.resize(num_submeshes, false);
+    paged_tri_mesh.m_is_loading_submesh = std::make_unique<std::atomic<bool>[]>(num_submeshes);
 }
 
 template<typename Archive>
 void serialize(Archive &archive, load_mesh_context &ctx) {
-    archive(ctx.m_index);
     archive(ctx.m_input);
-    archive(ctx.m_mesh);
-    archive(ctx.m_scheduler);
+    archive(ctx.m_index);
 }
 
 void paged_triangle_mesh_file_input_archive::load(size_t index) {
     auto ctx = load_mesh_context();
     ctx.m_input = reinterpret_cast<intptr_t>(this);
     ctx.m_index = index;
-    ctx.m_mesh = reinterpret_cast<intptr_t>(new triangle_mesh);
-    ctx.m_scheduler = job_dispatcher::global().get_current_scheduler();
 
     auto j = job();
     j.func = &load_mesh_job_func;
@@ -125,7 +126,7 @@ void load_mesh_job_func(job::data_type &data) {
     serialize(archive, ctx);
 
     auto *input = reinterpret_cast<paged_triangle_mesh_file_input_archive *>(ctx.m_input);
-    auto *mesh = reinterpret_cast<triangle_mesh *>(ctx.m_mesh);
+    auto mesh = std::make_unique<triangle_mesh>();
 
     switch(input->m_mode) {
     case paged_triangle_mesh_serialization_mode::embedded:
@@ -140,22 +141,7 @@ void load_mesh_job_func(job::data_type &data) {
     }
     }
 
-    auto finish_job = job();
-    std::copy(data.begin(), data.end(), finish_job.data.begin());
-    finish_job.func = &finish_load_mesh_job_func;
-    ctx.m_scheduler.push(finish_job);
-}
-
-void finish_load_mesh_job_func(job::data_type &data) {
-    load_mesh_context ctx;
-    auto archive = memory_input_archive(data.data(), data.size());
-    serialize(archive, ctx);
-
-    auto *mesh = reinterpret_cast<triangle_mesh *>(ctx.m_mesh);
-    auto mesh_ptr = std::unique_ptr<triangle_mesh>(mesh);
-    
-    auto *input = reinterpret_cast<paged_triangle_mesh_file_input_archive *>(ctx.m_input);
-    input->m_loaded_mesh_signal.publish(ctx.m_index, mesh_ptr);
+    input->m_loaded_delegate(ctx.m_index, std::move(mesh));
 }
 
 }

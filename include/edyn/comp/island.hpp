@@ -1,30 +1,41 @@
 #ifndef EDYN_COMP_ISLAND_HPP
 #define EDYN_COMP_ISLAND_HPP
 
-#include <vector>
-#include <entt/fwd.hpp>
+#include "edyn/util/entity_set.hpp"
+#include <entt/entity/entity.hpp>
 
 namespace edyn {
 
 /**
- * @brief An _island_ is a set of entities that are connected via a relation.
+ * @brief An _island_ is a set of entities that can affect one another,
+ * usually through constraints.
  */
 struct island {
-    // All entities in this island.
-    std::vector<entt::entity> entities;
 
-    // The step when all entities in this island reached a speed lower than the
-    // threshold. If the speed continues below the threshold for more than a
-    // certain period of time, the island is put to sleep.
-    uint64_t sleep_step {UINT64_MAX};
 };
 
 /**
- * @brief An _island node_ is an entity that belongs in an island.
+ * @brief Timestamp of the current state of the simulation in an island.
  */
-struct island_node {
-    // The entity where the `island` component can be found.
-    entt::entity island_entity;
+struct island_timestamp {
+    double value;
+};
+
+/**
+ * @brief Component assigned to an entity that resides in an island, i.e.
+ * procedural entities which can only be present in a single island.
+ */
+struct island_resident {
+    entt::entity island_entity {entt::null};
+};
+
+/**
+ * @brief Component assigned to an entity that resides in multiple islands,
+ * i.e. non-procedural entities which can be present in multiple islands
+ * simultaneously.
+ */
+struct multi_island_resident {
+    entity_set island_entities;
 };
 
 }

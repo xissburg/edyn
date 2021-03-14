@@ -1,5 +1,7 @@
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/job_queue.hpp"
 #include "edyn/parallel/job_queue_scheduler.hpp"
+#include "edyn/parallel/worker.hpp"
 #include "edyn/config/config.h"
 #include <cstdint>
 
@@ -11,6 +13,10 @@ job_dispatcher &job_dispatcher::global() {
     static job_dispatcher instance;
     return instance;
 }
+
+job_dispatcher::job_dispatcher() 
+    : m_scheduler(*this)
+{}
 
 job_dispatcher::~job_dispatcher() {
     stop();
@@ -37,9 +43,13 @@ void job_dispatcher::start(size_t num_worker_threads) {
         m_threads.push_back(std::move(t));
         m_workers[id] = std::move(w);
     }
+
+    m_scheduler.start();
 }
 
 void job_dispatcher::stop() {
+    m_scheduler.stop();
+
     for (auto &pair : m_workers) {
         pair.second->stop();
     }
@@ -57,8 +67,20 @@ void job_dispatcher::async(const job &j) {
 
     auto best_id = std::thread::id();
     auto min_num_jobs = SIZE_MAX;
-    for (auto &pair : m_workers) {
+    auto start = m_start.fetch_add(std::memory_order_relaxed) % m_workers.size();
+    auto end = start + m_workers.size();
+
+    for (size_t i = start; i < end; ++i) {
+        auto k = i % m_workers.size();
+        auto first = m_workers.begin();
+        std::advance(first, k);
+        auto &pair = *first;
+
         auto s = pair.second->size();
+        if (s == 0) {
+            pair.second->push_job(j);
+            return;
+        }
         if (s < min_num_jobs) {
             min_num_jobs = s;
             best_id = pair.first;
@@ -68,6 +90,10 @@ void job_dispatcher::async(const job &j) {
     EDYN_ASSERT(m_workers.count(best_id));
 
     m_workers[best_id]->push_job(j);
+}
+
+void job_dispatcher::async_after(double delta_time, const job &j) {
+    m_scheduler.schedule_after(j, delta_time);
 }
 
 void job_dispatcher::async(std::thread::id id, const job &j) {

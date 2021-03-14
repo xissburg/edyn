@@ -1,7 +1,5 @@
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/math/matrix3x3.hpp"
-#include <map>
-#include <unordered_set>
 #include <cstdint>
 
 namespace edyn {
@@ -59,40 +57,48 @@ vector3 box_shape::support_point(const vector3 &pos, const quaternion &orn, cons
 void box_shape::support_feature(const vector3 &dir, box_feature &feature, 
                                 size_t &feature_index, scalar &projection,
                                 scalar threshold) const {
-    std::array<scalar, 8> projections;
+    // Find face that's the closest to being a support face for `dir` and then
+    // check if an edge or a vertex of this face would be the support feature
+    // instead by calculating the highest projection onto dir and which other
+    // vertices have a projection that fall within the `threshold`.
+    auto candidate_face = support_face_index(dir);
+    std::array<scalar, 4> projections;
     projection = -EDYN_SCALAR_MAX;
+    std::array<size_t, 4> vertex_indices;
 
-    for (size_t i = 0; i < 8; ++i) {
-        auto v = get_vertex(i);
+    // Vertex index on face [0, 4) of vertices within threshold. There's always
+    // at least one (i.e. the one furthest along `dir`).
+    std::array<size_t, 4> indices; 
+    size_t count = 1;
+    size_t max_proj_idx;
+
+    for (size_t i = 0; i < projections.size(); ++i) {
+        auto vertex_idx = get_vertex_index_from_face(candidate_face, i);
+        vertex_indices[i] = vertex_idx;
+        auto v = get_vertex(vertex_idx);
         auto proj = dot(v, dir);
         projections[i] = proj;
 
         if (proj > projection) {
             projection = proj;
+            indices[0] = i;
+            max_proj_idx = i;
         }
     }
 
-    std::array<size_t, 4> indices;
-    size_t count = 0;
-
-    for (size_t i = 0; i < 8; ++i) {
-        if (projections[i] > projection - threshold) {
+    for (size_t i = 0; i < projections.size(); ++i) {
+        if (i != max_proj_idx && projections[i] > projection - threshold) {
             indices[count++] = i;
-
-            if (count == 4) {
-                break;
-            }
         }
     }
-
-    EDYN_ASSERT(count > 0);
 
     if (count == 1) {
         feature = box_feature::vertex;
-        feature_index = indices[0];
+        feature_index = vertex_indices[indices[0]];
     } else if (count == 2) {
         feature = box_feature::edge;
-        feature_index = get_edge_index(indices[0], indices[1]);
+        feature_index = get_edge_index(vertex_indices[indices[0]], 
+                                       vertex_indices[indices[1]]);
     } else if (count == 3) {
         feature = box_feature::edge;
         // Select 2 points among the 3 with the higher projections.
@@ -101,15 +107,18 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
         auto proj2 = projections[indices[2]];
 
         if (proj0 <= proj1 && proj0 <= proj2) {
-            feature_index = get_edge_index(indices[1], indices[2]);
+            feature_index = get_edge_index(vertex_indices[indices[1]], 
+                                           vertex_indices[indices[2]]);
         } else if (proj1 <= proj0 && proj1 <= proj2) {
-            feature_index = get_edge_index(indices[0], indices[2]);
+            feature_index = get_edge_index(vertex_indices[indices[0]], 
+                                           vertex_indices[indices[2]]);
         } else { // if (proj2 <= proj0 && proj2 <= proj1) {
-            feature_index = get_edge_index(indices[0], indices[1]);
+            feature_index = get_edge_index(vertex_indices[indices[0]], 
+                                           vertex_indices[indices[1]]);
         }
     } else {
         feature = box_feature::face;
-        feature_index = get_face_index(indices[0], indices[1], indices[2], indices[3]);
+        feature_index = candidate_face;
     }
 }
 
@@ -177,6 +186,20 @@ std::array<vector3, 4> box_shape::get_face(size_t i, const vector3 &pos, const q
     };
 }
 
+static
+vector3 get_face_tangent(size_t i) {
+    EDYN_ASSERT(i < 6);
+    constexpr vector3 normals[] = {
+        { 0,  1,  0},
+        { 0, -1,  0},
+        { 0,  0,  1},
+        { 0,  0, -1},
+        { 1,  0,  0},
+        {-1,  0,  0},
+    };
+    return normals[i];
+}
+
 vector3 box_shape::get_face_normal(size_t i) const {
     EDYN_ASSERT(i < 6);
     constexpr vector3 normals[] = {
@@ -194,6 +217,29 @@ vector3 box_shape::get_face_normal(size_t i, const quaternion &orn) const {
     return rotate(orn, get_face_normal(i));
 }
 
+vector3 box_shape::get_face_center(size_t i, const vector3 &pos, const quaternion &orn) const {
+    auto n = get_face_normal(i, orn);
+    auto e = half_extents[i / 2];
+    return pos + n * e;
+}
+
+matrix3x3 box_shape::get_face_basis(size_t i, const quaternion &orn) const {
+    auto y = get_face_normal(i);
+    auto x = get_face_tangent(i);
+    auto z = cross(x, y);
+    return matrix3x3_columns(rotate(orn, x), rotate(orn, y), rotate(orn, z));
+}
+
+vector2 box_shape::get_face_half_extents(size_t i) const {
+    EDYN_ASSERT(i < 6);
+    if (i == 0 || i == 1) {
+        return vector2{half_extents.y, half_extents.z};
+    } else if (i == 2 || i == 3) {
+        return vector2{half_extents.z, half_extents.x};
+    }
+    return vector2{half_extents.x, half_extents.y};
+}
+
 size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {    
     for (size_t i = 0; i < 12; ++i) {
         auto idx0 = edge_indices[i * 2];
@@ -205,27 +251,23 @@ size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {
         }
     }
 
+    EDYN_ASSERT(false);
+
     return SIZE_MAX;
 }
 
-size_t box_shape::get_face_index(size_t v0_idx, size_t v1_idx,
-                                 size_t v2_idx, size_t v3_idx) const {
-    const auto vidx_set = std::unordered_set<size_t>{v0_idx, v1_idx, v2_idx, v3_idx};
-    
-    for (size_t i = 0; i < 6; ++i) {
-        const auto idx_set = std::unordered_set<size_t>{
-            face_indices[i * 4 + 0],
-            face_indices[i * 4 + 1],
-            face_indices[i * 4 + 2],
-            face_indices[i * 4 + 3]
-        };
-
-        if (vidx_set == idx_set) {
-            return i;
-        }
+size_t box_shape::support_face_index(const vector3 &dir) const {
+    auto max_idx = max_index_abs(dir);
+        
+    if (dir[max_idx] < 0) {
+        return max_idx * 2 + 1;
+    } else {
+        return max_idx * 2;
     }
+}
 
-    return SIZE_MAX;
+size_t box_shape::get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const {
+    return face_indices[face_idx * 4 + face_vertex_idx];
 }
 
 size_t get_box_feature_num_vertices(box_feature feature) {
@@ -238,6 +280,5 @@ size_t get_box_feature_num_vertices(box_feature feature) {
         return 1;
     }
 }
-
 
 }

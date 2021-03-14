@@ -1,7 +1,10 @@
 #include "edyn/collision/collide.hpp"
 #include <algorithm>
 #include <numeric>
+#include "edyn/shapes/box_shape.hpp"
 #include "edyn/util/array.hpp"
+#include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/math.hpp"
 
 namespace edyn {
 
@@ -18,8 +21,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                          const box_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
     // Box-Box SAT. Normal of 3 faces of A, normal of 3 faces of B, 3 * 3 edge
-    // cross-products.
-    std::array<box_box_separating_axis, 3 + 3 + 3 * 3> sep_axes;
+    // cross-products. Find axis with greatest projection.
 
     auto axesA = std::array<vector3, 3>{
         quaternion_x(ornA),
@@ -33,105 +35,135 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         quaternion_z(ornB)
     };
 
-    size_t axis_idx = 0;
+    auto greatest_proj = -EDYN_SCALAR_MAX;
+    size_t sep_axis_idx;
 
     // A's faces.
     for (size_t i = 0; i < 3; ++i) {
-        auto &axisA = axesA[i];
-        auto &axis = sep_axes[axis_idx++];
-        axis.featureA = box_feature::face;
-
-        if (dot(posB - posA, axisA) > 0) {
-            axis.feature_indexA = i * 2; // Positive face along axis.
-            axis.dir = -axisA; // Point towards A.
-        } else {
-            axis.feature_indexA = i * 2 + 1; // Negative face along axis.
-            axis.dir = axisA; // Point towards A.
+        auto dir = axesA[i];
+        if (dot(posB - posA, dir) > 0) {
+            dir = -dir; // Point towards A.
         }
 
-        shB.support_feature(posB, ornB, posA, axis.dir, 
-                            axis.featureB, axis.feature_indexB, 
-                            axis.distance, threshold);
-        // `axis.distance` contains the projection of the furthest feature with
-        // respect to the center of A, thus it's necessary to add half the extent
-        // of A to push it to the surface.
-        // It also has to be negated because the projection given by `support_feature`
-        // is in the direction `axis.dir` which points towards A and thus positive
-        // projection has to be turned into penetration, which is intepreted as
-        // negative distance.
-        axis.distance = -(shA.half_extents[i] + axis.distance);
+        auto p = shB.support_point(posB, ornB, dir);
+        auto proj = -(dot(dir, p - posA) + shA.half_extents[i]);
+
+        if (proj > greatest_proj) {
+            greatest_proj = proj;
+            sep_axis_idx = i;
+        }
     }
 
     // B's faces.
     for (size_t i = 0; i < 3; ++i) {
-        auto &axisB = axesB[i];
-        auto &axis = sep_axes[axis_idx++];
-        axis.featureB = box_feature::face;
-
-        if (dot(posA - posB, axisB) > 0) {
-            axis.feature_indexB = i * 2; // Positive face along axis.
-            axis.dir = axisB; // Point towards A.
-        } else {
-            axis.feature_indexB = i * 2 + 1; // Negative face along axis.
-            axis.dir = -axisB; // Point towards A.
+        auto dir = axesB[i];
+        if (dot(posA - posB, dir) > 0) {
+            dir = -dir; // Point towards B.
         }
 
-        shA.support_feature(posA, ornA, posB, -axis.dir, 
-                            axis.featureA, axis.feature_indexA, 
-                            axis.distance, threshold);
-        axis.distance = -(shB.half_extents[i] + axis.distance);
+        auto p = shA.support_point(posA, ornA, dir);
+        auto proj = -(dot(dir, p - posB) + shB.half_extents[i]);
+
+        if (proj > greatest_proj) {
+            greatest_proj = proj;
+            sep_axis_idx = 3 + i;
+        }
     }
 
     // Edge-edge.
     for (size_t i = 0; i < 3; ++i) {
-        auto &axisA = axesA[i];
-
         for (size_t j = 0; j < 3; ++j) {
-            auto &axisB = axesB[j];
-            auto &axis = sep_axes[axis_idx];
-            axis.dir = cross(axisA, axisB);
-            auto dir_len_sqr = length_sqr(axis.dir);
+            auto dir = cross(axesA[i], axesB[j]);
+            auto dir_len_sqr = length_sqr(dir);
 
             if (dir_len_sqr <= EDYN_EPSILON) {
                 continue;
             }
 
-            axis.dir /= std::sqrt(dir_len_sqr);
+            dir /= std::sqrt(dir_len_sqr);
 
-            if (dot(posA - posB, axis.dir) < 0) {
+            if (dot(posA - posB, dir) < 0) {
                 // Make it point towards A.
-                axis.dir *= -1;
+                dir *= -1;
             }
+            
+            auto pA = shA.support_point(posA, ornA, -dir);
+            auto pB = shB.support_point(posB, ornB, dir);
+            auto projA = dot(pA - posA, -dir);
+            auto projB = dot(pB - posA, dir);
+            auto proj = -(projA + projB);
 
-            scalar projA, projB;
-            shA.support_feature(posA, ornA, posB, -axis.dir, 
-                                axis.featureA, axis.feature_indexA, 
-                                projA, threshold);
-            shB.support_feature(posB, ornB, posB, axis.dir, 
-                                axis.featureB, axis.feature_indexB, 
-                                projB, threshold);
-            axis.distance = -(projA + projB);
-
-            ++axis_idx;
+            if (proj > greatest_proj) {
+                greatest_proj = proj;
+                sep_axis_idx = 6 + i * 3 + j;
+            }
         }
     }
 
-    auto greatest_distance = -EDYN_SCALAR_MAX;
-    size_t sep_axis_idx;
-
-    for (size_t i = 0; i < axis_idx; ++i) {
-        auto &sep_axis = sep_axes[i];
-        
-        if (sep_axis.distance > greatest_distance) {
-            greatest_distance = sep_axis.distance;
-            sep_axis_idx = i;
-        }
-    }
-
-    auto &sep_axis = sep_axes[sep_axis_idx];
-
-    if (sep_axis.distance > threshold) {
+    if (greatest_proj > threshold) {
         return {};
+    }
+
+    box_box_separating_axis sep_axis;
+    sep_axis.distance = greatest_proj;
+
+    // Obtain support features for the chosen separating axis.
+    if (sep_axis_idx < 3) {
+        // A's faces.
+        auto i = sep_axis_idx;
+        auto &axisA = axesA[i];
+        sep_axis.featureA = box_feature::face;
+
+        if (dot(posB - posA, axisA) > 0) {
+            sep_axis.feature_indexA = i * 2; // Positive face along axis.
+            sep_axis.dir = -axisA; // Point towards A.
+        } else {
+            sep_axis.feature_indexA = i * 2 + 1; // Negative face along axis.
+            sep_axis.dir = axisA; // Point towards A.
+        }
+
+        scalar distance;
+        shB.support_feature(posB, ornB, posA, sep_axis.dir, 
+                            sep_axis.featureB, sep_axis.feature_indexB, 
+                            distance, threshold);
+    } else if (sep_axis_idx < 6) {
+        // B's faces.
+        auto i = sep_axis_idx - 3;
+        auto &axisB = axesB[i];
+        sep_axis.featureB = box_feature::face;
+
+        if (dot(posA - posB, axisB) > 0) {
+            sep_axis.feature_indexB = i * 2; // Positive face along axis.
+            sep_axis.dir = axisB; // Point towards A.
+        } else {
+            sep_axis.feature_indexB = i * 2 + 1; // Negative face along axis.
+            sep_axis.dir = -axisB; // Point towards A.
+        }
+
+        scalar distance;
+        shA.support_feature(posA, ornA, posB, -sep_axis.dir, 
+                            sep_axis.featureA, sep_axis.feature_indexA, 
+                            distance, threshold);
+    } else {
+        // Edge-edge.
+        auto i = (sep_axis_idx - 6) / 3;
+        auto j = (sep_axis_idx - 6) % 3;
+        auto &axisA = axesA[i];
+        auto &axisB = axesB[j];
+        sep_axis.dir = normalize(cross(axisA, axisB));
+
+        if (dot(posA - posB, sep_axis.dir) < 0) {
+            // Make it point towards A.
+            sep_axis.dir *= -1;
+        }
+
+        scalar projA, projB;
+        shA.support_feature(posA, ornA, posB, -sep_axis.dir, 
+                            sep_axis.featureA, sep_axis.feature_indexA, 
+                            projA, threshold);
+        shB.support_feature(posB, ornB, posB, sep_axis.dir, 
+                            sep_axis.featureB, sep_axis.feature_indexB, 
+                            projB, threshold);
     }
 
     auto result = collision_result{};
@@ -201,29 +233,33 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // If not all vertices are contained in a face, perform edge intersection tests.
         if (result.num_points < 4) {
-            for (size_t i = 0; i < 4; ++i) {
-                auto &a0 = face_verticesA[i];
-                auto &a1 = face_verticesA[(i + 1) % 4];
+            auto face_center = shA.get_face_center(sep_axis.feature_indexA, posA, ornA);
+            auto face_basis = shA.get_face_basis(sep_axis.feature_indexA, ornA);
+            auto half_extents = shA.get_face_half_extents(sep_axis.feature_indexA);
 
-                for (size_t j = 0; j < 4; ++j) {
-                    auto &b0 = face_verticesB[j];
-                    auto &b1 = face_verticesB[(j + 1) % 4];
+            for (size_t j = 0; j < 4; ++j) {
+                auto b0_world = face_verticesB[j];
+                auto b1_world = face_verticesB[(j + 1) % 4];
+                auto b0 = to_object_space(b0_world, face_center, face_basis);
+                auto b1 = to_object_space(b1_world, face_center, face_basis);
+                auto p0 = vector2{b0.x, b0.z};
+                auto p1 = vector2{b1.x, b1.z};
 
-                    scalar s[2], t[2];
-                    vector3 p0[2], p1[2];
-                    size_t num_points = 0;
-                    closest_point_segment_segment(a0, a1, b0, b1, 
-                                                  s[0], t[0], p0[0], p1[0], &num_points, 
-                                                  &s[1], &t[1], &p0[1], &p1[1]);
-                    for (size_t k = 0; k < num_points; ++k) {
-                        if (result.num_points < max_contacts && 
-                            s[k] > 0 && s[k] < 1 && t[k] > 0 && t[k] < 1) {
-                            auto pivotA = to_object_space(p0[k], posA, ornA);
-                            auto pivotB = to_object_space(p1[k], posB, ornB);
-                            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-                        }
+                scalar s[2];
+                auto num_points = intersect_line_aabb(p0, p1, -half_extents, half_extents, s[0], s[1]);
+                for (size_t k = 0; k < num_points; ++k) {
+                    if (result.num_points == max_contacts) break;
+
+                    if (s[k] >= 0 && s[k] <= 1) {
+                        auto q1 = lerp(b0_world, b1_world, s[k]);
+                        auto q0 = project_plane(q1, face_center, face_normalA);
+                        auto pivotA = to_object_space(q0, posA, ornA);
+                        auto pivotB = to_object_space(q1, posB, ornB);
+                        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                     }
                 }
+
+                if (result.num_points == max_contacts) break;
             }
         }
     } else if ((sep_axis.featureA == box_feature::face && sep_axis.featureB == box_feature::edge) ||
@@ -263,24 +299,28 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
         // If both vertices are not inside the face then perform edge intersection tests.
         if (result.num_points < 2) {
-            for (int i = 0; i < 4; ++i) {
-                auto &v0 = face_vertices[i];
-                auto &v1 = face_vertices[(i + 1) % 4];
+            auto face_center = is_faceA ? shA.get_face_center(sep_axis.feature_indexA, posA, ornA) :
+                                          shB.get_face_center(sep_axis.feature_indexB, posB, ornB);
+            auto face_basis = is_faceA ? shA.get_face_basis(sep_axis.feature_indexA, ornA) :
+                                         shB.get_face_basis(sep_axis.feature_indexB, ornB);
+            auto half_extents = is_faceA ? shA.get_face_half_extents(sep_axis.feature_indexA) :
+                                           shB.get_face_half_extents(sep_axis.feature_indexB);
 
-                scalar s[2], t[2];
-                vector3 p0[2], p1[2];
-                size_t num_points = 0;
-                closest_point_segment_segment(v0, v1, edge_vertices[0], edge_vertices[1], 
-                                              s[0], t[0], p0[0], p1[0], &num_points, 
-                                              &s[1], &t[1], &p0[1], &p1[1]);
-                for (size_t i = 0; i < num_points; ++i) {
-                    if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                        auto pivotA = is_faceA ? to_object_space(p0[i], posA, ornA) :
-                                                 to_object_space(p1[i], posA, ornA);
-                        auto pivotB = is_faceA ? to_object_space(p1[i], posB, ornB) :
-                                                 to_object_space(p0[i], posB, ornB);
-                        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-                    }
+            auto e0 = to_object_space(edge_vertices[0], face_center, face_basis);
+            auto e1 = to_object_space(edge_vertices[1], face_center, face_basis);
+            auto p0 = vector2{e0.x, e0.z};
+            auto p1 = vector2{e1.x, e1.z};
+
+            scalar s[2];
+            auto num_points = intersect_line_aabb(p0, p1, -half_extents, half_extents, s[0], s[1]);
+
+            for (size_t i = 0; i < num_points; ++i) {
+                if (s[i] >= 0 && s[i] <= 1) {
+                    auto edge_pivot = lerp(edge_vertices[0], edge_vertices[1], s[i]);
+                    auto face_pivot = project_plane(edge_pivot, face_center, sep_axis.dir);
+                    auto pivotA = to_object_space(is_faceA ? face_pivot : edge_pivot, posA, ornA);
+                    auto pivotB = to_object_space(is_faceA ? edge_pivot : face_pivot, posB, ornB);
+                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                 }
             }
         }        

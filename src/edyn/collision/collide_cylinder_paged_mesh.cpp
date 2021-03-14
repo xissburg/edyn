@@ -22,7 +22,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     shB.trimesh->visit(aabb, [&] (size_t mesh_idx, size_t tri_idx, const triangle_vertices &vertices) {
         std::array<bool, 3> is_concave_edge;
         std::array<scalar, 3> cos_angles;
-        auto *trimesh = shB.trimesh->get_submesh(mesh_idx);
+        auto trimesh = shB.trimesh->get_submesh(mesh_idx);
 
         for (int i = 0; i < 3; ++i) {
             is_concave_edge[i] = trimesh->is_concave_edge[tri_idx * 3 + i];

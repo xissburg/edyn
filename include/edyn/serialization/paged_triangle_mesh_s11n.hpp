@@ -6,6 +6,7 @@
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
 #include "edyn/serialization/file_archive.hpp"
 #include "edyn/parallel/job_queue_scheduler.hpp"
+#include "edyn/parallel/job.hpp"
 
 #include <entt/signal/sigh.hpp>
 
@@ -116,8 +117,8 @@ public:
 
     void load(size_t index) override;
 
-    virtual entt::sink<loaded_mesh_func_t> loaded_mesh_sink() override {
-        return {m_loaded_mesh_signal};
+    virtual entt::delegate<loaded_mesh_func_t> & on_load_delegate() override {
+        return m_loaded_delegate;
     }
 
     friend void serialize(paged_triangle_mesh_file_input_archive &archive, 
@@ -130,24 +131,21 @@ private:
     size_t m_base_offset;
     std::vector<size_t> m_offsets;
     paged_triangle_mesh_serialization_mode m_mode;
-    entt::sigh<loaded_mesh_func_t> m_loaded_mesh_signal;
+    entt::delegate<loaded_mesh_func_t> m_loaded_delegate;
 };
 
 /**
- * Job used to load submeshes in the background. It schedules a job with 
- * `finish_load_mesh_job_func` in the calling thread once finished with the
- * same context and a loaded `triangle_mesh`. 
+ * Job used to load submeshes in the background.
  */
 struct load_mesh_context {
+    // Integral value of a pointer to and instance of
+    // `paged_triangle_mesh_file_input_archive`.
     intptr_t m_input;
+    // Index of submesh to be loaded. 
     size_t m_index;
-    intptr_t m_mesh;
-    job_queue_scheduler m_scheduler;
 };
 
 void load_mesh_job_func(job::data_type &);
-
-void finish_load_mesh_job_func(job::data_type &);
 
 }
 

@@ -1,6 +1,7 @@
 # IDEs
 .vscode/*
 !.vscode/tasks.json
+.cache
 
 # build
 build

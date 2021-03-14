@@ -23,9 +23,8 @@ struct triangle_mesh {
         return indices.size() / 3;
     }
 
-    const AABB &get_aabb() const {
-        EDYN_ASSERT(!tree.m_nodes.empty());
-        return tree.m_nodes.front().aabb;
+    AABB get_aabb() const {
+        return tree.root_aabb();
     }
 
     template<typename Func>

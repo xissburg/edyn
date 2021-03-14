@@ -1,6 +1,17 @@
 #include "edyn/shapes/paged_triangle_mesh.hpp"
+#include "edyn/parallel/parallel_for.hpp"
+#include <atomic>
+#include <limits>
+#include <entt/entt.hpp>
+#include <mutex>
 
 namespace edyn {
+
+paged_triangle_mesh::paged_triangle_mesh(std::shared_ptr<triangle_mesh_page_loader_base> loader)
+    : m_page_loader(loader)
+{
+    m_page_loader->on_load_delegate().connect<&paged_triangle_mesh::assign_mesh>(*this);
+}
 
 size_t paged_triangle_mesh::cache_num_vertices() const {
     size_t count = 0;
@@ -17,38 +28,46 @@ size_t paged_triangle_mesh::cache_num_vertices() const {
 }
 
 void paged_triangle_mesh::load_node_if_needed(size_t trimesh_idx) {
+    EDYN_ASSERT(m_is_loading_submesh && trimesh_idx < m_cache.size());
+    auto already_loading = m_is_loading_submesh[trimesh_idx].exchange(true, std::memory_order_relaxed);
+
+    if (already_loading) {
+        return;
+    }
+
     auto &node = m_cache[trimesh_idx];
 
-    if (!node.trimesh && !m_is_loading_submesh[trimesh_idx]) {
-        EDYN_ASSERT(node.num_vertices < m_max_cache_num_vertices);
-        // Load triangle mesh into cache. Clear cache if it would go
-        // above limits.
-        while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
-            unload_least_recently_visited_node();
-        }
-
-        m_is_loading_submesh[trimesh_idx] = true;
-        m_page_loader->load(trimesh_idx);
+    if (node.trimesh) {
+        m_is_loading_submesh[trimesh_idx].store(false, std::memory_order_relaxed);
+        return;
     }
+
+    EDYN_ASSERT(node.num_vertices < m_max_cache_num_vertices);
+    // Load triangle mesh into cache. Clear cache if it would go
+    // above limits.
+    while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
+        unload_least_recently_visited_node();
+    }
+
+    m_page_loader->load(trimesh_idx);
 }
 
 void paged_triangle_mesh::mark_recent_visit(size_t trimesh_idx) {
+    auto lock = std::lock_guard(m_lru_mutex);
     auto it = std::find(m_lru_indices.begin(), m_lru_indices.end(), trimesh_idx);
     std::rotate(m_lru_indices.begin(), it, it + 1);
 }
 
 void paged_triangle_mesh::unload_least_recently_visited_node() {
+    auto lock = std::lock_guard(m_lru_mutex);
+
     for (auto it = m_lru_indices.rbegin(); it != m_lru_indices.rend(); ++it) {
         auto &node = m_cache[*it];
         if (node.trimesh) {
-            unload_node(node);
+            node.trimesh.reset();
             break;
         }
     }
-}
-
-void paged_triangle_mesh::unload_node(triangle_mesh_node &node) {
-    node.trimesh.reset();
 }
 
 void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
@@ -129,10 +148,10 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
             size_t edge_idx_i;
 
             /*...*/if ((vertex0_idx_i == 0 && vertex1_idx_i == 1) ||
-                        (vertex0_idx_i == 1 && vertex1_idx_i == 0)) {
+                       (vertex0_idx_i == 1 && vertex1_idx_i == 0)) {
                 edge_idx_i = 0;
             } else if ((vertex0_idx_i == 1 && vertex1_idx_i == 2) ||
-                        (vertex0_idx_i == 2 && vertex1_idx_i == 1)) {
+                       (vertex0_idx_i == 2 && vertex1_idx_i == 1)) {
                 edge_idx_i = 1;
             } else {
                 edge_idx_i = 2;
@@ -144,10 +163,10 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
             size_t vertex2_idx_k;
 
             /*...*/if ((vertex0_idx_k == 0 && vertex1_idx_k == 1) ||
-                        (vertex0_idx_k == 1 && vertex1_idx_k == 0)) {
+                       (vertex0_idx_k == 1 && vertex1_idx_k == 0)) {
                 vertex2_idx_k = 2;
             } else if ((vertex0_idx_k == 1 && vertex1_idx_k == 2) ||
-                        (vertex0_idx_k == 2 && vertex1_idx_k == 1)) {
+                       (vertex0_idx_k == 2 && vertex1_idx_k == 1)) {
                 vertex2_idx_k = 0;
             } else {
                 vertex2_idx_k = 1;
@@ -174,8 +193,8 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
     });
 }
 
-triangle_mesh *paged_triangle_mesh::get_submesh(size_t idx) {
-    return m_cache[idx].trimesh.get();
+std::shared_ptr<triangle_mesh> paged_triangle_mesh::get_submesh(size_t idx) {
+    return m_cache[idx].trimesh;
 }
 
 void paged_triangle_mesh::clear_cache() {
@@ -184,9 +203,12 @@ void paged_triangle_mesh::clear_cache() {
     }
 }
 
-void paged_triangle_mesh::assign_mesh(size_t index, std::unique_ptr<triangle_mesh> &mesh) {
+void paged_triangle_mesh::assign_mesh(size_t index, std::unique_ptr<triangle_mesh> mesh) {
+    // Use lock to prevent assigning to the same trimesh shared_ptr concurrently
+    // if `unload_least_recently_visited_node` is executing in another thread.
+    auto lock = std::lock_guard(m_lru_mutex);
     m_cache[index].trimesh = std::move(mesh);
-    m_is_loading_submesh[index] = false;
+    m_is_loading_submesh[index].store(false, std::memory_order_release);
 }
 
 }

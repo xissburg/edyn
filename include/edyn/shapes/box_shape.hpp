@@ -2,6 +2,8 @@
 #define EDYN_SHAPES_BOX_SHAPE_HPP
 
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/vector2.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
 #include <tuple>
@@ -167,6 +169,34 @@ struct box_shape {
     vector3 get_face_normal(size_t i, const quaternion &orn) const;
 
     /**
+     * Get point at center of the i-th face in world space.
+     * @param i Face index in [0, 6).
+     * @param pos Position of geometric center of box.
+     * @param orn Orientation of the box.
+     * @return Point at center of the i-th face in world space.
+     */
+    vector3 get_face_center(size_t i, const vector3 &pos, const quaternion &orn) const;
+
+    /**
+     * Get a basis representing the tangent space of the i-th face where the x
+     * and z axes (i.e. columns 0 and 2 in the matrix) are tangent to the face
+     * and the y axis (i.e. column 1 in the matrix) is orthogonal to the face,
+     * pointing outside the box.
+     * @param i Face index in [0, 6).
+     * @param orn Orientation of the box.
+     * @return Matrix representing a tangent space basis on the i-th face.
+     */
+    matrix3x3 get_face_basis(size_t i, const quaternion &orn) const;
+
+    /**
+     * Get half of the extent of a rectangular face.
+     * @param i Face index in [0, 6).
+     * @return Half of the bidimensional extent of the rectangular face, 
+     *         according to the basis given by `get_face_basis`.
+     */
+    vector2 get_face_half_extents(size_t i) const;
+
+    /**
      * Get edge index from vertex indices.
      * @param v0_idx Index of first vertex.
      * @param v1_idx Index of second vertex.
@@ -176,16 +206,13 @@ struct box_shape {
     size_t get_edge_index(size_t v0_idx, size_t v1_idx) const;
 
     /**
-     * Get face index from vertex indices.
-     * @param v0_idx Index of first vertex.
-     * @param v1_idx Index of second vertex.
-     * @param v2_idx Index of third vertex.
-     * @param v3_idx Index of fourth vertex.
+     * Get face index whose normal best aligns with the given direction.
+     * @param dir Direction vector.
      * @return Face index.
-     * @remarks Order does not matter.
      */
-    size_t get_face_index(size_t v0_idx, size_t v1_idx,
-                          size_t v2_idx, size_t v3_idx) const;
+    size_t support_face_index(const vector3 &dir) const;
+
+    size_t get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const;
 };
 
 size_t get_box_feature_num_vertices(box_feature);

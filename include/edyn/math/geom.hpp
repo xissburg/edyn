@@ -167,8 +167,8 @@ void support_point_vertices(const std::array<vector3, N> &vertices,
 scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, const vector3& p3);
 
 template<size_t N> inline
-size_t insert_index(std::array<vector3, N> points,
-                    std::array<scalar, N> depths,
+size_t insert_index(const std::array<vector3, N> &points,
+                    const std::array<scalar, N> &depths,
                     size_t num_points,
                     const vector3 &new_point,
                     scalar new_point_depth) {
@@ -269,6 +269,23 @@ vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p);
  */
 scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, 
                                 vector3 &closest, vector3 &normal);
+
+/**
+ * Intersect a line with an AABB in the Cartesian plane.
+ * @param p0 Point in the line.
+ * @param p1 Another point in the line.
+ * @param aabb_min Minimum of AABB, i.e. lower left corner.
+ * @param aabb_max Maximum of AABB, i.e. upper right corner.
+ * @param s0 Outputs the parameter of one point in the line defined by `p0` and
+ *        `p1` where it intersects the AABB.
+ * @param s1 Outputs the parameters of another point where the line intersects
+ *        the AABB.
+ * @return Number of intersections in [0, 2].
+ */
+size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
+                           const vector2 &aabb_min, const vector2 &aabb_max,
+                           scalar &s0, scalar &s1);
+
 }
 
 #endif // EDYN_MATH_GEOM_HPP

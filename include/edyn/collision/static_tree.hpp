@@ -43,6 +43,28 @@ namespace detail {
 
 class static_tree {
 public:
+    struct tree_node {
+        AABB aabb;
+        uint32_t child1;
+        union {
+            uint32_t child2;
+            uint32_t id;
+        };
+
+        bool is_leaf() const {
+            return child1 == EDYN_NULL_NODE;
+        }
+    };
+
+    AABB root_aabb() const {
+        EDYN_ASSERT(!m_nodes.empty());
+        return m_nodes.front().aabb;
+    }
+
+    bool empty() const {
+        return m_nodes.empty();
+    }
+
     template<typename Func>
     void visit(const AABB &aabb, Func func) const {
         std::vector<uint32_t> stack;
@@ -85,19 +107,6 @@ public:
         recurse_build(aabb_begin, aabb_end, ids.begin(), ids.end(), 
                       0, report_leaf, max_obj_per_leaf);
     }
-
-    struct tree_node {
-        AABB aabb;
-        uint32_t child1;
-        union {
-            uint32_t child2;
-            uint32_t id;
-        };
-
-        bool is_leaf() const {
-            return child1 == EDYN_NULL_NODE;
-        }
-    };
 
     template<typename Iterator_AABB, typename Iterator_ids, typename Func>
     void recurse_build(Iterator_AABB aabb_begin, Iterator_AABB aabb_end,
