@@ -378,11 +378,9 @@ void collide_box_triangle(
                                     &s[1], &t[1], &p0[1], &p1[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
-            if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                auto pivotA = to_object_space(p0[i], box_pos, box_orn);
-                auto pivotB = p1[i]; // We're in the triangle's object space.
-                result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
-            }
+            auto pivotA = to_object_space(p0[i], box_pos, box_orn);
+            auto pivotB = p1[i]; // We're in the triangle's object space.
+            result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
         }
     } else if (sep_axis.featureA == box_feature::face && sep_axis.featureB == TRIANGLE_FEATURE_VERTEX) {
         // Ignore vertices that are on a concave edge.

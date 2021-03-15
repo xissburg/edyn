@@ -23,10 +23,10 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                          const box_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
     // Cylinder-Box SAT. Normal of 3 faces of B, normal of cylinder caps of A
-    // which is the cylinder main axis, 3 cross-products between edges of B
-    // and axis of A, 24 circle-segment closest point normal between edges
-    // of B and cap edges of A.
-    std::array<cyl_box_separating_axis, 3 + 1 + 3 + 24> sep_axes;
+    // which is the cylinder main axis, 12 segment-segment closest points
+    // between edges of B and axis of A, 24 circle-segment closest point
+    // normal between edges of B and cap edges of A.
+    std::array<cyl_box_separating_axis, 3 + 1 + 12 + 24> sep_axes;
     size_t axis_idx = 0;
 
     auto box_axes = std::array<vector3, 3>{
@@ -87,39 +87,113 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         axis.distance = -axis.distance;
     }
 
-    // Cylinder side edges vs box edges.
-    {
-        for (size_t i = 0; i < 3; ++i) {
-            auto dir = cross(box_axes[i], cyl_axis);
-            auto dir_len_sqr = length_sqr(dir);
+    // Cylinder side edges.
+    for (size_t i = 0; i < 12; ++i) {
+        auto edge_vertices = shB.get_edge(i, posB, ornB);
 
-            if (dir_len_sqr <= EDYN_EPSILON) {
-                continue;
+        scalar s, t;
+        vector3 p0, p1;
+        closest_point_segment_segment(face_center_pos, face_center_neg, 
+                                      edge_vertices[0], edge_vertices[1], 
+                                      s, t, p0, p1);
+
+        if (!(s > 0 && s < 1)) {
+            continue;
+        }
+
+        if (t > 0 && t < 1) {
+            // Within segment.
+            auto &axis = sep_axes[axis_idx++];
+            axis.featureA = cylinder_feature::side_edge;
+            auto edge_dir = edge_vertices[1] - edge_vertices[0];
+            axis.dir = cross(edge_dir, cyl_axis);
+
+            if (length_sqr(axis.dir) <= EDYN_EPSILON) {
+                // Parallel. Find a vector that's orthogonal to both
+                // which lies in the same plane.
+                auto plane_normal = cross(edge_dir, face_center_pos - edge_vertices[0]);
+                axis.dir = cross(plane_normal, edge_dir);
             }
-
-            dir /= std::sqrt(dir_len_sqr);
 
             // Make it point towards A.
-            if (dot(posA - posB, dir) < 0) {
-                dir *= -1;
+            if (dot(posA - posB, axis.dir) < 0) {
+                axis.dir *= -1;
             }
 
-            auto &axis = sep_axes[axis_idx++];
-            axis.dir = dir;
-            axis.featureA = cylinder_feature::side_edge;
+            axis.dir = normalize(axis.dir);
 
             shB.support_feature(posB, ornB, posA, axis.dir, 
                                 axis.featureB, axis.feature_indexB, 
                                 axis.distance, threshold);
             axis.distance = -(shA.radius + axis.distance);
+        } else if (t == 0) {
+            // If the closest point parameter is zero it means it is the first
+            // vertex in the edge. It's unecessary to handle the second vertex
+            // because it is the first vertex of another edge in this loop.
+
+            // Find closest point in cylinder segment to this vertex and use the
+            // axis connecting them as the separating axis.
+            scalar r;
+            vector3 closest;
+            auto dist_sqr = closest_point_segment(face_center_pos, face_center_neg, 
+                                                  edge_vertices[0], r, closest);
+
+            // Ignore points at the extremes.
+            if (r > 0 && r < 1 && dist_sqr > EDYN_EPSILON) {
+                auto &axis = sep_axes[axis_idx++];
+                axis.featureA = cylinder_feature::side_edge;
+                auto dist = std::sqrt(dist_sqr);
+                axis.dir = (closest - edge_vertices[0]) / dist;
+
+                // Make it point towards A.
+                if (dot(posA - posB, axis.dir) < 0) {
+                    axis.dir *= -1;
+                }
+
+                shB.support_feature(posB, ornB, posA, axis.dir, 
+                                    axis.featureB, axis.feature_indexB, 
+                                    axis.distance, threshold);
+                axis.distance = -(shA.radius + axis.distance);
+            }
         }
     }
 
-    // Cylinder cap edges vs box edges.
+    // Cylinder cap edges.
     for (size_t i = 0; i < 2; ++i) {
+        auto face_center = i == 0 ? face_center_neg : face_center_pos;
 
         for (size_t j = 0; j < 12; ++j) {
+            auto edge_vertices = shB.get_edge(j, posB, ornB);
 
+            // Find closest point between circle and triangle edge segment. 
+            size_t num_points;
+            scalar s0, s1;
+            vector3 cc0, cl0, cc1, cl1;
+            vector3 normal;
+            closest_point_circle_line(face_center, ornA, shA.radius, 
+                                      edge_vertices[0], edge_vertices[1], 
+                                      num_points, s0, cc0, cl0, s1, cc1, cl1, 
+                                      normal, threshold);
+            
+            if (s0 > 0 && s0 < 1) {
+                // Make it point towards A.
+                if (dot(posA - posB, normal) < 0) {
+                    normal *= -1;
+                }
+
+                auto &axis = sep_axes[axis_idx++];
+                axis.dir = normal;
+
+                scalar projA, projB;
+                shA.support_feature(posA, ornA, posA, -normal, 
+                                    axis.featureA, axis.feature_indexA, 
+                                    axis.pivotA, projA, threshold);
+                shB.support_feature(posB, ornB, posA, normal, 
+                                    axis.featureB, axis.feature_indexB, 
+                                    projB, threshold);
+                axis.distance = -(projA + projB);
+                axis.pivotB = lerp(edge_vertices[0], edge_vertices[1], s0);
+            }
         }
     }
 
@@ -202,11 +276,14 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         for (size_t i = 0; i < num_edges_to_check; ++i) {
             // Transform vertices to `shA` (cylinder) space. The cylinder axis
             // is the x-axis.
-            auto v0 = to_world_space(vertices_in_B[i], posB, ornB);
-            auto v0_A = to_object_space(v0, posA, ornA);
+            auto v0_B = vertices_in_B[i];
+            auto v1_B = vertices_in_B[(i + 1) % 4];
 
-            auto v1 = to_world_space(vertices_in_B[(i + 1) % 4], posB, ornB);
-            auto v1_A = to_object_space(v1, posA, ornA);
+            auto v0_w = to_world_space(v0_B, posB, ornB);
+            auto v1_w = to_world_space(v1_B, posB, ornB);
+
+            auto v0_A = to_object_space(v0_w, posA, ornA);
+            auto v1_A = to_object_space(v1_w, posA, ornA);
 
             scalar s0, s1;
             auto num_points = intersect_line_circle(v0_A.z, v0_A.y, 
@@ -215,20 +292,20 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
             if (num_points > 0) {
                 ++num_edge_intersections;
-                last_edge = std::make_pair(v0, v1);
+                last_edge = std::make_pair(v0_w, v1_w);
 
                 s0 = clamp_unit(s0);
                 auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
                 auto pivotA = lerp(v0_A, v1_A, s0);
                 pivotA.x = pivotA_x;
-                auto pivotB = lerp(v0, v1, s0);
+                auto pivotB = lerp(v0_B, v1_B, s0);
                 result.maybe_add_point({pivotA, pivotB, normalB, sep_axis.distance});
 
                 if (num_points == 2) {
                     s1 = clamp_unit(s1);
                     auto pivotA = lerp(v0_A, v1_A, s1);
                     pivotA.x = pivotA_x;
-                    auto pivotB = lerp(v0, v1, s1);
+                    auto pivotB = lerp(v0_B, v1_B, s1);
                     result.maybe_add_point({pivotA, pivotB, normalB, sep_axis.distance});
                 }
             }
@@ -345,13 +422,11 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                           &s[1], &t[1], &pA[1], &pB[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
-                if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                    auto pivotA_world = pA[i] - sep_axis.dir * shA.radius;
-                    auto pivotB_world = pB[i];
-                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                    auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-                }
+                auto pivotA_world = pA[i] - sep_axis.dir * shA.radius;
+                auto pivotB_world = pB[i];
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                auto pivotB = to_object_space(pivotB_world, posB, ornB);
+                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
         }
         break;
@@ -372,21 +447,9 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     break;
 
     case cylinder_feature::cap_edge: {
-        switch (sep_axis.featureB) {
-        case box_feature::face: {
-            auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
-            auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
-            result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
-        }
-        break;
-        case box_feature::edge: {
-
-        }
-        break;
-        case box_feature::vertex: {
-
-        }
-        }
+        auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
+        auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
+        result.maybe_add_point({pivotA, pivotB, normalB, sep_axis.distance});
     }
     }
 

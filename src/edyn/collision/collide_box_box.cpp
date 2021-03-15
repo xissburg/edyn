@@ -336,11 +336,9 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
                                       &s[1], &t[1], &p0[1], &p1[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
-            if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                auto pivotA = to_object_space(p0[i], posA, ornA);
-                auto pivotB = to_object_space(p1[i], posB, ornB);
-                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-            }
+            auto pivotA = to_object_space(p0[i], posA, ornA);
+            auto pivotB = to_object_space(p1[i], posB, ornB);
+            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
         }
     } else if (sep_axis.featureA == box_feature::face && sep_axis.featureB == box_feature::vertex) {
         // Face A, Vertex B.

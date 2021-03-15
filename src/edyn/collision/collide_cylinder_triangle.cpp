@@ -238,6 +238,8 @@ void collide_cylinder_triangle(
                                          axis.cyl_feature, axis.cyl_feature_index, 
                                          axis.pivotA, projA, threshold);
 
+                // Precalculate the pivot on the triangle, which is the point on
+                // the edge [v0,v1] closest to the pivot on the cylinder.
                 scalar t;
                 closest_point_segment(v0, v1, axis.pivotA, t, axis.pivotB);
 
@@ -424,16 +426,14 @@ void collide_cylinder_triangle(
                     vector3 p0[2], p1[2];
                     size_t num_points = 0;
                     closest_point_segment_segment(disc_center_pos, disc_center_neg, 
-                                                    vertices[i], vertices[(i + 1) % 3],
-                                                    s[0], t[0], p0[0], p1[0], &num_points, 
-                                                    &s[1], &t[1], &p0[1], &p1[1]);
+                                                  vertices[i], vertices[(i + 1) % 3],
+                                                  s[0], t[0], p0[0], p1[0], &num_points, 
+                                                  &s[1], &t[1], &p0[1], &p1[1]);
 
                     for (size_t i = 0; i < num_points; ++i) {
-                        if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                            auto pA_in_B = p0[i] - tri_normal * cylinder.radius;
-                            auto pA = to_object_space(pA_in_B, posA, ornA);
-                            result.maybe_add_point({pA, p1[i], sep_axis.dir, sep_axis.distance});
-                        }
+                        auto pA_in_B = p0[i] - tri_normal * cylinder.radius;
+                        auto pA = to_object_space(pA_in_B, posA, ornA);
+                        result.maybe_add_point({pA, p1[i], sep_axis.dir, sep_axis.distance});
                     }
                 }
             }

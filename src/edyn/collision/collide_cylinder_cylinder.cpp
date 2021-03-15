@@ -311,13 +311,11 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                                       s[0], t[0], pA[0], pB[0], &num_points,
                                       &s[1], &t[1], &pA[1], &pB[1]);
         for (size_t i = 0; i < num_points; ++i) {
-            if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                auto pivotA_world = pA[i] - sep_axis.dir * shA.radius;
-                auto pivotB_world = pB[i] + sep_axis.dir * shB.radius;
-                auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-            }
+            auto pivotA_world = pA[i] - sep_axis.dir * shA.radius;
+            auto pivotB_world = pB[i] + sep_axis.dir * shB.radius;
+            auto pivotA = to_object_space(pivotA_world, posA, ornA);
+            auto pivotB = to_object_space(pivotB_world, posB, ornB);
+            result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
         }
     } else if (sep_axis.featureA == cylinder_feature::side_edge &&
                sep_axis.featureB == cylinder_feature::cap_edge) {
