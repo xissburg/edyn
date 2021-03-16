@@ -215,7 +215,27 @@ struct box_shape {
     size_t get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const;
 };
 
-size_t get_box_feature_num_vertices(box_feature);
+constexpr size_t get_box_num_features(box_feature feature) {
+    switch (feature) {
+    case box_feature::face:
+        return 4;
+    case box_feature::edge:
+        return 12;
+    case box_feature::vertex:
+        return 8;
+    }
+}
+
+constexpr size_t get_box_feature_num_vertices(box_feature feature) {
+    switch (feature) {
+    case box_feature::face:
+        return 4;
+    case box_feature::edge:
+        return 2;
+    case box_feature::vertex:
+        return 1;
+    }
+}
 
 }
 

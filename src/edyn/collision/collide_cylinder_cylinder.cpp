@@ -1,6 +1,8 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/scalar.hpp"
+#include "edyn/math/vector3.hpp"
 #include <array>
 
 namespace edyn {
@@ -87,6 +89,14 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         auto dir = cross(axisA, axisB);
         auto dir_len_sqr = length_sqr(dir);
 
+        if (!(dir_len_sqr > EDYN_EPSILON)) {
+            // Axes are parallel. Find a vector that's orthogonal to both.
+            vector3 closest; scalar t;
+            closest_point_line(face_center_negA, axisA, face_center_negB, t, closest);
+            dir = closest - face_center_negB;
+            dir_len_sqr = length_sqr(dir);
+        }
+
         if (dir_len_sqr > EDYN_EPSILON) {
             dir /= std::sqrt(dir_len_sqr);
 
@@ -130,6 +140,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
             auto &axis = sep_axes[axis_idx++];
             axis.dir = normal;
+            EDYN_ASSERT(length_sqr(normal) > EDYN_EPSILON);
 
             if (dot(posA - posB, axis.dir) < 0) {
                 // Points towards A.
@@ -169,6 +180,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
             auto &axis = sep_axes[axis_idx++];
             axis.dir = normal;
+            EDYN_ASSERT(length_sqr(normal) > EDYN_EPSILON);
 
             if (dot(posA - posB, axis.dir) < 0) {
                 // Points towards A.

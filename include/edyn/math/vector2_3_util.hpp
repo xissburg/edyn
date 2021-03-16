@@ -22,6 +22,14 @@ inline vector2 to_vector2_zy(const vector3 &v) {
     return {v.z, v.y};
 }
 
+inline vector2 to_vector2_yx(const vector3 &v) {
+    return {v.y, v.x};
+}
+
+inline vector2 to_vector2_zx(const vector3 &v) {
+    return {v.z, v.x};
+}
+
 }
 
 #endif // EDYN_MATH_VECTOR2_3_UTIL_HPP

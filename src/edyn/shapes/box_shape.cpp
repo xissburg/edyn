@@ -132,7 +132,7 @@ void box_shape::support_feature(const vector3 &pos, const quaternion &orn,
 }
 
 vector3 box_shape::get_vertex(size_t i) const {
-    EDYN_ASSERT(i < 8);
+    EDYN_ASSERT(i < get_box_num_features(box_feature::vertex));
     constexpr vector3 multipliers[] = {
         { 1,  1,  1},
         { 1, -1,  1},
@@ -151,7 +151,7 @@ vector3 box_shape::get_vertex(size_t i, const vector3 &pos, const quaternion &or
 }
 
 std::array<vector3, 2> box_shape::get_edge(size_t i) const {
-    EDYN_ASSERT(i < 12);
+    EDYN_ASSERT(i < get_box_num_features(box_feature::edge));
     return {
         get_vertex(edge_indices[i * 2 + 0]),
         get_vertex(edge_indices[i * 2 + 1])
@@ -241,7 +241,7 @@ vector2 box_shape::get_face_half_extents(size_t i) const {
 }
 
 size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {    
-    for (size_t i = 0; i < 12; ++i) {
+    for (size_t i = 0; i < get_box_num_features(box_feature::edge); ++i) {
         auto idx0 = edge_indices[i * 2];
         auto idx1 = edge_indices[i * 2 + 1];
 
@@ -268,17 +268,6 @@ size_t box_shape::support_face_index(const vector3 &dir) const {
 
 size_t box_shape::get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const {
     return face_indices[face_idx * 4 + face_vertex_idx];
-}
-
-size_t get_box_feature_num_vertices(box_feature feature) {
-    switch (feature) {
-    case box_feature::face:
-        return 4;
-    case box_feature::edge:
-        return 2;
-    case box_feature::vertex:
-        return 1;
-    }
 }
 
 }

@@ -5,6 +5,7 @@
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/shapes/box_shape.hpp"
+#include "edyn/shapes/cylinder_shape.hpp"
 
 namespace edyn {
 
@@ -23,10 +24,13 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                          const box_shape &shB, const vector3 &posB, const quaternion &ornB,
                          scalar threshold) {
     // Cylinder-Box SAT. Normal of 3 faces of B, normal of cylinder caps of A
-    // which is the cylinder main axis, 12 segment-segment closest points
-    // between edges of B and axis of A, 24 circle-segment closest point
+    // which is the cylinder main axis, 3 cross products between the axes of the
+    // basis of the box and the cylinder axis mainly for the cylinder side edge
+    // vs box edge collisions, 8 point-line closest point calculations between
+    // the cylinder axis and the box vertices mainly for cylinder side edge vs
+    // box vertex collisions, and 24 circle-segment closest point
     // normal between edges of B and cap edges of A.
-    std::array<cyl_box_separating_axis, 3 + 1 + 12 + 24> sep_axes;
+    std::array<cyl_box_separating_axis, 3 + 1 + 3 + 8 + 24> sep_axes;
     size_t axis_idx = 0;
 
     auto box_axes = std::array<vector3, 3>{
@@ -87,82 +91,67 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         axis.distance = -axis.distance;
     }
 
-    // Cylinder side edges.
-    for (size_t i = 0; i < 12; ++i) {
-        auto edge_vertices = shB.get_edge(i, posB, ornB);
+    // Box edges vs cylinder side edges.
+    for (size_t i = 0; i < 3; ++i) {
+        auto dir = cross(box_axes[i], cyl_axis);
+        auto dir_len_sqr = length_sqr(dir);
 
-        scalar s, t;
-        vector3 p0, p1;
-        closest_point_segment_segment(face_center_pos, face_center_neg, 
-                                      edge_vertices[0], edge_vertices[1], 
-                                      s, t, p0, p1);
-
-        if (!(s > 0 && s < 1)) {
+        if (!(dir_len_sqr > EDYN_EPSILON)) {
             continue;
         }
 
-        if (t > 0 && t < 1) {
-            // Within segment.
-            auto &axis = sep_axes[axis_idx++];
-            axis.featureA = cylinder_feature::side_edge;
-            auto edge_dir = edge_vertices[1] - edge_vertices[0];
-            axis.dir = cross(edge_dir, cyl_axis);
+        dir /= std::sqrt(dir_len_sqr);
 
-            if (length_sqr(axis.dir) <= EDYN_EPSILON) {
-                // Parallel. Find a vector that's orthogonal to both
-                // which lies in the same plane.
-                auto plane_normal = cross(edge_dir, face_center_pos - edge_vertices[0]);
-                axis.dir = cross(plane_normal, edge_dir);
-            }
-
-            // Make it point towards A.
-            if (dot(posA - posB, axis.dir) < 0) {
-                axis.dir *= -1;
-            }
-
-            axis.dir = normalize(axis.dir);
-
-            shB.support_feature(posB, ornB, posA, axis.dir, 
-                                axis.featureB, axis.feature_indexB, 
-                                axis.distance, threshold);
-            axis.distance = -(shA.radius + axis.distance);
-        } else if (t == 0) {
-            // If the closest point parameter is zero it means it is the first
-            // vertex in the edge. It's unecessary to handle the second vertex
-            // because it is the first vertex of another edge in this loop.
-
-            // Find closest point in cylinder segment to this vertex and use the
-            // axis connecting them as the separating axis.
-            scalar r;
-            vector3 closest;
-            auto dist_sqr = closest_point_segment(face_center_pos, face_center_neg, 
-                                                  edge_vertices[0], r, closest);
-
-            // Ignore points at the extremes.
-            if (r > 0 && r < 1 && dist_sqr > EDYN_EPSILON) {
-                auto &axis = sep_axes[axis_idx++];
-                axis.featureA = cylinder_feature::side_edge;
-                auto dist = std::sqrt(dist_sqr);
-                axis.dir = (closest - edge_vertices[0]) / dist;
-
-                // Make it point towards A.
-                if (dot(posA - posB, axis.dir) < 0) {
-                    axis.dir *= -1;
-                }
-
-                shB.support_feature(posB, ornB, posA, axis.dir, 
-                                    axis.featureB, axis.feature_indexB, 
-                                    axis.distance, threshold);
-                axis.distance = -(shA.radius + axis.distance);
-            }
+        // Make it point towards A.
+        if (dot(posA - posB, dir) < 0) {
+            dir *= -1;
         }
+
+        auto &axis = sep_axes[axis_idx++];
+        axis.dir = dir;
+        axis.featureA = cylinder_feature::side_edge;
+
+        shB.support_feature(posB, ornB, posA, axis.dir, 
+                            axis.featureB, axis.feature_indexB, 
+                            axis.distance, threshold);
+        axis.distance = -(shA.radius + axis.distance);
+    }
+
+    // Box vertices vs cylinder side edges.
+    for (size_t i = 0; i < get_box_num_features(box_feature::vertex); ++i) {
+        auto vertex = shB.get_vertex(i, posB, ornB);
+        vector3 closest; scalar t;
+        closest_point_line(face_center_neg, cyl_axis, vertex, t, closest);
+
+        auto dir = closest - vertex;
+        auto dir_len_sqr = length_sqr(dir);
+
+        if (!(dir_len_sqr > EDYN_EPSILON)) {
+            continue;
+        }
+
+        dir /= std::sqrt(dir_len_sqr);
+
+        // Make it point towards A.
+        if (dot(posA - posB, dir) < 0) {
+            dir *= -1;
+        }
+
+        auto &axis = sep_axes[axis_idx++];
+        axis.dir = dir;
+        axis.featureA = cylinder_feature::side_edge;
+
+        shB.support_feature(posB, ornB, posA, axis.dir, 
+                            axis.featureB, axis.feature_indexB, 
+                            axis.distance, threshold);
+        axis.distance = -(shA.radius + axis.distance);
     }
 
     // Cylinder cap edges.
     for (size_t i = 0; i < 2; ++i) {
         auto face_center = i == 0 ? face_center_neg : face_center_pos;
 
-        for (size_t j = 0; j < 12; ++j) {
+        for (size_t j = 0; j < get_box_num_features(box_feature::edge); ++j) {
             auto edge_vertices = shB.get_edge(j, posB, ornB);
 
             // Find closest point between circle and triangle edge segment. 
@@ -337,8 +326,9 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 auto edge_dir = edge_in_A.second - edge_in_A.first;
                 auto tangent = perpendicular(edge_dir);
 
-                // Make tangent point towards center of cylinder cap.
-                if (dot(tangent, edge_in_A.first) > 0) {
+                // Make tangent point towards box face.
+                auto box_face_center = to_vector2_zy(to_object_space(posB, posA, ornA));
+                if (dot(tangent, box_face_center) < 0) {
                     tangent *= -1;
                 }
 

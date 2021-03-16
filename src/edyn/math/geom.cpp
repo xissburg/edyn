@@ -1,5 +1,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/scalar.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 #include <algorithm>
 
 namespace edyn {
@@ -185,7 +187,7 @@ size_t intersect_line_circle(scalar px, scalar py,
 }
 
 scalar closest_point_circle_line(
-    const vector3 &cpos, const quaternion &corn,  scalar radius,
+    const vector3 &cpos, const quaternion &corn, scalar radius,
     const vector3 &p0, const vector3 &p1, size_t &num_points, 
     scalar &s0, vector3 &rc0, vector3 &rl0,
     scalar &s1, vector3 &rc1, vector3 &rl1, 
@@ -207,6 +209,7 @@ scalar closest_point_circle_line(
         normal = cross(qv, tangent);
         normal = rotate(corn, normal);
         normal = normalize(normal);
+        EDYN_ASSERT(length_sqr(normal) > EDYN_EPSILON);
 
         num_points = intersect_line_circle(q0.y, q0.z, q1.y, q1.z, radius, s0, s1);
 
@@ -251,9 +254,21 @@ scalar closest_point_circle_line(
                 normal = dir;
             }
 
+            EDYN_ASSERT(length_sqr(normal) > EDYN_EPSILON);
             num_points = 1;
             return dl2;
         }
+    }
+
+    // The root finder below would fail if the line is orthogonal to the plane of the
+    // circle and is also centered at the circle.
+    if (!(length_sqr(to_vector2_yz(qv)) > EDYN_EPSILON)) {
+        num_points = 1;
+        normal = quaternion_z(corn);
+        s0 = -q0.x / qv.x;
+        rc0 = cpos + normal * radius;
+        rl0 = lerp(p0, p1, s0);
+        return radius * radius;
     }
 
     // Let `q(θ) = [0, sin(θ) * r, cos(θ) * r]` be the parametrized circle in the yz
@@ -305,6 +320,8 @@ scalar closest_point_circle_line(
         auto d_f_theta = dot(d_theta, d_d_theta);
         auto dd_f_theta = dot(d_d_theta, d_d_theta) + dot(dd_d_theta, d_theta);
 
+        EDYN_ASSERT(dd_f_theta > 0 || dd_f_theta < 0);
+
         auto delta = d_f_theta / dd_f_theta;
         theta -= delta;
 
@@ -340,6 +357,8 @@ scalar closest_point_circle_line(
         normal = vector3{0, closest_sin_theta, closest_cos_theta};
         normal = rotate(corn, normal);
     }
+
+    EDYN_ASSERT(length_sqr(normal) > EDYN_EPSILON);
 
     num_points = 1;
 
@@ -395,7 +414,9 @@ scalar closest_point_circle_circle(
     auto posB_in_A = to_object_space(posB, posA, ornA);
 
     // Check if parallel.
-    if (std::abs(dot(normalA, normalB)) > scalar(1) - EDYN_EPSILON) {
+    if (!(length_sqr(cross(normalA, normalB)) > EDYN_EPSILON)) {
+        normal = normalB;
+
         vector2 c0, c1;
         auto np = intersect_circle_circle(0, 0, // A is in the origin.
                                           posB_in_A.z, posB_in_A.y,
@@ -552,6 +573,8 @@ scalar closest_point_circle_circle(
         normal = vector3{0, sin_theta, cos_theta};
         normal = rotate(ornA, normal);
     }
+
+    EDYN_ASSERT(length_sqr(normal) > EDYN_EPSILON);
 
     num_points = 1;
 
