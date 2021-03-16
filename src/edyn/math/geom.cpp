@@ -262,7 +262,8 @@ scalar closest_point_circle_line(
 
     // The root finder below would fail if the line is orthogonal to the plane of the
     // circle and is also centered at the circle.
-    if (!(length_sqr(to_vector2_yz(qv)) > EDYN_EPSILON)) {
+    if (length_sqr(to_vector2_yz(q0)) <= EDYN_EPSILON && 
+        length_sqr(to_vector2_yz(q1)) <= EDYN_EPSILON ) {
         num_points = 1;
         normal = quaternion_z(corn);
         s0 = -q0.x / qv.x;
