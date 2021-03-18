@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
 #include <algorithm>
 #include <cstdint>
@@ -98,7 +99,7 @@ void collide_cylinder_triangle(
     // cover both caps.
     {
         auto axis = separating_axis_cyl_tri{};
-        axis.cyl_feature = CYLINDER_FEATURE_FACE;
+        axis.cyl_feature = cylinder_feature::face;
 
         // Triangle is single-sided thus choose the cylinder cap that faces the
         // triangle.
@@ -148,7 +149,7 @@ void collide_cylinder_triangle(
             if (t > 0 && t < 1) {
                 // Within segment.
                 auto axis = separating_axis_cyl_tri{};
-                axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                axis.cyl_feature = cylinder_feature::side_edge;
                 axis.dir = cross(edges[i], cylinder_axis);
 
                 if (length_sqr(axis.dir) <= EDYN_EPSILON) {
@@ -186,7 +187,7 @@ void collide_cylinder_triangle(
                 // Ignore points at the extremes.
                 if (r > 0 && r < 1 && dist_sqr > EDYN_EPSILON) {
                     auto axis = separating_axis_cyl_tri{};
-                    axis.cyl_feature = CYLINDER_FEATURE_SIDE_EDGE;
+                    axis.cyl_feature = cylinder_feature::side_edge;
                     auto dist = std::sqrt(dist_sqr);
                     axis.dir = (closest - v0) / dist;
 
@@ -238,6 +239,8 @@ void collide_cylinder_triangle(
                                          axis.cyl_feature, axis.cyl_feature_index, 
                                          axis.pivotA, projA, threshold);
 
+                // Precalculate the pivot on the triangle, which is the point on
+                // the edge [v0,v1] closest to the pivot on the cylinder.
                 scalar t;
                 closest_point_segment(v0, v1, axis.pivotA, t, axis.pivotB);
 
@@ -273,7 +276,7 @@ void collide_cylinder_triangle(
     auto &sep_axis = sep_axes[sep_axis_idx];
 
     switch (sep_axis.cyl_feature) {
-    case CYLINDER_FEATURE_FACE: {
+    case cylinder_feature::face: {
         // Check if vertices are inside the circular face.
         size_t num_vertices_in_face = 0;
         auto num_vertices_to_check = get_triangle_feature_num_vertices(sep_axis.tri_feature);
@@ -313,7 +316,7 @@ void collide_cylinder_triangle(
         }
 
         // Check if circle and triangle edges intersect.
-        for(size_t i = 0; i < num_edges_to_check; ++i) {
+        for (size_t i = 0; i < num_edges_to_check; ++i) {
             auto k = (sep_axis.tri_feature_index + i) % 3;
             if (ignore_edge(k, sep_axis.dir)) {
                 continue;
@@ -327,11 +330,11 @@ void collide_cylinder_triangle(
             auto v1_A = to_object_space(v1, posA, ornA);
 
             scalar s0, s1;
-            auto num_points = intersect_line_circle(v0_A.z, v0_A.y, 
-                                                    v1_A.z, v1_A.y, 
+            auto num_points = intersect_line_circle(to_vector2_zy(v0_A),
+                                                    to_vector2_zy(v1_A),
                                                     cylinder.radius, s0, s1);
 
-            if(num_points > 0) {
+            if (num_points > 0) {
                 ++num_edge_intersections;
                 last_edge_index = k;
 
@@ -390,7 +393,7 @@ void collide_cylinder_triangle(
     }
     break;
 
-    case CYLINDER_FEATURE_SIDE_EDGE:
+    case cylinder_feature::side_edge:
         switch (sep_axis.tri_feature) {
         case TRIANGLE_FEATURE_FACE: {
             // Cylinder is on its side laying on the triangle face.
@@ -424,16 +427,14 @@ void collide_cylinder_triangle(
                     vector3 p0[2], p1[2];
                     size_t num_points = 0;
                     closest_point_segment_segment(disc_center_pos, disc_center_neg, 
-                                                    vertices[i], vertices[(i + 1) % 3],
-                                                    s[0], t[0], p0[0], p1[0], &num_points, 
-                                                    &s[1], &t[1], &p0[1], &p1[1]);
+                                                  vertices[i], vertices[(i + 1) % 3],
+                                                  s[0], t[0], p0[0], p1[0], &num_points, 
+                                                  &s[1], &t[1], &p0[1], &p1[1]);
 
                     for (size_t i = 0; i < num_points; ++i) {
-                        if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                            auto pA_in_B = p0[i] - tri_normal * cylinder.radius;
-                            auto pA = to_object_space(pA_in_B, posA, ornA);
-                            result.maybe_add_point({pA, p1[i], sep_axis.dir, sep_axis.distance});
-                        }
+                        auto pA_in_B = p0[i] - tri_normal * cylinder.radius;
+                        auto pA = to_object_space(pA_in_B, posA, ornA);
+                        result.maybe_add_point({pA, p1[i], sep_axis.dir, sep_axis.distance});
                     }
                 }
             }
@@ -471,7 +472,7 @@ void collide_cylinder_triangle(
         }
     break;
 
-    case CYLINDER_FEATURE_FACE_EDGE: {
+    case cylinder_feature::cap_edge: {
         switch (sep_axis.tri_feature) {
         case TRIANGLE_FEATURE_FACE: {
             if (point_in_triangle(vertices, tri_normal, sep_axis.pivotA)) {

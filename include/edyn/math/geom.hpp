@@ -135,16 +135,32 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
                           scalar &s0, scalar &t0,
                           scalar &s1, scalar &t1);
 
-size_t intersect_line_circle(scalar px, scalar py, 
-                             scalar qx, scalar qy, 
-                             scalar radius, 
-                             scalar &s0, scalar &s1);
+/**
+ * @brief Intersect a line with a circle centered in the origin in 2D.
+ * @param p0 One point on the line.
+ * @param p1 Another point on the line.
+ * @param radius Radius of circle centered in the origin.
+ * @param s0 Outputs the parameter of the first intersection, the point being
+ * `lerp(p0, p1, s0)`.
+ * @param s1 Outputs the parameter of the second intersection, if there is one.
+ * @return Number of intersections.
+ */
+size_t intersect_line_circle(const vector2 &p0, const vector2 &p1, 
+                             scalar radius, scalar &s0, scalar &s1);
 
-size_t intersect_circle_circle(scalar px, scalar py, 
-                               scalar qx, scalar qy, 
-                               scalar pr, scalar qr,
-                               scalar &ix, scalar &iy,
-                               scalar &jx, scalar &jy);
+/**
+ * @brief Intersect two circles in 2D.
+ * @param posA Position of first circle.
+ * @param radiusA Radius of first circle.
+ * @param posB Position of second circle.
+ * @param radiusB Radius of second circle.
+ * @param res0 First intersection result.
+ * @param res1 Second intersection result.
+ * @return Number of intersections.
+ */
+size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
+                               const vector2 &posB, scalar radiusB,
+                               vector2 &res0, vector2 &res1);
 
 vector3 support_point_circle(scalar radius, const vector3 &pos, 
                              const quaternion &orn, const vector3 &dir);

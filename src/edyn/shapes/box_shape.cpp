@@ -93,14 +93,14 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
     }
 
     if (count == 1) {
-        feature = BOX_FEATURE_VERTEX;
+        feature = box_feature::vertex;
         feature_index = vertex_indices[indices[0]];
     } else if (count == 2) {
-        feature = BOX_FEATURE_EDGE;
+        feature = box_feature::edge;
         feature_index = get_edge_index(vertex_indices[indices[0]], 
                                        vertex_indices[indices[1]]);
     } else if (count == 3) {
-        feature = BOX_FEATURE_EDGE;
+        feature = box_feature::edge;
         // Select 2 points among the 3 with the higher projections.
         auto proj0 = projections[indices[0]];
         auto proj1 = projections[indices[1]];
@@ -117,7 +117,7 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
                                            vertex_indices[indices[1]]);
         }
     } else {
-        feature = BOX_FEATURE_FACE;
+        feature = box_feature::face;
         feature_index = candidate_face;
     }
 }
@@ -132,7 +132,7 @@ void box_shape::support_feature(const vector3 &pos, const quaternion &orn,
 }
 
 vector3 box_shape::get_vertex(size_t i) const {
-    EDYN_ASSERT(i < 8);
+    EDYN_ASSERT(i < get_box_num_features(box_feature::vertex));
     constexpr vector3 multipliers[] = {
         { 1,  1,  1},
         { 1, -1,  1},
@@ -151,7 +151,7 @@ vector3 box_shape::get_vertex(size_t i, const vector3 &pos, const quaternion &or
 }
 
 std::array<vector3, 2> box_shape::get_edge(size_t i) const {
-    EDYN_ASSERT(i < 12);
+    EDYN_ASSERT(i < get_box_num_features(box_feature::edge));
     return {
         get_vertex(edge_indices[i * 2 + 0]),
         get_vertex(edge_indices[i * 2 + 1])
@@ -241,7 +241,7 @@ vector2 box_shape::get_face_half_extents(size_t i) const {
 }
 
 size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {    
-    for (size_t i = 0; i < 12; ++i) {
+    for (size_t i = 0; i < get_box_num_features(box_feature::edge); ++i) {
         auto idx0 = edge_indices[i * 2];
         auto idx1 = edge_indices[i * 2 + 1];
 
@@ -269,6 +269,5 @@ size_t box_shape::support_face_index(const vector3 &dir) const {
 size_t box_shape::get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const {
     return face_indices[face_idx * 4 + face_vertex_idx];
 }
-
 
 }

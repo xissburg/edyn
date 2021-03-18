@@ -41,7 +41,7 @@ void collide_box_triangle(
     for (size_t i = 0; i < 3; ++i) {
         auto &axisA = box_axes[i];
         auto &axis = sep_axes[axis_idx];
-        axis.featureA = BOX_FEATURE_FACE;
+        axis.featureA = box_feature::face;
 
         // Find which direction gives greatest penetration.
         triangle_feature neg_tri_feature, pos_tri_feature;
@@ -166,7 +166,7 @@ void collide_box_triangle(
         return;
     }
 
-    if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
+    if (sep_axis.featureA == box_feature::face && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
         auto face_normal_in_B = box.get_face_normal(sep_axis.feature_indexA, box_orn);
         auto face_vertices = box.get_face(sep_axis.feature_indexA);
         std::array<vector3, 4> face_vertices_in_B;
@@ -252,7 +252,7 @@ void collide_box_triangle(
                 }
             }
         }
-    } else if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == TRIANGLE_FEATURE_EDGE) {
+    } else if (sep_axis.featureA == box_feature::face && sep_axis.featureB == TRIANGLE_FEATURE_EDGE) {
         EDYN_ASSERT(!is_concave_edge[sep_axis.feature_indexB]);
     
         auto face_normal_in_B = box.get_face_normal(sep_axis.feature_indexA, box_orn);
@@ -309,7 +309,7 @@ void collide_box_triangle(
                 }
             }
         }
-    } else if (sep_axis.featureA == BOX_FEATURE_EDGE && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
+    } else if (sep_axis.featureA == box_feature::edge && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
         // Check if edge vertices are inside triangle face.
         auto edge = box.get_edge(sep_axis.feature_indexA);
         auto edge_in_B = edge;
@@ -363,7 +363,7 @@ void collide_box_triangle(
                 }
             }
         }
-    } else if (sep_axis.featureA == BOX_FEATURE_EDGE && sep_axis.featureB == TRIANGLE_FEATURE_EDGE) {
+    } else if (sep_axis.featureA == box_feature::edge && sep_axis.featureB == TRIANGLE_FEATURE_EDGE) {
         EDYN_ASSERT(!is_concave_edge[sep_axis.feature_indexB]);
             
         scalar s[2], t[2];
@@ -378,13 +378,11 @@ void collide_box_triangle(
                                     &s[1], &t[1], &p0[1], &p1[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
-            if (s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1) {
-                auto pivotA = to_object_space(p0[i], box_pos, box_orn);
-                auto pivotB = p1[i]; // We're in the triangle's object space.
-                result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
-            }
+            auto pivotA = to_object_space(p0[i], box_pos, box_orn);
+            auto pivotB = p1[i]; // We're in the triangle's object space.
+            result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
         }
-    } else if (sep_axis.featureA == BOX_FEATURE_FACE && sep_axis.featureB == TRIANGLE_FEATURE_VERTEX) {
+    } else if (sep_axis.featureA == box_feature::face && sep_axis.featureB == TRIANGLE_FEATURE_VERTEX) {
         // Ignore vertices that are on a concave edge.
         EDYN_ASSERT(!is_concave_vertex[sep_axis.feature_indexB]);
         auto vertex = vertices[sep_axis.feature_indexB];
@@ -397,7 +395,7 @@ void collide_box_triangle(
             auto pivotB = vertex;
             result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
         }
-    } else if (sep_axis.featureA == BOX_FEATURE_VERTEX && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
+    } else if (sep_axis.featureA == box_feature::vertex && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
         auto pivotA = box.get_vertex(sep_axis.feature_indexA);
         auto pivotB = box_pos + rotate(box_orn, pivotA) - tri_normal * sep_axis.distance;
         if (point_in_triangle(vertices, tri_normal, pivotB)) {

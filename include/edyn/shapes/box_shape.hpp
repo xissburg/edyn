@@ -11,10 +11,10 @@
 
 namespace edyn {
 
-enum box_feature {
-    BOX_FEATURE_VERTEX,
-    BOX_FEATURE_EDGE,
-    BOX_FEATURE_FACE
+enum class box_feature {
+    vertex,
+    edge,
+    face
 };
 
 struct box_shape {
@@ -214,6 +214,28 @@ struct box_shape {
 
     size_t get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const;
 };
+
+constexpr size_t get_box_num_features(box_feature feature) {
+    switch (feature) {
+    case box_feature::face:
+        return 6;
+    case box_feature::edge:
+        return 12;
+    case box_feature::vertex:
+        return 8;
+    }
+}
+
+constexpr size_t get_box_feature_num_vertices(box_feature feature) {
+    switch (feature) {
+    case box_feature::face:
+        return 4;
+    case box_feature::edge:
+        return 2;
+    case box_feature::vertex:
+        return 1;
+    }
+}
 
 }
 

@@ -12,7 +12,7 @@ void cylinder_shape::support_feature(const vector3 &dir, cylinder_feature &out_f
     auto face_angle_sqr = (dir.y * dir.y + dir.z * dir.z) / (half_length * half_length);
 
     if (face_angle_sqr < max_face_angle * max_face_angle) {
-        out_feature = CYLINDER_FEATURE_FACE;
+        out_feature = cylinder_feature::face;
         out_feature_index = dir.x > 0 ? 0 : 1;
         return;
     } 
@@ -21,22 +21,22 @@ void cylinder_shape::support_feature(const vector3 &dir, cylinder_feature &out_f
     auto edge_angle_sqr = dir.x * dir.x / (dir.y * dir.y + dir.z * dir.z);
 
     if (edge_angle_sqr < max_edge_angle * max_edge_angle) {
-        out_feature = CYLINDER_FEATURE_SIDE_EDGE;
+        out_feature = cylinder_feature::side_edge;
         return;
     }
 
-    out_feature = CYLINDER_FEATURE_FACE_EDGE;
+    out_feature = cylinder_feature::cap_edge;
     out_feature_index = dir.x > 0 ? 0 : 1;
 
     /* if (std::abs(dir.x) + EDYN_EPSILON >= scalar(1)) {
-        out_feature = CYLINDER_FEATURE_FACE;
+        out_feature = cylinder_feature::face;
         out_feature_index = dir.x > 0 ? 0 : 1;
         out_projection = half_length;
     } else if (std::abs(dir.x) < EDYN_EPSILON) {
-        out_feature = CYLINDER_FEATURE_SIDE_EDGE;
+        out_feature = cylinder_feature::side_edge;
         out_projection = radius;
     } else {
-        out_feature = CYLINDER_FEATURE_FACE_EDGE;
+        out_feature = cylinder_feature::cap_edge;
 
         auto len_yz_sqr = dir.y * dir.y + dir.z * dir.z;
         out_support_point.x = half_length * (dir.x > 0 ? 1 : -1);
