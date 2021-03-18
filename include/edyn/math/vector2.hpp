@@ -21,6 +21,24 @@ struct vector2 {
     }
 };
 
+// Zero vector.
+inline constexpr vector2 vector2_zero {0, 0};
+
+// Vector with all elements set to 1.
+inline constexpr vector2 vector2_one {1, 1};
+
+// Unit vector pointing in the x direction.
+inline constexpr vector2 vector2_x {1, 0};
+
+// Unit vector pointing in the y direction.
+inline constexpr vector2 vector2_y {0, 1};
+
+// Vector with minumum values.
+inline constexpr vector2 vector2_min {EDYN_SCALAR_MIN, EDYN_SCALAR_MIN};
+
+// Vector with maximum values.
+inline constexpr vector2 vector2_max {EDYN_SCALAR_MAX, EDYN_SCALAR_MAX};
+
 // Add two vectors.
 inline vector2 operator+(const vector2 &v, const vector2 &w) {
     return {v.x + w.x, v.y + w.y};
@@ -100,8 +118,8 @@ inline scalar perp_product(const vector2 &v, const vector2 &w) {
     return v.x * w.y - v.y * w.x;
 }
 
-// Vector perpendicular to argument, i.e. rotated 90 degrees counter-clockwise.
-inline vector2 perpendicular(const vector2 &v) {
+// Vector orthogonal to argument, i.e. rotated 90 degrees counter-clockwise.
+inline vector2 orthogonal(const vector2 &v) {
     return {-v.y, v.x};
 }
 

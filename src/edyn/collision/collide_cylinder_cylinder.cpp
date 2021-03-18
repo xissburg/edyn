@@ -2,6 +2,8 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/scalar.hpp"
+#include "edyn/math/vector2.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/vector3.hpp"
 #include <array>
 
@@ -225,20 +227,61 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         auto posA_in_B = to_object_space(posA, posB, ornB);
         auto ornA_in_B = conjugate(ornB) * ornA;
 
-        vector3 p[2];
-        auto num_points = intersect_circle_circle(posA_in_B.z, posA_in_B.y, 0, 0, 
-                                                  shA.radius, shB.radius, 
-                                                  p[0].z, p[0].y, p[1].z, p[1].y);
+        // Intersect the cylinder cap face circles in 2D. The cylinder axis is
+        // the x axis locally, thus use the z axis in 3D as the x axis in 2D
+        // and y axis in 3D as the y axis in 2D.
+        vector2 p[2];
+        auto centerA = to_vector2_zy(posA_in_B);
+        auto num_points = intersect_circle_circle(centerA, shA.radius, 
+                                                  vector2_zero, shB.radius, 
+                                                  p[0], p[1]);
+
         if (num_points > 0) {
+            auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
+            auto pivotB_x = shB.half_length * (sep_axis.feature_indexB == 0 ? 1 : -1);
+
             for (size_t i = 0; i < num_points; ++i) {
-                auto pivotB = p[i];
-                pivotB.x = shB.half_length * (sep_axis.feature_indexB == 0 ? 1 : -1);
+                auto pivotB = vector3{pivotB_x, p[i].y, p[i].x};
                 auto pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
-                pivotA.x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
+                pivotA.x = pivotA_x;
                 result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
-        // Check for containment.
+
+            if (num_points > 1) {
+                // Add two extra points for stability.
+                auto dir = normalize(orthogonal(p[1] - p[0]));
+                auto extra_A0 = centerA + dir * shA.radius;
+                auto extra_A1 = centerA - dir * shA.radius;
+                vector2 extra_A;
+
+                if (length_sqr(extra_A0) <= shB.radius * shB.radius) {
+                    extra_A = extra_A0;
+                } else {
+                    extra_A = extra_A1;
+                }
+
+                auto pivotB = vector3{pivotB_x, extra_A.y, extra_A.x};
+                auto pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
+                pivotA.x = pivotA_x;
+                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+
+                auto extra_B0 = -dir * shB.radius;
+                auto extra_B1 = dir * shB.radius;
+                vector2 extra_B;
+
+                if (distance_sqr(extra_B0, centerA) <= shA.radius * shA.radius) {
+                    extra_B = extra_B0;
+                } else {
+                    extra_B = extra_B1;
+                }
+
+                pivotB = vector3{pivotB_x, extra_B.y, extra_B.x};
+                pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
+                pivotA.x = pivotA_x;
+                result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+            }
         } else {
+            // Check for containment.
             // If any point on a circle of B is within the prism of A, then the face of B
             // is contained in the face of A, and vice-versa.
             auto circle_pointA = posA + quaternion_z(ornA) * shA.radius;
@@ -285,7 +328,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         auto v1 = to_object_space(face_center_posB, posA, ornA);
 
         scalar s[2];
-        auto num_points = intersect_line_circle(v0.z, v0.y, v1.z, v1.y, 
+        auto num_points = intersect_line_circle(to_vector2_zy(v0), 
+                                                to_vector2_zy(v1), 
                                                 shA.radius, s[0], s[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
@@ -302,7 +346,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         auto v1 = to_object_space(face_center_posA, posB, ornB);
 
         scalar s[2];
-        auto num_points = intersect_line_circle(v0.z, v0.y, v1.z, v1.y, 
+        auto num_points = intersect_line_circle(to_vector2_zy(v0),
+                                                to_vector2_zy(v1), 
                                                 shB.radius, s[0], s[1]);
 
         for (size_t i = 0; i < num_points; ++i) {

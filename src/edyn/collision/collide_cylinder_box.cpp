@@ -275,8 +275,8 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
             auto v1_A = to_object_space(v1_w, posA, ornA);
 
             scalar s0, s1;
-            auto num_points = intersect_line_circle(v0_A.z, v0_A.y, 
-                                                    v1_A.z, v1_A.y, 
+            auto num_points = intersect_line_circle(to_vector2_zy(v0_A), 
+                                                    to_vector2_zy(v1_A), 
                                                     shA.radius, s0, s1);
 
             if (num_points > 0) {
@@ -324,7 +324,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 auto edge_in_A = std::make_pair(to_vector2_zy(to_object_space(last_edge.first, posA, ornA)),
                                                 to_vector2_zy(to_object_space(last_edge.second, posA, ornA)));
                 auto edge_dir = edge_in_A.second - edge_in_A.first;
-                auto tangent = perpendicular(edge_dir);
+                auto tangent = orthogonal(edge_dir);
 
                 // Make tangent point towards box face.
                 auto box_face_center = to_vector2_zy(to_object_space(posB, posA, ornA));

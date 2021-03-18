@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
 #include <algorithm>
 #include <cstdint>
@@ -329,8 +330,8 @@ void collide_cylinder_triangle(
             auto v1_A = to_object_space(v1, posA, ornA);
 
             scalar s0, s1;
-            auto num_points = intersect_line_circle(v0_A.z, v0_A.y, 
-                                                    v1_A.z, v1_A.y, 
+            auto num_points = intersect_line_circle(to_vector2_zy(v0_A),
+                                                    to_vector2_zy(v1_A),
                                                     cylinder.radius, s0, s1);
 
             if (num_points > 0) {

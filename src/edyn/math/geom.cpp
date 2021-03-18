@@ -161,14 +161,12 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn,
     return length_sqr(p - q);
 }
 
-size_t intersect_line_circle(scalar px, scalar py, 
-                             scalar qx, scalar qy, 
-                             scalar radius, 
-                             scalar &s0, scalar &s1) {
-    auto dx = qx - px, dy = qy - py;
-    auto dl2 = dx * dx + dy * dy;
-    auto dp = dx * px + dy * py;
-    auto delta = dp * dp - dl2 * (px * px + py * py - radius * radius);
+size_t intersect_line_circle(const vector2 &p0, const vector2 &p1, 
+                             scalar radius, scalar &s0, scalar &s1) {
+    auto d = p1 - p0;
+    auto dl2 = length_sqr(d);
+    auto dp = dot(d, p0);
+    auto delta = dp * dp - dl2 * (dot(p0, p0) - radius * radius);
 
     if (delta < 0) {
         return 0;
@@ -211,7 +209,7 @@ scalar closest_point_circle_line(
         normal = normalize(normal);
         EDYN_ASSERT(length_sqr(normal) > EDYN_EPSILON);
 
-        num_points = intersect_line_circle(q0.y, q0.z, q1.y, q1.z, radius, s0, s1);
+        num_points = intersect_line_circle(to_vector2_yz(q0), to_vector2_yz(q1), radius, s0, s1);
 
         if (num_points > 0) {
             auto rl0_local = q0 + qv * s0;
@@ -366,40 +364,37 @@ scalar closest_point_circle_line(
     return dist_sqr;
 }
 
-size_t intersect_circle_circle(scalar px, scalar py, 
-                               scalar qx, scalar qy, 
-                               scalar pr, scalar qr,
-                               scalar &ix, scalar &iy,
-                               scalar &jx, scalar &jy) {
+size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
+                               const vector2 &posB, scalar radiusB,
+                               vector2 &res0, vector2 &res1) {
     // Reference: Intersection of Linear and Circular Components in 2D - David Eberly
-    // https://www.geometrictools.com/
-    auto ux = px - qx, uy = py - qy;
-    auto rsum = pr + qr;
-    auto rsub = pr - qr;
-    auto lu2 = ux * ux + uy * uy;
+    // https://www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
+    auto u = posB - posA;
+    auto lu2 = length_sqr(u);
+    auto rsum = radiusA + radiusB;
+    auto rsub = radiusA - radiusB;
 
-    if (lu2 <= EDYN_EPSILON) {
-        return 0;
+    if (lu2 < EDYN_EPSILON && rsub < EDYN_EPSILON) {
+        // Concentric circles of same radius.
+        res0 = posA + vector2_x * radiusA;
+        res1 = posB - vector2_x * radiusB;
+        return 2;
     }
 
-    auto num = -(lu2 - rsum * rsum) * (lu2 - rsub * rsub);
-
-    if (num < 0) {
+    if (lu2 < rsub * rsub || lu2 > rsum * rsum) {
         return 0;
     }
 
     auto lu2_inv = scalar(1) / lu2;
-    auto denom_inv = lu2_inv * 0.25;
-    auto t = std::sqrt(num * denom_inv);
-    auto s = ((pr * pr - qr * qr) * lu2_inv + 1) * 0.5;
+    auto s = ((radiusA * radiusA - radiusB * radiusB) * lu2_inv + 1) * 0.5;
+    auto t = std::sqrt(radiusA * radiusA * lu2_inv - s * s);
 
-    auto vx = -uy, vy = ux;
+    auto v = orthogonal(u);
+    auto su = s * u;
+    auto tv = t * v;
 
-    ix = px + s * ux + t * vx;
-    iy = py + s * uy + t * vy;
-
-    jx = px + s * ux - t * vx;
-    jy = py + s * uy - t * vy;
+    res0 = posA + su + tv;
+    res1 = posA + su - tv;
 
     return t > EDYN_EPSILON ? 2 : 1;
 }
@@ -419,11 +414,10 @@ scalar closest_point_circle_circle(
         normal = normalB;
 
         vector2 c0, c1;
-        auto np = intersect_circle_circle(0, 0, // A is in the origin.
-                                          posB_in_A.z, posB_in_A.y,
-                                          radiusA, radiusB,
-                                          c0.x, c0.y,
-                                          c1.x, c1.y);
+        // A is in the origin.
+        auto np = intersect_circle_circle(vector2_zero, radiusA, 
+                                          to_vector2_zy(posB_in_A), radiusB, 
+                                          c0, c1);
         if (np > 0) {
             num_points = np;
             rA0 = posA + rotate(ornA, vector3 {0, c0.y, c0.x});

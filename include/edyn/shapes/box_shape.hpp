@@ -218,7 +218,7 @@ struct box_shape {
 constexpr size_t get_box_num_features(box_feature feature) {
     switch (feature) {
     case box_feature::face:
-        return 4;
+        return 6;
     case box_feature::edge:
         return 12;
     case box_feature::vertex:
