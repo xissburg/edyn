@@ -386,8 +386,8 @@ size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
     }
 
     auto lu2_inv = scalar(1) / lu2;
-    auto s = ((radiusA * radiusA - radiusB * radiusB) * lu2_inv + 1) * 0.5;
-    auto t = std::sqrt(radiusA * radiusA * lu2_inv - s * s);
+    auto s = ((radiusA * radiusA - radiusB * radiusB) * lu2_inv + scalar(1)) * scalar(0.5);
+    auto t = std::sqrt(std::max(scalar(0), radiusA * radiusA * lu2_inv - s * s));
 
     auto v = orthogonal(u);
     auto su = s * u;

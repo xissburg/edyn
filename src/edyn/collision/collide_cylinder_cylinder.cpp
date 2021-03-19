@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/math/constants.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/scalar.hpp"
@@ -239,6 +240,14 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
         if (num_points > 0) {
             auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
             auto pivotB_x = shB.half_length * (sep_axis.feature_indexB == 0 ? 1 : -1);
+            auto merge_distance = contact_breaking_threshold;
+
+            // Merge points if there are two intersections but they're too
+            // close to one another.
+            if (num_points > 1 && distance_sqr(p[0], p[1]) < merge_distance * merge_distance) {
+                num_points = 1;
+                p[0] = (p[0] + p[1]) * 0.5;
+            }
 
             for (size_t i = 0; i < num_points; ++i) {
                 auto pivotB = vector3{pivotB_x, p[i].y, p[i].x};
@@ -247,38 +256,82 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
                 result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
             }
 
-            if (num_points > 1) {
-                // Add two extra points for stability.
-                auto dir = normalize(orthogonal(p[1] - p[0]));
-                auto extra_A0 = centerA + dir * shA.radius;
-                auto extra_A1 = centerA - dir * shA.radius;
-                vector2 extra_A;
+            auto dist_sqr = length_sqr(centerA);
 
-                if (length_sqr(extra_A0) <= shB.radius * shB.radius) {
-                    extra_A = extra_A0;
-                } else {
-                    extra_A = extra_A1;
+            // Add extra points to cover the contact area.
+            if (num_points > 1) {
+                // Circles intersect at two points. Add two extra points in the direction
+                // orthogonal `p[1] - p[0]`. The distance between these points is non-zero
+                // here because otherwise they'd have been merged above.
+                auto dir = normalize(orthogonal(p[1] - p[0]));
+
+                // Point in the correct direction, from B to A.
+                if (dot(dir, centerA) < 0) {
+                    dir *= -1;
                 }
 
+                auto extra_A = centerA - dir * shA.radius;
                 auto pivotB = vector3{pivotB_x, extra_A.y, extra_A.x};
                 auto pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
                 pivotA.x = pivotA_x;
                 result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
 
-                auto extra_B0 = -dir * shB.radius;
-                auto extra_B1 = dir * shB.radius;
-                vector2 extra_B;
-
-                if (distance_sqr(extra_B0, centerA) <= shA.radius * shA.radius) {
-                    extra_B = extra_B0;
-                } else {
-                    extra_B = extra_B1;
-                }
-
+                auto extra_B = dir * shB.radius;
                 pivotB = vector3{pivotB_x, extra_B.y, extra_B.x};
                 pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
                 pivotA.x = pivotA_x;
                 result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+            } else if (dist_sqr < shB.radius * shB.radius || dist_sqr < shA.radius * shA.radius) {
+                // Circles intersect at a single point and the center of one is contained
+                // within the other. Add 3 extra points on the perimeter of the smaller
+                // circle. Guarantted to not be concentric at this point, i.e. `centerA`
+                // is not zero.
+                auto dir = normalize(centerA);
+
+                // Add one point on the other side of the circle with smaller radius,
+                // which in this case is contained within the circle with bigger radius.
+                if (shA.radius < shB.radius) {
+                    auto extra_A = centerA - dir * shA.radius;
+                    auto pivotB = vector3{pivotB_x, extra_A.y, extra_A.x};
+                    auto pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
+                    pivotA.x = pivotA_x;
+                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+                } else {
+                    auto extra_B = dir * shB.radius;
+                    auto pivotB = vector3{pivotB_x, extra_B.y, extra_B.x};
+                    auto pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
+                    pivotA.x = pivotA_x;
+                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+                }
+
+                // Add 2 points in the orthogonal direction.
+                dir = orthogonal(dir);
+
+                if (shA.radius < shB.radius) {
+                    auto extra_A0 = centerA + dir * shA.radius;
+                    auto pivotB = vector3{pivotB_x, extra_A0.y, extra_A0.x};
+                    auto pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
+                    pivotA.x = pivotA_x;
+                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+
+                    auto extra_A1 = centerA - dir * shA.radius;
+                    pivotB = vector3{pivotB_x, extra_A1.y, extra_A1.x};
+                    pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
+                    pivotA.x = pivotA_x;
+                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+                } else {
+                    auto extra_B0 = dir * shB.radius;
+                    auto pivotB = vector3{pivotB_x, extra_B0.y, extra_B0.x};
+                    auto pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
+                    pivotA.x = pivotA_x;
+                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+
+                    auto extra_B1 = -dir * shB.radius;
+                    pivotB = vector3{pivotB_x, extra_B1.y, extra_B1.x};
+                    pivotA = to_object_space(pivotB, posA_in_B, ornA_in_B);
+                    pivotA.x = pivotA_x;
+                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
+                }
             }
         } else {
             // Check for containment.
