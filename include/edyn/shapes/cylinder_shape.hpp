@@ -3,6 +3,7 @@
 
 #include "edyn/comp/aabb.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/util/moment_of_inertia.hpp"
 
 namespace edyn {
 
@@ -29,10 +30,7 @@ struct cylinder_shape {
     }
 
     vector3 inertia(scalar mass) const {
-        auto len = half_length * 2;
-        scalar xx = scalar(0.5) * mass * radius * radius;
-        scalar yy_zz =  scalar(1) / scalar(12) * mass * (scalar(3) * radius * radius + len * len);
-        return {xx, yy_zz, yy_zz};
+        return moment_of_inertia_solid_cylinder(mass, half_length * 2, radius);
     }
 
     vector3 support_point(const vector3 &dir) const {

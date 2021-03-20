@@ -111,6 +111,7 @@ set(Edyn_SOURCES
     src/edyn/util/rigidbody.cpp
     src/edyn/util/constraint_util.cpp
     src/edyn/util/shape_util.cpp
+    src/edyn/util/moment_of_inertia.cpp
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
     src/edyn/shapes/triangle_shape.cpp
