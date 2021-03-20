@@ -1,5 +1,6 @@
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/util/shape_util.hpp"
 #include "edyn/util/moment_of_inertia.hpp"
 #include <cstdint>
 
@@ -33,11 +34,7 @@ vector3 box_shape::inertia(scalar mass) const {
 }
 
 vector3 box_shape::support_point(const vector3 &dir) const {
-    return {
-        dir.x > 0 ? half_extents.x : -half_extents.x,
-        dir.y > 0 ? half_extents.y : -half_extents.y,
-        dir.z > 0 ? half_extents.z : -half_extents.z
-    };
+    return support_point_box(half_extents, dir);
 }
 
 vector3 box_shape::support_point(const quaternion &orn, const vector3 &dir) const {
