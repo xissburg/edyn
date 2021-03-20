@@ -352,7 +352,102 @@ void collide_box_triangle(
     const std::array<bool, 3> &is_concave_edge, const std::array<scalar, 3> &cos_angles,
     scalar threshold, collision_result &result);
 
+// Polyhedron-Polyhedron
+collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Polyhedron-Plane
+collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const plane_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Plane-Polyhedron
+inline
+collision_result collide(const plane_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
 }
 
+// Sphere-Polyhedron
+collision_result collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Polyhedron-Sphere
+inline
+collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
+}
+
+// Box-Polyhedron
+collision_result collide(const box_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Polyhedron-Box
+inline
+collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const box_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
+}
+
+// Capsule-Polyhedron
+collision_result collide(const capsule_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Polyhedron-Capsule
+inline
+collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
+}
+
+// Cylinder-Polyhedron
+collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Polyhedron-Cylinder
+inline
+collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const cylinder_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
+}
+
+// Polyhedron-Mesh
+collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Mesh-Polyhedron
+inline
+collision_result collide(const mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
+}
+
+// Polyhedron-Paged Mesh
+collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const paged_mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold);
+
+// Paged Mesh-Polyhedron
+inline
+collision_result collide(const paged_mesh_shape &shA, const vector3 &posA, const quaternion &ornA,
+                         const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
+                         scalar threshold) {
+    return collide(shB, posB, ornB, shA, posA, ornA, threshold).swap(ornB, ornA);
+}
+
+}
 
 #endif // EDYN_COLLISION_COLLIDE_HPP
