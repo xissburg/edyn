@@ -190,22 +190,6 @@ size_t insert_index(const std::array<vector3, N> &points,
                     scalar new_point_depth) {
     EDYN_ASSERT(num_points <= N);
 
-    // Look for nearby points.
-    auto closest_idx = SIZE_MAX;
-    auto closest_dist_sqr = EDYN_SCALAR_MAX;
-
-    for (size_t i = 0; i < num_points; ++i) {
-        auto dist_sqr = distance_sqr(new_point, points[i]);
-        if (dist_sqr < closest_dist_sqr) {
-            closest_dist_sqr = dist_sqr;
-            closest_idx = i;
-        }
-    }
-    
-    if (closest_dist_sqr < contact_breaking_threshold * contact_breaking_threshold) {
-        return closest_idx;
-    }
-
     // Return the index after last to signal the insertion of a new point.
     if (num_points < N) {
         return num_points;
@@ -223,7 +207,7 @@ size_t insert_index(const std::array<vector3, N> &points,
     }
 
     // The approximate area when the i-th point is removed.
-    auto areas = make_array<5>(scalar(0));
+    auto areas = make_array<N>(scalar(0));
 
     // Do not calculate it for the deepest point.
     if (deepest_dist_idx != 0) {
@@ -238,12 +222,11 @@ size_t insert_index(const std::array<vector3, N> &points,
     if (deepest_dist_idx != 3) {
         areas[3] = area_4_points(new_point, points[0], points[1], points[2]);
     }
-    if (deepest_dist_idx != 4) { // Area without the new point.
-        areas[4] = area_4_points(points[0], points[1], points[2], points[3]);
-    }
 
-    auto max_area = scalar(0);
+    auto current_area = area_4_points(points[0], points[1], points[2], points[3]);
+    auto max_area = current_area;
     auto max_area_idx = SIZE_MAX;
+
     for (size_t i = 0; i < areas.size(); ++i) {
         if (areas[i] > max_area) {
             max_area = areas[i];
@@ -255,7 +238,7 @@ size_t insert_index(const std::array<vector3, N> &points,
         return max_area_idx;
     }
 
-    // Ignore new point because the contact set is better as it is.
+    // Ignore new point because the current contact set is better as it is.
     return N;
 }
 
