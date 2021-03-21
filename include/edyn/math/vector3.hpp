@@ -158,6 +158,12 @@ inline vector3 cross(const vector3 &v, const vector3 &w) {
             v.x * w.y - v.y * w.x};
 }
 
+inline scalar triple_product(const vector3 &u,
+                             const vector3 &v,
+                             const vector3 &w) {
+    return dot(u, cross(v, w));
+}
+
 // Square length of a vector.
 inline scalar length_sqr(const vector3 &v) {
     return dot(v, v);

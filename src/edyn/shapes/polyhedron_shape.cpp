@@ -1,5 +1,6 @@
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/util/shape_util.hpp"
+#include "edyn/util/moment_of_inertia.hpp"
 
 namespace edyn {
 
@@ -19,8 +20,8 @@ AABB polyhedron_shape::aabb(const vector3 &pos, const quaternion &orn) const {
     }
 }
 
-vector3 polyhedron_shape::inertia(scalar mass) const {
-
+matrix3x3 polyhedron_shape::inertia(scalar mass) const {
+    return moment_of_inertia_polyhedron(mass, mesh->vertices, mesh->triangles);
 }
 
 }

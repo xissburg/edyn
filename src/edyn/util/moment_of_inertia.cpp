@@ -1,4 +1,5 @@
 #include "edyn/util/moment_of_inertia.hpp"
+#include "edyn/math/vector3.hpp"
 
 namespace edyn {
 
@@ -41,6 +42,65 @@ vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
     auto xx = scalar(0.5) * mass * rr;
     auto yy_zz = scalar(1) / scalar(12) * mass * (scalar(3) * rr + len * len);
     return {xx, yy_zz, yy_zz};
+}
+
+matrix3x3 moment_of_inertia_polyhedron(scalar mass, const std::vector<vector3> &vertices, 
+                                       const std::vector<uint16_t> &indices) {
+    // Reference: 
+    // https://github.com/erich666/jgt-code/blob/master/Volume_11/Number_2/Kallay2006/Moment_of_Inertia.cpp
+    scalar volume = 0;
+    auto center = vector3_zero;
+    scalar xx = 0;
+    scalar yy = 0;
+    scalar zz = 0;
+    scalar yz = 0;
+    scalar zx = 0;
+    scalar xy = 0;
+
+    EDYN_ASSERT(indices.size() % 3 == 0);
+    auto num_triangles = indices.size() / 3;
+
+    for (size_t i = 0; i < num_triangles; ++i) {
+        auto i0 = indices[i * 3 + 0];
+        auto i1 = indices[i * 3 + 1];
+        auto i2 = indices[i * 3 + 2];
+
+        auto v0 = vertices[indices[i0]];
+        auto v1 = vertices[indices[i1]];
+        auto v2 = vertices[indices[i2]];
+
+        // Parallelepiped volume. Tetrahedron volume is 1/6th of it.
+        auto pd_vol = triple_product(v0, v1, v2);
+
+        // Contribution to the mass.
+        volume += pd_vol;
+
+        // Contribution to the centroid.
+        auto v3 = v0 + v1 + v2;
+        center += pd_vol * v3;
+
+        // Contribution to the moment of inertia monomials.
+        xx += pd_vol * (v0.x * v0.x + v1.x * v1.x + v2.x * v2.x + v3.x * v3.x);
+        yy += pd_vol * (v0.y * v0.y + v1.y * v1.y + v2.y * v2.y + v3.y * v3.y);
+        zz += pd_vol * (v0.z * v0.z + v1.z * v1.z + v2.z * v2.z + v3.z * v3.z);
+        yz += pd_vol * (v0.y * v0.z + v1.y * v1.z + v2.y * v2.z + v3.y * v3.z);
+        zx += pd_vol * (v0.z * v0.x + v1.z * v1.x + v2.z * v2.x + v3.z * v3.x);
+        xy += pd_vol * (v0.x * v0.y + v1.x * v1.y + v2.x * v2.y + v3.x * v3.y);
+    }
+
+    auto r = scalar(1) / scalar (120);
+    auto Iyz = yz * r;
+    auto Izx = zx * r;
+    auto Ixy = xy * r;
+    auto Ixx = (yy + zz) * r;
+    auto Iyy = (zz + xx) * r;
+    auto Izz = (xx + yy) * r;
+
+    return {
+        {Ixx, Ixy, Izx},
+        {Ixy, Iyy, Iyz},
+        {Izx, Iyz, Izz}
+    };
 }
 
 }

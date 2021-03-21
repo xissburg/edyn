@@ -1,7 +1,10 @@
 #ifndef EDYN_UTIL_MOMENT_OF_INERTIA_HPP
 #define EDYN_UTIL_MOMENT_OF_INERTIA_HPP
 
+#include <vector>
+#include <cstdint>
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/matrix3x3.hpp"
 
 namespace edyn {
 
@@ -32,6 +35,9 @@ vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius)
  */
 vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len, 
                                           scalar inner_radius, scalar outer_radius);
+
+matrix3x3 moment_of_inertia_polyhedron(scalar mass, const std::vector<vector3> &vertices, 
+                                       const std::vector<uint16_t> &indices);
 
 }
 
