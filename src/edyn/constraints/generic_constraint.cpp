@@ -26,8 +26,8 @@ void generic_constraint::prepare(entt::entity, constraint &con, entt::registry &
     auto &ornB = registry.get<orientation>(con.body[1]);
     auto rB = rotate(ornB, pivot[1]);
 
-    auto rA_skew = skew(rA);
-    auto rB_skew = skew(rB);
+    auto rA_skew = skew_matrix(rA);
+    auto rB_skew = skew_matrix(rB);
     const auto d = posA + rA - posB - rB;
     constexpr auto I = matrix3x3_identity;
 

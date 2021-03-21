@@ -97,9 +97,9 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass, const std::vector<vector3> &
     auto Izz = (xx + yy) * r;
 
     return {
-        {Ixx, Ixy, Izx},
-        {Ixy, Iyy, Iyz},
-        {Izx, Iyz, Izz}
+        vector3{Ixx, Ixy, Izx},
+        vector3{Ixy, Iyy, Iyz},
+        vector3{Izx, Iyz, Izz}
     };
 }
 

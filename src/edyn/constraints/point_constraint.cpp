@@ -29,8 +29,8 @@ void point_constraint::prepare(entt::entity, constraint &con, entt::registry &re
     auto &qB = registry.get<orientation>(con.body[1]);
     rB = rotate(qB, rB);
 
-    auto rA_skew = skew(rA);
-    auto rB_skew = skew(rB);
+    auto rA_skew = skew_matrix(rA);
+    auto rB_skew = skew_matrix(rB);
     constexpr auto I = matrix3x3_identity;
 
     for (size_t i = 0; i < 3; ++i) {

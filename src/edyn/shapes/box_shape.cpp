@@ -29,8 +29,8 @@ AABB box_shape::aabb(const vector3 &pos, const quaternion &orn) const {
     return aabb;
 }
 
-vector3 box_shape::inertia(scalar mass) const {
-    return moment_of_inertia_solid_box(mass, half_extents * 2);
+matrix3x3 box_shape::inertia(scalar mass) const {
+    return diagonal_matrix(moment_of_inertia_solid_box(mass, half_extents * 2));
 }
 
 vector3 box_shape::support_point(const vector3 &dir) const {

@@ -86,7 +86,7 @@ void update_inertia(entt::registry &registry) {
     auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
     view.each([] (auto, orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
-        inv_IW = scale(basis, inv_I) * transpose(basis);
+        inv_IW = basis * inv_I * transpose(basis);
     });
 }
 

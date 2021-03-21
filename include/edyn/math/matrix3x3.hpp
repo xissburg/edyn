@@ -2,6 +2,7 @@
 #define EDYN_MATH_MATRIX3X3_HPP
 
 #include <array>
+#include "edyn/config/config.h"
 #include "vector3.hpp"
 #include "quaternion.hpp"
 
@@ -70,8 +71,16 @@ inline matrix3x3 transpose(const matrix3x3 &m) {
     return {m.column(0), m.column(1), m.column(2)};
 }
 
+inline matrix3x3 inverse_symmetric(const matrix3x3 &m) {
+    EDYN_ASSERT(m[0][1] == m[1][0]);
+    EDYN_ASSERT(m[0][2] == m[2][0]);
+    EDYN_ASSERT(m[1][2] == m[2][1]);
+
+    return m;
+}
+
 // Matrix with given vector as diagonal.
-inline matrix3x3 diagonal(const vector3 &v) {
+inline matrix3x3 diagonal_matrix(const vector3 &v) {
     return {
         vector3 {v.x, 0, 0},
         vector3 {0, v.y, 0},
@@ -79,8 +88,8 @@ inline matrix3x3 diagonal(const vector3 &v) {
     }; 
 }
 
-// Equivalent to m * diagonal(v).
-inline matrix3x3 scale(const matrix3x3 &m, const vector3 &v) {
+// Equivalent to m * diagonal_matrix(v).
+inline matrix3x3 scale_matrix(const matrix3x3 &m, const vector3 &v) {
     return {
         vector3{m.row[0].x * v.x, m.row[0].y * v.y, m.row[0].z * v.z},
         vector3{m.row[1].x * v.x, m.row[1].y * v.y, m.row[1].z * v.z},
@@ -89,7 +98,7 @@ inline matrix3x3 scale(const matrix3x3 &m, const vector3 &v) {
 }
 
 // Skew anti-symmetric matrix of a vector.
-inline matrix3x3 skew(const vector3 &v) {
+inline matrix3x3 skew_matrix(const vector3 &v) {
     return {
         vector3 {0, -v.z, v.y},
         vector3 {v.z, 0, -v.x},

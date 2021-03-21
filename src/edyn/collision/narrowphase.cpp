@@ -7,6 +7,7 @@
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/dirty.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collide.hpp"

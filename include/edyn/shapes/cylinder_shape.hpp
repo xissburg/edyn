@@ -2,6 +2,7 @@
 #define EDYN_SHAPES_CYLINDER_SHAPE_HPP
 
 #include "edyn/comp/aabb.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/util/moment_of_inertia.hpp"
 
@@ -29,8 +30,8 @@ struct cylinder_shape {
         return {pos - v, pos + v};
     }
 
-    vector3 inertia(scalar mass) const {
-        return moment_of_inertia_solid_cylinder(mass, half_length * 2, radius);
+    matrix3x3 inertia(scalar mass) const {
+        return diagonal_matrix(moment_of_inertia_solid_cylinder(mass, half_length * 2, radius));
     }
 
     vector3 support_point(const vector3 &dir) const {

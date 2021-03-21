@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "edyn/comp/aabb.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "triangle_mesh.hpp"
 
@@ -16,8 +17,8 @@ struct mesh_shape {
         return {trimesh->get_aabb().min + pos, trimesh->get_aabb().max + pos};
     }
 
-    vector3 inertia(scalar mass) const {
-        return vector3_max;
+    matrix3x3 inertia(scalar mass) const {
+        return diagonal_matrix(vector3_max);
     }
 };
 

@@ -46,7 +46,7 @@ struct box_shape {
 
     AABB aabb(const vector3 &pos, const quaternion &orn) const;
 
-    vector3 inertia(scalar mass) const;
+    matrix3x3 inertia(scalar mass) const;
 
     /**
      * Get support point in object space.

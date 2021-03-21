@@ -19,8 +19,8 @@ struct sphere_shape {
         };
     }
 
-    vector3 inertia(scalar mass) const {
-        return moment_of_inertia_solid_sphere(mass, radius);
+    matrix3x3 inertia(scalar mass) const {
+        return diagonal_matrix(moment_of_inertia_solid_sphere(mass, radius));
     }
 };
 
