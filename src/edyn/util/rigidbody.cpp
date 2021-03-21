@@ -35,18 +35,15 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<mass>(entity, def.mass);
         registry.emplace<mass_inv>(entity, def.mass < EDYN_SCALAR_MAX ? 1 / def.mass : 0);
         registry.emplace<inertia>(entity, def.inertia);
-        auto &invI = registry.emplace<inertia_inv>(entity, inverse_symmetric(def.inertia));
-            /* vector3 {
-                def.inertia.x < EDYN_SCALAR_MAX ? 1 / def.inertia.x : 0,
-                def.inertia.y < EDYN_SCALAR_MAX ? 1 / def.inertia.y : 0,
-                def.inertia.z < EDYN_SCALAR_MAX ? 1 / def.inertia.z : 0
-            }); */
-        registry.emplace<inertia_world_inv>(entity, invI);
+
+        auto I_inv = inverse_matrix_symmetric(def.inertia);
+        registry.emplace<inertia_inv>(entity, I_inv);
+        registry.emplace<inertia_world_inv>(entity, I_inv);
     } else {
         registry.emplace<mass>(entity, EDYN_SCALAR_MAX);
         registry.emplace<mass_inv>(entity, 0);
-        registry.emplace<inertia>(entity, vector3_max);
-        registry.emplace<inertia_inv>(entity, vector3_zero);
+        registry.emplace<inertia>(entity, matrix3x3_zero);
+        registry.emplace<inertia_inv>(entity, matrix3x3_zero);
         registry.emplace<inertia_world_inv>(entity, matrix3x3_zero);
     }
 
@@ -130,7 +127,7 @@ void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
     }, shape.var);
     registry.replace<edyn::inertia>(entity, I);
 
-    auto inv_I = inverse_symmetric(I);
+    auto inv_I = inverse_matrix_symmetric(I);
     registry.replace<edyn::inertia_inv>(entity, inv_I);
 
     auto &orn = registry.get<orientation>(entity);

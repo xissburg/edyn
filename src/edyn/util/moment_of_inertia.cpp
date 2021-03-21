@@ -65,9 +65,9 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass, const std::vector<vector3> &
         auto i1 = indices[i * 3 + 1];
         auto i2 = indices[i * 3 + 2];
 
-        auto v0 = vertices[indices[i0]];
-        auto v1 = vertices[indices[i1]];
-        auto v2 = vertices[indices[i2]];
+        auto v0 = vertices[i0];
+        auto v1 = vertices[i1];
+        auto v2 = vertices[i2];
 
         // Parallelepiped volume. Tetrahedron volume is 1/6th of it.
         auto pd_vol = triple_product(v0, v1, v2);
@@ -88,7 +88,8 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass, const std::vector<vector3> &
         xy += pd_vol * (v0.x * v0.y + v1.x * v1.y + v2.x * v2.y + v3.x * v3.y);
     }
 
-    auto r = scalar(1) / scalar (120);
+    auto density = mass / (volume / scalar(6));
+    auto r = density / scalar (120);
     auto Iyz = yz * r;
     auto Izx = zx * r;
     auto Ixy = xy * r;

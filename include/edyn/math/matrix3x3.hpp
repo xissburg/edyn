@@ -3,6 +3,7 @@
 
 #include <array>
 #include "edyn/config/config.h"
+#include "edyn/math/scalar.hpp"
 #include "vector3.hpp"
 #include "quaternion.hpp"
 
@@ -27,6 +28,10 @@ struct matrix3x3 {
 
     inline scalar column_dot(size_t i, const vector3 &v) const {
         return row[0][i] * v.x + row[1][i] * v.y + row[2][i] * v.z;
+    }
+
+    inline scalar determinant() const {
+        return triple_product(row[0], row[1], row[2]);
     }
 };
 
@@ -66,17 +71,86 @@ inline vector3 operator*(const vector3 &v, const matrix3x3 &m) {
     return {m.column_dot(0, v), m.column_dot(1, v), m.column_dot(2, v)};
 }
 
+// Multiply matrix by scalar.
+inline matrix3x3 operator*(const matrix3x3& m, scalar s) {
+    return {m[0] * s, m[1] * s, m[2] * s};
+}
+
+// Multiply scalar by matrix.
+inline matrix3x3 operator*(scalar s, const matrix3x3& m) {
+    return {s * m[0], s * m[1], s * m[2]};
+}
+
+// Create a matrix with the given column vectors.
+inline matrix3x3 matrix3x3_columns(const vector3 &v0, 
+                                   const vector3 &v1, 
+                                   const vector3 &v2) {
+    return {
+        vector3{v0.x, v1.x, v2.x},
+        vector3{v0.y, v1.y, v2.y},
+        vector3{v0.z, v1.z, v2.z}
+    };
+}
+
 // Transpose of a 3x3 matrix.
 inline matrix3x3 transpose(const matrix3x3 &m) {
     return {m.column(0), m.column(1), m.column(2)};
 }
 
-inline matrix3x3 inverse_symmetric(const matrix3x3 &m) {
+// Adjugate of a 3x3 matrix, i.e. the transpose of the cofactor matrix.
+inline matrix3x3 adjugate_matrix(const matrix3x3 &m) {
+    // Cofactors.
+    auto c0 = cross(m[1], m[2]);
+    auto c1 = cross(m[2], m[0]);
+    auto c2 = cross(m[0], m[1]);
+    // Transpose of cofactor matrix.
+    return matrix3x3_columns(c0, c1, c2);
+}
+
+// Inverse of a 3x3 matrix or the zero matrix if `m` is non-invertible.
+inline matrix3x3 inverse_matrix(const matrix3x3 &m) {
+    auto det = m.determinant();
+    scalar det_inv = 0;
+
+    if (std::abs(det) > EDYN_EPSILON) {
+        det_inv = scalar(1) / det;
+    }
+
+    return adjugate_matrix(m) * det_inv;
+}
+
+// Optimized inverse for symmetric 3x3 matrices.
+inline matrix3x3 inverse_matrix_symmetric(const matrix3x3 &m) {
     EDYN_ASSERT(m[0][1] == m[1][0]);
     EDYN_ASSERT(m[0][2] == m[2][0]);
     EDYN_ASSERT(m[1][2] == m[2][1]);
 
-    return m;
+    auto det = m.determinant();
+    scalar det_inv = 0;
+
+    if (std::abs(det) > EDYN_EPSILON) {
+        det_inv = scalar(1) / det;
+    }
+
+    auto a11 = m[0][0], a12 = m[0][1], a13 = m[0][2];
+    auto a22 = m[1][1], a23 = m[1][2];
+    auto a33 = m[2][2];
+
+    matrix3x3 m_inv;
+
+    m_inv[0][0] = det_inv * (a22 * a33 - a23 * a23);
+    m_inv[0][1] = det_inv * (a13 * a23 - a12 * a33);
+    m_inv[0][2] = det_inv * (a12 * a23 - a13 * a22);
+
+    m_inv[1][0] = m_inv[0][1];
+    m_inv[1][1] = det_inv * (a11 * a33 - a13 * a13);
+    m_inv[1][2] = det_inv * (a12 * a13 - a11 * a23);
+
+    m_inv[2][0] = m_inv[0][2];
+    m_inv[2][1] = m_inv[1][2];
+    m_inv[2][2] = det_inv * (a11 * a22 - a12 * a12);
+
+    return m_inv;
 }
 
 // Matrix with given vector as diagonal.
@@ -103,16 +177,6 @@ inline matrix3x3 skew_matrix(const vector3 &v) {
         vector3 {0, -v.z, v.y},
         vector3 {v.z, 0, -v.x},
         vector3 {-v.y, v.x, 0}
-    };
-}
-
-inline matrix3x3 matrix3x3_columns(const vector3 &v0, 
-                                   const vector3 &v1, 
-                                   const vector3 &v2) {
-    return {
-        vector3{v0.x, v1.x, v2.x},
-        vector3{v0.y, v1.y, v2.y},
-        vector3{v0.z, v1.z, v2.z}
     };
 }
 

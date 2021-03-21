@@ -1,8 +1,16 @@
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/util/moment_of_inertia.hpp"
+#include "edyn/util/shape_util.hpp"
 
 namespace edyn {
+
+polyhedron_shape::polyhedron_shape(const std::string &path_to_obj)
+    : mesh(std::make_shared<convex_mesh>())
+{
+    load_mesh_from_obj(path_to_obj, mesh->vertices, mesh->triangles);
+    calculate_local_aabb();
+}
 
 void polyhedron_shape::calculate_local_aabb() {
     local_aabb = point_cloud_aabb(mesh->vertices.begin(), mesh->vertices.end());
