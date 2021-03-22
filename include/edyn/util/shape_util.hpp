@@ -53,17 +53,18 @@ AABB point_cloud_aabb(VectorIterator vector_begin, VectorIterator vector_end,
 
 template<typename VectorIterator>
 vector3 point_cloud_support_point(VectorIterator vector_begin, VectorIterator vector_end,
+                                  const vector3 &pos, const quaternion &orn,
                                   const vector3 &dir, scalar *projection = nullptr) {
     auto result = vector3_zero;
-    auto max_proj = EDYN_SCALAR_MAX;
+    auto max_proj = -EDYN_SCALAR_MAX;
 
     for (auto it = vector_begin; it != vector_end; ++it) {
-        auto &p = *it;
-        auto proj = dot(p, dir);
+        auto point_world = to_world_space(*it, pos, orn);
+        auto proj = dot(point_world, dir);
 
         if (proj > max_proj) {
             max_proj = proj;
-            result = p;
+            result = point_world;
         }
     }
 
