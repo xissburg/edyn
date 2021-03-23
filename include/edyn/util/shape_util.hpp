@@ -2,6 +2,7 @@
 #define EDYN_UTIL_SHAPE_UTIL_HPP
 
 #include "edyn/math/scalar.hpp"
+#include "edyn/math/vector2.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -23,12 +24,12 @@ vector3 support_point_box(const vector3 &half_extents, const vector3 &dir);
 
 AABB aabb_of_aabb(const AABB &aabb, const vector3 &pos, const quaternion &orn);
 
-template<typename VectorIterator>
-AABB point_cloud_aabb(VectorIterator vector_begin, VectorIterator vector_end) {
+template<typename It>
+AABB point_cloud_aabb(It first, It last) {
     // TODO: implement and use `parallel_reduce`.
     auto aabb = AABB{vector3_max, -vector3_max};
 
-    for (auto it = vector_begin; it != vector_end; ++it) {
+    for (auto it = first; it != last; ++it) {
         aabb.min = min(aabb.min, *it);
         aabb.max = max(aabb.max, *it);
     }
@@ -36,13 +37,13 @@ AABB point_cloud_aabb(VectorIterator vector_begin, VectorIterator vector_end) {
     return aabb;
 }
 
-template<typename VectorIterator>
-AABB point_cloud_aabb(VectorIterator vector_begin, VectorIterator vector_end,
+template<typename It>
+AABB point_cloud_aabb(It first, It last,
                       const vector3 &pos, const quaternion &orn) {
     // TODO: implement and use `parallel_reduce`.
     auto aabb = AABB{vector3_max, -vector3_max};
 
-    for (auto it = vector_begin; it != vector_end; ++it) {
+    for (auto it = first; it != last; ++it) {
         auto point_world = to_world_space(*it, pos, orn);
         aabb.min = min(aabb.min, point_world);
         aabb.max = max(aabb.max, point_world);
@@ -51,14 +52,14 @@ AABB point_cloud_aabb(VectorIterator vector_begin, VectorIterator vector_end,
     return aabb;
 }
 
-template<typename VectorIterator>
-vector3 point_cloud_support_point(VectorIterator vector_begin, VectorIterator vector_end,
+template<typename It>
+vector3 point_cloud_support_point(It first, It last,
                                   const vector3 &pos, const quaternion &orn,
                                   const vector3 &dir, scalar *projection = nullptr) {
     auto result = vector3_zero;
     auto max_proj = -EDYN_SCALAR_MAX;
 
-    for (auto it = vector_begin; it != vector_end; ++it) {
+    for (auto it = first; it != last; ++it) {
         auto point_world = to_world_space(*it, pos, orn);
         auto proj = dot(point_world, dir);
 
@@ -74,6 +75,10 @@ vector3 point_cloud_support_point(VectorIterator vector_begin, VectorIterator ve
 
     return result;
 }
+
+std::vector<size_t> calculate_convex_hull(const std::vector<vector2> &points, scalar tolerance);
+
+bool point_inside_convex_polygon(const std::vector<vector2> &vertices, const vector2 &point);
 
 }
 

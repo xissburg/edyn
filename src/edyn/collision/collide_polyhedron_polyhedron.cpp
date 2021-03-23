@@ -1,8 +1,11 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/scalar.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 #include "edyn/util/shape_util.hpp"
+
 namespace edyn {
 
 void max_support_direction(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
@@ -24,8 +27,7 @@ void max_support_direction(const polyhedron_shape &shA, const vector3 &posA, con
         auto projA = dot(vertex_world, normal_world);
         auto projB = scalar{};
 
-        auto supB = point_cloud_support_point(shB.mesh->vertices.begin(), 
-                                              shB.mesh->vertices.end(), 
+        auto supB = point_cloud_support_point(shB.mesh->vertices.begin(), shB.mesh->vertices.end(), 
                                               posB, ornB, -normal_world, &projB);
         auto dist = dot(supB - vertex_world, normal_world);
 
@@ -167,13 +169,18 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
     }
 
     // Find all vertices that are near the projection boundary.
-    std::vector<vector3> verticesA, verticesB;
+    std::vector<vector2> verticesA, verticesB;
+    vector3 contact_tangent0, contact_tangent1;
+    plane_space(best_dir, contact_tangent0, contact_tangent1);
+    auto contact_basis = matrix3x3_columns(contact_tangent0, best_dir, contact_tangent1);
 
     for (auto &vertex : shA.mesh->vertices) {
         auto vertex_world = to_world_space(vertex, posA, ornA);
 
         if (dot(vertex_world, -best_dir) < projectionA - tolerance) {
-            verticesA.push_back(vertex_world);
+            auto vertex_tangent = to_object_space(vertex_world, posB, contact_basis);
+            auto vertex_plane = to_vector2_xz(vertex_tangent);
+            verticesA.push_back(vertex_plane);
         }
     }
 
@@ -181,14 +188,23 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
         auto vertex_world = to_world_space(vertex, posB, ornB);
 
         if (dot(vertex_world, best_dir) < projectionB - tolerance) {
-            verticesB.push_back(vertex_world);
+            auto vertex_tangent = to_object_space(vertex_world, posB, contact_basis);
+            auto vertex_plane = to_vector2_xz(vertex_tangent);
+            verticesB.push_back(vertex_plane);
         }
     }
 
     // Calculate 2D convex hull of contact polygon.
-    
-    // Calculate 2D intersection of contact polygons which is the contact area.
-    
+    auto hullA = calculate_convex_hull(verticesA, tolerance);
+    auto hullB = calculate_convex_hull(verticesB, tolerance);
+
+    // Calculate 2D intersection of contact polygons, which is the contact area.
+    for (auto idxA : hullA) {
+        auto vertex_tangentA = verticesA
+        if (point_inside_convex_polygon(hullB, vertex)) {
+            
+        }
+    }
 }
 
 }

@@ -1,5 +1,7 @@
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/scalar.hpp"
+#include "edyn/math/vector2.hpp"
 #include <fstream>
 #include <sstream>
 
@@ -103,6 +105,122 @@ AABB aabb_of_aabb(const AABB &aabb, const vector3 &pos, const quaternion &orn) {
     auto result_min = center_world - result_half_extent;
     auto result_max = center_world + result_half_extent;
     return {result_min, result_max};
+}
+
+size_t split_hull_edge(const std::vector<vector2> &points, 
+                     std::vector<size_t> &hull, 
+                     size_t i0, size_t i1, scalar tolerance) {
+
+    auto v0 = points[hull[i0]];
+    auto v1 = points[hull[i1]];
+    auto edge = v1 - v0;
+    auto dir = orthogonal(edge);
+    auto max_proj = -EDYN_SCALAR_MAX;
+    auto point = vector2_zero;
+    auto idx = size_t{};
+
+    for (size_t i = 0; i < points.size(); ++i) {
+        auto &p = points[i];
+        auto proj = dot(p, dir);
+        if (proj > max_proj) {
+            max_proj = proj;
+            point = p;
+            idx = i;
+        }
+    }
+
+    if (dot(point - v0, dir) > tolerance) {
+        hull.insert(hull.begin() + i1, idx);
+        auto num_splits = split_hull_edge(points, hull, i0, i1, tolerance);
+
+        i1 += num_splits;
+        auto i2 = i1 + 1;
+        num_splits += split_hull_edge(points, hull, i1, i2, tolerance);
+
+        return 1;
+    }
+
+    return 0;
+}
+
+std::vector<size_t> calculate_convex_hull(const std::vector<vector2> &points, scalar tolerance) {
+    EDYN_ASSERT(points.size() > 3);
+
+    // Quickhull algorithm.
+    auto pt_min = vector2_one * EDYN_SCALAR_MAX;
+    auto pt_max = vector2_one * -EDYN_SCALAR_MAX;
+    auto pt_min_idx = size_t{};
+    auto pt_max_idx = size_t{};
+
+    for (size_t i = 0; i < points.size(); ++i) {
+        auto &p = points[i];
+
+        if (p.x < pt_min.x) {
+            pt_min = p;
+            pt_min_idx = i;
+        }
+        if (p.x > pt_max.x) {
+            pt_max = p;
+            pt_max_idx = i;
+        }
+    }
+
+    auto hull = std::vector<size_t>();
+
+    if (pt_max.x - pt_min.x < tolerance) {
+        // Point set is a vertical sliver. Return a vertical segment.
+        pt_min = vector2_one * EDYN_SCALAR_MAX;
+        pt_max = vector2_one * -EDYN_SCALAR_MAX;
+
+        for (size_t i = 0; i < points.size(); ++i) {
+            auto &p = points[i];
+
+            if (p.y < pt_min.y) {
+                pt_min = p;
+                pt_min_idx = i;
+            }
+            if (p.y > pt_max.y) {
+                pt_max = p;
+                pt_max_idx = i;
+            }
+        }
+
+        hull.push_back(pt_max_idx);
+        hull.push_back(pt_min_idx);
+        return hull;
+    }
+
+    hull.push_back(pt_max_idx);
+    hull.push_back(pt_min_idx);
+    hull.push_back(pt_max_idx);
+
+    size_t i0 = 0;
+    size_t i1 = 1;
+    auto num_splits = split_hull_edge(points, hull, i0, i1, tolerance);
+
+    i1 += num_splits;
+    auto i2 = i1 + 1;
+    split_hull_edge(points, hull, i1, i2, tolerance);
+
+    hull.pop_back();
+
+    return hull;
+}
+
+bool point_inside_convex_polygon(const std::vector<vector2> &vertices, const vector2 &point) {
+    EDYN_ASSERT(vertices.size() > 2);
+
+    for (size_t i = 0; i < vertices.size() - 1; ++i) {
+        auto d = point - vertices[i];
+        auto e = vertices[i + 1] - vertices[i];
+        auto n = orthogonal(e);
+
+        if (dot(d, n) > 0) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 }
