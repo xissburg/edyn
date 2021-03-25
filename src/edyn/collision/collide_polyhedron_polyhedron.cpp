@@ -1,9 +1,11 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/collision/collision_result.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/shape_util.hpp"
 
 namespace edyn {
@@ -20,7 +22,7 @@ void max_support_direction(const polyhedron_shape &shA, const vector3 &posA, con
         auto normalA = shA.mesh->normals[i];
         auto normal_world = rotate(ornA, normalA);
 
-        auto vertex_idx = i * 3;
+        auto vertex_idx = shA.mesh->indices[i * 3];
         auto &vertexA = shA.mesh->vertices[vertex_idx];
         auto vertex_world = to_world_space(vertexA, posA, ornA);
 
@@ -29,6 +31,8 @@ void max_support_direction(const polyhedron_shape &shA, const vector3 &posA, con
 
         auto supB = point_cloud_support_point(shB.mesh->vertices.begin(), shB.mesh->vertices.end(), 
                                               posB, ornB, -normal_world, &projB);
+        projB *= -1;
+
         auto dist = dot(supB - vertex_world, normal_world);
 
         if (dist > max_distance) {
@@ -58,6 +62,8 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
     max_support_direction(shA, posA, ornA, shB, posB, ornB, best_dir, max_distance, projectionA, projectionB);
 
     best_dir *= -1; // Make it point towards A.
+    projectionA *= -1;
+    projectionB *= -1;
 
     // Find best support direction among all triangle normals of B.
     {
@@ -136,40 +142,16 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
         return {};
     }
 
-    // Find all triangles that have a vertex within a tolerance from the
-    // projection boundary.
+    auto result = collision_result{};
+    auto normalB = rotate(conjugate(ornB), best_dir);
     scalar tolerance = 0.002;
-    std::vector<size_t> all_trianglesA;
-    std::vector<size_t> all_trianglesB;
-
-    for (size_t i = 0; i < shA.mesh->num_triangles(); ++i) {
-        auto vertices = shA.mesh->get_triangle(i);
-
-        for (auto &vertex : vertices) {
-            auto vertex_world = to_world_space(vertex, posA, ornA);
-
-            if (dot(vertex_world, -best_dir) > projectionA - tolerance) {
-                all_trianglesA.push_back(i);
-                break;
-            }
-        }
-    }
-
-    for (size_t i = 0; i < shB.mesh->num_triangles(); ++i) {
-        auto vertices = shB.mesh->get_triangle(i);
-
-        for (auto &vertex : vertices) {
-            auto vertex_world = to_world_space(vertex, posB, ornB);
-
-            if (dot(vertex_world, best_dir) > projectionB - tolerance) {
-                all_trianglesB.push_back(i);
-                break;
-            }
-        }
-    }
 
     // Find all vertices that are near the projection boundary.
-    std::vector<vector2> verticesA, verticesB;
+    std::vector<vector3> verticesA, verticesB;
+    // Vertices on the contact plane.
+    std::vector<vector2> plane_verticesA, plane_verticesB;
+    auto contact_originA = best_dir * projectionA;
+    auto contact_originB = best_dir * projectionB;
     vector3 contact_tangent0, contact_tangent1;
     plane_space(best_dir, contact_tangent0, contact_tangent1);
     auto contact_basis = matrix3x3_columns(contact_tangent0, best_dir, contact_tangent1);
@@ -177,34 +159,58 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
     for (auto &vertex : shA.mesh->vertices) {
         auto vertex_world = to_world_space(vertex, posA, ornA);
 
-        if (dot(vertex_world, -best_dir) < projectionA - tolerance) {
-            auto vertex_tangent = to_object_space(vertex_world, posB, contact_basis);
+        if (dot(vertex_world, best_dir) < projectionA + tolerance) {
+            auto vertex_tangent = to_object_space(vertex_world, contact_originA, contact_basis);
             auto vertex_plane = to_vector2_xz(vertex_tangent);
-            verticesA.push_back(vertex_plane);
+            plane_verticesA.push_back(vertex_plane);
+            verticesA.push_back(vertex_world);
         }
     }
 
     for (auto &vertex : shB.mesh->vertices) {
         auto vertex_world = to_world_space(vertex, posB, ornB);
 
-        if (dot(vertex_world, best_dir) < projectionB - tolerance) {
-            auto vertex_tangent = to_object_space(vertex_world, posB, contact_basis);
+        if (dot(vertex_world, best_dir) > projectionB - tolerance) {
+            auto vertex_tangent = to_object_space(vertex_world, contact_originB, contact_basis);
             auto vertex_plane = to_vector2_xz(vertex_tangent);
-            verticesB.push_back(vertex_plane);
+            plane_verticesB.push_back(vertex_plane);
+            verticesB.push_back(vertex_world);
         }
     }
 
     // Calculate 2D convex hull of contact polygon.
-    auto hullA = calculate_convex_hull(verticesA, tolerance);
-    auto hullB = calculate_convex_hull(verticesB, tolerance);
+    auto hullA = calculate_convex_hull(plane_verticesA, tolerance);
+    auto hullB = calculate_convex_hull(plane_verticesB, tolerance);
 
     // Calculate 2D intersection of contact polygons, which is the contact area.
-    for (auto idxA : hullA) {
-        auto vertex_tangentA = verticesA
-        if (point_inside_convex_polygon(hullB, vertex)) {
-            
+    // First, add contact points for vertices that lie inside the opposing face.
+    if (verticesA.size() > 2) {
+        for (auto idxA : hullA) {
+            auto &pointA = verticesA[idxA];
+
+            if (point_in_polygonal_prism(verticesB, hullB, best_dir, pointA)) {
+                auto pivotA = to_object_space(pointA, posA, ornA);
+                auto pivotB_world = project_plane(pointA, contact_originB, best_dir);
+                auto pivotB = to_object_space(pivotB_world, posB, ornB);
+                result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+            }
         }
     }
+
+    if (verticesB.size() > 2) {
+        for (auto idxB : hullB) {
+            auto &pointB = verticesB[idxB];
+
+            if (point_in_polygonal_prism(verticesA, hullA, best_dir, pointB)) {
+                auto pivotB = to_object_space(pointB, posB, ornB);
+                auto pivotA_world = project_plane(pointB, contact_originA, -best_dir);
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+            }
+        }
+    }
+
+    return result;
 }
 
 }

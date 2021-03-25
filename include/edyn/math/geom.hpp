@@ -1,6 +1,7 @@
 #ifndef EDYN_MATH_GEOM_HPP
 #define EDYN_MATH_GEOM_HPP
 
+#include <vector>
 #include <cstdint>
 #include "constants.hpp"
 #include "quaternion.hpp"
@@ -284,6 +285,10 @@ scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p,
 size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
                            const vector2 &aabb_min, const vector2 &aabb_max,
                            scalar &s0, scalar &s1);
+
+bool point_in_polygonal_prism(const std::vector<vector3> &vertices, 
+                              const std::vector<size_t> &indices,
+                              const vector3 &normal, const vector3 &point);
 
 }
 

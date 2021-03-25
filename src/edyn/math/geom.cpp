@@ -872,4 +872,26 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
     return num_points;
 }
 
+bool point_in_polygonal_prism(const std::vector<vector3> &vertices, 
+                              const std::vector<size_t> &indices,
+                              const vector3 &normal, const vector3 &point) {
+    EDYN_ASSERT(indices.size() > 2);
+
+    for (size_t i = 0; i < indices.size() - 1; ++i) {
+        auto j = i + 1;
+        auto idx0 = indices[i];
+        auto idx1 = indices[j];
+        auto &v0 = vertices[idx0];
+        auto &v1 = vertices[idx1];
+        auto d = v1 - v0;
+        auto t = cross(d, normal);
+
+        if (dot(point - v0, t) > 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 }

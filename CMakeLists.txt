@@ -162,8 +162,8 @@ target_compile_features(Edyn PUBLIC cxx_std_17)
 #
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    #target_compile_options(Edyn PUBLIC -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
-    #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
+    #target_compile_options(Edyn PUBLIC -D_GLIBCXX_DEBUG -fsanitize=leak -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
+    #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined -fsanitize=leak)
 endif()
 
 #
