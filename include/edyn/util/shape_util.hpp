@@ -52,28 +52,27 @@ AABB point_cloud_aabb(It first, It last,
     return aabb;
 }
 
-template<typename It>
-vector3 point_cloud_support_point(It first, It last,
-                                  const vector3 &pos, const quaternion &orn,
-                                  const vector3 &dir, scalar *projection = nullptr) {
-    auto result = vector3_zero;
+inline
+vector3 point_cloud_support_point(const std::vector<vector3> &points, const vector3 &pos, 
+                                  const quaternion &orn, const vector3 &dir) {
+    auto sup_local = vector3_zero;
     auto max_proj = -EDYN_SCALAR_MAX;
+    auto dir_local = rotate(conjugate(orn), dir);
+    const auto size = points.size();
 
-    for (auto it = first; it != last; ++it) {
-        auto point_world = to_world_space(*it, pos, orn);
-        auto proj = dot(point_world, dir);
+    for (size_t i = 0; i < size; ++i) {
+        const auto &point_local = points[i];
+        auto proj = dot(point_local, dir_local);
 
         if (proj > max_proj) {
             max_proj = proj;
-            result = point_world;
+            sup_local = point_local;
         }
     }
 
-    if (projection) {
-        *projection = max_proj;
-    }
+    auto sup_world = to_world_space(sup_local, pos, orn);
 
-    return result;
+    return sup_world;
 }
 
 std::vector<size_t> calculate_convex_hull(const std::vector<vector2> &points, scalar tolerance);

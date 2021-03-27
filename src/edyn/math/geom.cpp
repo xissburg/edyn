@@ -875,10 +875,11 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
 bool point_in_polygonal_prism(const std::vector<vector3> &vertices, 
                               const std::vector<size_t> &indices,
                               const vector3 &normal, const vector3 &point) {
-    EDYN_ASSERT(indices.size() > 2);
+    const auto count = indices.size();
+    EDYN_ASSERT(count > 2);
 
-    for (size_t i = 0; i < indices.size() - 1; ++i) {
-        auto j = i + 1;
+    for (size_t i = 0; i < count; ++i) {
+        auto j = (i + 1) % count;
         auto idx0 = indices[i];
         auto idx1 = indices[j];
         auto &v0 = vertices[idx0];

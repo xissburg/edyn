@@ -119,6 +119,7 @@ inline scalar perp_product(const vector2 &v, const vector2 &w) {
 }
 
 // Vector orthogonal to argument, i.e. rotated 90 degrees counter-clockwise.
+// Negate result for a clockwise 90 degree rotation.
 inline vector2 orthogonal(const vector2 &v) {
     return {-v.y, v.x};
 }

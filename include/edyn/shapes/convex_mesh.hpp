@@ -29,14 +29,9 @@ struct convex_mesh {
         };
     }
     
-    void calculate_normals() {
-        for (size_t i = 0; i < num_triangles(); ++i) {
-            auto vertices = get_triangle(i);
-            auto normal = cross(vertices[1] - vertices[0], vertices[2] - vertices[1]);
-            normal = normalize(normal);
-            normals.push_back(normal);
-        }
-    }
+    void calculate_normals();
+
+    void calculate_edges();
 };
 
 }

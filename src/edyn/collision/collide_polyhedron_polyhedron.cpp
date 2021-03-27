@@ -1,12 +1,12 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/collision/collision_result.hpp"
+#include "edyn/math/math.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2_3_util.hpp"
-#include "edyn/math/vector3.hpp"
 #include "edyn/util/shape_util.hpp"
+#include <numeric>
 
 namespace edyn {
 
@@ -27,11 +27,12 @@ void max_support_direction(const polyhedron_shape &shA, const vector3 &posA, con
         auto vertex_world = to_world_space(vertexA, posA, ornA);
 
         auto projA = dot(vertex_world, normal_world);
-        auto projB = scalar{};
 
-        auto supB = point_cloud_support_point(shB.mesh->vertices.begin(), shB.mesh->vertices.end(), 
-                                              posB, ornB, -normal_world, &projB);
-        projB *= -1;
+        // Find point on B that's furthest along the opposite direction
+        // of the triangle normal.
+        auto supB = point_cloud_support_point(shB.mesh->vertices, 
+                                              posB, ornB, -normal_world);
+        auto projB = dot(supB, normal_world);
 
         auto dist = dot(supB - vertex_world, normal_world);
 
@@ -47,6 +48,15 @@ void max_support_direction(const polyhedron_shape &shA, const vector3 &posA, con
     distance = max_distance;
     projectionA = max_proj_A;
     projectionB = max_proj_B;
+}
+
+void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2) {
+    auto e = v1 - v0;
+    auto t = orthogonal(e);
+
+    if (dot(v2 - v0, t) < 0) {
+        std::swap(v0, v2);
+    }
 }
 
 collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
@@ -82,14 +92,14 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
     }
 
     // Edge vs edge.
-    for (size_t i = 0; i < shA.mesh->edges.size(); ++i) {
-        auto vertexA0 = to_world_space(shA.mesh->vertices[shA.mesh->edges[i * 2 + 0]], posA, ornA);
-        auto vertexA1 = to_world_space(shA.mesh->vertices[shA.mesh->edges[i * 2 + 1]], posA, ornA);
+    for (size_t i = 0; i < shA.mesh->edges.size(); i += 2) {
+        auto vertexA0 = to_world_space(shA.mesh->vertices[shA.mesh->edges[i + 0]], posA, ornA);
+        auto vertexA1 = to_world_space(shA.mesh->vertices[shA.mesh->edges[i + 1]], posA, ornA);
         auto edgeA = vertexA1 - vertexA0;
 
-        for (size_t j = 0; j < shB.mesh->edges.size(); ++j) {
-            auto vertexB0 = to_world_space(shB.mesh->vertices[shB.mesh->edges[i * 2 + 0]], posB, ornB);
-            auto vertexB1 = to_world_space(shB.mesh->vertices[shB.mesh->edges[i * 2 + 1]], posB, ornB);
+        for (size_t j = 0; j < shB.mesh->edges.size(); j += 2) {
+            auto vertexB0 = to_world_space(shB.mesh->vertices[shB.mesh->edges[j + 0]], posB, ornB);
+            auto vertexB1 = to_world_space(shB.mesh->vertices[shB.mesh->edges[j + 1]], posB, ornB);
             auto edgeB = vertexB1 - vertexB0;
             auto dir = cross(edgeA, edgeB);
             auto dir_len_sqr = length_sqr(dir);
@@ -118,21 +128,16 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
                 dir *= -1;
             }
 
-            auto projA = scalar{};
-            auto projB = scalar{};
-
-            auto supA = point_cloud_support_point(shA.mesh->vertices.begin(), 
-                                                  shA.mesh->vertices.end(), 
-                                                  posA, ornA, -dir, &projA);
-            auto supB = point_cloud_support_point(shB.mesh->vertices.begin(), 
-                                                  shB.mesh->vertices.end(), 
-                                                  posB, ornB, dir, &projB);
+            auto supA = point_cloud_support_point(shA.mesh->vertices, 
+                                                  posA, ornA, -dir);
+            auto supB = point_cloud_support_point(shB.mesh->vertices,
+                                                  posB, ornB, dir);
             auto distance = dot(supA - supB, dir);
 
             if (distance > max_distance) {
                 max_distance = distance;
-                projectionA = projA;
-                projectionB = projB;
+                projectionA = dot(supA, dir);
+                projectionB = dot(supB, dir);
                 best_dir = dir;
             }
         }
@@ -148,7 +153,7 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
 
     // Find all vertices that are near the projection boundary.
     std::vector<vector3> verticesA, verticesB;
-    // Vertices on the contact plane.
+    // Vertices on the 2D contact plane.
     std::vector<vector2> plane_verticesA, plane_verticesB;
     auto contact_originA = best_dir * projectionA;
     auto contact_originB = best_dir * projectionB;
@@ -178,13 +183,41 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
         }
     }
 
-    // Calculate 2D convex hull of contact polygon.
-    auto hullA = calculate_convex_hull(plane_verticesA, tolerance);
-    auto hullB = calculate_convex_hull(plane_verticesB, tolerance);
+    EDYN_ASSERT(!verticesA.empty());
+    EDYN_ASSERT(!verticesB.empty());
 
-    // Calculate 2D intersection of contact polygons, which is the contact area.
+    std::vector<size_t> hullA, hullB;
+
+    if (plane_verticesA.size() > 3) {
+        // Calculate 2D convex hull of contact polygon.
+        hullA = calculate_convex_hull(plane_verticesA, tolerance);
+    } else {
+        if (plane_verticesA.size() == 3) {
+            // It is a triangle, just have to make sure vertices are
+            // oriented counter-clockwise.
+            sort_triangle_ccw(plane_verticesA[0], plane_verticesA[1], plane_verticesA[2]);
+        }
+
+        hullA.resize(plane_verticesA.size());
+        std::iota(hullA.begin(), hullA.end(), 0);
+    }
+
+    if (plane_verticesB.size() > 3) {
+        hullB = calculate_convex_hull(plane_verticesB, tolerance);
+    } else {
+        if (plane_verticesB.size() == 3) {
+            sort_triangle_ccw(plane_verticesB[0], plane_verticesB[1], plane_verticesB[2]);
+        }
+
+        hullB.resize(plane_verticesB.size());
+        std::iota(hullB.begin(), hullB.end(), 0);
+    }
+
     // First, add contact points for vertices that lie inside the opposing face.
-    if (verticesA.size() > 2) {
+    // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,
+    // check if the points in `verticesA` lie inside the prism spanned by `verticesB`
+    // and `best_dir`
+    if (hullB.size() > 2) {
         for (auto idxA : hullA) {
             auto &pointA = verticesA[idxA];
 
@@ -197,15 +230,51 @@ collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const
         }
     }
 
-    if (verticesB.size() > 2) {
+    if (hullA.size() > 2) {
         for (auto idxB : hullB) {
             auto &pointB = verticesB[idxB];
 
             if (point_in_polygonal_prism(verticesA, hullA, best_dir, pointB)) {
                 auto pivotB = to_object_space(pointB, posB, ornB);
-                auto pivotA_world = project_plane(pointB, contact_originA, -best_dir);
+                auto pivotA_world = project_plane(pointB, contact_originA, best_dir);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+            }
+        }
+    }
+
+    // Calculate 2D intersection of edges on the closest features.
+    if (hullA.size() > 1 && hullB.size() > 1) {
+        // If the feature is a polygon, it is will be necessary to wrap around the 
+        // vertex array. If it is just one edge, then avoid calculating the same
+        // segment-segment intersection twice.
+        const auto sizeA = hullA.size();
+        const auto sizeB = hullB.size();
+        const auto limitA = sizeA == 2 ? 1 : sizeA;
+        const auto limitB = sizeB == 2 ? 1 : sizeB;
+        scalar s[2], t[2];
+
+        for (size_t i = 0; i < limitA; ++i) {
+            auto idx0A = hullA[i];
+            auto idx1A = hullA[(i + 1) % sizeA];
+            auto &v0A = plane_verticesA[idx0A];
+            auto &v1A = plane_verticesA[idx1A];
+
+            for (size_t j = 0; j < limitB; ++j) {
+                auto idx0B = hullB[j];
+                auto idx1B = hullB[(j + 1) % sizeB];
+                auto &v0B = plane_verticesB[idx0B];
+                auto &v1B = plane_verticesB[idx1B];
+                auto num_points = intersect_segments(v0A, v1A, v0B, v1B, 
+                                                     s[0], t[0], s[1], t[1]);
+
+                for (size_t k = 0; k < num_points; ++k) {
+                    auto pivotA_world = lerp(verticesA[idx0A], verticesA[idx1A], s[k]);
+                    auto pivotB_world = lerp(verticesB[idx0B], verticesB[idx1B], t[k]);
+                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                    auto pivotB = to_object_space(pivotB_world, posB, ornB);
+                    result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+                }
             }
         }
     }

@@ -10,6 +10,7 @@ polyhedron_shape::polyhedron_shape(const std::string &path_to_obj)
 {
     load_mesh_from_obj(path_to_obj, mesh->vertices, mesh->indices);
     mesh->calculate_normals();
+    mesh->calculate_edges();
     calculate_local_aabb();
 }
 

@@ -114,6 +114,8 @@ size_t split_hull_edge(const std::vector<vector2> &points,
     auto v0 = points[hull[i0]];
     auto v1 = points[hull[i1]];
     auto edge = v1 - v0;
+    // Hull vertices are oriented counter-clockwise. Rotate edge clockwise
+    // to obtain a vector that points outside the convex polygon.
     auto dir = -orthogonal(edge);
     auto max_proj = -EDYN_SCALAR_MAX;
     auto point = vector2_zero;
@@ -213,6 +215,8 @@ bool point_inside_convex_polygon(const std::vector<vector2> &vertices, const vec
     for (size_t i = 0; i < vertices.size() - 1; ++i) {
         auto d = point - vertices[i];
         auto e = vertices[i + 1] - vertices[i];
+        // Vertices are oriented counter-clockwise. Rotate edge clockwise
+        // to obtain a vector that points outside the convex polygon.
         auto n = -orthogonal(e);
 
         if (dot(d, n) > 0) {

@@ -118,6 +118,7 @@ set(Edyn_SOURCES
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
+    src/edyn/shapes/convex_mesh.cpp
     src/edyn/parallel/entity_graph.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
