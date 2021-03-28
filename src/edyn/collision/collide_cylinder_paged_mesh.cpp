@@ -5,14 +5,13 @@
 
 namespace edyn {
 
-collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const paged_mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const cylinder_shape &shA, const paged_mesh_shape &shB, 
+                         const collision_context &ctx) {
     auto result = collision_result{};
 
     // Cylinder position and orientation in mesh's space.
-    auto posA_in_B = rotate(conjugate(ornB), posA - posB);
-    auto ornA_in_B = conjugate(ornB) * ornA;
+    auto posA_in_B = rotate(conjugate(ctx.ornB), ctx.posA - ctx.posB);
+    auto ornA_in_B = conjugate(ctx.ornB) * ctx.ornA;
 
     const auto cyl_axis = quaternion_x(ornA_in_B);
     const auto disc_center_pos = posA_in_B + cyl_axis * shA.half_length;
@@ -31,7 +30,7 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
 
         collide_cylinder_triangle(shA, posA_in_B, ornA_in_B, 
                                   disc_center_pos, disc_center_neg, cyl_axis, vertices, 
-                                  is_concave_edge, cos_angles, threshold, result);
+                                  is_concave_edge, cos_angles, ctx.threshold, result);
     });
 
     return result;

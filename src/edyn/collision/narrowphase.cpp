@@ -249,12 +249,10 @@ void detect_collision(const contact_manifold &manifold, collision_result &result
     if (intersect(aabbA.inset(offset), aabbB)) {
         auto &shapeA = body_view.get<shape>(manifold.body[0]);
         auto &shapeB = body_view.get<shape>(manifold.body[1]);
+        auto ctx = collision_context{posA, ornA, posB, ornB, contact_breaking_threshold};
 
-        // Structured binding is not captured by lambda, thus use an explicit
-        // capture list (https://stackoverflow.com/a/48103632/749818).
-        std::visit([&result, pA = posA, oA = ornA, pB = posB, oB = ornB] (auto &&sA, auto &&sB) {
-            result = collide(sA, pA, oA, sB, pB, oB, 
-                             contact_breaking_threshold);
+        std::visit([&result, &ctx] (auto &&sA, auto &&sB) {
+            result = collide(sA, sB, ctx);
         }, shapeA.var, shapeB.var);
     } else {
         result.num_points = 0;

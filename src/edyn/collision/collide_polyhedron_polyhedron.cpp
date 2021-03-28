@@ -59,9 +59,13 @@ void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2) {
     }
 }
 
-collision_result collide(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &shB, 
+                         const collision_context &ctx) {
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto &posB = ctx.posB;
+    const auto &ornB = ctx.ornB;
+    const auto threshold = ctx.threshold;
 
     scalar max_distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;

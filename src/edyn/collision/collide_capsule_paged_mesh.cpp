@@ -2,9 +2,8 @@
 
 namespace edyn {
 
-collision_result collide(const capsule_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const paged_mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const capsule_shape &shA, const paged_mesh_shape &shB, 
+                         const collision_context &ctx) {
     // TODO
     return {};
 }

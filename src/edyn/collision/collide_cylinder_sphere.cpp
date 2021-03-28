@@ -3,9 +3,14 @@
 
 namespace edyn {
 
-collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const sphere_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const cylinder_shape &shA, const sphere_shape &shB, 
+                         const collision_context &ctx) {
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto &posB = ctx.posB;
+    const auto &ornB = ctx.ornB;
+    const auto threshold = ctx.threshold;
+
     const auto hl = rotate(ornA, vector3_x * shA.half_length);
     const auto p0 = posA - hl;
     const auto p1 = posA + hl;
