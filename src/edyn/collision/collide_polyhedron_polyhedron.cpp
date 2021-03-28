@@ -6,12 +6,13 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/util/shape_util.hpp"
+#include "edyn/comp/rotated_convex_mesh.hpp"
 #include <numeric>
 
 namespace edyn {
 
-void max_support_direction(const polyhedron_shape &shA, const vector3 &posA, const quaternion &ornA,
-                           const polyhedron_shape &shB, const vector3 &posB, const quaternion &ornB,
+void max_support_direction(const polyhedron_shape &shA, const rotated_convex_mesh &rotatedA, const vector3 &posA,
+                           const polyhedron_shape &shB, const rotated_convex_mesh &rotatedB, const vector3 &posB,
                            vector3 &dir, scalar &distance, scalar &projectionA, scalar &projectionB) {
     scalar max_proj_A = EDYN_SCALAR_MAX;
     scalar max_proj_B = -EDYN_SCALAR_MAX;
@@ -19,19 +20,17 @@ void max_support_direction(const polyhedron_shape &shA, const vector3 &posA, con
     auto best_dir = vector3_zero;
 
     for (size_t i = 0; i < shA.mesh->num_triangles(); ++i) {
-        auto normalA = shA.mesh->normals[i];
-        auto normal_world = rotate(ornA, normalA);
+        auto &normal_world = rotatedA.normals[i];
 
         auto vertex_idx = shA.mesh->indices[i * 3];
-        auto &vertexA = shA.mesh->vertices[vertex_idx];
-        auto vertex_world = to_world_space(vertexA, posA, ornA);
+        auto &vertexA = rotatedA.vertices[vertex_idx];
+        auto vertex_world = vertexA + posA;
 
         auto projA = dot(vertex_world, normal_world);
 
         // Find point on B that's furthest along the opposite direction
         // of the triangle normal.
-        auto supB = point_cloud_support_point(shB.mesh->vertices, 
-                                              posB, ornB, -normal_world);
+        auto supB = point_cloud_support_point(rotatedB.vertices, -normal_world) + posB;
         auto projB = dot(supB, normal_world);
 
         auto dist = dot(supB - vertex_world, normal_world);
@@ -61,11 +60,14 @@ void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2) {
 
 collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &shB, 
                          const collision_context &ctx) {
-    const auto &posA = ctx.posA;
+    const auto posA = vector3_zero;// ctx.posA;
     const auto &ornA = ctx.ornA;
-    const auto &posB = ctx.posB;
+    const auto posB = ctx.posB - ctx.posA;
     const auto &ornB = ctx.ornB;
     const auto threshold = ctx.threshold;
+
+    rotated_convex_mesh r_verticesA;
+    rotated_convex_mesh r_verticesB;
 
     scalar max_distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;

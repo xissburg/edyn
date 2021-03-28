@@ -4,6 +4,7 @@
 #include "edyn/sys/integrate_angvel.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_aabbs.hpp"
+#include "edyn/sys/update_rotated_convex_meshes.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
@@ -166,6 +167,8 @@ void solver::update(scalar dt) {
     
     // Update world-space moment of inertia.
     update_inertia(*m_registry);
+
+    update_rotated_convex_meshes(*m_registry);
 }
 
 }

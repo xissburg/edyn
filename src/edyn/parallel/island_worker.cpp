@@ -1,8 +1,12 @@
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/comp/orientation.hpp"
 #include "edyn/config/config.h"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/shapes/polyhedron_shape.hpp"
+#include "edyn/comp/rotated_convex_mesh.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/message.hpp"
@@ -75,6 +79,8 @@ void island_worker::init() {
 
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
     m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
+
+    m_registry.on_construct<shape>().connect<&island_worker::on_construct_shape>(*this);
 
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -202,6 +208,22 @@ void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity
     }
 
     m_topology_changed = true;
+}
+
+void island_worker::on_construct_shape(entt::registry &registry, entt::entity entity) {
+    auto &sh = registry.get<shape>(entity);
+
+    if (std::holds_alternative<polyhedron_shape>(sh.var)) {
+        auto &polyhedron = std::get<polyhedron_shape>(sh.var);
+        auto transformed = rotated_convex_mesh{};
+        auto &pos = registry.get<position>(entity);
+        auto &orn = registry.get<orientation>(entity);
+        transformed.vertices.resize(polyhedron.mesh->vertices.size());
+
+        for (auto &vertex_local : polyhedron.mesh->vertices) {
+            transformed.vertices.push_back(to_world_space(vertex_local, pos, orn));
+        }
+    }
 }
 
 void island_worker::on_island_delta(const island_delta &delta) {
