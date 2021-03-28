@@ -286,6 +286,17 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
                            const vector2 &aabb_min, const vector2 &aabb_max,
                            scalar &s0, scalar &s1);
 
+/**
+ * @brief Checks if a point lies inside the prism with base defined by a convex
+ * polygon.
+ * @param vertices An array of vertices.
+ * @param indices Indices of vertices in the vertex array to be considered. They
+ * should represent a convex polygon laying on a plane, oriented counter-clockwise
+ * with respect to the plane normal.
+ * @param normal Normal of plane that fits the convex polygon.
+ * @param point Point to test.
+ * @return Whether the point is inside the convex polygon or not.
+ */
 bool point_in_polygonal_prism(const std::vector<vector3> &vertices, 
                               const std::vector<size_t> &indices,
                               const vector3 &normal, const vector3 &point);

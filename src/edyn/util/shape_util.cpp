@@ -107,44 +107,6 @@ AABB aabb_of_aabb(const AABB &aabb, const vector3 &pos, const quaternion &orn) {
     return {result_min, result_max};
 }
 
-size_t split_hull_edge(const std::vector<vector2> &points, 
-                     std::vector<size_t> &hull, 
-                     size_t i0, size_t i1, scalar tolerance) {
-
-    auto v0 = points[hull[i0]];
-    auto v1 = points[hull[i1]];
-    auto edge = v1 - v0;
-    // Hull vertices are oriented counter-clockwise. Rotate edge clockwise
-    // to obtain a vector that points outside the convex polygon.
-    auto dir = -orthogonal(edge);
-    auto max_proj = -EDYN_SCALAR_MAX;
-    auto point = vector2_zero;
-    auto idx = size_t{};
-
-    for (size_t i = 0; i < points.size(); ++i) {
-        auto &p = points[i];
-        auto proj = dot(p, dir);
-        if (proj > max_proj) {
-            max_proj = proj;
-            point = p;
-            idx = i;
-        }
-    }
-
-    if (dot(point - v0, dir) > tolerance) {
-        hull.insert(hull.begin() + i1, idx);
-        auto num_splits = split_hull_edge(points, hull, i0, i1, tolerance);
-
-        i1 += num_splits;
-        auto i2 = i1 + 1;
-        num_splits += split_hull_edge(points, hull, i1, i2, tolerance);
-
-        return 1 + num_splits;
-    }
-
-    return 0;
-}
-
 AABB point_cloud_aabb(const std::vector<vector3> &points) {
     // TODO: implement and use `parallel_reduce`.
     auto aabb = AABB{vector3_max, -vector3_max};
@@ -187,6 +149,44 @@ vector3 point_cloud_support_point(const std::vector<vector3> &points, const vect
     }
 
     return sup;
+}
+
+size_t split_hull_edge(const std::vector<vector2> &points, 
+                     std::vector<size_t> &hull, 
+                     size_t i0, size_t i1, scalar tolerance) {
+
+    auto v0 = points[hull[i0]];
+    auto v1 = points[hull[i1]];
+    auto edge = v1 - v0;
+    // Hull vertices are oriented counter-clockwise. Rotate edge clockwise
+    // to obtain a vector that points outside the convex polygon.
+    auto dir = -orthogonal(edge);
+    auto max_proj = -EDYN_SCALAR_MAX;
+    auto point = vector2_zero;
+    auto idx = size_t{};
+
+    for (size_t i = 0; i < points.size(); ++i) {
+        auto &p = points[i];
+        auto proj = dot(p, dir);
+        if (proj > max_proj) {
+            max_proj = proj;
+            point = p;
+            idx = i;
+        }
+    }
+
+    if (dot(point - v0, dir) > tolerance) {
+        hull.insert(hull.begin() + i1, idx);
+        auto num_splits = split_hull_edge(points, hull, i0, i1, tolerance);
+
+        i1 += num_splits;
+        auto i2 = i1 + 1;
+        num_splits += split_hull_edge(points, hull, i1, i2, tolerance);
+
+        return 1 + num_splits;
+    }
+
+    return 0;
 }
 
 std::vector<size_t> calculate_convex_hull(const std::vector<vector2> &points, scalar tolerance) {
