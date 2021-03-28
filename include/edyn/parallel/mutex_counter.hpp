@@ -26,7 +26,8 @@ public:
     void decrement(size_t count = 1) {
         {
             std::lock_guard lock(m_mutex);
-            EDYN_ASSERT(count <= m_count);
+            EDYN_ASSERT(m_count > 0);
+            EDYN_ASSERT(m_count >= count);
             m_count -= count;
         }
         m_cv.notify_one();

@@ -3,11 +3,6 @@
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/linvel.hpp"
-#include "edyn/comp/angvel.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
-#include "edyn/util/constraint_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 

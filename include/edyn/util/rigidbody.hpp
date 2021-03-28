@@ -5,6 +5,7 @@
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/comp/shape.hpp"
 
 namespace edyn {
@@ -32,7 +33,7 @@ struct rigidbody_def {
 
     // Mass properties for dynamic entities.
     scalar mass {1};
-    vector3 inertia {1, 1, 1};
+    matrix3x3 inertia {matrix3x3_identity};
 
     // Initial linear and angular velocity.
     vector3 linvel {vector3_zero};

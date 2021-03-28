@@ -1,5 +1,7 @@
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/util/shape_util.hpp"
+#include "edyn/util/moment_of_inertia.hpp"
 #include <cstdint>
 
 namespace edyn {
@@ -27,21 +29,12 @@ AABB box_shape::aabb(const vector3 &pos, const quaternion &orn) const {
     return aabb;
 }
 
-vector3 box_shape::inertia(scalar mass) const {
-    auto extents = half_extents * 2;
-    return scalar(1) / scalar(12) * mass * vector3{
-        extents.y * extents.y + extents.z * extents.z,
-        extents.z * extents.z + extents.x * extents.x,
-        extents.x * extents.x + extents.y * extents.y,
-    };
+matrix3x3 box_shape::inertia(scalar mass) const {
+    return diagonal_matrix(moment_of_inertia_solid_box(mass, half_extents * 2));
 }
 
 vector3 box_shape::support_point(const vector3 &dir) const {
-    return {
-        dir.x > 0 ? half_extents.x : -half_extents.x,
-        dir.y > 0 ? half_extents.y : -half_extents.y,
-        dir.z > 0 ? half_extents.z : -half_extents.z
-    };
+    return support_point_box(half_extents, dir);
 }
 
 vector3 box_shape::support_point(const quaternion &orn, const vector3 &dir) const {

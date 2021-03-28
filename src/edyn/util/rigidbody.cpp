@@ -1,4 +1,5 @@
 #include <entt/entt.hpp>
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -34,18 +35,15 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<mass>(entity, def.mass);
         registry.emplace<mass_inv>(entity, def.mass < EDYN_SCALAR_MAX ? 1 / def.mass : 0);
         registry.emplace<inertia>(entity, def.inertia);
-        auto &invI = registry.emplace<inertia_inv>(entity, 
-            vector3 {
-                def.inertia.x < EDYN_SCALAR_MAX ? 1 / def.inertia.x : 0,
-                def.inertia.y < EDYN_SCALAR_MAX ? 1 / def.inertia.y : 0,
-                def.inertia.z < EDYN_SCALAR_MAX ? 1 / def.inertia.z : 0
-            });
-        registry.emplace<inertia_world_inv>(entity, diagonal(invI));
+
+        auto I_inv = inverse_matrix_symmetric(def.inertia);
+        registry.emplace<inertia_inv>(entity, I_inv);
+        registry.emplace<inertia_world_inv>(entity, I_inv);
     } else {
         registry.emplace<mass>(entity, EDYN_SCALAR_MAX);
         registry.emplace<mass_inv>(entity, 0);
-        registry.emplace<inertia>(entity, vector3_max);
-        registry.emplace<inertia_inv>(entity, vector3_zero);
+        registry.emplace<inertia>(entity, matrix3x3_zero);
+        registry.emplace<inertia_inv>(entity, matrix3x3_zero);
         registry.emplace<inertia_world_inv>(entity, matrix3x3_zero);
     }
 
@@ -122,12 +120,20 @@ void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar ma
 void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
     auto &mass = registry.get<edyn::mass>(entity);
 
-    edyn::vector3 inertia;
+    matrix3x3 I;
     auto& shape = registry.get<edyn::shape>(entity);
     std::visit([&] (auto&& s) {
-        inertia = s.inertia(mass);
+        I = s.inertia(mass);
     }, shape.var);
-    registry.replace<edyn::inertia>(entity, inertia);
+    registry.replace<edyn::inertia>(entity, I);
+
+    auto inv_I = inverse_matrix_symmetric(I);
+    registry.replace<edyn::inertia_inv>(entity, inv_I);
+
+    auto &orn = registry.get<orientation>(entity);
+    auto basis = to_matrix3x3(orn);
+    auto inv_IW = basis * inv_I * transpose(basis);
+    registry.replace<edyn::inertia_world_inv>(entity, inv_IW);
 }
 
 void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity, 

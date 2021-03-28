@@ -1,6 +1,7 @@
 #include "edyn/build_settings.h"
 #include "edyn/init.hpp"
 #include "comp/shared_comp.hpp"
+#include "comp/dirty.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
 #include "math/vector3.hpp"

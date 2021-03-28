@@ -8,6 +8,7 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/rotated_mesh.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/collision_result.hpp"
 
@@ -17,11 +18,12 @@ struct contact_manifold;
 struct job;
 
 using body_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, AABB, shape, position, orientation>; 
+using rotated_mesh_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, rotated_mesh>; 
 using transform_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, position, orientation>; 
 using contact_manifold_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_manifold>;
 
 void detect_collision(const contact_manifold &, collision_result &, 
-                      const body_view_t &);
+                      const body_view_t &, const rotated_mesh_view_t &);
 void process_result(entt::registry &, entt::entity manifold_entity, 
                     contact_manifold &, const collision_result &, 
                     const transform_view_t &);
@@ -54,13 +56,14 @@ public:
     template<typename Iterator>
     void update_contact_manifolds(Iterator begin, Iterator end, contact_manifold_view_t &manifold_view) {
         auto body_view = m_registry->view<AABB, shape, position, orientation>();
+        auto rmesh_view = m_registry->view<rotated_mesh>();
         auto tr_view = m_registry->view<position, orientation>();
         collision_result result;
 
         for (auto it = begin; it != end; ++it) {
             entt::entity entity = *it;
             auto &manifold = manifold_view.get(entity);
-            detect_collision(manifold, result, body_view);
+            detect_collision(manifold, result, body_view, rmesh_view);
             process_result(*m_registry, entity, manifold, result, tr_view);
         }
     }

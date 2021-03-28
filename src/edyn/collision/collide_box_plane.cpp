@@ -2,19 +2,18 @@
 
 namespace edyn {
 
-collision_result collide(const box_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const plane_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const box_shape &shA, const plane_shape &shB, 
+                         const collision_context &ctx) {
     auto result = collision_result{};
-    auto normal = rotate(ornB, shB.normal);
-    auto center = posB + rotate(ornB, shB.normal * shB.constant);
+    auto normal = rotate(ctx.ornB, shB.normal);
+    auto center = ctx.posB + rotate(ctx.ornB, shB.normal * shB.constant);
 
     for (size_t i = 0; i < 8; ++i) {
         auto vertex_local = shA.get_vertex(i);
-        auto vertex_world = posA + rotate(ornA, vertex_local);
+        auto vertex_world = ctx.posA + rotate(ctx.ornA, vertex_local);
         auto distance = dot(vertex_world - center, normal);
 
-        if (distance < threshold) {
+        if (distance < ctx.threshold) {
             auto pt_proj = vertex_world - normal * distance;
             auto idx = SIZE_MAX;
 
@@ -41,7 +40,7 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
 
             if (idx != SIZE_MAX) {
                 result.point[idx].pivotA = vertex_local;
-                result.point[idx].pivotB = rotate(conjugate(ornB), pt_proj - posB);
+                result.point[idx].pivotB = rotate(conjugate(ctx.ornB), pt_proj - ctx.posB);
                 result.point[idx].normalB = shB.normal;
                 result.point[idx].distance = distance;
             }
@@ -49,6 +48,11 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
     }
 
     return result;
+}
+
+collision_result collide(const plane_shape &shA, const box_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
 }
 
 }

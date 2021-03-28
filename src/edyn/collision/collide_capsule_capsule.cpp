@@ -3,9 +3,13 @@
 
 namespace edyn {
 
-collision_result collide(const capsule_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const capsule_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const capsule_shape &shA, const capsule_shape &shB, 
+                         const collision_context &ctx) {
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto &posB = ctx.posB;
+    const auto &ornB = ctx.ornB;
+
     // Half-length vector in world-space.
     auto hlA = rotate(ornA, vector3_x * shA.half_length);
     auto hlB = rotate(ornB, vector3_x * shB.half_length);
@@ -23,7 +27,7 @@ collision_result collide(const capsule_shape &shA, const vector3 &posA, const qu
 
     auto l2 = closest_point_segment_segment(p0A, p1A, p0B, p1B, s, t, cA, cB, 
                                             &num_points, &sp, &tp, &cAp, &cBp);
-    auto r = shA.radius + shB.radius + threshold;
+    auto r = shA.radius + shB.radius + ctx.threshold;
     
     if (l2 > r * r) {
         return {};

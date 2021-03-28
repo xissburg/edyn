@@ -3,10 +3,6 @@
 
 #include <entt/entt.hpp>
 #include "edyn/comp/constraint.hpp"
-#include "edyn/comp/tag.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
-#include "edyn/comp/dirty.hpp"
 
 namespace edyn {
 

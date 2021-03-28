@@ -5,6 +5,7 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/collision/collision_result.hpp"
+#include "edyn/util/moment_of_inertia.hpp"
 
 namespace edyn {
 
@@ -18,9 +19,8 @@ struct sphere_shape {
         };
     }
 
-    vector3 inertia(scalar mass) const {
-        scalar s = 0.4 * mass * radius * radius;
-        return {s, s, s};
+    matrix3x3 inertia(scalar mass) const {
+        return diagonal_matrix(moment_of_inertia_solid_sphere(mass, radius));
     }
 };
 

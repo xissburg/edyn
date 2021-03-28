@@ -20,9 +20,8 @@ struct cyl_box_separating_axis {
     scalar distance;
 };
 
-collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const box_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const cylinder_shape &shA, const box_shape &shB, 
+                         const collision_context &ctx) {
     // Cylinder-Box SAT. Normal of 3 faces of B, normal of cylinder caps of A
     // which is the cylinder main axis, 3 cross products between the axes of the
     // basis of the box and the cylinder axis mainly for the cylinder side edge
@@ -31,6 +30,13 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     // box vertex collisions, and 24 circle-segment closest point
     // normal between edges of B and cap edges of A.
     std::array<cyl_box_separating_axis, 3 + 1 + 3 + 8 + 24> sep_axes;
+
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto &posB = ctx.posB;
+    const auto &ornB = ctx.ornB;
+    const auto threshold = ctx.threshold;
+
     size_t axis_idx = 0;
 
     auto box_axes = std::array<vector3, 3>{
@@ -444,6 +450,11 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     }
 
     return result;
+}
+
+collision_result collide(const box_shape &shA, const cylinder_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
 }
 
 }

@@ -52,6 +52,7 @@ class island_worker final {
     void reschedule_later();
     void do_terminate();
     void init_new_imported_contact_manifolds();
+    void insert_remote_node(entt::entity remote_entity);
     void maybe_go_to_sleep();
     bool could_go_to_sleep();
     void go_to_sleep();

@@ -2,9 +2,14 @@
 
 namespace edyn {
 
-collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const plane_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const cylinder_shape &shA, const plane_shape &shB, 
+                         const collision_context &ctx) {
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto &posB = ctx.posB;
+    const auto &ornB = ctx.ornB;
+    const auto threshold = ctx.threshold;
+
     auto cyl_axis = rotate(ornA, vector3_x);
     vector3 disc_pos[] = {posA - cyl_axis * shA.half_length, posA + cyl_axis * shA.half_length};
     auto normal = rotate(ornB, shB.normal);
@@ -106,6 +111,11 @@ collision_result collide(const cylinder_shape &shA, const vector3 &posA, const q
     }
     
     return result;
+}
+
+collision_result collide(const plane_shape &shA, const cylinder_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
 }
 
 }

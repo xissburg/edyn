@@ -4,15 +4,14 @@
 
 namespace edyn {
 
-collision_result collide(const box_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const box_shape &shA, const mesh_shape &shB, 
+                         const collision_context &ctx) {
     auto result = collision_result{};
 
     // Box position and orientation in mesh's space.
-    const auto ornB_conj = conjugate(ornB);
-    const auto posA_in_B = rotate(ornB_conj, posA - posB);
-    const auto ornA_in_B = ornB_conj * ornA;
+    const auto ornB_conj = conjugate(ctx.ornB);
+    const auto posA_in_B = rotate(ornB_conj, ctx.posA - ctx.posB);
+    const auto ornA_in_B = ornB_conj * ctx.ornA;
 
     const auto axesA = std::array<vector3, 3>{
         quaternion_x(ornA_in_B),
@@ -31,10 +30,15 @@ collision_result collide(const box_shape &shA, const vector3 &posA, const quater
         }
 
         collide_box_triangle(shA, posA_in_B, ornA_in_B, axesA, vertices, 
-                             is_concave_edge, cos_angles, threshold, result);
+                             is_concave_edge, cos_angles, ctx.threshold, result);
     });
 
     return result;
+}
+
+collision_result collide(const mesh_shape &shA, const box_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
 }
 
 }

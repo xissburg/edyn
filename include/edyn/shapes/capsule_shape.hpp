@@ -2,7 +2,9 @@
 #define EDYN_SHAPES_CAPSULE_SHAPE_HPP
 
 #include "edyn/comp/aabb.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/util/moment_of_inertia.hpp"
 
 namespace edyn {
 
@@ -18,14 +20,8 @@ struct capsule_shape {
         return {min(p0, p1) - offset, max(p0, p1) + offset};
     }
 
-    vector3 inertia(scalar mass) const {
-        auto l = half_length * 2;
-        auto xx = scalar(0.5) * mass * radius * radius;
-        auto yy_zz = mass * (scalar(1) / scalar(12) * (scalar(3) * radius * radius + l * l) +
-                     scalar(0.4) * radius * radius + 
-                     scalar(0.375) * radius * l + 
-                     scalar(0.25) * l * l);
-        return {xx, yy_zz, yy_zz};
+    matrix3x3 inertia(scalar mass) const {
+        return diagonal_matrix(moment_of_inertia_solid_capsule(mass, half_length * 2, radius));
     }
 };
 

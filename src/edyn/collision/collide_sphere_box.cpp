@@ -3,20 +3,19 @@
 
 namespace edyn {
 
-collision_result collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const box_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const sphere_shape &shA, const box_shape &shB, 
+                         const collision_context &ctx) {
 
     // Sphere position and orientation in box space.
-    const auto ornB_conj = conjugate(ornB);
-    const auto posA_in_B = rotate(ornB_conj, posA - posB);
-    const auto ornA_in_B = ornB_conj * ornA;
+    const auto ornB_conj = conjugate(ctx.ornB);
+    const auto posA_in_B = rotate(ornB_conj, ctx.posA - ctx.posB);
+    const auto ornA_in_B = ornB_conj * ctx.ornA;
 
     // Inspired by Bullet's btSphereBoxCollisionAlgorithm.
     auto closest = closest_point_box_outside(shB.half_extents, posA_in_B);
     auto normalB = posA_in_B - closest;
     auto d_sqr = length_sqr(normalB);
-    auto min_dist = shA.radius + threshold;
+    auto min_dist = shA.radius + ctx.threshold;
 
     if (d_sqr > min_dist * min_dist) {
         return {};
@@ -44,6 +43,11 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
     result.point[0].distance = center_distance - shA.radius;
 
     return result;
+}
+
+collision_result collide(const box_shape &shA, const sphere_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
 }
 
 }

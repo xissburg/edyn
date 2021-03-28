@@ -5,6 +5,7 @@
 
 #include "edyn/comp/aabb.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/serialization/file_archive.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "paged_triangle_mesh.hpp"
@@ -18,8 +19,8 @@ struct paged_mesh_shape {
         return {trimesh->get_aabb().min + pos, trimesh->get_aabb().max + pos};
     }
 
-    vector3 inertia(scalar mass) const {
-        return vector3_max;
+    matrix3x3 inertia(scalar mass) const {
+        return diagonal_matrix(vector3_max);
     }
 };
 

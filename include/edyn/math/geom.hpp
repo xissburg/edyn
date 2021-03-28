@@ -1,6 +1,7 @@
 #ifndef EDYN_MATH_GEOM_HPP
 #define EDYN_MATH_GEOM_HPP
 
+#include <vector>
 #include <cstdint>
 #include "constants.hpp"
 #include "quaternion.hpp"
@@ -190,22 +191,6 @@ size_t insert_index(const std::array<vector3, N> &points,
                     scalar new_point_depth) {
     EDYN_ASSERT(num_points <= N);
 
-    // Look for nearby points.
-    auto closest_idx = SIZE_MAX;
-    auto closest_dist_sqr = EDYN_SCALAR_MAX;
-
-    for (size_t i = 0; i < num_points; ++i) {
-        auto dist_sqr = distance_sqr(new_point, points[i]);
-        if (dist_sqr < closest_dist_sqr) {
-            closest_dist_sqr = dist_sqr;
-            closest_idx = i;
-        }
-    }
-    
-    if (closest_dist_sqr < contact_breaking_threshold * contact_breaking_threshold) {
-        return closest_idx;
-    }
-
     // Return the index after last to signal the insertion of a new point.
     if (num_points < N) {
         return num_points;
@@ -223,7 +208,7 @@ size_t insert_index(const std::array<vector3, N> &points,
     }
 
     // The approximate area when the i-th point is removed.
-    auto areas = make_array<5>(scalar(0));
+    auto areas = make_array<N>(scalar(0));
 
     // Do not calculate it for the deepest point.
     if (deepest_dist_idx != 0) {
@@ -238,12 +223,11 @@ size_t insert_index(const std::array<vector3, N> &points,
     if (deepest_dist_idx != 3) {
         areas[3] = area_4_points(new_point, points[0], points[1], points[2]);
     }
-    if (deepest_dist_idx != 4) { // Area without the new point.
-        areas[4] = area_4_points(points[0], points[1], points[2], points[3]);
-    }
 
-    auto max_area = scalar(0);
+    auto current_area = area_4_points(points[0], points[1], points[2], points[3]);
+    auto max_area = current_area;
     auto max_area_idx = SIZE_MAX;
+
     for (size_t i = 0; i < areas.size(); ++i) {
         if (areas[i] > max_area) {
             max_area = areas[i];
@@ -255,7 +239,7 @@ size_t insert_index(const std::array<vector3, N> &points,
         return max_area_idx;
     }
 
-    // Ignore new point because the contact set is better as it is.
+    // Ignore new point because the current contact set is better as it is.
     return N;
 }
 
@@ -301,6 +285,21 @@ scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p,
 size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
                            const vector2 &aabb_min, const vector2 &aabb_max,
                            scalar &s0, scalar &s1);
+
+/**
+ * @brief Checks if a point lies inside the prism with base defined by a convex
+ * polygon.
+ * @param vertices An array of vertices.
+ * @param indices Indices of vertices in the vertex array to be considered. They
+ * should represent a convex polygon laying on a plane, oriented counter-clockwise
+ * with respect to the plane normal.
+ * @param normal Normal of plane that fits the convex polygon.
+ * @param point Point to test.
+ * @return Whether the point is inside the convex polygon or not.
+ */
+bool point_in_polygonal_prism(const std::vector<vector3> &vertices, 
+                              const std::vector<size_t> &indices,
+                              const vector3 &normal, const vector3 &point);
 
 }
 

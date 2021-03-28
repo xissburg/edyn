@@ -89,6 +89,14 @@ set(Edyn_SOURCES
     src/edyn/collision/collide_cylinder_triangle.cpp
     src/edyn/collision/collide_sphere_triangle.cpp
     src/edyn/collision/collide_box_triangle.cpp
+    src/edyn/collision/collide_box_polyhedron.cpp
+    src/edyn/collision/collide_capsule_polyhedron.cpp
+    src/edyn/collision/collide_cylinder_polyhedron.cpp
+    src/edyn/collision/collide_polyhedron_mesh.cpp
+    src/edyn/collision/collide_polyhedron_paged_mesh.cpp
+    src/edyn/collision/collide_polyhedron_plane.cpp
+    src/edyn/collision/collide_polyhedron_polyhedron.cpp
+    src/edyn/collision/collide_sphere_polyhedron.cpp
     src/edyn/collision/collision_result.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
@@ -100,14 +108,18 @@ set(Edyn_SOURCES
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp
     src/edyn/sys/update_aabbs.cpp
+    src/edyn/sys/update_rotated_meshes.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/util/constraint_util.cpp
     src/edyn/util/shape_util.cpp
+    src/edyn/util/moment_of_inertia.cpp
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
     src/edyn/shapes/triangle_shape.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
+    src/edyn/shapes/polyhedron_shape.cpp
+    src/edyn/shapes/convex_mesh.cpp
     src/edyn/parallel/entity_graph.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
@@ -152,7 +164,7 @@ target_compile_features(Edyn PUBLIC cxx_std_17)
 #
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    #target_compile_options(Edyn PUBLIC -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
+    #target_compile_options(Edyn PUBLIC -D_GLIBCXX_DEBUG -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
     #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
 endif()
 

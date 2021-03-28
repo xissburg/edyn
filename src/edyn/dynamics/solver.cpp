@@ -4,6 +4,7 @@
 #include "edyn/sys/integrate_angvel.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_aabbs.hpp"
+#include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
@@ -84,9 +85,9 @@ scalar solve(constraint_row_data &data) {
 
 void update_inertia(entt::registry &registry) {
     auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
-    view.each([] (auto, orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
+    view.each([] (orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
         auto basis = to_matrix3x3(orn);
-        inv_IW = scale(basis, inv_I) * transpose(basis);
+        inv_IW = basis * inv_I * transpose(basis);
     });
 }
 
@@ -162,8 +163,13 @@ void solver::update(scalar dt) {
     // Integrate velocities to obtain new transforms.
     integrate_linvel(*m_registry, dt);
     integrate_angvel(*m_registry, dt);
+
+    // Update AABBs after transforms change.
     update_aabbs(*m_registry);
     
+    // Update rotated vertices of convex meshes after rotations change.
+    update_rotated_meshes(*m_registry);
+
     // Update world-space moment of inertia.
     update_inertia(*m_registry);
 }

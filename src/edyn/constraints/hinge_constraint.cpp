@@ -52,8 +52,8 @@ void hinge_constraint::prepare(entt::entity, constraint &con, entt::registry &re
     auto &ornB = registry.get<orientation>(con.body[1]);
     const auto rB = rotate(ornB, pivot[1]);
 
-    const auto rA_skew = skew(rA);
-    const auto rB_skew = skew(rB);
+    const auto rA_skew = skew_matrix(rA);
+    const auto rB_skew = skew_matrix(rB);
     constexpr auto I = matrix3x3_identity;
 
     for (size_t i = 0; i < 3; ++i) {

@@ -17,11 +17,15 @@ struct box_box_separating_axis {
     scalar distance;
 };
 
-collision_result collide(const box_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const box_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const box_shape &shA, const box_shape &shB, 
+                         const collision_context &ctx) {
     // Box-Box SAT. Normal of 3 faces of A, normal of 3 faces of B, 3 * 3 edge
     // cross-products. Find axis with greatest projection.
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto &posB = ctx.posB;
+    const auto &ornB = ctx.ornB;
+    const auto threshold = ctx.threshold;
 
     auto axesA = std::array<vector3, 3>{
         quaternion_x(ornA),

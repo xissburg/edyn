@@ -3,6 +3,7 @@
 
 #include "edyn/comp/aabb.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/matrix3x3.hpp"
 
 namespace edyn {
 
@@ -41,8 +42,8 @@ struct plane_shape {
                 unit_max * aabb_half_extent + pos};
     }
 
-    vector3 inertia(scalar mass) const {
-        return vector3_max;
+    matrix3x3 inertia(scalar mass) const {
+        return diagonal_matrix(vector3_max);
     }
 };
 

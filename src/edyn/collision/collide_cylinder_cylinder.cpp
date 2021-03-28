@@ -21,12 +21,17 @@ struct cyl_cyl_separating_axis {
     scalar distance;
 };
 
-collision_result collide(const cylinder_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const cylinder_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB, 
+                         const collision_context &ctx) {
     // Cylinder-cylinder SAT.
     std::array<cyl_cyl_separating_axis, 11> sep_axes;
     size_t axis_idx = 0;
+
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto &posB = ctx.posB;
+    const auto &ornB = ctx.ornB;
+    const auto threshold = ctx.threshold;
 
     const auto axisA = quaternion_x(ornA);
     const auto axisB = quaternion_x(ornB);

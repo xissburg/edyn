@@ -16,19 +16,18 @@ void add_contact_points(scalar l, const vector3 &d, scalar radius, const vector3
     }
 }
 
-collision_result collide(const capsule_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const plane_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const capsule_shape &shA, const plane_shape &shB, 
+                         const collision_context &ctx) {
     // Plane center and normal in world-space.
-    auto normal = rotate(ornB, shB.normal);
-    auto center = posB + rotate(ornB, shB.normal * shB.constant);
+    auto normal = rotate(ctx.ornB, shB.normal);
+    auto center = ctx.posB + rotate(ctx.ornB, shB.normal * shB.constant);
 
     // Half-length vector in world-space.
-    auto hl = rotate(ornA, vector3_x * shA.half_length);
+    auto hl = rotate(ctx.ornA, vector3_x * shA.half_length);
 
     // Center of hemispheres on capsule's ends.
-    auto p0 = posA - hl;
-    auto p1 = posA + hl;
+    auto p0 = ctx.posA - hl;
+    auto p1 = ctx.posA + hl;
 
     // Vector from hemisphere center to plane center.
     auto d0 = p0 - center;
@@ -40,10 +39,17 @@ collision_result collide(const capsule_shape &shA, const vector3 &posA, const qu
 
     auto result = collision_result {};
     
-    add_contact_points(l0, d0, shA.radius, -hl, ornA, center, ornB, shB.normal, normal, result);
-    add_contact_points(l1, d1, shA.radius, hl, ornA, center, ornB, shB.normal, normal, result);
+    add_contact_points(l0, d0, shA.radius, -hl, ctx.ornA, center, 
+                       ctx.ornB, shB.normal, normal, result);
+    add_contact_points(l1, d1, shA.radius, hl, ctx.ornA, center, 
+                       ctx.ornB, shB.normal, normal, result);
 
     return result;
+}
+
+collision_result collide(const plane_shape &shA, const capsule_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
 }
 
 }

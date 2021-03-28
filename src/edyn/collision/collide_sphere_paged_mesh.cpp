@@ -2,16 +2,15 @@
 
 namespace edyn {
 
-collision_result collide(const sphere_shape &shA, const vector3 &posA, const quaternion &ornA,
-                         const paged_mesh_shape &shB, const vector3 &posB, const quaternion &ornB,
-                         scalar threshold) {
+collision_result collide(const sphere_shape &shA, const paged_mesh_shape &shB, 
+                         const collision_context &ctx) {
     auto result = collision_result{};
 
     // Sphere position in mesh's space.
-    auto posA_in_B = rotate(conjugate(ornB), posA - posB);
-    auto ornA_in_B = conjugate(ornB) * ornA;
+    auto posA_in_B = rotate(conjugate(ctx.ornB), ctx.posA - ctx.posB);
+    auto ornA_in_B = conjugate(ctx.ornB) * ctx.ornA;
 
-    auto aabb = shA.aabb(posA_in_B, ornA); // Invariant to orientation.
+    auto aabb = shA.aabb(posA_in_B, ctx.ornA); // Invariant to orientation.
     shB.trimesh->visit(aabb, [&] (size_t mesh_idx, size_t tri_idx, const triangle_vertices &vertices) {
         if (result.num_points == max_contacts) {
             return;
@@ -27,10 +26,15 @@ collision_result collide(const sphere_shape &shA, const vector3 &posA, const qua
         }
 
         collide_sphere_triangle(shA, posA_in_B, ornA_in_B, vertices, 
-                                is_concave_edge, cos_angles, threshold, result);
+                                is_concave_edge, cos_angles, ctx.threshold, result);
     });
 
     return result;
+}
+
+collision_result collide(const paged_mesh_shape &shA, const sphere_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
 }
 
 }
