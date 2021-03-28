@@ -31,4 +31,9 @@ collision_result collide(const sphere_shape &shA, const mesh_shape &shB,
     return result;
 }
 
+collision_result collide(const mesh_shape &shA, const sphere_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
+}
+
 }

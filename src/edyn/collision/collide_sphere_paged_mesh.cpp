@@ -32,4 +32,9 @@ collision_result collide(const sphere_shape &shA, const paged_mesh_shape &shB,
     return result;
 }
 
+collision_result collide(const paged_mesh_shape &shA, const sphere_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
+}
+
 }

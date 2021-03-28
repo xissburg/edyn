@@ -113,4 +113,9 @@ collision_result collide(const cylinder_shape &shA, const plane_shape &shB,
     return result;
 }
 
+collision_result collide(const plane_shape &shA, const cylinder_shape &shB,
+                         const collision_context &ctx) {
+    return swap_collide(shA, shB, ctx);
+}
+
 }
