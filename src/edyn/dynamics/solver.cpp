@@ -4,7 +4,7 @@
 #include "edyn/sys/integrate_angvel.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_aabbs.hpp"
-#include "edyn/sys/update_rotated_convex_meshes.hpp"
+#include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
@@ -163,12 +163,15 @@ void solver::update(scalar dt) {
     // Integrate velocities to obtain new transforms.
     integrate_linvel(*m_registry, dt);
     integrate_angvel(*m_registry, dt);
+
+    // Update AABBs after transforms change.
     update_aabbs(*m_registry);
     
+    // Update rotated vertices of convex meshes after rotations change.
+    update_rotated_meshes(*m_registry);
+
     // Update world-space moment of inertia.
     update_inertia(*m_registry);
-
-    update_rotated_convex_meshes(*m_registry);
 }
 
 }

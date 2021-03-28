@@ -108,7 +108,7 @@ set(Edyn_SOURCES
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp
     src/edyn/sys/update_aabbs.cpp
-    src/edyn/sys/update_rotated_convex_meshes.cpp
+    src/edyn/sys/update_rotated_meshes.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/util/constraint_util.cpp
     src/edyn/util/shape_util.cpp
@@ -164,8 +164,8 @@ target_compile_features(Edyn PUBLIC cxx_std_17)
 #
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    #target_compile_options(Edyn PUBLIC -D_GLIBCXX_DEBUG -fsanitize=leak -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
-    #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined -fsanitize=leak)
+    #target_compile_options(Edyn PUBLIC -D_GLIBCXX_DEBUG -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
+    #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
 endif()
 
 #

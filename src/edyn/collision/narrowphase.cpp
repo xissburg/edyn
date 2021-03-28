@@ -15,6 +15,7 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include <entt/entt.hpp>
+#include <variant>
 
 namespace edyn {
 
@@ -237,7 +238,7 @@ void prune(contact_manifold &manifold,
 }
 
 void detect_collision(const contact_manifold &manifold, collision_result &result, 
-                      const body_view_t &body_view) {
+                      const body_view_t &body_view, const rotated_mesh_view_t &rmesh_view) {
     auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
     auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
     const auto offset = vector3_one * -contact_breaking_threshold;
@@ -250,6 +251,16 @@ void detect_collision(const contact_manifold &manifold, collision_result &result
         auto &shapeA = body_view.get<shape>(manifold.body[0]);
         auto &shapeB = body_view.get<shape>(manifold.body[1]);
         auto ctx = collision_context{posA, ornA, posB, ornB, contact_breaking_threshold};
+
+        if (std::holds_alternative<polyhedron_shape>(shapeA.var)) {
+            auto &rmesh = rmesh_view.get(manifold.body[0]);
+            ctx.rmeshA = &rmesh;
+        }
+
+        if (std::holds_alternative<polyhedron_shape>(shapeB.var)) {
+            auto &rmesh = rmesh_view.get(manifold.body[1]);
+            ctx.rmeshB = &rmesh;
+        }
 
         std::visit([&result, &ctx] (auto &&sA, auto &&sB) {
             result = collide(sA, sB, ctx);
@@ -299,6 +310,7 @@ void narrowphase::update_async(job &completion_job) {
 
     auto manifold_view = m_registry->view<contact_manifold>();
     auto body_view = m_registry->view<AABB, shape, position, orientation>();
+    auto rmesh_view = m_registry->view<rotated_mesh>();
     auto cp_view = m_registry->view<contact_point, constraint>();
     auto cr_view = m_registry->view<constraint_row_data>();
 
@@ -309,13 +321,13 @@ void narrowphase::update_async(job &completion_job) {
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, 
-            [this, body_view, manifold_view, cp_view, cr_view] (size_t index) {
+            [this, body_view, manifold_view, cp_view, cr_view, rmesh_view] (size_t index) {
         auto entity = manifold_view[index];
         auto &manifold = manifold_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
 
-        detect_collision(manifold, result, body_view);
+        detect_collision(manifold, result, body_view, rmesh_view);
         process_collision(entity, manifold, result, cp_view, cr_view,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;

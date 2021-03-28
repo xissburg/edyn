@@ -52,6 +52,7 @@ class island_worker final {
     void reschedule_later();
     void do_terminate();
     void init_new_imported_contact_manifolds();
+    void insert_remote_node(entt::entity remote_entity);
     void maybe_go_to_sleep();
     bool could_go_to_sleep();
     void go_to_sleep();
@@ -79,8 +80,6 @@ public:
 
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
-
-    void on_construct_shape(entt::registry &, entt::entity);
 
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);

@@ -15,7 +15,7 @@ polyhedron_shape::polyhedron_shape(const std::string &path_to_obj)
 }
 
 void polyhedron_shape::calculate_local_aabb() {
-    local_aabb = point_cloud_aabb(mesh->vertices.begin(), mesh->vertices.end());
+    local_aabb = point_cloud_aabb(mesh->vertices);
 }
 
 AABB polyhedron_shape::aabb(const vector3 &pos, const quaternion &orn) const {
@@ -24,7 +24,7 @@ AABB polyhedron_shape::aabb(const vector3 &pos, const quaternion &orn) const {
     constexpr size_t convex_mesh_exact_aabb_vertex_count_limit = 24;
 
     if (mesh->vertices.size() < convex_mesh_exact_aabb_vertex_count_limit) {
-        return point_cloud_aabb(mesh->vertices.begin(), mesh->vertices.end(), pos, orn);
+        return point_cloud_aabb(mesh->vertices, pos, orn);
     } else {
         return aabb_of_aabb(local_aabb, pos, orn);
     }

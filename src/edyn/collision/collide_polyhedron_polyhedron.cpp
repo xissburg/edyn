@@ -6,13 +6,16 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/util/shape_util.hpp"
-#include "edyn/comp/rotated_convex_mesh.hpp"
+#include "edyn/comp/rotated_mesh.hpp"
 #include <numeric>
 
 namespace edyn {
 
-void max_support_direction(const polyhedron_shape &shA, const rotated_convex_mesh &rotatedA, const vector3 &posA,
-                           const polyhedron_shape &shB, const rotated_convex_mesh &rotatedB, const vector3 &posB,
+// Finds the direction that maximizes the projected distance between
+// A and B among all face normals of A.
+static
+void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rotatedA, const vector3 &posA,
+                           const polyhedron_shape &shB, const rotated_mesh &rotatedB, const vector3 &posB,
                            vector3 &dir, scalar &distance, scalar &projectionA, scalar &projectionB) {
     scalar max_proj_A = EDYN_SCALAR_MAX;
     scalar max_proj_B = -EDYN_SCALAR_MAX;
@@ -49,25 +52,37 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_convex_mes
     projectionB = max_proj_B;
 }
 
-void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2) {
-    auto e = v1 - v0;
-    auto t = orthogonal(e);
-
-    if (dot(v2 - v0, t) < 0) {
-        std::swap(v0, v2);
+std::vector<size_t> figure_out_convex_hull(std::vector<vector2> vertices, scalar tolerance) {
+    if (vertices.size() > 3) {
+        // Calculate 2D convex hull of contact polygon.
+        return calculate_convex_hull(vertices, tolerance);
     }
+     
+    if (vertices.size() == 3) {
+        // It is a triangle, just have to make sure vertices are
+        // oriented counter-clockwise.
+        sort_triangle_ccw(vertices[0], vertices[1], vertices[2]);
+    }
+
+    std::vector<size_t> hull(vertices.size());
+    std::iota(hull.begin(), hull.end(), 0);
+    return hull;
 }
 
 collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &shB, 
                          const collision_context &ctx) {
-    const auto posA = vector3_zero;// ctx.posA;
+    // Calculate collision with shape A in the origin for better floating point
+    // precision. Position of shape B is modified accordingly.
+    const auto posA = vector3_zero;
     const auto &ornA = ctx.ornA;
     const auto posB = ctx.posB - ctx.posA;
     const auto &ornB = ctx.ornB;
     const auto threshold = ctx.threshold;
 
-    rotated_convex_mesh r_verticesA;
-    rotated_convex_mesh r_verticesB;
+    // The pre-rotated vertices and normals are used to avoid rotating vertices
+    // every time.
+    auto &rmeshA = *(*ctx.rmeshA);
+    auto &rmeshB = *(*ctx.rmeshB);
 
     scalar max_distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;
@@ -75,7 +90,8 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     auto best_dir = vector3_zero;
 
     // Find best support direction among all triangle normals of A.
-    max_support_direction(shA, posA, ornA, shB, posB, ornB, best_dir, max_distance, projectionA, projectionB);
+    max_support_direction(shA, rmeshA, posA, shB, rmeshB, posB, 
+                          best_dir, max_distance, projectionA, projectionB);
 
     best_dir *= -1; // Make it point towards A.
     projectionA *= -1;
@@ -87,7 +103,8 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
         auto projA = scalar{};
         auto projB = scalar{};
         auto dir = vector3_zero;
-        max_support_direction(shB, posB, ornB, shA, posA, ornA, dir, distance, projB, projA);
+        max_support_direction(shB, rmeshB, posB, shA, rmeshA, posA, 
+                              dir, distance, projB, projA);
 
         if (distance > max_distance) {
             max_distance = distance;
@@ -99,13 +116,13 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
     // Edge vs edge.
     for (size_t i = 0; i < shA.mesh->edges.size(); i += 2) {
-        auto vertexA0 = to_world_space(shA.mesh->vertices[shA.mesh->edges[i + 0]], posA, ornA);
-        auto vertexA1 = to_world_space(shA.mesh->vertices[shA.mesh->edges[i + 1]], posA, ornA);
+        auto vertexA0 = rmeshA.vertices[shA.mesh->edges[i + 0]];
+        auto vertexA1 = rmeshA.vertices[shA.mesh->edges[i + 1]];
         auto edgeA = vertexA1 - vertexA0;
 
         for (size_t j = 0; j < shB.mesh->edges.size(); j += 2) {
-            auto vertexB0 = to_world_space(shB.mesh->vertices[shB.mesh->edges[j + 0]], posB, ornB);
-            auto vertexB1 = to_world_space(shB.mesh->vertices[shB.mesh->edges[j + 1]], posB, ornB);
+            auto vertexB0 = rmeshB.vertices[shB.mesh->edges[j + 0]] + posB;
+            auto vertexB1 = rmeshB.vertices[shB.mesh->edges[j + 1]] + posB;
             auto edgeB = vertexB1 - vertexB0;
             auto dir = cross(edgeA, edgeB);
             auto dir_len_sqr = length_sqr(dir);
@@ -134,10 +151,8 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
                 dir *= -1;
             }
 
-            auto supA = point_cloud_support_point(shA.mesh->vertices, 
-                                                  posA, ornA, -dir);
-            auto supB = point_cloud_support_point(shB.mesh->vertices,
-                                                  posB, ornB, dir);
+            auto supA = point_cloud_support_point(rmeshA.vertices, -dir);
+            auto supB = point_cloud_support_point(rmeshB.vertices, dir) + posB;
             auto distance = dot(supA - supB, dir);
 
             if (distance > max_distance) {
@@ -161,15 +176,16 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     std::vector<vector3> verticesA, verticesB;
     // Vertices on the 2D contact plane.
     std::vector<vector2> plane_verticesA, plane_verticesB;
+    // Points at the contact planes of A and B.
     auto contact_originA = best_dir * projectionA;
     auto contact_originB = best_dir * projectionB;
+    // Build a basis tangent to the contact plane so calculations can be done
+    // in tangent space.
     vector3 contact_tangent0, contact_tangent1;
     plane_space(best_dir, contact_tangent0, contact_tangent1);
     auto contact_basis = matrix3x3_columns(contact_tangent0, best_dir, contact_tangent1);
 
-    for (auto &vertex : shA.mesh->vertices) {
-        auto vertex_world = to_world_space(vertex, posA, ornA);
-
+    for (auto &vertex_world : rmeshA.vertices) {
         if (dot(vertex_world, best_dir) < projectionA + tolerance) {
             auto vertex_tangent = to_object_space(vertex_world, contact_originA, contact_basis);
             auto vertex_plane = to_vector2_xz(vertex_tangent);
@@ -178,8 +194,8 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
         }
     }
 
-    for (auto &vertex : shB.mesh->vertices) {
-        auto vertex_world = to_world_space(vertex, posB, ornB);
+    for (auto &vertex : rmeshB.vertices) {
+        auto vertex_world = vertex + posB;
 
         if (dot(vertex_world, best_dir) > projectionB - tolerance) {
             auto vertex_tangent = to_object_space(vertex_world, contact_originB, contact_basis);
@@ -189,35 +205,11 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
         }
     }
 
-    EDYN_ASSERT(!verticesA.empty());
-    EDYN_ASSERT(!verticesB.empty());
+    EDYN_ASSERT(!verticesA.empty() && !plane_verticesA.empty());
+    EDYN_ASSERT(!verticesB.empty() && !plane_verticesB.empty());
 
-    std::vector<size_t> hullA, hullB;
-
-    if (plane_verticesA.size() > 3) {
-        // Calculate 2D convex hull of contact polygon.
-        hullA = calculate_convex_hull(plane_verticesA, tolerance);
-    } else {
-        if (plane_verticesA.size() == 3) {
-            // It is a triangle, just have to make sure vertices are
-            // oriented counter-clockwise.
-            sort_triangle_ccw(plane_verticesA[0], plane_verticesA[1], plane_verticesA[2]);
-        }
-
-        hullA.resize(plane_verticesA.size());
-        std::iota(hullA.begin(), hullA.end(), 0);
-    }
-
-    if (plane_verticesB.size() > 3) {
-        hullB = calculate_convex_hull(plane_verticesB, tolerance);
-    } else {
-        if (plane_verticesB.size() == 3) {
-            sort_triangle_ccw(plane_verticesB[0], plane_verticesB[1], plane_verticesB[2]);
-        }
-
-        hullB.resize(plane_verticesB.size());
-        std::iota(hullB.begin(), hullB.end(), 0);
-    }
+    auto hullA = figure_out_convex_hull(plane_verticesA, tolerance);
+    auto hullB = figure_out_convex_hull(plane_verticesB, tolerance);
 
     // First, add contact points for vertices that lie inside the opposing face.
     // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,

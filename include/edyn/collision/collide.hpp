@@ -1,9 +1,15 @@
 #ifndef EDYN_COLLISION_COLLIDE_HPP
 #define EDYN_COLLISION_COLLIDE_HPP
 
+#include <optional>
 #include "edyn/comp/shape.hpp"
+#include "edyn/comp/rotated_mesh.hpp"
 
 namespace edyn {
+
+struct polyhedron_collision_context {
+    rotated_mesh *rmesh;
+};
 
 struct collision_context {
     vector3 posA;
@@ -12,10 +18,14 @@ struct collision_context {
     quaternion ornB;
     scalar threshold;
 
+    std::optional<rotated_mesh *> rmeshA;
+    std::optional<rotated_mesh *> rmeshB;
+
     collision_context swapped() const {
         return {posB, ornB,
                 posA, ornA,
-                threshold};
+                threshold,
+                rmeshB, rmeshA};
     }
 };
 

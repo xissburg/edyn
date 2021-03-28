@@ -145,6 +145,50 @@ size_t split_hull_edge(const std::vector<vector2> &points,
     return 0;
 }
 
+AABB point_cloud_aabb(const std::vector<vector3> &points) {
+    // TODO: implement and use `parallel_reduce`.
+    auto aabb = AABB{vector3_max, -vector3_max};
+
+    for (auto &point : points) {
+        aabb.min = min(aabb.min, point);
+        aabb.max = max(aabb.max, point);
+    }
+
+    return aabb;
+}
+
+AABB point_cloud_aabb(const std::vector<vector3> &points, 
+                      const vector3 &pos, const quaternion &orn) {
+    // TODO: implement and use `parallel_reduce`.
+    auto aabb = AABB{vector3_max, -vector3_max};
+
+    for (auto &point_local : points) {
+        auto point_world = to_world_space(point_local, pos, orn);
+        aabb.min = min(aabb.min, point_world);
+        aabb.max = max(aabb.max, point_world);
+    }
+
+    return aabb;
+}
+
+vector3 point_cloud_support_point(const std::vector<vector3> &points, const vector3 &dir) {
+    auto sup = vector3_zero;
+    auto max_proj = -EDYN_SCALAR_MAX;
+    const auto size = points.size();
+
+    for (size_t i = 0; i < size; ++i) {
+        const auto &point_local = points[i];
+        auto proj = dot(point_local, dir);
+
+        if (proj > max_proj) {
+            max_proj = proj;
+            sup = point_local;
+        }
+    }
+
+    return sup;
+}
+
 std::vector<size_t> calculate_convex_hull(const std::vector<vector2> &points, scalar tolerance) {
     EDYN_ASSERT(points.size() > 3);
 
@@ -225,6 +269,15 @@ bool point_inside_convex_polygon(const std::vector<vector2> &vertices, const vec
     }
 
     return true;
+}
+
+void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2) {
+    auto e = v1 - v0;
+    auto t = orthogonal(e);
+
+    if (dot(v2 - v0, t) < 0) {
+        std::swap(v0, v2);
+    }
 }
 
 }
