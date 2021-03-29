@@ -85,11 +85,11 @@ void collide_cylinder_triangle(
 
     auto ignore_triangle_feature = [&](triangle_feature tri_feature, size_t idx, const vector3 &dir) {
         switch (tri_feature) {
-        case TRIANGLE_FEATURE_EDGE:
+        case triangle_feature::edge:
             return ignore_edge(idx, dir); break;
-        case TRIANGLE_FEATURE_VERTEX:
+        case triangle_feature::vertex:
             return ignore_vertex(idx, dir); break;
-        case TRIANGLE_FEATURE_FACE:
+        case triangle_feature::face:
             return false;
         }
         return false;
@@ -119,7 +119,7 @@ void collide_cylinder_triangle(
     // Triangle face normal.
     {
         auto axis = separating_axis_cyl_tri{};
-        axis.tri_feature = TRIANGLE_FEATURE_FACE;
+        axis.tri_feature = triangle_feature::face;
         axis.dir = tri_normal;
 
         cylinder.support_feature(posA, ornA, vertices[0], -tri_normal, 
@@ -307,10 +307,10 @@ void collide_cylinder_triangle(
         size_t num_edges_to_check = 0;
         size_t last_edge_index = 0;
 
-        if (sep_axis.tri_feature == TRIANGLE_FEATURE_EDGE && 
+        if (sep_axis.tri_feature == triangle_feature::edge && 
             num_vertices_in_face < 2) {
             num_edges_to_check = 1;
-        } else if (sep_axis.tri_feature == TRIANGLE_FEATURE_FACE && 
+        } else if (sep_axis.tri_feature == triangle_feature::face && 
                     num_vertices_in_face < 3) {
             num_edges_to_check = 3;
         }
@@ -355,7 +355,7 @@ void collide_cylinder_triangle(
             }
         }
 
-        if (sep_axis.tri_feature == TRIANGLE_FEATURE_FACE) {
+        if (sep_axis.tri_feature == triangle_feature::face) {
             // If no vertex is contained in the circular face nor there is
             // any edge intersection, it means the circle could be contained
             // in the triangle.
@@ -395,7 +395,7 @@ void collide_cylinder_triangle(
 
     case cylinder_feature::side_edge:
         switch (sep_axis.tri_feature) {
-        case TRIANGLE_FEATURE_FACE: {
+        case triangle_feature::face: {
             // Cylinder is on its side laying on the triangle face.
             // Segment-triangle intersection/containment test.
             auto c0_in_tri = point_in_triangle(vertices, tri_normal, disc_center_pos);
@@ -441,7 +441,7 @@ void collide_cylinder_triangle(
             
             break;
         }
-        case TRIANGLE_FEATURE_EDGE: {
+        case triangle_feature::edge: {
             // Already checked if this edge should have been ignored.
             auto v0 = vertices[sep_axis.tri_feature_index];
             auto v1 = vertices[(sep_axis.tri_feature_index + 1) % 3];
@@ -459,7 +459,7 @@ void collide_cylinder_triangle(
             }
             break;
         }
-        case TRIANGLE_FEATURE_VERTEX: {
+        case triangle_feature::vertex: {
             // Already checked if this vertex should have been ignored.
             auto pivotB = vertices[sep_axis.tri_feature_index];
             vector3 pivotA; scalar t;
@@ -474,7 +474,7 @@ void collide_cylinder_triangle(
 
     case cylinder_feature::cap_edge: {
         switch (sep_axis.tri_feature) {
-        case TRIANGLE_FEATURE_FACE: {
+        case triangle_feature::face: {
             if (point_in_triangle(vertices, tri_normal, sep_axis.pivotA)) {
                 auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
                 auto pivotB = project_plane(sep_axis.pivotA, vertices[0], tri_normal);
@@ -482,12 +482,12 @@ void collide_cylinder_triangle(
             }
             break;
         }
-        case TRIANGLE_FEATURE_EDGE: {
+        case triangle_feature::edge: {
             auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
             result.maybe_add_point({pivotA, sep_axis.pivotB, sep_axis.dir, sep_axis.distance});
             break;
         }
-        case TRIANGLE_FEATURE_VERTEX: {
+        case triangle_feature::vertex: {
             break;
         }
         }

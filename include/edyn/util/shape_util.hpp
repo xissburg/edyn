@@ -80,6 +80,24 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
  */
 vector3 point_cloud_support_point(const std::vector<vector3> &points, const vector3 &dir);
 
+template<typename It>
+vector3 point_cloud_support_point(It first, It last, const vector3 &dir) {
+    auto sup = vector3_zero;
+    auto max_proj = -EDYN_SCALAR_MAX;
+
+    for (auto it = first; it != last; ++it) {
+        const auto &point = *it;
+        auto proj = dot(point, dir);
+
+        if (proj > max_proj) {
+            max_proj = proj;
+            sup = point;
+        }
+    }
+
+    return sup;
+}
+
 /**
  * @brief Calculates a convex hull of a set of points.
  * @param points A point cloud.

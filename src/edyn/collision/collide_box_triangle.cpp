@@ -1,6 +1,7 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/shapes/triangle_shape.hpp"
 
 namespace edyn {
 
@@ -48,11 +49,11 @@ void collide_box_triangle(
         size_t neg_tri_feature_index, pos_tri_feature_index;
         scalar neg_tri_proj, pos_tri_proj;
         get_triangle_support_feature(vertices, box_pos, -axisA, 
-                                        neg_tri_feature, neg_tri_feature_index, 
-                                        neg_tri_proj, threshold);
+                                     neg_tri_feature, neg_tri_feature_index, 
+                                     neg_tri_proj, threshold);
         get_triangle_support_feature(vertices, box_pos, axisA, 
-                                        pos_tri_feature, pos_tri_feature_index, 
-                                        pos_tri_proj, threshold);
+                                     pos_tri_feature, pos_tri_feature_index, 
+                                     pos_tri_proj, threshold);
 
         if (neg_tri_proj < pos_tri_proj) {
             axis.dir = -axisA;
@@ -68,11 +69,11 @@ void collide_box_triangle(
             axis.distance = -(box.half_extents[i] + pos_tri_proj);
         }
 
-        if (axis.featureB == TRIANGLE_FEATURE_VERTEX) {
+        if (axis.featureB == triangle_feature::vertex) {
             if (!is_concave_vertex[axis.feature_indexB]) {
                 ++axis_idx;
             }
-        } else if (axis.featureB == TRIANGLE_FEATURE_EDGE) {
+        } else if (axis.featureB == triangle_feature::edge) {
                 // Ignore concave edges.
             if (!is_concave_edge[axis.feature_indexB]) {
                 // Direction must be in the edge's Voronoi region.
@@ -87,7 +88,7 @@ void collide_box_triangle(
     // Triangle face normal.
     {
         auto &axis = sep_axes[axis_idx++];
-        axis.featureB = TRIANGLE_FEATURE_FACE;
+        axis.featureB = triangle_feature::face;
         axis.dir = tri_normal;
 
         box.support_feature(box_pos, box_orn, 
@@ -133,7 +134,7 @@ void collide_box_triangle(
             axis.distance = -(projA + projB);
 
             // Support feature must be the current edge.
-            if (axis.featureB == TRIANGLE_FEATURE_EDGE && axis.feature_indexB == j) {
+            if (axis.featureB == triangle_feature::edge && axis.feature_indexB == j) {
                 // Ignore concave edges.
                 if (!is_concave_edge[j]) {
                     // Direction must be in the edge's Voronoi region.
@@ -166,7 +167,7 @@ void collide_box_triangle(
         return;
     }
 
-    if (sep_axis.featureA == box_feature::face && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
+    if (sep_axis.featureA == box_feature::face && sep_axis.featureB == triangle_feature::face) {
         auto face_normal_in_B = box.get_face_normal(sep_axis.feature_indexA, box_orn);
         auto face_vertices = box.get_face(sep_axis.feature_indexA);
         std::array<vector3, 4> face_vertices_in_B;
@@ -252,7 +253,7 @@ void collide_box_triangle(
                 }
             }
         }
-    } else if (sep_axis.featureA == box_feature::face && sep_axis.featureB == TRIANGLE_FEATURE_EDGE) {
+    } else if (sep_axis.featureA == box_feature::face && sep_axis.featureB == triangle_feature::edge) {
         EDYN_ASSERT(!is_concave_edge[sep_axis.feature_indexB]);
     
         auto face_normal_in_B = box.get_face_normal(sep_axis.feature_indexA, box_orn);
@@ -309,7 +310,7 @@ void collide_box_triangle(
                 }
             }
         }
-    } else if (sep_axis.featureA == box_feature::edge && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
+    } else if (sep_axis.featureA == box_feature::edge && sep_axis.featureB == triangle_feature::face) {
         // Check if edge vertices are inside triangle face.
         auto edge = box.get_edge(sep_axis.feature_indexA);
         auto edge_in_B = edge;
@@ -363,7 +364,7 @@ void collide_box_triangle(
                 }
             }
         }
-    } else if (sep_axis.featureA == box_feature::edge && sep_axis.featureB == TRIANGLE_FEATURE_EDGE) {
+    } else if (sep_axis.featureA == box_feature::edge && sep_axis.featureB == triangle_feature::edge) {
         EDYN_ASSERT(!is_concave_edge[sep_axis.feature_indexB]);
             
         scalar s[2], t[2];
@@ -382,7 +383,7 @@ void collide_box_triangle(
             auto pivotB = p1[i]; // We're in the triangle's object space.
             result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
         }
-    } else if (sep_axis.featureA == box_feature::face && sep_axis.featureB == TRIANGLE_FEATURE_VERTEX) {
+    } else if (sep_axis.featureA == box_feature::face && sep_axis.featureB == triangle_feature::vertex) {
         // Ignore vertices that are on a concave edge.
         EDYN_ASSERT(!is_concave_vertex[sep_axis.feature_indexB]);
         auto vertex = vertices[sep_axis.feature_indexB];
@@ -395,7 +396,7 @@ void collide_box_triangle(
             auto pivotB = vertex;
             result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
         }
-    } else if (sep_axis.featureA == box_feature::vertex && sep_axis.featureB == TRIANGLE_FEATURE_FACE) {
+    } else if (sep_axis.featureA == box_feature::vertex && sep_axis.featureB == triangle_feature::face) {
         auto pivotA = box.get_vertex(sep_axis.feature_indexA);
         auto pivotB = box_pos + rotate(box_orn, pivotA) - tri_normal * sep_axis.distance;
         if (point_in_triangle(vertices, tri_normal, pivotB)) {

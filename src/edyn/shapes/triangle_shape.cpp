@@ -49,8 +49,8 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
         if (i > 0 && std::abs(proj_i - projection) < threshold) {
             // If the maximum feature is a vertex, then the current vertex
             // is included to form an edge.
-            if (tri_feature == TRIANGLE_FEATURE_VERTEX) {
-                tri_feature = TRIANGLE_FEATURE_EDGE;
+            if (tri_feature == triangle_feature::vertex) {
+                tri_feature = triangle_feature::edge;
 
                 if (i == 2) {
                     // If this is the third vertex (index 2), the previous in this 
@@ -67,15 +67,15 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
                     tri_feature_index = 0;
                     projection = std::max(proj_i, projection);
                 }
-            } else if (tri_feature == TRIANGLE_FEATURE_EDGE) {
+            } else if (tri_feature == triangle_feature::edge) {
                 // If the maximum feature was already an edge, adding this
                 // vertex to it makes it a face.
-                tri_feature = TRIANGLE_FEATURE_FACE;
+                tri_feature = triangle_feature::face;
                 projection = std::max(proj_i, projection);
             }
         } else if (proj_i > projection) {
             projection = proj_i;
-            tri_feature = TRIANGLE_FEATURE_VERTEX;
+            tri_feature = triangle_feature::vertex;
             tri_feature_index = i;
         }
     }
@@ -86,9 +86,9 @@ size_t get_triangle_feature_num_vertices(triangle_feature feature) {
 }
 
 size_t get_triangle_feature_num_edges(triangle_feature feature) {
-    if (feature == TRIANGLE_FEATURE_EDGE) {
+    if (feature == triangle_feature::edge) {
         return 1;
-    } else if (feature == TRIANGLE_FEATURE_FACE) {
+    } else if (feature == triangle_feature::face) {
         return 3;
     }
     return 0;

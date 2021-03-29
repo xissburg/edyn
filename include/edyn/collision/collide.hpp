@@ -340,6 +340,14 @@ collision_result collide(const polyhedron_shape &shA, const paged_mesh_shape &sh
 collision_result collide(const paged_mesh_shape &shA, const polyhedron_shape &shB,
                          const collision_context &ctx);
 
+// Polyhedron-Triangle
+void collide_polyhedron_triangle(
+    const polyhedron_shape &, rotated_mesh &,
+    const triangle_vertices &vertices,
+    const std::array<bool, 3> &is_concave_edge, 
+    const std::array<scalar, 3> &cos_angles,
+    scalar threshold, collision_result &result);
+
 template<typename ShapeAType, typename ShapeBType>
 collision_result swap_collide(const ShapeAType &shA, const ShapeBType &shB,
                               const collision_context &ctx) {

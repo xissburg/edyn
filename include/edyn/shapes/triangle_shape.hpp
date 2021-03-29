@@ -12,10 +12,10 @@ namespace edyn {
  * The three types of triangle features. Their integer value is the number of
  * vertices in that feature minus one.
  */
-enum triangle_feature {
-    TRIANGLE_FEATURE_VERTEX = 0,
-    TRIANGLE_FEATURE_EDGE,
-    TRIANGLE_FEATURE_FACE
+enum class triangle_feature {
+    vertex,
+    edge,
+    face
 };
 
 using triangle_vertices = std::array<vector3, 3>;
