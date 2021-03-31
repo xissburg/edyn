@@ -44,8 +44,10 @@ vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
     return {xx, yy_zz, yy_zz};
 }
 
-matrix3x3 moment_of_inertia_polyhedron(scalar mass, const std::vector<vector3> &vertices, 
-                                       const std::vector<uint16_t> &indices) {
+matrix3x3 moment_of_inertia_polyhedron(scalar mass,
+                                       const std::vector<vector3> &vertices, 
+                                       const std::vector<uint16_t> &indices,
+                                       const std::vector<uint16_t> &faces) {
     // Reference: 
     // https://github.com/erich666/jgt-code/blob/master/Volume_11/Number_2/Kallay2006/Moment_of_Inertia.cpp
     scalar volume = 0;
@@ -57,35 +59,40 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass, const std::vector<vector3> &
     scalar zx = 0;
     scalar xy = 0;
 
-    EDYN_ASSERT(indices.size() % 3 == 0);
-    auto num_triangles = indices.size() / 3;
+    EDYN_ASSERT(faces.size() % 2 == 0);
+    auto num_faces = faces.size() / 2;
 
-    for (size_t i = 0; i < num_triangles; ++i) {
-        auto i0 = indices[i * 3 + 0];
-        auto i1 = indices[i * 3 + 1];
-        auto i2 = indices[i * 3 + 2];
+    for (size_t i = 0; i < num_faces; ++i) {
+        auto first = faces[i * 2];
+        auto count = faces[i * 2 + 1];
 
-        auto v0 = vertices[i0];
-        auto v1 = vertices[i1];
-        auto v2 = vertices[i2];
+        auto i0 = indices[first];
+        auto &v0 = vertices[i0];
 
-        // Parallelepiped volume. Tetrahedron volume is 1/6th of it.
-        auto pd_vol = triple_product(v0, v1, v2);
+        for (size_t j = 1; j < count - 1; ++j) {
+            auto i1 = indices[first + j];
+            auto i2 = indices[first + j + 1];
+            auto &v1 = vertices[i1];
+            auto &v2 = vertices[i2];
 
-        // Contribution to the mass.
-        volume += pd_vol;
+            // Parallelepiped volume. Tetrahedron volume is 1/6th of it.
+            auto pd_vol = triple_product(v0, v1, v2);
 
-        // Contribution to the centroid.
-        auto v3 = v0 + v1 + v2;
-        center += pd_vol * v3;
+            // Contribution to the mass.
+            volume += pd_vol;
 
-        // Contribution to the moment of inertia monomials.
-        xx += pd_vol * (v0.x * v0.x + v1.x * v1.x + v2.x * v2.x + v3.x * v3.x);
-        yy += pd_vol * (v0.y * v0.y + v1.y * v1.y + v2.y * v2.y + v3.y * v3.y);
-        zz += pd_vol * (v0.z * v0.z + v1.z * v1.z + v2.z * v2.z + v3.z * v3.z);
-        yz += pd_vol * (v0.y * v0.z + v1.y * v1.z + v2.y * v2.z + v3.y * v3.z);
-        zx += pd_vol * (v0.z * v0.x + v1.z * v1.x + v2.z * v2.x + v3.z * v3.x);
-        xy += pd_vol * (v0.x * v0.y + v1.x * v1.y + v2.x * v2.y + v3.x * v3.y);
+            // Contribution to the centroid.
+            auto v3 = v0 + v1 + v2;
+            center += pd_vol * v3;
+
+            // Contribution to the moment of inertia monomials.
+            xx += pd_vol * (v0.x * v0.x + v1.x * v1.x + v2.x * v2.x + v3.x * v3.x);
+            yy += pd_vol * (v0.y * v0.y + v1.y * v1.y + v2.y * v2.y + v3.y * v3.y);
+            zz += pd_vol * (v0.z * v0.z + v1.z * v1.z + v2.z * v2.z + v3.z * v3.z);
+            yz += pd_vol * (v0.y * v0.z + v1.y * v1.z + v2.y * v2.z + v3.y * v3.z);
+            zx += pd_vol * (v0.z * v0.x + v1.z * v1.x + v2.z * v2.x + v3.z * v3.x);
+            xy += pd_vol * (v0.x * v0.y + v1.x * v1.y + v2.x * v2.y + v3.x * v3.y);
+        }
     }
 
     auto density = mass / (volume / scalar(6));

@@ -28,9 +28,9 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
     auto best_dir = vector3_zero;
 
     // Polyhedron face normals.
-    for (size_t i = 0; i < poly.mesh->num_triangles(); ++i) {
+    for (size_t i = 0; i < poly.mesh->num_faces(); ++i) {
         auto normal = -rmesh.normals[i]; // Point towards polyhedron.
-        auto vertex_idx = poly.mesh->indices[i * 3];
+        auto vertex_idx = poly.mesh->indices[poly.mesh->faces[i * 2]];
         auto &poly_vertex = rmesh.vertices[vertex_idx];
         auto poly_proj = dot(poly_vertex, -normal);
 
@@ -104,10 +104,10 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
                 }
             }
 
-            if (dot(posA - posB, dir) < 0) {
+            /*if (dot(posA - posB, dir) < 0) {
                 // Make it point towards A.
                 dir *= -1;
-            }
+            }*/
 
             triangle_feature feature;
             size_t feature_idx;
@@ -161,13 +161,13 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
     EDYN_ASSERT(!verticesA.empty() && !plane_verticesA.empty());
     EDYN_ASSERT(!verticesB.empty() && !plane_verticesB.empty());
 
-    auto hullA = figure_out_convex_hull(plane_verticesA, tolerance);
+    auto hullA = calculate_convex_hull(plane_verticesA, tolerance);
 
     // First, add contact points for vertices that lie inside the opposing face.
     // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,
     // check if the points in `verticesA` lie inside the prism spanned by `verticesB`
     // and `best_dir`
-    if (tri_feature == triangle_feature::face) {
+    /*if (tri_feature == triangle_feature::face) {
         for (auto idxA : hullA) {
             auto &pointA = verticesA[idxA];
 
@@ -228,7 +228,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
                 }
             }
         }
-    }
+    }*/
 }
 
 }

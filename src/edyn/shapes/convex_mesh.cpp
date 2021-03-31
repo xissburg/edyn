@@ -1,26 +1,53 @@
 #include "edyn/shapes/convex_mesh.hpp"
+#include "edyn/math/scalar.hpp"
+#include "edyn/math/vector3.hpp"
 
 namespace edyn {
 
 void convex_mesh::calculate_normals() {
     normals.clear();
 
-    for (size_t i = 0; i < num_triangles(); ++i) {
-        auto vertices = get_triangle(i);
-        auto normal = cross(vertices[1] - vertices[0], vertices[2] - vertices[1]);
-        normal = normalize(normal);
-        normals.push_back(normal);
+    for (size_t i = 0; i < num_faces(); ++i) {
+        auto first = faces[i * 2];
+        auto count = faces[i * 2 + 1];
+        // Grab first edge.
+        auto i0 = indices[first];
+        auto i1 = indices[first + 1];
+        auto &v0 = vertices[i0];
+        auto &v1 = vertices[i1];
+
+        // Find a second edge that's not colinear.
+        for (size_t j = 1; j < count; ++j) {
+            auto i2 = indices[first + j];
+            auto i3 = indices[first + (j + 1) % count];
+            auto &v2 = vertices[i2];
+            auto &v3 = vertices[i3];
+
+            auto normal = cross(v1 - v0, v3 - v2);
+            auto normal_len_sqr = length_sqr(normal);
+
+            if (normal_len_sqr > EDYN_EPSILON) {
+                normal /= std::sqrt(normal_len_sqr);
+                normals.push_back(normal);
+                break;
+            }
+        }
     }
+
+    EDYN_ASSERT(normals.size() == num_faces());
 }
 
 void convex_mesh::calculate_edges() {
     edges.clear();
 
-    for (size_t i = 0; i < num_triangles(); ++i) {
-        for (size_t j = 0; j < 3; ++j) {
+    for (size_t i = 0; i < num_faces(); ++i) {
+        const auto first = faces[i * 2];
+        const auto count = faces[i * 2 + 1];
+
+        for (size_t j = 0; j < count; ++j) {
             auto contains = false;
-            auto i0 = indices[i * 3 + j];
-            auto i1 = indices[i * 3 + (j + 1) % 3];
+            auto i0 = indices[first + j];
+            auto i1 = indices[first + (j + 1) % count];
 
             for (size_t k = 0; k < edges.size(); k += 2) {
                 if ((edges[k] == i0 && edges[k + 1] == i1) ||

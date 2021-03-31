@@ -36,8 +36,10 @@ vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius)
 vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len, 
                                           scalar inner_radius, scalar outer_radius);
 
-matrix3x3 moment_of_inertia_polyhedron(scalar mass, const std::vector<vector3> &vertices, 
-                                       const std::vector<uint16_t> &indices);
+matrix3x3 moment_of_inertia_polyhedron(scalar mass, 
+                                       const std::vector<vector3> &vertices, 
+                                       const std::vector<uint16_t> &indices,
+                                       const std::vector<uint16_t> &faces);
 
 }
 

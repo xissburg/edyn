@@ -11,22 +11,35 @@ namespace edyn {
 
 struct convex_mesh {
     std::vector<vector3> vertices;
-    std::vector<uint16_t> edges;
+
+    // Vertex indices of all faces.
     std::vector<uint16_t> indices;
+
+    // Each subsequent pair of integers represents the indices of the two 
+    // vertices of an edge in the `vertices` array.
+    std::vector<uint16_t> edges;
+
+    // Each subsequent pair of integers represents the index of the first
+    // vertex of a face in the `indices` array and the number of vertices
+    // in the face.
+    std::vector<uint16_t> faces;
+
+    // Face normals.
     std::vector<vector3> normals;
 
-    size_t num_triangles() const {
-        EDYN_ASSERT(indices.size() % 3 == 0);
-        return indices.size() / 3;
+    size_t num_faces() const {
+        EDYN_ASSERT(faces.size() % 2 == 0);
+        return faces.size() / 2;
     }
 
-    std::array<vector3, 3> get_triangle(size_t i) const {
-        EDYN_ASSERT(i * 3 + 2 < indices.size());
-        return {
-            vertices[indices[i * 3 + 0]],
-            vertices[indices[i * 3 + 1]],
-            vertices[indices[i * 3 + 2]],
-        };
+    template<typename Func>
+    void visit_face(size_t face_idx, Func func) const {
+        const auto first = faces[face_idx * 2];
+        const auto count = faces[face_idx * 2 + 1];
+
+        for (size_t i = first; i < first + count; ++i) {
+            func(vertices[indices[i]]);
+        }
     }
     
     void calculate_normals();
