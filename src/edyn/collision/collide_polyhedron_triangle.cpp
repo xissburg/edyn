@@ -26,7 +26,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
     // Polyhedron face normals.
     for (size_t i = 0; i < poly.mesh->num_faces(); ++i) {
         auto normal = -rmesh.normals[i]; // Point towards polyhedron.
-        auto vertex_idx = poly.mesh->indices[poly.mesh->faces[i * 2]];
+        auto vertex_idx = poly.mesh->first_vertex_index(i);
         auto &poly_vertex = rmesh.vertices[vertex_idx];
 
         // Find point on triangle that's furthest along the opposite direction

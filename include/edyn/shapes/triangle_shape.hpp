@@ -13,7 +13,7 @@ namespace edyn {
  * vertices in that feature minus one.
  */
 enum class triangle_feature {
-    vertex,
+    vertex = 0,
     edge,
     face
 };
@@ -28,26 +28,57 @@ using triangle_edges = std::array<vector3, 3>;
 struct triangle_shape {
     // Position of vertices.
     triangle_vertices vertices;
+
     // Whether an edge is concave in the mesh.
     std::array<bool, 3> is_concave_edge;
+
+    // Whether a vertex is concave in the mesh, which is true when any of the
+    // two edges that share a vertex is concave.
     std::array<bool, 3> is_concave_vertex;
+
     // Cosine of the angle of each edge, i.e. the angle between the normal of
     // this triangle and the normal of the other triangle that is a neighbor
     // through the edge.
     std::array<scalar, 3> cos_angles;
     
+    // Edge vectors, i.e. `vertices[(i+1)%3] - vertices[i]` for the ith edge.
     std::array<vector3, 3> edges;
 
+    // Vectors orthogonal to the edges and triangle normal, pointing outside
+    // the triangle.
     std::array<vector3, 3> edge_tangents;
 
+    // The triangle normal.
     vector3 normal;
 
     void update_computed_properties();
 
+    /**
+     * @brief Returns whether collision with an edge at a certain direction
+     * should not be considered.
+     * @param idx Edge index.
+     * @param dir Collision normal.
+     * @return Whether the collision should be ignored.
+     */
     bool ignore_edge(size_t idx, const vector3 &dir) const;
 
+    /**
+     * @brief Returns whether collision with a vertex in a certain direction
+     * should not be considered.
+     * @param idx Vertex index.
+     * @param dir Collision normal.
+     * @return Whether the collision should be ignored.
+     */
     bool ignore_vertex(size_t idx, const vector3 &dir) const;
 
+    /**
+     * @brief Returns whether collision with a specific triangle feature
+     * in a certain direction should not be considered.
+     * @param tri_feature The triangle feature kind.
+     * @param idx Feature index.
+     * @param dir Collision normal.
+     * @return Whether the collision should be ignored.
+     */
     bool ignore_feature(triangle_feature tri_feature, 
                         size_t idx, const vector3 &dir) const;
 };

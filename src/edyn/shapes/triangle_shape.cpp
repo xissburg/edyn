@@ -146,7 +146,7 @@ vector3 get_triangle_support_point(const triangle_vertices &vertices, const vect
 }
 
 size_t get_triangle_feature_num_vertices(triangle_feature feature) {
-    return size_t(feature) + 1;
+    return static_cast<size_t>(feature) + 1;
 }
 
 size_t get_triangle_feature_num_edges(triangle_feature feature) {

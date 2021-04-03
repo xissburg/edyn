@@ -32,14 +32,28 @@ struct convex_mesh {
         return faces.size() / 2;
     }
 
-    template<typename Func>
-    void visit_face(size_t face_idx, Func func) const {
-        const auto first = faces[face_idx * 2];
-        const auto count = faces[face_idx * 2 + 1];
+    /**
+     * @brief Returns the index of the first vertex of a face.
+     * @param face_idx Face index.
+     * @return Vertex index of the first vertex in the face.
+     */
+    uint16_t first_vertex_index(size_t face_idx) const {
+        auto face_index_idx = face_idx * 2;
+        EDYN_ASSERT(face_index_idx < faces.size());
+        auto index_idx = faces[face_index_idx];
+        EDYN_ASSERT(index_idx < indices.size());
+        return indices[index_idx];
+    }
 
-        for (size_t i = first; i < first + count; ++i) {
-            func(vertices[indices[i]]);
-        }
+    /**
+     * @brief Returns the number of vertices on a face.
+     * @param face_idx Face index.
+     * @return Number of vertices on the face.
+     */
+    uint16_t vertex_count(size_t face_idx) const {
+        auto face_count_idx = face_idx * 2 + 1;
+        EDYN_ASSERT(face_count_idx < faces.size());
+        return faces[face_count_idx];
     }
     
     void calculate_normals();

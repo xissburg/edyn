@@ -24,7 +24,7 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     for (size_t i = 0; i < shA.mesh->num_faces(); ++i) {
         auto &normal_world = rotatedA.normals[i];
 
-        auto vertex_idx = shA.mesh->indices[shA.mesh->faces[i * 2]];
+        auto vertex_idx = shA.mesh->first_vertex_index(i);
         auto &vertexA = rotatedA.vertices[vertex_idx];
         auto vertex_world = vertexA + posA;
 
