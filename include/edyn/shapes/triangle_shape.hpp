@@ -22,6 +22,21 @@ using triangle_vertices = std::array<vector3, 3>;
 using triangle_edges = std::array<vector3, 3>;
 
 /**
+ * Holds information of one triangle in a mesh. Includes relevant adjacency
+ * information.
+ */
+struct triangle_shape {
+    // Position of vertices.
+    triangle_vertices vertices;
+    // Whether an edge is concave in the mesh.
+    std::array<bool, 3> is_concave_edge;
+    // Cosine of the angle of each edge, i.e. the angle between the normal of
+    // this triangle and the normal of the other triangle that is a neighbor
+    // through the edge.
+    std::array<scalar, 3> cos_angles;
+};
+
+/**
  * Checks whether point `p` is contained within the infinite prism with 
  * triangular base defined by the given `vertices` and direction `normal`.
  */

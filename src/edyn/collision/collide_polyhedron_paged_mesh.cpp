@@ -14,20 +14,16 @@ collision_result collide(const polyhedron_shape &shA, const paged_mesh_shape &sh
 
     auto aabb = shA.aabb(posA_in_B, ornA_in_B);
     shB.trimesh->visit(aabb, [&] (size_t mesh_idx, size_t tri_idx, const triangle_vertices &vertices) {
-        std::array<vector3, 3> shifted_vertices;
-        std::array<bool, 3> is_concave_edge;
-        std::array<scalar, 3> cos_angles;
         auto trimesh = shB.trimesh->get_submesh(mesh_idx);
+        auto tri = triangle_shape{};
 
         for (int i = 0; i < 3; ++i) {
-            shifted_vertices[i] = vertices[i] - ctx.posA;
-            is_concave_edge[i] = trimesh->is_concave_edge[tri_idx * 3 + i];
-            cos_angles[i] = trimesh->cos_angles[tri_idx * 3 + i];
+            tri.vertices[i] = vertices[i] - ctx.posA;
+            tri.is_concave_edge[i] = trimesh->is_concave_edge[tri_idx * 3 + i];
+            tri.cos_angles[i] = trimesh->cos_angles[tri_idx * 3 + i];
         }
 
-        collide_polyhedron_triangle(shA, rmeshA, shifted_vertices, 
-                                    is_concave_edge, cos_angles, 
-                                    ctx.threshold, result);
+        collide_polyhedron_triangle(shA, rmeshA, tri, ctx.threshold, result);
     });
 
     return result;

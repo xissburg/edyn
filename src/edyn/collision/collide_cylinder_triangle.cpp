@@ -41,19 +41,18 @@ struct separating_axis_cyl_tri {
 void collide_cylinder_triangle(
     const cylinder_shape &cylinder, const vector3 &posA, const quaternion &ornA,
     const vector3 &disc_center_pos, const vector3 &disc_center_neg,
-    const vector3 &cylinder_axis, const triangle_vertices &vertices, 
-    const std::array<bool, 3> &is_concave_edge, const std::array<scalar, 3> &cos_angles,
+    const vector3 &cylinder_axis, const triangle_shape &tri,
     scalar threshold, collision_result &result) {
 
     std::vector<separating_axis_cyl_tri> sep_axes;
 
-    const auto edges = get_triangle_edges(vertices);
+    const auto edges = get_triangle_edges(tri.vertices);
     const auto tri_normal = normalize(cross(edges[0], edges[1]));
     std::array<bool, 3> is_concave_vertex;
 
     for (int i = 0; i < 3; ++i) {
         // If edge starting or ending in this vertex are concave, thus is the vertex.
-        is_concave_vertex[i] = is_concave_edge[i] || is_concave_edge[(i + 2) % 3];
+        is_concave_vertex[i] = tri.is_concave_edge[i] || tri.is_concave_edge[(i + 2) % 3];
     }
 
     vector3 edge_tangents[3];
@@ -63,9 +62,9 @@ void collide_cylinder_triangle(
     }
 
     auto ignore_edge = [&](size_t idx, const vector3 &dir) {
-        return is_concave_edge[idx] ||
+        return tri.is_concave_edge[idx] ||
                dot(dir, edge_tangents[idx]) < -EDYN_EPSILON ||
-               dot(dir, tri_normal) < cos_angles[idx];
+               dot(dir, tri_normal) < tri.cos_angles[idx];
     };
 
     auto ignore_vertex = [&](size_t idx, const vector3 &dir) {
@@ -80,7 +79,7 @@ void collide_cylinder_triangle(
             return true;
         }
 
-        return dot(dir, tri_normal) < cos_angles[idx];
+        return dot(dir, tri_normal) < tri.cos_angles[idx];
     };
 
     auto ignore_triangle_feature = [&](triangle_feature tri_feature, size_t idx, const vector3 &dir) {
@@ -106,7 +105,7 @@ void collide_cylinder_triangle(
         axis.cyl_feature_index = dot(cylinder_axis, tri_normal) > 0 ? 1 : 0;
         axis.dir = axis.cyl_feature_index == 0 ? -cylinder_axis : cylinder_axis;
 
-        get_triangle_support_feature(vertices, posA, cylinder_axis, 
+        get_triangle_support_feature(tri.vertices, posA, cylinder_axis, 
                                      axis.tri_feature, axis.tri_feature_index, 
                                      axis.distance, threshold);
     
@@ -122,7 +121,7 @@ void collide_cylinder_triangle(
         axis.tri_feature = triangle_feature::face;
         axis.dir = tri_normal;
 
-        cylinder.support_feature(posA, ornA, vertices[0], -tri_normal, 
+        cylinder.support_feature(posA, ornA, tri.vertices[0], -tri_normal, 
                             axis.cyl_feature, axis.cyl_feature_index, 
                             axis.pivotA, axis.distance, threshold);
 
@@ -133,13 +132,13 @@ void collide_cylinder_triangle(
 
     // Cylinder side wall edges.
     for (size_t i = 0; i < 3; ++i) {
-        if (is_concave_edge[i]) {
+        if (tri.is_concave_edge[i]) {
             continue;
         }
 
         // Test cylinder axis against triangle edge.
-        const auto &v0 = vertices[i];
-        const auto &v1 = vertices[(i + 1) % 3];
+        const auto &v0 = tri.vertices[i];
+        const auto &v1 = tri.vertices[(i + 1) % 3];
         scalar s, t;
         vector3 p0, p1;
         closest_point_segment_segment(disc_center_pos, disc_center_neg, 
@@ -165,7 +164,7 @@ void collide_cylinder_triangle(
 
                 axis.dir = normalize(axis.dir);
 
-                get_triangle_support_feature(vertices, posA, axis.dir, 
+                get_triangle_support_feature(tri.vertices, posA, axis.dir, 
                                              axis.tri_feature, axis.tri_feature_index, 
                                              axis.distance, threshold);
                 axis.distance = -(cylinder.radius + axis.distance);
@@ -195,9 +194,9 @@ void collide_cylinder_triangle(
                         axis.dir *= -1;
                     }
 
-                    get_triangle_support_feature(vertices, posA, axis.dir, 
-                                            axis.tri_feature, axis.tri_feature_index, 
-                                            axis.distance, threshold);
+                    get_triangle_support_feature(tri.vertices, posA, axis.dir, 
+                                                 axis.tri_feature, axis.tri_feature_index, 
+                                                 axis.distance, threshold);
                     axis.distance = -(cylinder.radius + axis.distance);
                     if (!ignore_triangle_feature(axis.tri_feature, axis.tri_feature_index, axis.dir)) {
                         sep_axes.push_back(axis);
@@ -212,12 +211,12 @@ void collide_cylinder_triangle(
         auto disc_center = i == 0 ? disc_center_pos : disc_center_neg;
 
         for (size_t j = 0; j < 3; ++j) {
-            if (is_concave_edge[j]) {
+            if (tri.is_concave_edge[j]) {
                 continue;
             }
 
-            auto &v0 = vertices[j];
-            auto &v1 = vertices[(j + 1) % 3];
+            auto &v0 = tri.vertices[j];
+            auto &v1 = tri.vertices[(j + 1) % 3];
 
             // Find closest point between circle and triangle edge segment. 
             size_t num_points;
@@ -244,7 +243,7 @@ void collide_cylinder_triangle(
                 scalar t;
                 closest_point_segment(v0, v1, axis.pivotA, t, axis.pivotB);
 
-                get_triangle_support_feature(vertices, v0, normal, axis.tri_feature, 
+                get_triangle_support_feature(tri.vertices, v0, normal, axis.tri_feature, 
                                              axis.tri_feature_index, projB, threshold);
 
                 axis.distance = -(projA + projB);
@@ -288,7 +287,7 @@ void collide_cylinder_triangle(
                 continue;
             }
 
-            auto vertex = vertices[k];
+            auto vertex = tri.vertices[k];
             vector3 closest; scalar t;
             auto dir = disc_center_pos - disc_center_neg;
             auto dist_sqr = closest_point_line(disc_center_neg, dir, vertex, t, closest);
@@ -323,10 +322,10 @@ void collide_cylinder_triangle(
             }
 
             // Transform vertices to cylinder space.
-            auto v0 = vertices[k];
+            auto v0 = tri.vertices[k];
             auto v0_A = to_object_space(v0, posA, ornA);
 
-            auto v1 = vertices[(k + 1) % 3];
+            auto v1 = tri.vertices[(k + 1) % 3];
             auto v1_A = to_object_space(v1, posA, ornA);
 
             scalar s0, s1;
@@ -361,7 +360,7 @@ void collide_cylinder_triangle(
             // in the triangle.
             if (num_vertices_in_face == 0 && num_edge_intersections == 0) {
                 // Check if cylinder center is contained in the triangle prism.
-                if (point_in_triangle(vertices, tri_normal, posA)) {
+                if (point_in_triangle(tri.vertices, tri_normal, posA)) {
                     auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
                     for(size_t i = 0; i < 4; ++i) {
                         auto pivotA_x = cylinder.half_length * (sep_axis.cyl_feature_index == 0 ? 1 : -1);
@@ -369,7 +368,7 @@ void collide_cylinder_triangle(
                                                 cylinder.radius * multipliers[i], 
                                                 cylinder.radius * multipliers[(i + 1) % 4]};
                         auto pivotB = posA + rotate(ornA, pivotA);
-                        pivotB = project_plane(pivotB, vertices[0], tri_normal);
+                        pivotB = project_plane(pivotB, tri.vertices[0], tri_normal);
                         result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
                     }
                 }
@@ -378,7 +377,7 @@ void collide_cylinder_triangle(
                 // thus add extra points to create a stable base.
                 auto tangent = cross(tri_normal, edges[last_edge_index]);
                 auto other_vertex_idx = (last_edge_index + 2) % 3;
-                if (dot(tangent, vertices[other_vertex_idx] - vertices[last_edge_index]) < 0) {
+                if (dot(tangent, tri.vertices[other_vertex_idx] - tri.vertices[last_edge_index]) < 0) {
                     tangent *= -1;
                 }
 
@@ -386,7 +385,7 @@ void collide_cylinder_triangle(
                 auto disc_center = sep_axis.cyl_feature_index == 0 ? disc_center_pos : disc_center_neg;
                 auto pivotA_in_B = disc_center + tangent * cylinder.radius;
                 auto pivotA = to_object_space(pivotA_in_B, posA, ornA);
-                auto pivotB = project_plane(pivotA_in_B, vertices[0], tri_normal);
+                auto pivotB = project_plane(pivotA_in_B, tri.vertices[0], tri_normal);
                 result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
             }
         }
@@ -398,20 +397,20 @@ void collide_cylinder_triangle(
         case triangle_feature::face: {
             // Cylinder is on its side laying on the triangle face.
             // Segment-triangle intersection/containment test.
-            auto c0_in_tri = point_in_triangle(vertices, tri_normal, disc_center_pos);
-            auto c1_in_tri = point_in_triangle(vertices, tri_normal, disc_center_neg);
+            auto c0_in_tri = point_in_triangle(tri.vertices, tri_normal, disc_center_pos);
+            auto c1_in_tri = point_in_triangle(tri.vertices, tri_normal, disc_center_neg);
 
             if (c0_in_tri) {
                 auto p0 = disc_center_pos - tri_normal * cylinder.radius;
                 auto p0_A = to_object_space(p0, posA, ornA);
-                auto pivotB = project_plane(disc_center_pos, vertices[0], tri_normal);
+                auto pivotB = project_plane(disc_center_pos, tri.vertices[0], tri_normal);
                 result.maybe_add_point({p0_A, pivotB, sep_axis.dir, sep_axis.distance});
             }
 
             if (c1_in_tri) {
                 auto p1 = disc_center_neg - tri_normal * cylinder.radius;
                 auto p1_A = to_object_space(p1, posA, ornA);
-                auto pivotB = project_plane(disc_center_neg, vertices[0], tri_normal);
+                auto pivotB = project_plane(disc_center_neg, tri.vertices[0], tri_normal);
                 result.maybe_add_point({p1_A, pivotB, sep_axis.dir, sep_axis.distance});
             }
 
@@ -419,7 +418,7 @@ void collide_cylinder_triangle(
                 // One of them is outside. Find closest points in segments.
                 for (size_t i = 0; i < 3; ++i) {
                     // Ignore concave edges.
-                    if (is_concave_edge[i]) {
+                    if (tri.is_concave_edge[i]) {
                         continue;
                     }
 
@@ -427,7 +426,7 @@ void collide_cylinder_triangle(
                     vector3 p0[2], p1[2];
                     size_t num_points = 0;
                     closest_point_segment_segment(disc_center_pos, disc_center_neg, 
-                                                  vertices[i], vertices[(i + 1) % 3],
+                                                  tri.vertices[i], tri.vertices[(i + 1) % 3],
                                                   s[0], t[0], p0[0], p1[0], &num_points, 
                                                   &s[1], &t[1], &p0[1], &p1[1]);
 
@@ -443,8 +442,8 @@ void collide_cylinder_triangle(
         }
         case triangle_feature::edge: {
             // Already checked if this edge should have been ignored.
-            auto v0 = vertices[sep_axis.tri_feature_index];
-            auto v1 = vertices[(sep_axis.tri_feature_index + 1) % 3];
+            auto v0 = tri.vertices[sep_axis.tri_feature_index];
+            auto v1 = tri.vertices[(sep_axis.tri_feature_index + 1) % 3];
             scalar s[2], t[2];
             vector3 p0[2], p1[2];
             size_t num_points = 0;
@@ -461,7 +460,7 @@ void collide_cylinder_triangle(
         }
         case triangle_feature::vertex: {
             // Already checked if this vertex should have been ignored.
-            auto pivotB = vertices[sep_axis.tri_feature_index];
+            auto pivotB = tri.vertices[sep_axis.tri_feature_index];
             vector3 pivotA; scalar t;
             closest_point_segment(disc_center_neg, disc_center_pos, pivotB, t, pivotA);
             pivotA -= sep_axis.dir * cylinder.radius;
@@ -475,9 +474,9 @@ void collide_cylinder_triangle(
     case cylinder_feature::cap_edge: {
         switch (sep_axis.tri_feature) {
         case triangle_feature::face: {
-            if (point_in_triangle(vertices, tri_normal, sep_axis.pivotA)) {
+            if (point_in_triangle(tri.vertices, tri_normal, sep_axis.pivotA)) {
                 auto pivotA = to_object_space(sep_axis.pivotA, posA, ornA);
-                auto pivotB = project_plane(sep_axis.pivotA, vertices[0], tri_normal);
+                auto pivotB = project_plane(sep_axis.pivotA, tri.vertices[0], tri_normal);
                 result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
             }
             break;

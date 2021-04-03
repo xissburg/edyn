@@ -6,18 +6,16 @@
 namespace edyn {
 
 void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rmesh,
-                                 const triangle_vertices &vertices,
-                                 const std::array<bool, 3> &is_concave_edge, 
-                                 const std::array<scalar, 3> &cos_angles,
+                                 const triangle_shape &tri,
                                  scalar threshold, collision_result &result) {
 
-    const auto tri_edges = get_triangle_edges(vertices);
+    const auto tri_edges = get_triangle_edges(tri.vertices);
     const auto tri_normal = normalize(cross(tri_edges[0], tri_edges[1]));
     bool is_concave_vertex[3];
 
     for (int i = 0; i < 3; ++i) {
         // If edge starting or ending in this vertex are concave then thus is the vertex.
-        is_concave_vertex[i] = is_concave_edge[i] || is_concave_edge[(i + 2) % 3];
+        is_concave_vertex[i] = tri.is_concave_edge[i] || tri.is_concave_edge[(i + 2) % 3];
     }
 
     scalar poly_max_proj = EDYN_SCALAR_MAX;
@@ -39,7 +37,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
         triangle_feature feature;
         size_t feature_idx;
         scalar tri_proj;
-        get_triangle_support_feature(vertices, vector3_zero, normal, 
+        get_triangle_support_feature(tri.vertices, vector3_zero, normal, 
                                      feature, feature_idx, 
                                      tri_proj, threshold);
 
@@ -58,13 +56,13 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
 
     // Triangle face normal.
     {
-        auto tri_proj = dot(vertices[0], tri_normal);
+        auto tri_proj = dot(tri.vertices[0], tri_normal);
 
         // Find point on triangle that's furthest along the opposite direction
         // of the face normal.
         auto poly_sup = point_cloud_support_point(rmesh.vertices, -tri_normal);
         auto poly_proj = dot(poly_sup, tri_normal);
-        auto dist = dot(poly_sup - vertices[0], tri_normal);
+        auto dist = dot(poly_sup - tri.vertices[0], tri_normal);
 
         if (dist > max_distance) {
             max_distance = dist;
@@ -82,6 +80,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
         auto poly_edge = vertexA1 - vertexA0;
 
         for (size_t j = 0; j < tri_edges.size(); ++j) {
+            auto &vertexB0 = tri.vertices[j];
             auto dir = cross(poly_edge, tri_edges[j]);
             auto dir_len_sqr = length_sqr(dir);
 
@@ -92,9 +91,9 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
                 // if they don't lie on the same line. Get point in line containing
                 // `edgeA` that's closest to `vertexB0`.
                 vector3 closest; scalar t;
-                closest_point_line(vertexA0, poly_edge, vertices[j], t, closest);
+                closest_point_line(vertexA0, poly_edge, vertexB0, t, closest);
 
-                dir = closest - vertices[j];
+                dir = closest - vertexB0;
                 dir_len_sqr = length_sqr(dir);
 
                 if (dir_len_sqr > EDYN_EPSILON) {
@@ -104,17 +103,18 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
                 }
             }
 
-            /*if (dot(posA - posB, dir) < 0) {
+            // Polyhedron is assumed to be located at the origin.
+            if (dot(vector3_zero - vertexB0, dir) < 0) {
                 // Make it point towards A.
                 dir *= -1;
-            }*/
+            }
 
             triangle_feature feature;
             size_t feature_idx;
             scalar tri_proj;
-            get_triangle_support_feature(vertices, vector3_zero, dir, 
-                                        feature, feature_idx, 
-                                        tri_proj, threshold);
+            get_triangle_support_feature(tri.vertices, vector3_zero, dir, 
+                                         feature, feature_idx, 
+                                         tri_proj, threshold);
             
             auto tri_sup = tri_proj * dir;
             auto poly_sup = point_cloud_support_point(rmesh.vertices, -dir);
@@ -137,10 +137,10 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
 
     scalar tolerance = 0.002;
     // Find all vertices that are near the projection boundary.
-    std::vector<vector3> verticesA, verticesB;
+    std::vector<vector3> verticesA;
     // Vertices on the 2D contact plane.
-    std::vector<vector2> plane_verticesA, plane_verticesB;
-    // Points at the contact planes of A and B.
+    std::vector<vector2> plane_verticesA;
+    // Points at the contact plane.
     auto contact_originA = best_dir * poly_max_proj;
     auto contact_originB = best_dir * tri_max_proj;
     // Build a basis tangent to the contact plane so calculations can be done
@@ -159,19 +159,18 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
     }
 
     EDYN_ASSERT(!verticesA.empty() && !plane_verticesA.empty());
-    EDYN_ASSERT(!verticesB.empty() && !plane_verticesB.empty());
 
     auto hullA = calculate_convex_hull(plane_verticesA, tolerance);
 
     // First, add contact points for vertices that lie inside the opposing face.
-    // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,
-    // check if the points in `verticesA` lie inside the prism spanned by `verticesB`
-    // and `best_dir`
-    /*if (tri_feature == triangle_feature::face) {
+    // If the closest triangle feature is its face, check if the vertices of the
+    // convex hull of the closest vertices of the polyhedron lie within the 
+    // triangle.
+    if (tri_feature == triangle_feature::face) {
         for (auto idxA : hullA) {
             auto &pointA = verticesA[idxA];
 
-            if (point_in_triangle(vertices, best_dir, pointA)) {
+            if (point_in_triangle(tri.vertices, best_dir, pointA)) {
                 auto pivotA = to_object_space(pointA, posA, ornA);
                 auto pivotB_world = project_plane(pointA, contact_originB, best_dir);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
@@ -228,7 +227,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
                 }
             }
         }
-    }*/
+    }
 }
 
 }
