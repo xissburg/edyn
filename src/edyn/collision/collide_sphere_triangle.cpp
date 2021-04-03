@@ -12,29 +12,19 @@ void collide_sphere_triangle(
     const triangle_shape &tri,
     scalar threshold, collision_result &result) {
 
-    auto edges = get_triangle_edges(tri.vertices);
-    auto normal = cross(edges[0], edges[1]);
-    auto normal_len_sqr = length_sqr(normal);
-
-    if (normal_len_sqr < EDYN_EPSILON) {
-        // Degenerate triangle.
-        return;
-    }
-
-    normal /= std::sqrt(normal_len_sqr);
     auto p = sphere_pos - tri.vertices[0];
-    auto dist_plane = dot(p, normal);
+    auto dist_plane = dot(p, tri.normal);
 
     if (dist_plane > sphere.radius + threshold) {
         // Does not intersect triangle plane.
         return;
     }
 
-    if (point_in_triangle(tri.vertices, normal, sphere_pos)) {
+    if (point_in_triangle(tri.vertices, tri.normal, sphere_pos)) {
         auto idx = result.num_points++;
-        result.point[idx].pivotA = rotate(conjugate(sphere_orn), -normal * sphere.radius);
-        result.point[idx].pivotB = sphere_pos - normal * dist_plane;
-        result.point[idx].normalB = normal;
+        result.point[idx].pivotA = rotate(conjugate(sphere_orn), -tri.normal * sphere.radius);
+        result.point[idx].pivotB = sphere_pos - tri.normal * dist_plane;
+        result.point[idx].normalB = tri.normal;
         result.point[idx].distance = dist_plane - sphere.radius;
     } else {
         // Check edges.
@@ -64,12 +54,12 @@ void collide_sphere_triangle(
                 if (edge_dist > EDYN_EPSILON) {
                     edge_normal /= edge_dist;
                 } else {
-                    edge_normal = normal;
+                    edge_normal = tri.normal;
                 }
                 
                 // Check if angle between edge normal and the i-th triangle normal
                 // is in the range between the i-th and k-th triangle normals. 
-                if (dot(edge_normal, normal) > tri.cos_angles[i]) {
+                if (dot(edge_normal, tri.normal) > tri.cos_angles[i]) {
                     dist_sqr = edge_dist_sqr;
                     closest_point = edge_point;
                     closest_edge_normal = edge_normal;

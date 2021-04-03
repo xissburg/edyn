@@ -22,7 +22,9 @@ collision_result collide(const polyhedron_shape &shA, const mesh_shape &shB,
             tri.cos_angles[i] = shB.trimesh->cos_angles[tri_idx * 3 + i];
         }
 
-        collide_polyhedron_triangle(shA, rmeshA, tri, ctx.threshold, result);
+        tri.update_computed_properties();
+
+        collide_polyhedron_triangle(shA, rmeshA, ctx.posA, ctx.ornA, tri, ctx.threshold, result);
     });
 
     return result;

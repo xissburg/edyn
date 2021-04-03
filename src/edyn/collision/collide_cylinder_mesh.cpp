@@ -27,6 +27,8 @@ collision_result collide(const cylinder_shape &shA, const mesh_shape &shB,
             tri.cos_angles[i] = shB.trimesh->cos_angles[tri_idx * 3 + i];
         }
 
+        tri.update_computed_properties();
+
         collide_cylinder_triangle(shA, posA_in_B, ornA_in_B, 
                                   disc_center_pos, disc_center_neg, cyl_axis, 
                                   tri, ctx.threshold, result);

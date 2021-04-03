@@ -30,6 +30,8 @@ collision_result collide(const box_shape &shA, const paged_mesh_shape &shB,
             tri.cos_angles[i] = trimesh->cos_angles[tri_idx * 3 + i];
         }
 
+        tri.update_computed_properties();
+
         collide_box_triangle(shA, posA_in_B, ornA_in_B, axesA, tri, ctx.threshold, result);
     });
 

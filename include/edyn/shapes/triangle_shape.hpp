@@ -30,10 +30,26 @@ struct triangle_shape {
     triangle_vertices vertices;
     // Whether an edge is concave in the mesh.
     std::array<bool, 3> is_concave_edge;
+    std::array<bool, 3> is_concave_vertex;
     // Cosine of the angle of each edge, i.e. the angle between the normal of
     // this triangle and the normal of the other triangle that is a neighbor
     // through the edge.
     std::array<scalar, 3> cos_angles;
+    
+    std::array<vector3, 3> edges;
+
+    std::array<vector3, 3> edge_tangents;
+
+    vector3 normal;
+
+    void update_computed_properties();
+
+    bool ignore_edge(size_t idx, const vector3 &dir) const;
+
+    bool ignore_vertex(size_t idx, const vector3 &dir) const;
+
+    bool ignore_feature(triangle_feature tri_feature, 
+                        size_t idx, const vector3 &dir) const;
 };
 
 /**
@@ -55,6 +71,8 @@ void get_triangle_support_feature(const triangle_vertices &,
                                   triangle_feature &tri_feature,
                                   size_t &tri_feature_index,
                                   scalar &projection, scalar threshold);
+
+vector3 get_triangle_support_point(const triangle_vertices &, const vector3 &dir);
 
 size_t get_triangle_feature_num_vertices(triangle_feature feature);
 
