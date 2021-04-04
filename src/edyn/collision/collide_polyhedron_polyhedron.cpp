@@ -7,7 +7,6 @@
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/comp/rotated_mesh.hpp"
-#include <numeric>
 
 namespace edyn {
 
@@ -22,17 +21,17 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     scalar max_distance = -EDYN_SCALAR_MAX;
     auto best_dir = vector3_zero;
 
-    for (size_t i = 0; i < shA.mesh->num_triangles(); ++i) {
+    for (size_t i = 0; i < shA.mesh->num_faces(); ++i) {
         auto &normal_world = rotatedA.normals[i];
 
-        auto vertex_idx = shA.mesh->indices[i * 3];
+        auto vertex_idx = shA.mesh->first_vertex_index(i);
         auto &vertexA = rotatedA.vertices[vertex_idx];
         auto vertex_world = vertexA + posA;
 
         auto projA = dot(vertex_world, normal_world);
 
         // Find point on B that's furthest along the opposite direction
-        // of the triangle normal.
+        // of the face normal.
         auto supB = point_cloud_support_point(rotatedB.vertices, -normal_world) + posB;
         auto projB = dot(supB, normal_world);
 
@@ -50,23 +49,6 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     distance = max_distance;
     projectionA = max_proj_A;
     projectionB = max_proj_B;
-}
-
-std::vector<size_t> figure_out_convex_hull(std::vector<vector2> vertices, scalar tolerance) {
-    if (vertices.size() > 3) {
-        // Calculate 2D convex hull of contact polygon.
-        return calculate_convex_hull(vertices, tolerance);
-    }
-     
-    if (vertices.size() == 3) {
-        // It is a triangle, just have to make sure vertices are
-        // oriented counter-clockwise.
-        sort_triangle_ccw(vertices[0], vertices[1], vertices[2]);
-    }
-
-    std::vector<size_t> hull(vertices.size());
-    std::iota(hull.begin(), hull.end(), 0);
-    return hull;
 }
 
 collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &shB, 
@@ -89,7 +71,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     scalar projectionB = -EDYN_SCALAR_MAX;
     auto best_dir = vector3_zero;
 
-    // Find best support direction among all triangle normals of A.
+    // Find best support direction among all face normals of A.
     max_support_direction(shA, rmeshA, posA, shB, rmeshB, posB, 
                           best_dir, max_distance, projectionA, projectionB);
 
@@ -97,7 +79,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     projectionA *= -1;
     projectionB *= -1;
 
-    // Find best support direction among all triangle normals of B.
+    // Find best support direction among all face normals of B.
     {
         auto distance = scalar{};
         auto projA = scalar{};
@@ -208,8 +190,8 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     EDYN_ASSERT(!verticesA.empty() && !plane_verticesA.empty());
     EDYN_ASSERT(!verticesB.empty() && !plane_verticesB.empty());
 
-    auto hullA = figure_out_convex_hull(plane_verticesA, tolerance);
-    auto hullB = figure_out_convex_hull(plane_verticesB, tolerance);
+    auto hullA = calculate_convex_hull(plane_verticesA, tolerance);
+    auto hullB = calculate_convex_hull(plane_verticesB, tolerance);
 
     // First, add contact points for vertices that lie inside the opposing face.
     // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,

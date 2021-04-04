@@ -4,6 +4,7 @@
 #include "edyn/math/vector2.hpp"
 #include <fstream>
 #include <sstream>
+#include <numeric>
 
 namespace edyn {
 
@@ -36,6 +37,54 @@ void make_plane_mesh(scalar extent_x, scalar extent_z,
 }
 
 bool load_mesh_from_obj(const std::string &path, 
+                        std::vector<vector3> &vertices, 
+                        std::vector<uint16_t> &indices,
+                        std::vector<uint16_t> &faces) {
+    auto file = std::ifstream(path);
+
+    if (!file.is_open()) {
+        return false;
+    }
+
+    std::string line;
+
+    while (std::getline(file, line)) {
+        auto pos_space = line.find(" ");
+
+        if (pos_space == std::string::npos) {
+            continue;
+        }
+
+        auto cmd = line.substr(0, pos_space);
+
+        if (cmd == "v") {
+            auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
+            edyn::vector3 position;
+            iss >> position.x >> position.y >> position.z;
+            vertices.push_back(position);
+        } else if (cmd == "f") {
+            // Store where this face starts in the `indices` array.
+            faces.push_back(indices.size());
+
+            auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
+            uint16_t idx;
+
+            while (true) {
+                iss >> idx;
+                if (iss.fail()) break;
+                indices.push_back(idx - 1);
+            }
+
+            // Store the number of vertices in this face.
+            auto count = indices.size() - faces.back();
+            faces.push_back(count);
+        }
+    }
+
+    return true;
+}
+
+bool load_tri_mesh_from_obj(const std::string &path, 
                         std::vector<vector3> &vertices, 
                         std::vector<uint16_t> &indices) {
     auto file = std::ifstream(path);
@@ -189,8 +238,18 @@ size_t split_hull_edge(const std::vector<vector2> &points,
     return 0;
 }
 
-std::vector<size_t> calculate_convex_hull(const std::vector<vector2> &points, scalar tolerance) {
-    EDYN_ASSERT(points.size() > 3);
+std::vector<size_t> calculate_convex_hull(std::vector<vector2> &points, scalar tolerance) {
+    if (points.size() <= 3) {
+        if (points.size() == 3) {
+            // It is a triangle, just have to make sure vertices are
+            // oriented counter-clockwise.
+            sort_triangle_ccw(points[0], points[1], points[2]);
+        }
+
+        std::vector<size_t> hull(points.size());
+        std::iota(hull.begin(), hull.end(), 0);
+        return hull;
+    }
 
     // Quickhull algorithm.
     auto pt_min = vector2_one * EDYN_SCALAR_MAX;

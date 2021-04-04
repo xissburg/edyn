@@ -26,15 +26,32 @@ void make_plane_mesh(scalar extent_x, scalar extent_z,
                      std::vector<vector3> &vertices, std::vector<uint16_t> &indices);
 
 /**
- * @brief Loads a triangle mesh from a *.obj file.
+ * @brief Loads a mesh from a *.obj file.
+ * @param path Path to file.
+ * @param vertices Array to be filled with vertices.
+ * @param indices Array to be filled with indices for each face.
+ * @param faces Array to be filled with an index of where the vertices
+ * of a face starts in the `indices` array and the vertex count of the 
+ * face, i.e. a sequence of pairs of (index of first vertex index, 
+ * number of vertices).
+ * @return Success or failure.
+ */
+bool load_mesh_from_obj(const std::string &path, 
+                        std::vector<vector3> &vertices, 
+                        std::vector<uint16_t> &indices,
+                        std::vector<uint16_t> &faces);
+
+/**
+ * @brief Loads a triangle mesh from a *.obj file which must've been
+ * triangulated during export.
  * @param path Path to file.
  * @param vertices Array to be filled with vertices.
  * @param indices Array to be filled with indices for each triangle.
  * @return Success or failure.
  */
-bool load_mesh_from_obj(const std::string &path, 
-                        std::vector<vector3> &vertices, 
-                        std::vector<uint16_t> &indices);
+bool load_tri_mesh_from_obj(const std::string &path, 
+                            std::vector<vector3> &vertices, 
+                            std::vector<uint16_t> &indices);
 
 /**
  * @brief Calculates a point on a axis-aligned box that's furthest along
@@ -80,14 +97,32 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
  */
 vector3 point_cloud_support_point(const std::vector<vector3> &points, const vector3 &dir);
 
+template<typename It>
+vector3 point_cloud_support_point(It first, It last, const vector3 &dir) {
+    auto sup = vector3_zero;
+    auto max_proj = -EDYN_SCALAR_MAX;
+
+    for (auto it = first; it != last; ++it) {
+        const auto &point = *it;
+        auto proj = dot(point, dir);
+
+        if (proj > max_proj) {
+            max_proj = proj;
+            sup = point;
+        }
+    }
+
+    return sup;
+}
+
 /**
  * @brief Calculates a convex hull of a set of points.
  * @param points A point cloud.
  * @param tolerance Controls how points are ignored based on colinearity.
  * @return An array of indices of the convex hull vertices oriented
- * counter-clockwise.
+ * counter-clockwise. It can be modified as a result of this call.
  */
-std::vector<size_t> calculate_convex_hull(const std::vector<vector2> &points, scalar tolerance);
+std::vector<size_t> calculate_convex_hull(std::vector<vector2> &points, scalar tolerance);
 
 /**
  * @brief Checks if a point lies inside a convex polygon.

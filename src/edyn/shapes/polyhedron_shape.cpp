@@ -8,7 +8,7 @@ namespace edyn {
 polyhedron_shape::polyhedron_shape(const std::string &path_to_obj)
     : mesh(std::make_shared<convex_mesh>())
 {
-    load_mesh_from_obj(path_to_obj, mesh->vertices, mesh->indices);
+    load_mesh_from_obj(path_to_obj, mesh->vertices, mesh->indices, mesh->faces);
     mesh->calculate_normals();
     mesh->calculate_edges();
     calculate_local_aabb();
@@ -31,7 +31,7 @@ AABB polyhedron_shape::aabb(const vector3 &pos, const quaternion &orn) const {
 }
 
 matrix3x3 polyhedron_shape::inertia(scalar mass) const {
-    return moment_of_inertia_polyhedron(mass, mesh->vertices, mesh->indices);
+    return moment_of_inertia_polyhedron(mass, mesh->vertices, mesh->indices, mesh->faces);
 }
 
 }

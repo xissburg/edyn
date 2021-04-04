@@ -262,22 +262,19 @@ collision_result collide(const paged_mesh_shape &shA, const mesh_shape &shB,
 // Sphere-Triangle
 void collide_sphere_triangle(
     const sphere_shape &, const vector3 &sphere_pos, const quaternion &sphere_orn,
-    const triangle_vertices &vertices, const std::array<bool, 3> &is_concave_edge, 
-    const std::array<scalar, 3> &cos_angles, scalar threshold, collision_result &result);
+    const triangle_shape &tri, scalar threshold, collision_result &result);
 
 // Cylinder-Triangle
 void collide_cylinder_triangle(
     const cylinder_shape &, const vector3 &posA, const quaternion &ornA,
     const vector3 &disc_center_pos, const vector3 &disc_center_neg,
-    const vector3 &cylinder_axis, const triangle_vertices &, 
-    const std::array<bool, 3> &is_concave_edge, const std::array<scalar, 3> &cos_angles, 
-    scalar threshold, collision_result &);
+    const vector3 &cylinder_axis, const triangle_shape &tri, 
+    scalar threshold, collision_result &result);
 
 // Box-Triangle
 void collide_box_triangle(
     const box_shape &, const vector3 &box_pos, const quaternion &box_orn,
-    const std::array<vector3, 3> box_axes, const triangle_vertices &vertices,
-    const std::array<bool, 3> &is_concave_edge, const std::array<scalar, 3> &cos_angles,
+    const std::array<vector3, 3> box_axes, const triangle_shape &tri,
     scalar threshold, collision_result &result);
 
 // Polyhedron-Polyhedron
@@ -339,6 +336,12 @@ collision_result collide(const polyhedron_shape &shA, const paged_mesh_shape &sh
 // Paged Mesh-Polyhedron
 collision_result collide(const paged_mesh_shape &shA, const polyhedron_shape &shB,
                          const collision_context &ctx);
+
+// Polyhedron-Triangle
+void collide_polyhedron_triangle(
+    const polyhedron_shape &, const rotated_mesh &,
+    const vector3 &pos_poly, const quaternion &orn_poly,
+    const triangle_shape &tri, scalar threshold, collision_result &result);
 
 template<typename ShapeAType, typename ShapeBType>
 collision_result swap_collide(const ShapeAType &shA, const ShapeBType &shB,

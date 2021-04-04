@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/shapes/triangle_shape.hpp"
 
 namespace edyn {
 
@@ -16,17 +17,18 @@ collision_result collide(const sphere_shape &shA, const paged_mesh_shape &shB,
             return;
         }
 
-        std::array<bool, 3> is_concave_edge;
-        std::array<scalar, 3> cos_angles;
         auto trimesh = shB.trimesh->get_submesh(mesh_idx);
+        auto tri = triangle_shape{};
+        tri.vertices = vertices;
 
         for (int i = 0; i < 3; ++i) {
-            is_concave_edge[i] = trimesh->is_concave_edge[tri_idx * 3 + i];
-            cos_angles[i] = trimesh->cos_angles[tri_idx * 3 + i];
+            tri.is_concave_edge[i] = trimesh->is_concave_edge[tri_idx * 3 + i];
+            tri.cos_angles[i] = trimesh->cos_angles[tri_idx * 3 + i];
         }
 
-        collide_sphere_triangle(shA, posA_in_B, ornA_in_B, vertices, 
-                                is_concave_edge, cos_angles, ctx.threshold, result);
+        tri.update_computed_properties();
+
+        collide_sphere_triangle(shA, posA_in_B, ornA_in_B, tri, ctx.threshold, result);
     });
 
     return result;

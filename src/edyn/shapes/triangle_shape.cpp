@@ -3,6 +3,53 @@
 
 namespace edyn {
 
+void triangle_shape::update_computed_properties() {
+    edges = get_triangle_edges(vertices);
+    normal = normalize(cross(edges[0], edges[1]));
+
+    for (int i = 0; i < 3; ++i) {
+        // If edge starting or ending in this vertex is concave, thus is the vertex.
+        is_concave_vertex[i] = is_concave_edge[i] || is_concave_edge[(i + 2) % 3];
+        edge_tangents[i] = cross(edges[i], normal);
+    }
+}
+
+bool triangle_shape::ignore_edge(size_t idx, const vector3 &dir) const {
+    return is_concave_edge[idx] ||
+            dot(dir, edge_tangents[idx]) < -EDYN_EPSILON ||
+            dot(dir, normal) < cos_angles[idx];
+}
+
+bool triangle_shape::ignore_vertex(size_t idx, const vector3 &dir) const {
+    if (is_concave_vertex[idx]) {
+        return true;
+    }
+
+    // Ignore vertex if the direction is not in the Voronoi region of the
+    // edges that share it.
+    auto dot_tangent_0 = dot(dir, edge_tangents[idx]);
+    auto dot_tangent_1 = dot(dir, edge_tangents[(idx + 2) % 3]);
+
+    if (dot_tangent_0 < -EDYN_EPSILON && dot_tangent_1 < -EDYN_EPSILON) {
+        return true;
+    }
+
+    return dot(dir, normal) < cos_angles[idx];
+}
+
+bool triangle_shape::ignore_feature(triangle_feature tri_feature, 
+                                    size_t idx, const vector3 &dir) const {
+    switch (tri_feature) {
+    case triangle_feature::edge:
+        return ignore_edge(idx, dir);
+    case triangle_feature::vertex:
+        return ignore_vertex(idx, dir);
+    case triangle_feature::face:
+        return false;
+    }
+    return false;
+}
+
 bool point_in_triangle(const triangle_vertices &vertices, 
                        const vector3 &normal, 
                        const vector3 &p) {
@@ -49,8 +96,8 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
         if (i > 0 && std::abs(proj_i - projection) < threshold) {
             // If the maximum feature is a vertex, then the current vertex
             // is included to form an edge.
-            if (tri_feature == TRIANGLE_FEATURE_VERTEX) {
-                tri_feature = TRIANGLE_FEATURE_EDGE;
+            if (tri_feature == triangle_feature::vertex) {
+                tri_feature = triangle_feature::edge;
 
                 if (i == 2) {
                     // If this is the third vertex (index 2), the previous in this 
@@ -67,28 +114,45 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
                     tri_feature_index = 0;
                     projection = std::max(proj_i, projection);
                 }
-            } else if (tri_feature == TRIANGLE_FEATURE_EDGE) {
+            } else if (tri_feature == triangle_feature::edge) {
                 // If the maximum feature was already an edge, adding this
                 // vertex to it makes it a face.
-                tri_feature = TRIANGLE_FEATURE_FACE;
+                tri_feature = triangle_feature::face;
                 projection = std::max(proj_i, projection);
             }
         } else if (proj_i > projection) {
             projection = proj_i;
-            tri_feature = TRIANGLE_FEATURE_VERTEX;
+            tri_feature = triangle_feature::vertex;
             tri_feature_index = i;
         }
     }
 }
 
+vector3 get_triangle_support_point(const triangle_vertices &vertices, const vector3 &dir) {
+    auto sup = vector3_zero;
+    auto max_proj = -EDYN_SCALAR_MAX;
+
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        const auto &point_local = vertices[i];
+        auto proj = dot(point_local, dir);
+
+        if (proj > max_proj) {
+            max_proj = proj;
+            sup = point_local;
+        }
+    }
+
+    return sup;
+}
+
 size_t get_triangle_feature_num_vertices(triangle_feature feature) {
-    return size_t(feature) + 1;
+    return static_cast<size_t>(feature) + 1;
 }
 
 size_t get_triangle_feature_num_edges(triangle_feature feature) {
-    if (feature == TRIANGLE_FEATURE_EDGE) {
+    if (feature == triangle_feature::edge) {
         return 1;
-    } else if (feature == TRIANGLE_FEATURE_FACE) {
+    } else if (feature == triangle_feature::face) {
         return 3;
     }
     return 0;
