@@ -250,12 +250,12 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                     auto pivotB = to_object_space(pointB, posB, ornB);
                     auto pivotA_world = project_plane(pointB, contact_origin_poly, sep_axis);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                    result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+                    result.add_point({pivotA, pivotB, normalB, max_distance});
                 }
             }
         }
 
-        // Check if the box edge intersects the edges of the polygon.
+        // Check if the box edge intersect the edges of the polygon.
         if (hull_poly.size() > 1) {
             // If the feature is a polygon, it is will be necessary to wrap around the 
             // vertex array. If it is just one edge, then avoid calculating the same
@@ -285,7 +285,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                     auto pivotB_world = lerp(edge_vertices[0], edge_vertices[1], t[k]);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+                    result.add_point({pivotA, pivotB, normalB, max_distance});
                 }
             }
         } else {
