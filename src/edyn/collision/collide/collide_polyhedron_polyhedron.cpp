@@ -69,13 +69,13 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     scalar max_distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;
     scalar projectionB = -EDYN_SCALAR_MAX;
-    auto best_dir = vector3_zero;
+    auto sep_axis = vector3_zero;
 
     // Find best support direction among all face normals of A.
     max_support_direction(shA, rmeshA, posA, shB, rmeshB, posB, 
-                          best_dir, max_distance, projectionA, projectionB);
+                          sep_axis, max_distance, projectionA, projectionB);
 
-    best_dir *= -1; // Make it point towards A.
+    sep_axis *= -1; // Make it point towards A.
     projectionA *= -1;
     projectionB *= -1;
 
@@ -92,7 +92,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
             max_distance = distance;
             projectionA = projA;
             projectionB = projB;
-            best_dir = dir;
+            sep_axis = dir;
         }
     }
 
@@ -141,7 +141,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
                 max_distance = distance;
                 projectionA = dot(supA, dir);
                 projectionB = dot(supB, dir);
-                best_dir = dir;
+                sep_axis = dir;
             }
         }
     }
@@ -151,7 +151,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     }
 
     auto result = collision_result{};
-    auto normalB = rotate(conjugate(ornB), best_dir);
+    auto normalB = rotate(conjugate(ornB), sep_axis);
     scalar tolerance = 0.002;
 
     // Find all vertices that are near the projection boundary.
@@ -159,16 +159,16 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     // Vertices on the 2D contact plane.
     std::vector<vector2> plane_verticesA, plane_verticesB;
     // Points at the contact planes of A and B.
-    auto contact_originA = best_dir * projectionA;
-    auto contact_originB = best_dir * projectionB;
+    auto contact_originA = sep_axis * projectionA;
+    auto contact_originB = sep_axis * projectionB;
     // Build a basis tangent to the contact plane so calculations can be done
     // in tangent space.
     vector3 contact_tangent0, contact_tangent1;
-    plane_space(best_dir, contact_tangent0, contact_tangent1);
-    auto contact_basis = matrix3x3_columns(contact_tangent0, best_dir, contact_tangent1);
+    plane_space(sep_axis, contact_tangent0, contact_tangent1);
+    auto contact_basis = matrix3x3_columns(contact_tangent0, sep_axis, contact_tangent1);
 
     for (auto &vertex_world : rmeshA.vertices) {
-        if (dot(vertex_world, best_dir) < projectionA + tolerance) {
+        if (dot(vertex_world, sep_axis) < projectionA + tolerance) {
             auto vertex_tangent = to_object_space(vertex_world, contact_originA, contact_basis);
             auto vertex_plane = to_vector2_xz(vertex_tangent);
             plane_verticesA.push_back(vertex_plane);
@@ -179,7 +179,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     for (auto &vertex : rmeshB.vertices) {
         auto vertex_world = vertex + posB;
 
-        if (dot(vertex_world, best_dir) > projectionB - tolerance) {
+        if (dot(vertex_world, sep_axis) > projectionB - tolerance) {
             auto vertex_tangent = to_object_space(vertex_world, contact_originB, contact_basis);
             auto vertex_plane = to_vector2_xz(vertex_tangent);
             plane_verticesB.push_back(vertex_plane);
@@ -196,14 +196,14 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     // First, add contact points for vertices that lie inside the opposing face.
     // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,
     // check if the points in `verticesA` lie inside the prism spanned by `verticesB`
-    // and `best_dir`
+    // and `sep_axis`
     if (hullB.size() > 2) {
         for (auto idxA : hullA) {
             auto &pointA = verticesA[idxA];
 
-            if (point_in_polygonal_prism(verticesB, hullB, best_dir, pointA)) {
+            if (point_in_polygonal_prism(verticesB, hullB, sep_axis, pointA)) {
                 auto pivotA = to_object_space(pointA, posA, ornA);
-                auto pivotB_world = project_plane(pointA, contact_originB, best_dir);
+                auto pivotB_world = project_plane(pointA, contact_originB, sep_axis);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
                 result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
             }
@@ -214,9 +214,9 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
         for (auto idxB : hullB) {
             auto &pointB = verticesB[idxB];
 
-            if (point_in_polygonal_prism(verticesA, hullA, best_dir, pointB)) {
+            if (point_in_polygonal_prism(verticesA, hullA, sep_axis, pointB)) {
                 auto pivotB = to_object_space(pointB, posB, ornB);
-                auto pivotA_world = project_plane(pointB, contact_originA, best_dir);
+                auto pivotA_world = project_plane(pointB, contact_originA, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
             }
