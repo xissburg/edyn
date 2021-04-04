@@ -23,7 +23,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
     // every time.
     auto &rmeshA = *(*ctx.rmeshA);
 
-    auto box_axes = std::array<vector3, 3>{
+    const auto box_axes = std::array<vector3, 3>{
         quaternion_x(ornB),
         quaternion_y(ornB),
         quaternion_z(ornB)
