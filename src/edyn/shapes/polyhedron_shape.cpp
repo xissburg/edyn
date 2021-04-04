@@ -12,6 +12,10 @@ polyhedron_shape::polyhedron_shape(const std::string &path_to_obj)
     mesh->calculate_normals();
     mesh->calculate_edges();
     calculate_local_aabb();
+
+#ifdef EDYN_DEBUG
+    mesh->validate();
+#endif
 }
 
 void polyhedron_shape::calculate_local_aabb() {

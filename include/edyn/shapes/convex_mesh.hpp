@@ -59,6 +59,8 @@ struct convex_mesh {
     void calculate_normals();
 
     void calculate_edges();
+
+    void validate() const;
 };
 
 }

@@ -160,6 +160,10 @@ target_include_directories(Edyn SYSTEM
 
 target_compile_features(Edyn PUBLIC cxx_std_17)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_definitions(EDYN_DEBUG)
+endif()
+
 #
 # Sanitize
 #

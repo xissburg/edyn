@@ -65,4 +65,36 @@ void convex_mesh::calculate_edges() {
     }
 }
 
+void convex_mesh::validate() const {
+    // Check if all faces are flat.
+    for (size_t i = 0; i < num_faces(); ++i) {
+        auto &normal = normals[i];
+        auto first = faces[i * 2];
+        auto count = faces[i * 2 + 1];
+        auto i0 = indices[first];
+        auto &v0 = vertices[i0];
+
+        // Find a second edge that's not colinear.
+        for (size_t j = 1; j < count; ++j) {
+            auto ij = indices[first + j];
+            auto &vj = vertices[ij];
+
+            EDYN_ASSERT(std::abs(dot(vj - v0, normal)) < EDYN_EPSILON);
+        }
+    }
+
+    // Check if mesh is convex.
+    for (size_t i = 0; i < num_faces(); ++i) {
+        auto &normal = normals[i];
+        auto first = faces[i * 2];
+        auto i0 = indices[first];
+        auto &v0 = vertices[i0];
+
+        // All vertices must lie behind the plane parallel to the face.
+        for (auto &vj : vertices) {
+            EDYN_ASSERT(dot(vj - v0, normal) < EDYN_EPSILON);
+        }
+    }
+}
+
 }
