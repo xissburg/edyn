@@ -7,7 +7,7 @@
 
 namespace edyn {
 
-void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rmesh,
+void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mesh &rmesh,
                                  const vector3 &pos_poly, const quaternion &orn_poly, 
                                  const triangle_shape &tri,
                                  scalar threshold, collision_result &result) {
@@ -21,7 +21,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
     scalar tri_max_proj = -EDYN_SCALAR_MAX;
     triangle_feature tri_feature;
     size_t tri_feature_index;
-    auto best_dir = vector3_zero;
+    auto sep_axis = vector3_zero;
 
     // Polyhedron face normals.
     for (size_t i = 0; i < poly.mesh->num_faces(); ++i) {
@@ -29,7 +29,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
         auto vertex_idx = poly.mesh->first_vertex_index(i);
         auto &poly_vertex = rmesh.vertices[vertex_idx];
 
-        // Find point on triangle that's furthest along the opposite direction
+        // Find feature on triangle that's furthest along the opposite direction
         // of the face normal.
         triangle_feature feature;
         size_t feature_idx;
@@ -49,7 +49,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
             tri_max_proj = tri_proj;
             tri_feature = feature;
             tri_feature_index = feature_idx;
-            best_dir = normal;
+            sep_axis = normal;
         }
     }
 
@@ -65,7 +65,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
             poly_max_proj = dot(poly_sup, tri.normal);
             tri_max_proj = dot(tri.vertices[0], tri.normal);
             tri_feature = triangle_feature::face;
-            best_dir = tri.normal;
+            sep_axis = tri.normal;
         }
     }
 
@@ -129,7 +129,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
                 tri_max_proj = tri_proj;
                 tri_feature = feature;
                 tri_feature_index = feature_idx;
-                best_dir = dir;
+                sep_axis = dir;
             }
         }
     }
@@ -144,16 +144,16 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
     // Vertices on the 2D contact plane.
     std::vector<vector2> plane_vertices_poly;
     // Points at the contact plane.
-    auto contact_origin_poly = best_dir * poly_max_proj;
-    auto contact_origin_tri = best_dir * tri_max_proj;
+    auto contact_origin_poly = sep_axis * poly_max_proj;
+    auto contact_origin_tri = sep_axis * tri_max_proj;
     // Build a basis tangent to the contact plane so calculations can be done
     // in tangent space.
     vector3 contact_tangent0, contact_tangent1;
-    plane_space(best_dir, contact_tangent0, contact_tangent1);
-    auto contact_basis = matrix3x3_columns(contact_tangent0, best_dir, contact_tangent1);
+    plane_space(sep_axis, contact_tangent0, contact_tangent1);
+    auto contact_basis = matrix3x3_columns(contact_tangent0, sep_axis, contact_tangent1);
 
     for (auto &vertex_world : rmesh.vertices) {
-        if (dot(vertex_world, best_dir) < poly_max_proj + tolerance) {
+        if (dot(vertex_world, sep_axis) < poly_max_proj + tolerance) {
             auto vertex_tangent = to_object_space(vertex_world, contact_origin_poly, contact_basis);
             auto vertex_plane = to_vector2_xz(vertex_tangent);
             plane_vertices_poly.push_back(vertex_plane);
@@ -198,10 +198,10 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
         for (auto idxA : hull_poly) {
             auto &pointA = vertices_poly[idxA];
 
-            if (point_in_triangle(tri.vertices, best_dir, pointA)) {
+            if (point_in_triangle(tri.vertices, sep_axis, pointA)) {
                 auto pivotA = to_object_space(pointA, vector3_zero, orn_poly);
-                auto pivotB = project_plane(pointA, contact_origin_tri, best_dir) + pos_poly;
-                result.maybe_add_point({pivotA, pivotB, best_dir, max_distance});
+                auto pivotB = project_plane(pointA, contact_origin_tri, sep_axis) + pos_poly;
+                result.maybe_add_point({pivotA, pivotB, sep_axis, max_distance});
             }
         }
     }
@@ -212,15 +212,15 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
     if (hull_poly.size() > 2) {
         for (size_t i = 0; i < hull_tri_size; ++i) {
             auto idxB = hull_tri[i];
-            if (tri.ignore_vertex(idxB, best_dir)) continue;
+            if (tri.ignore_vertex(idxB, sep_axis)) continue;
 
             auto &pointB = tri.vertices[idxB];
 
-            if (point_in_polygonal_prism(vertices_poly, hull_poly, best_dir, pointB)) {
+            if (point_in_polygonal_prism(vertices_poly, hull_poly, sep_axis, pointB)) {
                 auto pivotB = pointB + pos_poly;
-                auto pivotA_world = project_plane(pointB, contact_origin_poly, best_dir);
+                auto pivotA_world = project_plane(pointB, contact_origin_poly, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, vector3_zero, orn_poly);
-                result.maybe_add_point({pivotA, pivotB, best_dir, max_distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, max_distance});
             }
         }
     }
@@ -243,7 +243,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
 
             for (size_t j = 0; j < limit_tri; ++j) {
                 auto idx0B = hull_tri[j];
-                if (tri.ignore_edge(idx0B, best_dir)) continue;
+                if (tri.ignore_edge(idx0B, sep_axis)) continue;
 
                 auto idx1B = hull_tri[(j + 1) % hull_tri_size];
                 auto &v0B = plane_vertices_tri[idx0B];
@@ -256,7 +256,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, rotated_mesh &rme
                     auto pivotB_world = lerp(tri.vertices[idx0B], tri.vertices[idx1B], t[k]);
                     auto pivotA = to_object_space(pivotA_world, vector3_zero, orn_poly);
                     auto pivotB = pivotB_world + pos_poly;
-                    result.maybe_add_point({pivotA, pivotB, best_dir, max_distance});
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, max_distance});
                 }
             }
         }

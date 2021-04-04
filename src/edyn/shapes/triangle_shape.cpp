@@ -8,7 +8,7 @@ void triangle_shape::update_computed_properties() {
     normal = normalize(cross(edges[0], edges[1]));
 
     for (int i = 0; i < 3; ++i) {
-        // If edge starting or ending in this vertex are concave, thus is the vertex.
+        // If edge starting or ending in this vertex is concave, thus is the vertex.
         is_concave_vertex[i] = is_concave_edge[i] || is_concave_edge[(i + 2) % 3];
         edge_tangents[i] = cross(edges[i], normal);
     }
@@ -25,7 +25,7 @@ bool triangle_shape::ignore_vertex(size_t idx, const vector3 &dir) const {
         return true;
     }
 
-    // Ignore vertex if the direction is not in the Voronoi region the
+    // Ignore vertex if the direction is not in the Voronoi region of the
     // edges that share it.
     auto dot_tangent_0 = dot(dir, edge_tangents[idx]);
     auto dot_tangent_1 = dot(dir, edge_tangents[(idx + 2) % 3]);

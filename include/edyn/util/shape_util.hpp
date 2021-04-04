@@ -120,18 +120,17 @@ vector3 point_cloud_support_point(It first, It last, const vector3 &dir) {
  * @param points A point cloud.
  * @param tolerance Controls how points are ignored based on colinearity.
  * @return An array of indices of the convex hull vertices oriented
- * counter-clockwise.
+ * counter-clockwise. It can be modified as a result of this call.
  */
 std::vector<size_t> calculate_convex_hull(std::vector<vector2> &points, scalar tolerance);
 
 /**
  * @brief Checks if a point lies inside a convex polygon.
  * @param vertices Vertices of a convex polygon oriented counter-clockwise.
- * It can be modified as a result of this call.
  * @param point The point to test.
  * @return Whether the point is inside the convex polygon or not.
  */
-bool point_inside_convex_polygon(std::vector<vector2> &vertices, const vector2 &point);
+bool point_inside_convex_polygon(const std::vector<vector2> &vertices, const vector2 &point);
 
 /**
  * @brief Swaps vertices to make the winding of the sequence (v0, v1, v2) 

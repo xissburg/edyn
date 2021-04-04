@@ -339,7 +339,7 @@ collision_result collide(const paged_mesh_shape &shA, const polyhedron_shape &sh
 
 // Polyhedron-Triangle
 void collide_polyhedron_triangle(
-    const polyhedron_shape &, rotated_mesh &,
+    const polyhedron_shape &, const rotated_mesh &,
     const vector3 &pos_poly, const quaternion &orn_poly,
     const triangle_shape &tri, scalar threshold, collision_result &result);
 
