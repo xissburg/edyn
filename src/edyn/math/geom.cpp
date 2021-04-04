@@ -895,4 +895,24 @@ bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
     return true;
 }
 
+bool point_in_polygonal_prism(const std::vector<vector3> &vertices, 
+                              const vector3 &normal, const vector3 &point) {
+    const auto count = vertices.size();
+    EDYN_ASSERT(count > 2);
+
+    for (size_t i = 0; i < count; ++i) {
+        const auto j = (i + 1) % count;
+        auto &v0 = vertices[i];
+        auto &v1 = vertices[j];
+        auto d = v1 - v0;
+        auto t = cross(d, normal);
+
+        if (dot(point - v0, t) > 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 }
