@@ -47,6 +47,12 @@ vector3 box_shape::support_point(const vector3 &pos, const quaternion &orn, cons
     return pos + support_point(orn, dir);
 }
 
+scalar box_shape::support_projection(const vector3 &pos, const quaternion &orn, const vector3 &dir) const {
+    auto local_dir = rotate(conjugate(orn), dir);
+    auto pt = support_point(local_dir);
+    return dot(pos, dir) + dot(pt, local_dir);
+}
+
 void box_shape::support_feature(const vector3 &dir, box_feature &feature, 
                                 size_t &feature_index, scalar &projection,
                                 scalar threshold) const {
