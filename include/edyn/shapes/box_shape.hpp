@@ -73,6 +73,15 @@ struct box_shape {
     vector3 support_point(const vector3 &pos, const quaternion &orn, const vector3 &dir) const;
 
     /**
+     * Get the projection of support point in a given direction. 
+     * @param pos Position of geometric center.
+     * @param orn Orientation.
+     * @param dir Direction vector.
+     * @return Projection of support point on the given direction.
+     */
+    scalar support_projection(const vector3 &pos, const quaternion &orn, const vector3 &dir) const;
+
+    /**
      * Get feature (vertex or edge or face) that's furthest along a direction 
      * in object space.
      * @param dir Direction vector, in object space.

@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstdint>
 #include "constants.hpp"
+#include "edyn/math/scalar.hpp"
 #include "quaternion.hpp"
 #include "vector2.hpp"
 #include "edyn/util/array.hpp"
@@ -314,7 +315,7 @@ bool point_in_polygonal_prism(const std::array<vector3, N> &vertices,
         auto d = v1 - v0;
         auto t = cross(d, normal);
 
-        if (dot(point - v0, t) > 0) {
+        if (dot(point - v0, t) > EDYN_EPSILON) {
             return false;
         }
     }

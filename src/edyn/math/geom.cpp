@@ -887,7 +887,7 @@ bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
         auto d = v1 - v0;
         auto t = cross(d, normal);
 
-        if (dot(point - v0, t) > 0) {
+        if (dot(point - v0, t) > EDYN_EPSILON) {
             return false;
         }
     }
@@ -907,7 +907,7 @@ bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
         auto d = v1 - v0;
         auto t = cross(d, normal);
 
-        if (dot(point - v0, t) > 0) {
+        if (dot(point - v0, t) > EDYN_EPSILON) {
             return false;
         }
     }
