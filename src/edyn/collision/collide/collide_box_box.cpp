@@ -5,6 +5,7 @@
 #include "edyn/util/array.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 
 namespace edyn {
 
@@ -118,31 +119,23 @@ collision_result collide(const box_shape &shA, const box_shape &shB,
 
         // Check for vertices of Face B contained in Face A.
         for (size_t i = 0; i < 4; ++i) {
-            if (result.num_points == max_contacts) {
-                break;
-            }
-
             if (point_in_polygonal_prism(face_verticesA, face_normalA, face_verticesB[i])) {
                 // Face B vertex is inside Face A.
                 auto pivot_face = project_plane(face_verticesB[i], face_verticesA[0], face_normalA);
                 auto pivotA = to_object_space(pivot_face, posA, ornA);
                 auto pivotB = to_object_space(face_verticesB[i], posB, ornB);
-                result.add_point({pivotA, pivotB, normalB, distance});
+                result.maybe_add_point({pivotA, pivotB, normalB, distance});
             }
         }
 
         // Check for vertices of Face A contained in Face B.
         for (size_t i = 0; i < 4; ++i) {
-            if (result.num_points == max_contacts) {
-                break;
-            }
-
             if (point_in_polygonal_prism(face_verticesB, face_normalB, face_verticesA[i])) {
                 // Face A vertex is inside Face B.
                 auto pivot_face = project_plane(face_verticesA[i], face_verticesB[0], face_normalB);
                 auto pivotA = to_object_space(face_verticesA[i], posA, ornA);
                 auto pivotB = to_object_space(pivot_face, posB, ornB);
-                result.add_point({pivotA, pivotB, normalB, distance});
+                result.maybe_add_point({pivotA, pivotB, normalB, distance});
             }
         }
 
@@ -157,24 +150,20 @@ collision_result collide(const box_shape &shA, const box_shape &shB,
                 auto b1_world = face_verticesB[(j + 1) % 4];
                 auto b0 = to_object_space(b0_world, face_center, face_basis);
                 auto b1 = to_object_space(b1_world, face_center, face_basis);
-                auto p0 = vector2{b0.x, b0.z};
-                auto p1 = vector2{b1.x, b1.z};
+                auto p0 = to_vector2_xz(b0);
+                auto p1 = to_vector2_xz(b1);
 
                 scalar s[2];
                 auto num_points = intersect_line_aabb(p0, p1, -half_extents, half_extents, s[0], s[1]);
                 for (size_t k = 0; k < num_points; ++k) {
-                    if (result.num_points == max_contacts) break;
+                    if (s[k] < 0 || s[k] > 1) continue;
 
-                    if (s[k] >= 0 && s[k] <= 1) {
-                        auto q1 = lerp(b0_world, b1_world, s[k]);
-                        auto q0 = project_plane(q1, face_center, face_normalA);
-                        auto pivotA = to_object_space(q0, posA, ornA);
-                        auto pivotB = to_object_space(q1, posB, ornB);
-                        result.add_point({pivotA, pivotB, normalB, distance});
-                    }
+                    auto q1 = lerp(b0_world, b1_world, s[k]);
+                    auto q0 = project_plane(q1, face_center, face_normalA);
+                    auto pivotA = to_object_space(q0, posA, ornA);
+                    auto pivotB = to_object_space(q1, posB, ornB);
+                    result.maybe_add_point({pivotA, pivotB, normalB, distance});
                 }
-
-                if (result.num_points == max_contacts) break;
             }
         }
     } else if ((featureA == box_feature::face && featureB == box_feature::edge) ||
@@ -213,20 +202,20 @@ collision_result collide(const box_shape &shA, const box_shape &shB,
 
             auto e0 = to_object_space(edge_vertices[0], face_center, face_basis);
             auto e1 = to_object_space(edge_vertices[1], face_center, face_basis);
-            auto p0 = vector2{e0.x, e0.z};
-            auto p1 = vector2{e1.x, e1.z};
+            auto p0 = to_vector2_xz(e0);
+            auto p1 = to_vector2_xz(e1);
 
             scalar s[2];
             auto num_points = intersect_line_aabb(p0, p1, -half_extents, half_extents, s[0], s[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
-                if (s[i] >= 0 && s[i] <= 1) {
-                    auto edge_pivot = lerp(edge_vertices[0], edge_vertices[1], s[i]);
-                    auto face_pivot = project_plane(edge_pivot, face_center, sep_axis);
-                    auto pivotA = to_object_space(is_faceA ? face_pivot : edge_pivot, posA, ornA);
-                    auto pivotB = to_object_space(is_faceA ? edge_pivot : face_pivot, posB, ornB);
-                    result.add_point({pivotA, pivotB, normalB, distance});
-                }
+                if (s[i] < 0 || s[i] > 1) continue;
+
+                auto edge_pivot = lerp(edge_vertices[0], edge_vertices[1], s[i]);
+                auto face_pivot = project_plane(edge_pivot, face_center, sep_axis);
+                auto pivotA = to_object_space(is_faceA ? face_pivot : edge_pivot, posA, ornA);
+                auto pivotB = to_object_space(is_faceA ? edge_pivot : face_pivot, posB, ornB);
+                result.add_point({pivotA, pivotB, normalB, distance});
             }
         }
     } else if (featureA == box_feature::edge && featureB == box_feature::edge) {
