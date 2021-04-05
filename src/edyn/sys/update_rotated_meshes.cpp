@@ -24,6 +24,7 @@ void update_rotated_mesh(rotated_mesh &rmesh, const convex_mesh &mesh, const qua
     EDYN_ASSERT(mesh.vertices.size() == rmesh.vertices.size());
     EDYN_ASSERT(mesh.normals.size() == rmesh.normals.size());
 
+    // TODO: Possibility to ride onto this loop and calculate tight AABB as well.
     for (size_t i = 0; i < mesh.vertices.size(); ++i) {
         auto &vertex_local = mesh.vertices[i];
         rmesh.vertices[i] = rotate(orn, vertex_local);
