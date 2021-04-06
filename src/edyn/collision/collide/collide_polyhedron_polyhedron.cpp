@@ -63,8 +63,8 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
     // The pre-rotated vertices and normals are used to avoid rotating vertices
     // every time.
-    auto &rmeshA = *(*ctx.rmeshA);
-    auto &rmeshB = *(*ctx.rmeshB);
+    auto &rmeshA = ctx.rmeshA->get();
+    auto &rmeshB = ctx.rmeshB->get();
 
     scalar max_distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;

@@ -21,7 +21,7 @@ collision_result collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
     // The pre-rotated vertices and normals are used to avoid rotating vertices
     // every time.
-    auto &rmeshA = *(*ctx.rmeshA);
+    auto &rmeshA = ctx.rmeshA->get();
 
     const auto cyl_axis = quaternion_x(ornB);
     const auto face_center_pos = posB + cyl_axis * shB.half_length;

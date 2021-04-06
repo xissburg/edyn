@@ -21,7 +21,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
 
     // The pre-rotated vertices and normals are used to avoid rotating vertices
     // every time.
-    auto &rmeshA = *(*ctx.rmeshA);
+    auto &rmeshA = ctx.rmeshA->get();
 
     const auto box_axes = std::array<vector3, 3>{
         quaternion_x(ornB),
