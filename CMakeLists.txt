@@ -3,58 +3,32 @@ cmake_minimum_required(VERSION 3.12.4)
 project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
 #
-# Explicit debug build by default
+# Options
 #
+option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
+if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
+    option(EDYN_BUILD_EXAMPLES "Build examples" ON)
+    option(EDYN_BUILD_TESTS "Build tests with gtest" ON)
+else()
+    option(EDYN_BUILD_EXAMPLES "Build examples" OFF)
+    option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
 endif()
 
 if(NOT CMAKE_DEBUG_POSTFIX)
   set(CMAKE_DEBUG_POSTFIX "_d")
 endif()
 
-#
-# Warnings
-#
-
 if(MSVC)
-  add_compile_options(/W4 /WX)
+    add_compile_options(/W4 /WX)
 else()
-  add_compile_options(-Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
+    add_compile_options(-Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()
 
-#
-# Options
-#
 
-option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats." OFF)
+include(${CMAKE_BINARY_DIR}/conan_paths.cmake OPTIONAL)
 
-set(EDYN_SET_DOUBLE 0)
-if(EDYN_CONFIG_DOUBLE)
-    set(EDYN_SET_DOUBLE 1)
-endif()
-
-option(EDYN_BUILD_EXAMPLES "Build examples." OFF)
-
-option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
-
-option(ENTT_DISABLE_ASSERT "Disable EnTT assertions for better performance." ON)
-
-if(ENTT_DISABLE_ASSERT)
-    add_compile_definitions(ENTT_DISABLE_ASSERT)
-endif()
-
-#
-# Conan dependencies
-#
-
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
-
-#
-# Library
-#
+find_package(EnTT REQUIRED)
 
 set(Edyn_SOURCES
     src/edyn/math/geom.cpp
@@ -144,7 +118,9 @@ if(UNIX)
     )
 endif()
 
-add_library(Edyn STATIC ${Edyn_SOURCES})
+add_library(Edyn)
+target_sources(Edyn PRIVATE ${Edyn_SOURCES})
+target_link_libraries(Edyn PUBLIC EnTT::EnTT)
 
 configure_file(${Edyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${Edyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
 install(FILES ${Edyn_BINARY_DIR}/include/build_settings.h DESTINATION include/edyn)
@@ -160,36 +136,11 @@ target_include_directories(Edyn SYSTEM
 
 target_compile_features(Edyn PUBLIC cxx_std_17)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_definitions(EDYN_DEBUG)
-endif()
-
-#
-# Sanitize
-#
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    #target_compile_options(Edyn PUBLIC -D_GLIBCXX_DEBUG -fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
-    #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
-endif()
-
-#
-# Examples
-#
+target_compile_options(Edyn PUBLIC $<$<CONFIG:Debug>:EDYN_DEBUG>)
 
 if(EDYN_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
-
-#
-# Command-line tool
-#
-
-
-
-#
-# Tests
-#
 
 if(EDYN_BUILD_TESTS)
     find_package(GTest REQUIRED)
