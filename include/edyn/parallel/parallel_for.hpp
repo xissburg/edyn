@@ -3,7 +3,6 @@
 
 #include <atomic>
 #include "edyn/config/config.h"
-#include "edyn/parallel/mutex_counter.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/memory_archive.hpp"
@@ -18,7 +17,9 @@ struct parallel_for_context {
     const IndexType last;
     const IndexType step;
     const IndexType chunk_size;
-    mutex_counter counter;
+    size_t count;
+    std::mutex mutex;
+    std::condition_variable cv;
     Function func;
 
     parallel_for_context(IndexType first, IndexType last, IndexType step, 
@@ -27,9 +28,23 @@ struct parallel_for_context {
         , last(last)
         , step(step)
         , chunk_size(chunk_size)
-        , counter(num_jobs)
+        , count(num_jobs)
         , func(func)
     {}
+
+    void decrement() {
+        {
+            std::lock_guard lock(mutex);
+            EDYN_ASSERT(count > 0);
+            --count;
+        }
+        cv.notify_one();
+    }
+
+    void wait() {
+        std::unique_lock lock(mutex);
+        cv.wait(lock, [&] { return count == 0; });
+    }
 };
 
 template<typename IndexType, typename Function>
@@ -58,7 +73,7 @@ void parallel_for_job_func(job::data_type &data) {
 
     run_parallel_for(*ctx);
 
-    ctx->counter.decrement();
+    ctx->decrement();
 }
 
 } // namespace detail
@@ -86,6 +101,7 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
 
     // Number of elements to be processed.
     auto count = last - first;
+    EDYN_ASSERT(count > 1);
 
     // Size of chunk that will be processed per job iteration. The calling thread
     // also does work thus 1 is added to the number of workers.
@@ -114,7 +130,7 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
     detail::run_parallel_for(context);
 
     // Wait all background jobs to finish.
-    context.counter.wait();
+    context.wait();
 }
 
 /**

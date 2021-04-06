@@ -3,9 +3,13 @@
 
 TEST(test_collision, collide_box_box_face_face) {
     auto box = edyn::box_shape{edyn::vector3{0.5, 0.5, 0.5}};
-    auto result = edyn::collide(box, edyn::vector3{0,0,0}, edyn::quaternion_identity,
-                                box, edyn::vector3{0, 2 * box.half_extents.y, 0}, edyn::quaternion_identity, 
-                                0.02);
+    auto ctx = edyn::collision_context{};
+    ctx.posA = edyn::vector3{0,0,0};
+    ctx.ornA = edyn::quaternion_identity;
+    ctx.posB = edyn::vector3{0, 2 * box.half_extents.y, 0};
+    ctx.ornB = edyn::quaternion_identity;
+    ctx.threshold = 0.02;
+    auto result = edyn::collide(box, box, ctx);
     ASSERT_EQ(result.num_points, 4);
     
     std::vector<edyn::vector3> expected_points;
@@ -30,9 +34,13 @@ TEST(test_collision, collide_box_box_face_face) {
 
 TEST(test_collision, collide_box_box_face_edge) {
     auto box = edyn::box_shape{edyn::vector3{0.5, 0.5, 0.5}};
-    auto result = edyn::collide(box, edyn::vector3{0,0,0}, edyn::quaternion_identity,
-                                box, edyn::vector3{0, edyn::scalar{2} * box.half_extents.y + edyn::scalar{0.2}, 0}, edyn::quaternion_axis_angle({1, 0, 0}, edyn::pi / 4), 
-                                0.02);
+    auto ctx = edyn::collision_context{};
+    ctx.posA = edyn::vector3{0,0,0};
+    ctx.ornA = edyn::quaternion_identity;
+    ctx.posB = edyn::vector3{0, edyn::scalar{2} * box.half_extents.y + edyn::scalar{0.2}, 0};
+    ctx.ornB = edyn::quaternion_axis_angle({1, 0, 0}, edyn::pi / 4);
+    ctx.threshold = 0.02;
+    auto result = edyn::collide(box, box, ctx);
     ASSERT_EQ(result.num_points, 2);
     
     std::vector<edyn::vector3> expected_pivotA;
