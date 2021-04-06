@@ -648,36 +648,27 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
         return s0 < 0 || s0 > 1 || t0 < 0 || t0 > 1 ? 0 : 1;
     }
 
-    // Segments are parallel.
     if (perp_product(e, dp) < EDYN_EPSILON) {
+        // Segments are parallel and lie on the same line.
         // Calculate intersection interval.
-        auto dir = dot(dp, dq);
         auto denom_p = scalar(1) / dot(dp, dp);
         auto denom_q = scalar(1) / dot(dq, dq);
 
-        if (dir > 0) {
-            auto f = q1 - p1;
-            s0 = dot(e, dp) * denom_p;
-            t0 = -dot(e, dq) * denom_q;
+        s0 = dot(q0 - p0, dp) * denom_p;
+        s1 = dot(q1 - p0, dp) * denom_p;
 
-            s1 = scalar(1) + dot(f, dp) * denom_p;
-            t1 = scalar(1) - dot(f, dq) * denom_q;
-        } else {
-            auto f = q1 - p0;
-            s0 = dot(f, dp) * denom_p;
-            t0 = -dot(f, dq) * denom_q;
-
-            auto g = q0 - p1;
-            s1 = scalar(1) + dot(g, dp) * denom_p;
-            t1 = scalar(1) - dot(g, dq) * denom_q;
-        }
-
-        if (s0 < 0 || s0 > 1 || t0 < 0 || t0 > 1 ||
-            s1 < 0 || s1 > 1 || t1 < 0 || t1 > 1) {
+        if ((s0 < 0 && s1 < 0) || (s0 > 1 && s1 > 1)) {
+            // Segments do not overlap.
             return 0;
         }
+
+        s0 = clamp_unit(s0);
+        s1 = clamp_unit(s1);
+
+        t0 = clamp_unit(dot(p0 - q0, dq) * denom_q);
+        t1 = clamp_unit(dot(p1 - q0, dq) * denom_q);
         
-        return 2;
+        return std::abs(s1 - s0) < EDYN_EPSILON ? 1 : 2;
     }
 
     return 0;
