@@ -100,13 +100,13 @@ A traditional Sequential Impulse constraint solver is used.
 
 # Collision detection and response
 
-Many physics engines give special treatment to _contact constraints_ (aka _non-penetration constraints_). In _Edyn_ they are no different of other types of constraints. The `edyn::contact_constraint` is simply part of the `std::variant` in the `edyn::constraint` component.
-
 Collision detection is split in two phases: broad-phase and narrow-phase. In broad-phase potential collision pairs are found by checking if the AABBs of different entities are intersecting. Later, in the narrow-phase, closest points are calculated for these pairs.
 
 During broad-phase, intersections between the AABBs of all entities are found using a _dynamic bounding volume tree_, according to [Dynamic Bounding Volume Hierarchies, Erin Catto, GDC 2019](https://box2d.org/files/ErinCatto_DynamicBVH_Full.pdf) and [Box2D](https://github.com/erincatto/box2d/blob/master/include/box2d/b2_dynamic_tree.h) [b2DynamicTree](https://github.com/erincatto/box2d/blob/master/src/collision/b2_dynamic_tree.cpp). The AABBs are inflated by a threshold so that contact pairs can be generated before the bodies start to penetrate thus generating contact points in advance. For any new intersection, an entity is created and a `edyn::contact_manifold` component is assigned to it. For any AABB intersection that ceased to exist, the entity is destroyed thus also destroying all components associated with it. The AABB is inflated a bit more when looking for separation to avoid a situation where they'd join and separate repeatedly. This is sometimes called _hysteresis_.
 
 In narrow-phase, closest point calculation is performed for the rigid body pair in all `edyn::contact_manifold`s. The _Separating-Axis Theorem (SAT)_ is employed. A _GJK_ implementation is planned but _SAT_ is preferred due to greater control and precision and better ability to debug and reason about the code. For each new contact point, an entity is created with a `edyn::contact_point` and a `edyn::contact_constraint` components. This allows better separation of concerns. The `edyn::contact_constraint` uses the information in the associated `edyn::contact_point` to setup its constraint rows in its `prepare` function.
+
+Many physics engines give special treatment to _contact constraints_ (aka _non-penetration constraints_). In _Edyn_ they are no different of other types of constraints. The `edyn::contact_constraint` is simply part of the `std::variant` in the `edyn::constraint` component.
 
 Contact point persistence is important for stability and to preserve continuity over time. New contact points that are near existing points get merged together, thus extending the lifetime of an existing contact and reusing the previously applied impulse for _warm starting_ later in the constraint solver. Contact points that are separating (in either tangential or normal directions) are destroyed.
 
@@ -114,9 +114,23 @@ Entities that don't have a `edyn::shape` also don't have a `edyn::AABB` associat
 
 To enable collision response for an entity, a `edyn::material` component must be assigned which basically contains the _restitution_ and _friction coefficient_. Otherwise, the entity behaves as a _sensor_, i.e. collision detection is performed but no impulses are applied and intersection events can still be observed.
 
-Collision events can be observed by listening to `on_construct<entt::contact_point>` or `on_destroy<entt::contact_point>` in the `entt::registry`.
-
 Due to the multi-threaded design of _Edyn_, the broad-phase and narrow-phase are setup in a non-conventional way. The main thread performs broad-phase among islands using the AABB of the root node of their dynamic tree and then drills down to perform finer queries between entities in different islands. Narrow-phase is only performed in the island workers. More details are discussed in the [Multi-threading](#merging-islands) section.
+
+## Separating-Axis Theorem and Implementation
+
+The _Separating-Axis Theorem (SAT)_ states that if there is one axis where the intervals resulted from the projection of two convex shapes on this axis do not intersect, then the shapes also do not intersect. The projections on the axis can be used to determine the signed distance along that axis. The axis with largest signed distance gives us the _minimum translation vector_, which is a minimal displacement that can be applied to either shape to bring them into contact if they're not intersecting or separate them if they're intersecting. Using this axis, the closest features can be found on each shape and a contact manifold can be assembled.
+
+The general structure of a _SAT_ implementation initially searches for the axis that gives the largest signed distance between the projections of the two shapes. If the largest distance is bigger than a threshold (usually 2cm), the shapes are considered to not intersect. Otherwise, the _support features_ of each shape are calculated along that direction. Then the support features must be intersected to find the contact points.
+
+The support feature is a _feature_ that's located furthest along a direction. A _feature_ is a simpler element of a shape, such as vertex, edge and face on a box or polyhedron, cap face, side edge and cap edge on a cylinder.
+
+The features are intersected on a case-by-case basis and contact points are inserted into the resulting manifold which holds a limited number of points. If the manifold is full, it has to replace an existing point by the new, or leave it as is. The deciding factor is the area of the contact polygon, which is tries to maximize. A contact manifold with larger area tends to give greater stability.
+
+## Collision Events
+
+Collision events can be observed by listening to `on_construct<entt::contact_point>` or `on_destroy<entt::contact_point>` in the `entt::registry` to observe contact construction and destruction, respectively.
+
+Contact points are not updated in the main registry continuously since that would be wasteful by default. In some cases it's desirable to have information such as the contact position, normal vector and applied normal and/of friction impulse in every frame, which can be used to play sounds or to drive a particle system, for example. If updated contact information is necessary, a `edyn::continuous` component must be assigned to the contact point when it's constructed and it must be marked as dirty so the changes can be propagated to the island worker where it resides. Another possibility is to assign a `edyn::continuous_contact_tag` to a rigid body entity so every contact involving this entity will be automatically marked as continuous.
 
 # Shapes
 
