@@ -2,6 +2,47 @@
 
 namespace edyn {
 
+AABB cylinder_shape::aabb(const vector3 &pos, const quaternion &orn) const {
+    auto ptx = support_point(orn, vector3_x);
+    auto pty = support_point(orn, vector3_y);
+    auto ptz = support_point(orn, vector3_z);
+    auto v = vector3 {ptx.x, pty.y, ptz.z};
+
+    return {pos - v, pos + v};
+}
+
+matrix3x3 cylinder_shape::inertia(scalar mass) const {
+    return diagonal_matrix(moment_of_inertia_solid_cylinder(mass, half_length * 2, radius));
+}
+
+vector3 cylinder_shape::support_point(const vector3 &dir) const {
+    // Squared length in yz plane.
+    auto lyz2 = dir.y * dir.y + dir.z * dir.z;
+
+    if (lyz2 > EDYN_EPSILON) {
+        auto d = radius / std::sqrt(lyz2);
+        return {dir.x < 0 ? -half_length : half_length, dir.y * d, dir.z * d};
+    } 
+    
+    return {dir.x < 0 ? -half_length : half_length, radius, 0};
+}
+
+vector3 cylinder_shape::support_point(const quaternion &orn, const vector3 &dir) const {
+    auto local_dir = rotate(conjugate(orn), dir);
+    auto pt = support_point(local_dir);
+    return rotate(orn, pt);
+}
+
+vector3 cylinder_shape::support_point(const vector3 &pos, const quaternion &orn, const vector3 &dir) const {
+    return pos + support_point(orn, dir);
+}
+
+scalar cylinder_shape::support_projection(const vector3 &pos, const quaternion &orn, const vector3 &dir) const {
+    auto local_dir = rotate(conjugate(orn), dir);
+    auto pt = support_point(local_dir);
+    return dot(pos, dir) + dot(pt, local_dir);
+}
+
 void cylinder_shape::support_feature(const vector3 &dir, cylinder_feature &out_feature, 
                          size_t &out_feature_index, vector3 &out_support_point, 
                          scalar &out_projection, scalar threshold) const {
@@ -27,32 +68,6 @@ void cylinder_shape::support_feature(const vector3 &dir, cylinder_feature &out_f
 
     out_feature = cylinder_feature::cap_edge;
     out_feature_index = dir.x > 0 ? 0 : 1;
-
-    /* if (std::abs(dir.x) + EDYN_EPSILON >= scalar(1)) {
-        out_feature = cylinder_feature::face;
-        out_feature_index = dir.x > 0 ? 0 : 1;
-        out_projection = half_length;
-    } else if (std::abs(dir.x) < EDYN_EPSILON) {
-        out_feature = cylinder_feature::side_edge;
-        out_projection = radius;
-    } else {
-        out_feature = cylinder_feature::cap_edge;
-
-        auto len_yz_sqr = dir.y * dir.y + dir.z * dir.z;
-        out_support_point.x = half_length * (dir.x > 0 ? 1 : -1);
-
-        if (len_yz_sqr > EDYN_EPSILON) {
-            auto r_len_yz_inv = radius / std::sqrt(len_yz_sqr);
-            out_support_point.y = dir.y * r_len_yz_inv;
-            out_support_point.z = dir.z * r_len_yz_inv;
-        } else {
-            out_support_point.y = 0;
-            out_support_point.z = radius;
-        }
-        
-        out_feature_index = dir.x > 0 ? 0 : 1;
-        out_projection = dot(dir, out_support_point);
-    } */
 }
 
 void cylinder_shape::support_feature(const vector3 &pos, const quaternion &orn, 
