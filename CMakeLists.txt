@@ -15,6 +15,8 @@ else()
     option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
 endif()
 
+option(EDYN_DISABLE_ASSERT "Disable Edyn assertions for better performance." ON)
+
 if(NOT CMAKE_DEBUG_POSTFIX)
   set(CMAKE_DEBUG_POSTFIX "_d")
 endif()
@@ -136,6 +138,7 @@ target_include_directories(Edyn SYSTEM
 
 target_compile_features(Edyn PUBLIC cxx_std_17)
 target_compile_definitions(Edyn PUBLIC $<$<CONFIG:Debug>:EDYN_DEBUG>)
+target_compile_definitions(Edyn PUBLIC $<$<BOOL:EDYN_DISABLE_ASSERT>:EDYN_DISABLE_ASSERT>)
 
 if(EDYN_BUILD_EXAMPLES)
     add_subdirectory(examples)
