@@ -135,8 +135,7 @@ target_include_directories(Edyn SYSTEM
 )
 
 target_compile_features(Edyn PUBLIC cxx_std_17)
-
-target_compile_options(Edyn PUBLIC $<$<CONFIG:Debug>:EDYN_DEBUG>)
+target_compile_definitions(Edyn PUBLIC $<$<CONFIG:Debug>:EDYN_DEBUG>)
 
 if(EDYN_BUILD_EXAMPLES)
     add_subdirectory(examples)
