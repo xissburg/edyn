@@ -16,6 +16,7 @@ else()
 endif()
 
 option(EDYN_DISABLE_ASSERT "Disable Edyn assertions for better performance." ON)
+option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF)
 
 if(NOT CMAKE_DEBUG_POSTFIX)
   set(CMAKE_DEBUG_POSTFIX "_d")
@@ -139,6 +140,9 @@ target_include_directories(Edyn SYSTEM
 target_compile_features(Edyn PUBLIC cxx_std_17)
 target_compile_definitions(Edyn PUBLIC $<$<CONFIG:Debug>:EDYN_DEBUG>)
 target_compile_definitions(Edyn PUBLIC $<$<BOOL:EDYN_DISABLE_ASSERT>:EDYN_DISABLE_ASSERT>)
+
+target_compile_options(Edyn PUBLIC $<$<AND:$<BOOL:>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
+target_link_libraries(Edyn  PUBLIC $<$<AND:$<BOOL:>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined>)
 
 if(EDYN_BUILD_EXAMPLES)
     add_subdirectory(examples)
