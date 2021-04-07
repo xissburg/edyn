@@ -2,4 +2,5 @@
 entt/3.5.2
 
 [generators]
-cmake
+cmake_find_package
+cmake_paths
