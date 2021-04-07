@@ -22,13 +22,6 @@ if(NOT CMAKE_DEBUG_POSTFIX)
   set(CMAKE_DEBUG_POSTFIX "_d")
 endif()
 
-if(MSVC)
-    add_compile_options(/W4 /WX)
-else()
-    add_compile_options(-Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
-endif()
-
-
 include(${CMAKE_BINARY_DIR}/conan_paths.cmake OPTIONAL)
 
 find_package(EnTT REQUIRED)
@@ -143,6 +136,12 @@ target_compile_definitions(Edyn PUBLIC $<$<BOOL:EDYN_DISABLE_ASSERT>:EDYN_DISABL
 
 target_compile_options(Edyn PUBLIC $<$<AND:$<BOOL:>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
 target_link_libraries(Edyn  PUBLIC $<$<AND:$<BOOL:>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined>)
+
+if(MSVC)
+    target_compile_options(Edyn PRIVATE /W4 /WX)
+else()
+    target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
+endif()
 
 if(EDYN_BUILD_EXAMPLES)
     add_subdirectory(examples)
