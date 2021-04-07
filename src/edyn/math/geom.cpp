@@ -648,7 +648,7 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
         return s0 < 0 || s0 > 1 || t0 < 0 || t0 > 1 ? 0 : 1;
     }
 
-    if (perp_product(e, dp) < EDYN_EPSILON) {
+    if (std::abs(perp_product(e, dp)) < EDYN_EPSILON) {
         // Segments are parallel and lie on the same line.
         // Calculate intersection interval.
         auto denom_p = scalar(1) / dot(dp, dp);
