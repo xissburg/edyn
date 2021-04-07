@@ -602,6 +602,12 @@ void plane_space(const vector3 &n, vector3 &p, vector3 &q) {
     }
 }
 
+matrix3x3 make_tangent_basis(const vector3 &n) {
+    vector3 t, u;
+    plane_space(n, t, u);
+    return matrix3x3_columns(t, n, u);
+}
+
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1) {
     return (min0.x <= max1.x) &&

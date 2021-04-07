@@ -5,6 +5,7 @@
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/constants.hpp"
 
 namespace edyn {
 
@@ -133,21 +134,17 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
     }
 
     // Find all vertices in the polyhedron that are near the projection boundary.
-    scalar tolerance = 0.002;
     std::vector<vector3> vertices_poly;
     // Vertices on the 2D contact plane.
     std::vector<vector2> plane_vertices_poly;
     // Points at the contact plane.
     auto contact_origin_poly = sep_axis * projection_poly;
     auto contact_origin_box = sep_axis * projection_box;
-    // Build a basis tangent to the contact plane so calculations can be done
-    // in tangent space.
-    vector3 contact_tangent0, contact_tangent1;
-    plane_space(sep_axis, contact_tangent0, contact_tangent1);
-    auto contact_basis = matrix3x3_columns(contact_tangent0, sep_axis, contact_tangent1);
+    // Basis tangent to the contact plane so calculations can be done in tangent space.
+    auto contact_basis = make_tangent_basis(sep_axis);
 
     for (auto &vertex_world : rmeshA.vertices) {
-        if (dot(vertex_world, sep_axis) < projection_poly + tolerance) {
+        if (dot(vertex_world, sep_axis) < projection_poly + support_polygon_tolerance) {
             auto vertex_tangent = to_object_space(vertex_world, contact_origin_poly, contact_basis);
             auto vertex_plane = to_vector2_xz(vertex_tangent);
             plane_vertices_poly.push_back(vertex_plane);
@@ -157,7 +154,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
 
     EDYN_ASSERT(!vertices_poly.empty() && !plane_vertices_poly.empty());
 
-    auto hull_poly = calculate_convex_hull(plane_vertices_poly, tolerance);
+    auto hull_poly = calculate_convex_hull(plane_vertices_poly, support_polygon_tolerance);
 
     scalar feature_distanceB;
     box_feature featureB;

@@ -146,11 +146,8 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
     // Points at the contact plane.
     auto contact_origin_poly = sep_axis * poly_max_proj;
     auto contact_origin_tri = sep_axis * tri_max_proj;
-    // Build a basis tangent to the contact plane so calculations can be done
-    // in tangent space.
-    vector3 contact_tangent0, contact_tangent1;
-    plane_space(sep_axis, contact_tangent0, contact_tangent1);
-    auto contact_basis = matrix3x3_columns(contact_tangent0, sep_axis, contact_tangent1);
+    // Basis tangent to the contact plane so calculations can be done in tangent space.
+    auto contact_basis = make_tangent_basis(sep_axis);
 
     for (auto &vertex_world : rmesh.vertices) {
         if (dot(vertex_world, sep_axis) < poly_max_proj + tolerance) {

@@ -7,6 +7,7 @@
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/comp/rotated_mesh.hpp"
+#include "edyn/math/constants.hpp"
 
 namespace edyn {
 
@@ -152,7 +153,6 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
     auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
-    scalar tolerance = 0.002;
 
     // Find all vertices that are near the projection boundary.
     std::vector<vector3> verticesA, verticesB;
@@ -161,14 +161,11 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     // Points at the contact planes of A and B.
     auto contact_originA = sep_axis * projectionA;
     auto contact_originB = sep_axis * projectionB;
-    // Build a basis tangent to the contact plane so calculations can be done
-    // in tangent space.
-    vector3 contact_tangent0, contact_tangent1;
-    plane_space(sep_axis, contact_tangent0, contact_tangent1);
-    auto contact_basis = matrix3x3_columns(contact_tangent0, sep_axis, contact_tangent1);
+    // Basis on the contact plane so calculations can be done in tangent space.
+    auto contact_basis = make_tangent_basis(sep_axis);
 
     for (auto &vertex_world : rmeshA.vertices) {
-        if (dot(vertex_world, sep_axis) < projectionA + tolerance) {
+        if (dot(vertex_world, sep_axis) < projectionA + support_polygon_tolerance) {
             auto vertex_tangent = to_object_space(vertex_world, contact_originA, contact_basis);
             auto vertex_plane = to_vector2_xz(vertex_tangent);
             plane_verticesA.push_back(vertex_plane);
@@ -179,7 +176,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     for (auto &vertex : rmeshB.vertices) {
         auto vertex_world = vertex + posB;
 
-        if (dot(vertex_world, sep_axis) > projectionB - tolerance) {
+        if (dot(vertex_world, sep_axis) > projectionB - support_polygon_tolerance) {
             auto vertex_tangent = to_object_space(vertex_world, contact_originB, contact_basis);
             auto vertex_plane = to_vector2_xz(vertex_tangent);
             plane_verticesB.push_back(vertex_plane);
@@ -190,8 +187,8 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     EDYN_ASSERT(!verticesA.empty() && !plane_verticesA.empty());
     EDYN_ASSERT(!verticesB.empty() && !plane_verticesB.empty());
 
-    auto hullA = calculate_convex_hull(plane_verticesA, tolerance);
-    auto hullB = calculate_convex_hull(plane_verticesB, tolerance);
+    auto hullA = calculate_convex_hull(plane_verticesA, support_polygon_tolerance);
+    auto hullB = calculate_convex_hull(plane_verticesB, support_polygon_tolerance);
 
     // First, add contact points for vertices that lie inside the opposing face.
     // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,
