@@ -140,6 +140,37 @@ scalar point_cloud_support_projection(It first, It last, const vector3 &dir) {
 }
 
 /**
+ * @brief Calculates the maximum projection of all points along the given
+ * direction.
+ * @tparam It Type of iterator of a `vector3` container.
+ * @param first Iterator to the first element of the point cloud.
+ * @param last Iterator to the last element of the point cloud.
+ * @param dir A direction vector (non-zero).
+ * @return The maximal projection.
+ */
+template<typename It>
+scalar point_cloud_support_projection(It first, It last, const vector3 &dir) {
+    auto max_proj = -EDYN_SCALAR_MAX;
+
+    for (auto it = first; it != last; ++it) {
+        const auto &point = *it;
+        auto proj = dot(point, dir);
+        max_proj = std::max(proj, max_proj);
+    }
+
+    return max_proj;
+}
+
+/**
+ * @brief Calculates the maximum projection of a vector of points along the
+ * given direction.
+ * @param points A point cloud.
+ * @param dir A direction vector (non-zero).
+ * @return The maximal projection.
+ */
+scalar point_cloud_support_projection(const std::vector<vector3> &points, const vector3 &dir);
+
+/**
  * @brief Calculates a convex hull of a set of points.
  * @param points A point cloud.
  * @param tolerance Controls how points are ignored based on colinearity.
