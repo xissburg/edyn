@@ -97,6 +97,14 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
  */
 vector3 point_cloud_support_point(const std::vector<vector3> &points, const vector3 &dir);
 
+/**
+ * @brief Returns a point in the set that's furthest away in the given
+ * direction, i.e. a support point.
+ * @param first Iterator to the first element of the point cloud.
+ * @param last Iterator to the last element of the point cloud.
+ * @param dir A direction vector (non-zero).
+ * @return Support point.
+ */
 template<typename It>
 vector3 point_cloud_support_point(It first, It last, const vector3 &dir) {
     auto sup = vector3_zero;
@@ -140,6 +148,71 @@ bool point_inside_convex_polygon(const std::vector<vector2> &vertices, const vec
  * @param v2 Yet another vertex of a triangle.
  */
 void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2);
+
+/**
+ * Useful information describing a support polygon on a polyhedron.
+ */
+struct support_polygon {
+    // Vertices in world space.
+    std::vector<vector3> vertices;
+    // Vertices on the 2D contact plane.
+    std::vector<vector2> plane_vertices;
+    // Indices of the vertices that are in the convex hull of the polygon,
+    // oriented counter-clockwise.
+    std::vector<size_t> hull;
+    // Contact plane origin.
+    vector3 origin;
+    // Contact plane basis, where the second column is the plane normal and
+    // the others span the contact plane.
+    matrix3x3 basis;
+};
+
+/**
+ * @brief Finds the polygon in a point cloud that's furthest away in the given
+ * direction. 
+ * @tparam It Type of iterator of a `vector3` container.
+ * @param first Iterator to the first element of the point cloud.
+ * @param last Iterator to the last element of the point cloud.
+ * @param dir A direction vector (non-zero).
+ * @param projection The support projection along the given direction, i.e. the
+ * value returned by `point_cloud_support_point(first, last, +/-dir)`.
+ * @param positive_side Whether the direction points towards or away of the 
+ * point cloud. Must be true if it points towards.
+ * @param tolerance The distance from the projection boundary which decides
+ * whether the vertex is part of the support polygon.
+ */
+template<typename It>
+support_polygon point_cloud_support_polygon(It first, It last, 
+                                            const vector3 &dir, 
+                                            scalar projection,
+                                            const bool positive_size,
+                                            scalar tolerance) {
+    auto polygon = support_polygon{};
+    polygon.origin = dir * projection;
+    // Basis tangent to the contact plane so calculations can be done in tangent space.
+    polygon.basis = make_tangent_basis(dir);
+
+    for (auto it = first; it != last; ++it) {
+        const auto &vertex_world = *it;
+        auto is_in_boundary = positive_size ?
+            dot(vertex_world, dir) < projection + tolerance :
+            dot(vertex_world, dir) > projection - tolerance;
+
+        if (!is_in_boundary) continue;
+
+        polygon.vertices.push_back(vertex_world);
+        // Find vertex in the contact plane and convert to 2D space.
+        auto vertex_tangent = to_object_space(vertex_world, polygon.origin, polygon.basis);
+        auto vertex_plane = to_vector2_xz(vertex_tangent);
+        polygon.plane_vertices.push_back(vertex_plane);
+    }
+
+    EDYN_ASSERT(!polygon.vertices.empty() && !polygon.plane_vertices.empty());
+
+    polygon.hull = calculate_convex_hull(polygon.plane_vertices, tolerance);
+
+    return polygon;
+}
 
 }
 

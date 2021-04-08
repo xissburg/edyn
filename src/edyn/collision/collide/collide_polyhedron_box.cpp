@@ -133,29 +133,11 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         return {};
     }
 
-    // Find all vertices in the polyhedron that are near the projection boundary.
-    std::vector<vector3> vertices_poly;
-    // Vertices on the 2D contact plane.
-    std::vector<vector2> plane_vertices_poly;
-    // Points at the contact plane.
-    auto contact_origin_poly = sep_axis * projection_poly;
+    auto polygon = point_cloud_support_polygon(rmeshA.vertices.begin(), rmeshA.vertices.end(), 
+                                               sep_axis, projection_poly, true, 
+                                               support_polygon_tolerance);
+
     auto contact_origin_box = sep_axis * projection_box;
-    // Basis tangent to the contact plane so calculations can be done in tangent space.
-    auto contact_basis = make_tangent_basis(sep_axis);
-
-    for (auto &vertex_world : rmeshA.vertices) {
-        if (dot(vertex_world, sep_axis) < projection_poly + support_polygon_tolerance) {
-            auto vertex_tangent = to_object_space(vertex_world, contact_origin_poly, contact_basis);
-            auto vertex_plane = to_vector2_xz(vertex_tangent);
-            plane_vertices_poly.push_back(vertex_plane);
-            vertices_poly.push_back(vertex_world);
-        }
-    }
-
-    EDYN_ASSERT(!vertices_poly.empty() && !plane_vertices_poly.empty());
-
-    auto hull_poly = calculate_convex_hull(plane_vertices_poly, support_polygon_tolerance);
-
     scalar feature_distanceB;
     box_feature featureB;
     size_t feature_indexB;
@@ -172,8 +154,8 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
 
         // Check if vertices of the polyhedron on the contact plane are inside
         // the box face.
-        for (auto idxA : hull_poly) {
-            auto &pointA = vertices_poly[idxA];
+        for (auto idxA : polygon.hull) {
+            auto &pointA = polygon.vertices[idxA];
 
             if (point_in_polygonal_prism(face_vertices, sep_axis, pointA)) {
                 auto pivotA = to_object_space(pointA, posA, ornA);
@@ -185,37 +167,37 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
 
         // If the vertices of the polyhedron at the contact plane form a polygon,
         // check if the vertices of the box face are inside the polygon.
-        if (hull_poly.size() > 2) {
+        if (polygon.hull.size() > 2) {
             for (auto &pointB : face_vertices) {
-                if (point_in_polygonal_prism(vertices_poly, hull_poly, sep_axis, pointB)) {
+                if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
                     auto pivotB = to_object_space(pointB, posB, ornB);
-                    auto pivotA_world = project_plane(pointB, contact_origin_poly, sep_axis);
+                    auto pivotA_world = project_plane(pointB, polygon.origin, sep_axis);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
                 }
             }
         }
 
-        if (hull_poly.size() > 1) {
+        if (polygon.hull.size() > 1) {
             // Check if the edges of the box face intersects the edges of the polygon.
             std::array<vector2, 4> plane_vertices_box;
             for (size_t i = 0; i < 4; ++i) {
-                auto vertex_tangent = to_object_space(face_vertices[i], contact_origin_box, contact_basis);
+                auto vertex_tangent = to_object_space(face_vertices[i], contact_origin_box, polygon.basis);
                 plane_vertices_box[i] = to_vector2_xz(vertex_tangent);
             }
 
             // If the feature is a polygon, it is will be necessary to wrap around the 
             // vertex array. If it is just one edge, then avoid calculating the same
             // segment-segment intersection twice.
-            const auto sizeA = hull_poly.size();
+            const auto sizeA = polygon.hull.size();
             const auto limitA = sizeA == 2 ? 1 : sizeA;
             scalar s[2], t[2];
 
             for (size_t i = 0; i < limitA; ++i) {
-                auto idx0A = hull_poly[i];
-                auto idx1A = hull_poly[(i + 1) % sizeA];
-                auto &v0A = plane_vertices_poly[idx0A];
-                auto &v1A = plane_vertices_poly[idx1A];
+                auto idx0A = polygon.hull[i];
+                auto idx1A = polygon.hull[(i + 1) % sizeA];
+                auto &v0A = polygon.plane_vertices[idx0A];
+                auto &v1A = polygon.plane_vertices[idx1A];
 
                 for (size_t j = 0; j < 4; ++j) {
                     auto idx0B = j;
@@ -226,7 +208,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                                                         s[0], t[0], s[1], t[1]);
 
                     for (size_t k = 0; k < num_points; ++k) {
-                        auto pivotA_world = lerp(vertices_poly[idx0A], vertices_poly[idx1A], s[k]);
+                        auto pivotA_world = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
                         auto pivotB_world = lerp(face_vertices[idx0B], face_vertices[idx1B], t[k]);
                         auto pivotA = to_object_space(pivotA_world, posA, ornA);
                         auto pivotB = to_object_space(pivotB_world, posB, ornB);
@@ -241,11 +223,11 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         auto edge_vertices = shB.get_edge(feature_indexB, posB, ornB);
 
         // Check if the vertices of the box edge are inside the polygon.
-        if (hull_poly.size() > 2) {
+        if (polygon.hull.size() > 2) {
             for (auto &pointB : edge_vertices) {
-                if (point_in_polygonal_prism(vertices_poly, hull_poly, sep_axis, pointB)) {
+                if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
                     auto pivotB = to_object_space(pointB, posB, ornB);
-                    auto pivotA_world = project_plane(pointB, contact_origin_poly, sep_axis);
+                    auto pivotA_world = project_plane(pointB, polygon.origin, sep_axis);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     result.add_point({pivotA, pivotB, normalB, max_distance});
                 }
@@ -253,32 +235,32 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         }
 
         // Check if the box edge intersects the edges of the polygon.
-        if (hull_poly.size() > 1) {
+        if (polygon.hull.size() > 1) {
             // If the feature is a polygon, it is will be necessary to wrap around the 
             // vertex array. If it is just one edge, then avoid calculating the same
             // segment-segment intersection twice.
-            const auto sizeA = hull_poly.size();
+            const auto sizeA = polygon.hull.size();
             const auto limitA = sizeA == 2 ? 1 : sizeA;
 
             // Vertices of box edge on the contact plane space.
-            auto t0B = to_object_space(edge_vertices[0], contact_origin_box, contact_basis);
-            auto t1B = to_object_space(edge_vertices[1], contact_origin_box, contact_basis);
+            auto t0B = to_object_space(edge_vertices[0], contact_origin_box, polygon.basis);
+            auto t1B = to_object_space(edge_vertices[1], contact_origin_box, polygon.basis);
             auto v0B = to_vector2_xz(t0B);
             auto v1B = to_vector2_xz(t1B);
 
             scalar s[2], t[2];
 
             for (size_t i = 0; i < limitA; ++i) {
-                auto idx0A = hull_poly[i];
-                auto idx1A = hull_poly[(i + 1) % sizeA];
-                auto &v0A = plane_vertices_poly[idx0A];
-                auto &v1A = plane_vertices_poly[idx1A];
+                auto idx0A = polygon.hull[i];
+                auto idx1A = polygon.hull[(i + 1) % sizeA];
+                auto &v0A = polygon.plane_vertices[idx0A];
+                auto &v1A = polygon.plane_vertices[idx1A];
 
                 auto num_points = intersect_segments(v0A, v1A, v0B, v1B, 
                                                     s[0], t[0], s[1], t[1]);
 
                 for (size_t k = 0; k < num_points; ++k) {
-                    auto pivotA_world = lerp(vertices_poly[idx0A], vertices_poly[idx1A], s[k]);
+                    auto pivotA_world = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
                     auto pivotB_world = lerp(edge_vertices[0], edge_vertices[1], t[k]);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
@@ -288,7 +270,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         } else {
             // Polygon vertex against box edge.
             EDYN_ASSERT(hull_poly.size() == 1);
-            auto &pivotA = vertices_poly[hull_poly[0]];
+            auto &pivotA = polygon.vertices[polygon.hull[0]];
             auto edge_dir = edge_vertices[1] - edge_vertices[0];
             vector3 pivotB_world; scalar t;
             closest_point_line(edge_vertices[0], edge_dir, pivotA, t, pivotB_world);
