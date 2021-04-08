@@ -66,14 +66,15 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
 
         // Find point on polyhedron that's furthest along the opposite direction
         // of the box face normal.
-        auto supA = point_cloud_support_point(rmeshA.vertices, -dir);
+        auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
         auto supB = posB + dir * shB.half_extents[i];
-        auto dist = dot(supA - supB, dir);
+        auto projB = dot(supB, dir);
+        auto dist = projA - projB;
 
         if (dist > max_distance) {
             max_distance = dist;
-            projection_poly = dot(supA, dir);
-            projection_box = dot(supB, dir);
+            projection_poly = projA;
+            projection_box = projB;
             sep_axis = dir;
         }
     }
@@ -116,14 +117,14 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                 dir *= -1;
             }
 
-            auto supA = point_cloud_support_point(rmeshA.vertices, -dir);
-            auto supB = shB.support_point(posB, ornB, dir);
-            auto distance = dot(supA - supB, dir);
+            auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
+            auto projB = shB.support_projection(posB, ornB, dir);
+            auto distance = projA - projB;
 
             if (distance > max_distance) {
                 max_distance = distance;
-                projection_poly = dot(supA, dir);
-                projection_box = dot(supB, dir);
+                projection_poly = projA;
+                projection_box = projB;
                 sep_axis = dir;
             }
         }
