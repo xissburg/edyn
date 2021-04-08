@@ -6,7 +6,7 @@
 namespace edyn {
 
 std::array<vector3, 2> convex_mesh::get_edge(size_t idx) const {
-    EDYN_ASSERT(idx * 2 < edges.size());
+    EDYN_ASSERT(idx * 2 + 1 < edges.size());
     return {
         vertices[edges[idx * 2 + 0]],
         vertices[edges[idx * 2 + 1]]
