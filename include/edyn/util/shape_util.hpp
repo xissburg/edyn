@@ -124,6 +124,21 @@ vector3 point_cloud_support_point(It first, It last, const vector3 &dir) {
     return sup;
 }
 
+scalar point_cloud_support_projection(const std::vector<vector3> &points, const vector3 &dir);
+
+template<typename It>
+scalar point_cloud_support_projection(It first, It last, const vector3 &dir) {
+    auto max_proj = -EDYN_SCALAR_MAX;
+
+    for (auto it = first; it != last; ++it) {
+        const auto &point = *it;
+        auto proj = dot(point, dir);
+        max_proj = std::max(proj, max_proj);
+    }
+
+    return max_proj;
+}
+
 /**
  * @brief Calculates a convex hull of a set of points.
  * @param points A point cloud.

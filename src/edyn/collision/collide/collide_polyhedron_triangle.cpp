@@ -58,13 +58,14 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
     {
         // Find point on polyhedron that's furthest along the opposite direction
         // of the triangle normal.
-        auto poly_sup = point_cloud_support_point(rmesh.vertices, -tri.normal);
-        auto dist = dot(poly_sup - tri.vertices[0], tri.normal);
+        auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -tri.normal);
+        auto proj_tri = dot(tri.vertices[0], tri.normal);
+        auto dist = proj_poly - proj_tri;
 
         if (dist > distance) {
             distance = dist;
-            projection_poly = dot(poly_sup, tri.normal);
-            projection_tri = dot(tri.vertices[0], tri.normal);
+            projection_poly = proj_poly;
+            projection_tri = proj_tri;
             tri_feature = triangle_feature::face;
             sep_axis = tri.normal;
         }
@@ -112,21 +113,21 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
 
             triangle_feature feature;
             size_t feature_idx;
-            scalar tri_proj;
+            scalar proj_tri;
             get_triangle_support_feature(tri.vertices, vector3_zero, dir, feature, 
-                                         feature_idx, tri_proj, threshold);
+                                         feature_idx, proj_tri, threshold);
 
             if (tri.ignore_feature(feature, feature_idx, dir)) {
                 continue;
             }
 
-            auto poly_sup = point_cloud_support_point(rmesh.vertices, -dir);
-            auto dist = dot(poly_sup - dir * tri_proj, dir);
+            auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -dir);
+            auto dist = proj_poly - proj_tri;
 
             if (dist > distance) {
                 distance = dist;
-                projection_poly = dot(poly_sup, dir);
-                projection_tri = tri_proj;
+                projection_poly = proj_poly;
+                projection_tri = proj_tri;
                 tri_feature = feature;
                 tri_feature_index = feature_idx;
                 sep_axis = dir;

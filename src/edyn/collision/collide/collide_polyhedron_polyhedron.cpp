@@ -24,7 +24,7 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     auto best_dir = vector3_zero;
 
     for (size_t i = 0; i < shA.mesh->num_faces(); ++i) {
-        auto &normal_world = rotatedA.normals[i];
+        auto normal_world = -rotatedA.normals[i]; // Normal pointing towards A.
 
         auto vertex_idx = shA.mesh->first_vertex_index(i);
         auto &vertexA = rotatedA.vertices[vertex_idx];
@@ -34,10 +34,9 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
 
         // Find point on B that's furthest along the opposite direction
         // of the face normal.
-        auto supB = point_cloud_support_point(rotatedB.vertices, -normal_world) + posB;
-        auto projB = dot(supB, normal_world);
+        auto projB = point_cloud_support_projection(rotatedB.vertices, normal_world) + dot(posB, normal_world);
 
-        auto dist = dot(supB - vertex_world, normal_world);
+        auto dist = projA - projB;
 
         if (dist > max_distance) {
             max_distance = dist;
@@ -77,20 +76,19 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     max_support_direction(shA, rmeshA, posA, shB, rmeshB, posB, 
                           sep_axis, max_distance, projectionA, projectionB);
 
-    sep_axis *= -1; // Make it point towards A.
-    projectionA *= -1;
-    projectionB *= -1;
-
     // Find best support direction among all face normals of B.
     {
-        auto distance = scalar{};
-        auto projA = scalar{};
-        auto projB = scalar{};
-        auto dir = vector3_zero;
+        scalar distance, projA, projB;
+        vector3 dir;
         max_support_direction(shB, rmeshB, posB, shA, rmeshA, posA, 
                               dir, distance, projB, projA);
 
         if (distance > max_distance) {
+            // Signs must be flipped because parameters were swapped above.
+            dir *= -1;
+            projA *= -1;
+            projB *= -1;
+
             max_distance = distance;
             projectionA = projA;
             projectionB = projB;
@@ -135,14 +133,14 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
                 dir *= -1;
             }
 
-            auto supA = point_cloud_support_point(rmeshA.vertices, -dir);
-            auto supB = point_cloud_support_point(rmeshB.vertices, dir) + posB;
-            auto distance = dot(supA - supB, dir);
+            auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
+            auto projB = point_cloud_support_projection(rmeshB.vertices, dir) + dot(posB, dir);
+            auto distance = projA - projB;
 
             if (distance > max_distance) {
                 max_distance = distance;
-                projectionA = dot(supA, dir);
-                projectionB = dot(supB, dir);
+                projectionA = projA;
+                projectionB = projB;
                 sep_axis = dir;
             }
         }

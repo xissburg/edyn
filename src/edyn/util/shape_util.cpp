@@ -186,6 +186,10 @@ vector3 point_cloud_support_point(const std::vector<vector3> &points, const vect
     return point_cloud_support_point(points.begin(), points.end(), dir);
 }
 
+scalar point_cloud_support_projection(const std::vector<vector3> &points, const vector3 &dir) {
+    return point_cloud_support_projection(points.begin(), points.end(), dir);
+}
+
 size_t split_hull_edge(const std::vector<vector2> &points, 
                      std::vector<size_t> &hull, 
                      size_t i0, size_t i1, scalar tolerance) {
