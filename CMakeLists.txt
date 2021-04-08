@@ -132,11 +132,11 @@ target_include_directories(Edyn SYSTEM
 
 target_compile_features(Edyn PUBLIC cxx_std_17)
 target_compile_definitions(Edyn PUBLIC  $<$<CONFIG:Debug>:EDYN_DEBUG>)
-target_compile_definitions(Edyn PUBLIC  $<$<BOOL:EDYN_DISABLE_ASSERT>:EDYN_DISABLE_ASSERT>)
-target_compile_definitions(Edyn PRIVATE $<$<BOOL:EDYN_DISABLE_ASSERT>:ENTT_DISABLE_ASSERT>)
+target_compile_definitions(Edyn PUBLIC  $<$<BOOL:${EDYN_DISABLE_ASSERT}>:EDYN_DISABLE_ASSERT>)
+target_compile_definitions(Edyn PRIVATE $<$<BOOL:${EDYN_DISABLE_ASSERT}>:ENTT_DISABLE_ASSERT>)
 
-target_compile_options(Edyn PUBLIC $<$<AND:$<BOOL:EDYN_ENABLE_SANITIZER>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
-target_link_libraries(Edyn  PUBLIC $<$<AND:$<BOOL:EDYN_ENABLE_SANITIZER>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined>)
+target_compile_options(Edyn PUBLIC $<$<AND:$<BOOL:${EDYN_ENABLE_SANITIZER}>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
+target_link_libraries(Edyn  PUBLIC $<$<AND:$<BOOL:${EDYN_ENABLE_SANITIZER}>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined>)
 
 if(MSVC)
     target_compile_options(Edyn PRIVATE /W4 /WX)
