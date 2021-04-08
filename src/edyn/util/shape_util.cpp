@@ -183,21 +183,7 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
 }
 
 vector3 point_cloud_support_point(const std::vector<vector3> &points, const vector3 &dir) {
-    auto sup = vector3_zero;
-    auto max_proj = -EDYN_SCALAR_MAX;
-    const auto size = points.size();
-
-    for (size_t i = 0; i < size; ++i) {
-        const auto &point_local = points[i];
-        auto proj = dot(point_local, dir);
-
-        if (proj > max_proj) {
-            max_proj = proj;
-            sup = point_local;
-        }
-    }
-
-    return sup;
+    return point_cloud_support_point(points.begin(), points.end(), dir);
 }
 
 size_t split_hull_edge(const std::vector<vector2> &points, 

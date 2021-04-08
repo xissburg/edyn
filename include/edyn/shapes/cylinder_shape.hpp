@@ -21,40 +21,19 @@ struct cylinder_shape {
     scalar radius;
     scalar half_length;
 
-    AABB aabb(const vector3 &pos, const quaternion &orn) const {
-        auto ptx = support_point(orn, vector3_x);
-        auto pty = support_point(orn, vector3_y);
-        auto ptz = support_point(orn, vector3_z);
-        auto v = vector3 {ptx.x, pty.y, ptz.z};
+    AABB aabb(const vector3 &pos, const quaternion &orn) const;
 
-        return {pos - v, pos + v};
-    }
+    matrix3x3 inertia(scalar mass) const;
 
-    matrix3x3 inertia(scalar mass) const {
-        return diagonal_matrix(moment_of_inertia_solid_cylinder(mass, half_length * 2, radius));
-    }
+    vector3 support_point(const vector3 &dir) const;
 
-    vector3 support_point(const vector3 &dir) const {
-        // Squared length in yz plane.
-        auto lyz2 = dir.y * dir.y + dir.z * dir.z;
-
-        if (lyz2 > EDYN_EPSILON) {
-            auto d = radius / std::sqrt(lyz2);
-            return {dir.x < 0 ? -half_length : half_length, dir.y * d, dir.z * d};
-        } 
-        
-        return {dir.x < 0 ? -half_length : half_length, radius, 0};
-    }
-
-    vector3 support_point(const quaternion &orn, const vector3 &dir) const {
-        auto local_dir = rotate(conjugate(orn), dir);
-        auto pt = support_point(local_dir);
-        return rotate(orn, pt);
-    }
+    vector3 support_point(const quaternion &orn, const vector3 &dir) const;
     
-    vector3 support_point(const vector3 &pos, const quaternion &orn, const vector3 &dir) const {
-        return pos + support_point(orn, dir);
-    }
+    vector3 support_point(const vector3 &pos, const quaternion &orn, 
+                          const vector3 &dir) const;
+
+    scalar support_projection(const vector3 &pos, const quaternion &orn, 
+                              const vector3 &dir) const;
 
     void support_feature(const vector3 &dir, cylinder_feature &out_feature, 
                          size_t &out_feature_index, vector3 &out_support_point, 

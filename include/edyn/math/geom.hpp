@@ -7,6 +7,7 @@
 #include "edyn/math/scalar.hpp"
 #include "quaternion.hpp"
 #include "vector2.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
@@ -128,6 +129,14 @@ scalar closest_point_circle_circle(
  * @param q Outputs the second vector on the plane, orthogonal to `p`.
  */
 void plane_space(const vector3 &n, vector3 &p, vector3 &q);
+
+/**
+ * @brief Builds an orthonormal basis that spans a tangent space to a
+ * normal vector.
+ * @param n Vector normal to a surface.
+ * @return Basis with `n` in the second column.
+ */
+matrix3x3 make_tangent_basis(const vector3 &n);
 
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1);

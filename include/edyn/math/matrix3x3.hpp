@@ -180,6 +180,7 @@ inline matrix3x3 skew_matrix(const vector3 &v) {
     };
 }
 
+// Converts a quaternion into a rotation matrix.
 inline matrix3x3 to_matrix3x3(const quaternion &q) {
     auto d = length_sqr(q);
     auto s = 2 / d;
@@ -195,6 +196,7 @@ inline matrix3x3 to_matrix3x3(const quaternion &q) {
     };
 }
 
+// Converts a rotation matrix into a quaternion.
 inline quaternion to_quaternion(const matrix3x3 &m) {
     auto trace = m[0][0] + m[1][1] + m[2][2];
 
@@ -221,11 +223,25 @@ inline quaternion to_quaternion(const matrix3x3 &m) {
     return {temp[0], temp[1], temp[2], temp[3]};
 }
 
+/**
+ * @brief Converts a point in world space to object space.
+ * @param p A point in world space.
+ * @param pos Position in world space.
+ * @param basis Rotation matrix in world space.
+ * @return The point `p` in object space.
+ */
 inline
 vector3 to_object_space(const vector3 &p, const vector3 &pos, const matrix3x3 &basis) {
     return transpose(basis) * (p - pos);
 }
 
+/**
+ * @brief Converts a point in object space to world space.
+ * @param p A point in object space.
+ * @param pos Position in world space.
+ * @param basis Rotation matrix in world space.
+ * @return The point `p` in world space.
+ */
 inline
 vector3 to_world_space(const vector3 &p, const vector3 &pos, const matrix3x3 &basis) {
     return pos + basis * p;

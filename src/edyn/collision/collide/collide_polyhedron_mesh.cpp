@@ -5,7 +5,7 @@ namespace edyn {
 collision_result collide(const polyhedron_shape &shA, const mesh_shape &shB, 
                          const collision_context &ctx) {
     auto result = collision_result{};
-    auto &rmeshA = *(*ctx.rmeshA);
+    auto &rmeshA = ctx.rmeshA->get();
 
     // Polyhedron's position and orientation in mesh's space.
     const auto ornB_conj = conjugate(ctx.ornB);

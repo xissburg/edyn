@@ -2,9 +2,7 @@ cmake_minimum_required(VERSION 3.12.4)
 
 project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
-#
 # Options
-#
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
 
 if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
@@ -116,7 +114,6 @@ endif()
 
 add_library(Edyn)
 target_sources(Edyn PRIVATE ${Edyn_SOURCES})
-target_link_libraries(Edyn PUBLIC EnTT::EnTT)
 
 configure_file(${Edyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${Edyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
 install(FILES ${Edyn_BINARY_DIR}/include/build_settings.h DESTINATION include/edyn)
@@ -126,17 +123,19 @@ target_include_directories(Edyn
     PUBLIC ${Edyn_BINARY_DIR}/include
 )
 
-target_include_directories(Edyn SYSTEM 
-    PUBLIC ${CONAN_INCLUDE_DIRS_ENTT}
-)
+set_target_properties(Edyn PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 target_compile_features(Edyn PUBLIC cxx_std_17)
 target_compile_definitions(Edyn PUBLIC  $<$<CONFIG:Debug>:EDYN_DEBUG>)
-target_compile_definitions(Edyn PUBLIC  $<$<BOOL:EDYN_DISABLE_ASSERT>:EDYN_DISABLE_ASSERT>)
-target_compile_definitions(Edyn PRIVATE $<$<BOOL:EDYN_DISABLE_ASSERT>:ENTT_DISABLE_ASSERT>)
+target_compile_definitions(Edyn PUBLIC  $<$<BOOL:${EDYN_DISABLE_ASSERT}>:EDYN_DISABLE_ASSERT>)
+target_compile_definitions(Edyn PRIVATE $<$<BOOL:${EDYN_DISABLE_ASSERT}>:ENTT_DISABLE_ASSERT>)
 
-target_compile_options(Edyn PUBLIC $<$<AND:$<BOOL:EDYN_ENABLE_SANITIZER>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
-target_link_libraries(Edyn  PUBLIC $<$<AND:$<BOOL:EDYN_ENABLE_SANITIZER>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address -fsanitize=undefined>)
+target_compile_options(Edyn PUBLIC 
+    $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
+
+target_link_libraries(Edyn PUBLIC 
+    EnTT::EnTT
+    $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined>)
 
 if(MSVC)
     target_compile_options(Edyn PRIVATE /W4 /WX)

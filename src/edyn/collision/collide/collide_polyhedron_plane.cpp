@@ -11,7 +11,7 @@ collision_result collide(const polyhedron_shape &shA, const plane_shape &shB,
     const auto &posB = ctx.posB;
     const auto &ornB = ctx.ornB;
 
-    auto &rmeshA = *(*ctx.rmeshA);
+    auto &rmeshA = ctx.rmeshA->get();
 
     auto normal = rotate(ornB, shB.normal);
     auto center = posB + rotate(ornB, shB.normal * shB.constant);

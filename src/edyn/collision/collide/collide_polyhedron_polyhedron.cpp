@@ -5,8 +5,10 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/comp/rotated_mesh.hpp"
+#include "edyn/math/constants.hpp"
 
 namespace edyn {
 
@@ -63,8 +65,8 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
     // The pre-rotated vertices and normals are used to avoid rotating vertices
     // every time.
-    auto &rmeshA = *(*ctx.rmeshA);
-    auto &rmeshB = *(*ctx.rmeshB);
+    auto &rmeshA = ctx.rmeshA->get();
+    auto &rmeshB = ctx.rmeshB->get();
 
     scalar max_distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;
@@ -97,14 +99,14 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     }
 
     // Edge vs edge.
-    for (size_t i = 0; i < shA.mesh->edges.size(); i += 2) {
-        auto vertexA0 = rmeshA.vertices[shA.mesh->edges[i + 0]];
-        auto vertexA1 = rmeshA.vertices[shA.mesh->edges[i + 1]];
+    for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
+        auto [vertexA0, vertexA1] = shA.mesh->get_edge(rmeshA, i);
         auto edgeA = vertexA1 - vertexA0;
 
-        for (size_t j = 0; j < shB.mesh->edges.size(); j += 2) {
-            auto vertexB0 = rmeshB.vertices[shB.mesh->edges[j + 0]] + posB;
-            auto vertexB1 = rmeshB.vertices[shB.mesh->edges[j + 1]] + posB;
+        for (size_t j = 0; j < shB.mesh->num_edges(); ++j) {
+            auto [vertexB0, vertexB1] = shB.mesh->get_edge(rmeshB, j);
+            vertexB0 += posB; vertexB1 += posB;
+
             auto edgeB = vertexB1 - vertexB0;
             auto dir = cross(edgeA, edgeB);
             auto dir_len_sqr = length_sqr(dir);
@@ -152,71 +154,38 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
     auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
-    scalar tolerance = 0.002;
 
-    // Find all vertices that are near the projection boundary.
-    std::vector<vector3> verticesA, verticesB;
-    // Vertices on the 2D contact plane.
-    std::vector<vector2> plane_verticesA, plane_verticesB;
-    // Points at the contact planes of A and B.
-    auto contact_originA = sep_axis * projectionA;
-    auto contact_originB = sep_axis * projectionB;
-    // Build a basis tangent to the contact plane so calculations can be done
-    // in tangent space.
-    vector3 contact_tangent0, contact_tangent1;
-    plane_space(sep_axis, contact_tangent0, contact_tangent1);
-    auto contact_basis = matrix3x3_columns(contact_tangent0, sep_axis, contact_tangent1);
-
-    for (auto &vertex_world : rmeshA.vertices) {
-        if (dot(vertex_world, sep_axis) < projectionA + tolerance) {
-            auto vertex_tangent = to_object_space(vertex_world, contact_originA, contact_basis);
-            auto vertex_plane = to_vector2_xz(vertex_tangent);
-            plane_verticesA.push_back(vertex_plane);
-            verticesA.push_back(vertex_world);
-        }
-    }
-
-    for (auto &vertex : rmeshB.vertices) {
-        auto vertex_world = vertex + posB;
-
-        if (dot(vertex_world, sep_axis) > projectionB - tolerance) {
-            auto vertex_tangent = to_object_space(vertex_world, contact_originB, contact_basis);
-            auto vertex_plane = to_vector2_xz(vertex_tangent);
-            plane_verticesB.push_back(vertex_plane);
-            verticesB.push_back(vertex_world);
-        }
-    }
-
-    EDYN_ASSERT(!verticesA.empty() && !plane_verticesA.empty());
-    EDYN_ASSERT(!verticesB.empty() && !plane_verticesB.empty());
-
-    auto hullA = calculate_convex_hull(plane_verticesA, tolerance);
-    auto hullB = calculate_convex_hull(plane_verticesB, tolerance);
+    auto polygonA = point_cloud_support_polygon<true>(
+        rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
+        sep_axis, projectionA, true, support_polygon_tolerance);
+    auto polygonB = point_cloud_support_polygon<false>(
+        rmeshB.vertices.begin(), rmeshB.vertices.end(), posB, 
+        sep_axis, projectionB, false, support_polygon_tolerance);
 
     // First, add contact points for vertices that lie inside the opposing face.
     // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,
     // check if the points in `verticesA` lie inside the prism spanned by `verticesB`
     // and `sep_axis`
-    if (hullB.size() > 2) {
-        for (auto idxA : hullA) {
-            auto &pointA = verticesA[idxA];
+    if (polygonB.hull.size() > 2) {
+        for (auto idxA : polygonA.hull) {
+            auto &pointA = polygonA.vertices[idxA];
 
-            if (point_in_polygonal_prism(verticesB, hullB, sep_axis, pointA)) {
+            if (point_in_polygonal_prism(polygonB.vertices, polygonB.hull, sep_axis, pointA)) {
                 auto pivotA = to_object_space(pointA, posA, ornA);
-                auto pivotB_world = project_plane(pointA, contact_originB, sep_axis);
+                auto pivotB_world = project_plane(pointA, polygonB.origin, sep_axis);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
                 result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
             }
         }
     }
 
-    if (hullA.size() > 2) {
-        for (auto idxB : hullB) {
-            auto &pointB = verticesB[idxB];
+    if (polygonA.hull.size() > 2) {
+        for (auto idxB : polygonB.hull) {
+            auto &pointB = polygonB.vertices[idxB];
 
-            if (point_in_polygonal_prism(verticesA, hullA, sep_axis, pointB)) {
+            if (point_in_polygonal_prism(polygonA.vertices, polygonA.hull, sep_axis, pointB)) {
                 auto pivotB = to_object_space(pointB, posB, ornB);
-                auto pivotA_world = project_plane(pointB, contact_originA, sep_axis);
+                auto pivotA_world = project_plane(pointB, polygonA.origin, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
             }
@@ -224,33 +193,33 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     }
 
     // Calculate 2D intersection of edges on the closest features.
-    if (hullA.size() > 1 && hullB.size() > 1) {
+    if (polygonA.hull.size() > 1 && polygonB.hull.size() > 1) {
         // If the feature is a polygon, it is will be necessary to wrap around the 
         // vertex array. If it is just one edge, then avoid calculating the same
         // segment-segment intersection twice.
-        const auto sizeA = hullA.size();
-        const auto sizeB = hullB.size();
+        const auto sizeA = polygonA.hull.size();
+        const auto sizeB = polygonB.hull.size();
         const auto limitA = sizeA == 2 ? 1 : sizeA;
         const auto limitB = sizeB == 2 ? 1 : sizeB;
         scalar s[2], t[2];
 
         for (size_t i = 0; i < limitA; ++i) {
-            auto idx0A = hullA[i];
-            auto idx1A = hullA[(i + 1) % sizeA];
-            auto &v0A = plane_verticesA[idx0A];
-            auto &v1A = plane_verticesA[idx1A];
+            auto idx0A = polygonA.hull[i];
+            auto idx1A = polygonA.hull[(i + 1) % sizeA];
+            auto &v0A = polygonA.plane_vertices[idx0A];
+            auto &v1A = polygonA.plane_vertices[idx1A];
 
             for (size_t j = 0; j < limitB; ++j) {
-                auto idx0B = hullB[j];
-                auto idx1B = hullB[(j + 1) % sizeB];
-                auto &v0B = plane_verticesB[idx0B];
-                auto &v1B = plane_verticesB[idx1B];
+                auto idx0B = polygonB.hull[j];
+                auto idx1B = polygonB.hull[(j + 1) % sizeB];
+                auto &v0B = polygonB.plane_vertices[idx0B];
+                auto &v1B = polygonB.plane_vertices[idx1B];
                 auto num_points = intersect_segments(v0A, v1A, v0B, v1B, 
                                                      s[0], t[0], s[1], t[1]);
 
                 for (size_t k = 0; k < num_points; ++k) {
-                    auto pivotA_world = lerp(verticesA[idx0A], verticesA[idx1A], s[k]);
-                    auto pivotB_world = lerp(verticesB[idx0B], verticesB[idx1B], t[k]);
+                    auto pivotA_world = lerp(polygonA.vertices[idx0A], polygonA.vertices[idx1A], s[k]);
+                    auto pivotB_world = lerp(polygonB.vertices[idx0B], polygonB.vertices[idx1B], t[k]);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
                     result.maybe_add_point({pivotA, pivotB, normalB, max_distance});

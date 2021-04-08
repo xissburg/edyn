@@ -602,6 +602,12 @@ void plane_space(const vector3 &n, vector3 &p, vector3 &q) {
     }
 }
 
+matrix3x3 make_tangent_basis(const vector3 &n) {
+    vector3 t, u;
+    plane_space(n, t, u);
+    return matrix3x3_columns(t, n, u);
+}
+
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1) {
     return (min0.x <= max1.x) &&
@@ -648,7 +654,7 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
         return s0 < 0 || s0 > 1 || t0 < 0 || t0 > 1 ? 0 : 1;
     }
 
-    if (perp_product(e, dp) < EDYN_EPSILON) {
+    if (std::abs(perp_product(e, dp)) < EDYN_EPSILON) {
         // Segments are parallel and lie on the same line.
         // Calculate intersection interval.
         auto denom_p = scalar(1) / dot(dp, dp);

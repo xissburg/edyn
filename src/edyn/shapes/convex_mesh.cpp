@@ -1,8 +1,27 @@
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/comp/rotated_mesh.hpp"
 
 namespace edyn {
+
+std::array<vector3, 2> convex_mesh::get_edge(size_t idx) const {
+    EDYN_ASSERT(idx * 2 + 1 < edges.size());
+    return {
+        vertices[edges[idx * 2 + 0]],
+        vertices[edges[idx * 2 + 1]]
+    };
+}
+
+std::array<vector3, 2> convex_mesh::get_edge(const rotated_mesh &rmesh, 
+                                             size_t idx) const {
+    EDYN_ASSERT(idx * 2 + 1 < edges.size());
+    EDYN_ASSERT(rmesh.vertices.size() == vertices.size());
+    return {
+        rmesh.vertices[edges[idx * 2 + 0]],
+        rmesh.vertices[edges[idx * 2 + 1]]
+    };
+}
 
 void convex_mesh::calculate_normals() {
     normals.clear();

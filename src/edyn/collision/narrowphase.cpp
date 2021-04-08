@@ -253,13 +253,11 @@ void detect_collision(const contact_manifold &manifold, collision_result &result
         auto ctx = collision_context{posA, ornA, posB, ornB, contact_breaking_threshold};
 
         if (std::holds_alternative<polyhedron_shape>(shapeA.var)) {
-            auto &rmesh = rmesh_view.get(manifold.body[0]);
-            ctx.rmeshA = &rmesh;
+            ctx.rmeshA = rmesh_view.get(manifold.body[0]);
         }
 
         if (std::holds_alternative<polyhedron_shape>(shapeB.var)) {
-            auto &rmesh = rmesh_view.get(manifold.body[1]);
-            ctx.rmeshB = &rmesh;
+            ctx.rmeshB = rmesh_view.get(manifold.body[1]);
         }
 
         std::visit([&result, &ctx] (auto &&sA, auto &&sB) {
