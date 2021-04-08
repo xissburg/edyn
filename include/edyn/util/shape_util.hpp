@@ -4,6 +4,7 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/comp/aabb.hpp"
 #include <vector>
@@ -170,9 +171,12 @@ struct support_polygon {
 /**
  * @brief Finds the polygon in a point cloud that's furthest away in the given
  * direction. 
+ * @tparam ZeroOffset Set to true if the offset parameter is zero. This eliminates
+ * an unecessary addition to every vertex.
  * @tparam It Type of iterator of a `vector3` container.
  * @param first Iterator to the first element of the point cloud.
  * @param last Iterator to the last element of the point cloud.
+ * @param offset Vector to be added to each point during calculations.
  * @param dir A direction vector (non-zero).
  * @param projection The support projection along the given direction, i.e. the
  * value returned by `point_cloud_support_point(first, last, +/-dir)`.
@@ -181,11 +185,12 @@ struct support_polygon {
  * @param tolerance The distance from the projection boundary which decides
  * whether the vertex is part of the support polygon.
  */
-template<typename It>
+template<bool ZeroOffset = true, typename It>
 support_polygon point_cloud_support_polygon(It first, It last, 
+                                            const vector3 &offset,
                                             const vector3 &dir, 
                                             scalar projection,
-                                            const bool positive_size,
+                                            const bool positive_side,
                                             scalar tolerance) {
     auto polygon = support_polygon{};
     polygon.origin = dir * projection;
@@ -193,8 +198,14 @@ support_polygon point_cloud_support_polygon(It first, It last,
     polygon.basis = make_tangent_basis(dir);
 
     for (auto it = first; it != last; ++it) {
-        const auto &vertex_world = *it;
-        auto is_in_boundary = positive_size ?
+        vector3 vertex_world;
+        if constexpr(ZeroOffset) {
+            vertex_world = *it;
+        } else {
+            vertex_world = *it + offset;
+        }
+
+        auto is_in_boundary = positive_side ?
             dot(vertex_world, dir) < projection + tolerance :
             dot(vertex_world, dir) > projection - tolerance;
 

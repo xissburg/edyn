@@ -2,6 +2,7 @@
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
@@ -78,9 +79,8 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
     }
 
     // Edge vs edge.
-    for (size_t i = 0; i < shA.mesh->edges.size(); i += 2) {
-        auto vertexA0 = rmeshA.vertices[shA.mesh->edges[i + 0]];
-        auto vertexA1 = rmeshA.vertices[shA.mesh->edges[i + 1]];
+    for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
+        auto [vertexA0, vertexA1] = shA.mesh->get_edge(rmeshA, i);
         auto poly_edge = vertexA1 - vertexA0;
 
         for (auto &box_edge : box_axes) {
@@ -133,9 +133,9 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         return {};
     }
 
-    auto polygon = point_cloud_support_polygon(rmeshA.vertices.begin(), rmeshA.vertices.end(), 
-                                               sep_axis, projection_poly, true, 
-                                               support_polygon_tolerance);
+    auto polygon = point_cloud_support_polygon(
+        rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero, 
+        sep_axis, projection_poly, true, support_polygon_tolerance);
 
     auto contact_origin_box = sep_axis * projection_box;
     scalar feature_distanceB;
@@ -269,7 +269,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
             }
         } else {
             // Polygon vertex against box edge.
-            EDYN_ASSERT(hull_poly.size() == 1);
+            EDYN_ASSERT(polygon.hull.size() == 1);
             auto &pivotA = polygon.vertices[polygon.hull[0]];
             auto edge_dir = edge_vertices[1] - edge_vertices[0];
             vector3 pivotB_world; scalar t;

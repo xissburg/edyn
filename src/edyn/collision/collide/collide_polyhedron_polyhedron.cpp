@@ -5,6 +5,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/comp/rotated_mesh.hpp"
 #include "edyn/math/constants.hpp"
@@ -98,14 +99,14 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     }
 
     // Edge vs edge.
-    for (size_t i = 0; i < shA.mesh->edges.size(); i += 2) {
-        auto vertexA0 = rmeshA.vertices[shA.mesh->edges[i + 0]];
-        auto vertexA1 = rmeshA.vertices[shA.mesh->edges[i + 1]];
+    for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
+        auto [vertexA0, vertexA1] = shA.mesh->get_edge(rmeshA, i);
         auto edgeA = vertexA1 - vertexA0;
 
-        for (size_t j = 0; j < shB.mesh->edges.size(); j += 2) {
-            auto vertexB0 = rmeshB.vertices[shB.mesh->edges[j + 0]] + posB;
-            auto vertexB1 = rmeshB.vertices[shB.mesh->edges[j + 1]] + posB;
+        for (size_t j = 0; j < shB.mesh->num_edges(); ++j) {
+            auto [vertexB0, vertexB1] = shB.mesh->get_edge(rmeshB, j);
+            vertexB0 += posB; vertexB1 += posB;
+
             auto edgeB = vertexB1 - vertexB0;
             auto dir = cross(edgeA, edgeB);
             auto dir_len_sqr = length_sqr(dir);
@@ -154,12 +155,12 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
-    auto polygonA = point_cloud_support_polygon(rmeshA.vertices.begin(), rmeshA.vertices.end(),
-                                                sep_axis, projectionA, true,
-                                                support_polygon_tolerance);
-    auto polygonB = point_cloud_support_polygon(rmeshB.vertices.begin(), rmeshB.vertices.end(),
-                                                sep_axis, projectionB, false,
-                                                support_polygon_tolerance);
+    auto polygonA = point_cloud_support_polygon(
+        rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
+        sep_axis, projectionA, true, support_polygon_tolerance);
+    auto polygonB = point_cloud_support_polygon<false>(
+        rmeshB.vertices.begin(), rmeshB.vertices.end(), posB, 
+        sep_axis, projectionB, false, support_polygon_tolerance);
 
     // First, add contact points for vertices that lie inside the opposing face.
     // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,

@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/scalar.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/vector2_3_util.hpp"
@@ -70,9 +71,8 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
     }
 
     // Edge vs edge.
-    for (size_t i = 0; i < poly.mesh->edges.size(); i += 2) {
-        auto vertexA0 = rmesh.vertices[poly.mesh->edges[i + 0]];
-        auto vertexA1 = rmesh.vertices[poly.mesh->edges[i + 1]];
+    for (size_t i = 0; i < poly.mesh->num_edges(); ++i) {
+        auto [vertexA0, vertexA1] = poly.mesh->get_edge(rmesh, i);
         auto poly_edge = vertexA1 - vertexA0;
 
         for (size_t j = 0; j < tri.edges.size(); ++j) {
@@ -138,9 +138,9 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
         return;
     }
 
-    auto polygon = point_cloud_support_polygon(rmesh.vertices.begin(), rmesh.vertices.end(),
-                                               sep_axis, projection_poly, true,
-                                               support_polygon_tolerance);
+    auto polygon = point_cloud_support_polygon(
+        rmesh.vertices.begin(), rmesh.vertices.end(), vector3_zero,
+        sep_axis, projection_poly, true, support_polygon_tolerance);
 
     auto contact_origin_tri = sep_axis * projection_tri;
     auto hull_tri = std::array<size_t, 3>{};
