@@ -185,7 +185,7 @@ struct support_polygon {
  * @param tolerance The distance from the projection boundary which decides
  * whether the vertex is part of the support polygon.
  */
-template<bool ZeroOffset = true, typename It>
+template<bool ZeroOffset, typename It>
 support_polygon point_cloud_support_polygon(It first, It last, 
                                             const vector3 &offset,
                                             const vector3 &dir, 

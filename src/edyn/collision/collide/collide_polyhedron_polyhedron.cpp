@@ -155,7 +155,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
-    auto polygonA = point_cloud_support_polygon(
+    auto polygonA = point_cloud_support_polygon<true>(
         rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
         sep_axis, projectionA, true, support_polygon_tolerance);
     auto polygonB = point_cloud_support_polygon<false>(

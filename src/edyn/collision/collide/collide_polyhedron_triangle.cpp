@@ -138,7 +138,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
         return;
     }
 
-    auto polygon = point_cloud_support_polygon(
+    auto polygon = point_cloud_support_polygon<true>(
         rmesh.vertices.begin(), rmesh.vertices.end(), vector3_zero,
         sep_axis, projection_poly, true, support_polygon_tolerance);
 

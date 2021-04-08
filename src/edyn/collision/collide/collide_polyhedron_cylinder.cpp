@@ -173,7 +173,7 @@ collision_result collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         return {};
     }
 
-    auto polygon = point_cloud_support_polygon(
+    auto polygon = point_cloud_support_polygon<true>(
         rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero, 
         sep_axis, projection_poly, true, support_polygon_tolerance);
 
