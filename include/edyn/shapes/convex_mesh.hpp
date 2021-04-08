@@ -4,7 +4,6 @@
 #include <array>
 #include <vector>
 #include <cstdint>
-#include "edyn/comp/rotated_mesh.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/config/config.h"
 

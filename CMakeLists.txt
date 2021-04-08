@@ -2,9 +2,7 @@ cmake_minimum_required(VERSION 3.12.4)
 
 project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
-#
 # Options
-#
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
 
 if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
