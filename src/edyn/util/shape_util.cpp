@@ -333,6 +333,7 @@ void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2) {
 bool closest_point_convex_polygon(const std::vector<vector2> &vertices, 
                                   const std::vector<size_t> &indices, 
                                   const vector2 &p, vector2 &closest) {
+    // Find Voronoi region which contains `p`.
     for (auto i = 0; i < indices.size(); ++i) {
         auto j = (i + 1) % indices.size();
         auto i0 = indices[i];
@@ -346,15 +347,25 @@ bool closest_point_convex_polygon(const std::vector<vector2> &vertices,
         auto n0 = -orthogonal(e0);
 
         if (dot(p - v0, n0) < 0) {
+            // Point is behind this edge.
             continue;
         }
 
         if (dot(p - v0, e0) > 0) {
+            // Point is past the first boundary of the Voronoi region of
+            // this edge.
             if (dot(p - v1, e0) < 0) {
+                // Point is before the second boundary of the Voronoi region
+                // of this edge, thus this is the Voronoi region where it belongs.
                 auto t = dot(p - v0, e0) / dot(e0, e0);
                 closest = lerp(v0, v1, t);
                 return true;
             } else {
+                // Point is past the second boundary of the Voronoi region
+                // of this edge. If it's also before the first boundary of
+                // the Voronoi region on the next edge, it means the Voronoi
+                // region of the vertex connecting these two edges contains
+                // the point.
                 auto k = (i + 2) % indices.size();
                 auto i2 = indices[k];
                 auto &v2 = vertices[i2];
