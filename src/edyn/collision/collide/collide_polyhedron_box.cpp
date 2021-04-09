@@ -88,29 +88,11 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
             auto dir = cross(poly_edge, box_edge);
             auto dir_len_sqr = length_sqr(dir);
 
-            if (dir_len_sqr > EDYN_EPSILON) {
-                dir /= std::sqrt(dir_len_sqr);
-            } else {
-                // Edges are parallel. Find a direction that's orthogonal to both
-                // if they don't lie on the same line. They lie on the same plane.
-                // Calculate plane normal.
-                auto n = cross(posB - vertexA0, poly_edge);
-
-                if (!(length_sqr(n) > EDYN_EPSILON)) {
-                    // Edges are on the same line.
-                    continue;
-                }
-
-                // Find direction orthogonal to both.
-                dir = cross(n, poly_edge);
-                dir_len_sqr = length_sqr(dir);
-
-                if (dir_len_sqr > EDYN_EPSILON) {
-                    dir /= std::sqrt(dir_len_sqr);
-                } else {
-                    continue;
-                }
+            if (!(dir_len_sqr > EDYN_EPSILON)) {
+                continue;
             }
+
+            dir /= std::sqrt(dir_len_sqr);
 
             if (dot(posA - posB, dir) < 0) {
                 // Make it point towards A.

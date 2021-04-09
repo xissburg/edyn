@@ -109,24 +109,11 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
             auto dir = cross(edgeA, edgeB);
             auto dir_len_sqr = length_sqr(dir);
 
-            if (dir_len_sqr > EDYN_EPSILON) {
-                dir /= std::sqrt(dir_len_sqr);
-            } else {
-                // Edges are parallel. Find a direction that's orthogonal to both
-                // if they don't lie on the same line. Get point in line containing
-                // `edgeA` that's closest to `vertexB0`.
-                vector3 closest; scalar t;
-                closest_point_line(vertexA0, edgeA, vertexB0, t, closest);
-
-                dir = closest - vertexB0;
-                dir_len_sqr = length_sqr(dir);
-
-                if (dir_len_sqr > EDYN_EPSILON) {
-                    dir /= std::sqrt(dir_len_sqr);
-                } else {
-                    continue;
-                }
+            if (!(dir_len_sqr > EDYN_EPSILON)) {
+                continue;
             }
+
+            dir /= std::sqrt(dir_len_sqr);
 
             if (dot(posA - posB, dir) < 0) {
                 // Make it point towards A.

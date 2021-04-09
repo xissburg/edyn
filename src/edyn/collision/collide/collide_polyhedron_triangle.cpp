@@ -81,29 +81,11 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
             auto dir = cross(poly_edge, tri.edges[j]);
             auto dir_len_sqr = length_sqr(dir);
 
-            if (dir_len_sqr > EDYN_EPSILON) {
-                dir /= std::sqrt(dir_len_sqr);
-            } else {
-                // Edges are parallel. Find a direction that's orthogonal to both
-                // if they don't lie on the same line. They lie on the same plane.
-                // Find plane normal.
-                auto n = cross(vertexB0 - vertexA0, poly_edge);
-
-                if (!(length_sqr(n) > EDYN_EPSILON)) {
-                    // Edges are on the same line.
-                    continue;
-                }
-
-                // Find direction orthogonal to both.
-                dir = cross(n, poly_edge);
-                dir_len_sqr = length_sqr(dir);
-
-                if (dir_len_sqr > EDYN_EPSILON) {
-                    dir /= std::sqrt(dir_len_sqr);
-                } else {
-                    continue;
-                }
+            if (!(dir_len_sqr > EDYN_EPSILON)) {
+                continue;
             }
+
+            dir /= std::sqrt(dir_len_sqr);
 
             // Polyhedron is assumed to be located at the origin.
             if (dot(vector3_zero - vertexB0, dir) < 0) {
