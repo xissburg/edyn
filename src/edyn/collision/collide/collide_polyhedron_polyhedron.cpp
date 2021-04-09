@@ -1,13 +1,8 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/collision/collision_result.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/geom.hpp"
-#include "edyn/math/matrix3x3.hpp"
-#include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2_3_util.hpp"
-#include "edyn/math/vector3.hpp"
 #include "edyn/util/shape_util.hpp"
-#include "edyn/comp/rotated_mesh.hpp"
 #include "edyn/math/constants.hpp"
 
 namespace edyn {
@@ -67,29 +62,29 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     auto &rmeshA = ctx.rmeshA->get();
     auto &rmeshB = ctx.rmeshB->get();
 
-    scalar max_distance = -EDYN_SCALAR_MAX;
+    scalar distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;
     scalar projectionB = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
 
     // Find best support direction among all face normals of A.
     max_support_direction(shA, rmeshA, posA, shB, rmeshB, posB, 
-                          sep_axis, max_distance, projectionA, projectionB);
+                          sep_axis, distance, projectionA, projectionB);
 
     // Find best support direction among all face normals of B.
     {
-        scalar distance, projA, projB;
+        scalar dist, projA, projB;
         vector3 dir;
         max_support_direction(shB, rmeshB, posB, shA, rmeshA, posA, 
-                              dir, distance, projB, projA);
+                              dir, dist, projB, projA);
 
-        if (distance > max_distance) {
+        if (dist > distance) {
             // Signs must be flipped because parameters were swapped above.
             dir *= -1;
             projA *= -1;
             projB *= -1;
 
-            max_distance = distance;
+            distance = dist;
             projectionA = projA;
             projectionB = projB;
             sep_axis = dir;
@@ -122,10 +117,10 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
             auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
             auto projB = point_cloud_support_projection(rmeshB.vertices, dir) + dot(posB, dir);
-            auto distance = projA - projB;
+            auto dist = projA - projB;
 
-            if (distance > max_distance) {
-                max_distance = distance;
+            if (dist > distance) {
+                distance = dist;
                 projectionA = projA;
                 projectionB = projB;
                 sep_axis = dir;
@@ -133,7 +128,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
         }
     }
 
-    if (max_distance > threshold) {
+    if (distance > threshold) {
         return {};
     }
 
@@ -159,7 +154,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
                 auto pivotA = to_object_space(pointA, posA, ornA);
                 auto pivotB_world = project_plane(pointA, polygonB.origin, sep_axis);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+                result.maybe_add_point({pivotA, pivotB, normalB, distance});
             }
         }
     }
@@ -172,7 +167,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
                 auto pivotB = to_object_space(pointB, posB, ornB);
                 auto pivotA_world = project_plane(pointB, polygonA.origin, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+                result.maybe_add_point({pivotA, pivotB, normalB, distance});
             }
         }
     }
@@ -207,7 +202,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
                     auto pivotB_world = lerp(polygonB.vertices[idx0B], polygonB.vertices[idx1B], t[k]);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+                    result.maybe_add_point({pivotA, pivotB, normalB, distance});
                 }
             }
         }

@@ -64,7 +64,7 @@ set(Edyn_SOURCES
     src/edyn/collision/collide/collide_polyhedron_paged_mesh.cpp
     src/edyn/collision/collide/collide_polyhedron_plane.cpp
     src/edyn/collision/collide/collide_polyhedron_polyhedron.cpp
-    src/edyn/collision/collide/collide_sphere_polyhedron.cpp
+    src/edyn/collision/collide/collide_polyhedron_sphere.cpp
     src/edyn/collision/collide/collide_polyhedron_triangle.cpp
     src/edyn/collision/collision_result.cpp
     src/edyn/constraints/contact_constraint.cpp
