@@ -256,6 +256,23 @@ support_polygon point_cloud_support_polygon(It first, It last,
     return polygon;
 }
 
+/**
+ * @brief Finds a point on the boundary of a convex polygon that's closest to a
+ * point `p` located outside the polygon.
+ * @param vertices Array of vertices.
+ * @param indices Sequence of indices of vertices that form a convex polygon in
+ * the `vertices` array.
+ * @param p Query point.
+ * @param closest Point on the boundary of the polygon that's closest to `p`.
+ * @return False if `p` is inside the polygon.
+ */
+bool closest_point_convex_polygon(const std::vector<vector2> &vertices, 
+                                  const std::vector<size_t> &indices, 
+                                  const vector2 &p, vector2 &closest);
+
+bool closest_point_polygon(const support_polygon &polygon, 
+                           const vector2 &p, vector2 &closest);
+
 }
 
 #endif // EDYN_UTIL_SHAPE_UTIL_HPP

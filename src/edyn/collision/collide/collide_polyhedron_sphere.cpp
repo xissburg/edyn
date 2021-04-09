@@ -1,9 +1,9 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/shape_util.hpp"
-#include "edyn/math/math.hpp"
 #include "edyn/math/constants.hpp"
 
 namespace edyn {
@@ -52,62 +52,32 @@ collision_result collide(const polyhedron_shape &shA, const sphere_shape &shB,
 
     auto posB_plane = to_vector2_xz(to_object_space(posB, polygon.origin, polygon.basis));
     vector2 closest;
-    bool inside_face = true;
-
-    for (auto i = 0; i < polygon.hull.size(); ++i) {
-        auto j = (i + 1) % polygon.hull.size();
-        auto i0 = polygon.hull[i];
-        auto i1 = polygon.hull[j];
-        auto &v0 = polygon.plane_vertices[i0];
-        auto &v1 = polygon.plane_vertices[i1];
-
-        auto e0 = v1 - v0;
-        // Vertices are oriented counter-clockwise. Rotate edge clockwise
-        // to obtain a vector that points outside the convex polygon.
-        auto n0 = -orthogonal(e0);
-
-        if (dot(posB_plane - v0, n0) < 0) {
-            continue;
-        }
-
-        if (dot(posB_plane - v0, e0) > 0) {
-            if (dot(posB_plane - v1, e0) < 0) {
-                auto t = dot(posB_plane - v0, e0) / dot(e0, e0);
-                closest = lerp(v0, v1, t);
-                inside_face = false;
-                break;
-            } else {
-                auto k = (i + 2) % polygon.hull.size();
-                auto i2 = polygon.hull[k];
-                auto &v2 = polygon.plane_vertices[i2];
-                auto e1 = v2 - v1;
-
-                if (dot(posB_plane - v1, e1) < 0) {
-                    closest = v1;
-                    inside_face = false;
-                    break;
-                }
-            }
-        }
-    }
+    bool inside_face = !closest_point_polygon(polygon, posB_plane, closest);
 
     if (inside_face) {
-        auto pivotB_world = posB + sep_axis * shB.radius;
-        auto pivotB = to_object_space(pivotB_world, posB, ornB);
-        auto pivotA_world = project_plane(pivotB_world, polygon.origin, sep_axis);
-        auto pivotA = to_object_space(pivotA_world, posA, ornA);
         auto normalB = rotate(conjugate(ornB), sep_axis);
+        auto pivotB = normalB * shB.radius;
+        auto pivotA_world = project_plane(posB, polygon.origin, sep_axis);
+        auto pivotA = to_object_space(pivotA_world, posA, ornA);
         result.add_point({pivotA, pivotB, normalB, distance});
     } else {
-        auto closest3 = vector3{closest.x, 0, closest.y};
-        auto closest_world = to_world_space(closest3, polygon.origin, polygon.basis);
-        sep_axis = closest_world - posB;
-        distance = length(sep_axis);
-        sep_axis /= distance;
-        distance -= shB.radius;
-        auto normalB = rotate(conjugate(ornB), sep_axis);
-        auto pivotA = to_object_space(closest_world, posA, ornA);
+        auto pivotA_world = to_world_space(to_vector3_xz(closest), 
+                                           polygon.origin, polygon.basis);
+        auto new_sep_axis = pivotA_world - posB;
+        auto new_sep_axis_len_sqr = length_sqr(new_sep_axis);
+
+        if (new_sep_axis_len_sqr > EDYN_EPSILON) {
+            auto new_sep_axis_len = std::sqrt(new_sep_axis_len_sqr);
+            new_sep_axis /= new_sep_axis_len;
+            distance = new_sep_axis_len - shB.radius;
+        } else {
+            new_sep_axis = sep_axis;
+            pivotA_world = project_plane(posB, polygon.origin, new_sep_axis);
+        }
+
+        auto normalB = rotate(conjugate(ornB), new_sep_axis);
         auto pivotB = normalB * shB.radius;
+        auto pivotA = to_object_space(pivotA_world, posA, ornA);
         result.add_point({pivotA, pivotB, normalB, distance});
     }
 

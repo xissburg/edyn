@@ -1,5 +1,11 @@
 #include "../common/common.hpp"
+#include "edyn/comp/rotated_mesh.hpp"
+#include "edyn/math/constants.hpp"
+#include "edyn/math/scalar.hpp"
+#include "edyn/shapes/convex_mesh.hpp"
+#include "edyn/shapes/polyhedron_shape.hpp"
 #include <edyn/collision/collide.hpp>
+#include <memory>
 
 TEST(test_collision, collide_box_box_face_face) {
     auto box = edyn::box_shape{edyn::vector3{0.5, 0.5, 0.5}};
@@ -76,4 +82,83 @@ TEST(test_collision, collide_box_box_face_edge) {
     }
 
     ASSERT_TRUE(expected_pivotB.empty());
+}
+
+TEST(test_collision, collide_polyhedron_sphere) {
+    auto mesh = std::make_shared<edyn::convex_mesh>();
+    // Make a box.
+    mesh->vertices.push_back({0, 0, 0});
+    mesh->vertices.push_back({1, 0, 0});
+    mesh->vertices.push_back({1, 0, 1});
+    mesh->vertices.push_back({0, 0, 1});
+    mesh->vertices.push_back({0, 1, 0});
+    mesh->vertices.push_back({1, 1, 0});
+    mesh->vertices.push_back({1, 1, 1});
+    mesh->vertices.push_back({0, 1, 1});
+
+    mesh->indices.insert(mesh->indices.end(), {0, 1, 2, 3}); // bottom
+    mesh->indices.insert(mesh->indices.end(), {7, 6, 5, 4}); // top
+    mesh->indices.insert(mesh->indices.end(), {4, 5, 1, 0}); // front
+    mesh->indices.insert(mesh->indices.end(), {6, 7, 3, 2}); // rear
+    mesh->indices.insert(mesh->indices.end(), {7, 4, 0, 3}); // left
+    mesh->indices.insert(mesh->indices.end(), {5, 6, 2, 1}); // right
+
+    mesh->faces.insert(mesh->faces.end(), {0, 4});
+    mesh->faces.insert(mesh->faces.end(), {4, 4});
+    mesh->faces.insert(mesh->faces.end(), {8, 4});
+    mesh->faces.insert(mesh->faces.end(), {12, 4});
+    mesh->faces.insert(mesh->faces.end(), {16, 4});
+    mesh->faces.insert(mesh->faces.end(), {20, 4});
+    
+    mesh->calculate_normals();
+    mesh->calculate_edges();
+
+    auto polyhedron = edyn::polyhedron_shape{};
+    polyhedron.mesh = mesh;
+    polyhedron.calculate_local_aabb();
+
+    auto rmesh = edyn::rotated_mesh{};
+    rmesh.vertices = mesh->vertices;
+    rmesh.normals = mesh->normals;
+
+    auto sphere = edyn::sphere_shape{0.5};
+
+    auto ctx = edyn::collision_context{};
+    ctx.posA = edyn::vector3{0, 0, 0};
+    ctx.ornA = edyn::quaternion_identity;
+    ctx.posB = edyn::vector3{0.5, 1.4, 0.5};
+    ctx.ornB = edyn::quaternion_identity;
+    ctx.rmeshA = rmesh; ctx.rmeshB = rmesh;
+    ctx.threshold = edyn::large_scalar;
+    auto result = edyn::collide(polyhedron, sphere, ctx);
+    auto pt = result.point[0];
+    
+    ASSERT_EQ(result.num_points, 1);
+    ASSERT_SCALAR_EQ(pt.normalB.x, 0);
+    ASSERT_SCALAR_EQ(pt.normalB.y, -1);
+    ASSERT_SCALAR_EQ(pt.normalB.z, 0);
+    ASSERT_SCALAR_EQ(pt.pivotA.x, 0.5);
+    ASSERT_SCALAR_EQ(pt.pivotA.y, 1);
+    ASSERT_SCALAR_EQ(pt.pivotA.z, 0.5);
+    ASSERT_SCALAR_EQ(pt.pivotB.x, 0);
+    ASSERT_SCALAR_EQ(pt.pivotB.y, -0.5);
+    ASSERT_SCALAR_EQ(pt.pivotB.z, 0);
+    ASSERT_SCALAR_EQ(pt.distance, -0.1);
+
+    ctx.posA = edyn::vector3{1.5, 1.5, 0.5};
+    ctx.posB = edyn::vector3{0, 0, 0};
+    result = edyn::collide(sphere, polyhedron, ctx);
+    pt = result.point[0];
+
+    ASSERT_EQ(result.num_points, 1);
+    ASSERT_SCALAR_EQ(pt.normalB.x, 0.707107);
+    ASSERT_SCALAR_EQ(pt.normalB.y, 0.707107);
+    ASSERT_SCALAR_EQ(pt.normalB.z, 0);
+    ASSERT_SCALAR_EQ(pt.pivotA.x, -0.707107/2);
+    ASSERT_SCALAR_EQ(pt.pivotA.y, -0.707107/2);
+    ASSERT_SCALAR_EQ(pt.pivotA.z, 0);
+    ASSERT_SCALAR_EQ(pt.pivotB.x, 1);
+    ASSERT_SCALAR_EQ(pt.pivotB.y, 1);
+    ASSERT_SCALAR_EQ(pt.pivotB.z, 0.5);
+    ASSERT_SCALAR_EQ(pt.distance, 0.2071067812);
 }
