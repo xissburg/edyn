@@ -5,6 +5,7 @@
 #include <functional>
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/rotated_mesh.hpp"
+#include "edyn/collision/collision_result.hpp"
 
 namespace edyn {
 
