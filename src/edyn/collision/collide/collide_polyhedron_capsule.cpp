@@ -149,11 +149,12 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
         } else {
             // Polyhedron vertex against capsule edge.
             EDYN_ASSERT(polygon.hull.size() == 1);
-            auto &pivotA = polygon.vertices[polygon.hull[0]];
+            auto &pivotA_world = polygon.vertices[polygon.hull[0]];
             auto edge_dir = capsule_vertices[1] - capsule_vertices[0];
             vector3 pivotB_world; scalar t;
-            closest_point_line(capsule_vertices[0], edge_dir, pivotA, t, pivotB_world);
+            closest_point_line(capsule_vertices[0], edge_dir, pivotA_world, t, pivotB_world);
             auto pivotB = to_object_space(pivotB_world, posB, ornB) + normalB * shB.radius;
+            auto pivotA = to_object_space(pivotA_world, posA, ornA);
             result.add_point({pivotA, pivotB, normalB, distance});
         }
     } else {
