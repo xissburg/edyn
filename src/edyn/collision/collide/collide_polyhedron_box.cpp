@@ -31,7 +31,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         quaternion_z(ornB)
     };
 
-    scalar max_distance = -EDYN_SCALAR_MAX;
+    scalar distance = -EDYN_SCALAR_MAX;
     scalar projection_poly = EDYN_SCALAR_MAX;
     scalar projection_box = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
@@ -49,8 +49,8 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         auto supB = shB.support_point(posB, ornB, normal_world);
         auto dist = dot(vertex_world - supB, normal_world);
 
-        if (dist > max_distance) {
-            max_distance = dist;
+        if (dist > distance) {
+            distance = dist;
             projection_poly = dot(vertex_world, normal_world);
             projection_box = dot(supB, normal_world);
             sep_axis = normal_world;
@@ -71,8 +71,8 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         auto projB = dot(supB, dir);
         auto dist = projA - projB;
 
-        if (dist > max_distance) {
-            max_distance = dist;
+        if (dist > distance) {
+            distance = dist;
             projection_poly = projA;
             projection_box = projB;
             sep_axis = dir;
@@ -101,10 +101,10 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
 
             auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
             auto projB = shB.support_projection(posB, ornB, dir);
-            auto distance = projA - projB;
+            auto dist = projA - projB;
 
-            if (distance > max_distance) {
-                max_distance = distance;
+            if (dist > distance) {
+                distance = dist;
                 projection_poly = projA;
                 projection_box = projB;
                 sep_axis = dir;
@@ -112,7 +112,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         }
     }
 
-    if (max_distance > threshold) {
+    if (distance > threshold) {
         return {};
     }
 
@@ -144,7 +144,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                 auto pivotA = to_object_space(pointA, posA, ornA);
                 auto pivotB_world = project_plane(pointA, contact_origin_box, sep_axis);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+                result.maybe_add_point({pivotA, pivotB, normalB, distance});
             }
         }
 
@@ -156,7 +156,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                     auto pivotB = to_object_space(pointB, posB, ornB);
                     auto pivotA_world = project_plane(pointB, polygon.origin, sep_axis);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                    result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+                    result.maybe_add_point({pivotA, pivotB, normalB, distance});
                 }
             }
         }
@@ -169,7 +169,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                 plane_vertices_box[i] = to_vector2_xz(vertex_tangent);
             }
 
-            // If the feature is a polygon, it is will be necessary to wrap around the 
+            // If the feature is a polygon, it will be necessary to wrap around the 
             // vertex array. If it is just one edge, then avoid calculating the same
             // segment-segment intersection twice.
             const auto sizeA = polygon.hull.size();
@@ -195,7 +195,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                         auto pivotB_world = lerp(face_vertices[idx0B], face_vertices[idx1B], t[k]);
                         auto pivotA = to_object_space(pivotA_world, posA, ornA);
                         auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                        result.maybe_add_point({pivotA, pivotB, normalB, max_distance});
+                        result.maybe_add_point({pivotA, pivotB, normalB, distance});
                     }
                 }
             }
@@ -212,14 +212,14 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                     auto pivotB = to_object_space(pointB, posB, ornB);
                     auto pivotA_world = project_plane(pointB, polygon.origin, sep_axis);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                    result.add_point({pivotA, pivotB, normalB, max_distance});
+                    result.add_point({pivotA, pivotB, normalB, distance});
                 }
             }
         }
 
         // Check if the box edge intersects the edges of the polygon.
         if (polygon.hull.size() > 1) {
-            // If the feature is a polygon, it is will be necessary to wrap around the 
+            // If the feature is a polygon, it will be necessary to wrap around the 
             // vertex array. If it is just one edge, then avoid calculating the same
             // segment-segment intersection twice.
             const auto sizeA = polygon.hull.size();
@@ -247,7 +247,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                     auto pivotB_world = lerp(edge_vertices[0], edge_vertices[1], t[k]);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.add_point({pivotA, pivotB, normalB, max_distance});
+                    result.add_point({pivotA, pivotB, normalB, distance});
                 }
             }
         } else {
@@ -258,16 +258,16 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
             vector3 pivotB_world; scalar t;
             closest_point_line(edge_vertices[0], edge_dir, pivotA, t, pivotB_world);
             auto pivotB = to_object_space(pivotB_world, posB, ornB);
-            result.add_point({pivotA, pivotB, normalB, max_distance});
+            result.add_point({pivotA, pivotB, normalB, distance});
         }
         break;
     }
     case box_feature::vertex: {
         auto pivotB = shB.get_vertex(feature_indexB);
         auto pivotB_world = to_world_space(pivotB, posB, ornB);
-        auto pivotA_world = pivotB_world + sep_axis * max_distance;
+        auto pivotA_world = pivotB_world + sep_axis * distance;
         auto pivotA = to_object_space(pivotA_world, posA, ornA);
-        result.add_point({pivotA, pivotB, normalB, max_distance});
+        result.add_point({pivotA, pivotB, normalB, distance});
     }
     }
 

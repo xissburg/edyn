@@ -80,7 +80,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
             // The general non-degenerate case starts here.
             const auto b = dot(d1, d2);
             const auto denom = a * e - b * b;
-            
+
             // If segments aren't parallel, compute closest point on `l1` to `l2`
             // and clamp to `s1`. Else pick arbitrary `s` (here 0). `l1` and `l2`
             // are the infinite lines passing through `s1` and `s2` respectively.
@@ -93,7 +93,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                 auto r1 = p1 - q2;
                 auto c1 = dot(d1, r1);
                 auto a_inv = 1 / a;
-                
+
                 s   = clamp_unit(std::min(-c * a_inv, -c1 * a_inv));
                 *sp = clamp_unit(std::max(-c * a_inv, -c1 * a_inv));
 
@@ -103,7 +103,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
 
                 t   = clamp_unit(std::min(-f * e_inv, -f2 * e_inv));
                 *tp = clamp_unit(std::max(-f * e_inv, -f2 * e_inv));
-                
+
                 if (std::abs(s - *sp) > EDYN_EPSILON) {
                     *num_points = 2;
                     *c1p = p1 + d1 * *sp;

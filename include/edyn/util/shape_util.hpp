@@ -187,7 +187,8 @@ void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2);
 struct support_polygon {
     // Vertices in world space.
     std::vector<vector3> vertices;
-    // Vertices on the 2D contact plane.
+    // Vertices on the 2D contact plane, i.e. `vertices` transformed into 
+    // the contact space with `to_vector2_xz` applied to them.
     std::vector<vector2> plane_vertices;
     // Indices of the vertices that are in the convex hull of the polygon,
     // oriented counter-clockwise.

@@ -188,7 +188,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
 
     // Calculate 2D intersection of edges on the closest features.
     if (polygon.hull.size() > 1 && hull_tri_size > 1) {
-        // If the feature is a polygon, it is will be necessary to wrap around the 
+        // If the feature is a polygon, it will be necessary to wrap around the 
         // vertex array. If it is just one edge, then avoid calculating the same
         // segment-segment intersection twice.
         const auto size_poly = polygon.hull.size();
