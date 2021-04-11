@@ -98,8 +98,6 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
         for (size_t j = 0; j < shB.mesh->num_edges(); ++j) {
             auto [vertexB0, vertexB1] = shB.mesh->get_edge(rmeshB, j);
-            vertexB0 += posB; vertexB1 += posB;
-
             auto edgeB = vertexB1 - vertexB0;
             auto dir = cross(edgeA, edgeB);
             auto dir_len_sqr = length_sqr(dir);
