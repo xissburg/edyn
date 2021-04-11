@@ -172,7 +172,7 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
     // Calculate 2D intersection of edges on the closest features.
     if (polygonA.hull.size() > 1 && polygonB.hull.size() > 1) {
-        // If the feature is a polygon, it is will be necessary to wrap around the 
+        // If the feature is a polygon, it will be necessary to wrap around the 
         // vertex array. If it is just one edge, then avoid calculating the same
         // segment-segment intersection twice.
         const auto sizeA = polygonA.hull.size();

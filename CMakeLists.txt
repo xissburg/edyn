@@ -57,7 +57,7 @@ set(Edyn_SOURCES
     src/edyn/collision/collide/collide_cylinder_triangle.cpp
     src/edyn/collision/collide/collide_sphere_triangle.cpp
     src/edyn/collision/collide/collide_box_triangle.cpp
-    src/edyn/collision/collide/collide_capsule_polyhedron.cpp
+    src/edyn/collision/collide/collide_polyhedron_capsule.cpp
     src/edyn/collision/collide/collide_polyhedron_cylinder.cpp
     src/edyn/collision/collide/collide_polyhedron_box.cpp
     src/edyn/collision/collide/collide_polyhedron_mesh.cpp

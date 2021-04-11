@@ -285,7 +285,7 @@ collision_result collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
         // Check if the cylinder edge intersects the edges of the polygon.
         if (polygon.hull.size() > 1) {
-            // If the feature is a polygon, it is will be necessary to wrap around the 
+            // If the feature is a polygon, it will be necessary to wrap around the 
             // vertex array. If it is just one edge, then avoid calculating the same
             // segment-segment intersection twice.
             const auto sizeA = polygon.hull.size();
