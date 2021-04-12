@@ -195,7 +195,7 @@ collision_result collide(const capsule_shape &shA, const box_shape &shB,
     case box_feature::vertex: {
         auto pivotB = shB.get_vertex(feature_indexB);
         auto pivotB_world = to_world_space(pivotB, posB, ornB);
-        auto pivotA_world = pivotB_world - sep_axis * distance;
+        auto pivotA_world = pivotB_world + sep_axis * distance;
         auto pivotA = to_object_space(pivotA_world, posA, ornA);
         result.add_point({pivotA, pivotB, normalB, distance});
     }
