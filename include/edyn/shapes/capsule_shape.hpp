@@ -23,6 +23,14 @@ struct capsule_shape {
     matrix3x3 inertia(scalar mass) const {
         return diagonal_matrix(moment_of_inertia_solid_capsule(mass, half_length * 2, radius));
     }
+
+    std::array<vector3, 2> get_vertices(const vector3 &pos, const quaternion &orn) const {
+        const auto capsule_axis = quaternion_x(orn);
+        return {
+            pos - capsule_axis * half_length,
+            pos + capsule_axis * half_length
+        };
+    }
 };
 
 }

@@ -17,11 +17,7 @@ collision_result collide(const capsule_shape &shA, const box_shape &shB,
     const auto &ornB = ctx.ornB;
     const auto threshold = ctx.threshold;
 
-    auto capsule_axis = quaternion_x(ornA);
-    auto capsule_vertices = std::array<vector3, 2>{
-        posA - capsule_axis * shA.half_length,
-        posA + capsule_axis * shA.half_length
-    };
+    auto capsule_vertices = shA.get_vertices(posA, ornA);
 
     const auto box_axes = std::array<vector3, 3>{
         quaternion_x(ornB),
