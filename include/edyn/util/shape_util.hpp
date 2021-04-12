@@ -274,6 +274,12 @@ bool closest_point_convex_polygon(const std::vector<vector2> &vertices,
 bool closest_point_polygon(const support_polygon &polygon, 
                            const vector2 &p, vector2 &closest);
 
+scalar capsule_support_projection(const vector3 &v0, const vector3 &v1,
+                                  scalar radius, const vector3 &dir);
+
+scalar capsule_support_projection(const std::array<vector3, 2> &vertices,
+                                  scalar radius, const vector3 &dir);
+
 }
 
 #endif // EDYN_UTIL_SHAPE_UTIL_HPP
