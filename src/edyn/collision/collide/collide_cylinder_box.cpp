@@ -396,13 +396,13 @@ collision_result collide(const cylinder_shape &shA, const box_shape &shB,
                 auto num_points = intersect_line_aabb(p0, p1, -half_extents, half_extents, s[0], s[1]);
 
                 for (size_t i = 0; i < num_points; ++i) {
-                    if (s[i] >= 0 && s[i] <= 1) {
-                        auto edge_pivot = lerp(edge_vertices[0], edge_vertices[1], s[i]);
-                        auto face_pivot = project_plane(edge_pivot, face_center, sep_axis.dir);
-                        auto pivotA = to_object_space(edge_pivot, posA, ornA);
-                        auto pivotB = to_object_space(face_pivot, posB, ornB);
-                        result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
-                    }
+                    if (s[i] < 0 || s[i] > 1) continue;
+
+                    auto edge_pivot = lerp(edge_vertices[0], edge_vertices[1], s[i]);
+                    auto face_pivot = project_plane(edge_pivot, face_center, sep_axis.dir);
+                    auto pivotA = to_object_space(edge_pivot, posA, ornA);
+                    auto pivotB = to_object_space(face_pivot, posB, ornB);
+                    result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
                 }
             }
         }

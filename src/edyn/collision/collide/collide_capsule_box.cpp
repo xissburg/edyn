@@ -38,8 +38,7 @@ collision_result collide(const capsule_shape &shA, const box_shape &shB,
         }
 
         auto projA = -capsule_support_projection(capsule_vertices, shA.radius, -dir);
-        auto supB = posB + dir * shB.half_extents[i];
-        auto projB = dot(supB, dir);
+        auto projB = dot(posB, dir) + shB.half_extents[i];
         auto dist = projA - projB;
 
         if (dist > distance) {
@@ -141,13 +140,13 @@ collision_result collide(const capsule_shape &shA, const box_shape &shB,
             auto num_points = intersect_line_aabb(p0, p1, -half_extents, half_extents, s[0], s[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
-                if (s[i] >= 0 && s[i] <= 1) {
-                    auto edge_pivot = lerp(capsule_vertices[0], capsule_vertices[1], s[i]);
-                    auto face_pivot = project_plane(edge_pivot, face_center, sep_axis);
-                    auto pivotA = to_object_space(edge_pivot - sep_axis * shA.radius, posA, ornA);
-                    auto pivotB = to_object_space(face_pivot, posB, ornB);
-                    result.add_point({pivotA, pivotB, normalB, distance});
-                }
+                if (s[i] < 0 || s[i] > 1) continue;
+
+                auto edge_pivot = lerp(capsule_vertices[0], capsule_vertices[1], s[i]);
+                auto face_pivot = project_plane(edge_pivot, face_center, sep_axis);
+                auto pivotA = to_object_space(edge_pivot - sep_axis * shA.radius, posA, ornA);
+                auto pivotB = to_object_space(face_pivot, posB, ornB);
+                result.add_point({pivotA, pivotB, normalB, distance});
             }
         } else {
             // Capsule edge vs box face.

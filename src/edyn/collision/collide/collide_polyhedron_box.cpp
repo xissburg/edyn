@@ -67,8 +67,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         // Find point on polyhedron that's furthest along the opposite direction
         // of the box face normal.
         auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
-        auto supB = posB + dir * shB.half_extents[i];
-        auto projB = dot(supB, dir);
+        auto projB = dot(posB, dir) + shB.half_extents[i];
         auto dist = projA - projB;
 
         if (dist > distance) {
