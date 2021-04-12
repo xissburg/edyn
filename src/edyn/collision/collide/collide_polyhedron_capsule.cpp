@@ -15,11 +15,7 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
     auto threshold = ctx.threshold;
     auto &rmeshA = ctx.rmeshA->get();
 
-    auto capsule_axis = quaternion_x(ornB);
-    vector3 capsule_vertices[] = {
-        posB - capsule_axis * shB.half_length,
-        posB + capsule_axis * shB.half_length
-    };
+    auto capsule_vertices = shB.get_vertices(posB, ornB);
 
     scalar distance = -EDYN_SCALAR_MAX;
     scalar projection_poly = EDYN_SCALAR_MAX;
@@ -32,8 +28,7 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
         auto &vertex_world = rmeshA.vertices[vertex_idx];
 
         auto projA = dot(vertex_world, normal_world);
-        auto projB = std::max(dot(capsule_vertices[0], normal_world),
-                              dot(capsule_vertices[1], normal_world)) + shB.radius;
+        auto projB = capsule_support_projection(capsule_vertices, shB.radius, normal_world);
         auto dist = projA - projB;
 
         if (dist > distance) {
@@ -66,8 +61,7 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
         }
 
         auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
-        auto projB = std::max(dot(capsule_vertices[0], dir),
-                              dot(capsule_vertices[1], dir)) + shB.radius;
+        auto projB = capsule_support_projection(capsule_vertices, shB.radius, dir);
         auto dist = projA - projB;
 
         if (dist > distance) {

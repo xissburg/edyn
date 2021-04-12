@@ -387,4 +387,14 @@ bool closest_point_polygon(const support_polygon &polygon,
     return closest_point_convex_polygon(polygon.plane_vertices, polygon.hull, p, closest);
 }
 
+scalar capsule_support_projection(const vector3 &v0, const vector3 &v1,
+                                  scalar radius, const vector3 &dir) {
+    return std::max(dot(v0, dir), dot(v1, dir)) + radius;
+}
+
+scalar capsule_support_projection(const std::array<vector3, 2> &vertices,
+                                  scalar radius, const vector3 &dir) {
+    return capsule_support_projection(vertices[0], vertices[1], radius, dir);
+}
+
 }

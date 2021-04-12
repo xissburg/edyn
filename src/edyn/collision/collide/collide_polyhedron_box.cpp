@@ -67,8 +67,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         // Find point on polyhedron that's furthest along the opposite direction
         // of the box face normal.
         auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
-        auto supB = posB + dir * shB.half_extents[i];
-        auto projB = dot(supB, dir);
+        auto projB = dot(posB, dir) + shB.half_extents[i];
         auto dist = projA - projB;
 
         if (dist > distance) {
@@ -253,11 +252,12 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         } else {
             // Polygon vertex against box edge.
             EDYN_ASSERT(polygon.hull.size() == 1);
-            auto &pivotA = polygon.vertices[polygon.hull[0]];
+            auto &pivotA_world = polygon.vertices[polygon.hull[0]];
             auto edge_dir = edge_vertices[1] - edge_vertices[0];
             vector3 pivotB_world; scalar t;
-            closest_point_line(edge_vertices[0], edge_dir, pivotA, t, pivotB_world);
+            closest_point_line(edge_vertices[0], edge_dir, pivotA_world, t, pivotB_world);
             auto pivotB = to_object_space(pivotB_world, posB, ornB);
+            auto pivotA = to_object_space(pivotA_world, posA, ornA);
             result.add_point({pivotA, pivotB, normalB, distance});
         }
         break;

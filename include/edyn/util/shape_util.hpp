@@ -271,8 +271,39 @@ bool closest_point_convex_polygon(const std::vector<vector2> &vertices,
                                   const std::vector<size_t> &indices, 
                                   const vector2 &p, vector2 &closest);
 
+/**
+ * @brief Finds a point on the boundary of a support polygon that's closest to a
+ * point `p` located outside the polygon.
+ * @param polygon A support polygon.
+ * @param p Query point.
+ * @param closest Point on the boundary of the polygon that's closest to `p`.
+ * @return False if `p` is inside the polygon.
+ */
 bool closest_point_polygon(const support_polygon &polygon, 
                            const vector2 &p, vector2 &closest);
+
+/**
+ * @brief Calculates the maximum projection of a capsule shape along the
+ * given direction.
+ * @param v0 Location of the first vertex of the capsule in world-space.
+ * @param v1 Location of the second vertex of the capsule in world-space.
+ * @param radius Radius of capsule.
+ * @param dir A direction vector (non-zero).
+ * @return The maximal projection.
+ */
+scalar capsule_support_projection(const vector3 &v0, const vector3 &v1,
+                                  scalar radius, const vector3 &dir);
+
+/**
+ * @brief Calculates the maximum projection of a capsule shape along the
+ * given direction.
+ * @param vertices The two vertices of the capsule in world-space.
+ * @param radius Radius of capsule.
+ * @param dir A direction vector (non-zero).
+ * @return The maximal projection.
+ */
+scalar capsule_support_projection(const std::array<vector3, 2> &vertices,
+                                  scalar radius, const vector3 &dir);
 
 }
 
