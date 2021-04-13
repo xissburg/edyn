@@ -26,6 +26,7 @@ static void update_rotated_mesh_vertices_and_aabb(rotated_mesh &rmesh, AABB &aab
                                                   const vector3 &pos, 
                                                   const quaternion &orn) {
     EDYN_ASSERT(mesh.vertices.size() == rmesh.vertices.size());
+    EDYN_ASSERT(!mesh.vertices.empty());
 
     aabb.min = vector3_max;
     aabb.max = -vector3_max;
@@ -35,10 +36,12 @@ static void update_rotated_mesh_vertices_and_aabb(rotated_mesh &rmesh, AABB &aab
         auto vertex_rot = rotate(orn, vertex_local);
         rmesh.vertices[i] = vertex_rot;
 
-        auto vertex_world = vertex_rot + pos;
-        aabb.min = min(aabb.min, vertex_world);
-        aabb.max = max(aabb.max, vertex_world);
+        aabb.min = min(aabb.min, vertex_rot);
+        aabb.max = max(aabb.max, vertex_rot);
     }
+
+    aabb.min += pos;
+    aabb.max += pos;
 }
 
 static void update_rotated_mesh_normals(rotated_mesh &rmesh, const convex_mesh &mesh, 

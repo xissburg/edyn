@@ -4,7 +4,6 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector2.hpp"
-#include "edyn/math/geom.hpp"
 #include <tuple>
 #include <array>
 

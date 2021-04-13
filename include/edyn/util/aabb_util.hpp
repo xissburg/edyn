@@ -38,6 +38,8 @@ AABB point_cloud_aabb(const std::vector<vector3> &points);
 AABB point_cloud_aabb(const std::vector<vector3> &points, 
                       const vector3 &pos, const quaternion &orn);
 
+// Calculate AABB for all types of shapes.
+
 AABB shape_aabb(const plane_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const sphere_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const cylinder_shape &sh, const vector3 &pos, const quaternion &orn);
@@ -48,7 +50,7 @@ AABB shape_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion
 AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &orn);
 
 /**
- * @brief Visits the `shape`'s variant and calcualtes the moment of inertia of the
+ * @brief Visits the `shape`'s variant and calculates the moment of inertia of the
  * shape it holds.
  * @param sh The shape.
  * @param mass Shape's mass.

@@ -290,12 +290,41 @@ scalar capsule_support_projection(const std::array<vector3, 2> &vertices,
  */
 vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &dir);
 
+/**
+ * @brief Calculates a point that's furthest along the given direction on an
+ * oriented cylinder centered in the origin. The cylinder's main axis is x.
+ * @param radius Cylinder radius.
+ * @param half_length Half the length of the cylinder.
+ * @param orn The cylinder's orientation.
+ * @param dir A direction vector (non-zero).
+ * @return A support point.
+ */
 vector3 cylinder_support_point(scalar radius, scalar half_length,
                                const quaternion &orn, const vector3 &dir);
 
+/**
+ * @brief Calculates a point that's furthest along the given direction on an
+ * cylinder where the cylinder's main axis is x.
+ * @param radius Cylinder radius.
+ * @param half_length Half the length of the cylinder.
+ * @param pos The cylinder's position.
+ * @param orn The cylinder's orientation.
+ * @param dir A direction vector (non-zero).
+ * @return A support point.
+ */
 vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &pos, 
                                const quaternion &orn, const vector3 &dir);
 
+/**
+ * @brief Calculates the maximum projection of a cylinder along the given
+ * direction where the cylinder's main axis is x.
+ * @param radius Cylinder radius.
+ * @param half_length Half the length of the cylinder.
+ * @param pos The cylinder's position.
+ * @param orn The cylinder's orientation.
+ * @param dir A direction vector (non-zero).
+ * @return The maximal projection.
+ */
 scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos, 
                                    const quaternion &orn, const vector3 &dir);
 

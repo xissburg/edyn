@@ -2,7 +2,6 @@
 #define EDYN_SYS_UPDATE_AABBS_HPP
 
 #include <entt/fwd.hpp>
-#include "edyn/comp/shape.hpp"
 
 namespace edyn {
 
