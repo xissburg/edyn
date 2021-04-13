@@ -113,8 +113,8 @@ void create_contact_point(entt::registry &registry, entt::entity manifold_entity
         rp.pivotA, // pivotA
         rp.pivotB, // pivotB
         rp.normalB, // normalB
-        0, // friction
-        0, // restitution
+        scalar{}, // friction
+        scalar{}, // restitution
         0, // lifetime
         rp.distance // distance
     );
