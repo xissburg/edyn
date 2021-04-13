@@ -50,11 +50,11 @@ AABB shape_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion
 AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &orn);
 
 /**
- * @brief Visits the `shape`'s variant and calculates the moment of inertia of the
- * shape it holds.
+ * @brief Visits the `shape`'s variant and calculates the the AABB.
  * @param sh The shape.
- * @param mass Shape's mass.
- * @return Inertia tensor.
+ * @param pos Shape's position.
+ * @param orn Shape's orientation.
+ * @return The AABB.
  */
 AABB shape_aabb(const shape &sh, const vector3 &pos, const quaternion &orn);
 
