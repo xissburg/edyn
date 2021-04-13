@@ -10,14 +10,9 @@ namespace edyn {
 
 struct polyhedron_shape {
     std::shared_ptr<convex_mesh> mesh;
-    AABB local_aabb;
 
     polyhedron_shape() = default;
     polyhedron_shape(const std::string &path_to_obj);
-
-    void calculate_local_aabb();
-
-    AABB aabb(const vector3 &pos, const quaternion &orn) const;
 };
 
 }

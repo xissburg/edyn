@@ -20,15 +20,6 @@ struct cylinder_shape {
     scalar radius;
     scalar half_length;
 
-    AABB aabb(const vector3 &pos, const quaternion &orn) const;
-
-    vector3 support_point(const vector3 &dir) const;
-
-    vector3 support_point(const quaternion &orn, const vector3 &dir) const;
-    
-    vector3 support_point(const vector3 &pos, const quaternion &orn, 
-                          const vector3 &dir) const;
-
     scalar support_projection(const vector3 &pos, const quaternion &orn, 
                               const vector3 &dir) const;
 

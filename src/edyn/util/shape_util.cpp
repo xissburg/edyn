@@ -131,58 +131,6 @@ vector3 support_point_box(const vector3 &half_extents, const vector3 &dir) {
     };
 }
 
-AABB aabb_of_aabb(const AABB &aabb, const vector3 &pos, const quaternion &orn) {
-    auto center = (aabb.min + aabb.max) * scalar(0.5);
-    auto center_world = to_world_space(center, pos, orn);
-    auto extents = aabb.max - aabb.min;
-    auto half_extents = extents * scalar(0.5);
-
-    // Compute support points of the global axes.
-    auto c_orn = conjugate(orn);
-    auto axis_x = rotate(c_orn, vector3_x);
-    auto axis_y = rotate(c_orn, vector3_y);
-    auto axis_z = rotate(c_orn, vector3_z);
-
-    auto sup_x = support_point_box(half_extents, axis_x);
-    auto sup_y = support_point_box(half_extents, axis_y);
-    auto sup_z = support_point_box(half_extents, axis_z);
-
-    auto result_half_extent = vector3{
-        dot(sup_x, axis_x),
-        dot(sup_y, axis_y),
-        dot(sup_z, axis_z)
-    };
-    auto result_min = center_world - result_half_extent;
-    auto result_max = center_world + result_half_extent;
-    return {result_min, result_max};
-}
-
-AABB point_cloud_aabb(const std::vector<vector3> &points) {
-    // TODO: implement and use `parallel_reduce`.
-    auto aabb = AABB{vector3_max, -vector3_max};
-
-    for (auto &point : points) {
-        aabb.min = min(aabb.min, point);
-        aabb.max = max(aabb.max, point);
-    }
-
-    return aabb;
-}
-
-AABB point_cloud_aabb(const std::vector<vector3> &points, 
-                      const vector3 &pos, const quaternion &orn) {
-    // TODO: implement and use `parallel_reduce`.
-    auto aabb = AABB{vector3_max, -vector3_max};
-
-    for (auto &point_local : points) {
-        auto point_world = to_world_space(point_local, pos, orn);
-        aabb.min = min(aabb.min, point_world);
-        aabb.max = max(aabb.max, point_world);
-    }
-
-    return aabb;
-}
-
 vector3 point_cloud_support_point(const std::vector<vector3> &points, const vector3 &dir) {
     return point_cloud_support_point(points.begin(), points.end(), dir);
 }
@@ -395,6 +343,37 @@ scalar capsule_support_projection(const vector3 &v0, const vector3 &v1,
 scalar capsule_support_projection(const std::array<vector3, 2> &vertices,
                                   scalar radius, const vector3 &dir) {
     return capsule_support_projection(vertices[0], vertices[1], radius, dir);
+}
+
+vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &dir) {
+    // Squared length in yz plane.
+    auto lyz2 = dir.y * dir.y + dir.z * dir.z;
+
+    if (lyz2 > EDYN_EPSILON) {
+        auto d = radius / std::sqrt(lyz2);
+        return {dir.x < 0 ? -half_length : half_length, dir.y * d, dir.z * d};
+    } 
+    
+    return {dir.x < 0 ? -half_length : half_length, radius, 0};
+}
+
+vector3 cylinder_support_point(scalar radius, scalar half_length,
+                               const quaternion &orn, const vector3 &dir) {
+    auto local_dir = rotate(conjugate(orn), dir);
+    auto pt = cylinder_support_point(radius, half_length, local_dir);
+    return rotate(orn, pt);
+}
+
+vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &pos, 
+                               const quaternion &orn, const vector3 &dir) {
+    return pos + cylinder_support_point(radius, half_length, orn, dir);
+}
+
+scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos, 
+                                   const quaternion &orn, const vector3 &dir) {
+    auto local_dir = rotate(conjugate(orn), dir);
+    auto pt = cylinder_support_point(radius, half_length, local_dir);
+    return dot(pos, dir) + dot(pt, local_dir);
 }
 
 }

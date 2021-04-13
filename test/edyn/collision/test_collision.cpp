@@ -115,7 +115,6 @@ TEST(test_collision, collide_polyhedron_sphere) {
 
     auto polyhedron = edyn::polyhedron_shape{};
     polyhedron.mesh = mesh;
-    polyhedron.calculate_local_aabb();
 
     auto rmesh = edyn::rotated_mesh{};
     rmesh.vertices = mesh->vertices;

@@ -1,48 +1,16 @@
 #include "edyn/shapes/cylinder_shape.hpp"
+#include "edyn/util/shape_util.hpp"
 
 namespace edyn {
 
-AABB cylinder_shape::aabb(const vector3 &pos, const quaternion &orn) const {
-    auto ptx = support_point(orn, vector3_x);
-    auto pty = support_point(orn, vector3_y);
-    auto ptz = support_point(orn, vector3_z);
-    auto v = vector3 {ptx.x, pty.y, ptz.z};
-
-    return {pos - v, pos + v};
-}
-
-vector3 cylinder_shape::support_point(const vector3 &dir) const {
-    // Squared length in yz plane.
-    auto lyz2 = dir.y * dir.y + dir.z * dir.z;
-
-    if (lyz2 > EDYN_EPSILON) {
-        auto d = radius / std::sqrt(lyz2);
-        return {dir.x < 0 ? -half_length : half_length, dir.y * d, dir.z * d};
-    } 
-    
-    return {dir.x < 0 ? -half_length : half_length, radius, 0};
-}
-
-vector3 cylinder_shape::support_point(const quaternion &orn, const vector3 &dir) const {
-    auto local_dir = rotate(conjugate(orn), dir);
-    auto pt = support_point(local_dir);
-    return rotate(orn, pt);
-}
-
-vector3 cylinder_shape::support_point(const vector3 &pos, const quaternion &orn, const vector3 &dir) const {
-    return pos + support_point(orn, dir);
-}
-
 scalar cylinder_shape::support_projection(const vector3 &pos, const quaternion &orn, const vector3 &dir) const {
-    auto local_dir = rotate(conjugate(orn), dir);
-    auto pt = support_point(local_dir);
-    return dot(pos, dir) + dot(pt, local_dir);
+    return cylinder_support_projection(radius, half_length, pos, orn, dir);
 }
 
 void cylinder_shape::support_feature(const vector3 &dir, cylinder_feature &out_feature, 
                          size_t &out_feature_index, vector3 &out_support_point, 
                          scalar &out_projection, scalar threshold) const {
-    out_support_point = support_point(dir);
+    out_support_point = cylinder_support_point(radius, half_length, dir);
     out_projection = dot(out_support_point, dir);
 
     auto max_face_angle = threshold / (2 * radius);

@@ -44,8 +44,6 @@ struct box_shape {
         3, 2, 6, 5
     };
 
-    AABB aabb(const vector3 &pos, const quaternion &orn) const;
-
     /**
      * Get support point in object space.
      * @param dir Direction vector in object space.

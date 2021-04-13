@@ -42,6 +42,7 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass,
                                        const std::vector<uint16_t> &indices,
                                        const std::vector<uint16_t> &faces);
 
+// Default moment of inertia for shapes.
 matrix3x3 moment_of_inertia(const plane_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const sphere_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const cylinder_shape &sh, scalar mass);
@@ -50,6 +51,14 @@ matrix3x3 moment_of_inertia(const mesh_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const box_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const polyhedron_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const paged_mesh_shape &sh, scalar mass);
+
+/**
+ * @brief Visits the `shape`'s variant and calcualtes the moment of inertia of the
+ * shape it holds.
+ * @param sh The shape.
+ * @param mass Shape's mass.
+ * @return Inertia tensor.
+ */
 matrix3x3 moment_of_inertia(const shape &sh, scalar mass);
 
 }

@@ -14,10 +14,6 @@ namespace edyn {
 
 struct paged_mesh_shape {
     std::shared_ptr<paged_triangle_mesh> trimesh;
-
-    AABB aabb(const vector3 &pos, const quaternion &orn) const {
-        return {trimesh->get_aabb().min + pos, trimesh->get_aabb().max + pos};
-    }
 };
 
 }

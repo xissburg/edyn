@@ -18,6 +18,7 @@
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/util/moment_of_inertia.hpp"
+#include "edyn/util/aabb_util.hpp"
 
 namespace edyn {
 
@@ -70,10 +71,8 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (auto opt = def.shape_opt) {
         auto &sh = registry.emplace<shape>(entity, *opt);
-
-        std::visit([&] (auto &&s) {
-            registry.emplace<AABB>(entity, s.aabb(def.position, def.orientation));
-        }, sh.var);
+        auto aabb = shape_aabb(sh, def.position, def.orientation);
+        registry.emplace<AABB>(entity, aabb);
 
         auto &filter = registry.emplace<collision_filter>(entity);
         filter.group = def.collision_group;

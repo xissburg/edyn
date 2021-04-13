@@ -10,13 +10,6 @@ namespace edyn {
 
 struct sphere_shape {
     scalar radius;
-
-    AABB aabb(const vector3 &pos, const quaternion &orn) const {
-        return {
-            {pos.x - radius, pos.y - radius, pos.z - radius},
-            {pos.x + radius, pos.y + radius, pos.z + radius}
-        };
-    }
 };
 
 }
