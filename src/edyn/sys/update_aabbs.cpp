@@ -9,38 +9,16 @@
 
 namespace edyn {
 
-static AABB updated_aabb(const plane_shape &sh, const vector3 &pos, const quaternion &orn) {
+template<typename S>
+AABB updated_aabb(const S &sh, const vector3 &pos, const quaternion &orn) {
     return shape_aabb(sh, pos, orn);
 }
 
-static AABB updated_aabb(const sphere_shape &sh, const vector3 &pos, const quaternion &orn) {
-    return shape_aabb(sh, pos, orn);
-}
-
-static AABB updated_aabb(const cylinder_shape &sh, const vector3 &pos, const quaternion &orn) {
-    return shape_aabb(sh, pos, orn);
-}
-
-static AABB updated_aabb(const capsule_shape &sh, const vector3 &pos, const quaternion &orn) {
-    return shape_aabb(sh, pos, orn);
-}
-
-static AABB updated_aabb(const box_shape &sh, const vector3 &pos, const quaternion &orn) {
-    return shape_aabb(sh, pos, orn);
-}
-
-static AABB updated_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion &orn) {
-    // Polyhedron AABB is calculated in `update_rotated_meshes` while along with
+template<>
+AABB updated_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion &orn) {
+    // Polyhedron AABB is calculated in `update_rotated_meshes` along with
     // the vertex rotations.
     return {};
-}
-
-static AABB updated_aabb(const mesh_shape &sh, const vector3 &pos, const quaternion &orn) {
-    return shape_aabb(sh, pos, orn);
-}
-
-static AABB updated_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &orn) {
-    return shape_aabb(sh, pos, orn);
 }
 
 void update_aabbs(entt::registry &registry) {

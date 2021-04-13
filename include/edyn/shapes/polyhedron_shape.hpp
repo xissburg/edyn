@@ -3,8 +3,6 @@
 
 #include <memory>
 #include "edyn/shapes/convex_mesh.hpp"
-#include "edyn/comp/aabb.hpp"
-#include "edyn/math/matrix3x3.hpp"
 
 namespace edyn {
 

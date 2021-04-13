@@ -1,8 +1,7 @@
 #ifndef EDYN_SHAPES_CAPSULE_SHAPE_HPP
 #define EDYN_SHAPES_CAPSULE_SHAPE_HPP
 
-#include "edyn/comp/aabb.hpp"
-#include "edyn/math/matrix3x3.hpp"
+#include <array>
 #include "edyn/math/quaternion.hpp"
 
 namespace edyn {

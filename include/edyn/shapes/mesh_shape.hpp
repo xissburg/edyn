@@ -2,10 +2,6 @@
 #define EDYN_SHAPES_MESH_SHAPE_HPP
 
 #include <memory>
-
-#include "edyn/comp/aabb.hpp"
-#include "edyn/math/matrix3x3.hpp"
-#include "edyn/math/quaternion.hpp"
 #include "triangle_mesh.hpp"
 
 namespace edyn {
