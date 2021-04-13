@@ -41,10 +41,6 @@ struct plane_shape {
         return {unit_min * aabb_half_extent + pos, 
                 unit_max * aabb_half_extent + pos};
     }
-
-    matrix3x3 inertia(scalar mass) const {
-        return diagonal_matrix(vector3_max);
-    }
 };
 
 }

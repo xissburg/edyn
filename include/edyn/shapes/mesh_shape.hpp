@@ -16,10 +16,6 @@ struct mesh_shape {
     AABB aabb(const vector3 &pos, const quaternion &orn) const {
         return {trimesh->get_aabb().min + pos, trimesh->get_aabb().max + pos};
     }
-
-    matrix3x3 inertia(scalar mass) const {
-        return diagonal_matrix(vector3_max);
-    }
 };
 
 }

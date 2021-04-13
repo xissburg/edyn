@@ -17,13 +17,12 @@
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/util/moment_of_inertia.hpp"
 
 namespace edyn {
 
 void rigidbody_def::update_inertia() {
-    std::visit([&] (auto &&s) {
-        inertia = s.inertia(mass);
-    }, *shape_opt);
+    inertia = moment_of_inertia(*shape_opt, mass);
 }
 
 void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {    
@@ -118,13 +117,10 @@ void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar ma
 }
 
 void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
-    auto &mass = registry.get<edyn::mass>(entity);
+    auto mass = registry.get<edyn::mass>(entity);
 
-    matrix3x3 I;
-    auto& shape = registry.get<edyn::shape>(entity);
-    std::visit([&] (auto&& s) {
-        I = s.inertia(mass);
-    }, shape.var);
+    auto &shape = registry.get<edyn::shape>(entity);
+    auto I = moment_of_inertia(shape, mass);
     registry.replace<edyn::inertia>(entity, I);
 
     auto inv_I = inverse_matrix_symmetric(I);

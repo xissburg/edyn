@@ -18,8 +18,6 @@ struct polyhedron_shape {
     void calculate_local_aabb();
 
     AABB aabb(const vector3 &pos, const quaternion &orn) const;
-
-    matrix3x3 inertia(scalar mass) const;
 };
 
 }

@@ -43,7 +43,7 @@ struct rigidbody_def {
     vector3 gravity {gravity_earth};
 
     // Optional shape for collidable entities.
-    std::optional<decltype(shape::var)> shape_opt; 
+    std::optional<shape> shape_opt; 
 
     scalar restitution {0};
     scalar friction {0.5};

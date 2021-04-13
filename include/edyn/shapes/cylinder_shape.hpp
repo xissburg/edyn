@@ -4,7 +4,6 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
-#include "edyn/util/moment_of_inertia.hpp"
 
 namespace edyn {
 
@@ -22,8 +21,6 @@ struct cylinder_shape {
     scalar half_length;
 
     AABB aabb(const vector3 &pos, const quaternion &orn) const;
-
-    matrix3x3 inertia(scalar mass) const;
 
     vector3 support_point(const vector3 &dir) const;
 

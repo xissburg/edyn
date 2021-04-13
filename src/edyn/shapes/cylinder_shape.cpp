@@ -11,10 +11,6 @@ AABB cylinder_shape::aabb(const vector3 &pos, const quaternion &orn) const {
     return {pos - v, pos + v};
 }
 
-matrix3x3 cylinder_shape::inertia(scalar mass) const {
-    return diagonal_matrix(moment_of_inertia_solid_cylinder(mass, half_length * 2, radius));
-}
-
 vector3 cylinder_shape::support_point(const vector3 &dir) const {
     // Squared length in yz plane.
     auto lyz2 = dir.y * dir.y + dir.z * dir.z;

@@ -23,14 +23,6 @@ struct shape {
                  box_shape,
                  polyhedron_shape,
                  paged_mesh_shape> var;
-
-    matrix3x3 inertia(scalar mass) {
-        matrix3x3 I;
-        std::visit([&I, &mass] (auto &&s) {
-            I = s.inertia(mass);
-        }, var);
-        return I;
-    }
 };
 
 }
