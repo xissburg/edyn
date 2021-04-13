@@ -4,8 +4,6 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector2.hpp"
-#include "edyn/math/geom.hpp"
-#include "edyn/comp/aabb.hpp"
 #include <tuple>
 #include <array>
 
@@ -43,10 +41,6 @@ struct box_shape {
         0, 4, 7, 1,
         3, 2, 6, 5
     };
-
-    AABB aabb(const vector3 &pos, const quaternion &orn) const;
-
-    matrix3x3 inertia(scalar mass) const;
 
     /**
      * Get support point in object space.

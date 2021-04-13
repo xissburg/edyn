@@ -21,7 +21,7 @@ registry.emplace<edyn::angvel>(entity, 0, 0.314, 0);
 auto mass = edyn::scalar{50};
 registry.emplace<edyn::mass>(entity, mass);
 auto &shape = registry.emplace<edyn::shape>(entity, edyn::box_shape{0.5, 0.2, 0.4});
-registry.emplace<edyn::inertia>(entity, shape.inertia(mass));
+registry.emplace<edyn::inertia>(entity, edyn::moment_of_inertia(shape, mass));
 registry.emplace<edyn::material>(entity, 0.2, 0.9); // Restitution and friction.
 registry.emplace<edyn::linacc>(entity, edyn::gravity_earth);
 ```

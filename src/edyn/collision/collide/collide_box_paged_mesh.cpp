@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/util/aabb_util.hpp"
 #include "edyn/math/math.hpp"
 
 namespace edyn {
@@ -19,7 +20,7 @@ collision_result collide(const box_shape &shA, const paged_mesh_shape &shB,
         quaternion_z(ornA_in_B)
     };
 
-    auto aabb = shA.aabb(posA_in_B, ornA_in_B);
+    auto aabb = shape_aabb(shA, posA_in_B, ornA_in_B);
     shB.trimesh->visit(aabb, [&] (size_t mesh_idx, size_t tri_idx, const triangle_vertices &vertices) {
         auto trimesh = shB.trimesh->get_submesh(mesh_idx);
         auto tri = triangle_shape{};

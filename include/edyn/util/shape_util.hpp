@@ -5,8 +5,9 @@
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
-#include "edyn/comp/aabb.hpp"
+#include "edyn/math/geom.hpp"
 #include <vector>
 #include <cstdint>
 #include <string>
@@ -62,32 +63,6 @@ bool load_tri_mesh_from_obj(const std::string &path,
  * @return A support point.
  */
 vector3 support_point_box(const vector3 &half_extents, const vector3 &dir);
-
-/**
- * @brief Calculates the AABB of a transformed AABB.
- * @param aabb The AABB.
- * @param pos Position of AABB.
- * @param orn Orientation of AABB.
- * @return AABB of the given AABB with transformation applied.
- */
-AABB aabb_of_aabb(const AABB &aabb, const vector3 &pos, const quaternion &orn);
-
-/**
- * @brief Calculates the AABB of a set of points.
- * @param points A point cloud.
- * @return AABB of point set.
- */
-AABB point_cloud_aabb(const std::vector<vector3> &points);
-
-/**
- * @brief Calculates the AABB of a set of points with a transformation.
- * @param points A point cloud.
- * @param pos Position offset applied to all points.
- * @param orn Orientation of point cloud.
- * @return AABB of point set.
- */
-AABB point_cloud_aabb(const std::vector<vector3> &points, 
-                      const vector3 &pos, const quaternion &orn);
 
 /**
  * @brief Returns a point in the set that's furthest away in the given
@@ -304,6 +279,54 @@ scalar capsule_support_projection(const vector3 &v0, const vector3 &v1,
  */
 scalar capsule_support_projection(const std::array<vector3, 2> &vertices,
                                   scalar radius, const vector3 &dir);
+
+/**
+ * @brief Calculates a point that's furthest along the given direction on a
+ * cylinder centered in the origin oriented along the x axis.
+ * @param radius Cylinder radius.
+ * @param half_length Half the length of the cylinder.
+ * @param dir A direction vector (non-zero).
+ * @return A support point.
+ */
+vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &dir);
+
+/**
+ * @brief Calculates a point that's furthest along the given direction on an
+ * oriented cylinder centered in the origin. The cylinder's main axis is x.
+ * @param radius Cylinder radius.
+ * @param half_length Half the length of the cylinder.
+ * @param orn The cylinder's orientation.
+ * @param dir A direction vector (non-zero).
+ * @return A support point.
+ */
+vector3 cylinder_support_point(scalar radius, scalar half_length,
+                               const quaternion &orn, const vector3 &dir);
+
+/**
+ * @brief Calculates a point that's furthest along the given direction on an
+ * cylinder where the cylinder's main axis is x.
+ * @param radius Cylinder radius.
+ * @param half_length Half the length of the cylinder.
+ * @param pos The cylinder's position.
+ * @param orn The cylinder's orientation.
+ * @param dir A direction vector (non-zero).
+ * @return A support point.
+ */
+vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &pos, 
+                               const quaternion &orn, const vector3 &dir);
+
+/**
+ * @brief Calculates the maximum projection of a cylinder along the given
+ * direction where the cylinder's main axis is x.
+ * @param radius Cylinder radius.
+ * @param half_length Half the length of the cylinder.
+ * @param pos The cylinder's position.
+ * @param orn The cylinder's orientation.
+ * @param dir A direction vector (non-zero).
+ * @return The maximal projection.
+ */
+scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos, 
+                                   const quaternion &orn, const vector3 &dir);
 
 }
 

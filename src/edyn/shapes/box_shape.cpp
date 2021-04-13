@@ -1,37 +1,9 @@
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/shape_util.hpp"
-#include "edyn/util/moment_of_inertia.hpp"
 #include <cstdint>
 
 namespace edyn {
-
-AABB box_shape::aabb(const vector3 &pos, const quaternion &orn) const {
-    // Reference: Real-Time Collision Detection - Christer Ericson, section 4.2.6.
-    auto aabb = AABB{pos, pos};
-    auto basis = to_matrix3x3(orn);
-
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            auto e = basis[i][j] * -half_extents[j];
-            auto f = -e;
-
-            if (e < f) {
-                aabb.min[i] += e;
-                aabb.max[i] += f;
-            } else {
-                aabb.min[i] += f;
-                aabb.max[i] += e;
-            }
-        }
-    }
-
-    return aabb;
-}
-
-matrix3x3 box_shape::inertia(scalar mass) const {
-    return diagonal_matrix(moment_of_inertia_solid_box(mass, half_extents * 2));
-}
 
 vector3 box_shape::support_point(const vector3 &dir) const {
     return support_point_box(half_extents, dir);

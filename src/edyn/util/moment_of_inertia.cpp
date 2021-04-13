@@ -1,5 +1,6 @@
 #include "edyn/util/moment_of_inertia.hpp"
 #include "edyn/math/vector3.hpp"
+#include <variant>
 
 namespace edyn {
 
@@ -109,6 +110,46 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass,
         vector3{Ixy, Iyy, Iyz},
         vector3{Izx, Iyz, Izz}
     };
+}
+
+matrix3x3 moment_of_inertia(const plane_shape &sh, scalar mass) {
+    return diagonal_matrix(vector3_max);
+}
+
+matrix3x3 moment_of_inertia(const sphere_shape &sh, scalar mass) {
+    return diagonal_matrix(moment_of_inertia_solid_sphere(mass, sh.radius));
+}
+
+matrix3x3 moment_of_inertia(const cylinder_shape &sh, scalar mass) {
+    return diagonal_matrix(moment_of_inertia_solid_cylinder(mass, sh.half_length * 2, sh.radius));
+}
+
+matrix3x3 moment_of_inertia(const capsule_shape &sh, scalar mass) {
+    return diagonal_matrix(moment_of_inertia_solid_capsule(mass, sh.half_length * 2, sh.radius));
+}
+
+matrix3x3 moment_of_inertia(const mesh_shape &sh, scalar mass) {
+    return diagonal_matrix(vector3_max);
+}
+
+matrix3x3 moment_of_inertia(const box_shape &sh, scalar mass) {
+    return diagonal_matrix(moment_of_inertia_solid_box(mass, sh.half_extents * 2));
+}
+
+matrix3x3 moment_of_inertia(const polyhedron_shape &sh, scalar mass) {
+    return moment_of_inertia_polyhedron(mass, sh.mesh->vertices, sh.mesh->indices, sh.mesh->faces);
+}
+
+matrix3x3 moment_of_inertia(const paged_mesh_shape &sh, scalar mass) {
+    return diagonal_matrix(vector3_max);
+}
+
+matrix3x3 moment_of_inertia(const shape &sh, scalar mass) {
+    matrix3x3 inertia;
+    std::visit([&] (auto &&s) {
+        inertia = moment_of_inertia(s, mass);
+    }, sh.var);
+    return inertia;
 }
 
 }

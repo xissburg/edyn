@@ -5,8 +5,8 @@
 #include <cstdint>
 #include "constants.hpp"
 #include "edyn/math/scalar.hpp"
-#include "quaternion.hpp"
-#include "vector2.hpp"
+#include "edyn/math/quaternion.hpp"
+#include "edyn/math/vector2.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/array.hpp"
 

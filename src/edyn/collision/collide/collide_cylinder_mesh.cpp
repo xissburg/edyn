@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/util/aabb_util.hpp"
 #include "edyn/math/math.hpp"
 #include <algorithm>
 
@@ -17,7 +18,7 @@ collision_result collide(const cylinder_shape &shA, const mesh_shape &shB,
     const auto disc_center_pos = posA_in_B + cyl_axis * shA.half_length;
     const auto disc_center_neg = posA_in_B - cyl_axis * shA.half_length;
 
-    auto aabb = shA.aabb(posA_in_B, ornA_in_B);
+    auto aabb = shape_aabb(shA, posA_in_B, ornA_in_B);
     shB.trimesh->visit(aabb, [&] (size_t tri_idx, const triangle_vertices &vertices) {
         auto tri = triangle_shape{};
         tri.vertices = vertices;

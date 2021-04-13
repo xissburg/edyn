@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/util/aabb_util.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 
@@ -19,7 +20,7 @@ collision_result collide(const box_shape &shA, const mesh_shape &shB,
         quaternion_z(ornA_in_B)
     };
 
-    auto aabb = shA.aabb(posA_in_B, ornA_in_B);
+    auto aabb = shape_aabb(shA, posA_in_B, ornA_in_B);
     shB.trimesh->visit(aabb, [&] (size_t tri_idx, const triangle_vertices &vertices) {
         auto tri = triangle_shape{};
         tri.vertices = vertices;

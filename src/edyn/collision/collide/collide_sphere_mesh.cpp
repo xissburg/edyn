@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/util/aabb_util.hpp"
 
 namespace edyn {
 
@@ -10,7 +11,7 @@ collision_result collide(const sphere_shape &shA, const mesh_shape &shB,
     auto posA_in_B = rotate(conjugate(ctx.ornB), ctx.posA - ctx.posB);
     auto ornA_in_B = conjugate(ctx.ornB) * ctx.ornA;
 
-    auto aabb = shA.aabb(posA_in_B, ctx.ornA); // Invariant to orientation.
+    auto aabb = shape_aabb(shA, posA_in_B, ornA_in_B);
     shB.trimesh->visit(aabb, [&] (size_t tri_idx, const triangle_vertices &vertices) {
         if (result.num_points == max_contacts) {
             return;
