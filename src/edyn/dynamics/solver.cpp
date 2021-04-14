@@ -101,19 +101,21 @@ solver::solver(entt::registry &registry)
 solver::~solver() = default;
 
 void solver::update(scalar dt) {
+    auto &registry = *m_registry;
+
     // Apply forces and acceleration.
-    integrate_linacc(*m_registry, dt);
-    apply_gravity(*m_registry, dt);
+    integrate_linacc(registry, dt);
+    apply_gravity(registry, dt);
 
     // Setup constraints.
-    auto body_view = m_registry->view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
-    auto con_view = m_registry->view<constraint>();
-    auto row_view = m_registry->view<constraint_row, constraint_row_data>();
-    auto data_view = m_registry->view<constraint_row_data>();
+    auto body_view = registry.view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
+    auto con_view = registry.view<constraint>();
+    auto row_view = registry.view<constraint_row, constraint_row_data>();
+    auto data_view = registry.view<constraint_row_data>();
 
     con_view.each([&] (entt::entity entity, constraint &con) {
         std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *m_registry, dt);
+            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, registry, dt);
         }, con.var);
     });
 
@@ -140,7 +142,7 @@ void solver::update(scalar dt) {
         // Prepare constraints for iteration.
         con_view.each([&] (entt::entity entity, constraint &con) {
             std::visit([&] (auto &&c) {
-                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *m_registry, dt);
+                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, registry, dt);
             }, con.var);
         });
 
@@ -152,7 +154,7 @@ void solver::update(scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    auto vel_view = m_registry->view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>();
+    auto vel_view = registry.view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>();
     vel_view.each([] (linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
         v += dv;
         w += dw;
@@ -161,23 +163,23 @@ void solver::update(scalar dt) {
     });
 
     // Assign applied impulses.
-    auto impulse_view = m_registry->view<constraint_row_data, constraint_row_impulse>();
+    auto impulse_view = registry.view<constraint_row_data, constraint_row_impulse>();
     impulse_view.each([] (constraint_row_data &data, constraint_row_impulse &impulse) {
         impulse.value = data.impulse;
     });
 
     // Integrate velocities to obtain new transforms.
-    integrate_linvel(*m_registry, dt);
-    integrate_angvel(*m_registry, dt);
+    integrate_linvel(registry, dt);
+    integrate_angvel(registry, dt);
 
     // Update AABBs after transforms change.
-    update_aabbs(*m_registry);
+    update_aabbs(registry);
     
     // Update rotated vertices of convex meshes after rotations change.
-    update_rotated_meshes(*m_registry);
+    update_rotated_meshes(registry);
 
     // Update world-space moment of inertia.
-    update_inertia(*m_registry);
+    update_inertia(registry);
 }
 
 }
