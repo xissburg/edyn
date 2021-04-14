@@ -399,7 +399,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto manifold_view = m_registry->view<contact_manifold>();
     auto point_view = m_registry->view<contact_point>();
     auto constraint_view = m_registry->view<constraint>();
-    auto row_view = m_registry->view<constraint_row, constraint_row_data>();
+    auto row_view = m_registry->view<constraint_row, constraint_row_impulse>();
 
     // Calculate total number of certain kinds of entities to later reserve
     // the expected number of components for better performance.
@@ -430,7 +430,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     }
 
     ctx->m_delta_builder->reserve_created(nodes.size() + edges.size() + total_num_rows + total_num_constraints);
-    ctx->m_delta_builder->reserve_created<constraint_row, constraint_row_data>(total_num_rows);
+    ctx->m_delta_builder->reserve_created<constraint_row, constraint_row_impulse>(total_num_rows);
     ctx->m_delta_builder->reserve_created<constraint>(total_num_constraints);
     ctx->m_delta_builder->reserve_created<contact_point>(total_num_points);
     ctx->m_delta_builder->reserve_created<position, orientation, linvel, angvel, continuous>(nodes.size());
@@ -448,6 +448,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto continuous_view = m_registry->view<continuous>();
     auto procedural_view = m_registry->view<procedural_tag>();
     auto static_view = m_registry->view<static_tag>();
+    auto continuous_contacts_view = m_registry->view<continuous_contacts_tag>();
 
     for (auto entity : nodes) {
         if (procedural_view.contains(entity)) {
@@ -533,6 +534,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 ctx->m_delta_builder->updated(entity, vel_view.get<angvel>(entity));
             }
         }
+
+        if (continuous_contacts_view.contains(entity)) {
+            ctx->m_delta_builder->created(entity, continuous_contacts_tag{});
+        }
     }
 
     for (auto entity : edges) {
@@ -570,10 +575,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
                 for (size_t j = 0; j < num_rows; ++j) {
                     auto row_entity = con.row[j];
-                    auto [row, data] = row_view.get<constraint_row, constraint_row_data>(row_entity);
+                    auto [row, impulse] = row_view.get<constraint_row, constraint_row_impulse>(row_entity);
                     ctx->m_delta_builder->created(row_entity);
                     ctx->m_delta_builder->created(row_entity, row);
-                    ctx->m_delta_builder->created(row_entity, data);
+                    ctx->m_delta_builder->created(row_entity, impulse);
                 }
             }
         } else {
@@ -585,10 +590,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
             for (size_t i = 0; i < num_rows; ++i) {
                 auto row_entity = con.row[i];
-                auto [row, data] = row_view.get<constraint_row, constraint_row_data>(row_entity);
+                auto [row, impulse] = row_view.get<constraint_row, constraint_row_impulse>(row_entity);
                 ctx->m_delta_builder->created(row_entity);
                 ctx->m_delta_builder->created(row_entity, row);
-                ctx->m_delta_builder->created(row_entity, data);
+                ctx->m_delta_builder->created(row_entity, impulse);
             }
         }
     }

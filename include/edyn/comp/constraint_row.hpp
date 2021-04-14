@@ -70,6 +70,10 @@ struct constraint_row_data {
     delta_angvel *dwA, *dwB;
 };
 
+struct constraint_row_impulse {
+    scalar value;
+};
+
 }
 
 #endif // EDYN_COMP_CONSTRAINT_ROW_HPP

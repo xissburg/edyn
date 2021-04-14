@@ -79,6 +79,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         filter.mask = def.collision_mask;
     }
 
+    if (def.continuous_contacts) {
+        registry.emplace<continuous_contacts_tag>(entity);
+    }
+
     switch (def.kind) {
     case rigidbody_kind::rb_dynamic:
         registry.emplace<dynamic_tag>(entity);

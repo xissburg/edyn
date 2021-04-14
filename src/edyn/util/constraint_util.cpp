@@ -5,6 +5,7 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/continuous.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 
 namespace edyn {
@@ -41,11 +42,19 @@ entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::regi
     auto &row = registry.emplace<constraint_row>(row_entity, con.body);
     row.priority = priority;
 
-    registry.emplace<constraint_row_data>(row_entity);
+    registry.emplace<constraint_row_impulse>(row_entity);
+
+    // Constraint impulse must be updated in the main registry constantly so the
+    // last applied impulse is persisted during an island split.
+    registry.emplace<continuous>(row_entity).insert<constraint_row_impulse>();
 
     registry.get_or_emplace<dirty>(row_entity)
         .set_new()
-        .created<constraint_row, constraint_row_data>();
+        .created<
+            constraint_row, 
+            constraint_row_impulse, 
+            continuous
+        >();
 
     return row_entity;
 }
@@ -98,6 +107,18 @@ scalar get_effective_mass(const constraint_row_data &row) {
                      dot(row.inv_IB * row.J[3], row.J[3]);
     auto eff_mass = scalar(1) / J_invM_JT;
     return eff_mass;
+}
+
+scalar get_contact_normal_impulse(entt::registry &registry, const constraint &con) {
+    EDYN_ASSERT(std::holds_alternative<contact_constraint>(con.var));
+    EDYN_ASSERT(con.num_rows() == 2);
+    return registry.get<constraint_row_impulse>(con.row[0]).value;
+}
+
+scalar get_contact_friction_impulse(entt::registry &registry, const constraint &con) {
+    EDYN_ASSERT(std::holds_alternative<contact_constraint>(con.var));
+    EDYN_ASSERT(con.num_rows() == 2);
+    return registry.get<constraint_row_impulse>(con.row[1]).value;
 }
 
 }

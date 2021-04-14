@@ -160,6 +160,12 @@ void solver::update(scalar dt) {
         dw = vector3_zero;
     });
 
+    // Assign applied impulses.
+    auto impulse_view = m_registry->view<constraint_row_data, constraint_row_impulse>();
+    impulse_view.each([] (constraint_row_data &data, constraint_row_impulse &impulse) {
+        impulse.value = data.impulse;
+    });
+
     // Integrate velocities to obtain new transforms.
     integrate_linvel(*m_registry, dt);
     integrate_angvel(*m_registry, dt);

@@ -8,6 +8,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/dirty.hpp"
+#include "edyn/comp/continuous.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collide.hpp"
@@ -123,9 +124,15 @@ void create_contact_point(entt::registry &registry, entt::entity manifold_entity
         create_contact_constraint(registry, manifold_entity, contact_entity, cp);
     }
 
-    registry.get_or_emplace<dirty>(contact_entity)
-        .set_new()
-        .created<contact_point>();
+    auto &contact_dirty = registry.get_or_emplace<dirty>(contact_entity);
+    contact_dirty.set_new().created<contact_point>();
+
+    if (registry.has<continuous_contacts_tag>(manifold.body[0]) ||
+        registry.has<continuous_contacts_tag>(manifold.body[1])) {
+
+        registry.emplace<edyn::continuous>(contact_entity).insert<edyn::contact_point>();
+        contact_dirty.created<continuous>();
+    }
 
     registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold>();
 }

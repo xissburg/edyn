@@ -105,6 +105,9 @@ void set_constraint_enabled(entt::entity, entt::registry &, bool enabled);
 
 scalar get_effective_mass(const constraint_row_data &);
 
+scalar get_contact_normal_impulse(entt::registry &, const constraint &);
+scalar get_contact_friction_impulse(entt::registry &, const constraint &);
+
 }
 
 #endif // EDYN_UTIL_CONSTRAINT_UTIL_HPP

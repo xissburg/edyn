@@ -1,5 +1,6 @@
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/config/config.h"
 #include "edyn/math/quaternion.hpp"
@@ -80,6 +81,11 @@ void island_worker::init() {
 
     m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
     m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
+
+    // `constraint_row_data` is not created by the coordinator since it is a component
+    // which is local to the worker. Thus, always assign it when a `constraint_row` is
+    // created.
+    m_registry.on_construct<constraint_row>().connect<&entt::registry::emplace<constraint_row_data>>();
 
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);

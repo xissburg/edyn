@@ -37,7 +37,7 @@ using shared_components = std::tuple<
     collision_filter, 
     constraint, 
     constraint_row, 
-    constraint_row_data,
+    constraint_row_impulse,
     gravity, 
     inertia, 
     inertia_inv, 
@@ -59,7 +59,8 @@ using shared_components = std::tuple<
     procedural_tag,
     sleeping_tag,
     sleeping_disabled_tag, 
-    disabled_tag
+    disabled_tag,
+    continuous_contacts_tag
 >;
 
 }
