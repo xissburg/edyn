@@ -15,6 +15,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include <entt/entt.hpp>
+#include <type_traits>
 
 namespace edyn {
 
@@ -99,15 +100,11 @@ solver::solver(entt::registry &registry)
 
 solver::~solver() = default;
 
+// Constant expressions to check if a constraint has an `iteration` function.
+template<typename T, typename = void>
+static constexpr bool has_iteration = false;
 template<typename T>
-class has_iteration {
-    using yes = char[1];
-    using no = char[2];
-    template<typename U> static yes & test(decltype(&U::iteration));
-    template<typename U> static no & test(...);
-public:
-    enum { value = sizeof(test<T>(0)) == sizeof(yes) };
-};
+static constexpr bool has_iteration<T, std::void_t<decltype(&T::iteration)>> = true;
 
 void solver::update(scalar dt) {
     auto &registry = *m_registry;
@@ -170,7 +167,7 @@ void solver::update(scalar dt) {
         con_view.each([&] (entt::entity entity, constraint &con) {
             std::visit([&] (auto &&c) {
                 using ConstraintType = std::decay_t<decltype(c)>;
-                if constexpr(has_iteration<ConstraintType>::value) {
+                if constexpr(has_iteration<ConstraintType>) {
                     c.iteration(entity, con, registry, m_row_cache, row_idx, dt);
                 }
             }, con.var);

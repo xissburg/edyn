@@ -25,8 +25,6 @@
 #include <variant>
 #include <entt/entt.hpp>
 
-#include <iostream>
-
 namespace edyn {
 
 void island_worker_func(job::data_type &data) {
@@ -439,9 +437,6 @@ void island_worker::finish_step() {
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto dt = m_step_start_time - isle_time.value;
 
-    auto time = (double)performance_counter() / (double)performance_frequency();
-    std::cout << (time - m_step_start_time) * 1000 << std::endl;
-
     // Set a limit on the number of steps the worker can lag behind the current
     // time to prevent it from getting stuck in the past in case of a
     // substantial slowdown.
@@ -480,10 +475,10 @@ void island_worker::finish_step() {
     // splitting flag to true and sends the split request to the coordinator and it
     // is put to sleep until the coordinator calls `split()` which executes the
     // split and puts it back to run.
-    /* if (should_split()) {
+    if (should_split()) {
         m_splitting.store(true, std::memory_order_release);
         m_message_queue.send<msg::split_island>();
-    } */
+    }
 }
 
 bool island_worker::should_split() {
