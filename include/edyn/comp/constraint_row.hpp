@@ -2,14 +2,11 @@
 #define EDYN_COMP_CONSTRAINT_ROW_HPP
 
 #include <array>
-#include <entt/fwd.hpp>
-#include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/config/constants.hpp"
 
 namespace edyn {
-
-static constexpr size_t max_constrained_entities = 2;
 
 /**
  * @brief A constraint row represents a restriction of one degree of freedom
@@ -20,8 +17,6 @@ static constexpr size_t max_constrained_entities = 2;
  * for performance reasons.
  */
 struct constraint_row {
-    std::array<entt::entity, max_constrained_entities> entity;
-
     scalar error;
 
     // Error reduction parameter.
@@ -68,10 +63,6 @@ struct constraint_row_data {
     // safe to dereference these outside of the solver context.
     delta_linvel *dvA, *dvB;
     delta_angvel *dwA, *dwB;
-};
-
-struct constraint_row_impulse {
-    scalar value;
 };
 
 }

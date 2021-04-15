@@ -12,8 +12,6 @@ void merge(const constraint *old_comp, constraint &new_comp, merge_context &ctx)
     for (auto &entity : new_comp.body) {
         entity = ctx.map->remloc(entity);
     }
-
-    merge_entity_array<MergeType>(old_comp, new_comp, &constraint::row, ctx);
 }
 
 }

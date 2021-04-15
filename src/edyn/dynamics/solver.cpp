@@ -14,7 +14,6 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/dynamics/solver_stage.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -27,7 +26,7 @@ scalar restitution_curve(scalar restitution, scalar relvel) {
 }
 
 static
-void prepare(constraint_row &row, constraint_row_data &data,
+void prepare(const constraint_row &row, constraint_row_data &data,
              const vector3 &linvelA, const vector3 &linvelB,
              const vector3 &angvelA, const vector3 &angvelB) {
     auto J_invM_JT = dot(data.J[0], data.J[0]) * data.inv_mA +
@@ -100,8 +99,20 @@ solver::solver(entt::registry &registry)
 
 solver::~solver() = default;
 
+template<typename T>
+class has_iteration {
+    using yes = char[1];
+    using no = char[2];
+    template<typename U> static yes & test(decltype(&U::iteration));
+    template<typename U> static no & test(...);
+public:
+    enum { value = sizeof(test<T>(0)) == sizeof(yes) };
+};
+
 void solver::update(scalar dt) {
     auto &registry = *m_registry;
+
+    m_row_cache.clear();
 
     // Apply forces and acceleration.
     integrate_linacc(registry, dt);
@@ -110,47 +121,67 @@ void solver::update(scalar dt) {
     // Setup constraints.
     auto body_view = registry.view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
     auto con_view = registry.view<constraint>();
-    auto row_view = registry.view<constraint_row, constraint_row_data>();
-    auto data_view = registry.view<constraint_row_data>();
 
+    size_t row_idx = 0;
     con_view.each([&] (entt::entity entity, constraint &con) {
+        auto prev_size = m_row_cache.con_rows.size();
         std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, registry, dt);
+            c.prepare(entity, con, registry, m_row_cache, dt);
         }, con.var);
+        auto curr_size = m_row_cache.con_rows.size();
+        auto num_rows = curr_size - prev_size;
+        m_row_cache.con_num_rows.push_back(num_rows);
+
+        auto [inv_mA, inv_IA, linvelA, angvelA, dvA, dwA] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(con.body[0]);
+        auto [inv_mB, inv_IB, linvelB, angvelB, dvB, dwB] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(con.body[1]);
+
+        for (size_t i = 0; i < num_rows; ++i) {
+            auto j = i + row_idx;
+            const auto &row = m_row_cache.con_rows[j];
+            auto &data = m_row_cache.con_datas[j];
+
+            data.inv_mA = inv_mA;
+            data.inv_mB = inv_mB;
+            data.inv_IA = inv_IA;
+            data.inv_IB = inv_IB;
+
+            data.dvA = &dvA;
+            data.dvB = &dvB;
+            data.dwA = &dwA;
+            data.dwB = &dwB;
+
+            data.impulse = con.impulse[i];
+
+            prepare(row, data, linvelA, linvelB, angvelA, angvelB);
+            warm_start(data);
+        }
+
+        row_idx += num_rows;
     });
 
-    row_view.each([&] (constraint_row &row, constraint_row_data &data) {
-        auto [inv_mA, inv_IA, linvelA, angvelA, dvA, dwA] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[0]);
-        auto [inv_mB, inv_IB, linvelB, angvelB, dvB, dwB] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(row.entity[1]);
-
-        data.inv_mA = inv_mA;
-        data.inv_mB = inv_mB;
-        data.inv_IA = inv_IA;
-        data.inv_IB = inv_IB;
-
-        data.dvA = &dvA;
-        data.dvB = &dvB;
-        data.dwA = &dwA;
-        data.dwB = &dwB;
-
-        prepare(row, data, linvelA, linvelB, angvelA, angvelB);
-        warm_start(data);
-    });
+    EDYN_ASSERT(m_row_cache.con_rows.size() == m_row_cache.con_datas.size());
 
     // Solve constraints.
     for (uint32_t i = 0; i < iterations; ++i) {
         // Prepare constraints for iteration.
+        size_t row_idx = 0;
+        size_t con_idx = 0;
+
         con_view.each([&] (entt::entity entity, constraint &con) {
             std::visit([&] (auto &&c) {
-                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, registry, dt);
+                using ConstraintType = std::decay_t<decltype(c)>;
+                if constexpr(has_iteration<ConstraintType>::value) {
+                    c.iteration(entity, con, registry, m_row_cache, row_idx, dt);
+                }
             }, con.var);
+            row_idx += m_row_cache.con_num_rows[con_idx++];
         });
 
         // Solve rows.
-        data_view.each([&] (constraint_row_data &data) {
+        for (auto &data : m_row_cache.con_datas) {
             auto delta_impulse = solve(data);
             apply_impulse(delta_impulse, data);
-        });
+        }
     }
 
     // Apply constraint velocity correction.
@@ -163,9 +194,16 @@ void solver::update(scalar dt) {
     });
 
     // Assign applied impulses.
-    auto impulse_view = registry.view<constraint_row_data, constraint_row_impulse>();
-    impulse_view.each([] (constraint_row_data &data, constraint_row_impulse &impulse) {
-        impulse.value = data.impulse;
+    size_t data_idx = 0;
+    size_t con_idx = 0;
+    con_view.each([&] (entt::entity entity, constraint &con) {
+        auto num_rows = m_row_cache.con_num_rows[con_idx];
+        for (size_t i = 0; i < num_rows; ++i) {
+            con.impulse[i] = m_row_cache.con_datas[data_idx + i].impulse;
+        }
+
+        data_idx += num_rows;
+        ++con_idx;
     });
 
     // Integrate velocities to obtain new transforms.

@@ -1,6 +1,5 @@
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/config/config.h"
 #include "edyn/math/quaternion.hpp"
@@ -25,6 +24,8 @@
 #include <atomic>
 #include <variant>
 #include <entt/entt.hpp>
+
+#include <iostream>
 
 namespace edyn {
 
@@ -79,13 +80,7 @@ void island_worker::init() {
 
     m_registry.on_destroy<contact_manifold>().connect<&island_worker::on_destroy_contact_manifold>(*this);
 
-    m_registry.on_construct<constraint>().connect<&island_worker::on_construct_constraint>(*this);
     m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
-
-    // `constraint_row_data` is not created by the coordinator since it is a component
-    // which is local to the worker. Thus, always assign it when a `constraint_row` is
-    // created.
-    m_registry.on_construct<constraint_row>().connect<&entt::registry::emplace<constraint_row_data>>();
 
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -150,40 +145,12 @@ void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::
     }
 }
 
-void island_worker::on_construct_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-
-    auto &con = registry.get<constraint>(entity);
-
-    // Initialize constraint.
-    std::visit([&] (auto &&c) {
-        c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, registry, 0);
-    }, con.var);
-}
-
 void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
     const auto importing = m_importing_delta;
     const auto splitting = m_splitting.load(std::memory_order_relaxed);
 
     if (!importing && !splitting) {
         m_delta_builder->destroyed(entity);
-    }
-
-    auto &con = registry.get<constraint>(entity);
-    auto num_rows = con.num_rows();
-
-    for (size_t i = 0; i < num_rows; ++i) {
-        if (!importing) {
-            registry.destroy(con.row[i]);
-        }
-
-        if (!importing && !splitting) {
-            m_delta_builder->destroyed(con.row[i]);
-        }
-
-        if (m_entity_map.has_loc(con.row[i])) {
-            m_entity_map.erase_loc(con.row[i]);
-        }
     }
 
     if (m_entity_map.has_loc(entity)) {
@@ -472,6 +439,9 @@ void island_worker::finish_step() {
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto dt = m_step_start_time - isle_time.value;
 
+    auto time = (double)performance_counter() / (double)performance_frequency();
+    std::cout << (time - m_step_start_time) * 1000 << std::endl;
+
     // Set a limit on the number of steps the worker can lag behind the current
     // time to prevent it from getting stuck in the past in case of a
     // substantial slowdown.
@@ -510,10 +480,10 @@ void island_worker::finish_step() {
     // splitting flag to true and sends the split request to the coordinator and it
     // is put to sleep until the coordinator calls `split()` which executes the
     // split and puts it back to run.
-    if (should_split()) {
+    /* if (should_split()) {
         m_splitting.store(true, std::memory_order_release);
         m_message_queue.send<msg::split_island>();
-    }
+    } */
 }
 
 bool island_worker::should_split() {

@@ -6,17 +6,14 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void generic_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
-    for (size_t i = 0; i < 6; ++i) {
-        add_constraint_row(entity, con, registry, 100);
-    }
-}
-
-void generic_constraint::prepare(entt::entity, constraint &con, entt::registry &registry, scalar dt) {
+void generic_constraint::prepare(entt::entity entity, const constraint &con, 
+                                 entt::registry &registry, row_cache &cache, 
+                                 scalar dt) {
     auto &posA = registry.get<position>(con.body[0]);
     auto &posB = registry.get<position>(con.body[1]);
 
@@ -33,27 +30,25 @@ void generic_constraint::prepare(entt::entity, constraint &con, entt::registry &
 
     // Linear.
     for (size_t i = 0; i < 3; ++i) {
-        auto &data = registry.get<constraint_row_data>(con.row[i]);
+        auto [row, data] = cache.make_row();
         auto p = rotate(ornA, I.row[i]);
         data.J = {p, rA_skew.row[i], -p, -rB_skew.row[i]};
         data.lower_limit = -large_scalar;
         data.upper_limit = large_scalar;
-        auto &row = registry.get<constraint_row>(con.row[i]);
         row.error = dot(p, d) / dt;
     }
 
     // Angular.
     for (size_t i = 0; i < 3; ++i) {
+        auto [row, data] = cache.make_row();
         auto axis = rotate(ornA, I.row[i]);
         auto n = rotate(ornA, I.row[(i+1)%3]);
         auto m = rotate(ornB, I.row[(i+2)%3]);
         auto error = dot(n, m);
 
-        auto &data = registry.get<constraint_row_data>(con.row[i + 3]);
         data.J = {vector3_zero, axis, vector3_zero, -axis};
         data.lower_limit = -large_scalar;
         data.upper_limit = large_scalar;
-        auto &row = registry.get<constraint_row>(con.row[i + 3]);
         row.error = error / dt;
     }
 }

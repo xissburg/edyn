@@ -12,23 +12,15 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/array.hpp"
-
+#include "edyn/dynamics/row_cache.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void contact_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
-    auto normal_row_entity = add_constraint_row(entity, con, registry, 0);
-    add_constraint_row(entity, con, registry, 1);
-
-    auto &cp = registry.get<contact_point>(entity);
-    auto &normal_row = registry.get<constraint_row>(normal_row_entity);
-    normal_row.restitution = cp.restitution;
-}
-
-void contact_constraint::prepare(entt::entity entity, constraint &con, entt::registry &registry, scalar dt) {
+void contact_constraint::prepare(entt::entity entity, const constraint &con, 
+                                 entt::registry &registry, row_cache &cache, 
+                                 scalar dt) {
     auto body_view = registry.view<position, orientation, linvel, angvel>();
-    auto row_view = registry.view<constraint_row, constraint_row_data>();
 
     auto [posA, ornA, linvelA, angvelA] = body_view.get<position, orientation, linvel, angvel>(con.body[0]);
     auto [posB, ornB, linvelB, angvelB] = body_view.get<position, orientation, linvel, angvel>(con.body[1]);
@@ -44,10 +36,9 @@ void contact_constraint::prepare(entt::entity entity, constraint &con, entt::reg
     auto relvel = vA - vB;
     auto normal_relvel = dot(relvel, normal);
 
-    auto &normal_data = row_view.get<constraint_row_data>(con.row[0]);
+    auto [normal_row, normal_data] = cache.make_row();
     normal_data.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
     normal_data.lower_limit = 0;
-    auto &normal_row = row_view.get<constraint_row>(con.row[0]);
     normal_row.restitution = cp.restitution;
 
     if (stiffness < large_scalar) {
@@ -79,24 +70,23 @@ void contact_constraint::prepare(entt::entity entity, constraint &con, entt::reg
     auto tangent_relspd = length(tangent_relvel);
     auto tangent = tangent_relspd > EDYN_EPSILON ? tangent_relvel / tangent_relspd : vector3_x;
 
-    auto &friction_data = row_view.get<constraint_row_data>(con.row[1]);
+    auto [friction_row, friction_data] = cache.make_row();
     friction_data.J = {tangent, cross(rA, tangent), -tangent, -cross(rB, tangent)};
     // friction_row limits are calculated in `iteration(...)` using the normal impulse.
     friction_data.lower_limit = friction_data.upper_limit = 0;
-    auto &friction_row = row_view.get<constraint_row>(con.row[1]);
     friction_row.error = 0;
 
-    // Cache these values to be used in `contact_constraint::iteration` directly,
-    // eliminating the need to call `registry.get`.
     m_friction = cp.friction;
-    m_normal_data = &normal_data;
-    m_friction_data = &friction_data;
 }
 
-void contact_constraint::iteration(entt::entity entity, constraint &con, entt::registry &registry, scalar dt) {
-    auto friction_impulse = std::abs(m_normal_data->impulse * m_friction);
-    m_friction_data->lower_limit = -friction_impulse;
-    m_friction_data->upper_limit = friction_impulse;
+void contact_constraint::iteration(entt::entity entity, const constraint &con, 
+                                   entt::registry &registry, row_cache &cache,
+                                   size_t row_index, scalar dt) {
+    const auto &normal_data = cache.con_datas[row_index];
+    auto &friction_data = cache.con_datas[row_index + 1];
+    auto friction_impulse = std::abs(normal_data.impulse * m_friction);
+    friction_data.lower_limit = -friction_impulse;
+    friction_data.upper_limit = friction_impulse;
 }
 
 }

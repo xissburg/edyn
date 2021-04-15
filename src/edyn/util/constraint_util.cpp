@@ -32,33 +32,6 @@ namespace internal {
     }
 }
 
-entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::registry &registry, int priority) {
-    EDYN_ASSERT(con.num_rows() + 1 < max_constraint_rows);
-    EDYN_ASSERT(con.row[con.num_rows()] == entt::null);
-
-    auto row_entity = registry.create();
-    con.row[con.num_rows()] = row_entity;
-
-    auto &row = registry.emplace<constraint_row>(row_entity, con.body);
-    row.priority = priority;
-
-    registry.emplace<constraint_row_impulse>(row_entity);
-
-    // Constraint impulse must be updated in the main registry constantly so the
-    // last applied impulse is persisted during an island split.
-    registry.emplace<continuous>(row_entity).insert<constraint_row_impulse>();
-
-    registry.get_or_emplace<dirty>(row_entity)
-        .set_new()
-        .created<
-            constraint_row, 
-            constraint_row_impulse, 
-            continuous
-        >();
-
-    return row_entity;
-}
-
 entt::entity make_contact_manifold(entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
     auto manifold_entity = registry.create();
     make_contact_manifold(manifold_entity, registry, body0, body1, separation_threshold);
@@ -81,25 +54,6 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
                  contact_manifold>();
 }
 
-void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {
-    auto& con = registry.get<constraint>(entity);
-    auto num_rows = con.num_rows();
-    
-    if (enabled) {
-        registry.remove<disabled_tag>(entity);
-
-        for (size_t i = 0; i < num_rows; ++i) {
-            registry.remove<disabled_tag>(con.row[i]);
-        }
-    } else {
-        registry.emplace_or_replace<disabled_tag>(entity);
-
-        for (size_t i = 0; i < num_rows; ++i) {
-            registry.emplace_or_replace<disabled_tag>(con.row[i]);
-        }
-    }
-}
-
 scalar get_effective_mass(const constraint_row_data &row) {
     auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
                      dot(row.inv_IA * row.J[1], row.J[1]) +
@@ -107,18 +61,6 @@ scalar get_effective_mass(const constraint_row_data &row) {
                      dot(row.inv_IB * row.J[3], row.J[3]);
     auto eff_mass = scalar(1) / J_invM_JT;
     return eff_mass;
-}
-
-scalar get_contact_normal_impulse(entt::registry &registry, const constraint &con) {
-    EDYN_ASSERT(std::holds_alternative<contact_constraint>(con.var));
-    EDYN_ASSERT(con.num_rows() == 2);
-    return registry.get<constraint_row_impulse>(con.row[0]).value;
-}
-
-scalar get_contact_friction_impulse(entt::registry &registry, const constraint &con) {
-    EDYN_ASSERT(std::holds_alternative<contact_constraint>(con.var));
-    EDYN_ASSERT(con.num_rows() == 2);
-    return registry.get<constraint_row_impulse>(con.row[1]).value;
 }
 
 }

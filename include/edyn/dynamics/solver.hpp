@@ -1,9 +1,11 @@
 #ifndef EDYN_DYNAMICS_SOLVER_HPP
 #define EDYN_DYNAMICS_SOLVER_HPP
 
+#include <vector>
 #include <cstdint>
 #include <entt/fwd.hpp>
 #include "edyn/math/scalar.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 
 namespace edyn {
 
@@ -18,6 +20,7 @@ public:
 
 private:
     entt::registry *m_registry;
+    row_cache m_row_cache;
 };
 
 }

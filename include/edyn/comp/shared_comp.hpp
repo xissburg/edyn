@@ -13,7 +13,6 @@
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape.hpp"
@@ -35,9 +34,7 @@ using shared_components = std::tuple<
     AABB, 
     angvel, 
     collision_filter, 
-    constraint, 
-    constraint_row, 
-    constraint_row_impulse,
+    constraint,
     gravity, 
     inertia, 
     inertia_inv, 

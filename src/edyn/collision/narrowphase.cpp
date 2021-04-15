@@ -4,7 +4,6 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/shape.hpp"
-#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/dirty.hpp"
@@ -144,13 +143,12 @@ void destroy_contact_point(entt::registry &registry, entt::entity manifold_entit
 }
 
 using contact_point_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_point, constraint>; 
-using constraint_row_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, constraint_row_data>; 
 
 template<typename Function> static
 void process_collision(entt::entity manifold_entity, contact_manifold &manifold, 
                        const collision_result &result,
                        const contact_point_view_t &cp_view, 
-                       const constraint_row_view_t &cr_view, Function new_point_func) {
+                       Function new_point_func) {
     // Merge new with existing contact points.
     for (size_t i = 0; i < result.num_points; ++i) {
         auto &rp = result.point[i];
@@ -200,9 +198,8 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
 
                     // Zero out warm-starting impulses.
                     auto &con = cp_view.get<constraint>(contact_entity);
-                    auto num_rows = con.num_rows();
-                    for (size_t i = 0; i < num_rows; ++i) {
-                        cr_view.get(con.row[i]).impulse = 0;
+                    for (auto &imp : con.impulse) {
+                        imp = 0;
                     }
                 }
             }
@@ -279,8 +276,7 @@ void process_result(entt::registry &registry, entt::entity manifold_entity,
                     contact_manifold &manifold, const collision_result &result, 
                     const transform_view_t &tr_view) {
     auto cp_view = registry.view<contact_point, constraint>();
-    auto cr_view = registry.view<constraint_row_data>();
-    process_collision(manifold_entity, manifold, result, cp_view, cr_view,
+    process_collision(manifold_entity, manifold, result, cp_view,
                       [&] (const collision_result::collision_point &rp) {
         create_contact_point(registry, manifold_entity, manifold, rp);
     });
@@ -317,7 +313,6 @@ void narrowphase::update_async(job &completion_job) {
     auto body_view = m_registry->view<AABB, shape, position, orientation>();
     auto rmesh_view = m_registry->view<rotated_mesh>();
     auto cp_view = m_registry->view<contact_point, constraint>();
-    auto cr_view = m_registry->view<constraint_row_data>();
 
     // Resize result collection vectors to allocate one slot for each iteration
     // of the parallel_for.
@@ -326,14 +321,14 @@ void narrowphase::update_async(job &completion_job) {
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, 
-            [this, body_view, manifold_view, cp_view, cr_view, rmesh_view] (size_t index) {
+            [this, body_view, manifold_view, cp_view, rmesh_view] (size_t index) {
         auto entity = manifold_view[index];
         auto &manifold = manifold_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
 
         detect_collision(manifold, result, body_view, rmesh_view);
-        process_collision(entity, manifold, result, cp_view, cr_view,
+        process_collision(entity, manifold, result, cp_view,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
         });

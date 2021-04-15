@@ -7,8 +7,9 @@ namespace edyn {
 
 template<typename Archive>
 void serialize(Archive &archive, constraint &c) {
+    archive(c.body);
     archive(c.var);
-    archive(c.row);
+    archive(c.impulse);
 }
 
 }

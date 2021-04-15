@@ -75,7 +75,6 @@ public:
 
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
-    void on_construct_constraint(entt::registry &, entt::entity);
     void on_destroy_constraint(entt::registry &, entt::entity);
 
     void on_destroy_graph_node(entt::registry &, entt::entity);

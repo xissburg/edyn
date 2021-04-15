@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <cstdint>
-#include "constants.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2.hpp"

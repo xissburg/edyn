@@ -7,7 +7,6 @@ namespace edyn {
 
 template<typename Archive>
 void serialize(Archive &archive, constraint_row &r) {
-    archive(r.entity);
     archive(r.error);
     archive(r.erp);
     archive(r.restitution);

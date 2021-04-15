@@ -6,6 +6,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -36,13 +37,9 @@ void hinge_constraint::set_axis(const quaternion &ornA,
     frame[1] = matrix3x3_columns(frameB_x, frameB_y, axisB);
 }
 
-void hinge_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
-    for (size_t i = 0; i < 5; ++i) {
-        add_constraint_row(entity, con, registry, 100);
-    }
-}
-
-void hinge_constraint::prepare(entt::entity, constraint &con, entt::registry &registry, scalar dt) {
+void hinge_constraint::prepare(entt::entity entity, const constraint &con, 
+                               entt::registry &registry, row_cache &cache, 
+                               scalar dt) {
     auto &posA = registry.get<position>(con.body[0]);
     auto &posB = registry.get<position>(con.body[1]);
 
@@ -57,11 +54,10 @@ void hinge_constraint::prepare(entt::entity, constraint &con, entt::registry &re
     constexpr auto I = matrix3x3_identity;
 
     for (size_t i = 0; i < 3; ++i) {
-        auto &data = registry.get<constraint_row_data>(con.row[i]);
+        auto [row, data] = cache.make_row();
         data.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
         data.lower_limit = -EDYN_SCALAR_MAX;
         data.upper_limit = EDYN_SCALAR_MAX;
-        auto &row = registry.get<constraint_row>(con.row[i]);
         row.error = (posA[i] + rA[i] - posB[i] - rB[i]) / dt;
     }
 
@@ -73,20 +69,18 @@ void hinge_constraint::prepare(entt::entity, constraint &con, entt::registry &re
     const auto u = cross(n, m);
 
     {
-        auto &data = registry.get<constraint_row_data>(con.row[3]);
+        auto [row, data] = cache.make_row();
         data.J = {vector3_zero, p, vector3_zero, -p};
         data.lower_limit = -EDYN_SCALAR_MAX;
         data.upper_limit = EDYN_SCALAR_MAX;
-        auto &row = registry.get<constraint_row>(con.row[3]);
         row.error = dot(u, p) / dt;
     }
 
     {
-        auto &data = registry.get<constraint_row_data>(con.row[4]);
+        auto [row, data] = cache.make_row();
         data.J = {vector3_zero, q, vector3_zero, -q};
         data.lower_limit = -EDYN_SCALAR_MAX;
         data.upper_limit = EDYN_SCALAR_MAX;
-        auto &row = registry.get<constraint_row>(con.row[4]);
         row.error = dot(u, q) / dt;
     }
 }

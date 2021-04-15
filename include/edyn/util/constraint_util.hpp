@@ -70,22 +70,6 @@ T * try_get_constraint(entt::entity entity, entt::registry &registry) {
     return nullptr;
 }
 
-/**
- * @brief Adds one more constraint row to the given constraint. 
- * 
- * A new entity is created for the row with a `constraint_row` component and it
- * also gets an island node assigned to it which is then associated with the node
- * in the given entity. The new entity is appended to the row array in the 
- * `constraint` and it is also returned.
- * 
- * @param entity The constraint entity.
- * @param constraint A reference to the constraint component.
- * @param registry The `entt::registry`.
- * @param priority Constraint row priority.
- * @return The row entity.
- */
-entt::entity add_constraint_row(entt::entity, constraint &, entt::registry &, int priority = 0);
-
 entt::entity make_contact_manifold(entt::registry &, 
                                    entt::entity body0, entt::entity body1,
                                    scalar separation_threshold);
@@ -94,19 +78,7 @@ void make_contact_manifold(entt::entity contact_entity, entt::registry &,
                            entt::entity body0, entt::entity body1, 
                            scalar separation_threshold);
 
-/**
- * @brief Enables/disables a constraint and its rows.
- * 
- * @param entity The constraint entity.
- * @param registry The `entt::registry`.
- * @param enabled Whether the constraint should be enabled or disabled.
- */
-void set_constraint_enabled(entt::entity, entt::registry &, bool enabled);
-
 scalar get_effective_mass(const constraint_row_data &);
-
-scalar get_contact_normal_impulse(entt::registry &, const constraint &);
-scalar get_contact_friction_impulse(entt::registry &, const constraint &);
 
 }
 
