@@ -23,6 +23,11 @@ private:
     row_cache m_row_cache;
 };
 
+void prepare_row(const constraint_row &row, constraint_row_data &data,
+                 const vector3 &linvelA, const vector3 &linvelB,
+                 const vector3 &angvelA, const vector3 &angvelB);
+void warm_start(constraint_row_data &data);
+
 }
 
 #endif // EDYN_DYNAMICS_SOLVER_HPP

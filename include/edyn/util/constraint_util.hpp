@@ -1,8 +1,10 @@
 #ifndef EDYN_UTIL_CONSTRAINT_UTIL_HPP
 #define EDYN_UTIL_CONSTRAINT_UTIL_HPP
 
-#include <entt/entt.hpp>
-#include "edyn/comp/constraint.hpp"
+#include <entt/fwd.hpp>
+#include <entt/entity/registry.hpp>
+#include "edyn/constraints/constraint.hpp"
+#include "edyn/comp/dirty.hpp"
 
 namespace edyn {
 
@@ -30,44 +32,24 @@ namespace internal {
  * @param parent_entity Optional parent entity.
  */
 template<typename T> inline
-void make_constraint(entt::entity entity, entt::registry &registry, T&& con, 
-                     entt::entity body0, entt::entity body1, bool is_graph_edge = true) {
+T & make_constraint(entt::entity entity, entt::registry &registry, 
+                    entt::entity body0, entt::entity body1, bool is_graph_edge = true) {
 
     internal::pre_make_constraint(entity, registry, body0, body1, is_graph_edge);
-    registry.emplace<constraint>(entity, std::array<entt::entity, 2>{body0, body1}, std::forward<T>(con));
+    auto &con = registry.emplace<T>(entity, std::array<entt::entity, 2>{body0, body1});
+    auto &con_dirty = registry.get_or_emplace<dirty>(entity);
+    con_dirty.set_new().created<T>();
+    return con;
 }
 
 /*! @copydoc make_constraint */
 template<typename T> inline
-entt::entity make_constraint(entt::registry &registry, T&& con, 
+std::pair<entt::entity, T&> make_constraint(entt::registry &registry, 
                              entt::entity ent0, entt::entity ent1, 
                              bool is_graph_edge = true) {
     auto ent = registry.create();
-    make_constraint<T>(ent, registry, std::forward<T>(con), ent0, ent1, is_graph_edge);
-    return ent;
-}
-
-/**
- * Gets the constraint of type `T` in the `constraint` component assigned
- * to `entity`.
- */
-template<typename T> inline
-T & get_constraint(entt::entity entity, entt::registry &registry) {
-    auto& con = registry.get<constraint>(entity);
-    return std::get<T>(con.var);
-}
-
-/**
- * Attempts to get a constraint of type `T` in the `constraint` component
- * assigned to `entity`.
- */
-template<typename T> inline
-T * try_get_constraint(entt::entity entity, entt::registry &registry) {
-    auto *con = registry.try_get<constraint>(entity);
-    if (con && std::holds_alternative<T>(con->var)) {
-        return &std::get<T>(con->var);
-    }
-    return nullptr;
+    auto &con = make_constraint<T>(ent, registry, ent0, ent1, is_graph_edge);
+    return {ent, con};
 }
 
 entt::entity make_contact_manifold(entt::registry &, 

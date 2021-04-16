@@ -4,17 +4,17 @@
 #include <array>
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
+#include "edyn/constraints/constraint_base.hpp"
 
 namespace edyn {
 
-class row_cache;
-struct constraint;
+struct row_cache;
 
-struct point_constraint {
+struct point_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
-
-    void prepare(entt::entity, const constraint &, entt::registry &, row_cache &cache, scalar dt);
 };
+
+void prepare_point_constraints(entt::registry &, row_cache &, scalar dt);
 
 }
 

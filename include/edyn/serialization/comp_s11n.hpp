@@ -4,7 +4,6 @@
 #include "edyn/serialization/comp/orientation_s11n.hpp"
 #include "edyn/serialization/comp/position_s11n.hpp"
 #include "edyn/serialization/comp/collision_filter_s11n.hpp"
-#include "edyn/serialization/comp/constraint_s11n.hpp"
 #include "edyn/serialization/comp/inertia_s11n.hpp"
 #include "edyn/serialization/comp/constraint_row_s11n.hpp"
 #include "edyn/serialization/comp/island_s11n.hpp"

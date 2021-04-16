@@ -12,7 +12,7 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/serialization/memory_archive.hpp"
-#include "edyn/comp/constraint.hpp"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
@@ -78,7 +78,7 @@ void island_worker::init() {
 
     m_registry.on_destroy<contact_manifold>().connect<&island_worker::on_destroy_contact_manifold>(*this);
 
-    m_registry.on_destroy<constraint>().connect<&island_worker::on_destroy_constraint>(*this);
+    m_registry.on_destroy<contact_point>().connect<&island_worker::on_destroy_contact_point>(*this);
 
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -143,7 +143,7 @@ void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::
     }
 }
 
-void island_worker::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
+void island_worker::on_destroy_contact_point(entt::registry &registry, entt::entity entity) {
     const auto importing = m_importing_delta;
     const auto splitting = m_splitting.load(std::memory_order_relaxed);
 
@@ -175,6 +175,10 @@ void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity
 
     if (!m_importing_delta && !m_splitting.load(std::memory_order_relaxed)) {
         m_delta_builder->destroyed(entity);
+    }
+
+    if (m_entity_map.has_loc(entity)) {
+        m_entity_map.erase_loc(entity);
     }
 
     m_topology_changed = true;
@@ -216,12 +220,12 @@ void island_worker::on_island_delta(const island_delta &delta) {
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each<constraint>([&] (entt::entity remote_entity, const constraint &con) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
-
+    delta.created_for_each(constraints_tuple_t{}, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
-        if (std::holds_alternative<contact_constraint>(con.var)) return;
+        if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
+
+        if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
         auto &node0 = node_view.get(con.body[0]);

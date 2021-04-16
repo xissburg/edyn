@@ -7,10 +7,7 @@
 
 namespace edyn {
 
-class solver;
-
-class row_cache {
-public:
+struct row_cache {
     std::tuple<constraint_row &,constraint_row_data &> make_row() {
         auto &row = con_rows.emplace_back();
         auto &data = con_datas.emplace_back();

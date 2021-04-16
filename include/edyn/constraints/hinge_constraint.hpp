@@ -4,20 +4,21 @@
 #include <array>
 #include <entt/fwd.hpp>
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/constraints/constraint_base.hpp"
 
 namespace edyn {
 
-class row_cache;
-struct constraint;
+struct row_cache;
 
-struct hinge_constraint {
+struct hinge_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
     std::array<matrix3x3, 2> frame;
 
     void set_axis(const quaternion &ornA,
                   const vector3 &axisA, const vector3 &axisB);
-    void prepare(entt::entity, const constraint &, entt::registry &, row_cache &cache, scalar dt);
 };
+
+void prepare_hinge_constraints(entt::registry &, row_cache &, scalar dt);
 
 }
 

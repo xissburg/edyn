@@ -31,6 +31,20 @@ class island_delta {
     void import_created_components(entt::registry &, entity_map &) const;
     void import_destroyed_components(entt::registry &, entity_map &) const;
 
+    template<typename Component, typename Func>
+    void _created_for_each(Func func) const {
+        auto index = entt::type_index<Component>::value();
+        if (!(index < m_created_components.size())) return;
+
+        if (auto &created_ptr = m_created_components[index]; created_ptr) {
+            using container_type = created_entity_component_container<Component>;
+            auto *container = static_cast<const container_type *>(created_ptr.get());
+            for (auto &pair : container->pairs) {
+                func(pair.first, pair.second);
+            }
+        }
+    }
+
 public:
     /**
      * Imports this delta into a registry by mapping the entities into the domain
@@ -42,18 +56,14 @@ public:
 
     const auto created_entities() const { return m_created_entities; }
 
-    template<typename Component, typename Func>
+    template<typename... Component, typename Func>
     void created_for_each(Func func) const {
-        auto index = entt::type_index<Component>::value();
-        if (!(index < m_created_components.size())) return;
+        (_created_for_each<Component>(func), ...);
+    }
 
-        if (auto &created_ptr = m_created_components[index]; created_ptr) {
-            using container_type = created_entity_component_container<Component>;
-            auto *container = static_cast<const container_type *>(created_ptr.get());
-            for (auto &pair : container->pairs) {
-                func(pair.first, pair.second);
-            }
-        }
+    template<typename... Component, typename Func>
+    void created_for_each(std::tuple<Component...>, Func func) const {
+        created_for_each<Component...>(func);
     }
 
     template<typename Component, typename Func>

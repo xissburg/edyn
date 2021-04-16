@@ -1,10 +1,8 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/comp/dirty.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
-#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 
@@ -13,10 +11,6 @@ namespace edyn {
 namespace internal {
     void pre_make_constraint(entt::entity entity, entt::registry &registry, 
                              entt::entity body0, entt::entity body1, bool is_graph_edge) {
-
-        auto &con_dirty = registry.get_or_emplace<dirty>(entity);
-        con_dirty.set_new().created<constraint>();
-
         // If the constraint is not a graph edge (e.g. when it's a `contact_constraint`
         // in a contact manifold), it means it is handled as a child of another entity
         // that is a graph edge and thus creating an edge for this would be redundant.
@@ -26,9 +20,9 @@ namespace internal {
             auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
             registry.emplace<procedural_tag>(entity);
             registry.emplace<graph_edge>(entity, edge_index);
+            auto &con_dirty = registry.get_or_emplace<dirty>(entity);
             con_dirty.created<procedural_tag>();
         }
-
     }
 }
 

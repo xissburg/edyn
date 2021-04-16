@@ -17,6 +17,7 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/util/vector.hpp"
 #include <entt/entt.hpp>
+#include <type_traits>
 #include <variant>
 
 namespace edyn {
@@ -345,28 +346,21 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
     auto manifold_view = m_registry->view<contact_manifold>();
-    auto point_view = m_registry->view<contact_point>();
-    auto constraint_view = m_registry->view<constraint>();
+    auto point_view = m_registry->view<contact_point, contact_constraint>();
 
     // Calculate total number of certain kinds of entities to later reserve
     // the expected number of components for better performance.
     size_t total_num_points = 0;
-    size_t total_num_constraints = 0;
 
     for (auto entity : edges) {
         if (manifold_view.contains(entity)) {
             auto &manifold = manifold_view.get(entity);
-
-            auto num_points = manifold.num_points();
-            total_num_points += num_points;
-            total_num_constraints += num_points;
-        } else {
-            total_num_constraints += 1;
+            total_num_points += manifold.num_points();
         }
     }
 
-    ctx->m_delta_builder->reserve_created(nodes.size() + edges.size() + total_num_constraints);
-    ctx->m_delta_builder->reserve_created<constraint>(total_num_constraints);
+    ctx->m_delta_builder->reserve_created(nodes.size() + edges.size() + total_num_points);
+    ctx->m_delta_builder->reserve_created<contact_constraint>(total_num_points);
     ctx->m_delta_builder->reserve_created<contact_point>(total_num_points);
     ctx->m_delta_builder->reserve_created<position, orientation, linvel, angvel, continuous>(nodes.size());
     ctx->m_delta_builder->reserve_created<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>(nodes.size());
@@ -496,8 +490,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 auto &point_resident = resident_view.get(point_entity);
                 point_resident.island_entity = island_entity;
 
-                auto &point = point_view.get(point_entity);
-                auto &con = constraint_view.get(point_entity);
+                auto [point, con] = point_view.get<contact_point, contact_constraint>(point_entity);
                 ctx->m_delta_builder->created(point_entity);
                 ctx->m_delta_builder->created(point_entity, point);
                 ctx->m_delta_builder->created(point_entity, con);
@@ -507,8 +500,12 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 }
             }
         } else {
-            auto &con = constraint_view.get(entity);
-            ctx->m_delta_builder->created(entity, con);
+            std::apply([&] (auto ... c) {
+                ((m_registry->has<decltype(c)>(entity) ? 
+                    ctx->m_delta_builder->created(entity, m_registry->get<decltype(c)>(entity)) :
+                    void(0)), ...);
+            }, constraints_tuple_t{});
+
             ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
         }
     }
@@ -697,12 +694,12 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each<constraint>([&] (entt::entity remote_entity, const constraint &con) {
-        if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
-
+    delta.created_for_each(constraints_tuple_t{}, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
-        if (std::holds_alternative<contact_constraint>(con.var)) return;
+        if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
+
+        if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
         auto &node0 = node_view.get(con.body[0]);

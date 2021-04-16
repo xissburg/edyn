@@ -1,4 +1,6 @@
 #include "edyn/dynamics/solver.hpp"
+#include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_angvel.hpp"
@@ -6,7 +8,7 @@
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/constraint.hpp"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
@@ -14,6 +16,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/entt.hpp>
 #include <type_traits>
 
@@ -26,10 +29,9 @@ scalar restitution_curve(scalar restitution, scalar relvel) {
     return restitution * decay;
 }
 
-static
-void prepare(const constraint_row &row, constraint_row_data &data,
-             const vector3 &linvelA, const vector3 &linvelB,
-             const vector3 &angvelA, const vector3 &angvelB) {
+void prepare_row(const constraint_row &row, constraint_row_data &data,
+                 const vector3 &linvelA, const vector3 &linvelB,
+                 const vector3 &angvelA, const vector3 &angvelB) {
     auto J_invM_JT = dot(data.J[0], data.J[0]) * data.inv_mA +
                      dot(data.inv_IA * data.J[1], data.J[1]) +
                      dot(data.J[2], data.J[2]) * data.inv_mB +
@@ -56,7 +58,6 @@ void apply_impulse(scalar impulse, constraint_row_data &data) {
     *data.dwB += data.inv_IB * data.J[3] * impulse;
 }
 
-static
 void warm_start(constraint_row_data &data) {
     apply_impulse(data.impulse, data);
 }
@@ -91,6 +92,31 @@ void update_inertia(entt::registry &registry) {
     });
 }
 
+template<typename C>
+void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
+    auto con_view = registry.view<C>();
+    con_view.each([&] (entt::entity entity, C &con) {
+        auto num_rows = cache.con_num_rows[con_idx];
+        for (size_t i = 0; i < num_rows; ++i) {
+            con.impulse[i] = cache.con_datas[row_idx + i].impulse;
+        }
+
+        row_idx += num_rows;
+        ++con_idx;
+    });
+}
+
+template<typename... Cs>
+void update_impulse_tuple(std::tuple<Cs...>, entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
+    (update_impulse<Cs>(registry, cache, con_idx, row_idx), ...);
+}
+
+void update_impulses(entt::registry &registry, row_cache &cache) {
+    size_t con_idx = 0;
+    size_t row_idx = 0;
+    update_impulse_tuple(constraints_tuple_t{}, registry, cache, con_idx, row_idx);
+}
+
 solver::solver(entt::registry &registry) 
     : m_registry(&registry)
 {
@@ -99,12 +125,6 @@ solver::solver(entt::registry &registry)
 }
 
 solver::~solver() = default;
-
-// Constant expressions to check if a constraint has an `iteration` function.
-template<typename T, typename = void>
-static constexpr bool has_iteration = false;
-template<typename T>
-static constexpr bool has_iteration<T, std::void_t<decltype(&T::iteration)>> = true;
 
 void solver::update(scalar dt) {
     auto &registry = *m_registry;
@@ -116,63 +136,14 @@ void solver::update(scalar dt) {
     apply_gravity(registry, dt);
 
     // Setup constraints.
-    auto body_view = registry.view<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>();
-    auto con_view = registry.view<constraint>();
-
-    size_t row_idx = 0;
-    con_view.each([&] (entt::entity entity, constraint &con) {
-        auto prev_size = m_row_cache.con_rows.size();
-        std::visit([&] (auto &&c) {
-            c.prepare(entity, con, registry, m_row_cache, dt);
-        }, con.var);
-        auto curr_size = m_row_cache.con_rows.size();
-        auto num_rows = curr_size - prev_size;
-        m_row_cache.con_num_rows.push_back(num_rows);
-
-        auto [inv_mA, inv_IA, linvelA, angvelA, dvA, dwA] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(con.body[0]);
-        auto [inv_mB, inv_IB, linvelB, angvelB, dvB, dwB] = body_view.get<mass_inv, inertia_world_inv, linvel, angvel, delta_linvel, delta_angvel>(con.body[1]);
-
-        for (size_t i = 0; i < num_rows; ++i) {
-            auto j = i + row_idx;
-            const auto &row = m_row_cache.con_rows[j];
-            auto &data = m_row_cache.con_datas[j];
-
-            data.inv_mA = inv_mA;
-            data.inv_mB = inv_mB;
-            data.inv_IA = inv_IA;
-            data.inv_IB = inv_IB;
-
-            data.dvA = &dvA;
-            data.dvB = &dvB;
-            data.dwA = &dwA;
-            data.dwB = &dwB;
-
-            data.impulse = con.impulse[i];
-
-            prepare(row, data, linvelA, linvelB, angvelA, angvelB);
-            warm_start(data);
-        }
-
-        row_idx += num_rows;
-    });
+    prepare_constraints(registry, m_row_cache, dt);
 
     EDYN_ASSERT(m_row_cache.con_rows.size() == m_row_cache.con_datas.size());
 
     // Solve constraints.
     for (uint32_t i = 0; i < iterations; ++i) {
         // Prepare constraints for iteration.
-        size_t row_idx = 0;
-        size_t con_idx = 0;
-
-        con_view.each([&] (entt::entity entity, constraint &con) {
-            std::visit([&] (auto &&c) {
-                using ConstraintType = std::decay_t<decltype(c)>;
-                if constexpr(has_iteration<ConstraintType>) {
-                    c.iteration(entity, con, registry, m_row_cache, row_idx, dt);
-                }
-            }, con.var);
-            row_idx += m_row_cache.con_num_rows[con_idx++];
-        });
+        iterate_constraints(registry, m_row_cache, dt);
 
         // Solve rows.
         for (auto &data : m_row_cache.con_datas) {
@@ -191,17 +162,7 @@ void solver::update(scalar dt) {
     });
 
     // Assign applied impulses.
-    size_t data_idx = 0;
-    size_t con_idx = 0;
-    con_view.each([&] (entt::entity entity, constraint &con) {
-        auto num_rows = m_row_cache.con_num_rows[con_idx];
-        for (size_t i = 0; i < num_rows; ++i) {
-            con.impulse[i] = m_row_cache.con_datas[data_idx + i].impulse;
-        }
-
-        data_idx += num_rows;
-        ++con_idx;
-    });
+    update_impulses(registry, m_row_cache);
 
     // Integrate velocities to obtain new transforms.
     integrate_linvel(registry, dt);

@@ -1,11 +1,8 @@
 #include "edyn/constraints/hinge_constraint.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
-#include "edyn/util/constraint_util.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include <entt/entt.hpp>
 
@@ -37,52 +34,51 @@ void hinge_constraint::set_axis(const quaternion &ornA,
     frame[1] = matrix3x3_columns(frameB_x, frameB_y, axisB);
 }
 
-void hinge_constraint::prepare(entt::entity entity, const constraint &con, 
-                               entt::registry &registry, row_cache &cache, 
-                               scalar dt) {
-    auto &posA = registry.get<position>(con.body[0]);
-    auto &posB = registry.get<position>(con.body[1]);
+void prepare_hinge_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
+    auto body_view = registry.view<position, orientation>();
+    auto con_view = registry.view<hinge_constraint>();
+    con_view.each([&] (hinge_constraint &con) {
+        auto [posA, ornA] = body_view.get<position, orientation>(con.body[0]);
+        auto [posB, ornB] = body_view.get<position, orientation>(con.body[1]);
 
-    auto &ornA = registry.get<orientation>(con.body[0]);
-    const auto rA = rotate(ornA, pivot[0]);
+        const auto rA = rotate(ornA, con.pivot[0]);
+        const auto rB = rotate(ornB, con.pivot[1]);
 
-    auto &ornB = registry.get<orientation>(con.body[1]);
-    const auto rB = rotate(ornB, pivot[1]);
+        const auto rA_skew = skew_matrix(rA);
+        const auto rB_skew = skew_matrix(rB);
+        constexpr auto I = matrix3x3_identity;
 
-    const auto rA_skew = skew_matrix(rA);
-    const auto rB_skew = skew_matrix(rB);
-    constexpr auto I = matrix3x3_identity;
+        for (size_t i = 0; i < 3; ++i) {
+            auto [row, data] = cache.make_row();
+            data.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
+            data.lower_limit = -EDYN_SCALAR_MAX;
+            data.upper_limit = EDYN_SCALAR_MAX;
+            row.error = (posA[i] + rA[i] - posB[i] - rB[i]) / dt;
+        }
 
-    for (size_t i = 0; i < 3; ++i) {
-        auto [row, data] = cache.make_row();
-        data.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
-        data.lower_limit = -EDYN_SCALAR_MAX;
-        data.upper_limit = EDYN_SCALAR_MAX;
-        row.error = (posA[i] + rA[i] - posB[i] - rB[i]) / dt;
-    }
+        const auto n = rotate(ornA, con.frame[0].column(2));
+        const auto p = rotate(ornA, con.frame[0].column(0));
+        const auto q = rotate(ornA, con.frame[0].column(1));
 
-    const auto n = rotate(ornA, frame[0].column(2));
-    const auto p = rotate(ornA, frame[0].column(0));
-    const auto q = rotate(ornA, frame[0].column(1));
+        const auto m = rotate(ornB, con.frame[1].column(2));
+        const auto u = cross(n, m);
 
-    const auto m = rotate(ornB, frame[1].column(2));
-    const auto u = cross(n, m);
+        {
+            auto [row, data] = cache.make_row();
+            data.J = {vector3_zero, p, vector3_zero, -p};
+            data.lower_limit = -EDYN_SCALAR_MAX;
+            data.upper_limit = EDYN_SCALAR_MAX;
+            row.error = dot(u, p) / dt;
+        }
 
-    {
-        auto [row, data] = cache.make_row();
-        data.J = {vector3_zero, p, vector3_zero, -p};
-        data.lower_limit = -EDYN_SCALAR_MAX;
-        data.upper_limit = EDYN_SCALAR_MAX;
-        row.error = dot(u, p) / dt;
-    }
-
-    {
-        auto [row, data] = cache.make_row();
-        data.J = {vector3_zero, q, vector3_zero, -q};
-        data.lower_limit = -EDYN_SCALAR_MAX;
-        data.upper_limit = EDYN_SCALAR_MAX;
-        row.error = dot(u, q) / dt;
-    }
+        {
+            auto [row, data] = cache.make_row();
+            data.J = {vector3_zero, q, vector3_zero, -q};
+            data.lower_limit = -EDYN_SCALAR_MAX;
+            data.upper_limit = EDYN_SCALAR_MAX;
+            row.error = dot(u, q) / dt;
+        }
+    });
 }
 
 }

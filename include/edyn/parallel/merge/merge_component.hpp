@@ -1,5 +1,5 @@
-#ifndef EDYN_PARALLEL_MERGE_COMPONENT_HPP
-#define EDYN_PARALLEL_MERGE_COMPONENT_HPP
+#ifndef EDYN_PARALLEL_MERGE_MERGE_COMPONENT_HPP
+#define EDYN_PARALLEL_MERGE_MERGE_COMPONENT_HPP
 
 #include <entt/fwd.hpp>
 
@@ -22,4 +22,4 @@ void merge(const Component *old_comp, Component &new_comp, merge_context &) {}
 
 }
 
-#endif // EDYN_PARALLEL_MERGE_COMPONENT_HPP
+#endif // EDYN_PARALLEL_MERGE_MERGE_COMPONENT_HPP

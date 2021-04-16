@@ -12,7 +12,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
-#include "edyn/comp/constraint.hpp"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape.hpp"
@@ -32,20 +32,25 @@ namespace edyn {
 using shared_components = std::tuple<
     island_timestamp,
     AABB, 
-    angvel, 
     collision_filter, 
-    constraint,
+    point_constraint, 
+    distance_constraint,
+    soft_distance_constraint,
+    hinge_constraint,
+    generic_constraint,
+    contact_constraint,
     gravity, 
     inertia, 
     inertia_inv, 
     inertia_world_inv, 
     linacc,
+    angvel, 
     linvel, 
     mass, 
     mass_inv, 
     material, 
-    orientation, 
     position,
+    orientation, 
     shape, 
     contact_manifold, 
     contact_point, 

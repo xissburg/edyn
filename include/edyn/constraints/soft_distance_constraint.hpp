@@ -4,27 +4,23 @@
 #include <array>
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
+#include "edyn/constraints/constraint_base.hpp"
 
 namespace edyn {
 
-struct constraint_row_data;
-struct constraint;
-class row_cache;
+struct row_cache;
 
-struct soft_distance_constraint {
+struct soft_distance_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
     scalar distance {0};
     scalar stiffness {1e10};
     scalar damping {1e10};
 
     scalar m_relspd;
-
-    void prepare(entt::entity, const constraint &, entt::registry &, row_cache &cache, scalar dt);
-    void iteration(entt::entity, const constraint &, entt::registry &, row_cache &, size_t row_index, scalar dt);
-
-private:
-    constraint_row_data *m_damping_data;
 };
+
+void prepare_soft_distance_constraints(entt::registry &, row_cache &, scalar dt);
+void iterate_soft_distance_constraints(entt::registry &, row_cache &, scalar dt);
 
 }
 
