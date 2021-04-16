@@ -261,6 +261,12 @@ void island_worker::sync() {
         m_delta_builder->updated(entity, aabb);
     });
 
+    // Always update applied impulses since they're needed to maintain warm starting
+    // functioning correctly when constraints are moved from one island to another.
+    m_registry.view<constraint_impulse>().each([&] (entt::entity entity, constraint_impulse &imp) {
+        m_delta_builder->updated(entity, imp);
+    });
+
     // Update continuous components.
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {

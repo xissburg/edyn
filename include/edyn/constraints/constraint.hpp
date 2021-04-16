@@ -28,6 +28,10 @@ using constraints_tuple_t = std::tuple<
     contact_constraint 
 >;
 
+struct constraint_impulse {
+    std::array<scalar, max_constraint_rows> values;
+};
+
 // Preparation
 
 template<typename C>

@@ -16,6 +16,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entt.hpp>
 #include <type_traits>
@@ -23,62 +24,22 @@
 namespace edyn {
 
 static
-scalar restitution_curve(scalar restitution, scalar relvel) {
-    // TODO: figure out how to adjust the restitution when resting.
-    scalar decay = 1;//std::clamp(-relvel * 1.52 - scalar(0.12), scalar(0), scalar(1));
-    return restitution * decay;
-}
+scalar solve(constraint_row &row) {
+    auto delta_relvel = dot(row.J[0], *row.dvA) + 
+                        dot(row.J[1], *row.dwA) +
+                        dot(row.J[2], *row.dvB) +
+                        dot(row.J[3], *row.dwB);
+    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
+    auto impulse = row.impulse + delta_impulse;
 
-void prepare_row(const constraint_row &row, constraint_row_data &data,
-                 const vector3 &linvelA, const vector3 &linvelB,
-                 const vector3 &angvelA, const vector3 &angvelB) {
-    auto J_invM_JT = dot(data.J[0], data.J[0]) * data.inv_mA +
-                     dot(data.inv_IA * data.J[1], data.J[1]) +
-                     dot(data.J[2], data.J[2]) * data.inv_mB +
-                     dot(data.inv_IB * data.J[3], data.J[3]);
-    data.eff_mass = 1 / J_invM_JT;
-
-    auto relvel = dot(data.J[0], linvelA) + 
-                  dot(data.J[1], angvelA) +
-                  dot(data.J[2], linvelB) +
-                  dot(data.J[3], angvelB);
-    
-    auto restitution = restitution_curve(row.restitution, relvel);
-    data.rhs = -(row.error * row.erp + relvel * (1 + restitution));
-}
-
-static
-void apply_impulse(scalar impulse, constraint_row_data &data) {
-    // Apply linear impulse.
-    *data.dvA += data.inv_mA * data.J[0] * impulse;
-    *data.dvB += data.inv_mB * data.J[2] * impulse;
-
-    // Apply angular impulse.
-    *data.dwA += data.inv_IA * data.J[1] * impulse;
-    *data.dwB += data.inv_IB * data.J[3] * impulse;
-}
-
-void warm_start(constraint_row_data &data) {
-    apply_impulse(data.impulse, data);
-}
-
-static
-scalar solve(constraint_row_data &data) {
-    auto delta_relvel = dot(data.J[0], *data.dvA) + 
-                        dot(data.J[1], *data.dwA) +
-                        dot(data.J[2], *data.dvB) +
-                        dot(data.J[3], *data.dwB);
-    auto delta_impulse = (data.rhs - delta_relvel) * data.eff_mass;
-    auto impulse = data.impulse + delta_impulse;
-
-    if (impulse < data.lower_limit) {
-        delta_impulse = data.lower_limit - data.impulse;
-        data.impulse = data.lower_limit;
-    } else if (impulse > data.upper_limit) {
-        delta_impulse = data.upper_limit - data.impulse;
-        data.impulse = data.upper_limit;
+    if (impulse < row.lower_limit) {
+        delta_impulse = row.lower_limit - row.impulse;
+        row.impulse = row.lower_limit;
+    } else if (impulse > row.upper_limit) {
+        delta_impulse = row.upper_limit - row.impulse;
+        row.impulse = row.upper_limit;
     } else {
-        data.impulse = impulse;
+        row.impulse = impulse;
     }
 
     return delta_impulse;
@@ -94,11 +55,11 @@ void update_inertia(entt::registry &registry) {
 
 template<typename C>
 void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<C>();
-    con_view.each([&] (entt::entity entity, C &con) {
+    auto con_view = registry.view<C, constraint_impulse>();
+    con_view.each([&] (entt::entity entity, C &con, constraint_impulse &imp) {
         auto num_rows = cache.con_num_rows[con_idx];
         for (size_t i = 0; i < num_rows; ++i) {
-            con.impulse[i] = cache.con_datas[row_idx + i].impulse;
+            imp.values[i] = cache.con_rows[row_idx + i].impulse;
         }
 
         row_idx += num_rows;
@@ -138,7 +99,7 @@ void solver::update(scalar dt) {
     // Setup constraints.
     prepare_constraints(registry, m_row_cache, dt);
 
-    EDYN_ASSERT(m_row_cache.con_rows.size() == m_row_cache.con_datas.size());
+    EDYN_ASSERT(m_row_cache.con_rows.size() == m_row_cache.con_rows.size());
 
     // Solve constraints.
     for (uint32_t i = 0; i < iterations; ++i) {
@@ -146,9 +107,9 @@ void solver::update(scalar dt) {
         iterate_constraints(registry, m_row_cache, dt);
 
         // Solve rows.
-        for (auto &data : m_row_cache.con_datas) {
-            auto delta_impulse = solve(data);
-            apply_impulse(delta_impulse, data);
+        for (auto &row : m_row_cache.con_rows) {
+            auto delta_impulse = solve(row);
+            apply_impulse(delta_impulse, row);
         }
     }
 

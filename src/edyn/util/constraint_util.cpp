@@ -4,6 +4,9 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/continuous.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 
 namespace edyn {
@@ -11,6 +14,10 @@ namespace edyn {
 namespace internal {
     void pre_make_constraint(entt::entity entity, entt::registry &registry, 
                              entt::entity body0, entt::entity body1, bool is_graph_edge) {
+        registry.emplace<constraint_impulse>(entity);
+        auto &con_dirty = registry.get_or_emplace<dirty>(entity);
+        con_dirty.created<constraint_impulse>();
+
         // If the constraint is not a graph edge (e.g. when it's a `contact_constraint`
         // in a contact manifold), it means it is handled as a child of another entity
         // that is a graph edge and thus creating an edge for this would be redundant.
@@ -20,7 +27,6 @@ namespace internal {
             auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
             registry.emplace<procedural_tag>(entity);
             registry.emplace<graph_edge>(entity, edge_index);
-            auto &con_dirty = registry.get_or_emplace<dirty>(entity);
             con_dirty.created<procedural_tag>();
         }
     }
@@ -48,13 +54,53 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
                  contact_manifold>();
 }
 
-scalar get_effective_mass(const constraint_row_data &row) {
+scalar get_effective_mass(const constraint_row &row) {
     auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
                      dot(row.inv_IA * row.J[1], row.J[1]) +
                      dot(row.J[2], row.J[2]) * row.inv_mB +
                      dot(row.inv_IB * row.J[3], row.J[3]);
     auto eff_mass = scalar(1) / J_invM_JT;
     return eff_mass;
+}
+
+static
+scalar restitution_curve(scalar restitution, scalar relvel) {
+    // TODO: figure out how to adjust the restitution when resting.
+    scalar decay = 1;//std::clamp(-relvel * 1.52 - scalar(0.12), scalar(0), scalar(1));
+    return restitution * decay;
+}
+
+void prepare_row(constraint_row &row, 
+                 const constraint_row_options &options,
+                 const vector3 &linvelA, const vector3 &linvelB,
+                 const vector3 &angvelA, const vector3 &angvelB) {
+    auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
+                     dot(row.inv_IA * row.J[1], row.J[1]) +
+                     dot(row.J[2], row.J[2]) * row.inv_mB +
+                     dot(row.inv_IB * row.J[3], row.J[3]);
+    row.eff_mass = 1 / J_invM_JT;
+
+    auto relvel = dot(row.J[0], linvelA) + 
+                  dot(row.J[1], angvelA) +
+                  dot(row.J[2], linvelB) +
+                  dot(row.J[3], angvelB);
+    
+    auto restitution = restitution_curve(options.restitution, relvel);
+    row.rhs = -(options.error * options.erp + relvel * (1 + restitution));
+}
+
+void apply_impulse(scalar impulse, constraint_row &row) {
+    // Apply linear impulse.
+    *row.dvA += row.inv_mA * row.J[0] * impulse;
+    *row.dvB += row.inv_mB * row.J[2] * impulse;
+
+    // Apply angular impulse.
+    *row.dwA += row.inv_IA * row.J[1] * impulse;
+    *row.dwB += row.inv_IB * row.J[3] * impulse;
+}
+
+void warm_start(constraint_row &row) {
+    apply_impulse(row.impulse, row);
 }
 
 }

@@ -8,34 +8,15 @@
 
 namespace edyn {
 
-/**
- * @brief A constraint row represents a restriction of one degree of freedom
- * between two rigid bodies. 
- * 
- * It is split in two separate components so that
- * during the constraint solver iterations only the necessary data is used,
- * for performance reasons.
- */
-struct constraint_row {
-    scalar error;
-
-    // Error reduction parameter.
-    scalar erp {0.2};
-
-    scalar restitution {0};
-
-    int priority {0};
-};
-
 struct delta_linvel;
 struct delta_angvel;
 
 /**
- * `constraint_row_data` contains all and only the information that's required
+ * `constraint_row` contains all and only the information that's required
  * during the constraint solver iterations for better cache use and to avoid
  * waste.
  */
-struct constraint_row_data {
+struct constraint_row {
     // Jacobian diagonals.
     std::array<vector3, 2 * max_constrained_entities> J;
 
@@ -63,6 +44,17 @@ struct constraint_row_data {
     // safe to dereference these outside of the solver context.
     delta_linvel *dvA, *dvB;
     delta_angvel *dwA, *dwB;
+};
+
+struct constraint_row_options {
+    scalar error {0};
+
+    // Error reduction parameter.
+    scalar erp {0.2};
+
+    scalar restitution {0};
+
+    int priority {0};
 };
 
 }

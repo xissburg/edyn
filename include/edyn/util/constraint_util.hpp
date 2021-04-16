@@ -8,7 +8,8 @@
 
 namespace edyn {
 
-struct constraint_row_data;
+struct constraint_row;
+struct constraint_row_options;
 
 namespace internal {
     void pre_make_constraint(entt::entity entity, entt::registry &registry, 
@@ -60,7 +61,16 @@ void make_contact_manifold(entt::entity contact_entity, entt::registry &,
                            entt::entity body0, entt::entity body1, 
                            scalar separation_threshold);
 
-scalar get_effective_mass(const constraint_row_data &);
+scalar get_effective_mass(const constraint_row &);
+
+void prepare_row(constraint_row &row, 
+                 const constraint_row_options &options,
+                 const vector3 &linvelA, const vector3 &linvelB,
+                 const vector3 &angvelA, const vector3 &angvelB);
+
+void apply_impulse(scalar impulse, constraint_row &row);
+
+void warm_start(constraint_row &row);
 
 }
 

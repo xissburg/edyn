@@ -1,9 +1,17 @@
 #include "edyn/constraints/hinge_constraint.hpp"
-#include "edyn/comp/position.hpp"
-#include "edyn/comp/orientation.hpp"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/comp/position.hpp"
+#include "edyn/comp/orientation.hpp"
+#include "edyn/comp/mass.hpp"
+#include "edyn/comp/inertia.hpp"
+#include "edyn/comp/linvel.hpp"
+#include "edyn/comp/angvel.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -35,11 +43,16 @@ void hinge_constraint::set_axis(const quaternion &ornA,
 }
 
 void prepare_hinge_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation>();
-    auto con_view = registry.view<hinge_constraint>();
-    con_view.each([&] (hinge_constraint &con) {
-        auto [posA, ornA] = body_view.get<position, orientation>(con.body[0]);
-        auto [posB, ornB] = body_view.get<position, orientation>(con.body[1]);
+    auto body_view = registry.view<position, orientation, 
+                                   linvel, angvel, 
+                                   mass_inv, inertia_world_inv, 
+                                   delta_linvel, delta_angvel>();
+    auto con_view = registry.view<hinge_constraint, constraint_impulse>();
+    con_view.each([&] (hinge_constraint &con, constraint_impulse &imp) {
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = 
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
         const auto rA = rotate(ornA, con.pivot[0]);
         const auto rB = rotate(ornB, con.pivot[1]);
@@ -47,13 +60,26 @@ void prepare_hinge_constraints(entt::registry &registry, row_cache &cache, scala
         const auto rA_skew = skew_matrix(rA);
         const auto rB_skew = skew_matrix(rB);
         constexpr auto I = matrix3x3_identity;
+        size_t row_idx = 0;
 
-        for (size_t i = 0; i < 3; ++i) {
-            auto [row, data] = cache.make_row();
-            data.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
-            data.lower_limit = -EDYN_SCALAR_MAX;
-            data.upper_limit = EDYN_SCALAR_MAX;
-            row.error = (posA[i] + rA[i] - posB[i] - rB[i]) / dt;
+        for (; row_idx < 3; ++row_idx) {
+            auto &row = cache.con_rows.emplace_back();
+            row.J = {I.row[row_idx], -rA_skew.row[row_idx], 
+                    -I.row[row_idx], rB_skew.row[row_idx]};
+            row.lower_limit = -EDYN_SCALAR_MAX;
+            row.upper_limit = EDYN_SCALAR_MAX;
+
+            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
+            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dvB = &dvB;
+            row.dwA = &dwA; row.dwB = &dwB;
+            row.impulse = imp.values[row_idx];
+
+            auto options = constraint_row_options{};
+            options.error = (posA[row_idx] + rA[row_idx] - posB[row_idx] - rB[row_idx]) / dt;
+
+            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            warm_start(row);
         }
 
         const auto n = rotate(ornA, con.frame[0].column(2));
@@ -64,20 +90,44 @@ void prepare_hinge_constraints(entt::registry &registry, row_cache &cache, scala
         const auto u = cross(n, m);
 
         {
-            auto [row, data] = cache.make_row();
-            data.J = {vector3_zero, p, vector3_zero, -p};
-            data.lower_limit = -EDYN_SCALAR_MAX;
-            data.upper_limit = EDYN_SCALAR_MAX;
-            row.error = dot(u, p) / dt;
+            auto &row = cache.con_rows.emplace_back();
+            row.J = {vector3_zero, p, vector3_zero, -p};
+            row.lower_limit = -EDYN_SCALAR_MAX;
+            row.upper_limit = EDYN_SCALAR_MAX;
+
+            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
+            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dvB = &dvB;
+            row.dwA = &dwA; row.dwB = &dwB;
+            row.impulse = imp.values[row_idx++];
+
+            auto options = constraint_row_options{};
+            options.error = dot(u, p) / dt;
+
+            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            warm_start(row);
         }
 
         {
-            auto [row, data] = cache.make_row();
-            data.J = {vector3_zero, q, vector3_zero, -q};
-            data.lower_limit = -EDYN_SCALAR_MAX;
-            data.upper_limit = EDYN_SCALAR_MAX;
-            row.error = dot(u, q) / dt;
+            auto &row = cache.con_rows.emplace_back();
+            row.J = {vector3_zero, q, vector3_zero, -q};
+            row.lower_limit = -EDYN_SCALAR_MAX;
+            row.upper_limit = EDYN_SCALAR_MAX;
+
+            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
+            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dvB = &dvB;
+            row.dwA = &dwA; row.dwB = &dwB;
+            row.impulse = imp.values[row_idx++];
+
+            auto options = constraint_row_options{};
+            options.error = dot(u, q) / dt;
+
+            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            warm_start(row);
         }
+
+        cache.con_num_rows.push_back(row_idx);
     });
 }
 

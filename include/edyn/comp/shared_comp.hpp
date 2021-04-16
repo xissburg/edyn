@@ -33,6 +33,7 @@ using shared_components = std::tuple<
     island_timestamp,
     AABB, 
     collision_filter, 
+    constraint_impulse,
     point_constraint, 
     distance_constraint,
     soft_distance_constraint,
