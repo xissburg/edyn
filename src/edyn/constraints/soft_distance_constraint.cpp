@@ -26,7 +26,7 @@ void prepare_soft_distance_constraints(entt::registry &registry,
                                    delta_linvel, delta_angvel>();    
     auto con_view = registry.view<soft_distance_constraint, constraint_impulse>();
     size_t row_idx = cache.con_rows.size();
-    registry.ctx_or_set<row_start_index_soft_distance_constraint>(row_idx);
+    registry.ctx_or_set<row_start_index_soft_distance_constraint>().value = row_idx;
 
     con_view.each([&] (soft_distance_constraint &con, constraint_impulse &imp) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 

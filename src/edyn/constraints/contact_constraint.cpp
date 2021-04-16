@@ -26,7 +26,7 @@ void prepare_contact_constraints(entt::registry &registry, row_cache &cache, sca
     auto con_view = registry.view<contact_constraint, contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
     size_t row_idx = cache.con_rows.size();
-    registry.ctx_or_set<row_start_index_contact_constraint>(row_idx);
+    registry.ctx_or_set<row_start_index_contact_constraint>().value = row_idx;
 
     con_view.each([&] (entt::entity entity, contact_constraint &con, contact_point &cp) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
