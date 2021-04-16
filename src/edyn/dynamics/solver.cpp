@@ -12,6 +12,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
@@ -42,8 +43,11 @@ scalar solve(constraint_row &row) {
 
 template<typename C>
 void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<C, constraint_impulse>();
-    con_view.each([&] (entt::entity entity, C &con, constraint_impulse &imp) {
+    auto con_view = registry.view<C>();
+    auto imp_view = registry.view<constraint_impulse>();
+
+    for (auto entity : con_view) {
+        auto &imp = imp_view.get(entity);
         auto num_rows = cache.con_num_rows[con_idx];
         for (size_t i = 0; i < num_rows; ++i) {
             imp.values[i] = cache.con_rows[row_idx + i].impulse;
@@ -51,18 +55,22 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
 
         row_idx += num_rows;
         ++con_idx;
-    });
-}
-
-template<typename... Cs>
-void update_impulse_tuple(std::tuple<Cs...>, entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    (update_impulse<Cs>(registry, cache, con_idx, row_idx), ...);
+    }
 }
 
 void update_impulses(entt::registry &registry, row_cache &cache) {
+    // Assign impulses from constraint rows back into the `constraint_impulse`
+    // components. The rows are inserted into the cache for each constraint type
+    // in the order they're found in `constraints_tuple_t` and in the same order
+    // they're in their EnTT pools, which means the rows in the cache can be 
+    // matched by visiting each constraint type in the order they appear in the 
+    // tuple.
     size_t con_idx = 0;
     size_t row_idx = 0;
-    update_impulse_tuple(constraints_tuple_t{}, registry, cache, con_idx, row_idx);
+
+    std::apply([&] (auto ... c) {
+        (update_impulse<decltype(c)>(registry, cache, con_idx, row_idx), ...);
+    }, constraints_tuple_t{});
 }
 
 solver::solver(entt::registry &registry) 

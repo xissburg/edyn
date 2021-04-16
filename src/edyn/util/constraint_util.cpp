@@ -8,6 +8,7 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/entity_graph.hpp"
+#include "edyn/comp/constraint_row.hpp"
 
 namespace edyn {
 

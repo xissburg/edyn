@@ -3,8 +3,8 @@
 
 #include <entt/fwd.hpp>
 #include <entt/entity/registry.hpp>
-#include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/dirty.hpp"
+#include "edyn/math/vector3.hpp"
 
 namespace edyn {
 
