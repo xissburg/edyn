@@ -18,8 +18,9 @@ struct row_start_index_soft_distance_constraint {
     size_t value;
 };
 
-void prepare_soft_distance_constraints(entt::registry &registry, 
-                                       row_cache &cache, scalar dt) {
+template<>
+void prepare_constraints<soft_distance_constraint>(entt::registry &registry, 
+                                                   row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation, 
                                    linvel, angvel, 
                                    mass_inv, inertia_world_inv, 
@@ -108,7 +109,8 @@ void prepare_soft_distance_constraints(entt::registry &registry,
     });
 }
 
-void iterate_soft_distance_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
+template<>
+void iterate_constraints<soft_distance_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto con_view = registry.view<soft_distance_constraint>();
     auto row_idx = registry.ctx<row_start_index_soft_distance_constraint>().value;
 

@@ -5,6 +5,7 @@
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
@@ -15,7 +16,8 @@ struct distance_constraint : public constraint_base {
     scalar distance {0};
 };
 
-void prepare_distance_constraints(entt::registry &, row_cache &, scalar dt);
+template<>
+void prepare_constraints<distance_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

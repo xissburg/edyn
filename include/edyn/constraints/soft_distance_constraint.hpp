@@ -5,6 +5,7 @@
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
@@ -19,8 +20,11 @@ struct soft_distance_constraint : public constraint_base {
     scalar m_relspd;
 };
 
-void prepare_soft_distance_constraints(entt::registry &, row_cache &, scalar dt);
-void iterate_soft_distance_constraints(entt::registry &, row_cache &, scalar dt);
+template<>
+void prepare_constraints<soft_distance_constraint>(entt::registry &, row_cache &, scalar dt);
+
+template<>
+void iterate_constraints<soft_distance_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

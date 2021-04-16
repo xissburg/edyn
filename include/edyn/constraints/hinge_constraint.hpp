@@ -5,6 +5,7 @@
 #include <entt/fwd.hpp>
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
@@ -18,7 +19,8 @@ struct hinge_constraint : public constraint_base {
                   const vector3 &axisA, const vector3 &axisB);
 };
 
-void prepare_hinge_constraints(entt::registry &, row_cache &, scalar dt);
+template<>
+void prepare_constraints<hinge_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

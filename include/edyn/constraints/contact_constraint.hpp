@@ -5,6 +5,7 @@
 #include <entt/fwd.hpp>
 #include "edyn/math/constants.hpp"
 #include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
@@ -17,8 +18,11 @@ struct contact_constraint : public constraint_base {
     scalar m_friction;
 };
 
-void prepare_contact_constraints(entt::registry &, row_cache &, scalar dt);
-void iterate_contact_constraints(entt::registry &, row_cache &, scalar dt);
+template<>
+void prepare_constraints<contact_constraint>(entt::registry &, row_cache &, scalar dt);
+
+template<>
+void iterate_constraints<contact_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

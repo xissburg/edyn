@@ -16,7 +16,8 @@
 
 namespace edyn {
 
-void prepare_point_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
+template<>
+void prepare_constraints<point_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation, 
                                    linvel, angvel, 
                                    mass_inv, inertia_world_inv, 

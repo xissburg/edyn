@@ -5,6 +5,7 @@
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
@@ -14,7 +15,8 @@ struct generic_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
 };
 
-void prepare_generic_constraints(entt::registry &, row_cache &, scalar dt);
+template<>
+void prepare_constraints<generic_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

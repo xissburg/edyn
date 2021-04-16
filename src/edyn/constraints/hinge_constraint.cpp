@@ -42,7 +42,8 @@ void hinge_constraint::set_axis(const quaternion &ornA,
     frame[1] = matrix3x3_columns(frameB_x, frameB_y, axisB);
 }
 
-void prepare_hinge_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
+template<>
+void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation, 
                                    linvel, angvel, 
                                    mass_inv, inertia_world_inv, 

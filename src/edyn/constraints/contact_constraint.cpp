@@ -21,7 +21,8 @@ struct row_start_index_contact_constraint {
     size_t value;
 };
 
-void prepare_contact_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
+template<>
+void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
     auto con_view = registry.view<contact_constraint, contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
@@ -113,7 +114,8 @@ void prepare_contact_constraints(entt::registry &registry, row_cache &cache, sca
     });
 }
 
-void iterate_contact_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
+template<>
+void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto con_view = registry.view<contact_constraint>();
     auto row_idx = registry.ctx<row_start_index_contact_constraint>().value;
 
