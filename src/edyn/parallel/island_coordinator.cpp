@@ -88,7 +88,9 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
 
     // When importing delta, the entity is removed from the entity map as part
     // of the process. Otherwise, the removal has to be done here.
-    ctx->m_entity_map.erase_loc(entity);
+    if (ctx->m_entity_map.has_loc(entity)) {
+        ctx->m_entity_map.erase_loc(entity);
+    }
 
     // Notify the worker of the destruction which happened in the main registry
     // first.
