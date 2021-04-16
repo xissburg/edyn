@@ -7,7 +7,7 @@
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/sys/update_inertias.hpp"
-#include "edyn/comp/constraint_row.hpp"
+#include "edyn/constraints/constraint_row.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
@@ -50,7 +50,7 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
         auto &imp = imp_view.get(entity);
         auto num_rows = cache.con_num_rows[con_idx];
         for (size_t i = 0; i < num_rows; ++i) {
-            imp.values[i] = cache.con_rows[row_idx + i].impulse;
+            imp.values[i] = cache.rows[row_idx + i].impulse;
         }
 
         row_idx += num_rows;
@@ -94,7 +94,7 @@ void solver::update(scalar dt) {
     // Setup constraints.
     prepare_constraints(registry, m_row_cache, dt);
 
-    EDYN_ASSERT(m_row_cache.con_rows.size() == m_row_cache.con_rows.size());
+    EDYN_ASSERT(m_row_cache.rows.size() == m_row_cache.rows.size());
 
     // Solve constraints.
     for (uint32_t i = 0; i < iterations; ++i) {
@@ -102,7 +102,7 @@ void solver::update(scalar dt) {
         iterate_constraints(registry, m_row_cache, dt);
 
         // Solve rows.
-        for (auto &row : m_row_cache.con_rows) {
+        for (auto &row : m_row_cache.rows) {
             auto delta_impulse = solve(row);
             apply_impulse(delta_impulse, row);
         }

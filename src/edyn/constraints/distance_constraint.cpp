@@ -1,5 +1,5 @@
 #include "edyn/constraints/distance_constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
+#include "edyn/constraints/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/mass.hpp"
@@ -22,7 +22,6 @@ void prepare_distance_constraints(entt::registry &registry, row_cache &cache, sc
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<distance_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
-    size_t row_idx = cache.con_rows.size();
 
     con_view.each([&] (entt::entity entity, distance_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 
@@ -40,7 +39,7 @@ void prepare_distance_constraints(entt::registry &registry, row_cache &cache, sc
             d = vector3_x;
         }
 
-        auto &row = cache.con_rows.emplace_back();
+        auto &row = cache.rows.emplace_back();
         row.J = {d, cross(rA, d), -d, -cross(rB, d)};
         row.lower_limit = -large_scalar;
         row.upper_limit =  large_scalar;
@@ -48,23 +47,15 @@ void prepare_distance_constraints(entt::registry &registry, row_cache &cache, sc
         auto options = constraint_row_options{};
         options.error = scalar(0.5) * (l2 - con.distance * con.distance) / dt;
 
-        row.inv_mA = inv_mA;
-        row.inv_mB = inv_mB;
-        row.inv_IA = inv_IA;
-        row.inv_IB = inv_IB;
-
-        row.dvA = &dvA;
-        row.dvB = &dvB;
-        row.dwA = &dwA;
-        row.dwB = &dwB;
-
-        auto &imp = imp_view.get(entity);
-        row.impulse = imp.values[0];
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = imp_view.get(entity).values[0];
 
         prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
         warm_start(row);
 
-        row_idx += 1;
         cache.con_num_rows.push_back(1);
     });
 }

@@ -25,8 +25,8 @@ void prepare_soft_distance_constraints(entt::registry &registry,
                                    mass_inv, inertia_world_inv, 
                                    delta_linvel, delta_angvel>();    
     auto con_view = registry.view<soft_distance_constraint, constraint_impulse>();
-    size_t row_idx = cache.con_rows.size();
-    registry.ctx_or_set<row_start_index_soft_distance_constraint>().value = row_idx;
+    size_t start_idx = cache.rows.size();
+    registry.ctx_or_set<row_start_index_soft_distance_constraint>().value = start_idx;
 
     con_view.each([&] (soft_distance_constraint &con, constraint_impulse &imp) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 
@@ -58,7 +58,7 @@ void prepare_soft_distance_constraints(entt::registry &registry,
             auto spring_force = con.stiffness * error;
             auto spring_impulse = spring_force * dt;
 
-            auto &row = cache.con_rows.emplace_back();
+            auto &row = cache.rows.emplace_back();
             row.J = {dn, p, -dn, -q};
             row.lower_limit = std::min(spring_impulse, scalar(0));
             row.upper_limit = std::max(scalar(0), spring_impulse);
@@ -79,7 +79,7 @@ void prepare_soft_distance_constraints(entt::registry &registry,
         {
             // Damping row. It functions like friction where the force is
             // proportional to the relative speed.
-            auto &row = cache.con_rows.emplace_back();
+            auto &row = cache.rows.emplace_back();
             row.J = {dn, p, -dn, -q};
 
             auto relspd = dot(row.J[0], linvelA) + 
@@ -104,7 +104,6 @@ void prepare_soft_distance_constraints(entt::registry &registry,
         }
 
         size_t num_rows = 2;
-        row_idx += num_rows;
         cache.con_num_rows.push_back(num_rows);
     });
 }
@@ -115,7 +114,7 @@ void iterate_soft_distance_constraints(entt::registry &registry, row_cache &cach
 
     con_view.each([&] (soft_distance_constraint &con) {
         // Adjust damping row limits to account for velocity changes during iterations.
-        auto &damping_data = cache.con_rows[row_idx + 1];
+        auto &damping_data = cache.rows[row_idx + 1];
         auto delta_relspd = dot(damping_data.J[0], *damping_data.dvA) + 
                             dot(damping_data.J[1], *damping_data.dwA) +
                             dot(damping_data.J[2], *damping_data.dvB) +

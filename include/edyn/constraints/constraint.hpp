@@ -17,8 +17,12 @@
 
 namespace edyn {
 
+/**
+ * @brief Tuple of all available constraints. They are solved in this order so
+ * the more important constraints should be the last in the list.
+ */
 using constraints_tuple_t = std::tuple<
-    point_constraint, 
+    point_constraint,
     distance_constraint,
     soft_distance_constraint,
     hinge_constraint,

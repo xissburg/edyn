@@ -1,5 +1,5 @@
 #include "../common/common.hpp"
-#include "edyn/comp/constraint_row.hpp"
+#include "edyn/constraints/constraint_row.hpp"
 #include <tuple>
 #include <memory>
 

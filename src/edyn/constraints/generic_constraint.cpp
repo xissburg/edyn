@@ -1,5 +1,5 @@
 #include "edyn/constraints/generic_constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
+#include "edyn/constraints/constraint_row.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
@@ -40,16 +40,16 @@ void prepare_generic_constraints(entt::registry &registry, row_cache &cache, sca
 
         // Linear.
         for (size_t i = 0; i < 3; ++i) {
-            auto &row = cache.con_rows.emplace_back();
+            auto &row = cache.rows.emplace_back();
             auto p = rotate(ornA, I.row[i]);
             row.J = {p, rA_skew.row[i], -p, -rB_skew.row[i]};
             row.lower_limit = -large_scalar;
             row.upper_limit = large_scalar;
 
-            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
-            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dvB = &dvB;
-            row.dwA = &dwA; row.dwB = &dwB;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[i];
 
             auto options = constraint_row_options{};
@@ -61,7 +61,7 @@ void prepare_generic_constraints(entt::registry &registry, row_cache &cache, sca
 
         // Angular.
         for (size_t i = 0; i < 3; ++i) {
-            auto &row = cache.con_rows.emplace_back();
+            auto &row = cache.rows.emplace_back();
             auto axis = rotate(ornA, I.row[i]);
             auto n = rotate(ornA, I.row[(i+1)%3]);
             auto m = rotate(ornB, I.row[(i+2)%3]);
@@ -71,10 +71,10 @@ void prepare_generic_constraints(entt::registry &registry, row_cache &cache, sca
             row.lower_limit = -large_scalar;
             row.upper_limit = large_scalar;
 
-            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
-            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dvB = &dvB;
-            row.dwA = &dwA; row.dwB = &dwB;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[3 + i];
 
             auto options = constraint_row_options{};

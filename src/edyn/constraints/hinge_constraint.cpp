@@ -64,16 +64,16 @@ void prepare_hinge_constraints(entt::registry &registry, row_cache &cache, scala
         size_t row_idx = 0;
 
         for (; row_idx < 3; ++row_idx) {
-            auto &row = cache.con_rows.emplace_back();
+            auto &row = cache.rows.emplace_back();
             row.J = {I.row[row_idx], -rA_skew.row[row_idx], 
                     -I.row[row_idx], rB_skew.row[row_idx]};
             row.lower_limit = -EDYN_SCALAR_MAX;
             row.upper_limit = EDYN_SCALAR_MAX;
 
-            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
-            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dvB = &dvB;
-            row.dwA = &dwA; row.dwB = &dwB;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx];
 
             auto options = constraint_row_options{};
@@ -91,15 +91,15 @@ void prepare_hinge_constraints(entt::registry &registry, row_cache &cache, scala
         const auto u = cross(n, m);
 
         {
-            auto &row = cache.con_rows.emplace_back();
+            auto &row = cache.rows.emplace_back();
             row.J = {vector3_zero, p, vector3_zero, -p};
             row.lower_limit = -EDYN_SCALAR_MAX;
             row.upper_limit = EDYN_SCALAR_MAX;
 
-            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
-            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dvB = &dvB;
-            row.dwA = &dwA; row.dwB = &dwB;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
             auto options = constraint_row_options{};
@@ -110,15 +110,15 @@ void prepare_hinge_constraints(entt::registry &registry, row_cache &cache, scala
         }
 
         {
-            auto &row = cache.con_rows.emplace_back();
+            auto &row = cache.rows.emplace_back();
             row.J = {vector3_zero, q, vector3_zero, -q};
             row.lower_limit = -EDYN_SCALAR_MAX;
             row.upper_limit = EDYN_SCALAR_MAX;
 
-            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
-            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dvB = &dvB;
-            row.dwA = &dwA; row.dwB = &dwB;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
             auto options = constraint_row_options{};

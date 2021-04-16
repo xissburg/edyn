@@ -34,14 +34,12 @@ struct constraint_row {
     // strength of impulse applied.
     scalar impulse;
 
-    // Inverse masses and inertias used during the solver iterations. Values
-    // do not necessarily represent the latest state. Query values for the
-    // rigid body from the registry instead.
+    // Inverse masses and inertias used during the solver iterations.
     scalar inv_mA, inv_mB;
     matrix3x3 inv_IA, inv_IB;
 
     // Reference to delta velocities used during solver iterations. It is not
-    // safe to dereference these outside of the solver context.
+    // safe to dereference these outside of the solver update context.
     delta_linvel *dvA, *dvB;
     delta_angvel *dwA, *dwB;
 };
@@ -53,8 +51,6 @@ struct constraint_row_options {
     scalar erp {0.2};
 
     scalar restitution {0};
-
-    int priority {0};
 };
 
 }
