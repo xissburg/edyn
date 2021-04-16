@@ -13,6 +13,7 @@
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape.hpp"

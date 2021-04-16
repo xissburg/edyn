@@ -1,6 +1,7 @@
 #include "edyn/constraints/point_constraint.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/mass.hpp"
@@ -21,6 +22,7 @@ void prepare_point_constraints(entt::registry &registry, row_cache &cache, scala
                                    mass_inv, inertia_world_inv, 
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<point_constraint, constraint_impulse>();
+
     con_view.each([&] (point_constraint &con, constraint_impulse& imp) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);

@@ -9,6 +9,7 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/comp/dirty.hpp"
@@ -45,24 +46,24 @@ island_coordinator::~island_coordinator() {
 }
 
 void island_coordinator::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
-    if (!m_importing_delta) {
-        m_new_graph_nodes.push_back(entity);
+    if (m_importing_delta) return;
 
-        if (registry.has<procedural_tag>(entity)) {
-            registry.emplace<island_resident>(entity);
-        } else {
-            registry.emplace<multi_island_resident>(entity);
-        }
+    m_new_graph_nodes.push_back(entity);
+
+    if (registry.has<procedural_tag>(entity)) {
+        registry.emplace<island_resident>(entity);
+    } else {
+        registry.emplace<multi_island_resident>(entity);
     }
 }
 
 void island_coordinator::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
-    if (!m_importing_delta) {
-        m_new_graph_edges.push_back(entity);
-        // Assuming this graph edge is a constraint or contact manifold, which
-        // are always procedural, thus can only reside in one island.
-        registry.emplace<island_resident>(entity);
-    }
+    if (m_importing_delta) return;
+
+    m_new_graph_edges.push_back(entity);
+    // Assuming this graph edge is a constraint or contact manifold, which
+    // are always procedural, thus can only reside in one island.
+    registry.emplace<island_resident>(entity);
 }
 
 void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -71,16 +72,8 @@ void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::e
 }
 
 void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
-    if (!registry.has<island_resident>(entity)) return;
-    
     auto &edge = registry.get<graph_edge>(entity);
     registry.ctx<entity_graph>().remove_edge(edge.edge_index);
-
-    if (m_importing_delta) return;
-
-    auto &resident = registry.get<island_resident>(entity);
-    auto &ctx = m_island_ctx_map.at(resident.island_entity);
-    ctx->m_entity_map.erase_loc(entity);
 }
 
 void island_coordinator::on_destroy_island_resident(entt::registry &registry, entt::entity entity) {
@@ -91,14 +84,21 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
     ctx->m_nodes.erase(entity);
     ctx->m_edges.erase(entity);
 
-    if (!m_importing_delta)  {
-        ctx->m_delta_builder->destroyed(entity);
+    if (m_importing_delta) return;
 
-        if (registry.has<contact_manifold>(entity)) {
-            on_destroy_contact_manifold(registry, entity);
-        } else {
-            on_destroy_graph_edge(registry, entity);
-        }
+    // When importing delta, the entity is removed from the entity map as part
+    // of the process. Otherwise, the removal has to be done here.
+    ctx->m_entity_map.erase_loc(entity);
+
+    // Notify the worker of the destruction which happened in the main registry
+    // first.
+    ctx->m_delta_builder->destroyed(entity);
+    
+    // Manually call these on_destroy functions since those could be triggered
+    // by the EnTT delegate after the island resident is destroyed and the island
+    // resident component is needed in these on_destroy functions.
+    if (registry.has<contact_manifold>(entity)) {
+        on_destroy_contact_manifold(registry, entity);
     }
 }
 

@@ -8,7 +8,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
@@ -20,10 +20,11 @@ void prepare_distance_constraints(entt::registry &registry, row_cache &cache, sc
                                    linvel, angvel, 
                                    mass_inv, inertia_world_inv, 
                                    delta_linvel, delta_angvel>();
-    auto con_view = registry.view<distance_constraint, constraint_impulse>();
+    auto con_view = registry.view<distance_constraint>();
+    auto imp_view = registry.view<constraint_impulse>();
     size_t row_idx = cache.con_rows.size();
 
-    con_view.each([&] (distance_constraint &con, constraint_impulse &imp) {
+    con_view.each([&] (entt::entity entity, distance_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = 
@@ -57,6 +58,7 @@ void prepare_distance_constraints(entt::registry &registry, row_cache &cache, sc
         row.dwA = &dwA;
         row.dwB = &dwB;
 
+        auto &imp = imp_view.get(entity);
         row.impulse = imp.values[0];
 
         prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);

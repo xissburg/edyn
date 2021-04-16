@@ -10,7 +10,6 @@ namespace edyn {
 
 struct constraint_base {
     std::array<entt::entity, 2> body;
-    std::array<scalar, max_constraint_rows> impulse;
 };
 
 }

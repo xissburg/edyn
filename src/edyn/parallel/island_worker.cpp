@@ -12,7 +12,7 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/serialization/memory_archive.hpp"
-#include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"

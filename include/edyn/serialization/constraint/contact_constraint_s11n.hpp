@@ -8,7 +8,6 @@ namespace edyn {
 template<typename Archive>
 void serialize(Archive &archive, contact_constraint &c) {
     archive(c.body);
-    archive(c.impulse);
     archive(c.stiffness);
     archive(c.damping);
 }

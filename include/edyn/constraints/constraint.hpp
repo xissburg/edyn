@@ -17,8 +17,6 @@
 
 namespace edyn {
 
-using constrained_entities = std::array<entt::entity, max_constrained_entities>;
-
 using constraints_tuple_t = std::tuple<
     point_constraint, 
     distance_constraint,
@@ -27,10 +25,6 @@ using constraints_tuple_t = std::tuple<
     generic_constraint,
     contact_constraint 
 >;
-
-struct constraint_impulse {
-    std::array<scalar, max_constraint_rows> values;
-};
 
 // Preparation
 

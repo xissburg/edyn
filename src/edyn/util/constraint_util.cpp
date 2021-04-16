@@ -6,7 +6,7 @@
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 
 namespace edyn {

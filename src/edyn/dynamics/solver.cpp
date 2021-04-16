@@ -1,5 +1,4 @@
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
@@ -7,19 +6,15 @@
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
-#include "edyn/comp/orientation.hpp"
-#include "edyn/constraints/constraint.hpp"
+#include "edyn/sys/update_inertias.hpp"
 #include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include <entt/entity/fwd.hpp>
 #include <entt/entt.hpp>
-#include <type_traits>
 
 namespace edyn {
 
@@ -43,14 +38,6 @@ scalar solve(constraint_row &row) {
     }
 
     return delta_impulse;
-}
-
-void update_inertia(entt::registry &registry) {
-    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
-    view.each([] (orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
-        auto basis = to_matrix3x3(orn);
-        inv_IW = basis * inv_I * transpose(basis);
-    });
 }
 
 template<typename C>
@@ -136,7 +123,7 @@ void solver::update(scalar dt) {
     update_rotated_meshes(registry);
 
     // Update world-space moment of inertia.
-    update_inertia(registry);
+    update_inertias(registry);
 }
 
 }
