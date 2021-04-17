@@ -3,8 +3,6 @@
 
 #include <array>
 #include <entt/fwd.hpp>
-#include "edyn/math/scalar.hpp"
-#include "edyn/config/constants.hpp"
 
 namespace edyn {
 

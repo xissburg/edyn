@@ -116,11 +116,11 @@ void iterate_constraints<soft_distance_constraint>(entt::registry &registry, row
 
     con_view.each([&] (soft_distance_constraint &con) {
         // Adjust damping row limits to account for velocity changes during iterations.
-        auto &damping_data = cache.rows[row_idx + 1];
-        auto delta_relspd = dot(damping_data.J[0], *damping_data.dvA) + 
-                            dot(damping_data.J[1], *damping_data.dwA) +
-                            dot(damping_data.J[2], *damping_data.dvB) +
-                            dot(damping_data.J[3], *damping_data.dwB);
+        auto &damping_row = cache.rows[row_idx + 1];
+        auto delta_relspd = dot(damping_row.J[0], *damping_row.dvA) + 
+                            dot(damping_row.J[1], *damping_row.dwA) +
+                            dot(damping_row.J[2], *damping_row.dvB) +
+                            dot(damping_row.J[3], *damping_row.dwB);
 
         auto relspd = con.m_relspd + delta_relspd;
 
@@ -128,8 +128,8 @@ void iterate_constraints<soft_distance_constraint>(entt::registry &registry, row
         auto damping_impulse = damping_force * dt;
         auto impulse = std::abs(damping_impulse);
 
-        damping_data.lower_limit = -impulse;
-        damping_data.upper_limit =  impulse;
+        damping_row.lower_limit = -impulse;
+        damping_row.upper_limit =  impulse;
 
         row_idx += 2;
     });

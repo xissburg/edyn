@@ -44,6 +44,9 @@ struct constraint_row {
     delta_angvel *dwA, *dwB;
 };
 
+/**
+ * Optional info to be used when setting up a constraint row.
+ */
 struct constraint_row_options {
     scalar error {0};
 

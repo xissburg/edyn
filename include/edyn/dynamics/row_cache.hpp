@@ -7,6 +7,9 @@
 
 namespace edyn {
 
+/**
+ * Stores the constraint rows for one solver update.
+ */
 struct row_cache {
 
     void clear() {

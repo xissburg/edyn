@@ -120,11 +120,11 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     auto row_idx = registry.ctx<row_start_index_contact_constraint>().value;
 
     con_view.each([&] (contact_constraint &con) {
-        const auto &normal_data = cache.rows[row_idx++];
-        auto &friction_data = cache.rows[row_idx++];
-        auto friction_impulse = std::abs(normal_data.impulse * con.m_friction);
-        friction_data.lower_limit = -friction_impulse;
-        friction_data.upper_limit = friction_impulse;
+        const auto &normal_row = cache.rows[row_idx++];
+        auto &friction_row = cache.rows[row_idx++];
+        auto friction_impulse = std::abs(normal_row.impulse * con.m_friction);
+        friction_row.lower_limit = -friction_impulse;
+        friction_row.upper_limit = friction_impulse;
     });
 }
 

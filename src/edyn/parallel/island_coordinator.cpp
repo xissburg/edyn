@@ -87,7 +87,7 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
     if (m_importing_delta) return;
 
     // When importing delta, the entity is removed from the entity map as part
-    // of the process. Otherwise, the removal has to be done here.
+    // of the import process. Otherwise, the removal has to be done here.
     if (ctx->m_entity_map.has_loc(entity)) {
         ctx->m_entity_map.erase_loc(entity);
     }
@@ -96,7 +96,7 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
     // first.
     ctx->m_delta_builder->destroyed(entity);
     
-    // Manually call these on_destroy functions since those could be triggered
+    // Manually call these on_destroy functions since they could be triggered
     // by the EnTT delegate after the island resident is destroyed and the island
     // resident component is needed in these on_destroy functions.
     if (registry.has<contact_manifold>(entity)) {
