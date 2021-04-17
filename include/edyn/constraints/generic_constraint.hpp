@@ -9,8 +9,6 @@
 
 namespace edyn {
 
-struct row_cache;
-
 struct generic_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
 };

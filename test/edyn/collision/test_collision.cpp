@@ -1,8 +1,10 @@
 #include "../common/common.hpp"
 #include "edyn/comp/rotated_mesh.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/shapes/convex_mesh.hpp"
+#include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include <edyn/collision/collide.hpp>
 #include <memory>
@@ -160,4 +162,52 @@ TEST(test_collision, collide_polyhedron_sphere) {
     ASSERT_SCALAR_EQ(pt.pivotB.y, 1);
     ASSERT_SCALAR_EQ(pt.pivotB.z, 0.5);
     ASSERT_SCALAR_EQ(pt.distance, 0.2071067812);
+}
+
+TEST(test_collision, collide_capsule_cylinder_parallel) {
+    auto capsule = edyn::capsule_shape{0.1, 0.2};
+    auto cylinder = edyn::cylinder_shape{0.2, 0.5};
+
+    auto ctx = edyn::collision_context{};
+    ctx.posA = edyn::vector3{0.3, 0.5, 0};
+    ctx.ornA = edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi / 2);
+    ctx.posB = edyn::vector3{0, 0, 0};
+    ctx.ornB = edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi / 2);
+    ctx.threshold = 0.02;
+    auto result = edyn::collide(capsule, cylinder, ctx);
+    ASSERT_EQ(result.num_points, 2);
+
+    std::vector<edyn::vector3> expected_pivotA;
+    expected_pivotA.push_back(edyn::vector3{-0.2, 0.1, 0});
+    expected_pivotA.push_back(edyn::vector3{0.0, 0.1, 0});
+
+    for (size_t i = 0; i < 2; ++i) {
+        ASSERT_EQ(expected_pivotA.size(), 2 - i);
+        
+        for (auto it = expected_pivotA.begin(); it != expected_pivotA.end(); ++it) {
+            if (edyn::distance(result.point[i].pivotA, *it) < EDYN_EPSILON) {
+                expected_pivotA.erase(it);
+                break;
+            }
+        }
+    }
+
+    ASSERT_TRUE(expected_pivotA.empty());
+    
+    std::vector<edyn::vector3> expected_pivotB;
+    expected_pivotB.push_back(edyn::vector3{0.5, -0.2, 0});
+    expected_pivotB.push_back(edyn::vector3{0.3, -0.2, 0});
+
+    for (size_t i = 0; i < 2; ++i) {
+        ASSERT_EQ(expected_pivotB.size(), 2 - i);
+        
+        for (auto it = expected_pivotB.begin(); it != expected_pivotB.end(); ++it) {
+            if (edyn::distance(result.point[i].pivotB, *it) < EDYN_EPSILON) {
+                expected_pivotB.erase(it);
+                break;
+            }
+        }
+    }
+
+    ASSERT_TRUE(expected_pivotB.empty());
 }

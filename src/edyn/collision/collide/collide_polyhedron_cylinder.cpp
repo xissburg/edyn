@@ -332,7 +332,7 @@ collision_result collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     case cylinder_feature::cap_edge: {
         auto pivotB = to_object_space(supB, posB, ornB);
         auto pivotA = to_object_space(supB + sep_axis * distance, posA, ornA);
-        result.maybe_add_point({pivotA, pivotB, normalB, distance});
+        result.add_point({pivotA, pivotB, normalB, distance});
         break;
     }
     }

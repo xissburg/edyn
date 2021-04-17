@@ -1,6 +1,7 @@
 #ifndef EDYN_SHAPES_CYLINDER_SHAPE_HPP
 #define EDYN_SHAPES_CYLINDER_SHAPE_HPP
 
+#include <array>
 #include "edyn/math/quaternion.hpp"
 
 namespace edyn {
@@ -17,6 +18,14 @@ enum class cylinder_feature {
 struct cylinder_shape {
     scalar radius;
     scalar half_length;
+
+    std::array<vector3, 2> get_vertices(const vector3 &pos, const quaternion &orn) const {
+        const auto axis = quaternion_x(orn);
+        return {
+            pos - axis * half_length,
+            pos + axis * half_length
+        };
+    }
 
     scalar support_projection(const vector3 &pos, const quaternion &orn, 
                               const vector3 &dir) const;

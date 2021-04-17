@@ -1,15 +1,12 @@
 #ifndef EDYN_CONSTRAINTS_CONTACT_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_CONTACT_CONSTRAINT_HPP
 
-#include <array>
 #include <entt/fwd.hpp>
 #include "edyn/math/constants.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
-
-struct row_cache;
 
 struct contact_constraint : public constraint_base {
     scalar stiffness {large_scalar};
