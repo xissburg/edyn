@@ -9,8 +9,6 @@
 
 namespace edyn {
 
-struct row_cache;
-
 struct hinge_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
     std::array<matrix3x3, 2> frame;

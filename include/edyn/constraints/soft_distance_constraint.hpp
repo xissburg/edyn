@@ -9,8 +9,6 @@
 
 namespace edyn {
 
-struct row_cache;
-
 struct soft_distance_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
     scalar distance {0};
