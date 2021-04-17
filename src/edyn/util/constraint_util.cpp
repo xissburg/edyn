@@ -1,20 +1,23 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/comp/dirty.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
-#include "edyn/comp/constraint_row.hpp"
+#include "edyn/comp/continuous.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/entity_graph.hpp"
+#include "edyn/constraints/constraint_row.hpp"
 
 namespace edyn {
 
 namespace internal {
     void pre_make_constraint(entt::entity entity, entt::registry &registry, 
                              entt::entity body0, entt::entity body1, bool is_graph_edge) {
-
+        registry.emplace<constraint_impulse>(entity);
         auto &con_dirty = registry.get_or_emplace<dirty>(entity);
-        con_dirty.set_new().created<constraint>();
+        con_dirty.created<constraint_impulse>();
 
         // If the constraint is not a graph edge (e.g. when it's a `contact_constraint`
         // in a contact manifold), it means it is handled as a child of another entity
@@ -27,27 +30,7 @@ namespace internal {
             registry.emplace<graph_edge>(entity, edge_index);
             con_dirty.created<procedural_tag>();
         }
-
     }
-}
-
-entt::entity add_constraint_row(entt::entity entity, constraint &con, entt::registry &registry, int priority) {
-    EDYN_ASSERT(con.num_rows() + 1 < max_constraint_rows);
-    EDYN_ASSERT(con.row[con.num_rows()] == entt::null);
-
-    auto row_entity = registry.create();
-    con.row[con.num_rows()] = row_entity;
-
-    auto &row = registry.emplace<constraint_row>(row_entity, con.body);
-    row.priority = priority;
-
-    registry.emplace<constraint_row_data>(row_entity);
-
-    registry.get_or_emplace<dirty>(row_entity)
-        .set_new()
-        .created<constraint_row, constraint_row_data>();
-
-    return row_entity;
 }
 
 entt::entity make_contact_manifold(entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
@@ -72,32 +55,53 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
                  contact_manifold>();
 }
 
-void set_constraint_enabled(entt::entity entity, entt::registry &registry, bool enabled) {
-    auto& con = registry.get<constraint>(entity);
-    auto num_rows = con.num_rows();
-    
-    if (enabled) {
-        registry.remove<disabled_tag>(entity);
-
-        for (size_t i = 0; i < num_rows; ++i) {
-            registry.remove<disabled_tag>(con.row[i]);
-        }
-    } else {
-        registry.emplace_or_replace<disabled_tag>(entity);
-
-        for (size_t i = 0; i < num_rows; ++i) {
-            registry.emplace_or_replace<disabled_tag>(con.row[i]);
-        }
-    }
-}
-
-scalar get_effective_mass(const constraint_row_data &row) {
+scalar get_effective_mass(const constraint_row &row) {
     auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
                      dot(row.inv_IA * row.J[1], row.J[1]) +
                      dot(row.J[2], row.J[2]) * row.inv_mB +
                      dot(row.inv_IB * row.J[3], row.J[3]);
     auto eff_mass = scalar(1) / J_invM_JT;
     return eff_mass;
+}
+
+static
+scalar restitution_curve(scalar restitution, scalar relvel) {
+    // TODO: figure out how to adjust the restitution when resting.
+    scalar decay = 1;//std::clamp(-relvel * 1.52 - scalar(0.12), scalar(0), scalar(1));
+    return restitution * decay;
+}
+
+void prepare_row(constraint_row &row, 
+                 const constraint_row_options &options,
+                 const vector3 &linvelA, const vector3 &linvelB,
+                 const vector3 &angvelA, const vector3 &angvelB) {
+    auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
+                     dot(row.inv_IA * row.J[1], row.J[1]) +
+                     dot(row.J[2], row.J[2]) * row.inv_mB +
+                     dot(row.inv_IB * row.J[3], row.J[3]);
+    row.eff_mass = 1 / J_invM_JT;
+
+    auto relvel = dot(row.J[0], linvelA) + 
+                  dot(row.J[1], angvelA) +
+                  dot(row.J[2], linvelB) +
+                  dot(row.J[3], angvelB);
+    
+    auto restitution = restitution_curve(options.restitution, relvel);
+    row.rhs = -(options.error * options.erp + relvel * (1 + restitution));
+}
+
+void apply_impulse(scalar impulse, constraint_row &row) {
+    // Apply linear impulse.
+    *row.dvA += row.inv_mA * row.J[0] * impulse;
+    *row.dvB += row.inv_mB * row.J[2] * impulse;
+
+    // Apply angular impulse.
+    *row.dwA += row.inv_IA * row.J[1] * impulse;
+    *row.dwB += row.inv_IB * row.J[3] * impulse;
+}
+
+void warm_start(constraint_row &row) {
+    apply_impulse(row.impulse, row);
 }
 
 }

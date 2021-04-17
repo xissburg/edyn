@@ -1,14 +1,15 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
-#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/comp/dirty.hpp"
@@ -18,6 +19,7 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/util/vector.hpp"
 #include <entt/entt.hpp>
+#include <type_traits>
 #include <variant>
 
 namespace edyn {
@@ -34,9 +36,6 @@ island_coordinator::island_coordinator(entt::registry &registry)
     registry.on_destroy<multi_island_resident>().connect<&island_coordinator::on_destroy_multi_island_resident>(*this);
     
     registry.on_destroy<contact_manifold>().connect<&island_coordinator::on_destroy_contact_manifold>(*this);
-
-    registry.on_construct<constraint>().connect<&island_coordinator::on_construct_constraint>(*this);
-    registry.on_destroy<constraint>().connect<&island_coordinator::on_destroy_constraint>(*this);
 }
 
 island_coordinator::~island_coordinator() {
@@ -47,24 +46,24 @@ island_coordinator::~island_coordinator() {
 }
 
 void island_coordinator::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
-    if (!m_importing_delta) {
-        m_new_graph_nodes.push_back(entity);
+    if (m_importing_delta) return;
 
-        if (registry.has<procedural_tag>(entity)) {
-            registry.emplace<island_resident>(entity);
-        } else {
-            registry.emplace<multi_island_resident>(entity);
-        }
+    m_new_graph_nodes.push_back(entity);
+
+    if (registry.has<procedural_tag>(entity)) {
+        registry.emplace<island_resident>(entity);
+    } else {
+        registry.emplace<multi_island_resident>(entity);
     }
 }
 
 void island_coordinator::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
-    if (!m_importing_delta) {
-        m_new_graph_edges.push_back(entity);
-        // Assuming this graph edge is a constraint or contact manifold, which
-        // are always procedural, thus can only reside in one island.
-        registry.emplace<island_resident>(entity);
-    }
+    if (m_importing_delta) return;
+
+    m_new_graph_edges.push_back(entity);
+    // Assuming this graph edge is a constraint or contact manifold, which
+    // are always procedural, thus can only reside in one island.
+    registry.emplace<island_resident>(entity);
 }
 
 void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -85,14 +84,23 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
     ctx->m_nodes.erase(entity);
     ctx->m_edges.erase(entity);
 
-    if (!m_importing_delta)  {
-        ctx->m_delta_builder->destroyed(entity);
+    if (m_importing_delta) return;
 
-        if (registry.has<contact_manifold>(entity)) {
-            on_destroy_contact_manifold(registry, entity);
-        } else if (registry.has<constraint>(entity)) {
-            on_destroy_constraint(registry, entity);
-        }
+    // When importing delta, the entity is removed from the entity map as part
+    // of the import process. Otherwise, the removal has to be done here.
+    if (ctx->m_entity_map.has_loc(entity)) {
+        ctx->m_entity_map.erase_loc(entity);
+    }
+
+    // Notify the worker of the destruction which happened in the main registry
+    // first.
+    ctx->m_delta_builder->destroyed(entity);
+    
+    // Manually call these on_destroy functions since they could be triggered
+    // by the EnTT delegate after the island resident is destroyed and the island
+    // resident component is needed in these on_destroy functions.
+    if (registry.has<contact_manifold>(entity)) {
+        on_destroy_contact_manifold(registry, entity);
     }
 }
 
@@ -121,54 +129,8 @@ void island_coordinator::on_destroy_contact_manifold(entt::registry &registry, e
 
     for (size_t i = 0; i < num_points; ++i) {
         auto contact_entity = manifold.point[i];
-        auto &con = registry.get<constraint>(contact_entity);
-
-        auto num_rows = con.num_rows();
-        for (size_t j = 0; j < num_rows; ++j) {
-            auto row_entity = con.row[j];
-            registry.destroy(row_entity);
-            ctx->m_delta_builder->destroyed(row_entity);
-        }
-
         registry.destroy(contact_entity);
         ctx->m_delta_builder->destroyed(contact_entity);
-    }
-}
-
-void island_coordinator::on_construct_constraint(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-
-    auto &con = registry.get<constraint>(entity);
-
-    // Initialize constraint.
-    std::visit([&] (auto &&c) {
-        c.update(solver_stage_value_t<solver_stage::init>{}, entity, con, registry, 0);
-    }, con.var);
-}
-
-void island_coordinator::on_destroy_constraint(entt::registry &registry, entt::entity entity) {
-    // Destroy constraint rows. If importing delta, it's unecessary to destroy
-    // rows here because the rows are also added as destroyed entities in the
-    // delta and they'll be destroyed as part of the importing process.
-    if (m_importing_delta) return;
-
-    // If this constraint doesn't have an `island_resident` assigned, it means
-    // that either the `island_resident` was removed first and this function
-    // was called explicitly (see `on_destroy_island_resident`) or that this is
-    // a contact constraint and this isn't a graph edge which means it hasn't
-    // got an `island_resident` assigned to it since that's done on the 
-    // `contact_manifold` that owns this contact.
-    if (!registry.has<island_resident>(entity)) return;
-
-    auto &resident = registry.get<island_resident>(entity);
-    auto &ctx = m_island_ctx_map.at(resident.island_entity);
-    auto &con = registry.get<constraint>(entity);
-    auto num_rows = con.num_rows();
-
-    for (size_t i = 0; i < num_rows; ++i) {
-        auto row_entity = con.row[i];
-        registry.destroy(row_entity);
-        ctx->m_delta_builder->destroyed(row_entity);
     }
 }
 
@@ -397,42 +359,28 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
     auto manifold_view = m_registry->view<contact_manifold>();
-    auto point_view = m_registry->view<contact_point>();
-    auto constraint_view = m_registry->view<constraint>();
-    auto row_view = m_registry->view<constraint_row, constraint_row_data>();
+    auto point_view = m_registry->view<contact_point, contact_constraint>();
+    auto impulse_view = m_registry->view<constraint_impulse>();
 
     // Calculate total number of certain kinds of entities to later reserve
     // the expected number of components for better performance.
-    size_t total_num_rows = 0;
     size_t total_num_points = 0;
     size_t total_num_constraints = 0;
 
     for (auto entity : edges) {
         if (manifold_view.contains(entity)) {
             auto &manifold = manifold_view.get(entity);
-
-            auto num_points = manifold.num_points();
-            total_num_points += num_points;
-            total_num_constraints += num_points;
-
-            for (size_t i = 0; i < num_points; ++i) {
-                auto point_entity = manifold.point[i];
-                auto &con = constraint_view.get(point_entity);
-                auto num_rows = con.num_rows();
-                total_num_rows += num_rows;
-            }
+            total_num_points += manifold.num_points();
+            total_num_constraints += manifold.num_points();
         } else {
-            auto &con = constraint_view.get(entity);
             total_num_constraints += 1;
-            auto num_rows = con.num_rows();
-            total_num_rows += num_rows;
         }
     }
 
-    ctx->m_delta_builder->reserve_created(nodes.size() + edges.size() + total_num_rows + total_num_constraints);
-    ctx->m_delta_builder->reserve_created<constraint_row, constraint_row_data>(total_num_rows);
-    ctx->m_delta_builder->reserve_created<constraint>(total_num_constraints);
+    ctx->m_delta_builder->reserve_created(nodes.size() + edges.size() + total_num_points);
+    ctx->m_delta_builder->reserve_created<contact_constraint>(total_num_points);
     ctx->m_delta_builder->reserve_created<contact_point>(total_num_points);
+    ctx->m_delta_builder->reserve_created<constraint_impulse>(total_num_constraints);
     ctx->m_delta_builder->reserve_created<position, orientation, linvel, angvel, continuous>(nodes.size());
     ctx->m_delta_builder->reserve_created<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>(nodes.size());
 
@@ -448,6 +396,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto continuous_view = m_registry->view<continuous>();
     auto procedural_view = m_registry->view<procedural_tag>();
     auto static_view = m_registry->view<static_tag>();
+    auto continuous_contacts_view = m_registry->view<continuous_contacts_tag>();
 
     for (auto entity : nodes) {
         if (procedural_view.contains(entity)) {
@@ -533,6 +482,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 ctx->m_delta_builder->updated(entity, vel_view.get<angvel>(entity));
             }
         }
+
+        if (continuous_contacts_view.contains(entity)) {
+            ctx->m_delta_builder->created(entity, continuous_contacts_tag{});
+        }
     }
 
     for (auto entity : edges) {
@@ -556,40 +509,25 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 auto &point_resident = resident_view.get(point_entity);
                 point_resident.island_entity = island_entity;
 
-                auto &point = point_view.get(point_entity);
-                auto &con = constraint_view.get(point_entity);
+                auto [point, con] = point_view.get<contact_point, contact_constraint>(point_entity);
                 ctx->m_delta_builder->created(point_entity);
                 ctx->m_delta_builder->created(point_entity, point);
                 ctx->m_delta_builder->created(point_entity, con);
+                ctx->m_delta_builder->created(point_entity, impulse_view.get(point_entity));
 
                 if (continuous_view.contains(point_entity)) {
                     ctx->m_delta_builder->created(point_entity, continuous_view.get(point_entity));
                 }
-
-                auto num_rows = con.num_rows();
-
-                for (size_t j = 0; j < num_rows; ++j) {
-                    auto row_entity = con.row[j];
-                    auto [row, data] = row_view.get<constraint_row, constraint_row_data>(row_entity);
-                    ctx->m_delta_builder->created(row_entity);
-                    ctx->m_delta_builder->created(row_entity, row);
-                    ctx->m_delta_builder->created(row_entity, data);
-                }
             }
         } else {
-            auto &con = constraint_view.get(entity);
-            ctx->m_delta_builder->created(entity, con);
+            std::apply([&] (auto ... c) {
+                ((m_registry->has<decltype(c)>(entity) ? 
+                    ctx->m_delta_builder->created(entity, m_registry->get<decltype(c)>(entity)) :
+                    void(0)), ...);
+            }, constraints_tuple_t{});
+
             ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
-
-            auto num_rows = con.num_rows();
-
-            for (size_t i = 0; i < num_rows; ++i) {
-                auto row_entity = con.row[i];
-                auto [row, data] = row_view.get<constraint_row, constraint_row_data>(row_entity);
-                ctx->m_delta_builder->created(row_entity);
-                ctx->m_delta_builder->created(row_entity, row);
-                ctx->m_delta_builder->created(row_entity, data);
-            }
+            ctx->m_delta_builder->created(entity, impulse_view.get(entity));
         }
     }
 }
@@ -651,20 +589,6 @@ entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &
             for (size_t i = 0; i < num_points; ++i) {
                 auto contact_entity = manifold->point[i];
                 m_registry->remove_if_exists<sleeping_tag>(contact_entity);
-                auto &con = m_registry->get<constraint>(contact_entity);
-                auto num_rows = con.num_rows();
-
-                for (size_t j = 0; j < num_rows; ++j) {
-                    auto row_entity = con.row[j];
-                    m_registry->remove_if_exists<sleeping_tag>(row_entity);
-                }
-            }
-        } else if (auto *con = m_registry->try_get<constraint>(entity)) {
-            auto num_rows = con->num_rows();
-
-            for (size_t j = 0; j < num_rows; ++j) {
-                auto row_entity = con->row[j];
-                m_registry->remove_if_exists<sleeping_tag>(row_entity);
             }
         }
     }
@@ -791,12 +715,12 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each<constraint>([&] (entt::entity remote_entity, const constraint &con) {
-        if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
-
+    delta.created_for_each(constraints_tuple_t{}, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
-        if (std::holds_alternative<contact_constraint>(con.var)) return;
+        if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
+
+        if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
         auto &node0 = node_view.get(con.body[0]);

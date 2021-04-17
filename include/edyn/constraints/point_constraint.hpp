@@ -3,17 +3,20 @@
 
 #include <array>
 #include <entt/fwd.hpp>
-#include "constraint_base.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
-struct point_constraint : public constraint_base<point_constraint> {
-    std::array<vector3, 2> pivot;
+struct row_cache;
 
-    void init(entt::entity, constraint &, entt::registry &);
-    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
+struct point_constraint : public constraint_base {
+    std::array<vector3, 2> pivot;
 };
+
+template<>
+void prepare_constraints<point_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

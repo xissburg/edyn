@@ -85,16 +85,11 @@ _SIMD_ implementations of the above are planned.
 
 # Constraints
 
-Constraints are components of the type `edyn::constraint` which store the actual constraint in a `std::variant`. Different constraint types have different data and logic, thus the `std::variant`, which by default contains all the fundamental constraint implementations provided by the library. To add custom constraints to the library it is necessary to fork the project and modify the code to insert these into the variant, since this is not a header-only library and the types in the `std::variant` are compiled into the library. No mechanism is provided to insert new constraint types on the fly.
+Constraints create a relationship between degrees of freedom of rigid bodies, preventing them from moving beyond the allowed range. Constraints are defined as simple structs which hold the `entt::entity` of the bodies it connects and any other specific data such as pivot points in object space. A function that prepares constraints must be provided for each type. These preparation functions go over the list of constraints of that type and configure one or more constraint rows for each constraint. These functions are called by the constraint solver right before the solver iterations.
 
-It's important to note that the size of a `std::variant` is the size of the largest element in its template parameter pack, thus in the situation where one constraint has much more data than all others, it is worth considering storing much of this data somewhere else and keep a pointer to it (e.g. using a `std::unique_ptr`) to avoid wasting too much space.
+Constraints can also have an iteration function which is called on each iteration of the constraint solver. This is only needed if the constraint adjusts its rows based on changes to velocity during the iterations, e.g. the `edyn::contact_constraint` recalculates the limits of the friction constraint row based on what is the current impulse on the normal constraint row. This is not used by most constraints and should be used with care since it can be expensive.
 
-Constraints are derived from `edyn::constraint_base` and can implement some of the functions that are called in different solver stages to set up and modify its constraint rows:
- - The `init` function is called after the constraint is created. Constraint rows would usually be created at this point.
- - The `prepare` function is called before the solver begins its update. This is where constraint rows are setup using the current state of the rigid bodies.
- - The `iteration` function is called before each iteration of the constraint solver. This is only needed if the constraint adjusts its rows based on changes to velocity during the iterations, e.g. the `edyn::contact_constraint` recalculates the limits of the friction constraint row based on what is the current impulse on the normal constraint row. This is not used by most constraints and should be used with care since it can be expensive.
-
-These functions are invoked using CRTP to avoid virtual functions.
+There is no flexibility when it comes to adding new constraints to the library. If that's needed, it'll be necessary to fork the project and add the new constraint internally.
 
 A traditional Sequential Impulse constraint solver is used.
 
@@ -104,9 +99,7 @@ Collision detection is split in two phases: broad-phase and narrow-phase. In bro
 
 During broad-phase, intersections between the AABBs of all entities are found using a _dynamic bounding volume tree_, according to [Dynamic Bounding Volume Hierarchies, Erin Catto, GDC 2019](https://box2d.org/files/ErinCatto_DynamicBVH_Full.pdf) and [Box2D](https://github.com/erincatto/box2d/blob/master/include/box2d/b2_dynamic_tree.h) [b2DynamicTree](https://github.com/erincatto/box2d/blob/master/src/collision/b2_dynamic_tree.cpp). The AABBs are inflated by a threshold so that contact pairs can be generated before the bodies start to penetrate thus generating contact points in advance. For any new intersection, an entity is created and a `edyn::contact_manifold` component is assigned to it. For any AABB intersection that ceased to exist, the entity is destroyed thus also destroying all components associated with it. The AABB is inflated a bit more when looking for separation to avoid a situation where they'd join and separate repeatedly. This is sometimes called _hysteresis_.
 
-In narrow-phase, closest point calculation is performed for the rigid body pair in all `edyn::contact_manifold`s. The _Separating-Axis Theorem (SAT)_ is employed. A _GJK_ implementation is planned but _SAT_ is preferred due to greater control and precision and better ability to debug and reason about the code. For each new contact point, an entity is created with a `edyn::contact_point` and a `edyn::contact_constraint` components. This allows better separation of concerns. The `edyn::contact_constraint` uses the information in the associated `edyn::contact_point` to setup its constraint rows in its `prepare` function.
-
-Many physics engines give special treatment to _contact constraints_ (aka _non-penetration constraints_). In _Edyn_ they are no different of other types of constraints. The `edyn::contact_constraint` is simply part of the `std::variant` in the `edyn::constraint` component.
+In narrow-phase, closest point calculation is performed for the rigid body pair in all `edyn::contact_manifold`s. The _Separating-Axis Theorem (SAT)_ is employed. A _GJK_ implementation is planned but _SAT_ is preferred due to greater control and precision and better ability to debug and reason about the code. For each new contact point, an entity is created with a `edyn::contact_point` and a `edyn::contact_constraint` components. This allows better separation of concerns. The `edyn::contact_constraint` uses the information in the associated `edyn::contact_point` to setup its constraint rows in the preparation function.
 
 Contact point persistence is important for stability and to preserve continuity over time. New contact points that are near existing points get merged together, thus extending the lifetime of an existing contact and reusing the previously applied impulse for _warm starting_ later in the constraint solver. Contact points that are separating (in either tangential or normal directions) are destroyed.
 
@@ -130,11 +123,11 @@ The features are intersected on a case-by-case basis and contact points are inse
 
 Collision events can be observed by listening to `on_construct<entt::contact_point>` or `on_destroy<entt::contact_point>` in the `entt::registry` to observe contact construction and destruction, respectively.
 
-Contact points are not updated in the main registry continuously since that would be wasteful by default. In some cases it's desirable to have information such as the contact position, normal vector and applied normal and/of friction impulse in every frame, which can be used to play sounds or to drive a particle system, for example. If updated contact information is necessary, a `edyn::continuous` component must be assigned to the contact point when it's constructed and it must be marked as dirty so the changes can be propagated to the island worker where it resides. Another possibility is to assign a `edyn::continuous_contact_tag` to a rigid body entity so every contact involving this entity will be automatically marked as continuous.
+Contact points are not updated in the main registry continuously since that would be wasteful by default. In some cases it's desirable to have information such as the contact position, normal vector and applied normal and/of friction impulse in every frame, which can be used to play sounds or to drive a particle system, for example. If updated contact information is necessary, a `edyn::continuous` component must be assigned to the contact point when it's constructed and it must be marked as dirty so the changes can be propagated to the island worker where it resides. Another possibility is to assign a `edyn::continuous_contacts_tag` to a rigid body entity so every contact involving this entity will be automatically marked as continuous.
 
 # Shapes
 
-Similarly to constraints, `edyn::shape` also holds a `std::variant` with all shape types in its parameter pack. It's necessary to fork the project and modify the code to add custom shapes. It is also necessary to provide a `edyn::collide` function for every permutation of the custom shape with all existing shapes.
+The physical shape of a rigid body is stored in `edyn::shape` which holds a `std::variant` with all shape types in its parameter pack. It's necessary to fork the project and modify the code to add custom shapes. It is also necessary to provide a `edyn::collide` function for every permutation of the custom shape with all existing shapes.
 
 ## Paged triangle mesh shape
 

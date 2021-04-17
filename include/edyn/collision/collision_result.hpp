@@ -4,7 +4,7 @@
 #include <array>
 #include <utility>
 #include "edyn/math/quaternion.hpp"
-#include "edyn/math/constants.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {

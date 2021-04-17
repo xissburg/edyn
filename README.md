@@ -114,6 +114,8 @@ When `edyn::world::update()` is called, it processes any pending changes, create
 
 Due to its multi-threaded nature, all changes to relevant components in the main `entt::registry` need to be propagated to the worker threads. The `edyn::world` doesn't automatically pick up these changes, thus it's necessary to notify it either by calling `edyn::world::refresh()` or assigning a `edyn::dirty` component to the entity and calling some of its functions such as `edyn::dirty::updated()` (e.g. `registry.emplace<edyn::dirty>(entity).updated<edyn::position, edyn::linvel>()`).
 
-# Documentation
+# Design Philosophy
+
+The code style and architecture is largely inspired by _EnTT_ which seeks to leverage modern C++ features. It steers away from typical object-oriented patterns making minimal use of inheritance and polymorphism, thus maintaining a more flat structure throughout. Data-oriented design principles are applied wherever feasible.
 
 See [docs/Design.md](https://github.com/xissburg/edyn/blob/master/docs/Design.md) to learn more about the engine's planned architecture.

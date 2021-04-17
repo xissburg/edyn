@@ -30,15 +30,6 @@ inline constexpr vector3 gravity_neptune {0, -11.15, 0};
 inline constexpr vector3 gravity_pluto   {0, -0.62,  0};
 inline constexpr vector3 gravity_moon    {0, -1.625, 0};
 
-inline constexpr size_t max_contacts = 4;
-
-inline constexpr scalar contact_breaking_threshold = 0.02;
-inline constexpr scalar contact_caching_threshold = 0.04;
-inline constexpr scalar island_time_to_sleep = 2;
-inline constexpr scalar island_linear_sleep_threshold = 0.005;
-inline constexpr scalar island_angular_sleep_threshold = pi / 48;
-inline constexpr scalar support_polygon_tolerance = 0.004;
-
 }
 
 #endif // EDYN_MATH_CONSTANTS_HPP

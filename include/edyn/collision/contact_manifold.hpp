@@ -4,7 +4,7 @@
 #include <array>
 #include <entt/fwd.hpp>
 #include <entt/entity/entity.hpp>
-#include "edyn/math/constants.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {

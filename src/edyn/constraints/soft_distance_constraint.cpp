@@ -1,112 +1,138 @@
 #include "edyn/constraints/soft_distance_constraint.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/mass.hpp"
+#include "edyn/comp/inertia.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
 
-void soft_distance_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
-    for (size_t i = 0; i < 2; ++i) {
-        add_constraint_row(entity, con, registry, 400);
-    }
+struct row_start_index_soft_distance_constraint {
+    size_t value;
+};
+
+template<>
+void prepare_constraints<soft_distance_constraint>(entt::registry &registry, 
+                                                   row_cache &cache, scalar dt) {
+    auto body_view = registry.view<position, orientation, 
+                                   linvel, angvel, 
+                                   mass_inv, inertia_world_inv, 
+                                   delta_linvel, delta_angvel>();    
+    auto con_view = registry.view<soft_distance_constraint, constraint_impulse>();
+    size_t start_idx = cache.rows.size();
+    registry.ctx_or_set<row_start_index_soft_distance_constraint>().value = start_idx;
+
+    con_view.each([&] (soft_distance_constraint &con, constraint_impulse &imp) {
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = 
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+
+        auto rA = rotate(ornA, con.pivot[0]);
+        auto rB = rotate(ornB, con.pivot[1]);
+
+        auto d = posA + rA - posB - rB;
+        auto l2 = length_sqr(d);
+        auto l = std::sqrt(l2);
+        vector3 dn;
+        
+        if (l2 > EDYN_EPSILON) {
+            dn = d / l;
+        } else {
+            d = dn = vector3_x;
+        }
+
+        auto p = cross(rA, dn);
+        auto q = cross(rB, dn);
+
+        {
+            // Spring row. By setting the error to +/- `large_scalar`, it will
+            // always apply the impulse set in the limits.
+            auto error = con.distance - l;
+            auto spring_force = con.stiffness * error;
+            auto spring_impulse = spring_force * dt;
+
+            auto &row = cache.rows.emplace_back();
+            row.J = {dn, p, -dn, -q};
+            row.lower_limit = std::min(spring_impulse, scalar(0));
+            row.upper_limit = std::max(scalar(0), spring_impulse);
+
+            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
+            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dvB = &dvB;
+            row.dwA = &dwA; row.dwB = &dwB;
+            row.impulse = imp.values[0];
+
+            auto options = constraint_row_options{};
+            options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
+
+            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            warm_start(row);
+        }
+
+        {
+            // Damping row. It functions like friction where the force is
+            // proportional to the relative speed.
+            auto &row = cache.rows.emplace_back();
+            row.J = {dn, p, -dn, -q};
+
+            auto relspd = dot(row.J[0], linvelA) + 
+                          dot(row.J[1], angvelA) +
+                          dot(row.J[2], linvelB) +
+                          dot(row.J[3], angvelB);
+            con.m_relspd = relspd;
+            auto damping_force = con.damping * relspd;
+            auto damping_impulse = damping_force * dt;
+            auto impulse = std::abs(damping_impulse);
+            row.lower_limit = -impulse;
+            row.upper_limit =  impulse;
+
+            row.inv_mA = inv_mA; row.inv_mB = inv_mB;
+            row.inv_IA = inv_IA; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dvB = &dvB;
+            row.dwA = &dwA; row.dwB = &dwB;
+            row.impulse = imp.values[1];
+
+            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            warm_start(row);
+        }
+
+        size_t num_rows = 2;
+        cache.con_num_rows.push_back(num_rows);
+    });
 }
 
-void soft_distance_constraint::prepare(entt::entity, constraint &con, 
-                                       entt::registry &registry, scalar dt) {
-    auto &posA = registry.get<position>(con.body[0]);
-    auto &ornA = registry.get<orientation>(con.body[0]);
-    auto &posB = registry.get<position>(con.body[1]);
-    auto &ornB = registry.get<orientation>(con.body[1]);
+template<>
+void iterate_constraints<soft_distance_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
+    auto con_view = registry.view<soft_distance_constraint>();
+    auto row_idx = registry.ctx<row_start_index_soft_distance_constraint>().value;
 
-    auto rA = rotate(ornA, pivot[0]);
-    auto rB = rotate(ornB, pivot[1]);
+    con_view.each([&] (soft_distance_constraint &con) {
+        // Adjust damping row limits to account for velocity changes during iterations.
+        auto &damping_row = cache.rows[row_idx + 1];
+        auto delta_relspd = dot(damping_row.J[0], *damping_row.dvA) + 
+                            dot(damping_row.J[1], *damping_row.dwA) +
+                            dot(damping_row.J[2], *damping_row.dvB) +
+                            dot(damping_row.J[3], *damping_row.dwB);
 
-    auto d = posA + rA - posB - rB;
-    auto l2 = length_sqr(d);
-    auto l = std::sqrt(l2);
-    vector3 dn;
-    
-    if (l2 > EDYN_EPSILON) {
-        dn = d / l;
-    } else {
-        d = dn = vector3_x;
-    }
+        auto relspd = con.m_relspd + delta_relspd;
 
-    auto p = cross(rA, dn);
-    auto q = cross(rB, dn);
-
-    {
-        // Spring row. By setting the error to +/- `large_scalar`, it will
-        // always apply the impulse set in the limits.
-        auto error = distance - l;
-        auto spring_force = stiffness * error;
-        auto spring_impulse = spring_force * dt;
-
-        auto &data = registry.get<constraint_row_data>(con.row[0]);
-        data.J = {dn, p, -dn, -q};
-        data.lower_limit = std::min(spring_impulse, scalar(0));
-        data.upper_limit = std::max(scalar(0), spring_impulse);
-        auto &row = registry.get<constraint_row>(con.row[0]);
-        row.error = spring_impulse > 0 ? -large_scalar : large_scalar;
-    }
-
-    {
-        // Damping row. It functions like friction where the force is
-        // proportional to the relative speed.
-        auto &data = registry.get<constraint_row_data>(con.row[1]);
-        data.J = {dn, p, -dn, -q};
-        auto &row = registry.get<constraint_row>(con.row[1]);
-        row.error = 0;
-
-        auto &linvelA = registry.get<linvel>(con.body[0]);
-        auto &angvelA = registry.get<angvel>(con.body[0]);
-        auto &linvelB = registry.get<linvel>(con.body[1]);
-        auto &angvelB = registry.get<angvel>(con.body[1]);
-
-        auto relspd = dot(data.J[0], linvelA) + 
-                      dot(data.J[1], angvelA) +
-                      dot(data.J[2], linvelB) +
-                      dot(data.J[3], angvelB);
-        auto damping_force = damping * relspd;
+        auto damping_force = con.damping * relspd;
         auto damping_impulse = damping_force * dt;
         auto impulse = std::abs(damping_impulse);
 
-        data.lower_limit = -impulse;
-        data.upper_limit =  impulse;
+        damping_row.lower_limit = -impulse;
+        damping_row.upper_limit =  impulse;
 
-        m_relspd = relspd;
-    }
-}
-
-void soft_distance_constraint::iteration(entt::entity entity, constraint &con, 
-                                         entt::registry &registry, scalar dt) {
-    // Adjust damping row limits to account for velocity changes during iterations.
-    auto &dvA = registry.get<delta_linvel>(con.body[0]);
-    auto &dwA = registry.get<delta_angvel>(con.body[0]);
-    auto &dvB = registry.get<delta_linvel>(con.body[1]);
-    auto &dwB = registry.get<delta_angvel>(con.body[1]);
-
-    auto &data = registry.get<constraint_row_data>(con.row[1]);
-    auto delta_relspd = dot(data.J[0], dvA) + 
-                        dot(data.J[1], dwA) +
-                        dot(data.J[2], dvB) +
-                        dot(data.J[3], dwB);
-
-    auto relspd = m_relspd + delta_relspd;
-
-    auto damping_force = damping * relspd;
-    auto damping_impulse = damping_force * dt;
-    auto impulse = std::abs(damping_impulse);
-
-    data.lower_limit = -impulse;
-    data.upper_limit =  impulse;
+        row_idx += 2;
+    });
 }
 
 }
