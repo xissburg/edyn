@@ -21,7 +21,6 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
     auto cyl_axis = normalize(cylinder_vertices[1] - cylinder_vertices[0]);
 
     scalar distance = -EDYN_SCALAR_MAX;
-    scalar projection_cap = EDYN_SCALAR_MAX;
     scalar projection_cyl = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
 
@@ -39,7 +38,6 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
         
         if (dist > distance) {
             distance = dist;
-            projection_cap = projA;
             projection_cyl = projB;
             sep_axis = dir;
         }
@@ -64,7 +62,6 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
             
             if (dist > distance) {
                 distance = dist;
-                projection_cap = projA;
                 projection_cyl = projB;
                 sep_axis = dir;
             }
@@ -90,7 +87,6 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
 
         if (dist > distance) {
             distance = dist;
-            projection_cap = projA;
             projection_cyl = projB;
             sep_axis = dir;
         }
@@ -119,7 +115,6 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
 
         if (dist > distance) {
             distance = dist;
-            projection_cap = projA;
             projection_cyl = projB;
             sep_axis = dir;
         }
@@ -150,7 +145,6 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
 
             if (dist > distance) {
                 distance = dist;
-                projection_cap = projA;
                 projection_cyl = projB;
                 sep_axis = dir;
             }
@@ -213,7 +207,7 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
             for (size_t i = 0; i < num_points; ++i) {
                 if (s[i] < 0 || s[i] > 1) continue;
 
-                auto pivotA_world = lerp(capsule_vertices[0], capsule_vertices[1], s[i]);
+                auto pivotA_world = lerp(capsule_vertices[0], capsule_vertices[1], s[i]) - sep_axis * shA.radius;
                 auto pivotB_world = project_plane(pivotA_world, contact_origin_cyl, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
@@ -221,6 +215,7 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
                 result.add_point({pivotA, pivotB, normalB, local_distance});
             }
         } else {
+            // Cylinder cap face against capsule vertex.
             auto &closest_capsule_vertex = proj_capsule_vertices[0] < proj_capsule_vertices[1] ? 
                                            capsule_vertices[0] : capsule_vertices[1];
             auto pivotA_world = closest_capsule_vertex - sep_axis * shA.radius;
