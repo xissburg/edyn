@@ -1,8 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
 #include "edyn/util/aabb_util.hpp"
-#include "edyn/math/math.hpp"
-#include <algorithm>
 
 namespace edyn {
 

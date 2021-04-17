@@ -270,6 +270,12 @@ void collide_cylinder_triangle(
     const vector3 &cylinder_axis, const triangle_shape &tri, 
     scalar threshold, collision_result &result);
 
+// Capsule-Triangle
+void collide_capsule_triangle(
+    const capsule_shape &capsule, const vector3 &posA, const quaternion &ornA,
+    const std::array<vector3, 2> &capsule_vertices, 
+    const triangle_shape &tri, scalar threshold, collision_result &result);
+
 // Box-Triangle
 void collide_box_triangle(
     const box_shape &, const vector3 &box_pos, const quaternion &box_orn,
