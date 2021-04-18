@@ -232,7 +232,10 @@ inline quaternion to_quaternion(const matrix3x3 &m) {
  */
 inline
 vector3 to_object_space(const vector3 &p, const vector3 &pos, const matrix3x3 &basis) {
-    return transpose(basis) * (p - pos);
+    // Multiplying a vector by a matrix on the right is equivalent to multiplying
+    // by the transpose of the matrix on the left, and the transpose of a rotation
+    // matrix is its inverse.
+    return (p - pos) * basis;
 }
 
 /**

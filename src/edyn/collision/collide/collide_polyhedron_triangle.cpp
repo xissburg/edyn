@@ -17,12 +17,12 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
     // assumed to be with its pivot at the origin. That also means collision points
     // on the triangle must be shifted by `pos_poly` when inserting then into the
     // `result`.
-    scalar projection_poly = EDYN_SCALAR_MAX;
-    scalar distance = -EDYN_SCALAR_MAX;
-    scalar projection_tri = -EDYN_SCALAR_MAX;
     triangle_feature tri_feature;
     size_t tri_feature_index;
+    auto projection_poly = EDYN_SCALAR_MAX;
+    auto projection_tri = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
+    scalar distance = -EDYN_SCALAR_MAX;
 
     // Polyhedron face normals.
     for (size_t i = 0; i < poly.mesh->num_faces(); ++i) {
@@ -77,7 +77,6 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
         auto poly_edge = vertexA1 - vertexA0;
 
         for (size_t j = 0; j < tri.edges.size(); ++j) {
-            auto &vertexB0 = tri.vertices[j];
             auto dir = cross(poly_edge, tri.edges[j]);
             auto dir_len_sqr = length_sqr(dir);
 
@@ -86,6 +85,8 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
             }
 
             dir /= std::sqrt(dir_len_sqr);
+
+            auto &vertexB0 = tri.vertices[j];
 
             // Polyhedron is assumed to be located at the origin.
             if (dot(vector3_zero - vertexB0, dir) < 0) {

@@ -45,6 +45,7 @@ set(Edyn_SOURCES
     src/edyn/collision/collide/collide_capsule_mesh.cpp
     src/edyn/collision/collide/collide_cylinder_mesh.cpp
     src/edyn/collision/collide/collide_sphere_paged_mesh.cpp
+    src/edyn/collision/collide/collide_capsule_triangle.cpp
     src/edyn/collision/collide/collide_capsule_paged_mesh.cpp
     src/edyn/collision/collide/collide_cylinder_paged_mesh.cpp
     src/edyn/collision/collide/collide_box_box.cpp
