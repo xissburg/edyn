@@ -435,16 +435,26 @@ void collide(const compound_shape &shA, const T &shB,
     
     auto posB_in_A = to_object_space(ctx.posB, ctx.posA, ctx.ornA);
     auto ornB_in_A = conjugate(ctx.ornA) * ctx.ornB;
-    auto aabbB_in_A = aabb_of_aabb(ctx.aabbB, posB_in_A, ornB_in_A);
+    // Calculate AABB of B's AABB in A's space.
+    auto aabbB_in_A = aabb_to_object_space(ctx.aabbB, ctx.posA, ctx.ornA);
+    // A more precise AABB could be obtained but it would be generally more expensive.
+    //auto aabbB_in_A = shape_aabb(shB, posB_in_A, ornB_in_A);
 
     shA.visit(aabbB_in_A, [&] (auto && sh, const vector3 &pos, const quaternion &orn) {
-        auto inner_ctx = collision_context{};
-        inner_ctx.posA = pos;
-        inner_ctx.ornA = orn;
-        inner_ctx.posB = posB_in_A;
-        inner_ctx.ornB = ornB_in_A;
-        inner_ctx.threshold = ctx.threshold;
-        collide(sh, shB, inner_ctx, result);
+        auto child_ctx = ctx;
+        child_ctx.posA = pos;
+        child_ctx.ornA = orn;
+        child_ctx.posB = posB_in_A;
+        child_ctx.ornB = ornB_in_A;
+
+        collision_result child_result;
+        collide(sh, shB, child_ctx, child_result);
+
+        for (size_t i = 0; i < child_result.num_points; ++i) {
+            auto &child_point = child_result.point[i];
+            child_point.pivotA = to_world_space(child_point.pivotA, pos, orn);
+            result.maybe_add_point(child_point);
+        }
     });
 }
 

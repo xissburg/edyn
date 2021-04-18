@@ -86,9 +86,9 @@ AABB capsule_aabb(scalar radius, scalar half_length, const vector3 &pos, const q
     return {min(p0, p1) - offset, max(p0, p1) + offset};
 }
 
-AABB aabb_of_aabb(const AABB &aabb, const vector3 &pos, const quaternion &orn) {
-    auto center = (aabb.min + aabb.max) * scalar(0.5);
-    auto center_world = to_world_space(center, pos, orn);
+AABB aabb_to_world_space(const AABB &aabb, const vector3 &pos, const quaternion &orn) {
+    auto center_local = (aabb.min + aabb.max) * scalar(0.5);
+    auto center = to_world_space(center_local, pos, orn);
     auto extents = aabb.max - aabb.min;
     auto half_extents = extents * scalar(0.5);
 
@@ -102,13 +102,38 @@ AABB aabb_of_aabb(const AABB &aabb, const vector3 &pos, const quaternion &orn) {
     auto sup_y = support_point_box(half_extents, axis_y);
     auto sup_z = support_point_box(half_extents, axis_z);
 
-    auto result_half_extent = vector3{
+    auto result_half_extents = vector3{
         dot(sup_x, axis_x),
         dot(sup_y, axis_y),
         dot(sup_z, axis_z)
     };
-    auto result_min = center_world - result_half_extent;
-    auto result_max = center_world + result_half_extent;
+    auto result_min = center - result_half_extents;
+    auto result_max = center + result_half_extents;
+    return {result_min, result_max};
+}
+
+AABB aabb_to_object_space(const AABB &aabb, const vector3 &pos, const quaternion &orn) {
+    auto center_local = (aabb.min + aabb.max) * scalar(0.5);
+    auto center = to_object_space(center_local, pos, orn);
+    auto extents = aabb.max - aabb.min;
+    auto half_extents = extents * scalar(0.5);
+
+    // Compute support points on local axes.
+    auto axis_x = rotate(orn, vector3_x);
+    auto axis_y = rotate(orn, vector3_y);
+    auto axis_z = rotate(orn, vector3_z);
+
+    auto sup_x = support_point_box(half_extents, axis_x);
+    auto sup_y = support_point_box(half_extents, axis_y);
+    auto sup_z = support_point_box(half_extents, axis_z);
+
+    auto result_half_extents = vector3{
+        dot(sup_x, axis_x),
+        dot(sup_y, axis_y),
+        dot(sup_z, axis_z)
+    };
+    auto result_min = center - result_half_extents;
+    auto result_max = center + result_half_extents;
     return {result_min, result_max};
 }
 
@@ -177,10 +202,11 @@ AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion
 }
 
 AABB shape_aabb(const compound_shape &sh, const vector3 &pos, const quaternion &orn) {
-    auto aabb = aabb_of_aabb(sh.nodes.front().aabb, pos, orn);
+    // Using AABB of transformed AABB for greater performance.
+    auto aabb = aabb_to_world_space(sh.nodes.front().aabb, pos, orn);
 
     for (size_t i = 1; i < sh.nodes.size(); ++i) {
-        auto aabb_i = aabb_of_aabb(sh.nodes[i].aabb, pos, orn);
+        auto aabb_i = aabb_to_world_space(sh.nodes[i].aabb, pos, orn);
         aabb = enclosing_aabb(aabb, aabb_i);
     }
 
