@@ -252,7 +252,7 @@ void detect_collision(const contact_manifold &manifold, collision_result &result
     if (intersect(aabbA.inset(offset), aabbB)) {
         auto &shapeA = body_view.get<shape>(manifold.body[0]);
         auto &shapeB = body_view.get<shape>(manifold.body[1]);
-        auto ctx = collision_context{posA, ornA, posB, ornB, contact_breaking_threshold};
+        auto ctx = collision_context{posA, ornA, aabbA, posB, ornB, aabbB, contact_breaking_threshold};
 
         if (std::holds_alternative<polyhedron_shape>(shapeA.var)) {
             ctx.rmeshA = rmesh_view.get(manifold.body[0]);

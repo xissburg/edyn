@@ -16,8 +16,8 @@
 namespace edyn {
 
 struct shape {
-    std::variant<plane_shape, 
-                 sphere_shape, 
+    std::variant<plane_shape,
+                 sphere_shape,
                  cylinder_shape,
                  capsule_shape,
                  mesh_shape,

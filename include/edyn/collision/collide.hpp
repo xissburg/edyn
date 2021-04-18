@@ -6,14 +6,19 @@
 #include "edyn/comp/shape.hpp"
 #include "edyn/comp/rotated_mesh.hpp"
 #include "edyn/collision/collision_result.hpp"
+#include "edyn/math/quaternion.hpp"
+#include "edyn/shapes/compound_shape.hpp"
+#include "edyn/util/aabb_util.hpp"
 
 namespace edyn {
 
 struct collision_context {
     vector3 posA;
     quaternion ornA;
+    AABB aabbA;
     vector3 posB;
     quaternion ornB;
+    AABB aabbB;
     scalar threshold;
 
     using rotated_mesh_opt_ref = std::optional<std::reference_wrapper<rotated_mesh>>;
@@ -21,8 +26,8 @@ struct collision_context {
     rotated_mesh_opt_ref rmeshB;
 
     collision_context swapped() const {
-        return {posB, ornB,
-                posA, ornA,
+        return {posB, ornB, aabbB,
+                posA, ornA, aabbA,
                 threshold,
                 rmeshB, rmeshA};
     }
@@ -352,6 +357,7 @@ void collide_polyhedron_triangle(
 void collide(const compound_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
 
+/*
 // Compound-Plane
 void collide(const compound_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result);
@@ -415,12 +421,37 @@ void collide(const compound_shape &shA, const paged_mesh_shape &shB,
 // Paged Mesh-Compound
 void collide(const paged_mesh_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
-
+ */
 template<typename ShapeAType, typename ShapeBType>
 void swap_collide(const ShapeAType &shA, const ShapeBType &shB,
                   const collision_context &ctx, collision_result &result) {
     collide(shB, shA, ctx.swapped(), result);
     result.swap(ctx.ornB, ctx.ornA);
+}
+
+template<typename T>
+void collide(const compound_shape &shA, const T &shB,
+             const collision_context &ctx, collision_result &result) {
+    
+    auto posB_in_A = to_object_space(ctx.posB, ctx.posA, ctx.ornA);
+    auto ornB_in_A = conjugate(ctx.ornA) * ctx.ornB;
+    auto aabbB_in_A = aabb_of_aabb(ctx.aabbB, posB_in_A, ornB_in_A);
+
+    shA.visit(aabbB_in_A, [&] (auto && sh, const vector3 &pos, const quaternion &orn) {
+        auto inner_ctx = collision_context{};
+        inner_ctx.posA = pos;
+        inner_ctx.ornA = orn;
+        inner_ctx.posB = posB_in_A;
+        inner_ctx.ornB = ornB_in_A;
+        inner_ctx.threshold = ctx.threshold;
+        collide(sh, shB, inner_ctx, result);
+    });
+}
+
+template<typename T>
+void collide(const T &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

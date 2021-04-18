@@ -3,8 +3,7 @@
 namespace edyn {
 
 void compound_shape::finish() {
-    auto aabbs = std::vector<AABB>{};
-    aabbs.reserve(nodes.size());
+    auto aabbs = std::vector<AABB>(nodes.size());
     std::transform(nodes.begin(), nodes.end(), aabbs.begin(), 
                     [] (auto &node) { return node.aabb; });
     auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {

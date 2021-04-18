@@ -11,6 +11,7 @@
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/collision/static_tree.hpp"
+#include "edyn/util/aabb_util.hpp"
 
 namespace edyn {
 
