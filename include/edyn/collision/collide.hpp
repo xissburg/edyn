@@ -357,7 +357,6 @@ void collide_polyhedron_triangle(
 void collide(const compound_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
 
-/*
 // Compound-Plane
 void collide(const compound_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result);
@@ -366,6 +365,7 @@ void collide(const compound_shape &shA, const plane_shape &shB,
 void collide(const plane_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
 
+/*
 // Sphere-Compound
 void collide(const sphere_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
