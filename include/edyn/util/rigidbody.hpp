@@ -60,7 +60,7 @@ struct rigidbody_def {
 
     // Whether this entity will be used for presentation and needs 
     // position/orientation interpolation.
-    bool presentation {false};
+    bool presentation {true};
 
     void update_inertia();
 };
