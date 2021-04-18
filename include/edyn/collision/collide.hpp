@@ -366,38 +366,6 @@ void collide(const plane_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
 
 /*
-// Sphere-Compound
-void collide(const sphere_shape &shA, const compound_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Compound-Sphere
-void collide(const compound_shape &shA, const sphere_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Box-Compound
-void collide(const box_shape &shA, const compound_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Compound-Box
-void collide(const compound_shape &shA, const box_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Capsule-Compound
-void collide(const capsule_shape &shA, const compound_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Compound-Capsule
-void collide(const compound_shape &shA, const capsule_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Cylinder-Compound
-void collide(const cylinder_shape &shA, const compound_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Compound-Cylinder
-void collide(const compound_shape &shA, const cylinder_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
 // Compound-Polyhedron
 void collide(const compound_shape &shA, const polyhedron_shape &shB,
              const collision_context &ctx, collision_result &result);
@@ -422,13 +390,8 @@ void collide(const compound_shape &shA, const paged_mesh_shape &shB,
 void collide(const paged_mesh_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
  */
-template<typename ShapeAType, typename ShapeBType>
-void swap_collide(const ShapeAType &shA, const ShapeBType &shB,
-                  const collision_context &ctx, collision_result &result) {
-    collide(shB, shA, ctx.swapped(), result);
-    result.swap(ctx.ornB, ctx.ornA);
-}
 
+// Compound-Box/Sphere/Cylinder/Capsule
 template<typename T>
 void collide(const compound_shape &shA, const T &shB,
              const collision_context &ctx, collision_result &result) {
@@ -440,7 +403,8 @@ void collide(const compound_shape &shA, const T &shB,
     // A more precise AABB could be obtained but it would be generally more expensive.
     //auto aabbB_in_A = shape_aabb(shB, posB_in_A, ornB_in_A);
 
-    shA.visit(aabbB_in_A, [&] (auto && sh, const vector3 &pos, const quaternion &orn) {
+    shA.visit(aabbB_in_A, [&] (auto &&sh, const vector3 &pos, const quaternion &orn) {
+        // New collision context set into A's space.
         auto child_ctx = ctx;
         child_ctx.posA = pos;
         child_ctx.ornA = orn;
@@ -450,6 +414,8 @@ void collide(const compound_shape &shA, const T &shB,
         collision_result child_result;
         collide(sh, shB, child_ctx, child_result);
 
+        // The elements of A in the collision points must be transformed from the child
+        // node's space into A's space.
         for (size_t i = 0; i < child_result.num_points; ++i) {
             auto &child_point = child_result.point[i];
             child_point.pivotA = to_world_space(child_point.pivotA, pos, orn);
@@ -458,10 +424,18 @@ void collide(const compound_shape &shA, const T &shB,
     });
 }
 
+// Box/Sphere/Cylinder/Capsule-Compound
 template<typename T>
 void collide(const T &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result) {
     swap_collide(shA, shB, ctx, result);
+}
+
+template<typename ShapeAType, typename ShapeBType>
+void swap_collide(const ShapeAType &shA, const ShapeBType &shB,
+                  const collision_context &ctx, collision_result &result) {
+    collide(shB, shA, ctx.swapped(), result);
+    result.swap(ctx.ornB, ctx.ornA);
 }
 
 }
