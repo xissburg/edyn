@@ -149,16 +149,19 @@ void collide_capsule_triangle(
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = lerp(v0, v1, t[k]);
                     auto local_distance = dot(pivotA_world - tri.vertices[0], sep_axis);
-                    result.add_point({pivotA, pivotB, sep_axis, local_distance});
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
                 }
             }
         } else {
             // Triangle face against capsule vertex.
             auto &closest_capsule_vertex = capsule_vertices[capsule_vertex_index];
-            auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
-            auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            auto pivotB = project_plane(closest_capsule_vertex, tri.vertices[0], sep_axis);
-            result.add_point({pivotA, pivotB, sep_axis, distance});
+
+            if (point_in_triangle(tri.vertices, tri.normal, closest_capsule_vertex)) {
+                auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                auto pivotB = project_plane(closest_capsule_vertex, tri.vertices[0], sep_axis);
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            }
         }
         break;
     }
@@ -178,7 +181,7 @@ void collide_capsule_triangle(
                 auto pivotA_world = closest_cap[i] - sep_axis * capsule.radius;
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = closest_tri[i];
-                result.add_point({pivotA, pivotB, sep_axis, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
             }
         } else {
             auto &closest_capsule_vertex = capsule_vertices[capsule_vertex_index];
@@ -187,7 +190,7 @@ void collide_capsule_triangle(
 
             auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            result.add_point({pivotA, pivotB, sep_axis, distance});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
         break;
     }
@@ -201,12 +204,12 @@ void collide_capsule_triangle(
 
             auto pivotA_world = closest - sep_axis * capsule.radius;
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            result.add_point({pivotA, pivotB, sep_axis, distance});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         } else {
             auto &closest_capsule_vertex = capsule_vertices[capsule_vertex_index];
             auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            result.add_point({pivotA, pivotB, sep_axis, distance});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     }
     }
