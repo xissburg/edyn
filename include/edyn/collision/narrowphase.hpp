@@ -48,31 +48,39 @@ public:
     void finish_async_update();
 
     template<typename Iterator>
-    void update_contact_manifolds(Iterator begin, Iterator end) {
-        auto manifold_view = m_registry->view<contact_manifold>();
-        update_contact_manifolds(begin, end, manifold_view);
-    }
+    void update_contact_manifolds(Iterator begin, Iterator end);
 
     template<typename Iterator>
-    void update_contact_manifolds(Iterator begin, Iterator end, contact_manifold_view_t &manifold_view) {
-        auto body_view = m_registry->view<AABB, shape, position, orientation>();
-        auto rmesh_view = m_registry->view<rotated_mesh>();
-        auto tr_view = m_registry->view<position, orientation>();
-        collision_result result;
-
-        for (auto it = begin; it != end; ++it) {
-            entt::entity entity = *it;
-            auto &manifold = manifold_view.get(entity);
-            detect_collision(manifold, result, body_view, rmesh_view);
-            process_result(*m_registry, entity, manifold, result, tr_view);
-        }
-    }
+    void update_contact_manifolds(Iterator begin, Iterator end, 
+                                  contact_manifold_view_t &manifold_view);
 
 private:
     entt::registry *m_registry;
     std::vector<contact_point_construction_info> m_cp_construction_infos;
     std::vector<contact_point_destruction_info> m_cp_destruction_infos;
 };
+
+template<typename Iterator>
+void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
+    auto manifold_view = m_registry->view<contact_manifold>();
+    update_contact_manifolds(begin, end, manifold_view);
+}
+
+template<typename Iterator>
+void narrowphase::update_contact_manifolds(Iterator begin, Iterator end, 
+                                           contact_manifold_view_t &manifold_view) {
+    auto body_view = m_registry->view<AABB, shape, position, orientation>();
+    auto rmesh_view = m_registry->view<rotated_mesh>();
+    auto tr_view = m_registry->view<position, orientation>();
+
+    for (auto it = begin; it != end; ++it) {
+        entt::entity entity = *it;
+        auto &manifold = manifold_view.get(entity);
+        collision_result result;
+        detect_collision(manifold, result, body_view, rmesh_view);
+        process_result(*m_registry, entity, manifold, result, tr_view);
+    }
+}
 
 }
 
