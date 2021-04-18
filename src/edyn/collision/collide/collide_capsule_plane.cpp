@@ -16,8 +16,8 @@ void add_contact_points(scalar l, const vector3 &d, scalar radius, const vector3
     }
 }
 
-collision_result collide(const capsule_shape &shA, const plane_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const capsule_shape &shA, const plane_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     // Plane center and normal in world-space.
     auto normal = rotate(ctx.ornB, shB.normal);
     auto center = ctx.posB + rotate(ctx.ornB, shB.normal * shB.constant);
@@ -36,20 +36,16 @@ collision_result collide(const capsule_shape &shA, const plane_shape &shB,
     // Projection on plane normal.
     auto l0 = dot(normal, d0);
     auto l1 = dot(normal, d1);
-
-    auto result = collision_result {};
     
     add_contact_points(l0, d0, shA.radius, -hl, ctx.ornA, center, 
                        ctx.ornB, shB.normal, normal, result);
     add_contact_points(l1, d1, shA.radius, hl, ctx.ornA, center, 
                        ctx.ornB, shB.normal, normal, result);
-
-    return result;
 }
 
-collision_result collide(const plane_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const plane_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

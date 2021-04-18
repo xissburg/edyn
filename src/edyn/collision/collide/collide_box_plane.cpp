@@ -2,9 +2,8 @@
 
 namespace edyn {
 
-collision_result collide(const box_shape &shA, const plane_shape &shB, 
-                         const collision_context &ctx) {
-    auto result = collision_result{};
+void collide(const box_shape &shA, const plane_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     auto normal = rotate(ctx.ornB, shB.normal);
     auto center = ctx.posB + rotate(ctx.ornB, shB.normal * shB.constant);
 
@@ -46,13 +45,11 @@ collision_result collide(const box_shape &shA, const plane_shape &shB,
             }
         }
     }
-
-    return result;
 }
 
-collision_result collide(const plane_shape &shA, const box_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const plane_shape &shA, const box_shape &shB,
+                         const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

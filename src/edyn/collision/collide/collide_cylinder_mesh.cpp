@@ -4,10 +4,8 @@
 
 namespace edyn {
 
-collision_result collide(const cylinder_shape &shA, const mesh_shape &shB, 
-                         const collision_context &ctx) {
-    auto result = collision_result{};
-
+void collide(const cylinder_shape &shA, const mesh_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     // Cylinder position and orientation in mesh's space.
     auto posA_in_B = rotate(conjugate(ctx.ornB), ctx.posA - ctx.posB);
     auto ornA_in_B = conjugate(ctx.ornB) * ctx.ornA;
@@ -32,13 +30,11 @@ collision_result collide(const cylinder_shape &shA, const mesh_shape &shB,
                                   disc_center_pos, disc_center_neg, cyl_axis, 
                                   tri, ctx.threshold, result);
     });
-
-    return result;
 }
 
-collision_result collide(const mesh_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const mesh_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

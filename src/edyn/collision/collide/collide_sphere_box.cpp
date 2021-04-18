@@ -3,9 +3,8 @@
 
 namespace edyn {
 
-collision_result collide(const sphere_shape &shA, const box_shape &shB, 
-                         const collision_context &ctx) {
-
+void collide(const sphere_shape &shA, const box_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     // Sphere position and orientation in box space.
     const auto ornB_conj = conjugate(ctx.ornB);
     const auto posA_in_B = rotate(ornB_conj, ctx.posA - ctx.posB);
@@ -18,7 +17,7 @@ collision_result collide(const sphere_shape &shA, const box_shape &shB,
     auto min_dist = shA.radius + ctx.threshold;
 
     if (d_sqr > min_dist * min_dist) {
-        return {};
+        return;
     }
 
     scalar center_distance;
@@ -35,19 +34,15 @@ collision_result collide(const sphere_shape &shA, const box_shape &shB,
 
     auto pivotA_in_B = posA_in_B - normalB * shA.radius;
 
-    collision_result result;
-    result.num_points = 1;
-    result.point[0].pivotA = to_object_space(pivotA_in_B, posA_in_B, ornA_in_B);
-    result.point[0].pivotB = closest;
-    result.point[0].normalB = normalB;
-    result.point[0].distance = center_distance - shA.radius;
-
-    return result;
+    auto pivotA = to_object_space(pivotA_in_B, posA_in_B, ornA_in_B);
+    auto pivotB = closest;
+    auto distance = center_distance - shA.radius;
+    result.add_point({pivotA, pivotB, normalB, distance});
 }
 
-collision_result collide(const box_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const box_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

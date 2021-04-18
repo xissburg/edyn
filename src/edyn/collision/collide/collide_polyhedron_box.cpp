@@ -10,8 +10,8 @@
 
 namespace edyn {
 
-collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
-                         const collision_context &ctx) {
+void collide(const polyhedron_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result) {
     // Convex polyhedron against box SAT.
     // Calculate collision with polyhedron in the origin for better floating point
     // precision. Position of box is modified accordingly.
@@ -112,7 +112,7 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
     }
 
     if (distance > threshold) {
-        return {};
+        return;
     }
 
     auto polygon = point_cloud_support_polygon<true>(
@@ -127,7 +127,6 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
                         featureB, feature_indexB,
                         feature_distanceB, threshold);
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
     switch (featureB) {
@@ -270,13 +269,11 @@ collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
         result.add_point({pivotA, pivotB, normalB, distance});
     }
     }
-
-    return result;
 }
 
-collision_result collide(const box_shape &shA, const polyhedron_shape &shB, 
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const box_shape &shA, const polyhedron_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

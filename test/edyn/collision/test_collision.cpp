@@ -1,4 +1,5 @@
 #include "../common/common.hpp"
+#include "edyn/collision/collision_result.hpp"
 #include "edyn/comp/rotated_mesh.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/quaternion.hpp"
@@ -17,7 +18,8 @@ TEST(test_collision, collide_box_box_face_face) {
     ctx.posB = edyn::vector3{0, 2 * box.half_extents.y, 0};
     ctx.ornB = edyn::quaternion_identity;
     ctx.threshold = 0.02;
-    auto result = edyn::collide(box, box, ctx);
+    auto result = edyn::collision_result{};
+    edyn::collide(box, box, ctx, result);
     ASSERT_EQ(result.num_points, 4);
     
     std::vector<edyn::vector3> expected_points;
@@ -48,7 +50,8 @@ TEST(test_collision, collide_box_box_face_edge) {
     ctx.posB = edyn::vector3{0, edyn::scalar{2} * box.half_extents.y + edyn::scalar{0.2}, 0};
     ctx.ornB = edyn::quaternion_axis_angle({1, 0, 0}, edyn::pi / 4);
     ctx.threshold = 0.02;
-    auto result = edyn::collide(box, box, ctx);
+    auto result = edyn::collision_result{};
+    edyn::collide(box, box, ctx, result);
     ASSERT_EQ(result.num_points, 2);
     
     std::vector<edyn::vector3> expected_pivotA;
@@ -131,7 +134,9 @@ TEST(test_collision, collide_polyhedron_sphere) {
     ctx.ornB = edyn::quaternion_identity;
     ctx.rmeshA = rmesh; ctx.rmeshB = rmesh;
     ctx.threshold = edyn::large_scalar;
-    auto result = edyn::collide(polyhedron, sphere, ctx);
+    
+    auto result = edyn::collision_result{};
+    edyn::collide(polyhedron, sphere, ctx, result);
     auto pt = result.point[0];
     
     ASSERT_EQ(result.num_points, 1);
@@ -148,7 +153,9 @@ TEST(test_collision, collide_polyhedron_sphere) {
 
     ctx.posA = edyn::vector3{1.5, 1.5, 0.5};
     ctx.posB = edyn::vector3{0, 0, 0};
-    result = edyn::collide(sphere, polyhedron, ctx);
+
+    result = {};
+    edyn::collide(sphere, polyhedron, ctx, result);
     pt = result.point[0];
 
     ASSERT_EQ(result.num_points, 1);
@@ -174,7 +181,9 @@ TEST(test_collision, collide_capsule_cylinder_parallel) {
     ctx.posB = edyn::vector3{0, 0, 0};
     ctx.ornB = edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi / 2);
     ctx.threshold = 0.02;
-    auto result = edyn::collide(capsule, cylinder, ctx);
+    
+    auto result = edyn::collision_result{};
+    edyn::collide(capsule, cylinder, ctx, result);
     ASSERT_EQ(result.num_points, 2);
 
     std::vector<edyn::vector3> expected_pivotA;

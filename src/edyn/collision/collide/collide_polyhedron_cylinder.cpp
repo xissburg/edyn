@@ -9,8 +9,8 @@
 
 namespace edyn {
 
-collision_result collide(const polyhedron_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx) {
+void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result) {
     // Convex polyhedron against cylinder SAT.
     // Calculate collision with polyhedron in the origin for better floating point
     // precision. Position of cylinder is modified accordingly.
@@ -166,7 +166,7 @@ collision_result collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     }
 
     if (distance > threshold) {
-        return {};
+        return;
     }
 
     auto polygon = point_cloud_support_polygon<true>(
@@ -181,7 +181,6 @@ collision_result collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     shB.support_feature(posB, ornB, contact_origin_cyl, sep_axis, featureB,
                         feature_indexB, supB, projectionB, threshold);
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
     switch (featureB) {
@@ -336,13 +335,11 @@ collision_result collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         break;
     }
     }
-
-    return result;
 }
 
-collision_result collide(const cylinder_shape &shA, const polyhedron_shape &shB, 
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const cylinder_shape &shA, const polyhedron_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

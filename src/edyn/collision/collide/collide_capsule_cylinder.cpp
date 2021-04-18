@@ -7,8 +7,8 @@
 
 namespace edyn {
 
-collision_result collide(const capsule_shape &shA, const cylinder_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const capsule_shape &shA, const cylinder_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     const auto posA = vector3_zero;
     const auto &ornA = ctx.ornA;
     const auto posB = ctx.posB - ctx.posA;
@@ -152,10 +152,9 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
     }
 
     if (distance > ctx.threshold) {
-        return {};
+        return;
     }
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
     scalar proj_capsule_vertices[] = {
@@ -193,7 +192,7 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
 
             // Both vertices are inside the circle. Unnecessary to look for intersections.
             if (result.num_points == 2) {
-                return result;
+                return;
             }
 
             // Check if the capsule edge intersects the circular cap.
@@ -252,13 +251,11 @@ collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
         break;
     }
     }
-
-    return result;
 }
 
-collision_result collide(const cylinder_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const cylinder_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

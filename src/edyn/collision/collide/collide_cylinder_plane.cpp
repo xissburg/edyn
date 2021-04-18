@@ -2,8 +2,8 @@
 
 namespace edyn {
 
-collision_result collide(const cylinder_shape &shA, const plane_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const cylinder_shape &shA, const plane_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
     const auto &posB = ctx.posB;
@@ -14,7 +14,6 @@ collision_result collide(const cylinder_shape &shA, const plane_shape &shB,
     vector3 disc_pos[] = {posA - cyl_axis * shA.half_length, posA + cyl_axis * shA.half_length};
     auto normal = rotate(ornB, shB.normal);
     auto center = posB + rotate(ornB, shB.normal * shB.constant);
-    auto result = collision_result{};
 
     auto n_proj = normal - cyl_axis * dot(normal, cyl_axis);
     auto n_proj_len2 = length_sqr(n_proj);
@@ -109,13 +108,11 @@ collision_result collide(const cylinder_shape &shA, const plane_shape &shB,
             result.point[k].distance = std::min(disc_center_dist0, disc_center_dist1);
         }
     }
-    
-    return result;
 }
 
-collision_result collide(const plane_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const plane_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

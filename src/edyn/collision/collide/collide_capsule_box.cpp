@@ -9,8 +9,8 @@
 
 namespace edyn {
 
-collision_result collide(const capsule_shape &shA, const box_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const capsule_shape &shA, const box_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     const auto posA = vector3_zero;
     const auto &ornA = ctx.ornA;
     const auto posB = ctx.posB - ctx.posA;
@@ -84,7 +84,7 @@ collision_result collide(const capsule_shape &shA, const box_shape &shB,
     }
 
     if (distance > threshold) {
-        return {};
+        return;
     }
 
     scalar proj_capsule_vertices[] = {
@@ -103,7 +103,6 @@ collision_result collide(const capsule_shape &shA, const box_shape &shB,
                         featureB, feature_indexB,
                         feature_distanceB, threshold);
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
     switch (featureB) {
@@ -125,7 +124,7 @@ collision_result collide(const capsule_shape &shA, const box_shape &shB,
             // Do not continue if there are already 2 points in the result, which means
             // both vertices of the capsule are contained in the face.
             if (result.num_points == 2) {
-                return result;
+                return;
             }
 
             // Check if the capsule edge intersects the edges of the box face.
@@ -200,13 +199,11 @@ collision_result collide(const capsule_shape &shA, const box_shape &shB,
         result.add_point({pivotA, pivotB, normalB, distance});
     }
     }
-
-    return result;    
 }
 
-collision_result collide(const box_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const box_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

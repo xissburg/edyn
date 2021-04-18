@@ -263,7 +263,7 @@ void detect_collision(const contact_manifold &manifold, collision_result &result
         }
 
         std::visit([&result, &ctx] (auto &&sA, auto &&sB) {
-            result = collide(sA, sB, ctx);
+            collide(sA, sB, ctx, result);
         }, shapeA.var, shapeB.var);
     } else {
         result.num_points = 0;

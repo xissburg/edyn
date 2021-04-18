@@ -50,6 +50,7 @@ matrix3x3 moment_of_inertia(const capsule_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const mesh_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const box_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const polyhedron_shape &sh, scalar mass);
+matrix3x3 moment_of_inertia(const compound_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const paged_mesh_shape &sh, scalar mass);
 
 /**

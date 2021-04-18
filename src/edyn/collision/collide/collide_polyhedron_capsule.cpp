@@ -6,8 +6,8 @@
 
 namespace edyn {
 
-collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx) {
+void collide(const polyhedron_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result) {
     const auto posA = vector3_zero;
     const auto &ornA = ctx.ornA;
     const auto posB = ctx.posB - ctx.posA;
@@ -72,10 +72,9 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
     }
 
     if (distance > threshold) {
-        return {};
+        return;
     }
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
     scalar proj_capsule_vertices[] = {
@@ -106,7 +105,7 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
         // Do not continue if there are already 2 points in the result, which means
         // both vertices of the capsule are contained in the polygon.
         if (result.num_points == 2) {
-            return result;
+            return;
         }
         
         // Check if the capsule edge intersects the polygon's edges. 
@@ -160,13 +159,11 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
         auto pivotA = to_object_space(pivotA_world, posA, ornA);
         result.add_point({pivotA, pivotB, normalB, distance});
     }
-
-    return result;
 }
 
-collision_result collide(const capsule_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const capsule_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

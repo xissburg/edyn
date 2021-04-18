@@ -32,230 +32,230 @@ struct collision_context {
 // the returned result so the contact pivots and normals match up with the
 // order of shapes A and B.
 template<typename ShapeAType, typename ShapeBType>
-collision_result swap_collide(const ShapeAType &shA, const ShapeBType &shB,
-                              const collision_context &ctx);
+void swap_collide(const ShapeAType &shA, const ShapeBType &shB,
+                  const collision_context &ctx, collision_result &result);
 
 // Sphere-Sphere
-collision_result collide(const sphere_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx);
+void collide(const sphere_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Plane-Plane
 inline
-collision_result collide(const plane_shape &shA, const plane_shape &shB,
-                         const collision_context &ctx) {
-    return {}; // collision between infinite planes is undefined here.
+void collide(const plane_shape &shA, const plane_shape &shB,
+                         const collision_context &ctx, collision_result &result) {
+    // collision between infinite planes is undefined here.
 }
 
 // Sphere-Plane
-collision_result collide(const sphere_shape &shA, const plane_shape &shB,
-                         const collision_context &ctx);
+void collide(const sphere_shape &shA, const plane_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Plane-Sphere
-collision_result collide(const plane_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx);
+void collide(const plane_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Cylinder-Cylinder
-collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx);
+void collide(const cylinder_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Cylinder-Plane
-collision_result collide(const cylinder_shape &shA, const plane_shape &shB,
-                         const collision_context &ctx);
+void collide(const cylinder_shape &shA, const plane_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Plane-Cylinder
-collision_result collide(const plane_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx);
+void collide(const plane_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Cylinder-Sphere
-collision_result collide(const cylinder_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx);
+void collide(const cylinder_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Sphere-Cylinder
-collision_result collide(const sphere_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx);
+void collide(const sphere_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Capsule-Capsule
-collision_result collide(const capsule_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx);
+void collide(const capsule_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Capsule-Plane
-collision_result collide(const capsule_shape &shA, const plane_shape &shB,
-                         const collision_context &ctx);
+void collide(const capsule_shape &shA, const plane_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Plane-Capsule
-collision_result collide(const plane_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx);
+void collide(const plane_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Capsule-Sphere
-collision_result collide(const capsule_shape &shA, const sphere_shape &shB, 
-                         const collision_context &ctx);
+void collide(const capsule_shape &shA, const sphere_shape &shB, 
+             const collision_context &ctx, collision_result &result);
 
 // Sphere-Capsule
-collision_result collide(const sphere_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx);
+void collide(const sphere_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Capsule-Cylinder
-collision_result collide(const capsule_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx);
+void collide(const capsule_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Cylinder-Capsule
-collision_result collide(const cylinder_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx);
+void collide(const cylinder_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Mesh-Mesh
 inline
-collision_result collide(const mesh_shape &shA, const mesh_shape &shB,
-                         const collision_context &ctx) {
-    return {}; // collision between triangle meshes still undefined.
+void collide(const mesh_shape &shA, const mesh_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    // collision between triangle meshes still undefined.
 }
 
 // Plane-Mesh
 inline
-collision_result collide(const plane_shape &shA, const mesh_shape &shB,
-                         const collision_context &ctx) {
-    return {}; // collision between triangle meshes and planes still undefined.
+void collide(const plane_shape &shA, const mesh_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    // collision between triangle meshes and planes still undefined.
 }
 
 // Mesh-Plane
 inline
-collision_result collide(const mesh_shape &shA, const plane_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const mesh_shape &shA, const plane_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 // Sphere-Mesh
-collision_result collide(const sphere_shape &shA, const mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const sphere_shape &shA, const mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Mesh-Sphere
-collision_result collide(const mesh_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx);
+void collide(const mesh_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Capsule-Mesh
-collision_result collide(const capsule_shape &shA, const mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const capsule_shape &shA, const mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Mesh-Capsule
-collision_result collide(const mesh_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx);
+void collide(const mesh_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Cylinder-Mesh
-collision_result collide(const cylinder_shape &shA, const mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const cylinder_shape &shA, const mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Mesh-Cylinder
-collision_result collide(const mesh_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx);
+void collide(const mesh_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Box-Box
-collision_result collide(const box_shape &shA, const box_shape &shB,
-                         const collision_context &ctx);
+void collide(const box_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Box-Plane
-collision_result collide(const box_shape &shA, const plane_shape &shB,
-                         const collision_context &ctx);
+void collide(const box_shape &shA, const plane_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Plane-Box
-collision_result collide(const plane_shape &shA, const box_shape &shB,
-                         const collision_context &ctx);
+void collide(const plane_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Sphere-Box
-collision_result collide(const sphere_shape &shA, const box_shape &shB,
-                         const collision_context &ctx);
+void collide(const sphere_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Box-Sphere
-collision_result collide(const box_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx);
+void collide(const box_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Capsule-Box
-collision_result collide(const capsule_shape &shA, const box_shape &shB,
-                         const collision_context &ctx);
+void collide(const capsule_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Box-Capsule
-collision_result collide(const box_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx);
+void collide(const box_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Cylinder-Box
-collision_result collide(const cylinder_shape &shA, const box_shape &shB,
-                         const collision_context &ctx);
+void collide(const cylinder_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Box-Cylinder
-collision_result collide(const box_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx);
+void collide(const box_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Box-Mesh
-collision_result collide(const box_shape &shA, const mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const box_shape &shA, const mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Mesh-Box
-collision_result collide(const mesh_shape &shA, const box_shape &shB,
-                         const collision_context &ctx);
+void collide(const mesh_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Paged Mesh-Paged Mesh
 inline
-collision_result collide(const paged_mesh_shape &shA, const paged_mesh_shape &shB,
-                         const collision_context &ctx) {
-    return {}; // collision between paged triangle meshes still undefined.
+void collide(const paged_mesh_shape &shA, const paged_mesh_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    // collision between paged triangle meshes still undefined.
 }
 
 // Plane-Paged Mesh
 inline
-collision_result collide(const plane_shape &shA, const paged_mesh_shape &shB,
-                         const collision_context &ctx) {
-    return {}; // collision between paged triangle meshes and planes still undefined.
+void collide(const plane_shape &shA, const paged_mesh_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    // collision between paged triangle meshes and planes still undefined.
 }
 
 // Paged Mesh-Plane
 inline
-collision_result collide(const paged_mesh_shape &shA, const plane_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const paged_mesh_shape &shA, const plane_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 // Sphere-Paged Mesh
-collision_result collide(const sphere_shape &shA, const paged_mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const sphere_shape &shA, const paged_mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Paged Mesh-Sphere
-collision_result collide(const paged_mesh_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx);
+void collide(const paged_mesh_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Capsule-Paged Mesh
-collision_result collide(const capsule_shape &shA, const paged_mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const capsule_shape &shA, const paged_mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Paged Mesh-Capsule
-collision_result collide(const paged_mesh_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx);
+void collide(const paged_mesh_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Cylinder-Paged Mesh
-collision_result collide(const cylinder_shape &shA, const paged_mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const cylinder_shape &shA, const paged_mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Paged Mesh-Cylinder
-collision_result collide(const paged_mesh_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx);
+void collide(const paged_mesh_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Box-Paged Mesh
-collision_result collide(const box_shape &shA, const paged_mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const box_shape &shA, const paged_mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Paged Mesh-Box
-collision_result collide(const paged_mesh_shape &shA, const box_shape &shB,
-                         const collision_context &ctx);
+void collide(const paged_mesh_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Mesh-Paged Mesh
 inline
-collision_result collide(const mesh_shape &shA, const paged_mesh_shape &shB,
-                         const collision_context &ctx) {
-    return {}; // collision between triangle meshes still undefined.
+void collide(const mesh_shape &shA, const paged_mesh_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    // collision between triangle meshes still undefined.
 }
 
 // Paged Mesh-Mesh
 inline
-collision_result collide(const paged_mesh_shape &shA, const mesh_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const paged_mesh_shape &shA, const mesh_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 // Sphere-Triangle
@@ -283,64 +283,64 @@ void collide_box_triangle(
     scalar threshold, collision_result &result);
 
 // Polyhedron-Polyhedron
-collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx);
+void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Polyhedron-Plane
-collision_result collide(const polyhedron_shape &shA, const plane_shape &shB,
-                         const collision_context &ctx);
+void collide(const polyhedron_shape &shA, const plane_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Plane-Polyhedron
-collision_result collide(const plane_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx);
+void collide(const plane_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Sphere-Polyhedron
-collision_result collide(const sphere_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx);
+void collide(const sphere_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Polyhedron-Sphere
-collision_result collide(const polyhedron_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx);
+void collide(const polyhedron_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Box-Polyhedron
-collision_result collide(const box_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx);
+void collide(const box_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Polyhedron-Box
-collision_result collide(const polyhedron_shape &shA, const box_shape &shB,
-                         const collision_context &ctx);
+void collide(const polyhedron_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Capsule-Polyhedron
-collision_result collide(const capsule_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx);
+void collide(const capsule_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Polyhedron-Capsule
-collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx);
+void collide(const polyhedron_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Cylinder-Polyhedron
-collision_result collide(const cylinder_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx);
+void collide(const cylinder_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Polyhedron-Cylinder
-collision_result collide(const polyhedron_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx);
+void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Polyhedron-Mesh
-collision_result collide(const polyhedron_shape &shA, const mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const polyhedron_shape &shA, const mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Mesh-Polyhedron
-collision_result collide(const mesh_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx);
+void collide(const mesh_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Polyhedron-Paged Mesh
-collision_result collide(const polyhedron_shape &shA, const paged_mesh_shape &shB,
-                         const collision_context &ctx);
+void collide(const polyhedron_shape &shA, const paged_mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Paged Mesh-Polyhedron
-collision_result collide(const paged_mesh_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx);
+void collide(const paged_mesh_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result);
 
 // Polyhedron-Triangle
 void collide_polyhedron_triangle(
@@ -348,10 +348,79 @@ void collide_polyhedron_triangle(
     const vector3 &pos_poly, const quaternion &orn_poly,
     const triangle_shape &tri, scalar threshold, collision_result &result);
 
+// Compound-Compound
+void collide(const compound_shape &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Compound-Plane
+void collide(const compound_shape &shA, const plane_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Plane-Compound
+void collide(const plane_shape &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Sphere-Compound
+void collide(const sphere_shape &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Compound-Sphere
+void collide(const compound_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Box-Compound
+void collide(const box_shape &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Compound-Box
+void collide(const compound_shape &shA, const box_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Capsule-Compound
+void collide(const capsule_shape &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Compound-Capsule
+void collide(const compound_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Cylinder-Compound
+void collide(const cylinder_shape &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Compound-Cylinder
+void collide(const compound_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Compound-Polyhedron
+void collide(const compound_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Polyhedron-Compound
+void collide(const polyhedron_shape &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Compound-Mesh
+void collide(const compound_shape &shA, const mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Mesh-Compound
+void collide(const mesh_shape &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Compound-Paged Mesh
+void collide(const compound_shape &shA, const paged_mesh_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
+// Paged Mesh-Compound
+void collide(const paged_mesh_shape &shA, const compound_shape &shB,
+             const collision_context &ctx, collision_result &result);
+
 template<typename ShapeAType, typename ShapeBType>
-collision_result swap_collide(const ShapeAType &shA, const ShapeBType &shB,
-                              const collision_context &ctx) {
-    return collide(shB, shA, ctx.swapped()).swap(ctx.ornB, ctx.ornA);
+void swap_collide(const ShapeAType &shA, const ShapeBType &shB,
+                  const collision_context &ctx, collision_result &result) {
+    collide(shB, shA, ctx.swapped(), result);
+    result.swap(ctx.ornB, ctx.ornA);
 }
 
 }

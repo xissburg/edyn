@@ -3,9 +3,8 @@
 
 namespace edyn {
 
-collision_result collide(const polyhedron_shape &shA, const paged_mesh_shape &shB, 
-                         const collision_context &ctx) {
-    auto result = collision_result{};
+void collide(const polyhedron_shape &shA, const paged_mesh_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     auto &rmeshA = ctx.rmeshA->get();
 
     // Polyhedron position and orientation in mesh's space.
@@ -28,13 +27,11 @@ collision_result collide(const polyhedron_shape &shA, const paged_mesh_shape &sh
 
         collide_polyhedron_triangle(shA, rmeshA, ctx.posA, ctx.ornA, tri, ctx.threshold, result);
     });
-
-    return result;
 }
 
-collision_result collide(const paged_mesh_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const paged_mesh_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

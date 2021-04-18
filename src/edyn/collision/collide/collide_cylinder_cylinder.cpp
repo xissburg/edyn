@@ -21,8 +21,8 @@ struct cyl_cyl_separating_axis {
     scalar distance;
 };
 
-collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const cylinder_shape &shA, const cylinder_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     // Cylinder-cylinder SAT.
     std::array<cyl_cyl_separating_axis, 11> sep_axes;
     size_t axis_idx = 0;
@@ -221,10 +221,9 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
     auto &sep_axis = sep_axes[sep_axis_idx];
 
     if (sep_axis.distance > threshold) {
-        return {};
+        return;
     }
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis.dir);
 
     if (sep_axis.featureA == cylinder_feature::face && 
@@ -458,8 +457,6 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
         auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
         result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
     }
-
-    return result;
 }
 
 }

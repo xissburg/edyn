@@ -9,8 +9,8 @@
 
 namespace edyn {
 
-collision_result collide(const box_shape &shA, const box_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const box_shape &shA, const box_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     // Box-Box SAT. Normal of 3 faces of A, normal of 3 faces of B, 3 * 3 edge
     // cross-products. Find axis with greatest projection.
     const auto &posA = ctx.posA;
@@ -97,7 +97,7 @@ collision_result collide(const box_shape &shA, const box_shape &shB,
     }
 
     if (distance > threshold) {
-        return {};
+        return;
     }
 
     box_feature featureA, featureB;
@@ -107,7 +107,6 @@ collision_result collide(const box_shape &shA, const box_shape &shB,
     shA.support_feature(posA, ornA, vector3_zero, -sep_axis, featureA, feature_indexA, projectionA, threshold);
     shB.support_feature(posB, ornB, vector3_zero, sep_axis, featureB, feature_indexB, projectionB, threshold);
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
     if (featureA == box_feature::face && featureB == box_feature::face) {
@@ -247,8 +246,6 @@ collision_result collide(const box_shape &shA, const box_shape &shB,
         pivotB = to_object_space(pivotB, posB, ornB);
         result.add_point({pivotA, pivotB, normalB, distance});
     }
-
-    return result;
 }
 
 }

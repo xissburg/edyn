@@ -140,6 +140,10 @@ matrix3x3 moment_of_inertia(const polyhedron_shape &sh, scalar mass) {
     return moment_of_inertia_polyhedron(mass, sh.mesh->vertices, sh.mesh->indices, sh.mesh->faces);
 }
 
+matrix3x3 moment_of_inertia(const compound_shape &sh, scalar mass) {
+    return {};
+}
+
 matrix3x3 moment_of_inertia(const paged_mesh_shape &sh, scalar mass) {
     return diagonal_matrix(vector3_max);
 }

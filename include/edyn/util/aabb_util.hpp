@@ -48,6 +48,7 @@ AABB shape_aabb(const mesh_shape &sh, const vector3 &pos, const quaternion &orn)
 AABB shape_aabb(const box_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &orn);
+AABB shape_aabb(const compound_shape &sh, const vector3 &pos, const quaternion &orn);
 
 /**
  * @brief Visits the `shape`'s variant and calculates the the AABB.

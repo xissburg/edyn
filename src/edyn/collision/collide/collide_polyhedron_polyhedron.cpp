@@ -47,8 +47,8 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     projectionB = max_proj_B;
 }
 
-collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const polyhedron_shape &shA, const polyhedron_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     // Calculate collision with shape A in the origin for better floating point
     // precision. Position of shape B is modified accordingly.
     const auto posA = vector3_zero;
@@ -127,10 +127,9 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     }
 
     if (distance > threshold) {
-        return {};
+        return;
     }
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
     auto polygonA = point_cloud_support_polygon<true>(
@@ -205,8 +204,6 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
             }
         }
     }
-
-    return result;
 }
 
 }

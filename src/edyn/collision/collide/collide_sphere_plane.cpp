@@ -2,29 +2,27 @@
 
 namespace edyn {
 
-collision_result collide(const sphere_shape &sphere, const plane_shape &plane, 
-                         const collision_context &ctx) {
+void collide(const sphere_shape &sphere, const plane_shape &plane, 
+             const collision_context &ctx, collision_result &result) {
     auto normal = rotate(ctx.ornB, plane.normal);
     auto center = ctx.posB + rotate(ctx.ornB, plane.normal * plane.constant);
     auto d = ctx.posA - center;
     auto l = dot(normal, d);
 
     if (l > sphere.radius) {
-        return {};
+        return;
     }
 
-    auto result = collision_result {};
-    result.num_points = 1;
-    result.point[0].pivotA = rotate(conjugate(ctx.ornA), -normal * sphere.radius);
-    result.point[0].pivotB = rotate(conjugate(ctx.ornB), d - normal * l - center);
-    result.point[0].normalB = plane.normal;
-    result.point[0].distance = l - sphere.radius;
-    return result;
+    auto pivotA = rotate(conjugate(ctx.ornA), -normal * sphere.radius);
+    auto pivotB = rotate(conjugate(ctx.ornB), d - normal * l - center);
+    auto normalB = plane.normal;
+    auto distance = l - sphere.radius;
+    result.add_point({pivotA, pivotB, normalB, distance});
 }
 
-collision_result collide(const plane_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const plane_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

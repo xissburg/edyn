@@ -5,8 +5,8 @@
 
 namespace edyn {
 
-collision_result collide(const polyhedron_shape &shA, const sphere_shape &shB,
-                         const collision_context &ctx) {
+void collide(const polyhedron_shape &shA, const sphere_shape &shB,
+             const collision_context &ctx, collision_result &result) {
     const auto posA = vector3_zero;
     const auto &ornA = ctx.ornA;
     const auto posB = ctx.posB - ctx.posA;
@@ -36,7 +36,7 @@ collision_result collide(const polyhedron_shape &shA, const sphere_shape &shB,
     }
 
     if (distance > threshold) {
-        return {};
+        return;
     }
 
     auto polygon = point_cloud_support_polygon<true>(
@@ -55,9 +55,8 @@ collision_result collide(const polyhedron_shape &shA, const sphere_shape &shB,
         auto pivotA_world = project_plane(posB, polygon.origin, sep_axis);
         auto pivotA = to_object_space(pivotA_world, posA, ornA);
 
-        auto result = collision_result{};
         result.add_point({pivotA, pivotB, normalB, distance});
-        return result;
+        return;
     }
 
     // Sphere is closer to an edge or vertex. Calculate new separating axis
@@ -73,7 +72,7 @@ collision_result collide(const polyhedron_shape &shA, const sphere_shape &shB,
         distance = new_sep_axis_len - shB.radius;
 
         if (distance > threshold) {
-            return {};
+            return;
         }
     } else {
         new_sep_axis = sep_axis;
@@ -84,14 +83,12 @@ collision_result collide(const polyhedron_shape &shA, const sphere_shape &shB,
     auto pivotB = normalB * shB.radius;
     auto pivotA = to_object_space(pivotA_world, posA, ornA);
 
-    auto result = collision_result{};
     result.add_point({pivotA, pivotB, normalB, distance});
-    return result;
 }
 
-collision_result collide(const sphere_shape &shA, const polyhedron_shape &shB, 
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const sphere_shape &shA, const polyhedron_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

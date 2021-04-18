@@ -20,8 +20,8 @@ struct cyl_box_separating_axis {
     scalar distance;
 };
 
-collision_result collide(const cylinder_shape &shA, const box_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const cylinder_shape &shA, const box_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     // Cylinder-Box SAT. Normal of 3 faces of B, normal of cylinder caps of A
     // which is the cylinder main axis, 3 cross products between the axes of the
     // basis of the box and the cylinder axis mainly for the cylinder side edge
@@ -207,10 +207,9 @@ collision_result collide(const cylinder_shape &shA, const box_shape &shB,
     auto &sep_axis = sep_axes[sep_axis_idx];
 
     if (sep_axis.distance > threshold) {
-        return {};
+        return;
     }
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis.dir);
 
     switch (sep_axis.featureA) {
@@ -448,13 +447,11 @@ collision_result collide(const cylinder_shape &shA, const box_shape &shB,
         result.maybe_add_point({pivotA, pivotB, normalB, sep_axis.distance});
     }
     }
-
-    return result;
 }
 
-collision_result collide(const box_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const box_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

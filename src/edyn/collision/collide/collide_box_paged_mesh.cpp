@@ -4,11 +4,8 @@
 
 namespace edyn {
 
-collision_result collide(const box_shape &shA, const paged_mesh_shape &shB, 
-                         const collision_context &ctx) {
-    
-    auto result = collision_result{};
-
+void collide(const box_shape &shA, const paged_mesh_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     // Box position and orientation in mesh's space.
     const auto ornB_conj = conjugate(ctx.ornB);
     const auto posA_in_B = rotate(ornB_conj, ctx.posA - ctx.posB);
@@ -35,13 +32,11 @@ collision_result collide(const box_shape &shA, const paged_mesh_shape &shB,
 
         collide_box_triangle(shA, posA_in_B, ornA_in_B, axesA, tri, ctx.threshold, result);
     });
-
-    return result;
 }
 
-collision_result collide(const paged_mesh_shape &shA, const box_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const paged_mesh_shape &shA, const box_shape &shB,
+                         const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

@@ -1,4 +1,5 @@
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/comp/aabb.hpp"
 #include "edyn/util/shape_util.hpp"
 #include <variant>
 
@@ -172,6 +173,17 @@ AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion
         sh.trimesh->get_aabb().min + pos, 
         sh.trimesh->get_aabb().max + pos
     };
+}
+
+AABB shape_aabb(const compound_shape &sh, const vector3 &pos, const quaternion &orn) {
+    auto aabb = aabb_of_aabb(sh.nodes.front().aabb, pos, orn);
+
+    for (size_t i = 1; i < sh.nodes.size(); ++i) {
+        auto aabb_i = aabb_of_aabb(sh.nodes[i].aabb, pos, orn);
+        aabb = enclosing_aabb(aabb, aabb_i);
+    }
+
+    return aabb;
 }
 
 AABB shape_aabb(const shape &sh, const vector3 &pos, const quaternion &orn) {
