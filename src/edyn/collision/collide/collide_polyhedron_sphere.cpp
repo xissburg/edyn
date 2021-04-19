@@ -7,12 +7,14 @@ namespace edyn {
 
 void collide(const polyhedron_shape &shA, const sphere_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    const auto posA = vector3_zero;
-    const auto &ornA = ctx.ornA;
-    const auto posB = ctx.posB - ctx.posA;
-    const auto &ornB = ctx.ornB;
+    // Convex polyhedron vs sphere. A direction is of greatest projection
+    // distance is found among all face normals and a closest point is found in
+    // the face in that direction looking through its Voronoi regions.
+    // All calculations done in the polyhedron's space.
+    const auto posB = to_object_space(ctx.posB, ctx.posA, ctx.ornA);
+    const auto ornB = conjugate(ctx.ornA) * ctx.ornB;
     auto threshold = ctx.threshold;
-    auto &rmeshA = ctx.rmeshA->get();
+    auto &meshA = *shA.mesh;
 
     scalar distance = -EDYN_SCALAR_MAX;
     scalar projection_poly = EDYN_SCALAR_MAX;
@@ -20,9 +22,9 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
 
     // Face normals of polyhedron.
     for (size_t i = 0; i < shA.mesh->num_faces(); ++i) {
-        auto normal_world = -rmeshA.normals[i]; // Point towards polyhedron.
+        auto normal_world = -meshA.normals[i]; // Point towards polyhedron.
         auto vertex_idx = shA.mesh->first_vertex_index(i);
-        auto &vertex_world = rmeshA.vertices[vertex_idx];
+        auto &vertex_world = meshA.vertices[vertex_idx];
 
         auto projA = dot(vertex_world, normal_world);
         auto projB = dot(posB, normal_world) + shB.radius;
@@ -40,7 +42,7 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
     }
 
     auto polygon = point_cloud_support_polygon<true>(
-        rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
+        meshA.vertices.begin(), meshA.vertices.end(), vector3_zero,
         sep_axis, projection_poly, true, support_polygon_tolerance);
 
     EDYN_ASSERT(polygon.hull.size() > 2);
@@ -51,19 +53,17 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
 
     if (inside_face) {
         auto normalB = rotate(conjugate(ornB), sep_axis);
+        auto pivotA = project_plane(posB, polygon.origin, sep_axis);
         auto pivotB = normalB * shB.radius;
-        auto pivotA_world = project_plane(posB, polygon.origin, sep_axis);
-        auto pivotA = to_object_space(pivotA_world, posA, ornA);
-
         result.add_point({pivotA, pivotB, normalB, distance});
         return;
     }
 
     // Sphere is closer to an edge or vertex. Calculate new separating axis
     // and recalculate distance.
-    auto pivotA_world = to_world_space(to_vector3_xz(closest), 
-                                       polygon.origin, polygon.basis);
-    auto new_sep_axis = pivotA_world - posB;
+    auto pivotA = to_world_space(to_vector3_xz(closest), 
+                                 polygon.origin, polygon.basis);
+    auto new_sep_axis = pivotA - posB;
     auto new_sep_axis_len_sqr = length_sqr(new_sep_axis);
 
     if (new_sep_axis_len_sqr > EDYN_EPSILON) {
@@ -76,12 +76,11 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
         }
     } else {
         new_sep_axis = sep_axis;
-        pivotA_world = project_plane(posB, polygon.origin, new_sep_axis);
+        pivotA = project_plane(posB, polygon.origin, new_sep_axis);
     }
 
     auto normalB = rotate(conjugate(ornB), new_sep_axis);
     auto pivotB = normalB * shB.radius;
-    auto pivotA = to_object_space(pivotA_world, posA, ornA);
 
     result.add_point({pivotA, pivotB, normalB, distance});
 }
