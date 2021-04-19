@@ -46,16 +46,18 @@ struct parallel_for_context {
         done = count == 0;
 
         // Normally, `notify_one` would be called without the lock being held.
-        // However, in this specific scenario, for whatever reason, the notification
-        // is not always being received in the other thread, which gets stuck on
-        // a call to `wait`. Doing it like so appears to fix the issue. According
-        // to https://en.cppreference.com/w/cpp/thread/condition_variable/notify_one:
+        // However, according to 
+        // https://en.cppreference.com/w/cpp/thread/condition_variable/notify_one:
         // "Notifying while under the lock may nevertheless be necessary when precise
         // scheduling of events is required, e.g. if the waiting thread would exit
         // the program if the condition is satisfied, causing destruction of the
         // notifying thread's condition_variable."
-        // This seems to be the case here since the condition variable is in the stack
-        // and will be destroyed after `parallel_for` returns.
+        // If the lock would be released right here, there is a very slim chance
+        // that `wait()` would be called in the other thread right after, before 
+        // `notify_one()` below, where the lock would be acquired and the predicate
+        // would test true, causing `parallel_for` to return, thus destroying this
+        // object (since it is in the stack) and then everything down from here is
+        // undefined behavior.
         if (done) {
             cv.notify_one();
         }
