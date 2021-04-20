@@ -14,13 +14,22 @@ struct box_tri_separating_axis {
     scalar distance;
 };
 
-void collide_box_triangle(
-    const box_shape &box, const vector3 &box_pos, const quaternion &box_orn,
-    const std::array<vector3, 3> box_axes, const triangle_shape &tri,
-    scalar threshold, collision_result &result) {
+void collide(const box_shape &box, const triangle_shape &tri,
+             const collision_context &ctx, collision_result &result) {
+    const auto &box_pos = ctx.posA;
+    const auto &box_orn = ctx.ornA;
+    const auto threshold = ctx.threshold;
 
     std::array<box_tri_separating_axis, 13> sep_axes;
     size_t axis_idx = 0;
+
+    // TODO: Could avoid doing this for each triangle if this function could
+    // have the ability to process multiple triangles.
+    const vector3 box_axes[] = {
+        quaternion_x(ctx.ornA),
+        quaternion_y(ctx.ornA),
+        quaternion_z(ctx.ornA)
+    };
 
     // Box faces.
     for (size_t i = 0; i < 3; ++i) {

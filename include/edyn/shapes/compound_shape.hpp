@@ -16,6 +16,14 @@
 namespace edyn {
 
 struct compound_shape {
+    using supported_shapes_t = std::tuple<
+        sphere_shape, 
+        cylinder_shape,
+        capsule_shape,
+        box_shape,
+        polyhedron_shape
+    >;
+
     struct shape_node {
         std::variant<sphere_shape, 
                      cylinder_shape,

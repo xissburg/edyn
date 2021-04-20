@@ -41,16 +41,8 @@ set(Edyn_SOURCES
     src/edyn/collision/collide/collide_capsule_cylinder.cpp
     src/edyn/collision/collide/collide_capsule_plane.cpp
     src/edyn/collision/collide/collide_capsule_sphere.cpp
-    src/edyn/collision/collide/collide_sphere_mesh.cpp
-    src/edyn/collision/collide/collide_capsule_mesh.cpp
-    src/edyn/collision/collide/collide_cylinder_mesh.cpp
-    src/edyn/collision/collide/collide_sphere_paged_mesh.cpp
     src/edyn/collision/collide/collide_capsule_triangle.cpp
-    src/edyn/collision/collide/collide_capsule_paged_mesh.cpp
-    src/edyn/collision/collide/collide_cylinder_paged_mesh.cpp
     src/edyn/collision/collide/collide_box_box.cpp
-    src/edyn/collision/collide/collide_box_mesh.cpp
-    src/edyn/collision/collide/collide_box_paged_mesh.cpp
     src/edyn/collision/collide/collide_box_plane.cpp
     src/edyn/collision/collide/collide_capsule_box.cpp
     src/edyn/collision/collide/collide_cylinder_box.cpp
@@ -61,8 +53,6 @@ set(Edyn_SOURCES
     src/edyn/collision/collide/collide_polyhedron_capsule.cpp
     src/edyn/collision/collide/collide_polyhedron_cylinder.cpp
     src/edyn/collision/collide/collide_polyhedron_box.cpp
-    src/edyn/collision/collide/collide_polyhedron_mesh.cpp
-    src/edyn/collision/collide/collide_polyhedron_paged_mesh.cpp
     src/edyn/collision/collide/collide_polyhedron_plane.cpp
     src/edyn/collision/collide/collide_polyhedron_polyhedron.cpp
     src/edyn/collision/collide/collide_polyhedron_sphere.cpp

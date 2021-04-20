@@ -1,15 +1,15 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/math/quaternion.hpp"
-#include "edyn/math/geom.hpp"
-#include "edyn/math/math.hpp"
 #include "edyn/util/shape_util.hpp"
+#include "edyn/math/math.hpp"
 
 namespace edyn {
 
-void collide_capsule_triangle(
-    const capsule_shape &capsule, const vector3 &posA, const quaternion &ornA,
-    const std::array<vector3, 2> &capsule_vertices, 
-    const triangle_shape &tri, scalar threshold, collision_result &result) {
+void collide(const capsule_shape &capsule, const triangle_shape &tri,
+             const collision_context &ctx, collision_result &result) {
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto threshold = ctx.threshold;
+    const auto capsule_vertices = capsule.get_vertices(posA, ornA);
 
     triangle_feature tri_feature;
     size_t tri_feature_index;

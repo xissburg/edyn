@@ -1,16 +1,12 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
-#include "edyn/math/math.hpp"
-#include <algorithm>
 
 namespace edyn {
 
-void collide_sphere_triangle(
-    const sphere_shape &sphere, 
-    const vector3 &sphere_pos,
-    const quaternion &sphere_orn,
-    const triangle_shape &tri,
-    scalar threshold, collision_result &result) {
+void collide(const sphere_shape &sphere, const triangle_shape &tri,
+             const collision_context &ctx, collision_result &result) {
+    const auto &sphere_pos = ctx.posA;
+    const auto &sphere_orn = ctx.ornA;
+    const auto threshold = ctx.threshold;
 
     auto p = sphere_pos - tri.vertices[0];
     auto dist_plane = dot(p, tri.normal);

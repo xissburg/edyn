@@ -11,6 +11,10 @@
 
 namespace edyn {
 
+/**
+ * @brief A triangle mesh. Includes adjacency information and a tree to
+ * accelerate queries.
+ */
 struct triangle_mesh {
     std::vector<vector3> vertices;
     std::vector<uint16_t> indices;
@@ -27,6 +31,10 @@ struct triangle_mesh {
         return tree.root_aabb();
     }
 
+    triangle_shape get_triangle(size_t tri_idx) const;
+
+    triangle_vertices get_triangle_vertices(size_t tri_idx);
+
     template<typename Func>
     void visit(const AABB &aabb, Func func) const {
         constexpr auto inset = vector3 {
@@ -35,15 +43,7 @@ struct triangle_mesh {
             -contact_breaking_threshold
         };
         
-        tree.visit(aabb.inset(inset), [&] (auto tri_idx) {
-            auto verts = triangle_vertices{
-                vertices[indices[tri_idx * 3 + 0]],
-                vertices[indices[tri_idx * 3 + 1]],
-                vertices[indices[tri_idx * 3 + 2]]
-            };
-
-            func(tri_idx, verts);
-        });
+        tree.visit(aabb.inset(inset), func);
     }
 
     template<typename Func>

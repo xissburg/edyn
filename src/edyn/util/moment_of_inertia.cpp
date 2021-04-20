@@ -141,6 +141,7 @@ matrix3x3 moment_of_inertia(const polyhedron_shape &sh, scalar mass) {
 }
 
 matrix3x3 moment_of_inertia(const compound_shape &sh, scalar mass) {
+    // TODO
     return {};
 }
 

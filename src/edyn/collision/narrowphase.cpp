@@ -262,8 +262,8 @@ void detect_collision(const contact_manifold &manifold, collision_result &result
             ctx.rmeshB = rmesh_view.get(manifold.body[1]);
         }
 
-        std::visit([&result, &ctx] (auto &&sA, auto &&sB) {
-            collide(sA, sB, ctx, result);
+        std::visit([&result, &ctx] (auto &&shA, auto &&shB) {
+            collide(shA, shB, ctx, result);
         }, shapeA.var, shapeB.var);
     } else {
         result.num_points = 0;

@@ -22,6 +22,9 @@ namespace detail {
     struct submesh_builder;
 }
 
+/**
+ * @brief A triangle mesh which loads chunks on demand.
+ */
 class paged_triangle_mesh {
 public:
     struct triangle_mesh_node {
@@ -38,7 +41,7 @@ public:
      * @param aabb The AABB to visit.
      * @param func An element into which the `operator()` will be called.
      *      The expected signature is: 
-     *      `void(uint32_t trimesh_idx, uint32_t tri_idx, const triangle_vertices &vertices)`
+     *      `void(uint32_t trimesh_idx, uint32_t tri_idx)`
      *      Where:
      *      - `trimesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
@@ -58,8 +61,8 @@ public:
             auto trimesh = m_cache[trimesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit(inset_aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                    func(trimesh_idx, tri_idx, vertices);
+                trimesh->visit(inset_aabb, [=] (uint32_t tri_idx) {
+                    func(trimesh_idx, tri_idx);
                 });
                 mark_recent_visit(trimesh_idx);
             }
@@ -70,7 +73,7 @@ public:
      * @brief Visits all triangles of all nodes.
      * @param func An element into which the `operator()` will be called.
      *      The expected signature is: 
-     *      `void(uint32_t trimesh_idx, uint32_t tri_idx, const triangle_vertices &vertices)`
+     *      `void(uint32_t trimesh_idx, uint32_t tri_idx)`
      *      Where:
      *      - `trimesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
@@ -83,8 +86,8 @@ public:
             auto trimesh = m_cache[i].trimesh;
 
             if (trimesh) {
-                trimesh->visit_all([=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                    func(i, tri_idx, vertices);
+                trimesh->visit_all([=] (uint32_t tri_idx) {
+                    func(i, tri_idx);
                 });
             }
         }
@@ -97,7 +100,7 @@ public:
      * @param aabb The AABB to visit.
      * @param func An element into which the `operator()` will be called.
      *      The expected signature is: 
-     *      `void(uint32_t trimesh_idx, uint32_t tri_idx, const triangle_vertices &vertices)`
+     *      `void(uint32_t trimesh_idx, uint32_t tri_idx)`
      *      Where:
      *      - `trimesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
@@ -109,8 +112,8 @@ public:
             auto trimesh = m_cache[i].trimesh;
 
             if (trimesh) {
-                trimesh->visit(aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                    func(i, tri_idx, vertices);
+                trimesh->visit(aabb, [=] (uint32_t tri_idx) {
+                    func(i, tri_idx);
                 });
             }
         }
@@ -120,7 +123,7 @@ public:
      * @brief Visits all triangles of all cached nodes.
      * @param func An element into which the `operator()` will be called.
      *      The expected signature is: 
-     *      `void(uint32_t trimesh_idx, uint32_t tri_idx, const triangle_vertices &vertices)`
+     *      `void(uint32_t trimesh_idx, uint32_t tri_idx)`
      *      Where:
      *      - `trimesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
@@ -132,8 +135,8 @@ public:
             auto trimesh = m_cache[i].trimesh;
 
             if (trimesh) {
-                trimesh->visit_all( [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                    func(i, tri_idx, vertices);
+                trimesh->visit_all( [=] (uint32_t tri_idx) {
+                    func(i, tri_idx);
                 });
             }
         }
@@ -150,6 +153,8 @@ public:
     size_t cache_num_vertices() const;
 
     std::shared_ptr<triangle_mesh> get_submesh(size_t idx);
+
+    triangle_vertices get_triangle_vertices(size_t mesh_idx, size_t tri_idx);
 
     void clear_cache();
 

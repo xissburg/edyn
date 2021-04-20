@@ -1,9 +1,6 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
-#include <algorithm>
-#include <cstdint>
 
 namespace edyn {
 
@@ -38,11 +35,16 @@ struct separating_axis_cyl_tri {
     vector3 pivotB;
 };
 
-void collide_cylinder_triangle(
-    const cylinder_shape &cylinder, const vector3 &posA, const quaternion &ornA,
-    const vector3 &disc_center_pos, const vector3 &disc_center_neg,
-    const vector3 &cylinder_axis, const triangle_shape &tri,
-    scalar threshold, collision_result &result) {
+void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
+             const collision_context &ctx, collision_result &result) {
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto threshold = ctx.threshold;
+    const auto cylinder_axis = quaternion_x(ornA);
+    const vector3 cylinder_vertices[] = {
+        posA - cylinder_axis * cylinder.half_length,
+        posA + cylinder_axis * cylinder.half_length
+    };
 
     std::vector<separating_axis_cyl_tri> sep_axes;
 
@@ -93,7 +95,7 @@ void collide_cylinder_triangle(
         const auto &v1 = tri.vertices[(i + 1) % 3];
         scalar s, t;
         vector3 p0, p1;
-        closest_point_segment_segment(disc_center_pos, disc_center_neg, 
+        closest_point_segment_segment(cylinder_vertices[1], cylinder_vertices[0], 
                                       v0, v1, s, t, p0, p1);
 
         if (s > 0 && s < 1) {
@@ -106,7 +108,7 @@ void collide_cylinder_triangle(
                 if (length_sqr(axis.dir) <= EDYN_EPSILON) {
                     // Parallel. Find a vector that's orthogonal to both
                     // which lies in the same plane.
-                    auto plane_normal = cross(tri.edges[i], disc_center_pos - v0);
+                    auto plane_normal = cross(tri.edges[i], cylinder_vertices[1] - v0);
                     axis.dir = cross(plane_normal, tri.edges[i]);
                 }
 
@@ -132,7 +134,7 @@ void collide_cylinder_triangle(
                 // axis connecting them as the separating axis.
                 scalar r;
                 vector3 closest;
-                auto dist_sqr = closest_point_segment(disc_center_pos, disc_center_neg, 
+                auto dist_sqr = closest_point_segment(cylinder_vertices[1], cylinder_vertices[0], 
                                                         v0, r, closest);
 
                 // Ignore points at the extremes.
@@ -160,7 +162,7 @@ void collide_cylinder_triangle(
 
     // Cylinder face edges.
     for (size_t i = 0; i < 2; ++i) {
-        auto disc_center = i == 0 ? disc_center_pos : disc_center_neg;
+        auto disc_center = i == 0 ? cylinder_vertices[1] : cylinder_vertices[0];
 
         for (size_t j = 0; j < 3; ++j) {
             if (tri.is_concave_edge[j]) {
@@ -241,8 +243,8 @@ void collide_cylinder_triangle(
 
             auto vertex = tri.vertices[k];
             vector3 closest; scalar t;
-            auto dir = disc_center_pos - disc_center_neg;
-            auto dist_sqr = closest_point_line(disc_center_neg, dir, vertex, t, closest);
+            auto dir = cylinder_vertices[1] - cylinder_vertices[0];
+            auto dist_sqr = closest_point_line(cylinder_vertices[0], dir, vertex, t, closest);
 
             if (dist_sqr <= cylinder.radius * cylinder.radius) {
                 auto vertex_in_A = rotate(conjugate(ornA), vertex - posA);
@@ -334,7 +336,7 @@ void collide_cylinder_triangle(
                 }
 
                 tangent = normalize(tangent);
-                auto disc_center = sep_axis.cyl_feature_index == 0 ? disc_center_pos : disc_center_neg;
+                auto disc_center = sep_axis.cyl_feature_index == 0 ? cylinder_vertices[1] : cylinder_vertices[0];
                 auto pivotA_in_B = disc_center + tangent * cylinder.radius;
                 auto pivotA = to_object_space(pivotA_in_B, posA, ornA);
                 auto pivotB = project_plane(pivotA_in_B, tri.vertices[0], tri.normal);
@@ -349,20 +351,20 @@ void collide_cylinder_triangle(
         case triangle_feature::face: {
             // Cylinder is on its side laying on the triangle face.
             // Segment-triangle intersection/containment test.
-            auto c0_in_tri = point_in_triangle(tri.vertices, tri.normal, disc_center_pos);
-            auto c1_in_tri = point_in_triangle(tri.vertices, tri.normal, disc_center_neg);
+            auto c0_in_tri = point_in_triangle(tri.vertices, tri.normal, cylinder_vertices[1]);
+            auto c1_in_tri = point_in_triangle(tri.vertices, tri.normal, cylinder_vertices[0]);
 
             if (c0_in_tri) {
-                auto p0 = disc_center_pos - tri.normal * cylinder.radius;
+                auto p0 = cylinder_vertices[1] - tri.normal * cylinder.radius;
                 auto p0_A = to_object_space(p0, posA, ornA);
-                auto pivotB = project_plane(disc_center_pos, tri.vertices[0], tri.normal);
+                auto pivotB = project_plane(cylinder_vertices[1], tri.vertices[0], tri.normal);
                 result.maybe_add_point({p0_A, pivotB, sep_axis.dir, sep_axis.distance});
             }
 
             if (c1_in_tri) {
-                auto p1 = disc_center_neg - tri.normal * cylinder.radius;
+                auto p1 = cylinder_vertices[0] - tri.normal * cylinder.radius;
                 auto p1_A = to_object_space(p1, posA, ornA);
-                auto pivotB = project_plane(disc_center_neg, tri.vertices[0], tri.normal);
+                auto pivotB = project_plane(cylinder_vertices[0], tri.vertices[0], tri.normal);
                 result.maybe_add_point({p1_A, pivotB, sep_axis.dir, sep_axis.distance});
             }
 
@@ -377,7 +379,7 @@ void collide_cylinder_triangle(
                     scalar s[2], t[2];
                     vector3 p0[2], p1[2];
                     size_t num_points = 0;
-                    closest_point_segment_segment(disc_center_pos, disc_center_neg, 
+                    closest_point_segment_segment(cylinder_vertices[1], cylinder_vertices[0], 
                                                   tri.vertices[i], tri.vertices[(i + 1) % 3],
                                                   s[0], t[0], p0[0], p1[0], &num_points, 
                                                   &s[1], &t[1], &p0[1], &p1[1]);
@@ -399,9 +401,9 @@ void collide_cylinder_triangle(
             scalar s[2], t[2];
             vector3 p0[2], p1[2];
             size_t num_points = 0;
-            closest_point_segment_segment(disc_center_pos, disc_center_neg, v0, v1,
-                                            s[0], t[0], p0[0], p1[0], &num_points, 
-                                            &s[1], &t[1], &p0[1], &p1[1]);
+            closest_point_segment_segment(cylinder_vertices[1], cylinder_vertices[0], v0, v1,
+                                          s[0], t[0], p0[0], p1[0], &num_points, 
+                                          &s[1], &t[1], &p0[1], &p1[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
                 auto pA_in_B = p0[i] - sep_axis.dir * cylinder.radius;
@@ -414,7 +416,7 @@ void collide_cylinder_triangle(
             // Already checked if this vertex should have been ignored.
             auto pivotB = tri.vertices[sep_axis.tri_feature_index];
             vector3 pivotA; scalar t;
-            closest_point_segment(disc_center_neg, disc_center_pos, pivotB, t, pivotA);
+            closest_point_segment(cylinder_vertices[0], cylinder_vertices[1], pivotB, t, pivotA);
             pivotA -= sep_axis.dir * cylinder.radius;
             pivotA = to_object_space(pivotA, posA, ornA);
             result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});

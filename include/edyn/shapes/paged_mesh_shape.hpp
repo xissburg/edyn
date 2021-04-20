@@ -6,6 +6,11 @@
 
 namespace edyn {
 
+/**
+ * @brief A concave triangle mesh shape with paging support.
+ * @remark The `collide` functions involving this shape ignore position and
+ * orientation.
+ */
 struct paged_mesh_shape {
     std::shared_ptr<paged_triangle_mesh> trimesh;
 };
