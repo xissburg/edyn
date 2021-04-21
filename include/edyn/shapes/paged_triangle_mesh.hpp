@@ -86,9 +86,9 @@ public:
             auto trimesh = m_cache[i].trimesh;
 
             if (trimesh) {
-                trimesh->visit_all([=] (uint32_t tri_idx) {
-                    func(i, tri_idx);
-                });
+                for (size_t j = 0; j < trimesh->num_triangles(); ++j) {
+                    func(i, j);
+                }
             }
         }
     }
@@ -135,9 +135,9 @@ public:
             auto trimesh = m_cache[i].trimesh;
 
             if (trimesh) {
-                trimesh->visit_all( [=] (uint32_t tri_idx) {
-                    func(i, tri_idx);
-                });
+                for (size_t j = 0; j < trimesh->num_triangles(); ++j) {
+                    func(i, j);
+                }
             }
         }
     }

@@ -225,14 +225,14 @@ void collide(const mesh_shape &shA, const box_shape &shB,
 inline
 void collide(const paged_mesh_shape &shA, const paged_mesh_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    // collision between paged triangle meshes still undefined.
+    // collision between paged triangle meshes is undefined.
 }
 
 // Plane-Paged Mesh
 inline
 void collide(const plane_shape &shA, const paged_mesh_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    // collision between paged triangle meshes and planes still undefined.
+    // collision between paged triangle meshes and planes is undefined.
 }
 
 // Paged Mesh-Plane
@@ -278,7 +278,7 @@ void collide(const paged_mesh_shape &shA, const box_shape &shB,
 inline
 void collide(const mesh_shape &shA, const paged_mesh_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    // collision between triangle meshes still undefined.
+    // collision between triangle meshes is undefined.
 }
 
 // Paged Mesh-Mesh
@@ -388,7 +388,7 @@ void collide(const paged_mesh_shape &shA, const compound_shape &shB,
 
 // Compound-Box/Sphere/Cylinder/Capsule
 template<typename T> 
-typename std::enable_if_t<has_type<T, compound_shape::supported_shapes_t>::value>
+typename std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value>
      collide(const compound_shape &shA, const T &shB,
              const collision_context &ctx, collision_result &result) {
     auto posB_in_A = to_object_space(ctx.posB, ctx.posA, ctx.ornA);
@@ -421,7 +421,7 @@ typename std::enable_if_t<has_type<T, compound_shape::supported_shapes_t>::value
 
 // Box/Sphere/Cylinder/Capsule-Compound
 template<typename T>
-typename std::enable_if_t<has_type<T, compound_shape::supported_shapes_t>::value>
+typename std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value>
      collide(const T &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result) {
     swap_collide(shA, shB, ctx, result);

@@ -33,7 +33,7 @@ void collide(const polyhedron_shape &shA, const plane_shape &shB,
         auto vertex_world = posA + rmeshA.vertices[i];
         auto vertex_dist = dot(vertex_world - center, normal);
 
-        if (vertex_dist > distance + support_polygon_tolerance) continue;
+        if (vertex_dist > distance + support_feature_tolerance) continue;
 
         auto pivotA = shA.mesh->vertices[i];
         auto pivotB_world = vertex_world - normal * vertex_dist;

@@ -88,7 +88,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
     if (is_capsule_edge) {
         auto polygon = point_cloud_support_polygon<true>(
             meshA.vertices.begin(), meshA.vertices.end(), vector3_zero,
-            sep_axis, projection_poly, true, support_polygon_tolerance);
+            sep_axis, projection_poly, true, support_feature_tolerance);
 
         // Check if the vertices of the capsule are inside the polygon.
         if (polygon.hull.size() > 2) {

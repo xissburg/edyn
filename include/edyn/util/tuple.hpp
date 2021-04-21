@@ -2,6 +2,7 @@
 #define EDYN_UTIL_TUPLE_HPP
 
 #include <tuple>
+#include <variant>
 
 namespace edyn {
 
@@ -15,6 +16,10 @@ struct has_type;
 
 template <typename T, typename... Us>
 struct has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
+
+// Do the same for variants.
+template <typename T, typename... Us>
+struct has_type<T, std::variant<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
 
 /**
  * Find index of a type in a template parameter pack.

@@ -43,7 +43,7 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
 
     auto polygon = point_cloud_support_polygon<true>(
         meshA.vertices.begin(), meshA.vertices.end(), vector3_zero,
-        sep_axis, projection_poly, true, support_polygon_tolerance);
+        sep_axis, projection_poly, true, support_feature_tolerance);
 
     EDYN_ASSERT(polygon.hull.size() > 2);
 

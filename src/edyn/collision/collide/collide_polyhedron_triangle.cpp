@@ -133,7 +133,7 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
 
     auto polygon = point_cloud_support_polygon<true>(
         rmesh.vertices.begin(), rmesh.vertices.end(), vector3_zero,
-        sep_axis, projection_poly, true, support_polygon_tolerance);
+        sep_axis, projection_poly, true, support_feature_tolerance);
 
     auto contact_origin_tri = sep_axis * projection_tri;
     auto hull_tri = std::array<size_t, 3>{};
