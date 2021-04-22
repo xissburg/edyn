@@ -39,30 +39,24 @@ void make_box_mesh(const vector3 &half_extents,
                    std::vector<uint16_t> &indices,
                    std::vector<uint16_t> &faces);
 
-/**
- * @brief Loads a mesh from a *.obj file.
- * @param path Path to file.
- * @param vertices Array to be filled with vertices.
- * @param indices Array to be filled with indices for each face.
- * @param faces Array to be filled with an index of where the vertices
- * of a face starts in the `indices` array and the vertex count of the 
- * face, i.e. a sequence of pairs of (index of first vertex index, 
- * number of vertices).
- * @return Success or failure.
- */
-bool load_mesh_from_obj(const std::string &path, 
-                        std::vector<vector3> &vertices, 
-                        std::vector<uint16_t> &indices,
-                        std::vector<uint16_t> &faces);
-
 struct obj_mesh {
     std::vector<vector3> vertices;
     std::vector<uint16_t> indices;
     std::vector<uint16_t> faces;
 };
 
+/**
+ * @brief Loads meshes from a *.obj file.
+ * @param path Path to file.
+ * @param meshes Array to be filled with meshes.
+ * @param pos Position offset to add to vertices.
+ * @param orn Orientation to rotate vertices.
+ * @return Success or failure.
+ */
 bool load_meshes_from_obj(const std::string &path,
-                          std::vector<obj_mesh> &meshes);
+                          std::vector<obj_mesh> &meshes, 
+                          const vector3 &pos = vector3_zero,
+                          const quaternion &orn = quaternion_identity);
 
 /**
  * @brief Loads a triangle mesh from a *.obj file which must've been

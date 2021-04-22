@@ -16,7 +16,7 @@ AABB updated_aabb(const S &sh, const vector3 &pos, const quaternion &orn) {
 
 template<>
 AABB updated_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion &orn) {
-    // Polyhedron AABB is calculated in `update_rotated_meshes` along with
+    // Polyhedron AABB is calculated in `update_polyhedrons` along with
     // the vertex rotations.
     return {};
 }

@@ -8,11 +8,10 @@ namespace edyn {
 
 void collide(const polyhedron_shape &shA, const plane_shape &shB, 
              const collision_context &ctx, collision_result &result) {
-    const auto &posA = ctx.posA;
-    const auto &posB = ctx.posB;
-    const auto &ornB = ctx.ornB;
-
-    auto &rmeshA = ctx.rmeshA->get();
+    auto &posA = ctx.posA;
+    auto &posB = ctx.posB;
+    auto &ornB = ctx.ornB;
+    auto &rmeshA = *shA.rotated;
 
     auto normal = rotate(ornB, shB.normal);
     auto center = posB + rotate(ornB, shB.normal * shB.constant);

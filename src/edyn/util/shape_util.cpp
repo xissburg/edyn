@@ -3,6 +3,7 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/vector3.hpp"
 #include <fstream>
 #include <sstream>
 #include <numeric>
@@ -73,7 +74,8 @@ static vector3 read_vector3(std::istringstream &iss) {
 
 static void read_face(std::istringstream &iss, 
                       std::vector<uint16_t> &indices, 
-                      std::vector<uint16_t> &faces) {
+                      std::vector<uint16_t> &faces,
+                      uint16_t offset) {
     // Store where this face starts in the `indices` array.
     faces.push_back(indices.size());
 
@@ -82,7 +84,7 @@ static void read_face(std::istringstream &iss,
     while (true) {
         iss >> idx;
         if (iss.fail()) break;
-        indices.push_back(idx - 1);
+        indices.push_back(idx - 1 - offset);
     }
 
     // Store the number of vertices in this face.
@@ -90,41 +92,10 @@ static void read_face(std::istringstream &iss,
     faces.push_back(count);
 }
 
-bool load_mesh_from_obj(const std::string &path, 
-                        std::vector<vector3> &vertices, 
-                        std::vector<uint16_t> &indices,
-                        std::vector<uint16_t> &faces) {
-    auto file = std::ifstream(path);
-
-    if (!file.is_open()) {
-        return false;
-    }
-
-    std::string line;
-
-    while (std::getline(file, line)) {
-        auto pos_space = line.find(" ");
-
-        if (pos_space == std::string::npos) {
-            continue;
-        }
-
-        auto cmd = line.substr(0, pos_space);
-
-        if (cmd == "v") {
-            auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            vertices.push_back(read_vector3(iss));
-        } else if (cmd == "f") {
-            auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            read_face(iss, indices, faces);
-        }
-    }
-
-    return true;
-}
-
 bool load_meshes_from_obj(const std::string &path,
-                          std::vector<obj_mesh> &meshes) {
+                          std::vector<obj_mesh> &meshes,
+                          const vector3 &pos,
+                          const quaternion &orn) {
     auto file = std::ifstream(path);
 
     if (!file.is_open()) {
@@ -133,6 +104,8 @@ bool load_meshes_from_obj(const std::string &path,
 
     std::string line;
     auto mesh = obj_mesh{};
+    uint16_t index_offset = 0;
+    const auto should_transform = pos != vector3_zero || orn != quaternion_identity;
 
     while (std::getline(file, line)) {
         auto pos_space = line.find(" ");
@@ -145,14 +118,19 @@ bool load_meshes_from_obj(const std::string &path,
 
         if (cmd == "o") {
             if (!mesh.vertices.empty()) {
+                index_offset += mesh.vertices.size();
                 meshes.emplace_back(std::move(mesh));
             }
         } else if (cmd == "v") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            mesh.vertices.push_back(read_vector3(iss));
+            auto v = read_vector3(iss);
+            if (should_transform) {
+                v = to_world_space(v, pos, orn);
+            }
+            mesh.vertices.push_back(v);
         } else if (cmd == "f") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            read_face(iss, mesh.indices, mesh.faces);
+            read_face(iss, mesh.indices, mesh.faces, index_offset);
         }
     }
 

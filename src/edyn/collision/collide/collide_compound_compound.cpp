@@ -17,7 +17,6 @@ void collide(const compound_shape &shA, const compound_shape &shB,
         auto child_ctx = ctx;
         child_ctx.posB = to_world_space(nodeB.position, ctx.posB, ctx.ornB);
         child_ctx.ornB = ctx.ornB * nodeB.orientation;
-        child_ctx.aabbB = aabb_to_world_space(nodeB.aabb, ctx.posB, ctx.ornB);
         collision_result child_result;
 
         // Collide child shape with compound.

@@ -5,9 +5,9 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
-#include "edyn/comp/rotated_mesh.hpp"
-#include "edyn/sys/update_rotated_meshes.hpp"
+#include "edyn/sys/update_polyhedrons.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/message.hpp"
@@ -20,8 +20,10 @@
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/parallel/external_system.hpp"
 #include "edyn/parallel/entity_graph.hpp"
+#include "edyn/util/aabb_util.hpp"
 #include "edyn/util/vector.hpp"
 #include <atomic>
+#include <memory>
 #include <variant>
 #include <entt/entt.hpp>
 
@@ -603,18 +605,33 @@ void island_worker::insert_remote_node(entt::entity remote_entity) {
     auto node_index = graph.insert_node(local_entity, non_connecting);
     m_registry.emplace<graph_node>(local_entity, node_index);
 
-    // Assign `rotated_mesh` component if this node contains a 
-    // polyhedron shape.
+    // If this node contains a `shape` which holds a `polyhedron_shape`, assign
+    // the `polyhedron_shape` as a component so it can have its rotated elements
+    // more efficiently updated using `update_polyhedrons`.
     auto *sh = m_registry.try_get<shape>(local_entity);
 
     if (sh && std::holds_alternative<polyhedron_shape>(sh->var)) {
         auto &polyhedron = std::get<polyhedron_shape>(sh->var);
-        auto &rmesh = m_registry.emplace<rotated_mesh>(local_entity);
-        rmesh.vertices.resize(polyhedron.mesh->vertices.size());
-        rmesh.normals.resize(polyhedron.mesh->normals.size());
-
         auto &orn = m_registry.get<orientation>(local_entity);
-        update_rotated_mesh(rmesh, *polyhedron.mesh, orn);
+        polyhedron.rotated = std::make_shared<rotated_mesh>(make_rotated_mesh(*polyhedron.mesh, orn));
+        m_registry.emplace<polyhedron_shape>(local_entity, polyhedron);
+    } else if (sh && std::holds_alternative<compound_shape>(sh->var)) {
+        auto &compound = std::get<compound_shape>(sh->var);
+        auto &orn = m_registry.get<orientation>(local_entity);
+        auto has_polyhedron = false;
+
+        for (auto &node : compound.nodes) {
+            if (!std::holds_alternative<polyhedron_shape>(node.var)) continue;
+
+            has_polyhedron = true;
+            auto &polyhedron = std::get<polyhedron_shape>(node.var);
+            auto local_orn = orn * node.orientation;
+            polyhedron.rotated = std::make_shared<rotated_mesh>(make_rotated_mesh(*polyhedron.mesh, local_orn));
+        }
+
+        if (has_polyhedron) {
+            m_registry.emplace<compound_shape>(local_entity, compound);
+        }
     }
 }
 

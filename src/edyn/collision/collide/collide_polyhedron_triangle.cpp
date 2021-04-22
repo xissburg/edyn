@@ -18,7 +18,7 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
     const auto &pos_poly = ctx.posA;
     const auto &orn_poly = ctx.ornA;
     const auto threshold = ctx.threshold;
-    const auto &rmesh = ctx.rmeshA->get();
+    const auto &rmesh = *poly.rotated;
 
     // Shift vertices into A's positional object space.
     auto tri_vertices = tri.vertices;
@@ -83,7 +83,7 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
 
     // Edge vs edge.
     for (size_t i = 0; i < poly.mesh->num_edges(); ++i) {
-        auto [vertexA0, vertexA1] = poly.mesh->get_edge(rmesh, i);
+        auto [vertexA0, vertexA1] = poly.mesh->get_rotated_edge(rmesh, i);
         auto poly_edge = vertexA1 - vertexA0;
 
         for (size_t j = 0; j < tri.edges.size(); ++j) {

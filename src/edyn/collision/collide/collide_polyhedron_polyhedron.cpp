@@ -59,8 +59,8 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
 
     // The pre-rotated vertices and normals are used to avoid rotating vertices
     // every time.
-    auto &rmeshA = ctx.rmeshA->get();
-    auto &rmeshB = ctx.rmeshB->get();
+    auto &rmeshA = *shA.rotated;
+    auto &rmeshB = *shB.rotated;
 
     scalar distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;
@@ -93,11 +93,11 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
 
     // Edge vs edge.
     for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
-        auto [vertexA0, vertexA1] = shA.mesh->get_edge(rmeshA, i);
+        auto [vertexA0, vertexA1] = shA.mesh->get_rotated_edge(rmeshA, i);
         auto edgeA = vertexA1 - vertexA0;
 
         for (size_t j = 0; j < shB.mesh->num_edges(); ++j) {
-            auto [vertexB0, vertexB1] = shB.mesh->get_edge(rmeshB, j);
+            auto [vertexB0, vertexB1] = shB.mesh->get_rotated_edge(rmeshB, j);
             auto edgeB = vertexB1 - vertexB0;
             auto dir = cross(edgeA, edgeB);
             auto dir_len_sqr = length_sqr(dir);

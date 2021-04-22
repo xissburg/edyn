@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstdint>
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/config/config.h"
 
 namespace edyn {
@@ -77,7 +78,7 @@ struct convex_mesh {
      * @param idx Edge index.
      * @return The coordinates of the two rotated vertices.
      */
-    std::array<vector3, 2> get_edge(const rotated_mesh &, size_t idx) const;
+    std::array<vector3, 2> get_rotated_edge(const rotated_mesh &, size_t idx) const;
     
     void calculate_normals();
 
@@ -85,6 +86,18 @@ struct convex_mesh {
 
     void validate() const;
 };
+
+/**
+ * @brief Accompanying component for `convex_mesh`es containg their 
+ * rotated vertices and normals to prevent repeated recalculation of
+ * these values.
+ */
+struct rotated_mesh {
+    std::vector<vector3> vertices;
+    std::vector<vector3> normals;
+};
+
+rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn = quaternion_identity);
 
 }
 

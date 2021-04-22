@@ -43,7 +43,9 @@ struct compound_shape {
     static_tree tree;
 
     compound_shape() = default;
-    compound_shape(const std::string &path_to_obj);
+    compound_shape(const std::string &path_to_obj,
+                   const vector3 &pos = vector3_zero,
+                   const quaternion &orn = quaternion_identity);
 };
 
 template<typename T>
@@ -64,7 +66,7 @@ void compound_shape::visit(const AABB &aabb, Func func) const {
     tree.visit(aabb, [&] (auto index) {
         auto &node = nodes[index];
         std::visit([&] (auto &&sh) {
-            func(sh, node.position, node.orientation);
+            func(sh, node);
         }, node.var);
     });
 }

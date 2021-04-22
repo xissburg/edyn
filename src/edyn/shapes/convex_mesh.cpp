@@ -1,7 +1,7 @@
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/comp/rotated_mesh.hpp"
+#include "edyn/sys/update_polyhedrons.hpp"
 
 namespace edyn {
 
@@ -13,8 +13,8 @@ std::array<vector3, 2> convex_mesh::get_edge(size_t idx) const {
     };
 }
 
-std::array<vector3, 2> convex_mesh::get_edge(const rotated_mesh &rmesh, 
-                                             size_t idx) const {
+std::array<vector3, 2> convex_mesh::get_rotated_edge(const rotated_mesh &rmesh, 
+                                                     size_t idx) const {
     EDYN_ASSERT(idx * 2 + 1 < edges.size());
     EDYN_ASSERT(rmesh.vertices.size() == vertices.size());
     return {
@@ -114,6 +114,16 @@ void convex_mesh::validate() const {
             EDYN_ASSERT(dot(vj - v0, normal) < EDYN_EPSILON);
         }
     }
+}
+
+rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn) {
+    auto rotated = rotated_mesh{};
+    rotated.vertices.resize(mesh.vertices.size());
+    rotated.normals.resize(mesh.normals.size());
+
+    update_rotated_mesh(rotated, mesh, orn);
+
+    return rotated;
 }
 
 }

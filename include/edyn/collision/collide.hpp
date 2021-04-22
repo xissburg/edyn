@@ -4,7 +4,6 @@
 #include <optional>
 #include <functional>
 #include "edyn/comp/shape.hpp"
-#include "edyn/comp/rotated_mesh.hpp"
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/shapes/compound_shape.hpp"
@@ -17,20 +16,17 @@ struct collision_context {
     vector3 posA;
     quaternion ornA;
     AABB aabbA;
+
     vector3 posB;
     quaternion ornB;
     AABB aabbB;
-    scalar threshold;
 
-    using rotated_mesh_opt_ref = std::optional<std::reference_wrapper<rotated_mesh>>;
-    rotated_mesh_opt_ref rmeshA;
-    rotated_mesh_opt_ref rmeshB;
+    scalar threshold;
 
     collision_context swapped() const {
         return {posB, ornB, aabbB,
                 posA, ornA, aabbA,
-                threshold,
-                rmeshB, rmeshA};
+                threshold};
     }
 };
 
@@ -152,31 +148,7 @@ void collide(const mesh_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result) {
     swap_collide(shA, shB, ctx, result);
 }
-/*
-// Sphere-Mesh
-void collide(const sphere_shape &shA, const mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
 
-// Mesh-Sphere
-void collide(const mesh_shape &shA, const sphere_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Capsule-Mesh
-void collide(const capsule_shape &shA, const mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Mesh-Capsule
-void collide(const mesh_shape &shA, const capsule_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Cylinder-Mesh
-void collide(const cylinder_shape &shA, const mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Mesh-Cylinder
-void collide(const mesh_shape &shA, const cylinder_shape &shB,
-             const collision_context &ctx, collision_result &result);
-*/
 // Box-Box
 void collide(const box_shape &shA, const box_shape &shB,
              const collision_context &ctx, collision_result &result);
@@ -212,15 +184,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 // Box-Cylinder
 void collide(const box_shape &shA, const cylinder_shape &shB,
              const collision_context &ctx, collision_result &result);
-/*
-// Box-Mesh
-void collide(const box_shape &shA, const mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
 
-// Mesh-Box
-void collide(const mesh_shape &shA, const box_shape &shB,
-             const collision_context &ctx, collision_result &result);
-*/
 // Paged Mesh-Paged Mesh
 inline
 void collide(const paged_mesh_shape &shA, const paged_mesh_shape &shB,
@@ -241,39 +205,7 @@ void collide(const paged_mesh_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result) {
     swap_collide(shA, shB, ctx, result);
 }
-/*
-// Sphere-Paged Mesh
-void collide(const sphere_shape &shA, const paged_mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
 
-// Paged Mesh-Sphere
-void collide(const paged_mesh_shape &shA, const sphere_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Capsule-Paged Mesh
-void collide(const capsule_shape &shA, const paged_mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Paged Mesh-Capsule
-void collide(const paged_mesh_shape &shA, const capsule_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Cylinder-Paged Mesh
-void collide(const cylinder_shape &shA, const paged_mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Paged Mesh-Cylinder
-void collide(const paged_mesh_shape &shA, const cylinder_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Box-Paged Mesh
-void collide(const box_shape &shA, const paged_mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Paged Mesh-Box
-void collide(const paged_mesh_shape &shA, const box_shape &shB,
-             const collision_context &ctx, collision_result &result);
-*/
 // Mesh-Paged Mesh
 inline
 void collide(const mesh_shape &shA, const paged_mesh_shape &shB,
@@ -331,23 +263,7 @@ void collide(const cylinder_shape &shA, const polyhedron_shape &shB,
 // Polyhedron-Cylinder
 void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
              const collision_context &ctx, collision_result &result);
-/*
-// Polyhedron-Mesh
-void collide(const polyhedron_shape &shA, const mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
 
-// Mesh-Polyhedron
-void collide(const mesh_shape &shA, const polyhedron_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Polyhedron-Paged Mesh
-void collide(const polyhedron_shape &shA, const paged_mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Paged Mesh-Polyhedron
-void collide(const paged_mesh_shape &shA, const polyhedron_shape &shB,
-             const collision_context &ctx, collision_result &result);
-*/
 // Compound-Compound
 void collide(const compound_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
@@ -360,51 +276,21 @@ void collide(const compound_shape &shA, const plane_shape &shB,
 void collide(const plane_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
 
-/*
-// Compound-Polyhedron
-void collide(const compound_shape &shA, const polyhedron_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Polyhedron-Compound
-void collide(const polyhedron_shape &shA, const compound_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Compound-Mesh
-void collide(const compound_shape &shA, const mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Mesh-Compound
-void collide(const mesh_shape &shA, const compound_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Compound-Paged Mesh
-void collide(const compound_shape &shA, const paged_mesh_shape &shB,
-             const collision_context &ctx, collision_result &result);
-
-// Paged Mesh-Compound
-void collide(const paged_mesh_shape &shA, const compound_shape &shB,
-             const collision_context &ctx, collision_result &result);
- */
-
-// Compound-Box/Sphere/Cylinder/Capsule
+// Compound-Box/Sphere/Cylinder/Capsule/Polyhedron
 template<typename T> 
 typename std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value>
      collide(const compound_shape &shA, const T &shB,
              const collision_context &ctx, collision_result &result) {
-    auto posB_in_A = to_object_space(ctx.posB, ctx.posA, ctx.ornA);
-    auto ornB_in_A = conjugate(ctx.ornA) * ctx.ornB;
     // Calculate AABB of B's AABB in A's space.
     auto aabbB_in_A = aabb_to_object_space(ctx.aabbB, ctx.posA, ctx.ornA);
     // A more precise AABB could be obtained but it would be generally more expensive.
     //auto aabbB_in_A = shape_aabb(shB, posB_in_A, ornB_in_A);
 
-    shA.visit(aabbB_in_A, [&] (auto &&sh, const vector3 &pos, const quaternion &orn) {
-        // New collision context set into A's space.
+    shA.visit(aabbB_in_A, [&] (auto &&sh, const compound_shape::shape_node &nodeA) {
+        // New collision context with A's world space position and orientation.
         auto child_ctx = ctx;
-        child_ctx.posA = pos;
-        child_ctx.ornA = orn;
-        child_ctx.posB = posB_in_A;
-        child_ctx.ornB = ornB_in_A;
+        child_ctx.posA = to_world_space(nodeA.position, ctx.posA, ctx.ornA);
+        child_ctx.ornA = ctx.ornA * nodeA.orientation;
 
         collision_result child_result;
         collide(sh, shB, child_ctx, child_result);
@@ -413,13 +299,13 @@ typename std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value>
         // node's space into A's space.
         for (size_t i = 0; i < child_result.num_points; ++i) {
             auto &child_point = child_result.point[i];
-            child_point.pivotA = to_world_space(child_point.pivotA, pos, orn);
+            child_point.pivotA = to_world_space(child_point.pivotA, nodeA.position, nodeA.orientation);
             result.maybe_add_point(child_point);
         }
     });
 }
 
-// Box/Sphere/Cylinder/Capsule-Compound
+// Box/Sphere/Cylinder/Capsule/Polyhedron-Compound
 template<typename T>
 typename std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value>
      collide(const T &shA, const compound_shape &shB,
