@@ -65,6 +65,31 @@ void make_box_mesh(const vector3 &he,
     faces.insert(faces.end(), {20, 4});
 }
 
+static vector3 read_vector3(std::istringstream &iss) {
+    edyn::vector3 v;
+    iss >> v.x >> v.y >> v.z;
+    return v;
+}
+
+static void read_face(std::istringstream &iss, 
+                      std::vector<uint16_t> &indices, 
+                      std::vector<uint16_t> &faces) {
+    // Store where this face starts in the `indices` array.
+    faces.push_back(indices.size());
+
+    uint16_t idx;
+
+    while (true) {
+        iss >> idx;
+        if (iss.fail()) break;
+        indices.push_back(idx - 1);
+    }
+
+    // Store the number of vertices in this face.
+    auto count = indices.size() - faces.back();
+    faces.push_back(count);
+}
+
 bool load_mesh_from_obj(const std::string &path, 
                         std::vector<vector3> &vertices, 
                         std::vector<uint16_t> &indices,
@@ -88,26 +113,51 @@ bool load_mesh_from_obj(const std::string &path,
 
         if (cmd == "v") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            edyn::vector3 position;
-            iss >> position.x >> position.y >> position.z;
-            vertices.push_back(position);
+            vertices.push_back(read_vector3(iss));
         } else if (cmd == "f") {
-            // Store where this face starts in the `indices` array.
-            faces.push_back(indices.size());
-
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            uint16_t idx;
-
-            while (true) {
-                iss >> idx;
-                if (iss.fail()) break;
-                indices.push_back(idx - 1);
-            }
-
-            // Store the number of vertices in this face.
-            auto count = indices.size() - faces.back();
-            faces.push_back(count);
+            read_face(iss, indices, faces);
         }
+    }
+
+    return true;
+}
+
+bool load_meshes_from_obj(const std::string &path,
+                          std::vector<obj_mesh> &meshes) {
+    auto file = std::ifstream(path);
+
+    if (!file.is_open()) {
+        return false;
+    }
+
+    std::string line;
+    auto mesh = obj_mesh{};
+
+    while (std::getline(file, line)) {
+        auto pos_space = line.find(" ");
+
+        if (pos_space == std::string::npos) {
+            continue;
+        }
+
+        auto cmd = line.substr(0, pos_space);
+
+        if (cmd == "o") {
+            if (!mesh.vertices.empty()) {
+                meshes.emplace_back(std::move(mesh));
+            }
+        } else if (cmd == "v") {
+            auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
+            mesh.vertices.push_back(read_vector3(iss));
+        } else if (cmd == "f") {
+            auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
+            read_face(iss, mesh.indices, mesh.faces);
+        }
+    }
+
+    if (!mesh.vertices.empty()) {
+        meshes.emplace_back(std::move(mesh));
     }
 
     return true;
@@ -135,9 +185,7 @@ bool load_tri_mesh_from_obj(const std::string &path,
 
         if (cmd == "v") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            edyn::vector3 position;
-            iss >> position.x >> position.y >> position.z;
-            vertices.push_back(position);
+            vertices.push_back(read_vector3(iss));
         } else if (cmd == "f") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
             uint16_t idx[3];
@@ -402,6 +450,45 @@ scalar cylinder_support_projection(scalar radius, scalar half_length, const vect
     auto local_dir = rotate(conjugate(orn), dir);
     auto pt = cylinder_support_point(radius, half_length, local_dir);
     return dot(pos, dir) + dot(pt, local_dir);
+}
+
+vector3 mesh_center_of_mass(const std::vector<vector3> &vertices,
+                            const std::vector<uint16_t> &indices,
+                            const std::vector<uint16_t> &faces) {
+    scalar volume = 0;
+    auto center = vector3_zero;
+
+    EDYN_ASSERT(faces.size() % 2 == 0);
+    auto num_faces = faces.size() / 2;
+
+    for (size_t i = 0; i < num_faces; ++i) {
+        auto first = faces[i * 2];
+        auto count = faces[i * 2 + 1];
+
+        auto i0 = indices[first];
+        auto &v0 = vertices[i0];
+
+        for (size_t j = 1; j < count - 1; ++j) {
+            auto i1 = indices[first + j];
+            auto i2 = indices[first + j + 1];
+            auto &v1 = vertices[i1];
+            auto &v2 = vertices[i2];
+
+            // Parallelepiped volume. Tetrahedron volume is 1/6th of it.
+            auto pd_vol = triple_product(v0, v1, v2);
+
+            // Contribution to the mass.
+            volume += pd_vol;
+
+            // Contribution to the centroid.
+            auto v3 = v0 + v1 + v2;
+            center += pd_vol * v3;
+        }
+    }
+
+    center /= 4 * volume;
+
+    return center;
 }
 
 }

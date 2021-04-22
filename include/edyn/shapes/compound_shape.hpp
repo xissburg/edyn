@@ -41,6 +41,9 @@ struct compound_shape {
 
     std::vector<shape_node> nodes;
     static_tree tree;
+
+    compound_shape() = default;
+    compound_shape(const std::string &path_to_obj);
 };
 
 template<typename T>

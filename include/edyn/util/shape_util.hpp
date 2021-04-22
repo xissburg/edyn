@@ -35,7 +35,7 @@ void make_plane_mesh(scalar extent_x, scalar extent_z,
  * @param faces Fills it with [first index, count] pairs.
  */
 void make_box_mesh(const vector3 &half_extents,
-                   std::vector<vector3> &vertices, 
+                   std::vector<vector3> &vertices,
                    std::vector<uint16_t> &indices,
                    std::vector<uint16_t> &faces);
 
@@ -54,6 +54,15 @@ bool load_mesh_from_obj(const std::string &path,
                         std::vector<vector3> &vertices, 
                         std::vector<uint16_t> &indices,
                         std::vector<uint16_t> &faces);
+
+struct obj_mesh {
+    std::vector<vector3> vertices;
+    std::vector<uint16_t> indices;
+    std::vector<uint16_t> faces;
+};
+
+bool load_meshes_from_obj(const std::string &path,
+                          std::vector<obj_mesh> &meshes);
 
 /**
  * @brief Loads a triangle mesh from a *.obj file which must've been
@@ -339,6 +348,10 @@ vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 
  */
 scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos, 
                                    const quaternion &orn, const vector3 &dir);
+
+vector3 mesh_center_of_mass(const std::vector<vector3> &vertices,
+                            const std::vector<uint16_t> &indices,
+                            const std::vector<uint16_t> &faces);
 
 }
 
