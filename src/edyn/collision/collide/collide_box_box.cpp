@@ -104,8 +104,12 @@ void collide(const box_shape &shA, const box_shape &shB,
     size_t feature_indexA, feature_indexB;
     scalar projectionA, projectionB;
 
-    shA.support_feature(posA, ornA, vector3_zero, -sep_axis, featureA, feature_indexA, projectionA, threshold);
-    shB.support_feature(posB, ornB, vector3_zero, sep_axis, featureB, feature_indexB, projectionB, threshold);
+    shA.support_feature(posA, ornA, vector3_zero, -sep_axis,
+                        featureA, feature_indexA, projectionA,
+                        support_feature_tolerance);
+    shB.support_feature(posB, ornB, vector3_zero, sep_axis,
+                        featureB, feature_indexB, projectionB,
+                        support_feature_tolerance);
 
     auto normalB = rotate(conjugate(ornB), sep_axis);
 

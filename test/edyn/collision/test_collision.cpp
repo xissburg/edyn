@@ -176,11 +176,11 @@ TEST(test_collision, collide_capsule_cylinder_parallel) {
     auto cylinder = edyn::cylinder_shape{0.2, 0.5};
 
     auto ctx = edyn::collision_context{};
-    ctx.posA = edyn::vector3{0.3, 0.5, 0};
+    ctx.posA = edyn::vector3{1, 0.5, 0};
     ctx.ornA = edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi / 2);
     ctx.posB = edyn::vector3{0, 0, 0};
     ctx.ornB = edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi / 2);
-    ctx.threshold = 0.02;
+    ctx.threshold = 9999;
     
     auto result = edyn::collision_result{};
     edyn::collide(capsule, cylinder, ctx, result);

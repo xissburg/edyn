@@ -93,7 +93,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
     };
 
     auto is_capsule_edge = std::abs(proj_capsule_vertices[0] -
-                                    proj_capsule_vertices[1]) < threshold;
+                                    proj_capsule_vertices[1]) < support_feature_tolerance;
 
     auto contact_origin_box = sep_axis * projection_box;
     scalar feature_distanceB;
@@ -101,7 +101,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
     size_t feature_indexB;
     shB.support_feature(posB, ornB, contact_origin_box, sep_axis, 
                         featureB, feature_indexB,
-                        feature_distanceB, threshold);
+                        feature_distanceB, support_feature_tolerance);
 
     auto normalB = rotate(conjugate(ornB), sep_axis);
 

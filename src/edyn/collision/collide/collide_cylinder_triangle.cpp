@@ -59,9 +59,9 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         axis.cyl_feature_index = dot(cylinder_axis, tri.normal) > 0 ? 1 : 0;
         axis.dir = axis.cyl_feature_index == 0 ? -cylinder_axis : cylinder_axis;
 
-        get_triangle_support_feature(tri.vertices, posA, cylinder_axis, 
-                                     axis.tri_feature, axis.tri_feature_index, 
-                                     axis.distance, threshold);
+        get_triangle_support_feature(tri.vertices, posA, cylinder_axis,
+                                     axis.tri_feature, axis.tri_feature_index,
+                                     axis.distance, support_feature_tolerance);
     
         axis.distance = -(cylinder.half_length + axis.distance);
         if (!tri.ignore_feature(axis.tri_feature, axis.tri_feature_index, axis.dir)) {
@@ -75,9 +75,9 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         axis.tri_feature = triangle_feature::face;
         axis.dir = tri.normal;
 
-        cylinder.support_feature(posA, ornA, tri.vertices[0], -tri.normal, 
-                            axis.cyl_feature, axis.cyl_feature_index, 
-                            axis.pivotA, axis.distance, threshold);
+        cylinder.support_feature(posA, ornA, tri.vertices[0], -tri.normal,
+                            axis.cyl_feature, axis.cyl_feature_index,
+                            axis.pivotA, axis.distance, support_feature_tolerance);
 
         // Make distance negative when penetrating.
         axis.distance *= -1;
@@ -95,7 +95,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         const auto &v1 = tri.vertices[(i + 1) % 3];
         scalar s, t;
         vector3 p0, p1;
-        closest_point_segment_segment(cylinder_vertices[1], cylinder_vertices[0], 
+        closest_point_segment_segment(cylinder_vertices[1], cylinder_vertices[0],
                                       v0, v1, s, t, p0, p1);
 
         if (s > 0 && s < 1) {
@@ -118,9 +118,9 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
 
                 axis.dir = normalize(axis.dir);
 
-                get_triangle_support_feature(tri.vertices, posA, axis.dir, 
-                                             axis.tri_feature, axis.tri_feature_index, 
-                                             axis.distance, threshold);
+                get_triangle_support_feature(tri.vertices, posA, axis.dir,
+                                             axis.tri_feature, axis.tri_feature_index,
+                                             axis.distance, support_feature_tolerance);
                 axis.distance = -(cylinder.radius + axis.distance);
                 if (!tri.ignore_feature(axis.tri_feature, axis.tri_feature_index, axis.dir)) {
                     sep_axes.push_back(axis);
@@ -134,7 +134,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
                 // axis connecting them as the separating axis.
                 scalar r;
                 vector3 closest;
-                auto dist_sqr = closest_point_segment(cylinder_vertices[1], cylinder_vertices[0], 
+                auto dist_sqr = closest_point_segment(cylinder_vertices[1], cylinder_vertices[0],
                                                         v0, r, closest);
 
                 // Ignore points at the extremes.
@@ -148,9 +148,9 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
                         axis.dir *= -1;
                     }
 
-                    get_triangle_support_feature(tri.vertices, posA, axis.dir, 
-                                                 axis.tri_feature, axis.tri_feature_index, 
-                                                 axis.distance, threshold);
+                    get_triangle_support_feature(tri.vertices, posA, axis.dir,
+                                                 axis.tri_feature, axis.tri_feature_index,
+                                                 axis.distance, support_feature_tolerance);
                     axis.distance = -(cylinder.radius + axis.distance);
                     if (!tri.ignore_feature(axis.tri_feature, axis.tri_feature_index, axis.dir)) {
                         sep_axes.push_back(axis);
@@ -177,8 +177,9 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
             scalar s0, s1;
             vector3 cc0, cl0, cc1, cl1;
             vector3 normal;
-            closest_point_circle_line(disc_center, ornA, cylinder.radius, v0, v1, 
-                                      num_points, s0, cc0, cl0, s1, cc1, cl1, normal, threshold);
+            closest_point_circle_line(disc_center, ornA, cylinder.radius, v0, v1,
+                                      num_points, s0, cc0, cl0, s1, cc1, cl1,
+                                      normal, support_feature_tolerance);
             
             if (s0 > 0 && s0 < 1) {
                 if (dot(tri.normal, normal) < 0) {
@@ -188,17 +189,18 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
                 auto axis = separating_axis_cyl_tri{};
 
                 scalar projA, projB;
-                cylinder.support_feature(posA, ornA, v0, -normal, 
-                                         axis.cyl_feature, axis.cyl_feature_index, 
-                                         axis.pivotA, projA, threshold);
+                cylinder.support_feature(posA, ornA, v0, -normal,
+                                         axis.cyl_feature, axis.cyl_feature_index,
+                                         axis.pivotA, projA, support_feature_tolerance);
 
                 // Precalculate the pivot on the triangle, which is the point on
                 // the edge [v0,v1] closest to the pivot on the cylinder.
                 scalar t;
                 closest_point_segment(v0, v1, axis.pivotA, t, axis.pivotB);
 
-                get_triangle_support_feature(tri.vertices, v0, normal, axis.tri_feature, 
-                                             axis.tri_feature_index, projB, threshold);
+                get_triangle_support_feature(tri.vertices, v0, normal,
+                                             axis.tri_feature, axis.tri_feature_index,
+                                             projB, support_feature_tolerance);
 
                 axis.distance = -(projA + projB);
                 axis.dir = normal;
@@ -318,8 +320,8 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
                     auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
                     for(size_t i = 0; i < 4; ++i) {
                         auto pivotA_x = cylinder.half_length * (sep_axis.cyl_feature_index == 0 ? 1 : -1);
-                        auto pivotA = vector3{pivotA_x, 
-                                                cylinder.radius * multipliers[i], 
+                        auto pivotA = vector3{pivotA_x,
+                                                cylinder.radius * multipliers[i],
                                                 cylinder.radius * multipliers[(i + 1) % 4]};
                         auto pivotB = posA + rotate(ornA, pivotA);
                         pivotB = project_plane(pivotB, tri.vertices[0], tri.normal);

@@ -43,10 +43,10 @@ void collide(const box_shape &box, const triangle_shape &tri,
         scalar neg_tri_proj, pos_tri_proj;
         get_triangle_support_feature(tri.vertices, box_pos, -axisA, 
                                      neg_tri_feature, neg_tri_feature_index, 
-                                     neg_tri_proj, threshold);
+                                     neg_tri_proj, support_feature_tolerance);
         get_triangle_support_feature(tri.vertices, box_pos, axisA, 
                                      pos_tri_feature, pos_tri_feature_index, 
-                                     pos_tri_proj, threshold);
+                                     pos_tri_proj, support_feature_tolerance);
 
         if (neg_tri_proj < pos_tri_proj) {
             axis.dir = -axisA;
@@ -76,7 +76,7 @@ void collide(const box_shape &box, const triangle_shape &tri,
         box.support_feature(box_pos, box_orn, 
                             tri.vertices[0], -tri.normal, 
                             axis.featureA, axis.feature_indexA, 
-                            axis.distance, threshold);
+                            axis.distance, support_feature_tolerance);
         // Make distance negative when penetrating.
         axis.distance *= -1;
     }
@@ -105,10 +105,10 @@ void collide(const box_shape &box, const triangle_shape &tri,
             scalar projA, projB;
             box.support_feature(box_pos, box_orn, tri.vertices[j], -axis.dir, 
                                 axis.featureA, axis.feature_indexA, 
-                                projA, threshold);
+                                projA, support_feature_tolerance);
             get_triangle_support_feature(tri.vertices, tri.vertices[j], axis.dir, 
                                          axis.featureB, axis.feature_indexB, 
-                                         projB, threshold);
+                                         projB, support_feature_tolerance);
             axis.distance = -(projA + projB);
 
             if (!tri.ignore_feature(axis.featureB, axis.feature_indexB, axis.dir)) {

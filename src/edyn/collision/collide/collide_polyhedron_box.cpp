@@ -119,7 +119,7 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
     size_t feature_indexB;
     shB.support_feature(posB, ornB, contact_origin_box, sep_axis, 
                         featureB, feature_indexB,
-                        feature_distanceB, threshold);
+                        feature_distanceB, support_feature_tolerance);
 
     auto normalB = rotate(conjugate(ornB), sep_axis);
 

@@ -138,7 +138,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             closest_point_circle_line(face_center, ornB, shB.radius, 
                                       vertexA0, vertexA1, 
                                       num_points, s0, cc0, cl0, s1, cc1, cl1, 
-                                      dir, threshold);
+                                      dir, support_feature_tolerance);
 
             if (!(s0 > 0 && s0 < 1)) continue;
 
@@ -174,7 +174,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     vector3 supB;
     scalar projectionB;
     shB.support_feature(posB, ornB, contact_origin_cyl, sep_axis, featureB,
-                        feature_indexB, supB, projectionB, threshold);
+                        feature_indexB, supB, projectionB, support_feature_tolerance);
 
     auto normalB = rotate(conjugate(ornB), sep_axis);
 

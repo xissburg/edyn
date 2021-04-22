@@ -69,7 +69,7 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
         size_t feature_idx;
         scalar proj_tri;
         get_triangle_support_feature(tri.vertices, vector3_zero, dir, feature, 
-                                     feature_idx, proj_tri, threshold);
+                                     feature_idx, proj_tri, support_feature_tolerance);
 
         if (tri.ignore_feature(feature, feature_idx, dir)) {
             continue;
@@ -98,7 +98,7 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
     };
 
     auto is_capsule_edge = std::abs(proj_capsule_vertices[0] -
-                                    proj_capsule_vertices[1]) < threshold;
+                                    proj_capsule_vertices[1]) < support_feature_tolerance;
 
     auto capsule_vertex_index = proj_capsule_vertices[0] < proj_capsule_vertices[1] ? 0 : 1;
 

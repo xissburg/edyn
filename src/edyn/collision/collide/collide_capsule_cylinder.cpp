@@ -163,7 +163,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     };
 
     auto is_capsule_edge = std::abs(proj_capsule_vertices[0] -
-                                    proj_capsule_vertices[1]) < ctx.threshold;
+                                    proj_capsule_vertices[1]) < support_feature_tolerance;
 
     auto contact_origin_cyl = sep_axis * projection_cyl;
     cylinder_feature featureB;
@@ -171,7 +171,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     vector3 supB;
     scalar projectionB;
     shB.support_feature(posB, ornB, contact_origin_cyl, sep_axis, featureB,
-                        feature_indexB, supB, projectionB, ctx.threshold);
+                        feature_indexB, supB, projectionB, support_feature_tolerance);
 
     switch (featureB) {
     case cylinder_feature::face: {

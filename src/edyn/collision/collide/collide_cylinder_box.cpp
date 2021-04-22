@@ -69,7 +69,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
         shA.support_feature(posA, ornA, posB, -axis.dir, 
                             axis.featureA, axis.feature_indexA, 
-                            axis.pivotA, axis.distance, threshold);
+                            axis.pivotA, axis.distance, support_feature_tolerance);
         axis.distance = -(shB.half_extents[i] + axis.distance);
         axis.pivotB = axis.pivotA - axis.dir * axis.distance;
     }
@@ -93,7 +93,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
         shB.support_feature(posB, ornB, face_center, axis.dir, 
                             axis.featureB, axis.feature_indexB, 
-                            axis.distance, threshold);
+                            axis.distance, support_feature_tolerance);
         axis.distance = -axis.distance;
     }
 
@@ -119,7 +119,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
         shB.support_feature(posB, ornB, posA, axis.dir, 
                             axis.featureB, axis.feature_indexB, 
-                            axis.distance, threshold);
+                            axis.distance, support_feature_tolerance);
         axis.distance = -(shA.radius + axis.distance);
     }
 
@@ -149,7 +149,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
         shB.support_feature(posB, ornB, posA, axis.dir, 
                             axis.featureB, axis.feature_indexB, 
-                            axis.distance, threshold);
+                            axis.distance, support_feature_tolerance);
         axis.distance = -(shA.radius + axis.distance);
     }
 
@@ -168,7 +168,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             closest_point_circle_line(face_center, ornA, shA.radius, 
                                       edge_vertices[0], edge_vertices[1], 
                                       num_points, s0, cc0, cl0, s1, cc1, cl1, 
-                                      normal, threshold);
+                                      normal, support_feature_tolerance);
             
             if (s0 > 0 && s0 < 1) {
                 // Make it point towards A.
@@ -182,10 +182,10 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
                 scalar projA, projB;
                 shA.support_feature(posA, ornA, posA, -normal, 
                                     axis.featureA, axis.feature_indexA, 
-                                    axis.pivotA, projA, threshold);
+                                    axis.pivotA, projA, support_feature_tolerance);
                 shB.support_feature(posB, ornB, posA, normal, 
                                     axis.featureB, axis.feature_indexB, 
-                                    projB, threshold);
+                                    projB, support_feature_tolerance);
                 axis.distance = -(projA + projB);
                 axis.pivotB = lerp(edge_vertices[0], edge_vertices[1], s0);
             }

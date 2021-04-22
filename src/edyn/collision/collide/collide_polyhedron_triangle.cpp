@@ -44,8 +44,9 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
         triangle_feature feature;
         size_t feature_idx;
         scalar tri_proj;
-        get_triangle_support_feature(tri_vertices, vector3_zero, normal, feature, 
-                                     feature_idx, tri_proj, threshold);
+        get_triangle_support_feature(tri_vertices, vector3_zero, normal, 
+                                     feature, feature_idx, tri_proj, 
+                                     support_feature_tolerance);
 
         if (tri.ignore_feature(feature, feature_idx, normal)) {
             continue;
@@ -106,8 +107,9 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
             triangle_feature feature;
             size_t feature_idx;
             scalar proj_tri;
-            get_triangle_support_feature(tri_vertices, vector3_zero, dir, feature, 
-                                         feature_idx, proj_tri, threshold);
+            get_triangle_support_feature(tri_vertices, vector3_zero, dir, 
+                                         feature, feature_idx, proj_tri, 
+                                         support_feature_tolerance);
 
             if (tri.ignore_feature(feature, feature_idx, dir)) {
                 continue;

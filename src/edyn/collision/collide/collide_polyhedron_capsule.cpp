@@ -83,7 +83,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
     };
 
     auto is_capsule_edge = std::abs(proj_capsule_vertices[0] -
-                                    proj_capsule_vertices[1]) < threshold;
+                                    proj_capsule_vertices[1]) < support_feature_tolerance;
 
     if (is_capsule_edge) {
         auto polygon = point_cloud_support_polygon<true>(
