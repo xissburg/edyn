@@ -22,7 +22,7 @@ inline constexpr scalar island_angular_sleep_threshold = pi / 48;
  * the support point is found and then all points behind it within a this
  * tolerance are selected as part of the support feature.
  */
-inline constexpr scalar support_feature_tolerance = 0.004;
+inline constexpr scalar support_feature_tolerance = 0.01;
 
 }
 
