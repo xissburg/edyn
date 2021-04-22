@@ -28,6 +28,18 @@ void make_plane_mesh(scalar extent_x, scalar extent_z,
                      std::vector<vector3> &vertices, std::vector<uint16_t> &indices);
 
 /**
+ * @brief Builds a convex mesh in the shape of a box.
+ * @param half_extents Half of the extent of the box in each axis.
+ * @param vertices Fills it with vertices.
+ * @param indices Fills it with sequences of vertex indices for each face.
+ * @param faces Fills it with [first index, count] pairs.
+ */
+void make_box_mesh(const vector3 &half_extents,
+                   std::vector<vector3> &vertices, 
+                   std::vector<uint16_t> &indices,
+                   std::vector<uint16_t> &faces);
+
+/**
  * @brief Loads a mesh from a *.obj file.
  * @param path Path to file.
  * @param vertices Array to be filled with vertices.

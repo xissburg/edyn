@@ -20,8 +20,8 @@ void collide(const box_shape &shA, const plane_shape &shB,
         return;
     }
 
-    std::array<vector3, 4> vertices;
-    size_t num_vertices;
+    auto vertices = std::array<vector3, 4>{};
+    auto num_vertices = size_t{};
 
     switch (featureA) {
     case box_feature::vertex:

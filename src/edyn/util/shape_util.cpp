@@ -37,6 +37,34 @@ void make_plane_mesh(scalar extent_x, scalar extent_z,
     }
 }
 
+void make_box_mesh(const vector3 &he,
+                   std::vector<vector3> &vertices, 
+                   std::vector<uint16_t> &indices,
+                   std::vector<uint16_t> &faces) {
+    vertices.push_back({-he.x, -he.y, -he.z});
+    vertices.push_back({ he.x, -he.y, -he.z});
+    vertices.push_back({ he.x, -he.y,  he.z});
+    vertices.push_back({-he.x, -he.y,  he.z});
+    vertices.push_back({-he.x,  he.y, -he.z});
+    vertices.push_back({ he.x,  he.y, -he.z});
+    vertices.push_back({ he.x,  he.y,  he.z});
+    vertices.push_back({-he.x,  he.y,  he.z});
+
+    indices.insert(indices.end(), {0, 1, 2, 3}); // bottom
+    indices.insert(indices.end(), {7, 6, 5, 4}); // top
+    indices.insert(indices.end(), {4, 5, 1, 0}); // front
+    indices.insert(indices.end(), {6, 7, 3, 2}); // rear
+    indices.insert(indices.end(), {7, 4, 0, 3}); // left
+    indices.insert(indices.end(), {5, 6, 2, 1}); // right
+
+    faces.insert(faces.end(), {0, 4});
+    faces.insert(faces.end(), {4, 4});
+    faces.insert(faces.end(), {8, 4});
+    faces.insert(faces.end(), {12, 4});
+    faces.insert(faces.end(), {16, 4});
+    faces.insert(faces.end(), {20, 4});
+}
+
 bool load_mesh_from_obj(const std::string &path, 
                         std::vector<vector3> &vertices, 
                         std::vector<uint16_t> &indices,
