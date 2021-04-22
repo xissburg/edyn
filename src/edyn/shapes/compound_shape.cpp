@@ -7,10 +7,11 @@ namespace edyn {
 
 compound_shape::compound_shape(const std::string &path_to_obj, 
                                const vector3 &pos,
-                               const quaternion &orn) {
+                               const quaternion &orn,
+                               const vector3 &scale) {
     auto meshes = std::vector<obj_mesh>{};
 
-    if (!load_meshes_from_obj(path_to_obj, meshes, pos, orn)) {
+    if (!load_meshes_from_obj(path_to_obj, meshes, pos, orn, scale)) {
         return;
     }
 

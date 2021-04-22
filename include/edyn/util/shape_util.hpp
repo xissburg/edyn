@@ -47,16 +47,19 @@ struct obj_mesh {
 
 /**
  * @brief Loads meshes from a *.obj file.
+ * Scale, rotation and translation are applied to all vertices in this order.
  * @param path Path to file.
  * @param meshes Array to be filled with meshes.
  * @param pos Position offset to add to vertices.
  * @param orn Orientation to rotate vertices.
+ * @param scale Scaling to be applied to all vertices.
  * @return Success or failure.
  */
 bool load_meshes_from_obj(const std::string &path,
                           std::vector<obj_mesh> &meshes, 
                           const vector3 &pos = vector3_zero,
-                          const quaternion &orn = quaternion_identity);
+                          const quaternion &orn = quaternion_identity,
+                          const vector3 &scale = vector3_one);
 
 /**
  * @brief Loads a triangle mesh from a *.obj file which must've been

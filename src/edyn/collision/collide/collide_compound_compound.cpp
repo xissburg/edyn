@@ -12,8 +12,8 @@ void collide(const compound_shape &shA, const compound_shape &shB,
     }
 
     for (auto &nodeB : shB.nodes) {
-        // Create a new collision context with the position of the child of the
-        // child of B in world space.
+        // Create a new collision context with the position of the child of B
+        // in world space.
         auto child_ctx = ctx;
         child_ctx.posB = to_world_space(nodeB.position, ctx.posB, ctx.ornB);
         child_ctx.ornB = ctx.ornB * nodeB.orientation;

@@ -95,7 +95,8 @@ static void read_face(std::istringstream &iss,
 bool load_meshes_from_obj(const std::string &path,
                           std::vector<obj_mesh> &meshes,
                           const vector3 &pos,
-                          const quaternion &orn) {
+                          const quaternion &orn,
+                          const vector3 &scale) {
     auto file = std::ifstream(path);
 
     if (!file.is_open()) {
@@ -106,6 +107,7 @@ bool load_meshes_from_obj(const std::string &path,
     auto mesh = obj_mesh{};
     uint16_t index_offset = 0;
     const auto should_transform = pos != vector3_zero || orn != quaternion_identity;
+    const auto should_scale = scale != vector3_one;
 
     while (std::getline(file, line)) {
         auto pos_space = line.find(" ");
@@ -124,9 +126,15 @@ bool load_meshes_from_obj(const std::string &path,
         } else if (cmd == "v") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
             auto v = read_vector3(iss);
+            
+            if (should_scale) {
+                v *= scale;
+            }
+            
             if (should_transform) {
                 v = to_world_space(v, pos, orn);
             }
+            
             mesh.vertices.push_back(v);
         } else if (cmd == "f") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));

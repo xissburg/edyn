@@ -100,7 +100,7 @@ inline vector3 operator/(scalar s, const vector3 &v) {
 }
 
 // Scale a vector.
-inline vector3& operator*=(vector3 &v, scalar s) {
+inline vector3 & operator*=(vector3 &v, scalar s) {
     v.x *= s;
     v.y *= s;
     v.z *= s;
@@ -108,11 +108,19 @@ inline vector3& operator*=(vector3 &v, scalar s) {
 }
 
 // Inverse-scale a vector.
-inline vector3& operator/=(vector3 &v, scalar s) {
+inline vector3 & operator/=(vector3 &v, scalar s) {
     auto z = scalar(1) / s;
     v.x *= z;
     v.y *= z;
     v.z *= z;
+    return v;
+}
+
+// Multiply vectors component-wise and assign to the first.
+inline vector3 & operator*=(vector3 &v, const vector3 &w) {
+    v.x *= w.x;
+    v.y *= w.y;
+    v.z *= w.z;
     return v;
 }
 

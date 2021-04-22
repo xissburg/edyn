@@ -6,11 +6,12 @@ namespace edyn {
 
 polyhedron_shape::polyhedron_shape(const std::string &path_to_obj,
                                    const vector3 &pos,
-                                   const quaternion &orn)
+                                   const quaternion &orn,
+                                   const vector3 &scale)
     : mesh(std::make_shared<convex_mesh>())
 {
     auto meshes = std::vector<obj_mesh>{};
-    load_meshes_from_obj(path_to_obj, meshes, pos, orn);
+    load_meshes_from_obj(path_to_obj, meshes, pos, orn, scale);
     EDYN_ASSERT(meshes.size() == 1);
 
     auto &m = meshes.front();

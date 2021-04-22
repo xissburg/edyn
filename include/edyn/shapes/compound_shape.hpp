@@ -45,7 +45,8 @@ struct compound_shape {
     compound_shape() = default;
     compound_shape(const std::string &path_to_obj,
                    const vector3 &pos = vector3_zero,
-                   const quaternion &orn = quaternion_identity);
+                   const quaternion &orn = quaternion_identity,
+                   const vector3 &scale = vector3_one);
 };
 
 template<typename T>
