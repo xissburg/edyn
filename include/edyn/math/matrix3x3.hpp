@@ -81,6 +81,22 @@ inline matrix3x3 operator*(scalar s, const matrix3x3& m) {
     return {s * m[0], s * m[1], s * m[2]};
 }
 
+// Add one matrix to another.
+inline matrix3x3 & operator+=(matrix3x3 &m, const matrix3x3 &n) {
+    m.row[0] += n.row[0];
+    m.row[1] += n.row[1]; 
+    m.row[2] += n.row[2];
+    return m;
+}
+
+// Subtract one matrix from another.
+inline matrix3x3 operator-=(matrix3x3 &m, const matrix3x3 &n) {
+    m.row[0] -= n.row[0];
+    m.row[1] -= n.row[1];
+    m.row[2] -= n.row[2];
+    return m;
+}
+
 // Create a matrix with the given column vectors.
 inline matrix3x3 matrix3x3_columns(const vector3 &v0, 
                                    const vector3 &v1, 
