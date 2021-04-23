@@ -149,9 +149,10 @@ matrix3x3 moment_of_inertia(const compound_shape &sh, scalar mass) {
         std::visit([&] (auto &&s) {
             auto vol = shape_volume(s);
             auto m = mass * (vol / total_volume);
-            auto i = moment_of_inertia(s, m);
+            auto orn = to_matrix3x3(node.orientation);
+            auto i = orn * moment_of_inertia(s, m) * transpose(orn);
             auto d = skew_matrix(node.position);
-            inertia += i - transpose(d) * d * m;
+            inertia += i + transpose(d) * d * m;
         }, node.var);
     }
 
