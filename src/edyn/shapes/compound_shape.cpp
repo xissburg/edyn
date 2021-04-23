@@ -18,7 +18,7 @@ compound_shape::compound_shape(const std::string &path_to_obj,
     EDYN_ASSERT(!meshes.empty());
 
     for (auto &mesh : meshes) {
-        auto center = mesh_center_of_mass(mesh.vertices, mesh.indices, mesh.faces);
+        auto center = mesh_centroid(mesh.vertices, mesh.indices, mesh.faces);
 
         auto polyhedron = polyhedron_shape{};
         polyhedron.mesh = std::make_shared<convex_mesh>();

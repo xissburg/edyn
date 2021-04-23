@@ -438,18 +438,19 @@ scalar cylinder_support_projection(scalar radius, scalar half_length, const vect
     return dot(pos, dir) + dot(pt, local_dir);
 }
 
-vector3 mesh_center_of_mass(const std::vector<vector3> &vertices,
-                            const std::vector<uint16_t> &indices,
-                            const std::vector<uint16_t> &faces) {
-    scalar volume = 0;
+vector3 mesh_centroid(const std::vector<vector3> &vertices,
+                      const std::vector<uint16_t> &indices,
+                      const std::vector<uint16_t> &faces) {
+    // Reference: "Calculating the volume and centroid of a polyhedron in 3d"
+    // http://wwwf.imperial.ac.uk/~rn/centroid.pdf
     auto center = vector3_zero;
+    auto volume = scalar(0);
 
     EDYN_ASSERT(faces.size() % 2 == 0);
-    auto num_faces = faces.size() / 2;
 
-    for (size_t i = 0; i < num_faces; ++i) {
-        auto first = faces[i * 2];
-        auto count = faces[i * 2 + 1];
+    for (size_t i = 0; i < faces.size(); i += 2) {
+        auto first = faces[i];
+        auto count = faces[i + 1];
 
         auto i0 = indices[first];
         auto &v0 = vertices[i0];
@@ -459,20 +460,22 @@ vector3 mesh_center_of_mass(const std::vector<vector3> &vertices,
             auto i2 = indices[first + j + 1];
             auto &v1 = vertices[i1];
             auto &v2 = vertices[i2];
+            auto normal = cross(v1 - v0, v2 - v1);
 
-            // Parallelepiped volume. Tetrahedron volume is 1/6th of it.
-            auto pd_vol = triple_product(v0, v1, v2);
+            // Six times the signed tetrahedron volume.
+            auto tet_vol = dot(v0, normal);
+            volume += tet_vol;
 
-            // Contribution to the mass.
-            volume += pd_vol;
-
-            // Contribution to the centroid.
-            auto v3 = v0 + v1 + v2;
-            center += pd_vol * v3;
+            auto vx = vector3{v0.x + v1.x, v1.x + v2.x, v2.x + v0.x};
+            auto vy = vector3{v0.y + v1.y, v1.y + v2.y, v2.y + v0.y};
+            auto vz = vector3{v0.z + v1.z, v1.z + v2.z, v2.z + v0.z};
+            auto w = vector3{length_sqr(vx), length_sqr(vy), length_sqr(vz)};
+            center += normal * w;
         }
     }
 
-    center /= 4 * volume;
+    volume /= 6;
+    center /= 24 * 2 * volume;
 
     return center;
 }

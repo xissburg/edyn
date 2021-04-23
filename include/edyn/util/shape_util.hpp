@@ -346,9 +346,9 @@ vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 
 scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos, 
                                    const quaternion &orn, const vector3 &dir);
 
-vector3 mesh_center_of_mass(const std::vector<vector3> &vertices,
-                            const std::vector<uint16_t> &indices,
-                            const std::vector<uint16_t> &faces);
+vector3 mesh_centroid(const std::vector<vector3> &vertices,
+                      const std::vector<uint16_t> &indices,
+                      const std::vector<uint16_t> &faces);
 
 }
 

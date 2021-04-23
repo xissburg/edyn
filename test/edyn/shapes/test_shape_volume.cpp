@@ -1,10 +1,4 @@
 #include "../common/common.hpp"
-#include "edyn/math/quaternion.hpp"
-#include "edyn/math/scalar.hpp"
-#include "edyn/shapes/convex_mesh.hpp"
-#include "edyn/shapes/polyhedron_shape.hpp"
-#include "edyn/util/shape_util.hpp"
-#include "edyn/util/shape_volume.hpp"
 
 TEST(test_shape_volume, polyhedron_volume) {
     auto mesh = std::make_shared<edyn::convex_mesh>();

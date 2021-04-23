@@ -15,6 +15,7 @@
 #include "util/rigidbody.hpp"
 #include "util/constraint_util.hpp"
 #include "util/shape_util.hpp"
+#include "util/shape_volume.hpp"
 #include "util/tuple.hpp"
 #include "util/entity_set.hpp"
 #include "collision/contact_manifold.hpp"

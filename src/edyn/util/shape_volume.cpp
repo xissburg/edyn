@@ -20,9 +20,8 @@ scalar box_volume(const vector3 &extents) {
 }
 
 scalar mesh_volume(const convex_mesh &mesh) {
-    // Accumulate signed tetrahedron volumes, where each tetrahedron is formed
-    // using a triangular face and the origin. This allows correct volume 
-    // calculation even if the shape does not contain the origin.
+    // Reference: "Calculating the volume and centroid of a polyhedron in 3d"
+    // http://wwwf.imperial.ac.uk/~rn/centroid.pdf
     auto volume = scalar(0);
 
     EDYN_ASSERT(mesh.faces.size() % 2 == 0);
@@ -34,20 +33,20 @@ scalar mesh_volume(const convex_mesh &mesh) {
 
         auto i0 = mesh.indices[first];
         auto &v0 = mesh.vertices[i0];
-        auto &normal = mesh.normals[i];
 
         for (size_t j = 1; j < count - 1; ++j) {
             auto i1 = mesh.indices[first + j];
             auto i2 = mesh.indices[first + j + 1];
             auto &v1 = mesh.vertices[i1];
             auto &v2 = mesh.vertices[i2];
-            auto area = length(cross(v1 - v0, v2 - v1)) * scalar(0.5);
-            auto height = dot(v0, normal);
-            // Signed tetrahedron volume.
-            auto tet_vol = area * height / 3;
+            auto normal = cross(v1 - v0, v2 - v1);
+            // Six times the signed tetrahedron volume.
+            auto tet_vol = dot(v0, normal);
             volume += tet_vol;
         }
     }
+
+    volume /= 6;
 
     return volume;
 }
