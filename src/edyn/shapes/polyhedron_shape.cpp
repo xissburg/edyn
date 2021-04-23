@@ -4,6 +4,10 @@
 
 namespace edyn {
 
+polyhedron_shape::polyhedron_shape(std::shared_ptr<convex_mesh> m) {
+    mesh = m;
+}
+
 polyhedron_shape::polyhedron_shape(const std::string &path_to_obj,
                                    const vector3 &pos,
                                    const quaternion &orn,
@@ -19,12 +23,7 @@ polyhedron_shape::polyhedron_shape(const std::string &path_to_obj,
     mesh->indices = std::move(m.indices);
     mesh->faces = std::move(m.faces);
 
-    mesh->calculate_normals();
-    mesh->calculate_edges();
-
-#ifdef EDYN_DEBUG
-    mesh->validate();
-#endif
+    mesh->initialize();
 }
 
 }

@@ -30,6 +30,12 @@ struct convex_mesh {
     // Face normals.
     std::vector<vector3> normals;
 
+    /**
+     * @brief Initializes calculated properties. Call this after vertices,
+     * indices and faces are assigned.
+     */
+    void initialize();
+
     size_t num_edges() const {
         EDYN_ASSERT(edges.size() % 2 == 0);
         return edges.size() / 2;

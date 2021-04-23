@@ -5,6 +5,15 @@
 
 namespace edyn {
 
+void convex_mesh::initialize() {
+    calculate_normals();
+    calculate_edges();
+
+#ifdef EDYN_DEBUG
+    validate();
+#endif
+}
+
 std::array<vector3, 2> convex_mesh::get_edge(size_t idx) const {
     EDYN_ASSERT(idx * 2 + 1 < edges.size());
     return {

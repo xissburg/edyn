@@ -11,6 +11,7 @@ struct polyhedron_shape {
     std::shared_ptr<rotated_mesh> rotated;
 
     polyhedron_shape() = default;
+    polyhedron_shape(std::shared_ptr<convex_mesh>);
     polyhedron_shape(const std::string &path_to_obj,
                      const vector3 &pos = vector3_zero,
                      const quaternion &orn = quaternion_identity,
