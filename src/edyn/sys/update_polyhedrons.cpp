@@ -72,14 +72,14 @@ void update_polyhedrons(entt::registry &registry) {
         update_rotated_mesh_normals(rotated, mesh, orn);
     });
 
-    auto comp_view = registry.view<position, orientation, compound_shape>();
-    comp_view.each([] (position &pos, orientation &orn, compound_shape &compound) {
+    auto compound_view = registry.view<position, orientation, compound_shape>();
+    compound_view.each([] (position &pos, orientation &orn, compound_shape &compound) {
         for (auto &node : compound.nodes) {
             if (!std::holds_alternative<polyhedron_shape>(node.var)) continue;
 
             auto &polyhedron = std::get<polyhedron_shape>(node.var);
-            auto local_orn = orn * node.orientation;
-            update_rotated_mesh(*polyhedron.rotated, *polyhedron.mesh, local_orn);
+            auto world_orn = orn * node.orientation;
+            update_rotated_mesh(*polyhedron.rotated, *polyhedron.mesh, world_orn);
         }
     });
 }

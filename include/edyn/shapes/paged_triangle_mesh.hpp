@@ -45,7 +45,6 @@ public:
      *      Where:
      *      - `trimesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
-     *      - `vertices` are the positions of the triangle vertices.
      */
     template<typename Func>
     void visit(const AABB &aabb, Func func) {
@@ -77,7 +76,6 @@ public:
      *      Where:
      *      - `trimesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
-     *      - `vertices` are the positions of the triangle vertices.
      */
     template<typename Func>
     void visit_all(Func func) {        
@@ -104,7 +102,6 @@ public:
      *      Where:
      *      - `trimesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
-     *      - `vertices` are the positions of the triangle vertices.
      */
     template<typename Func>
     void visit_cache(const AABB &aabb, Func func) const {
@@ -127,7 +124,6 @@ public:
      *      Where:
      *      - `trimesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
-     *      - `vertices` are the positions of the triangle vertices.
      */
     template<typename Func>
     void visit_cache_all(Func func) const {
@@ -162,9 +158,9 @@ public:
 
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
-     *      is loaded, if the number of vertices would exceed this number, the 
-     *      least recently visited nodes will be unloaded until the new total 
-     *      number of vertices stays below this value.
+     * is loaded, if the number of vertices would exceed this number, the 
+     * least recently visited nodes will be unloaded until the new total 
+     * number of vertices stays below this value.
      */
     size_t m_max_cache_num_vertices = 1 << 13;
 

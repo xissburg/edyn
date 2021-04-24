@@ -7,9 +7,9 @@ namespace edyn {
 
 void collide(const polyhedron_shape &shA, const sphere_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    // Convex polyhedron vs sphere. A direction is of greatest projection
-    // distance is found among all face normals and a closest point is found in
-    // the face in that direction looking through its Voronoi regions.
+    // Convex polyhedron vs sphere. A direction of greatest projection distance
+    // is found among all face normals and a closest point is found in the face
+    // in that direction looking through its Voronoi regions.
     // All calculations done in the polyhedron's space.
     const auto posB = to_object_space(ctx.posB, ctx.posA, ctx.ornA);
     const auto ornB = conjugate(ctx.ornA) * ctx.ornB;
@@ -41,7 +41,7 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
         return;
     }
 
-    auto polygon = point_cloud_support_polygon<true>(
+    auto polygon = point_cloud_support_polygon(
         meshA.vertices.begin(), meshA.vertices.end(), vector3_zero,
         sep_axis, projection_poly, true, support_feature_tolerance);
 

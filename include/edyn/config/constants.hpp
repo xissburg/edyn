@@ -19,8 +19,8 @@ inline constexpr scalar island_angular_sleep_threshold = pi / 48;
 /**
  * Being exact when determining support features can lead to the undesired 
  * feature being picked due to the limitations of floating point math. Usually,
- * the support point is found and then all points behind it within a this
- * tolerance are selected as part of the support feature.
+ * the support point is found and then all points behind it within a tolerance
+ * are selected as part of the support feature.
  */
 inline constexpr scalar support_feature_tolerance = 0.01;
 

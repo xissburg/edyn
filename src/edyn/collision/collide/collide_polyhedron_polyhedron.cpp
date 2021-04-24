@@ -132,10 +132,10 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
 
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
-    auto polygonA = point_cloud_support_polygon<true>(
+    auto polygonA = point_cloud_support_polygon(
         rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
         sep_axis, projectionA, true, support_feature_tolerance);
-    auto polygonB = point_cloud_support_polygon<false>(
+    auto polygonB = point_cloud_support_polygon(
         rmeshB.vertices.begin(), rmeshB.vertices.end(), posB, 
         sep_axis, projectionB, false, support_feature_tolerance);
 

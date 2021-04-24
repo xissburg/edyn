@@ -34,6 +34,7 @@ scalar mesh_volume(const convex_mesh &mesh) {
         auto i0 = mesh.indices[first];
         auto &v0 = mesh.vertices[i0];
 
+        // Triangulate face with a triangle fan around v0.
         for (size_t j = 1; j < count - 1; ++j) {
             auto i1 = mesh.indices[first + j];
             auto i2 = mesh.indices[first + j + 1];

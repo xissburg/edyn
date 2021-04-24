@@ -17,7 +17,7 @@ struct has_type;
 template <typename T, typename... Us>
 struct has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
 
-// Do the same for variants.
+// Do the same for variants. TODO: maybe move this somewhere else.
 template <typename T, typename... Us>
 struct has_type<T, std::variant<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
 

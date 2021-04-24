@@ -25,7 +25,7 @@ void collide(const compound_shape &compound, const triangle_shape &tri,
         collide(sh, tri, child_ctx, child_result);
 
         // The elements of A in the collision points must be transformed from
-        // the child node's space into A's space.
+        // the child node's space into the compound's space.
         for (size_t i = 0; i < child_result.num_points; ++i) {
             auto &child_point = child_result.point[i];
             child_point.pivotA = to_world_space(child_point.pivotA, node.position, node.orientation);

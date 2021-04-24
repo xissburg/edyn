@@ -109,7 +109,7 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
         return;
     }
 
-    auto polygon = point_cloud_support_polygon<true>(
+    auto polygon = point_cloud_support_polygon(
         meshA.vertices.begin(), meshA.vertices.end(), vector3_zero, 
         sep_axis, projection_poly, true, support_feature_tolerance);
 
@@ -145,8 +145,8 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
         if (polygon.hull.size() > 2) {
             for (auto &pointB : face_vertices) {
                 if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
-                    auto pivotB = to_object_space(pointB, posB, ornB);
                     auto pivotA = project_plane(pointB, polygon.origin, sep_axis);
+                    auto pivotB = to_object_space(pointB, posB, ornB);
                     result.maybe_add_point({pivotA, pivotB, normalB, distance});
                 }
             }

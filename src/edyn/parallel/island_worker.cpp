@@ -7,7 +7,6 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
-#include "edyn/sys/update_polyhedrons.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/message.hpp"
@@ -19,10 +18,8 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/parallel/external_system.hpp"
-#include "edyn/parallel/entity_graph.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/vector.hpp"
-#include <atomic>
 #include <memory>
 #include <variant>
 #include <entt/entt.hpp>
@@ -607,12 +604,19 @@ void island_worker::insert_remote_node(entt::entity remote_entity) {
 
     // If this node contains a `shape` which holds a `polyhedron_shape`, assign
     // the `polyhedron_shape` as a component so it can have its rotated elements
-    // more efficiently updated using `update_polyhedrons`.
+    // updated more efficiently using `update_polyhedrons`. Do the same for
+    // `compound_shape`s that hold one or more polyhedrons. Otherwise, it'd be
+    // necessary to iterate over all `shape` components checking if they hold a
+    // `polyhedron_shape` or `compound_shape`.
+    // TODO: move this to an `on_construct<shape>()`, though it must be deferred
+    // since it must ensure a few other components available.
     auto *sh = m_registry.try_get<shape>(local_entity);
 
     if (sh && std::holds_alternative<polyhedron_shape>(sh->var)) {
         auto &polyhedron = std::get<polyhedron_shape>(sh->var);
         auto &orn = m_registry.get<orientation>(local_entity);
+        // A new `rotated_mesh` is assigned to it, replacing another reference
+        // that could be already in there, thus preventing concurrent access.
         polyhedron.rotated = std::make_shared<rotated_mesh>(make_rotated_mesh(*polyhedron.mesh, orn));
         m_registry.emplace<polyhedron_shape>(local_entity, polyhedron);
     } else if (sh && std::holds_alternative<compound_shape>(sh->var)) {

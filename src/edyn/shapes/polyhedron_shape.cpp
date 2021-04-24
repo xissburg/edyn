@@ -4,9 +4,9 @@
 
 namespace edyn {
 
-polyhedron_shape::polyhedron_shape(std::shared_ptr<convex_mesh> m) {
-    mesh = m;
-}
+polyhedron_shape::polyhedron_shape(std::shared_ptr<convex_mesh> mesh)
+    : mesh(mesh)
+{}
 
 polyhedron_shape::polyhedron_shape(const std::string &path_to_obj,
                                    const vector3 &pos,

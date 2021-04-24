@@ -164,7 +164,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         return;
     }
 
-    auto polygon = point_cloud_support_polygon<true>(
+    auto polygon = point_cloud_support_polygon(
         meshA.vertices.begin(), meshA.vertices.end(), vector3_zero, 
         sep_axis, projection_poly, true, support_feature_tolerance);
 

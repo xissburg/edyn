@@ -1,8 +1,6 @@
 #ifndef EDYN_COLLISION_COLLIDE_HPP
 #define EDYN_COLLISION_COLLIDE_HPP
 
-#include <optional>
-#include <functional>
 #include "edyn/comp/shape.hpp"
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/math/quaternion.hpp"

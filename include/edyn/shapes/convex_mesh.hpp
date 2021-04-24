@@ -12,7 +12,11 @@ namespace edyn {
 
 struct rotated_mesh;
 
+/**
+ * @brief Represents a convex polyhedron.
+ */
 struct convex_mesh {
+    // Vertex positions.
     std::vector<vector3> vertices;
 
     // Vertex indices of all faces.
@@ -103,6 +107,12 @@ struct rotated_mesh {
     std::vector<vector3> normals;
 };
 
+/**
+ * @brief Creates a `rotated_mesh` from a `convex_mesh` with the given orientation.
+ * @param mesh The source convex mesh.
+ * @param orn Orientation to apply to all vertices and normals.
+ * @return A `rotated_mesh` with the rotated vertices and normals of `mesh`.
+ */
 rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn = quaternion_identity);
 
 }

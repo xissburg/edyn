@@ -84,6 +84,7 @@ static void read_face(std::istringstream &iss,
     while (true) {
         iss >> idx;
         if (iss.fail()) break;
+        EDYN_ASSERT(idx >= 1 + offset);
         indices.push_back(idx - 1 - offset);
     }
 
@@ -455,6 +456,7 @@ vector3 mesh_centroid(const std::vector<vector3> &vertices,
         auto i0 = indices[first];
         auto &v0 = vertices[i0];
 
+        // Triangulate face with a triangle fan around v0.
         for (size_t j = 1; j < count - 1; ++j) {
             auto i1 = indices[first + j];
             auto i2 = indices[first + j + 1];

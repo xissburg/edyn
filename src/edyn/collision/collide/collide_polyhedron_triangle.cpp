@@ -133,7 +133,7 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
         return;
     }
 
-    auto polygon = point_cloud_support_polygon<true>(
+    auto polygon = point_cloud_support_polygon(
         rmesh.vertices.begin(), rmesh.vertices.end(), vector3_zero,
         sep_axis, projection_poly, true, support_feature_tolerance);
 

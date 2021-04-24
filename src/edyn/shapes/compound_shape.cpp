@@ -1,7 +1,7 @@
 #include "edyn/shapes/compound_shape.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/util/shape_util.hpp"
-#include <memory>
+#include <algorithm>
 
 namespace edyn {
 
@@ -44,6 +44,7 @@ compound_shape::compound_shape(const std::string &path_to_obj,
 }
 
 void compound_shape::finish() {
+    EDYN_ASSERT(!nodes.empty());
     auto aabbs = std::vector<AABB>(nodes.size());
     std::transform(nodes.begin(), nodes.end(), aabbs.begin(), 
                     [] (auto &node) { return node.aabb; });

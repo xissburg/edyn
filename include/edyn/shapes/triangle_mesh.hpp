@@ -13,7 +13,7 @@ namespace edyn {
 
 /**
  * @brief A triangle mesh. Includes adjacency information and a tree to
- * accelerate queries.
+ * accelerate closest point queries.
  */
 struct triangle_mesh {
     std::vector<vector3> vertices;
