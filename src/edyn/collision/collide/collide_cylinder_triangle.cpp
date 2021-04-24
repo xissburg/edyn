@@ -1,6 +1,7 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/shapes/cylinder_shape.hpp"
 
 namespace edyn {
 
@@ -352,48 +353,53 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         switch (sep_axis.tri_feature) {
         case triangle_feature::face: {
             // Cylinder is on its side laying on the triangle face.
-            // Segment-triangle intersection/containment test.
-            auto c0_in_tri = point_in_triangle(tri.vertices, tri.normal, cylinder_vertices[1]);
-            auto c1_in_tri = point_in_triangle(tri.vertices, tri.normal, cylinder_vertices[0]);
-
-            if (c0_in_tri) {
-                auto p0 = cylinder_vertices[1] - tri.normal * cylinder.radius;
-                auto p0_A = to_object_space(p0, posA, ornA);
-                auto pivotB = project_plane(cylinder_vertices[1], tri.vertices[0], tri.normal);
-                result.maybe_add_point({p0_A, pivotB, sep_axis.dir, sep_axis.distance});
-            }
-
-            if (c1_in_tri) {
-                auto p1 = cylinder_vertices[0] - tri.normal * cylinder.radius;
-                auto p1_A = to_object_space(p1, posA, ornA);
-                auto pivotB = project_plane(cylinder_vertices[0], tri.vertices[0], tri.normal);
-                result.maybe_add_point({p1_A, pivotB, sep_axis.dir, sep_axis.distance});
-            }
-
-            if (!c0_in_tri || !c1_in_tri) {
-                // One of them is outside. Find closest points in segments.
-                for (size_t i = 0; i < 3; ++i) {
-                    // Ignore concave edges.
-                    if (tri.is_concave_edge[i]) {
-                        continue;
-                    }
-
-                    scalar s[2], t[2];
-                    vector3 p0[2], p1[2];
-                    size_t num_points = 0;
-                    closest_point_segment_segment(cylinder_vertices[1], cylinder_vertices[0], 
-                                                  tri.vertices[i], tri.vertices[(i + 1) % 3],
-                                                  s[0], t[0], p0[0], p1[0], &num_points, 
-                                                  &s[1], &t[1], &p0[1], &p1[1]);
-
-                    for (size_t i = 0; i < num_points; ++i) {
-                        auto pA_in_B = p0[i] - tri.normal * cylinder.radius;
-                        auto pA = to_object_space(pA_in_B, posA, ornA);
-                        result.maybe_add_point({pA, p1[i], sep_axis.dir, sep_axis.distance});
-                    }
+            // Check if cylinder vertices are inside triangle face.
+            for (auto &vertex : cylinder_vertices) {
+                if (point_in_triangle(tri.vertices, tri.normal, vertex)) {
+                    auto pivotA_world = vertex - tri.normal * cylinder.radius;
+                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                    auto pivotB = project_plane(vertex, tri.vertices[0], tri.normal);
+                    auto local_distance = dot(pivotA_world - tri.vertices[0], tri.normal);
+                    result.maybe_add_point({pivotA, pivotB, sep_axis.dir, local_distance});
                 }
             }
-            
+
+            // Both vertices are inside the triangle. Unnecessary to look for intersections.
+            if (result.num_points == 2) {
+                return;
+            }
+
+            // Check if the cylinder edge intersects the triangle edges.
+            auto &tri_origin = tri.vertices[0];
+            auto tangent = normalize(tri.vertices[1] - tri.vertices[0]);
+            auto bitangent = cross(tri.normal, tangent);
+            auto tri_basis = matrix3x3_columns(tangent, tri.normal, bitangent);
+
+            auto p0 = to_vector2_xz(to_object_space(cylinder_vertices[0], tri_origin, tri_basis));
+            auto p1 = to_vector2_xz(to_object_space(cylinder_vertices[1], tri_origin, tri_basis));
+
+            for (int i = 0; i < 3; ++i) {
+                // Ignore concave edges.
+                if (tri.is_concave_edge[i]) {
+                    continue;
+                }
+                
+                auto &v0 = tri.vertices[i];
+                auto &v1 = tri.vertices[(i + 1) % 3];
+                auto q0 = to_vector2_xz(to_object_space(v0, tri_origin, tri_basis));
+                auto q1 = to_vector2_xz(to_object_space(v1, tri_origin, tri_basis));
+
+                scalar s[2], t[2];
+                auto num_points = intersect_segments(p0, p1, q0, q1, s[0], t[0], s[1], t[1]);
+
+                for (size_t k = 0; k < num_points; ++k) {
+                    auto pivotA_world = lerp(cylinder_vertices[0], cylinder_vertices[1], s[k]) - sep_axis.dir * cylinder.radius;
+                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                    auto pivotB = lerp(v0, v1, t[k]);
+                    auto local_distance = dot(pivotA_world - tri.vertices[0], sep_axis.dir);
+                    result.maybe_add_point({pivotA, pivotB, sep_axis.dir, local_distance});
+                }
+            }
             break;
         }
         case triangle_feature::edge: {
