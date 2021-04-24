@@ -1,11 +1,18 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/util/aabb_util.hpp"
 
 namespace edyn {
 
 void collide(const compound_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result) {
     for (auto &node : shA.nodes) {
+        auto aabbA = aabb_to_world_space(node.aabb, ctx.posA, ctx.ornA);
+
+        if (!intersect(aabbA, ctx.aabbB)) {
+            continue;
+        }
+
         auto child_ctx = ctx;
         child_ctx.posA = to_world_space(node.position, ctx.posA, ctx.ornA);
         child_ctx.ornA *= node.orientation;
