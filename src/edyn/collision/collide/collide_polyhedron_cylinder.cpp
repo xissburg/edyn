@@ -283,8 +283,8 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             const auto limitA = sizeA == 2 ? 1 : sizeA;
 
             // Vertices of cylinder side edge on the contact plane space.
-            auto t0B = to_object_space(edge_vertices[0], contact_origin_cyl, polygon.basis);
-            auto t1B = to_object_space(edge_vertices[1], contact_origin_cyl, polygon.basis);
+            auto t0B = to_object_space(edge_vertices[0], polygon.origin, polygon.basis);
+            auto t1B = to_object_space(edge_vertices[1], polygon.origin, polygon.basis);
             auto v0B = to_vector2_xz(t0B);
             auto v1B = to_vector2_xz(t1B);
 
