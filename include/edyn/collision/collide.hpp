@@ -275,9 +275,8 @@ void collide(const plane_shape &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result);
 
 // Compound-Box/Sphere/Cylinder/Capsule/Polyhedron
-template<typename T> 
-typename std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value>
-     collide(const compound_shape &shA, const T &shB,
+template<typename T, std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value, bool> = true>
+void collide(const compound_shape &shA, const T &shB,
              const collision_context &ctx, collision_result &result) {
     // Calculate AABB of B's AABB in A's space.
     auto aabbB_in_A = aabb_to_object_space(ctx.aabbB, ctx.posA, ctx.ornA);
@@ -304,9 +303,8 @@ typename std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value>
 }
 
 // Box/Sphere/Cylinder/Capsule/Polyhedron-Compound
-template<typename T>
-typename std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value>
-     collide(const T &shA, const compound_shape &shB,
+template<typename T, std::enable_if_t<has_type<T, compound_shape::shapes_variant_t>::value, bool> = true>
+void collide(const T &shA, const compound_shape &shB,
              const collision_context &ctx, collision_result &result) {
     swap_collide(shA, shB, ctx, result);
 }
