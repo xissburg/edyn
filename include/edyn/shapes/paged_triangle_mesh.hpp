@@ -105,12 +105,12 @@ public:
      */
     template<typename Func>
     void visit_cache(const AABB &aabb, Func func) const {
-        for (size_t i = 0; i < m_cache.size(); ++i) {
-            auto trimesh = m_cache[i].trimesh;
+        for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
+            auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
                 trimesh->visit(aabb, [=] (uint32_t tri_idx) {
-                    func(i, tri_idx);
+                    func(mesh_idx, tri_idx);
                 });
             }
         }
@@ -127,12 +127,12 @@ public:
      */
     template<typename Func>
     void visit_cache_all(Func func) const {
-        for (size_t i = 0; i < m_cache.size(); ++i) {
-            auto trimesh = m_cache[i].trimesh;
+        for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
+            auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                for (size_t j = 0; j < trimesh->num_triangles(); ++j) {
-                    func(i, j);
+                for (size_t tri_idx = 0; tri_idx < trimesh->num_triangles(); ++tri_idx) {
+                    func(mesh_idx, tri_idx);
                 }
             }
         }
