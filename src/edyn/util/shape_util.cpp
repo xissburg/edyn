@@ -107,8 +107,6 @@ bool load_meshes_from_obj(const std::string &path,
     std::string line;
     auto mesh = obj_mesh{};
     uint16_t index_offset = 0;
-    const auto should_transform = pos != vector3_zero || orn != quaternion_identity;
-    const auto should_scale = scale != vector3_one;
 
     while (std::getline(file, line)) {
         auto pos_space = line.find(" ");
@@ -128,12 +126,16 @@ bool load_meshes_from_obj(const std::string &path,
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
             auto v = read_vector3(iss);
             
-            if (should_scale) {
+            if (scale != vector3_one) {
                 v *= scale;
             }
+
+            if (orn != quaternion_identity) {
+                v = rotate(orn, v);
+            }
             
-            if (should_transform) {
-                v = to_world_space(v, pos, orn);
+            if (pos != vector3_zero ) {
+                v += pos;
             }
             
             mesh.vertices.push_back(v);
