@@ -3,8 +3,8 @@
 
 namespace edyn {
 
-collision_result collide(const capsule_shape &shA, const capsule_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const capsule_shape &shA, const capsule_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
     const auto &posB = ctx.posB;
@@ -30,7 +30,7 @@ collision_result collide(const capsule_shape &shA, const capsule_shape &shB,
     auto r = shA.radius + shB.radius + ctx.threshold;
     
     if (l2 > r * r) {
-        return {};
+        return;
     }
 
     auto l = std::sqrt(l2);
@@ -46,7 +46,6 @@ collision_result collide(const capsule_shape &shA, const capsule_shape &shB,
     auto rA = (cA - dn * shA.radius) - posA;
     auto rB = (cB + dn * shB.radius) - posB;
 
-    auto result = collision_result {};
     result.num_points = num_points;
     result.point[0].pivotA = rotate(conjugate(ornA), rA);
     result.point[0].pivotB = rotate(conjugate(ornB), rB);
@@ -62,8 +61,6 @@ collision_result collide(const capsule_shape &shA, const capsule_shape &shB,
         result.point[1].normalB = rotate(conjugate(ornB), dn);
         result.point[1].distance = l - shA.radius - shB.radius;
     }
-
-    return result;
 }
 
 }

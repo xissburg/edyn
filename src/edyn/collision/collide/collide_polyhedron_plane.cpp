@@ -6,13 +6,12 @@
 
 namespace edyn {
 
-collision_result collide(const polyhedron_shape &shA, const plane_shape &shB, 
-                         const collision_context &ctx) {
-    const auto &posA = ctx.posA;
-    const auto &posB = ctx.posB;
-    const auto &ornB = ctx.ornB;
-
-    auto &rmeshA = ctx.rmeshA->get();
+void collide(const polyhedron_shape &shA, const plane_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
+    auto &posA = ctx.posA;
+    auto &posB = ctx.posB;
+    auto &ornB = ctx.ornB;
+    auto &rmeshA = *shA.rotated;
 
     auto normal = rotate(ornB, shB.normal);
     auto center = posB + rotate(ornB, shB.normal * shB.constant);
@@ -25,30 +24,26 @@ collision_result collide(const polyhedron_shape &shA, const plane_shape &shB,
         distance = std::min(vertex_dist, distance);
     }
 
-    if (distance > ctx.threshold) return {};
+    if (distance > ctx.threshold) return;
 
     // Add points to all vertices that are within a range from the
     // minimum distance.
-    auto result = collision_result{};
-
     for (size_t i = 0; i < rmeshA.vertices.size(); ++i) {
         auto vertex_world = posA + rmeshA.vertices[i];
         auto vertex_dist = dot(vertex_world - center, normal);
 
-        if (vertex_dist > distance + support_polygon_tolerance) continue;
+        if (vertex_dist > distance + support_feature_tolerance) continue;
 
         auto pivotA = shA.mesh->vertices[i];
         auto pivotB_world = vertex_world - normal * vertex_dist;
         auto pivotB = to_object_space(pivotB_world, posB, ornB);
         result.maybe_add_point({pivotA, pivotB, shB.normal, vertex_dist});
     }
-
-    return result;
 }
 
-collision_result collide(const plane_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const plane_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

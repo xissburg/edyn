@@ -1,7 +1,6 @@
 #ifndef EDYN_UTIL_SHAPE_UTIL_HPP
 #define EDYN_UTIL_SHAPE_UTIL_HPP
 
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/vector2_3_util.hpp"
@@ -28,20 +27,38 @@ void make_plane_mesh(scalar extent_x, scalar extent_z,
                      std::vector<vector3> &vertices, std::vector<uint16_t> &indices);
 
 /**
- * @brief Loads a mesh from a *.obj file.
+ * @brief Builds a convex mesh in the shape of a box.
+ * @param half_extents Half of the extent of the box in each axis.
+ * @param vertices Fills it with vertices.
+ * @param indices Fills it with sequences of vertex indices for each face.
+ * @param faces Fills it with [first index, count] pairs.
+ */
+void make_box_mesh(const vector3 &half_extents,
+                   std::vector<vector3> &vertices,
+                   std::vector<uint16_t> &indices,
+                   std::vector<uint16_t> &faces);
+
+struct obj_mesh {
+    std::vector<vector3> vertices;
+    std::vector<uint16_t> indices;
+    std::vector<uint16_t> faces;
+};
+
+/**
+ * @brief Loads meshes from a *.obj file.
+ * Scale, rotation and translation are applied to all vertices in this order.
  * @param path Path to file.
- * @param vertices Array to be filled with vertices.
- * @param indices Array to be filled with indices for each face.
- * @param faces Array to be filled with an index of where the vertices
- * of a face starts in the `indices` array and the vertex count of the 
- * face, i.e. a sequence of pairs of (index of first vertex index, 
- * number of vertices).
+ * @param meshes Array to be filled with meshes.
+ * @param pos Position offset to add to vertices.
+ * @param orn Orientation to rotate vertices.
+ * @param scale Scaling to be applied to all vertices.
  * @return Success or failure.
  */
-bool load_mesh_from_obj(const std::string &path, 
-                        std::vector<vector3> &vertices, 
-                        std::vector<uint16_t> &indices,
-                        std::vector<uint16_t> &faces);
+bool load_meshes_from_obj(const std::string &path,
+                          std::vector<obj_mesh> &meshes, 
+                          const vector3 &pos = vector3_zero,
+                          const quaternion &orn = quaternion_identity,
+                          const vector3 &scale = vector3_one);
 
 /**
  * @brief Loads a triangle mesh from a *.obj file which must've been
@@ -178,8 +195,6 @@ struct support_polygon {
 /**
  * @brief Finds the polygon in a point cloud that's furthest away in the given
  * direction. 
- * @tparam ZeroOffset Set to true if the offset parameter is zero. This eliminates
- * an unecessary addition to every vertex.
  * @tparam It Type of iterator of a `vector3` container.
  * @param first Iterator to the first element of the point cloud.
  * @param last Iterator to the last element of the point cloud.
@@ -192,7 +207,7 @@ struct support_polygon {
  * @param tolerance The distance from the projection boundary which decides
  * whether the vertex is part of the support polygon.
  */
-template<bool ZeroOffset, typename It>
+template<typename It>
 support_polygon point_cloud_support_polygon(It first, It last, 
                                             const vector3 &offset,
                                             const vector3 &dir, 
@@ -204,9 +219,11 @@ support_polygon point_cloud_support_polygon(It first, It last,
     // Basis tangent to the contact plane so calculations can be done in tangent space.
     polygon.basis = make_tangent_basis(dir);
 
+    const auto zero_offset = offset == vector3_zero;
+
     for (auto it = first; it != last; ++it) {
         vector3 vertex_world;
-        if constexpr(ZeroOffset) {
+        if (zero_offset) {
             vertex_world = *it;
         } else {
             vertex_world = *it + offset;
@@ -227,7 +244,8 @@ support_polygon point_cloud_support_polygon(It first, It last,
 
     EDYN_ASSERT(!polygon.vertices.empty() && !polygon.plane_vertices.empty());
 
-    polygon.hull = calculate_convex_hull(polygon.plane_vertices, tolerance);
+    const auto hull_tolerance = scalar(0.001);
+    polygon.hull = calculate_convex_hull(polygon.plane_vertices, hull_tolerance);
 
     return polygon;
 }
@@ -327,6 +345,18 @@ vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 
  */
 scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos, 
                                    const quaternion &orn, const vector3 &dir);
+
+/**
+ * @brief Calculates the centroid of a mesh.
+ * @param vertices Vertex positions.
+ * @param indices Indices of vertices of each face in the `vertices` array.
+ * @param faces Sequence of pairs containing the index of the first index of a
+ * face in the `indices` array followed by the number of vertices of that face.
+ * @return The centroid.
+ */
+vector3 mesh_centroid(const std::vector<vector3> &vertices,
+                      const std::vector<uint16_t> &indices,
+                      const std::vector<uint16_t> &faces);
 
 }
 

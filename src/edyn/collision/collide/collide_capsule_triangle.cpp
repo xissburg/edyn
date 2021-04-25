@@ -1,15 +1,15 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/math/quaternion.hpp"
-#include "edyn/math/geom.hpp"
-#include "edyn/math/math.hpp"
 #include "edyn/util/shape_util.hpp"
+#include "edyn/math/math.hpp"
 
 namespace edyn {
 
-void collide_capsule_triangle(
-    const capsule_shape &capsule, const vector3 &posA, const quaternion &ornA,
-    const std::array<vector3, 2> &capsule_vertices, 
-    const triangle_shape &tri, scalar threshold, collision_result &result) {
+void collide(const capsule_shape &capsule, const triangle_shape &tri,
+             const collision_context &ctx, collision_result &result) {
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto threshold = ctx.threshold;
+    const auto capsule_vertices = capsule.get_vertices(posA, ornA);
 
     triangle_feature tri_feature;
     size_t tri_feature_index;
@@ -69,7 +69,7 @@ void collide_capsule_triangle(
         size_t feature_idx;
         scalar proj_tri;
         get_triangle_support_feature(tri.vertices, vector3_zero, dir, feature, 
-                                     feature_idx, proj_tri, threshold);
+                                     feature_idx, proj_tri, support_feature_tolerance);
 
         if (tri.ignore_feature(feature, feature_idx, dir)) {
             continue;
@@ -98,7 +98,7 @@ void collide_capsule_triangle(
     };
 
     auto is_capsule_edge = std::abs(proj_capsule_vertices[0] -
-                                    proj_capsule_vertices[1]) < threshold;
+                                    proj_capsule_vertices[1]) < support_feature_tolerance;
 
     auto capsule_vertex_index = proj_capsule_vertices[0] < proj_capsule_vertices[1] ? 0 : 1;
 

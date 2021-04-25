@@ -118,4 +118,6 @@ Due to its multi-threaded nature, all changes to relevant components in the main
 
 The code style and architecture is largely inspired by _EnTT_ which seeks to leverage modern C++ features. It steers away from typical object-oriented patterns making minimal use of inheritance and polymorphism, thus maintaining a more flat structure throughout. Data-oriented design principles are applied wherever feasible.
 
+Code readability and maintainability are prioritized over the highest performance possible. This library does not intend to break world records. Some techniques might be superior in terms of performance but they also bring in a lot of pain due to the extra complexity, which also has the potential to result in more bugs which can be even harder to fix. They also make the code less welcoming to potential contributors. No proper benchmark has been done yet, but the basic performance tests already show similar and sometimes better performance than Bullet Physics, and there are still a lot of optimizations queued in the backlog.
+
 See [docs/Design.md](https://github.com/xissburg/edyn/blob/master/docs/Design.md) to learn more about the engine's planned architecture.

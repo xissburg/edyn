@@ -140,4 +140,29 @@ void triangle_mesh::build_tree() {
     tree.build(aabbs.begin(), aabbs.end(), report_leaf);
 }
 
+triangle_shape triangle_mesh::get_triangle(size_t tri_idx) const {
+    EDYN_ASSERT(tri_idx * 3 + 2 < indices.size());
+    auto tri = triangle_shape{};
+
+    for (int i = 0; i < 3; ++i) {
+        auto j = tri_idx * 3 + i;
+        tri.vertices[i] = vertices[indices[j]];
+        tri.is_concave_edge[i] = is_concave_edge[j];
+        tri.cos_angles[i] = cos_angles[j];
+    }
+
+    tri.update_computed_properties();
+
+    return tri;
+}
+
+triangle_vertices triangle_mesh::get_triangle_vertices(size_t tri_idx) {
+    EDYN_ASSERT(tri_idx * 3 + 2 < indices.size());
+    return {
+        vertices[indices[tri_idx * 3 + 0]],
+        vertices[indices[tri_idx * 3 + 1]],
+        vertices[indices[tri_idx * 3 + 2]]
+    };
+}
+
 }

@@ -116,8 +116,7 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
         auto inset = vector3 {-merge_distance, -merge_distance, -merge_distance};
         auto tri_aabb = get_triangle_aabb(vertices_i).inset(inset);
 
-        this->visit_cache(tri_aabb, [&] (size_t mesh_idx_k, size_t tri_idx_k, 
-                                         const triangle_vertices &vertices_k) {
+        this->visit_cache(tri_aabb, [&] (size_t mesh_idx_k, size_t tri_idx_k) {
             if (mesh_idx_i == mesh_idx_k && tri_idx_i == tri_idx_k) {
                 return;
             }
@@ -125,6 +124,7 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
             // Look for shared edge.
             std::pair<size_t, size_t> shared_idx[2];
             auto num_shared_vertices = 0;
+            const auto &vertices_k = this->get_triangle_vertices(mesh_idx_k, tri_idx_k);
 
             for (size_t m = 0; m < 3; ++m) {
                 for (size_t n = 0; n < 3; ++n) {
@@ -195,6 +195,12 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
 
 std::shared_ptr<triangle_mesh> paged_triangle_mesh::get_submesh(size_t idx) {
     return m_cache[idx].trimesh;
+}
+
+triangle_vertices paged_triangle_mesh::get_triangle_vertices(size_t mesh_idx, size_t tri_idx) {
+    EDYN_ASSERT(mesh_idx < m_cache.size());
+    EDYN_ASSERT(m_cache[mesh_idx].trimesh);
+    return m_cache[mesh_idx].trimesh->get_triangle_vertices(tri_idx);
 }
 
 void paged_triangle_mesh::clear_cache() {

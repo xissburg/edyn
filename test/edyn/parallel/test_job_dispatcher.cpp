@@ -69,6 +69,25 @@ TEST_F(job_dispatcher_test, parallel_for_small) {
     });
 }
 
+TEST_F(job_dispatcher_test, parallel_for_tiny) {
+    constexpr size_t num_samples = 2;
+    std::vector<int> values(num_samples);
+
+    for (auto i = 0; i < 1024; ++i) {
+        edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {
+            values[i] = 27;
+        });
+
+        edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {
+            values[i] = values[i] + 18;
+        });
+
+        edyn::parallel_for(dispatcher, size_t{0}, num_samples, size_t{1}, [&] (size_t i) {
+            ASSERT_EQ(values[i], 27 + 18);
+        });
+    }
+}
+
 void parallel_for_async_completion(edyn::job::data_type &data) {
     auto archive = edyn::memory_input_archive(data.data(), data.size());
     intptr_t self_ptr;

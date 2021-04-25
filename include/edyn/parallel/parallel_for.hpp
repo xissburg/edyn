@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_PARALLEL_FOR_HPP
 
 #include <atomic>
+#include <condition_variable>
 #include "edyn/config/config.h"
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
@@ -18,6 +19,7 @@ struct parallel_for_context {
     const IndexType step;
     const IndexType chunk_size;
     size_t count;
+    bool done;
     std::mutex mutex;
     std::condition_variable cv;
     Function func;
@@ -29,21 +31,41 @@ struct parallel_for_context {
         , step(step)
         , chunk_size(chunk_size)
         , count(num_jobs)
+        , done(false)
         , func(func)
     {}
 
+    ~parallel_for_context() {
+        EDYN_ASSERT(count == 0);
+    }
+
     void decrement() {
-        {
-            std::lock_guard lock(mutex);
-            EDYN_ASSERT(count > 0);
-            --count;
+        std::lock_guard lock(mutex);
+        EDYN_ASSERT(count > 0);
+        --count;
+        done = count == 0;
+
+        // Normally, `notify_one` would be called without the lock being held.
+        // However, according to 
+        // https://en.cppreference.com/w/cpp/thread/condition_variable/notify_one:
+        // "Notifying while under the lock may nevertheless be necessary when precise
+        // scheduling of events is required, e.g. if the waiting thread would exit
+        // the program if the condition is satisfied, causing destruction of the
+        // notifying thread's condition_variable."
+        // If the lock would be released right here, there is a very slim chance
+        // that `wait()` would be called in the other thread right after, before 
+        // `notify_one()` below, where the lock would be acquired and the predicate
+        // would test true, causing `parallel_for` to return, thus destroying this
+        // object (since it is in the stack) and then everything down from here is
+        // undefined behavior.
+        if (done) {
+            cv.notify_one();
         }
-        cv.notify_one();
     }
 
     void wait() {
         std::unique_lock lock(mutex);
-        cv.wait(lock, [&] { return count == 0; });
+        cv.wait(lock, [&] { return done; });
     }
 };
 
@@ -58,7 +80,7 @@ void run_parallel_for(parallel_for_context<IndexType, Function> &ctx) {
 
         auto end = std::min(begin + ctx.chunk_size, ctx.last);
 
-        for (size_t i = begin; i < end; i += ctx.step) {
+        for (auto i = begin; i < end; i += ctx.step) {
             ctx.func(i);
         }
     }

@@ -6,14 +6,14 @@
 
 namespace edyn {
 
-collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
-                         const collision_context &ctx) {
-    const auto posA = vector3_zero;
-    const auto &ornA = ctx.ornA;
-    const auto posB = ctx.posB - ctx.posA;
-    const auto &ornB = ctx.ornB;
+void collide(const polyhedron_shape &shA, const capsule_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    // Convex polyhedron vs capsule SAT. All calculations done in the 
+    // polyhedron's space.
+    const auto posB = to_object_space(ctx.posB, ctx.posA, ctx.ornA);
+    const auto ornB = conjugate(ctx.ornA) * ctx.ornB;
     auto threshold = ctx.threshold;
-    auto &rmeshA = ctx.rmeshA->get();
+    auto &meshA = *shA.mesh;
 
     auto capsule_vertices = shB.get_vertices(posB, ornB);
 
@@ -23,9 +23,9 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
 
     // Face normals of polyhedron.
     for (size_t i = 0; i < shA.mesh->num_faces(); ++i) {
-        auto normal_world = -rmeshA.normals[i]; // Point towards polyhedron.
+        auto normal_world = -meshA.normals[i]; // Point towards polyhedron.
         auto vertex_idx = shA.mesh->first_vertex_index(i);
-        auto &vertex_world = rmeshA.vertices[vertex_idx];
+        auto &vertex_world = meshA.vertices[vertex_idx];
 
         auto projA = dot(vertex_world, normal_world);
         auto projB = capsule_support_projection(capsule_vertices, shB.radius, normal_world);
@@ -40,7 +40,7 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
 
     // Edges vs capsule axis
     for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
-        auto [vertexA0, vertexA1] = shA.mesh->get_edge(rmeshA, i);
+        auto [vertexA0, vertexA1] = shA.mesh->get_edge(i);
         scalar s, t;
         vector3 closestA, closestB;
         closest_point_segment_segment(vertexA0, vertexA1, 
@@ -55,12 +55,12 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
 
         dir /= std::sqrt(dir_len_sqr);
 
-        if (dot(posA - posB, dir) < 0) {
+        if (dot(posB, dir) > 0) {
             // Make it point towards A.
             dir *= -1;
         }
 
-        auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
+        auto projA = -point_cloud_support_projection(meshA.vertices, -dir);
         auto projB = capsule_support_projection(capsule_vertices, shB.radius, dir);
         auto dist = projA - projB;
 
@@ -72,10 +72,9 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
     }
 
     if (distance > threshold) {
-        return {};
+        return;
     }
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
     scalar proj_capsule_vertices[] = {
@@ -84,20 +83,19 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
     };
 
     auto is_capsule_edge = std::abs(proj_capsule_vertices[0] -
-                                    proj_capsule_vertices[1]) < threshold;
+                                    proj_capsule_vertices[1]) < support_feature_tolerance;
 
     if (is_capsule_edge) {
-        auto polygon = point_cloud_support_polygon<true>(
-            rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
-            sep_axis, projection_poly, true, support_polygon_tolerance);
+        auto polygon = point_cloud_support_polygon(
+            meshA.vertices.begin(), meshA.vertices.end(), vector3_zero,
+            sep_axis, projection_poly, true, support_feature_tolerance);
 
         // Check if the vertices of the capsule are inside the polygon.
         if (polygon.hull.size() > 2) {
             for (auto &pointB : capsule_vertices) {
                 if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
+                    auto pivotA = project_plane(pointB, polygon.origin, sep_axis);
                     auto pivotB = to_object_space(pointB + sep_axis * shB.radius, posB, ornB);
-                    auto pivotA_world = project_plane(pointB, polygon.origin, sep_axis);
-                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     result.add_point({pivotA, pivotB, normalB, distance});
                 }
             }
@@ -106,7 +104,7 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
         // Do not continue if there are already 2 points in the result, which means
         // both vertices of the capsule are contained in the polygon.
         if (result.num_points == 2) {
-            return result;
+            return;
         }
         
         // Check if the capsule edge intersects the polygon's edges. 
@@ -133,9 +131,8 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
                                                      s[0], t[0], s[1], t[1]);
 
                 for (size_t k = 0; k < num_points; ++k) {
-                    auto pivotA_world = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
+                    auto pivotA = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
                     auto pivotB_world = lerp(capsule_vertices[0], capsule_vertices[1], t[k]) + sep_axis * shB.radius;
-                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
                     result.maybe_add_point({pivotA, pivotB, normalB, distance});
                 }
@@ -143,30 +140,26 @@ collision_result collide(const polyhedron_shape &shA, const capsule_shape &shB,
         } else {
             // Polyhedron vertex against capsule edge.
             EDYN_ASSERT(polygon.hull.size() == 1);
-            auto &pivotA_world = polygon.vertices[polygon.hull[0]];
+            auto &pivotA = polygon.vertices[polygon.hull[0]];
             auto edge_dir = capsule_vertices[1] - capsule_vertices[0];
             vector3 pivotB_world; scalar t;
-            closest_point_line(capsule_vertices[0], edge_dir, pivotA_world, t, pivotB_world);
+            closest_point_line(capsule_vertices[0], edge_dir, pivotA, t, pivotB_world);
             auto pivotB = to_object_space(pivotB_world, posB, ornB) + normalB * shB.radius;
-            auto pivotA = to_object_space(pivotA_world, posA, ornA);
             result.add_point({pivotA, pivotB, normalB, distance});
         }
     } else {
         auto &closest_capsule_vertex = proj_capsule_vertices[0] > proj_capsule_vertices[1] ? 
                                        capsule_vertices[0] : capsule_vertices[1];
         auto pivotB_world = closest_capsule_vertex + sep_axis * shB.radius;
-        auto pivotA_world = pivotB_world + sep_axis * distance;
         auto pivotB = to_object_space(pivotB_world, posB, ornB);
-        auto pivotA = to_object_space(pivotA_world, posA, ornA);
+        auto pivotA = pivotB_world + sep_axis * distance;
         result.add_point({pivotA, pivotB, normalB, distance});
     }
-
-    return result;
 }
 
-collision_result collide(const capsule_shape &shA, const polyhedron_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const capsule_shape &shA, const polyhedron_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

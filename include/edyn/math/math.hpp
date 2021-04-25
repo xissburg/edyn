@@ -50,6 +50,14 @@ inline auto lerp(T a, T b, Scalar s) {
     return a * (Scalar(1) - s) + b * s;
 }
 
+/**
+ * @return The square of a number.
+ */
+template<typename T>
+inline auto sqr(T a) {
+    return a * a;
+}
+
 }
 
 #endif // EDYN_MATH_MATH_HPP

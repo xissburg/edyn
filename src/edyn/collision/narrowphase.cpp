@@ -240,7 +240,7 @@ void prune(contact_manifold &manifold,
 }
 
 void detect_collision(const contact_manifold &manifold, collision_result &result, 
-                      const body_view_t &body_view, const rotated_mesh_view_t &rmesh_view) {
+                      const body_view_t &body_view) {
     auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
     auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
     const auto offset = vector3_one * -contact_breaking_threshold;
@@ -252,18 +252,10 @@ void detect_collision(const contact_manifold &manifold, collision_result &result
     if (intersect(aabbA.inset(offset), aabbB)) {
         auto &shapeA = body_view.get<shape>(manifold.body[0]);
         auto &shapeB = body_view.get<shape>(manifold.body[1]);
-        auto ctx = collision_context{posA, ornA, posB, ornB, contact_breaking_threshold};
+        auto ctx = collision_context{posA, ornA, aabbA, posB, ornB, aabbB, contact_breaking_threshold};
 
-        if (std::holds_alternative<polyhedron_shape>(shapeA.var)) {
-            ctx.rmeshA = rmesh_view.get(manifold.body[0]);
-        }
-
-        if (std::holds_alternative<polyhedron_shape>(shapeB.var)) {
-            ctx.rmeshB = rmesh_view.get(manifold.body[1]);
-        }
-
-        std::visit([&result, &ctx] (auto &&sA, auto &&sB) {
-            result = collide(sA, sB, ctx);
+        std::visit([&result, &ctx] (auto &&shA, auto &&shB) {
+            collide(shA, shB, ctx, result);
         }, shapeA.var, shapeB.var);
     } else {
         result.num_points = 0;
@@ -309,7 +301,6 @@ void narrowphase::update_async(job &completion_job) {
 
     auto manifold_view = m_registry->view<contact_manifold>();
     auto body_view = m_registry->view<AABB, shape, position, orientation>();
-    auto rmesh_view = m_registry->view<rotated_mesh>();
     auto cp_view = m_registry->view<contact_point, constraint_impulse>();
 
     // Resize result collection vectors to allocate one slot for each iteration
@@ -319,13 +310,13 @@ void narrowphase::update_async(job &completion_job) {
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, 
-            [this, body_view, manifold_view, cp_view, rmesh_view] (size_t index) {
+            [this, body_view, manifold_view, cp_view] (size_t index) {
         auto entity = manifold_view[index];
         auto &manifold = manifold_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
 
-        detect_collision(manifold, result, body_view, rmesh_view);
+        detect_collision(manifold, result, body_view);
         process_collision(entity, manifold, result, cp_view,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;

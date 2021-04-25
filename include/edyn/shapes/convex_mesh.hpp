@@ -5,13 +5,18 @@
 #include <vector>
 #include <cstdint>
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/config/config.h"
 
 namespace edyn {
 
 struct rotated_mesh;
 
+/**
+ * @brief Represents a convex polyhedron.
+ */
 struct convex_mesh {
+    // Vertex positions.
     std::vector<vector3> vertices;
 
     // Vertex indices of all faces.
@@ -28,6 +33,12 @@ struct convex_mesh {
 
     // Face normals.
     std::vector<vector3> normals;
+
+    /**
+     * @brief Initializes calculated properties. Call this after vertices,
+     * indices and faces are assigned.
+     */
+    void initialize();
 
     size_t num_edges() const {
         EDYN_ASSERT(edges.size() % 2 == 0);
@@ -77,7 +88,7 @@ struct convex_mesh {
      * @param idx Edge index.
      * @return The coordinates of the two rotated vertices.
      */
-    std::array<vector3, 2> get_edge(const rotated_mesh &, size_t idx) const;
+    std::array<vector3, 2> get_rotated_edge(const rotated_mesh &, size_t idx) const;
     
     void calculate_normals();
 
@@ -85,6 +96,24 @@ struct convex_mesh {
 
     void validate() const;
 };
+
+/**
+ * @brief Accompanying component for `convex_mesh`es containg their 
+ * rotated vertices and normals to prevent repeated recalculation of
+ * these values.
+ */
+struct rotated_mesh {
+    std::vector<vector3> vertices;
+    std::vector<vector3> normals;
+};
+
+/**
+ * @brief Creates a `rotated_mesh` from a `convex_mesh` with the given orientation.
+ * @param mesh The source convex mesh.
+ * @param orn Orientation to apply to all vertices and normals.
+ * @return A `rotated_mesh` with the rotated vertices and normals of `mesh`.
+ */
+rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn = quaternion_identity);
 
 }
 

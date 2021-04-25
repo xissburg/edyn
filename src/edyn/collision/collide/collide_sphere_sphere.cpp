@@ -2,14 +2,14 @@
 
 namespace edyn {
 
-collision_result collide(const sphere_shape &shA, const sphere_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const sphere_shape &shA, const sphere_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     auto d = ctx.posA - ctx.posB;
     auto l2 = length_sqr(d);
     auto r = shA.radius + shB.radius + ctx.threshold;
 
     if (l2 > r * r) {
-        return {};
+        return;
     }
 
     auto l = std::sqrt(l2);
@@ -19,13 +19,11 @@ collision_result collide(const sphere_shape &shA, const sphere_shape &shB,
     auto rB = dn * shB.radius;
     rB = rotate(conjugate(ctx.ornB), rB);
 
-    auto result = collision_result {};
-    result.num_points = 1;
-    result.point[0].pivotA = rA;
-    result.point[0].pivotB = rB;
-    result.point[0].normalB = rotate(conjugate(ctx.ornB), dn);
-    result.point[0].distance = l - shA.radius - shB.radius;
-    return result;
+    auto pivotA = rA;
+    auto pivotB = rB;
+    auto normalB = rotate(conjugate(ctx.ornB), dn);
+    auto distance = l - shA.radius - shB.radius;
+    result.add_point({pivotA, pivotB, normalB, distance});
 }
 
 }

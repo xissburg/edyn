@@ -6,6 +6,12 @@
 
 namespace edyn {
 
+/**
+ * @brief A concave triangle mesh shape.
+ * @remark The `collide` functions involving this shape ignore position and
+ * orientation. If the mesh needs to be transformed, do so while constructing
+ * or loading it.
+ */
 struct mesh_shape {
     std::shared_ptr<triangle_mesh> trimesh;
 };

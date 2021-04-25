@@ -1,5 +1,7 @@
 #include "edyn/util/moment_of_inertia.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/util/shape_volume.hpp"
 #include <variant>
 
 namespace edyn {
@@ -52,7 +54,6 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass,
     // Reference: 
     // https://github.com/erich666/jgt-code/blob/master/Volume_11/Number_2/Kallay2006/Moment_of_Inertia.cpp
     scalar volume = 0;
-    auto center = vector3_zero;
     scalar xx = 0;
     scalar yy = 0;
     scalar zz = 0;
@@ -84,7 +85,6 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass,
 
             // Contribution to the centroid.
             auto v3 = v0 + v1 + v2;
-            center += pd_vol * v3;
 
             // Contribution to the moment of inertia monomials.
             xx += pd_vol * (v0.x * v0.x + v1.x * v1.x + v2.x * v2.x + v3.x * v3.x);
@@ -138,6 +138,25 @@ matrix3x3 moment_of_inertia(const box_shape &sh, scalar mass) {
 
 matrix3x3 moment_of_inertia(const polyhedron_shape &sh, scalar mass) {
     return moment_of_inertia_polyhedron(mass, sh.mesh->vertices, sh.mesh->indices, sh.mesh->faces);
+}
+
+matrix3x3 moment_of_inertia(const compound_shape &sh, scalar mass) {
+    auto inertia = matrix3x3_zero;
+    auto total_volume = shape_volume(sh);
+
+    // Use parallel axis theorem.
+    for (auto &node : sh.nodes) {
+        std::visit([&] (auto &&s) {
+            auto vol = shape_volume(s);
+            auto m = mass * (vol / total_volume);
+            auto orn = to_matrix3x3(node.orientation);
+            auto i = orn * moment_of_inertia(s, m) * transpose(orn);
+            auto d = skew_matrix(node.position);
+            inertia += i + transpose(d) * d * m;
+        }, node.var);
+    }
+
+    return inertia;
 }
 
 matrix3x3 moment_of_inertia(const paged_mesh_shape &sh, scalar mass) {

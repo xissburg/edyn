@@ -14,13 +14,22 @@ struct box_tri_separating_axis {
     scalar distance;
 };
 
-void collide_box_triangle(
-    const box_shape &box, const vector3 &box_pos, const quaternion &box_orn,
-    const std::array<vector3, 3> box_axes, const triangle_shape &tri,
-    scalar threshold, collision_result &result) {
+void collide(const box_shape &box, const triangle_shape &tri,
+             const collision_context &ctx, collision_result &result) {
+    const auto &box_pos = ctx.posA;
+    const auto &box_orn = ctx.ornA;
+    const auto threshold = ctx.threshold;
 
     std::array<box_tri_separating_axis, 13> sep_axes;
     size_t axis_idx = 0;
+
+    // TODO: Could avoid doing this for each triangle if this function could
+    // have the ability to process multiple triangles.
+    const vector3 box_axes[] = {
+        quaternion_x(ctx.ornA),
+        quaternion_y(ctx.ornA),
+        quaternion_z(ctx.ornA)
+    };
 
     // Box faces.
     for (size_t i = 0; i < 3; ++i) {
@@ -34,10 +43,10 @@ void collide_box_triangle(
         scalar neg_tri_proj, pos_tri_proj;
         get_triangle_support_feature(tri.vertices, box_pos, -axisA, 
                                      neg_tri_feature, neg_tri_feature_index, 
-                                     neg_tri_proj, threshold);
+                                     neg_tri_proj, support_feature_tolerance);
         get_triangle_support_feature(tri.vertices, box_pos, axisA, 
                                      pos_tri_feature, pos_tri_feature_index, 
-                                     pos_tri_proj, threshold);
+                                     pos_tri_proj, support_feature_tolerance);
 
         if (neg_tri_proj < pos_tri_proj) {
             axis.dir = -axisA;
@@ -67,7 +76,7 @@ void collide_box_triangle(
         box.support_feature(box_pos, box_orn, 
                             tri.vertices[0], -tri.normal, 
                             axis.featureA, axis.feature_indexA, 
-                            axis.distance, threshold);
+                            axis.distance, support_feature_tolerance);
         // Make distance negative when penetrating.
         axis.distance *= -1;
     }
@@ -96,10 +105,10 @@ void collide_box_triangle(
             scalar projA, projB;
             box.support_feature(box_pos, box_orn, tri.vertices[j], -axis.dir, 
                                 axis.featureA, axis.feature_indexA, 
-                                projA, threshold);
+                                projA, support_feature_tolerance);
             get_triangle_support_feature(tri.vertices, tri.vertices[j], axis.dir, 
                                          axis.featureB, axis.feature_indexB, 
-                                         projB, threshold);
+                                         projB, support_feature_tolerance);
             axis.distance = -(projA + projB);
 
             if (!tri.ignore_feature(axis.featureB, axis.feature_indexB, axis.dir)) {

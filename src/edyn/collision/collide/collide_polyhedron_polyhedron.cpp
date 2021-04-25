@@ -47,8 +47,8 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     projectionB = max_proj_B;
 }
 
-collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const polyhedron_shape &shA, const polyhedron_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     // Calculate collision with shape A in the origin for better floating point
     // precision. Position of shape B is modified accordingly.
     const auto posA = vector3_zero;
@@ -59,8 +59,8 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
     // The pre-rotated vertices and normals are used to avoid rotating vertices
     // every time.
-    auto &rmeshA = ctx.rmeshA->get();
-    auto &rmeshB = ctx.rmeshB->get();
+    auto &rmeshA = *shA.rotated;
+    auto &rmeshB = *shB.rotated;
 
     scalar distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;
@@ -93,11 +93,11 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
 
     // Edge vs edge.
     for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
-        auto [vertexA0, vertexA1] = shA.mesh->get_edge(rmeshA, i);
+        auto [vertexA0, vertexA1] = shA.mesh->get_rotated_edge(rmeshA, i);
         auto edgeA = vertexA1 - vertexA0;
 
         for (size_t j = 0; j < shB.mesh->num_edges(); ++j) {
-            auto [vertexB0, vertexB1] = shB.mesh->get_edge(rmeshB, j);
+            auto [vertexB0, vertexB1] = shB.mesh->get_rotated_edge(rmeshB, j);
             auto edgeB = vertexB1 - vertexB0;
             auto dir = cross(edgeA, edgeB);
             auto dir_len_sqr = length_sqr(dir);
@@ -127,18 +127,17 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
     }
 
     if (distance > threshold) {
-        return {};
+        return;
     }
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
-    auto polygonA = point_cloud_support_polygon<true>(
+    auto polygonA = point_cloud_support_polygon(
         rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
-        sep_axis, projectionA, true, support_polygon_tolerance);
-    auto polygonB = point_cloud_support_polygon<false>(
+        sep_axis, projectionA, true, support_feature_tolerance);
+    auto polygonB = point_cloud_support_polygon(
         rmeshB.vertices.begin(), rmeshB.vertices.end(), posB, 
-        sep_axis, projectionB, false, support_polygon_tolerance);
+        sep_axis, projectionB, false, support_feature_tolerance);
 
     // First, add contact points for vertices that lie inside the opposing face.
     // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,
@@ -205,8 +204,6 @@ collision_result collide(const polyhedron_shape &shA, const polyhedron_shape &sh
             }
         }
     }
-
-    return result;
 }
 
 }

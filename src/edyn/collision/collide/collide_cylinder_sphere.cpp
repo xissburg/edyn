@@ -3,8 +3,8 @@
 
 namespace edyn {
 
-collision_result collide(const cylinder_shape &shA, const sphere_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const cylinder_shape &shA, const sphere_shape &shB, 
+             const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
     const auto &posB = ctx.posB;
@@ -29,18 +29,17 @@ collision_result collide(const cylinder_shape &shA, const sphere_shape &shB,
         const auto min_dist = shA.radius + shB.radius + threshold;
     
         if (l2 > min_dist * min_dist) {
-            return {};
+            return;
         }
 
         const auto l = std::sqrt(l2);
         const auto normal = l2 > EDYN_EPSILON ? d / l : vector3_y;
-        auto result = collision_result{};
-        result.num_points = 1;
-        result.point[0].pivotA = rotate(conjugate(ornA), p - normal * shA.radius - posA);
-        result.point[0].pivotB = rotate(conjugate(ornB), normal * shB.radius);
-        result.point[0].normalB = rotate(conjugate(ornB), normal);
-        result.point[0].distance = l - shA.radius - shB.radius;
-        return result;
+
+        auto pivotA = rotate(conjugate(ornA), p - normal * shA.radius - posA);
+        auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
+        auto normalB = rotate(conjugate(ornB), normal);
+        auto distance = l - shA.radius - shB.radius;
+        result.add_point({pivotA, pivotB, normalB, distance});
     }
 
     const auto dpos = t < 0.5 ? p0 : p1;
@@ -49,7 +48,7 @@ collision_result collide(const cylinder_shape &shA, const sphere_shape &shB,
     const auto min_dist = shB.radius + threshold;
 
     if (l2 > min_dist * min_dist) {
-        return {};
+        return;
     }
 
     auto normal = q - posB;
@@ -57,18 +56,16 @@ collision_result collide(const cylinder_shape &shA, const sphere_shape &shB,
     const auto nl = std::sqrt(nl2);
     normal = nl2 > EDYN_EPSILON ? normal / nl : rotate(ornA, vector3_x) * (t < 0.5 ? -1 : 1);
 
-    auto result = collision_result{};
-    result.num_points = 1;
-    result.point[0].pivotA = rotate(conjugate(ornA), q - posA);
-    result.point[0].pivotB = rotate(conjugate(ornB), normal * shB.radius);
-    result.point[0].normalB = rotate(conjugate(ornB), normal);
-    result.point[0].distance = nl - shB.radius;
-    return result;
+    auto pivotA = rotate(conjugate(ornA), q - posA);
+    auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
+    auto normalB = rotate(conjugate(ornB), normal);
+    auto distance = nl - shB.radius;
+    result.add_point({pivotA, pivotB, normalB, distance});
 }
 
-collision_result collide(const sphere_shape &shA, const cylinder_shape &shB,
-                         const collision_context &ctx) {
-    return swap_collide(shA, shB, ctx);
+void collide(const sphere_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result) {
+    swap_collide(shA, shB, ctx, result);
 }
 
 }

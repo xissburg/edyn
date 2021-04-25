@@ -2,7 +2,6 @@
 #define EDYN_UTIL_AABB_UTIL_HPP
 
 #include "edyn/comp/aabb.hpp"
-#include "edyn/comp/shape.hpp"
 
 namespace edyn {
 
@@ -13,13 +12,22 @@ AABB cylinder_aabb(scalar radius, scalar half_length, const vector3 &pos, const 
 AABB capsule_aabb(scalar radius, scalar half_length, const vector3 &pos, const quaternion &orn);
 
 /**
- * @brief Calculates the AABB of a transformed AABB.
+ * @brief Calculates the AABB of an AABB transformed to world space.
  * @param aabb The AABB.
  * @param pos Position of AABB.
  * @param orn Orientation of AABB.
  * @return AABB of the given AABB with transformation applied.
  */
-AABB aabb_of_aabb(const AABB &aabb, const vector3 &pos, const quaternion &orn);
+AABB aabb_to_world_space(const AABB &aabb, const vector3 &pos, const quaternion &orn);
+
+/**
+ * @brief Calculates the AABB of an AABB transformed into object space.
+ * @param aabb The AABB.
+ * @param pos Center of object.
+ * @param orn Orientation of object.
+ * @return AABB of the given AABB in the space of another object.
+ */
+AABB aabb_to_object_space(const AABB &aabb, const vector3 &pos, const quaternion &orn);
 
 /**
  * @brief Calculates the AABB of a set of points.
@@ -39,6 +47,16 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
                       const vector3 &pos, const quaternion &orn);
 
 // Calculate AABB for all types of shapes.
+struct shape;
+struct plane_shape;
+struct sphere_shape;
+struct cylinder_shape;
+struct capsule_shape;
+struct mesh_shape;
+struct box_shape;
+struct polyhedron_shape;
+struct paged_mesh_shape;
+struct compound_shape;
 
 AABB shape_aabb(const plane_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const sphere_shape &sh, const vector3 &pos, const quaternion &orn);
@@ -48,6 +66,7 @@ AABB shape_aabb(const mesh_shape &sh, const vector3 &pos, const quaternion &orn)
 AABB shape_aabb(const box_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &orn);
+AABB shape_aabb(const compound_shape &sh, const vector3 &pos, const quaternion &orn);
 
 /**
  * @brief Visits the `shape`'s variant and calculates the the AABB.

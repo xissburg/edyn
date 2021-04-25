@@ -41,16 +41,8 @@ set(Edyn_SOURCES
     src/edyn/collision/collide/collide_capsule_cylinder.cpp
     src/edyn/collision/collide/collide_capsule_plane.cpp
     src/edyn/collision/collide/collide_capsule_sphere.cpp
-    src/edyn/collision/collide/collide_sphere_mesh.cpp
-    src/edyn/collision/collide/collide_capsule_mesh.cpp
-    src/edyn/collision/collide/collide_cylinder_mesh.cpp
-    src/edyn/collision/collide/collide_sphere_paged_mesh.cpp
     src/edyn/collision/collide/collide_capsule_triangle.cpp
-    src/edyn/collision/collide/collide_capsule_paged_mesh.cpp
-    src/edyn/collision/collide/collide_cylinder_paged_mesh.cpp
     src/edyn/collision/collide/collide_box_box.cpp
-    src/edyn/collision/collide/collide_box_mesh.cpp
-    src/edyn/collision/collide/collide_box_paged_mesh.cpp
     src/edyn/collision/collide/collide_box_plane.cpp
     src/edyn/collision/collide/collide_capsule_box.cpp
     src/edyn/collision/collide/collide_cylinder_box.cpp
@@ -61,12 +53,13 @@ set(Edyn_SOURCES
     src/edyn/collision/collide/collide_polyhedron_capsule.cpp
     src/edyn/collision/collide/collide_polyhedron_cylinder.cpp
     src/edyn/collision/collide/collide_polyhedron_box.cpp
-    src/edyn/collision/collide/collide_polyhedron_mesh.cpp
-    src/edyn/collision/collide/collide_polyhedron_paged_mesh.cpp
     src/edyn/collision/collide/collide_polyhedron_plane.cpp
     src/edyn/collision/collide/collide_polyhedron_polyhedron.cpp
     src/edyn/collision/collide/collide_polyhedron_sphere.cpp
     src/edyn/collision/collide/collide_polyhedron_triangle.cpp
+    src/edyn/collision/collide/collide_compound_compound.cpp
+    src/edyn/collision/collide/collide_compound_plane.cpp
+    src/edyn/collision/collide/collide_compound_triangle.cpp
     src/edyn/collision/collision_result.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
@@ -78,13 +71,14 @@ set(Edyn_SOURCES
     src/edyn/dynamics/world.cpp
     src/edyn/sys/apply_gravity.cpp
     src/edyn/sys/update_aabbs.cpp
-    src/edyn/sys/update_rotated_meshes.cpp
+    src/edyn/sys/update_polyhedrons.cpp
     src/edyn/sys/update_inertias.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/util/constraint_util.cpp
     src/edyn/util/shape_util.cpp
     src/edyn/util/aabb_util.cpp
     src/edyn/util/moment_of_inertia.cpp
+    src/edyn/util/shape_volume.cpp
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
     src/edyn/shapes/triangle_shape.cpp
@@ -92,6 +86,7 @@ set(Edyn_SOURCES
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
     src/edyn/shapes/convex_mesh.cpp
+    src/edyn/shapes/compound_shape.cpp
     src/edyn/parallel/entity_graph.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp

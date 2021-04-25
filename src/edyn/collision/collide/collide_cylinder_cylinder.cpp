@@ -21,8 +21,8 @@ struct cyl_cyl_separating_axis {
     scalar distance;
 };
 
-collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB, 
-                         const collision_context &ctx) {
+void collide(const cylinder_shape &shA, const cylinder_shape &shB,
+             const collision_context &ctx, collision_result &result) {
     // Cylinder-cylinder SAT.
     std::array<cyl_cyl_separating_axis, 11> sep_axes;
     size_t axis_idx = 0;
@@ -61,9 +61,9 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
             face_center = face_center_negA;
         }
 
-        shB.support_feature(posB, ornB, posA, axis.dir, 
-                            axis.featureB, axis.feature_indexB, 
-                            axis.pivotB, axis.distance, threshold);
+        shB.support_feature(posB, ornB, posA, axis.dir,
+                            axis.featureB, axis.feature_indexB,
+                            axis.pivotB, axis.distance, support_feature_tolerance);
         axis.distance = -(shA.half_length + axis.distance);
         axis.pivotA = project_plane(axis.pivotB, face_center, axis.dir);
     }
@@ -85,9 +85,9 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
             face_center = face_center_posB;
         }
 
-        shA.support_feature(posA, ornA, posB, -axis.dir, 
-                            axis.featureA, axis.feature_indexA, 
-                            axis.pivotA, axis.distance, threshold);
+        shA.support_feature(posA, ornA, posB, -axis.dir,
+                            axis.featureA, axis.feature_indexA,
+                            axis.pivotA, axis.distance, support_feature_tolerance);
         axis.distance = -(shB.half_length + axis.distance);
         axis.pivotB = project_plane(axis.pivotA, face_center, axis.dir);
     }
@@ -116,12 +116,12 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
             axis.dir = dir;
             
             scalar projA, projB;
-            shA.support_feature(posA, ornA, posB, -axis.dir, 
-                                axis.featureA, axis.feature_indexA, 
-                                axis.pivotA, projA, threshold);
-            shB.support_feature(posB, ornB, posB, axis.dir, 
-                                axis.featureB, axis.feature_indexB, 
-                                axis.pivotB, projB, threshold);
+            shA.support_feature(posA, ornA, posB, -axis.dir,
+                                axis.featureA, axis.feature_indexA,
+                                axis.pivotA, projA, support_feature_tolerance);
+            shB.support_feature(posB, ornB, posB, axis.dir,
+                                axis.featureB, axis.feature_indexB,
+                                axis.pivotB, projB, support_feature_tolerance);
             axis.distance = -(projA + projB);
         }
     }
@@ -144,7 +144,8 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
             vector3 normal;
             closest_point_circle_line(circle_pos, orn, radius, v0, v1, num_points, 
                                       s[0], p_circle[0], p_line[0], 
-                                      s[1], p_circle[1], p_line[1], normal, threshold);
+                                      s[1], p_circle[1], p_line[1], 
+                                      normal, support_feature_tolerance);
 
             auto &axis = sep_axes[axis_idx++];
             axis.dir = normal;
@@ -157,15 +158,15 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
 
             if (is_faceA) {
                 axis.featureB = cylinder_feature::side_edge;
-                shA.support_feature(posA, ornA, posB, -axis.dir, 
-                                    axis.featureA, axis.feature_indexA, 
-                                    axis.pivotA, axis.distance, threshold);
+                shA.support_feature(posA, ornA, posB, -axis.dir,
+                                    axis.featureA, axis.feature_indexA,
+                                    axis.pivotA, axis.distance, support_feature_tolerance);
                 axis.distance = -(shB.radius + axis.distance);
             } else {
                 axis.featureA = cylinder_feature::side_edge;
-                shB.support_feature(posB, ornB, posA, axis.dir, 
-                                    axis.featureB, axis.feature_indexB, 
-                                    axis.pivotB, axis.distance, threshold);
+                shB.support_feature(posB, ornB, posA, axis.dir,
+                                    axis.featureB, axis.feature_indexB,
+                                    axis.pivotB, axis.distance, support_feature_tolerance);
                 axis.distance = -(shA.radius + axis.distance);
             }
         }
@@ -181,8 +182,8 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
             vector3 closest0[2];
             vector3 closest1[2];
             vector3 normal;
-            closest_point_circle_circle(circle_posA, ornA, shA.radius, 
-                                        circle_posB, ornB, shB.radius, 
+            closest_point_circle_circle(circle_posA, ornA, shA.radius,
+                                        circle_posB, ornB, shB.radius,
                                         num_points, closest0[0], closest0[1],
                                         closest1[0], closest1[1], normal);
 
@@ -196,12 +197,12 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
             }
 
             scalar projA, projB;
-            shA.support_feature(posA, ornA, posB, -axis.dir, 
-                                axis.featureA, axis.feature_indexA, 
-                                axis.pivotA, projA, threshold);
-            shB.support_feature(posB, ornB, posB, axis.dir, 
-                                axis.featureB, axis.feature_indexB, 
-                                axis.pivotB, projB, threshold);
+            shA.support_feature(posA, ornA, posB, -axis.dir,
+                                axis.featureA, axis.feature_indexA,
+                                axis.pivotA, projA, support_feature_tolerance);
+            shB.support_feature(posB, ornB, posB, axis.dir,
+                                axis.featureB, axis.feature_indexB,
+                                axis.pivotB, projB, support_feature_tolerance);
             axis.distance = -(projA + projB);
         }
     }
@@ -221,10 +222,9 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
     auto &sep_axis = sep_axes[sep_axis_idx];
 
     if (sep_axis.distance > threshold) {
-        return {};
+        return;
     }
 
-    auto result = collision_result{};
     auto normalB = rotate(conjugate(ornB), sep_axis.dir);
 
     if (sep_axis.featureA == cylinder_feature::face && 
@@ -238,8 +238,8 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
         // and y axis in 3D as the y axis in 2D.
         vector2 p[2];
         auto centerA = to_vector2_zy(posA_in_B);
-        auto num_points = intersect_circle_circle(centerA, shA.radius, 
-                                                  vector2_zero, shB.radius, 
+        auto num_points = intersect_circle_circle(centerA, shA.radius,
+                                                  vector2_zero, shB.radius,
                                                   p[0], p[1]);
 
         if (num_points > 0) {
@@ -458,8 +458,6 @@ collision_result collide(const cylinder_shape &shA, const cylinder_shape &shB,
         auto pivotB = to_object_space(sep_axis.pivotB, posB, ornB);
         result.add_point({pivotA, pivotB, normalB, sep_axis.distance});
     }
-
-    return result;
 }
 
 }

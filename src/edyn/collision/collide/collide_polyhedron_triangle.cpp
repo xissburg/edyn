@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/collision/collision_result.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
@@ -8,15 +9,23 @@
 
 namespace edyn {
 
-void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mesh &rmesh,
-                                 const vector3 &pos_poly, const quaternion &orn_poly, 
-                                 const triangle_shape &tri,
-                                 scalar threshold, collision_result &result) {
-    // The triangle vertices are assumed to be shifted by the polyhedron position
-    // so all calculations happen near the origin. That means the polyhedron is
-    // assumed to be with its pivot at the origin. That also means collision points
-    // on the triangle must be shifted by `pos_poly` when inserting then into the
-    // `result`.
+void collide(const polyhedron_shape &poly, const triangle_shape &tri,
+             const collision_context &ctx, collision_result &result) {
+    // Polyhedron vs triangle SAT. The triangle vertices are shifted by the 
+    // polyhedron's position so all calculations are effectively done with
+    // the polyhedron in the origin. The rotated mesh is used thus no rotations
+    // are necessary.
+    const auto &pos_poly = ctx.posA;
+    const auto &orn_poly = ctx.ornA;
+    const auto threshold = ctx.threshold;
+    const auto &rmesh = *poly.rotated;
+
+    // Shift vertices into A's positional object space.
+    auto tri_vertices = tri.vertices;
+    for (auto &v : tri_vertices) {
+        v -= pos_poly;
+    }
+
     triangle_feature tri_feature;
     size_t tri_feature_index;
     auto projection_poly = EDYN_SCALAR_MAX;
@@ -35,8 +44,9 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
         triangle_feature feature;
         size_t feature_idx;
         scalar tri_proj;
-        get_triangle_support_feature(tri.vertices, vector3_zero, normal, feature, 
-                                     feature_idx, tri_proj, threshold);
+        get_triangle_support_feature(tri_vertices, vector3_zero, normal, 
+                                     feature, feature_idx, tri_proj, 
+                                     support_feature_tolerance);
 
         if (tri.ignore_feature(feature, feature_idx, normal)) {
             continue;
@@ -59,7 +69,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
         // Find point on polyhedron that's furthest along the opposite direction
         // of the triangle normal.
         auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -tri.normal);
-        auto proj_tri = dot(tri.vertices[0], tri.normal);
+        auto proj_tri = dot(tri_vertices[0], tri.normal);
         auto dist = proj_poly - proj_tri;
 
         if (dist > distance) {
@@ -73,7 +83,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
 
     // Edge vs edge.
     for (size_t i = 0; i < poly.mesh->num_edges(); ++i) {
-        auto [vertexA0, vertexA1] = poly.mesh->get_edge(rmesh, i);
+        auto [vertexA0, vertexA1] = poly.mesh->get_rotated_edge(rmesh, i);
         auto poly_edge = vertexA1 - vertexA0;
 
         for (size_t j = 0; j < tri.edges.size(); ++j) {
@@ -86,7 +96,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
 
             dir /= std::sqrt(dir_len_sqr);
 
-            auto &vertexB0 = tri.vertices[j];
+            auto &vertexB0 = tri_vertices[j];
 
             // Polyhedron is assumed to be located at the origin.
             if (dot(vector3_zero - vertexB0, dir) < 0) {
@@ -97,8 +107,9 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
             triangle_feature feature;
             size_t feature_idx;
             scalar proj_tri;
-            get_triangle_support_feature(tri.vertices, vector3_zero, dir, feature, 
-                                         feature_idx, proj_tri, threshold);
+            get_triangle_support_feature(tri_vertices, vector3_zero, dir, 
+                                         feature, feature_idx, proj_tri, 
+                                         support_feature_tolerance);
 
             if (tri.ignore_feature(feature, feature_idx, dir)) {
                 continue;
@@ -122,9 +133,9 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
         return;
     }
 
-    auto polygon = point_cloud_support_polygon<true>(
+    auto polygon = point_cloud_support_polygon(
         rmesh.vertices.begin(), rmesh.vertices.end(), vector3_zero,
-        sep_axis, projection_poly, true, support_polygon_tolerance);
+        sep_axis, projection_poly, true, support_feature_tolerance);
 
     auto contact_origin_tri = sep_axis * projection_tri;
     auto hull_tri = std::array<size_t, 3>{};
@@ -147,8 +158,8 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
 
     auto plane_vertices_tri = std::array<vector2, 3>{};
     for (size_t i = 0; i < 3; ++i) {
-        auto &vertex_world = tri.vertices[i];
-        auto vertex_tangent = to_object_space(vertex_world, contact_origin_tri, polygon.basis);
+        auto &vertex = tri_vertices[i];
+        auto vertex_tangent = to_object_space(vertex, contact_origin_tri, polygon.basis);
         auto vertex_plane = to_vector2_xz(vertex_tangent);
         plane_vertices_tri[i] = vertex_plane;
     }
@@ -160,7 +171,7 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
         for (auto idxA : polygon.hull) {
             auto &pointA = polygon.vertices[idxA];
 
-            if (point_in_triangle(tri.vertices, sep_axis, pointA)) {
+            if (point_in_triangle(tri_vertices, sep_axis, pointA)) {
                 auto pivotA = to_object_space(pointA, vector3_zero, orn_poly);
                 auto pivotB = project_plane(pointA, contact_origin_tri, sep_axis) + pos_poly;
                 result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
@@ -176,10 +187,10 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
             auto idxB = hull_tri[i];
             if (tri.ignore_vertex(idxB, sep_axis)) continue;
 
-            auto &pointB = tri.vertices[idxB];
+            auto &pointB = tri_vertices[idxB];
 
             if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
-                auto pivotB = pointB + pos_poly;
+                auto pivotB = tri.vertices[idxB];
                 auto pivotA_world = project_plane(pointB, polygon.origin, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, vector3_zero, orn_poly);
                 result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
@@ -215,9 +226,8 @@ void collide_polyhedron_triangle(const polyhedron_shape &poly, const rotated_mes
 
                 for (size_t k = 0; k < num_points; ++k) {
                     auto pivotA_world = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
-                    auto pivotB_world = lerp(tri.vertices[idx0B], tri.vertices[idx1B], t[k]);
                     auto pivotA = to_object_space(pivotA_world, vector3_zero, orn_poly);
-                    auto pivotB = pivotB_world + pos_poly;
+                    auto pivotB = lerp(tri.vertices[idx0B], tri.vertices[idx1B], t[k]);
                     result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
                 }
             }

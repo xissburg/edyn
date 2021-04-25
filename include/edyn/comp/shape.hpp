@@ -11,18 +11,20 @@
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/shapes/paged_mesh_shape.hpp"
+#include "edyn/shapes/compound_shape.hpp"
 
 namespace edyn {
 
 struct shape {
-    std::variant<plane_shape, 
-                 sphere_shape, 
+    std::variant<plane_shape,
+                 sphere_shape,
                  cylinder_shape,
                  capsule_shape,
                  mesh_shape,
                  box_shape,
                  polyhedron_shape,
-                 paged_mesh_shape> var;
+                 paged_mesh_shape,
+                 compound_shape> var;
 };
 
 }

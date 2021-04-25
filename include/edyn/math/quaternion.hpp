@@ -77,6 +77,16 @@ inline quaternion operator*(const vector3 &v, const quaternion &q) {
     };
 }
 
+// Check if two quaternions are equal.
+inline bool operator==(const quaternion &q, const quaternion &v) {
+    return q.x == v.x && q.y == v.y && q.z == v.z && q.w == v.w;
+}
+
+// Check if two quaternions are different.
+inline bool operator!=(const quaternion &q, const quaternion &v) {
+    return q.x != v.x || q.y != v.y || q.z != v.z || q.w != v.w;
+}
+
 // Squared length of a quaternion.
 inline scalar length_sqr(const quaternion &q) {
     return q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;

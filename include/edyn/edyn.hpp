@@ -15,6 +15,7 @@
 #include "util/rigidbody.hpp"
 #include "util/constraint_util.hpp"
 #include "util/shape_util.hpp"
+#include "util/shape_volume.hpp"
 #include "util/tuple.hpp"
 #include "util/entity_set.hpp"
 #include "collision/contact_manifold.hpp"
@@ -26,3 +27,4 @@
 #include "parallel/parallel_for_async.hpp"
 #include "parallel/message_queue.hpp"
 #include "parallel/island_delta_builder.hpp"
+#include "util/moment_of_inertia.hpp"

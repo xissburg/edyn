@@ -22,6 +22,9 @@ namespace detail {
     struct submesh_builder;
 }
 
+/**
+ * @brief A triangle mesh which loads chunks on demand.
+ */
 class paged_triangle_mesh {
 public:
     struct triangle_mesh_node {
@@ -38,11 +41,10 @@ public:
      * @param aabb The AABB to visit.
      * @param func An element into which the `operator()` will be called.
      *      The expected signature is: 
-     *      `void(uint32_t trimesh_idx, uint32_t tri_idx, const triangle_vertices &vertices)`
+     *      `void(uint32_t mesh_idx, uint32_t tri_idx)`
      *      Where:
-     *      - `trimesh_idx` is the index of the submesh.
+     *      - `mesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
-     *      - `vertices` are the positions of the triangle vertices.
      */
     template<typename Func>
     void visit(const AABB &aabb, Func func) {
@@ -53,15 +55,15 @@ public:
         };
         auto inset_aabb = aabb.inset(inset);
         
-        m_tree.visit(inset_aabb, [&] (auto trimesh_idx) {
-            load_node_if_needed(trimesh_idx);
-            auto trimesh = m_cache[trimesh_idx].trimesh;
+        m_tree.visit(inset_aabb, [&] (auto mesh_idx) {
+            load_node_if_needed(mesh_idx);
+            auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit(inset_aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                    func(trimesh_idx, tri_idx, vertices);
+                trimesh->visit(inset_aabb, [=] (uint32_t tri_idx) {
+                    func(mesh_idx, tri_idx);
                 });
-                mark_recent_visit(trimesh_idx);
+                mark_recent_visit(mesh_idx);
             }
         });
     }
@@ -70,22 +72,21 @@ public:
      * @brief Visits all triangles of all nodes.
      * @param func An element into which the `operator()` will be called.
      *      The expected signature is: 
-     *      `void(uint32_t trimesh_idx, uint32_t tri_idx, const triangle_vertices &vertices)`
+     *      `void(uint32_t mesh_idx, uint32_t tri_idx)`
      *      Where:
-     *      - `trimesh_idx` is the index of the submesh.
+     *      - `mesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
-     *      - `vertices` are the positions of the triangle vertices.
      */
     template<typename Func>
     void visit_all(Func func) {        
-        for (size_t i = 0; i < m_cache.size(); ++i) {
-            load_node_if_needed(i);
-            auto trimesh = m_cache[i].trimesh;
+        for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
+            load_node_if_needed(mesh_idx);
+            auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit_all([=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                    func(i, tri_idx, vertices);
-                });
+                for (size_t tri_idx = 0; tri_idx < trimesh->num_triangles(); ++tri_idx) {
+                    func(mesh_idx, tri_idx);
+                }
             }
         }
     }
@@ -97,20 +98,19 @@ public:
      * @param aabb The AABB to visit.
      * @param func An element into which the `operator()` will be called.
      *      The expected signature is: 
-     *      `void(uint32_t trimesh_idx, uint32_t tri_idx, const triangle_vertices &vertices)`
+     *      `void(uint32_t mesh_idx, uint32_t tri_idx)`
      *      Where:
-     *      - `trimesh_idx` is the index of the submesh.
+     *      - `mesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
-     *      - `vertices` are the positions of the triangle vertices.
      */
     template<typename Func>
     void visit_cache(const AABB &aabb, Func func) const {
-        for (size_t i = 0; i < m_cache.size(); ++i) {
-            auto trimesh = m_cache[i].trimesh;
+        for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
+            auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit(aabb, [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                    func(i, tri_idx, vertices);
+                trimesh->visit(aabb, [=] (uint32_t tri_idx) {
+                    func(mesh_idx, tri_idx);
                 });
             }
         }
@@ -120,21 +120,20 @@ public:
      * @brief Visits all triangles of all cached nodes.
      * @param func An element into which the `operator()` will be called.
      *      The expected signature is: 
-     *      `void(uint32_t trimesh_idx, uint32_t tri_idx, const triangle_vertices &vertices)`
+     *      `void(uint32_t mesh_idx, uint32_t tri_idx)`
      *      Where:
-     *      - `trimesh_idx` is the index of the submesh.
+     *      - `mesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
-     *      - `vertices` are the positions of the triangle vertices.
      */
     template<typename Func>
     void visit_cache_all(Func func) const {
-        for (size_t i = 0; i < m_cache.size(); ++i) {
-            auto trimesh = m_cache[i].trimesh;
+        for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
+            auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit_all( [=] (uint32_t tri_idx, const triangle_vertices &vertices) {
-                    func(i, tri_idx, vertices);
-                });
+                for (size_t tri_idx = 0; tri_idx < trimesh->num_triangles(); ++tri_idx) {
+                    func(mesh_idx, tri_idx);
+                }
             }
         }
     }
@@ -151,15 +150,17 @@ public:
 
     std::shared_ptr<triangle_mesh> get_submesh(size_t idx);
 
+    triangle_vertices get_triangle_vertices(size_t mesh_idx, size_t tri_idx);
+
     void clear_cache();
 
     void assign_mesh(size_t index, std::unique_ptr<triangle_mesh>);
 
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
-     *      is loaded, if the number of vertices would exceed this number, the 
-     *      least recently visited nodes will be unloaded until the new total 
-     *      number of vertices stays below this value.
+     * is loaded, if the number of vertices would exceed this number, the 
+     * least recently visited nodes will be unloaded until the new total 
+     * number of vertices stays below this value.
      */
     size_t m_max_cache_num_vertices = 1 << 13;
 

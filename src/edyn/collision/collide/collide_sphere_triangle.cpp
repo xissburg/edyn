@@ -1,16 +1,12 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
-#include "edyn/math/math.hpp"
-#include <algorithm>
 
 namespace edyn {
 
-void collide_sphere_triangle(
-    const sphere_shape &sphere, 
-    const vector3 &sphere_pos,
-    const quaternion &sphere_orn,
-    const triangle_shape &tri,
-    scalar threshold, collision_result &result) {
+void collide(const sphere_shape &sphere, const triangle_shape &tri,
+             const collision_context &ctx, collision_result &result) {
+    const auto &sphere_pos = ctx.posA;
+    const auto &sphere_orn = ctx.ornA;
+    const auto threshold = ctx.threshold;
 
     auto p = sphere_pos - tri.vertices[0];
     auto dist_plane = dot(p, tri.normal);
@@ -21,11 +17,11 @@ void collide_sphere_triangle(
     }
 
     if (point_in_triangle(tri.vertices, tri.normal, sphere_pos)) {
-        auto idx = result.num_points++;
-        result.point[idx].pivotA = rotate(conjugate(sphere_orn), -tri.normal * sphere.radius);
-        result.point[idx].pivotB = sphere_pos - tri.normal * dist_plane;
-        result.point[idx].normalB = tri.normal;
-        result.point[idx].distance = dist_plane - sphere.radius;
+        auto pivotA = rotate(conjugate(sphere_orn), -tri.normal * sphere.radius);
+        auto pivotB = sphere_pos - tri.normal * dist_plane;
+        auto normalB = tri.normal;
+        auto distance = dist_plane - sphere.radius;
+        result.add_point({pivotA, pivotB, normalB, distance});
     } else {
         // Check edges.
         auto dist_sqr = sphere.radius + threshold;
@@ -72,11 +68,10 @@ void collide_sphere_triangle(
         if (has_contact) {
             auto pivotA = to_object_space(sphere_pos - closest_edge_normal * sphere.radius, 
                                           sphere_pos, sphere_orn);
-            auto idx = result.num_points++;
-            result.point[idx].pivotA = pivotA;
-            result.point[idx].pivotB = closest_point;
-            result.point[idx].normalB = closest_edge_normal;
-            result.point[idx].distance = closest_edge_dist - sphere.radius;
+            auto pivotB = closest_point;
+            auto normalB = closest_edge_normal;
+            auto distance = closest_edge_dist - sphere.radius;
+            result.add_point({pivotA, pivotB, normalB, distance});
         }
     }
 }
