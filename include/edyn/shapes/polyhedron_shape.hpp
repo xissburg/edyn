@@ -8,19 +8,25 @@ namespace edyn {
 
 struct polyhedron_shape {
     /**
-     * The convex mesh that backs this polyhedron. It is potentially shared
-     * with multiple threads (e.g. if it is associated with a static or
-     * kinematic rigid body) which makes it unsafe to be modified.
+     * The convex mesh that backs this polyhedron. It's stored in a shared
+     * pointer because it's expensive to copy. Shapes are copied into 
+     * `island_delta`s every time islands are merged and split. This also
+     * allows many rigid bodies of the same shape to exist without duplicating
+     * data. It is potentially shared with multiple threads (e.g. if it is
+     * associated with a static or kinematic rigid body) which makes it unsafe
+     * to be modified.
      */
     std::shared_ptr<convex_mesh> mesh;
 
     /**
      * A rotated mesh which serves as a cache where the rotated vertex positions
-     * and face normals are stored after each step of the simulation. Since this
-     * is modified by the island worker, it's not safe to access it in another
-     * thread. The coordinator does not need this information by default. If it
-     * is needed, a new instance should be created to replace the current in the
-     * registry of that thread.
+     * and face normals are stored after each step of the simulation. This has
+     * to be unique for each entity, unlike the `mesh` which can be shared,
+     * since this reflects the unique orientation of the rigid body.
+     * Since this is modified by the island worker, it's not safe to access it
+     * in another thread. The coordinator does not need this information by
+     * default. If it is needed, a new instance should be created to replace
+     * the current in the registry of that thread.
      */
     std::shared_ptr<rotated_mesh> rotated;
 
@@ -34,8 +40,8 @@ struct polyhedron_shape {
 
     /**
      * @brief Loads a polyhedron shape from an obj file. 
-     * The obj file must have a single mesh. If the obj file contains more than 
-     * one mesh, use a `compound_shape` instead.
+     * The obj file must have a single shape. If the obj file contains more than 
+     * one shape, use a `compound_shape` instead.
      * @remark The transform is applied in this order: scale, rotation,
      * translation.
      * @param path_to_obj File path.

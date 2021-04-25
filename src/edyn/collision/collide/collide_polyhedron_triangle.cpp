@@ -11,7 +11,7 @@ namespace edyn {
 
 void collide(const polyhedron_shape &poly, const triangle_shape &tri,
              const collision_context &ctx, collision_result &result) {
-    // Polyhedron vs triangle SAT. The triangle vertices are shited by the 
+    // Polyhedron vs triangle SAT. The triangle vertices are shifted by the 
     // polyhedron's position so all calculations are effectively done with
     // the polyhedron in the origin. The rotated mesh is used thus no rotations
     // are necessary.
