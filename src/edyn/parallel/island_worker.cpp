@@ -74,10 +74,9 @@ island_worker::~island_worker() = default;
 void island_worker::init() {
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
-
     m_registry.on_destroy<contact_manifold>().connect<&island_worker::on_destroy_contact_manifold>(*this);
-
     m_registry.on_destroy<contact_point>().connect<&island_worker::on_destroy_contact_point>(*this);
+    m_registry.on_construct<shape>().connect<&island_worker::on_construct_shape>(*this);
 
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -181,6 +180,10 @@ void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity
     }
 
     m_topology_changed = true;
+}
+
+void island_worker::on_construct_shape(entt::registry &registry, entt::entity entity) {
+    m_new_shapes.push_back(entity);
 }
 
 void island_worker::on_island_delta(const island_delta &delta) {
@@ -389,6 +392,9 @@ void island_worker::begin_step() {
         (*g_external_system_pre_step)(m_registry);
     }
 
+    // Initialize new shapes before new manifolds because it'll perform
+    // collision detection for the new manifolds.
+    init_new_shapes();
     init_new_imported_contact_manifolds();
 
     m_state = state::solve;
@@ -592,6 +598,52 @@ void island_worker::init_new_imported_contact_manifolds() {
     m_new_imported_contact_manifolds.clear();
 }
 
+void island_worker::init_new_shapes() {
+    // For every entity with a `shape` which holds a `polyhedron_shape`, assign
+    // the `polyhedron_shape` as a component so it can have its rotated elements
+    // updated more efficiently using `update_polyhedrons`. Do the same for
+    // `compound_shape`s that hold one or more polyhedrons. Otherwise, it'd be
+    // necessary to iterate over all `shape` components checking if they hold a
+    // `polyhedron_shape` or `compound_shape`.
+    auto shape_view = m_registry.view<shape>();
+    auto orn_view = m_registry.view<orientation>();
+
+    for (auto entity : m_new_shapes) {
+        auto &sh = shape_view.get(entity);
+
+        if (std::holds_alternative<polyhedron_shape>(sh.var)) {
+            auto &polyhedron = std::get<polyhedron_shape>(sh.var);
+            // A new `rotated_mesh` is assigned to it, replacing another reference
+            // that could be already in there, thus preventing concurrent access.
+            auto rotated = make_rotated_mesh(*polyhedron.mesh, orn_view.get(entity));
+            polyhedron.rotated = std::make_shared<rotated_mesh>(std::move(rotated));
+            // The same polyhedron is assigned as a component in this entity, 
+            // meaning the rotated mesh is shared between it and the `shape`.
+            m_registry.emplace<polyhedron_shape>(entity, polyhedron);
+        } else if (std::holds_alternative<compound_shape>(sh.var)) {
+            auto &compound = std::get<compound_shape>(sh.var);
+            auto &orn = orn_view.get(entity);
+            auto has_polyhedron = false;
+
+            for (auto &node : compound.nodes) {
+                if (!std::holds_alternative<polyhedron_shape>(node.var)) continue;
+
+                has_polyhedron = true;
+                auto &polyhedron = std::get<polyhedron_shape>(node.var);
+                auto local_orn = orn * node.orientation;
+                auto rotated = make_rotated_mesh(*polyhedron.mesh, local_orn);
+                polyhedron.rotated = std::make_shared<rotated_mesh>(std::move(rotated));
+            }
+
+            if (has_polyhedron) {
+                m_registry.emplace<compound_shape>(entity, compound);
+            }
+        }
+    }
+
+    m_new_shapes.clear();
+}
+
 void island_worker::insert_remote_node(entt::entity remote_entity) {
     if (!m_entity_map.has_rem(remote_entity)) return;
 
@@ -601,42 +653,6 @@ void island_worker::insert_remote_node(entt::entity remote_entity) {
     auto &graph = m_registry.ctx<entity_graph>();
     auto node_index = graph.insert_node(local_entity, non_connecting);
     m_registry.emplace<graph_node>(local_entity, node_index);
-
-    // If this node contains a `shape` which holds a `polyhedron_shape`, assign
-    // the `polyhedron_shape` as a component so it can have its rotated elements
-    // updated more efficiently using `update_polyhedrons`. Do the same for
-    // `compound_shape`s that hold one or more polyhedrons. Otherwise, it'd be
-    // necessary to iterate over all `shape` components checking if they hold a
-    // `polyhedron_shape` or `compound_shape`.
-    // TODO: move this to an `on_construct<shape>()`, though it must be deferred
-    // since it must ensure a few other components available.
-    auto *sh = m_registry.try_get<shape>(local_entity);
-
-    if (sh && std::holds_alternative<polyhedron_shape>(sh->var)) {
-        auto &polyhedron = std::get<polyhedron_shape>(sh->var);
-        auto &orn = m_registry.get<orientation>(local_entity);
-        // A new `rotated_mesh` is assigned to it, replacing another reference
-        // that could be already in there, thus preventing concurrent access.
-        polyhedron.rotated = std::make_shared<rotated_mesh>(make_rotated_mesh(*polyhedron.mesh, orn));
-        m_registry.emplace<polyhedron_shape>(local_entity, polyhedron);
-    } else if (sh && std::holds_alternative<compound_shape>(sh->var)) {
-        auto &compound = std::get<compound_shape>(sh->var);
-        auto &orn = m_registry.get<orientation>(local_entity);
-        auto has_polyhedron = false;
-
-        for (auto &node : compound.nodes) {
-            if (!std::holds_alternative<polyhedron_shape>(node.var)) continue;
-
-            has_polyhedron = true;
-            auto &polyhedron = std::get<polyhedron_shape>(node.var);
-            auto local_orn = orn * node.orientation;
-            polyhedron.rotated = std::make_shared<rotated_mesh>(make_rotated_mesh(*polyhedron.mesh, local_orn));
-        }
-
-        if (has_polyhedron) {
-            m_registry.emplace<compound_shape>(local_entity, compound);
-        }
-    }
 }
 
 void island_worker::maybe_go_to_sleep() {

@@ -52,6 +52,7 @@ class island_worker final {
     void reschedule_later();
     void do_terminate();
     void init_new_imported_contact_manifolds();
+    void init_new_shapes();
     void insert_remote_node(entt::entity remote_entity);
     void maybe_go_to_sleep();
     bool could_go_to_sleep();
@@ -74,11 +75,10 @@ public:
     void reschedule();
 
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
-
     void on_destroy_contact_point(entt::registry &, entt::entity);
-
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
+    void on_construct_shape(entt::registry &, entt::entity);
 
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);
@@ -118,6 +118,7 @@ private:
     double m_calculate_split_timestamp;
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;
+    std::vector<entt::entity> m_new_shapes;
 
     std::atomic<int> m_reschedule_counter {0};
 
