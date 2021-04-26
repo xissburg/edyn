@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.12.4)
+cmake_minimum_required(VERSION 3.15)
+cmake_policy(SET CMP0091 NEW)
 
 project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
@@ -110,6 +111,13 @@ if(UNIX)
     )
 endif()
 
+if(WIN32)
+    set(Edyn_SOURCES
+        ${Edyn_SOURCES}
+	src/edyn/time/windows/time.cpp
+    )
+endif()
+
 add_library(Edyn)
 target_sources(Edyn PRIVATE ${Edyn_SOURCES})
 
@@ -140,6 +148,8 @@ if(MSVC)
 else()
     target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()
+
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 if(EDYN_BUILD_EXAMPLES)
     add_subdirectory(examples)
