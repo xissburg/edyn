@@ -12,7 +12,7 @@ struct contact_constraint : public constraint_base {
     scalar stiffness {large_scalar};
     scalar damping {large_scalar};
 
-    scalar m_friction;
+    scalar m_friction {};
 };
 
 template<>

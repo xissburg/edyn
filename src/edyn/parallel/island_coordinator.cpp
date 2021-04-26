@@ -336,8 +336,7 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
         builder->created(island_entity, sleeping_tag{});
     }
 
-    auto delta = builder->finish();
-    ctx->send<island_delta>(std::move(delta));
+    ctx->send<island_delta>(std::move(builder->finish()));
 
     if (m_paused) {
         ctx->send<msg::set_paused>(true);

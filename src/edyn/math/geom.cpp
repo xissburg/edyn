@@ -91,11 +91,11 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                 }
             } else if (num_points != nullptr) {
                 auto r1 = p1 - q2;
-                auto c1 = dot(d1, r1);
+                auto f1 = dot(d1, r1);
                 auto a_inv = 1 / a;
 
-                s   = clamp_unit(std::min(-c * a_inv, -c1 * a_inv));
-                *sp = clamp_unit(std::max(-c * a_inv, -c1 * a_inv));
+                s   = clamp_unit(std::min(-c * a_inv, -f1 * a_inv));
+                *sp = clamp_unit(std::max(-c * a_inv, -f1 * a_inv));
 
                 auto r2 = p2 - q1;
                 auto f2 = dot(d2, r2);
@@ -189,7 +189,7 @@ scalar closest_point_circle_line(
     const vector3 &p0, const vector3 &p1, size_t &num_points, 
     scalar &s0, vector3 &rc0, vector3 &rl0,
     scalar &s1, vector3 &rc1, vector3 &rl1, 
-    vector3 &normal, scalar threshold) {
+    vector3 &normal, scalar /*threshold*/) {
 
     // Line points in local disc space. The face of the disc points towards
     // the positive x-axis.

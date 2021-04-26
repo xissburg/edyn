@@ -64,7 +64,7 @@ public:
     template<typename... Component>
     void refresh(entt::entity entity);
 
-    scalar m_fixed_dt {1.0/60};
+    scalar m_fixed_dt {scalar(1.0/60)};
 
 private:
     entt::registry *m_registry;

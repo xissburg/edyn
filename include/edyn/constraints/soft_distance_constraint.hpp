@@ -15,7 +15,7 @@ struct soft_distance_constraint : public constraint_base {
     scalar stiffness {1e10};
     scalar damping {1e10};
 
-    scalar m_relspd;
+    scalar m_relspd {};
 };
 
 template<>

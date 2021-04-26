@@ -21,7 +21,7 @@ class tree_view;
  *  - https://github.com/erincatto/box2d/blob/master/src/collision/b2_dynamic_tree.cpp
  */
 class dynamic_tree final {
-    constexpr static vector3 aabb_inset = vector3_one * scalar{-0.1};
+    constexpr static vector3 aabb_inset = vector3_one * scalar(-0.1);
 
 private:
     tree_node_id_t allocate();

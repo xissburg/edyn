@@ -26,21 +26,21 @@ void island_delta::import_destroyed_entities(entt::registry &registry, entity_ma
 void island_delta::import_updated_components(entt::registry &registry, entity_map &map) const {
     for (auto &ptr : m_updated_components) {
         if (!ptr) continue;
-        ptr->import(*this, registry, map);
+        ptr->import(registry, map);
     }
 }
 
 void island_delta::import_created_components(entt::registry &registry, entity_map &map) const {
     for (auto &ptr : m_created_components) {
         if (!ptr) continue;
-        ptr->import(*this, registry, map);
+        ptr->import(registry, map);
     }
 }
 
 void island_delta::import_destroyed_components(entt::registry &registry, entity_map &map) const {
     for (auto &ptr : m_destroyed_components) {
         if (!ptr) continue;
-        ptr->import(*this, registry, map);
+        ptr->import(registry, map);
     }
 }
 

@@ -136,7 +136,7 @@ target_link_libraries(Edyn PUBLIC
     $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined>)
 
 if(MSVC)
-    target_compile_options(Edyn PRIVATE /W4 /WX)
+    target_compile_options(Edyn PRIVATE /W4)
 else()
     target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()

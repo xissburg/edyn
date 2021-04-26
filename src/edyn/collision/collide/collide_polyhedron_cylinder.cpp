@@ -193,7 +193,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
             auto pivotA = pointA;
             auto pivotB = to_object_space(pointA, posB, ornB);
-            pivotB.x = shB.half_length * (feature_indexB == 0 ? 1 : -1);
+            pivotB.x = shB.half_length * to_sign(feature_indexB == 0);
             result.maybe_add_point({pivotA, pivotB, normalB, distance});
 
             ++num_vertices_in_face;
@@ -229,7 +229,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
                 auto pivotA = lerp(v0A, v1A, s[j]);
                 auto pivotB = lerp(v0B, v1B, s[j]);
-                pivotB.x = shB.half_length * (feature_indexB == 0 ? 1 : -1);
+                pivotB.x = shB.half_length * to_sign(feature_indexB == 0);
                 result.maybe_add_point({pivotA, pivotB, normalB, distance});
 
                 ++num_edge_intersections;
@@ -241,7 +241,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, posB)) {
                 auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
                 for(int i = 0; i < 4; ++i) {
-                    auto pivotB_x = shB.half_length * (feature_indexB == 0 ? 1 : -1);
+                    auto pivotB_x = shB.half_length * to_sign(feature_indexB == 0);
                     auto pivotB = vector3{pivotB_x, 
                                           shB.radius * multipliers[i], 
                                           shB.radius * multipliers[(i + 1) % 4]};

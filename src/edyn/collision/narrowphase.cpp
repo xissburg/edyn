@@ -47,8 +47,9 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
 }
 
 static
-void create_contact_constraint(entt::registry &registry, entt::entity manifold_entity,
-                               entt::entity contact_entity, contact_point &cp) {
+void create_contact_constraint(entt::registry &registry, 
+                               entt::entity contact_entity,
+                               contact_point &cp) {
     auto &materialA = registry.get<material>(cp.body[0]);
     auto &materialB = registry.get<material>(cp.body[1]);
 
@@ -99,28 +100,30 @@ size_t find_nearest_contact(const contact_manifold &manifold,
 }
 
 static
-void create_contact_point(entt::registry &registry, entt::entity manifold_entity,
-                          contact_manifold &manifold, const collision_result::collision_point &rp) {
-    auto idx = manifold.num_points();
-    if (idx >= max_contacts) return;
-    
-    auto contact_entity = registry.create();
-    manifold.point[idx] = contact_entity;
+void create_contact_point(entt::registry& registry, 
+                          entt::entity manifold_entity,
+                          contact_manifold& manifold, 
+                          const collision_result::collision_point& rp) {
+	auto idx = manifold.num_points();
+	if (idx >= max_contacts) return;
 
-    auto &cp = registry.emplace<contact_point>(
-        contact_entity, 
-        manifold.body,
-        rp.pivotA, // pivotA
+	auto contact_entity = registry.create();
+	manifold.point[idx] = contact_entity;
+
+    auto& cp = registry.emplace<contact_point>(
+	    contact_entity,
+	    manifold.body,
+	    rp.pivotA, // pivotA
         rp.pivotB, // pivotB
-        rp.normalB, // normalB
-        scalar{}, // friction
-        scalar{}, // restitution
-        0, // lifetime
+	    rp.normalB, // normalB
+	    scalar{}, // friction
+	    scalar{}, // restitution
+	    uint32_t{0}, // lifetime
         rp.distance // distance
     );
 
     if (registry.has<material>(manifold.body[0]) && registry.has<material>(manifold.body[1])) {
-        create_contact_constraint(registry, manifold_entity, contact_entity, cp);
+        create_contact_constraint(registry, contact_entity, cp);
     }
 
     auto &contact_dirty = registry.get_or_emplace<dirty>(contact_entity);
@@ -150,8 +153,8 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                        const contact_point_view_t &cp_view, 
                        Function new_point_func) {
     // Merge new with existing contact points.
-    for (size_t i = 0; i < result.num_points; ++i) {
-        auto &rp = result.point[i];
+    for (size_t pt_idx = 0; pt_idx < result.num_points; ++pt_idx) {
+        auto &rp = result.point[pt_idx];
 
         // Find closest existing point.
         auto nearest_idx = find_nearest_contact(manifold, rp, cp_view);
@@ -166,6 +169,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
             std::array<vector3, max_contacts> pivots;
             std::array<scalar, max_contacts> distances;
             auto num_points = manifold.num_points();
+
             for (size_t i = 0; i < num_points; ++i) {
                 auto &cp = cp_view.get<contact_point>(manifold.point[i]);
                 pivots[i] = cp.pivotB;
