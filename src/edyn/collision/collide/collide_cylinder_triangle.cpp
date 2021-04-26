@@ -252,7 +252,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
             if (dist_sqr <= cylinder.radius * cylinder.radius) {
                 auto vertex_in_A = rotate(conjugate(ornA), vertex - posA);
                 auto vertex_proj_in_A = vertex_in_A;
-				vertex_proj_in_A.x = cylinder.half_length * to_sign(sep_axis.cyl_feature_index == 0);
+                vertex_proj_in_A.x = cylinder.half_length * to_sign(sep_axis.cyl_feature_index == 0);
                 result.maybe_add_point({vertex_proj_in_A, vertex, sep_axis.dir, sep_axis.distance});
 
                 ++num_vertices_in_face;
@@ -285,7 +285,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
             auto v1 = tri.vertices[(k + 1) % 3];
             auto v1_A = to_object_space(v1, posA, ornA);
 
-			scalar s[2];
+            scalar s[2];
             auto num_points = intersect_line_circle(to_vector2_zy(v0_A),
                                                     to_vector2_zy(v1_A),
                                                     cylinder.radius, s[0], s[1]);
@@ -294,14 +294,14 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
                 ++num_edge_intersections;
                 last_edge_index = k;
 
-				for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
-					auto t = clamp_unit(s[pt_idx]);
-					auto pivotA_x = cylinder.half_length * to_sign(sep_axis.cyl_feature_index == 0);
-					auto pivotA = lerp(v0_A, v1_A, t);
-					pivotA.x = pivotA_x;
-					auto pivotB = lerp(v0, v1, t);
-					result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
-				}
+                for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+                    auto t = clamp_unit(s[pt_idx]);
+                    auto pivotA_x = cylinder.half_length * to_sign(sep_axis.cyl_feature_index == 0);
+                    auto pivotA = lerp(v0_A, v1_A, t);
+                    pivotA.x = pivotA_x;
+                    auto pivotB = lerp(v0, v1, t);
+                    result.maybe_add_point({pivotA, pivotB, sep_axis.dir, sep_axis.distance});
+                }
             }
         }
 
@@ -314,7 +314,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
                 if (point_in_triangle(tri.vertices, tri.normal, posA)) {
                     auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
                     for(size_t i = 0; i < 4; ++i) {
-						auto pivotA_x = cylinder.half_length * to_sign(sep_axis.cyl_feature_index == 0);
+                        auto pivotA_x = cylinder.half_length * to_sign(sep_axis.cyl_feature_index == 0);
                         auto pivotA = vector3{pivotA_x,
                                                 cylinder.radius * multipliers[i],
                                                 cylinder.radius * multipliers[(i + 1) % 4]};

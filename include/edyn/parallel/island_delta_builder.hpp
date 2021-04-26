@@ -72,7 +72,11 @@ class island_delta_builder {
 
 public:
     island_delta_builder() = default;
+    island_delta_builder(island_delta_builder &&) = default;
+
+    // Explicitly delete copy constructor because `island_delta` also deletes it.
     island_delta_builder(const island_delta_builder&) = delete;
+
     virtual ~island_delta_builder() {}
 
     /**
@@ -396,8 +400,8 @@ void register_external_components() {
     g_make_island_delta_builder = [] () {
         auto external = std::tuple<Component...>{};
         auto all_components = std::tuple_cat(edyn::shared_components{}, external);
-        return std::move(std::unique_ptr<edyn::island_delta_builder>(
-            new edyn::island_delta_builder_impl(all_components)));
+        return std::unique_ptr<edyn::island_delta_builder>(
+            new edyn::island_delta_builder_impl(all_components));
     };
 }
 

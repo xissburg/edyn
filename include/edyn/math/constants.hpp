@@ -11,9 +11,9 @@ inline constexpr auto pi = scalar(3.1415926535897932384626433832795029);
 inline constexpr auto pi2 = pi * scalar(2);
 inline constexpr auto half_pi = pi * scalar(0.5);
 inline constexpr auto half_sqrt2 = scalar(0.7071067811865475244008443621048490);
-// `large_scalar auto* e_scalar` < EDYN_SCALAR_MAX`
+// `large_scalar * large_scalar` < EDYN_SCALAR_MAX`
 inline constexpr auto large_scalar = scalar(1e18);
-// `small_scalar auto* l_scalar` > EDYN_SCALAR_MIN`
+// `small_scalar * small_scalar` > EDYN_SCALAR_MIN`
 inline constexpr auto small_scalar = scalar(1e-18);
 inline constexpr auto gravitational_constant = scalar(6.674e-11);
 

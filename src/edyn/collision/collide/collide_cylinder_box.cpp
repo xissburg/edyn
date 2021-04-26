@@ -218,20 +218,20 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         auto num_feature_vertices = get_box_feature_num_vertices(sep_axis.featureB);
         std::array<vector3, 4> vertices_in_B;
 
-		switch (sep_axis.featureB) {
-		case box_feature::face: {
-			auto vs = shB.get_face(sep_axis.feature_indexB);
-			std::copy(vs.begin(), vs.end(), vertices_in_B.begin());
-		}
-		break;
-		case box_feature::edge: {
-			auto vs = shB.get_edge(sep_axis.feature_indexB);
-			std::copy(vs.begin(), vs.end(), vertices_in_B.begin());
-		}
-		break;
-		case box_feature::vertex:
-			vertices_in_B[0] = shB.get_vertex(sep_axis.feature_indexB);
-		}
+        switch (sep_axis.featureB) {
+        case box_feature::face: {
+            auto vs = shB.get_face(sep_axis.feature_indexB);
+            std::copy(vs.begin(), vs.end(), vertices_in_B.begin());
+        }
+        break;
+        case box_feature::edge: {
+            auto vs = shB.get_edge(sep_axis.feature_indexB);
+            std::copy(vs.begin(), vs.end(), vertices_in_B.begin());
+        }
+        break;
+        case box_feature::vertex:
+            vertices_in_B[0] = shB.get_vertex(sep_axis.feature_indexB);
+        }
 
         // Check if box feature vertices are inside a cylinder cap face (by checking
         // if its distance from the cylinder axis is smaller than the cylinder radius).
@@ -279,24 +279,24 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             auto v0_A = to_object_space(v0_w, posA, ornA);
             auto v1_A = to_object_space(v1_w, posA, ornA);
 
-			scalar s[2];
+            scalar s[2];
             auto num_points = intersect_line_circle(to_vector2_zy(v0_A), 
                                                     to_vector2_zy(v1_A), 
                                                     shA.radius, s[0], s[1]);
 
-			if (num_points > 0) {
-				++num_edge_intersections;
-				last_edge = std::make_pair(v0_w, v1_w);
+            if (num_points > 0) {
+                ++num_edge_intersections;
+                last_edge = std::make_pair(v0_w, v1_w);
 
                 auto pivotA_x = shA.half_length * to_sign(sep_axis.feature_indexA == 0);
 
-				for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
-					auto t = clamp_unit(s[pt_idx]);
-					auto pivotA = lerp(v0_A, v1_A, t);
-					pivotA.x = pivotA_x;
-					auto pivotB = lerp(v0_B, v1_B, t);
-					result.maybe_add_point({ pivotA, pivotB, normalB, sep_axis.distance });
-				}
+                for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+                    auto t = clamp_unit(s[pt_idx]);
+                    auto pivotA = lerp(v0_A, v1_A, t);
+                    pivotA.x = pivotA_x;
+                    auto pivotB = lerp(v0_B, v1_B, t);
+                    result.maybe_add_point({ pivotA, pivotB, normalB, sep_axis.distance });
+                }
             }
         }
 

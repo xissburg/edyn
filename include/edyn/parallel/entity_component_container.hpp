@@ -32,10 +32,10 @@ struct updated_entity_component_container: public entity_component_container_bas
     }
 
     void import(entt::registry &registry, entity_map &map) override {
-        auto ctx = merge_context{ &registry, &map };
+        auto ctx = merge_context{&registry, &map};
         auto view = registry.view<Component>();
 
-        for (auto& pair : pairs) {
+        for (auto &pair : pairs) {
             auto remote_entity = pair.first;
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);

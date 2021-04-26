@@ -104,21 +104,21 @@ void create_contact_point(entt::registry& registry,
                           entt::entity manifold_entity,
                           contact_manifold& manifold, 
                           const collision_result::collision_point& rp) {
-	auto idx = manifold.num_points();
-	if (idx >= max_contacts) return;
+    auto idx = manifold.num_points();
+    if (idx >= max_contacts) return;
 
-	auto contact_entity = registry.create();
-	manifold.point[idx] = contact_entity;
+    auto contact_entity = registry.create();
+    manifold.point[idx] = contact_entity;
 
     auto& cp = registry.emplace<contact_point>(
-	    contact_entity,
-	    manifold.body,
-	    rp.pivotA, // pivotA
+        contact_entity,
+        manifold.body,
+        rp.pivotA, // pivotA
         rp.pivotB, // pivotB
-	    rp.normalB, // normalB
-	    scalar{}, // friction
-	    scalar{}, // restitution
-	    uint32_t{0}, // lifetime
+        rp.normalB, // normalB
+        scalar{}, // friction
+        scalar{}, // restitution
+        uint32_t{0}, // lifetime
         rp.distance // distance
     );
 

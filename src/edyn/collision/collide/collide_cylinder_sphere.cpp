@@ -55,7 +55,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
     auto normal = q - posB;
     const auto nl2 = length_sqr(normal);
     const auto nl = std::sqrt(nl2);
-	normal = nl2 > EDYN_EPSILON ? normal / nl : rotate(ornA, vector3_x) * to_sign(t > 0.5);
+    normal = nl2 > EDYN_EPSILON ? normal / nl : rotate(ornA, vector3_x) * to_sign(t > 0.5);
 
     auto pivotA = rotate(conjugate(ornA), q - posA);
     auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
