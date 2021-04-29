@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
-cmake_policy(SET CMP0091 NEW)
+cmake_minimum_required(VERSION 3.12.4)
 
 project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
@@ -124,7 +123,7 @@ target_sources(Edyn PRIVATE ${Edyn_SOURCES})
 configure_file(${Edyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${Edyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
 install(FILES ${Edyn_BINARY_DIR}/include/build_settings.h DESTINATION include/edyn)
 
-target_include_directories(Edyn 
+target_include_directories(Edyn
     PUBLIC ${Edyn_SOURCE_DIR}/include
     PUBLIC ${Edyn_BINARY_DIR}/include
 )
@@ -136,10 +135,10 @@ target_compile_definitions(Edyn PUBLIC  $<$<CONFIG:Debug>:EDYN_DEBUG>)
 target_compile_definitions(Edyn PUBLIC  $<$<BOOL:${EDYN_DISABLE_ASSERT}>:EDYN_DISABLE_ASSERT>)
 target_compile_definitions(Edyn PRIVATE $<$<BOOL:${EDYN_DISABLE_ASSERT}>:ENTT_DISABLE_ASSERT>)
 
-target_compile_options(Edyn PUBLIC 
+target_compile_options(Edyn PUBLIC
     $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
 
-target_link_libraries(Edyn PUBLIC 
+target_link_libraries(Edyn PUBLIC
     EnTT::EnTT
     $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined>)
 
@@ -148,8 +147,6 @@ if(MSVC)
 else()
     target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()
-
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 if(EDYN_BUILD_EXAMPLES)
     add_subdirectory(examples)
