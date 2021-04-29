@@ -12,6 +12,12 @@ macro(SETUP_AND_ADD_EXAMPLE EXAMPLE_NAME EXAMPLE_SOURCES)
         )
     endif ()
 
+    if (WIN32)
+        target_link_libraries(${EXAMPLE_NAME} PRIVATE
+            winmm
+        )
+    endif ()
+
     set_property(TARGET ${EXAMPLE_NAME} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin/examples)
 endmacro()
 
