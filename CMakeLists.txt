@@ -4,15 +4,8 @@ project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
 # Options
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
-
-if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
-    option(EDYN_BUILD_EXAMPLES "Build examples" ON)
-    option(EDYN_BUILD_TESTS "Build tests with gtest" ON)
-else()
-    option(EDYN_BUILD_EXAMPLES "Build examples" OFF)
-    option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
-endif()
-
+option(EDYN_BUILD_EXAMPLES "Build examples" ON)
+option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
 option(EDYN_DISABLE_ASSERT "Disable assertions in Edyn for better performance." ON)
 option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF)
 
