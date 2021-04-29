@@ -31,7 +31,9 @@ class island_delta_builder {
         container->insert(entity, component);
     }
 
-    template<typename Component>
+    // Only enable updates for non-empty components since it does not make
+    // sense to update empty components because they have no data.
+    template<typename Component, std::enable_if_t<!std::is_empty_v<Component>, bool> = true>
     void _updated(entt::entity entity, const Component &component) {
         using container_type = updated_entity_component_container<Component>;
         const auto index = entt::type_index<Component>::value();
@@ -69,6 +71,12 @@ class island_delta_builder {
     void _reserve_created(size_t size);
 
 public:
+    island_delta_builder() = default;
+    island_delta_builder(island_delta_builder &&) = default;
+
+    // Explicitly delete copy constructor because `island_delta` also deletes it.
+    island_delta_builder(const island_delta_builder&) = delete;
+
     virtual ~island_delta_builder() {}
 
     /**
@@ -167,9 +175,8 @@ public:
     template<typename... Component>
     void updated(entt::entity entity, entt::registry &registry) {
         if constexpr(sizeof...(Component) == 1) {
-            if constexpr(std::conjunction_v<entt::is_eto_eligible<Component>...>) {
-                (updated(entity, Component{}), ...);
-            } else {
+            // Empty components cannot be updated.
+            if constexpr(!std::conjunction_v<std::is_empty<Component>...>) {
                 (updated<Component>(entity, registry.get<Component>(entity)), ...);
             }
         } else {
@@ -327,6 +334,7 @@ void island_delta_builder::_reserve_created(size_t size) {
 template<typename... Component>
 class island_delta_builder_impl: public island_delta_builder {
 public:
+    island_delta_builder_impl() = default;
     island_delta_builder_impl([[maybe_unused]] std::tuple<Component...>)
     {}
 

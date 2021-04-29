@@ -33,7 +33,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     if (def.kind == rigidbody_kind::rb_dynamic) {
         EDYN_ASSERT(def.mass > 0);
         registry.emplace<mass>(entity, def.mass);
-        registry.emplace<mass_inv>(entity, def.mass < EDYN_SCALAR_MAX ? 1 / def.mass : 0);
+        registry.emplace<mass_inv>(entity, def.mass < EDYN_SCALAR_MAX ? scalar(1.0 / def.mass) : scalar(0));
         registry.emplace<inertia>(entity, def.inertia);
 
         auto I_inv = inverse_matrix_symmetric(def.inertia);
@@ -41,7 +41,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<inertia_world_inv>(entity, I_inv);
     } else {
         registry.emplace<mass>(entity, EDYN_SCALAR_MAX);
-        registry.emplace<mass_inv>(entity, 0);
+        registry.emplace<mass_inv>(entity, scalar(0));
         registry.emplace<inertia>(entity, matrix3x3_zero);
         registry.emplace<inertia_inv>(entity, matrix3x3_zero);
         registry.emplace<inertia_world_inv>(entity, matrix3x3_zero);
@@ -162,7 +162,7 @@ void update_kinematic_orientation(entt::registry &registry, entt::entity entity,
 
 void clear_kinematic_velocities(entt::registry &registry) {
     auto view = registry.view<kinematic_tag, linvel, angvel>();
-    view.each([] ([[maybe_unused]] auto, linvel &v, angvel &w) {
+    view.each([] (linvel &v, angvel &w) {
         v = vector3_zero;
         w = vector3_zero;
     });

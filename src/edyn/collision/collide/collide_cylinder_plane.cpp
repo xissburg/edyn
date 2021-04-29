@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/math/math.hpp"
 
 namespace edyn {
 
@@ -91,7 +92,7 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
         // multiple points on the perimeter of the disc.
         auto disc_center_dist0 = dot(disc_pos[0] - center, normal);
         auto disc_center_dist1 = dot(disc_pos[1] - center, normal);
-        scalar side = disc_center_dist0 < disc_center_dist1 ? -1 : 1;
+        auto side = to_sign(disc_center_dist0 > disc_center_dist1);
 
         result.num_points = 4;
 

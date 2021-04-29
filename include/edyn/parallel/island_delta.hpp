@@ -46,6 +46,12 @@ class island_delta {
     }
 
 public:
+    island_delta() = default;
+    island_delta(island_delta &&) = default;
+
+    // Explicitly delete copy constructor since this contains vectors of unique_ptrs.
+    island_delta(const island_delta &) = delete;
+
     /**
      * Imports this delta into a registry by mapping the entities into the domain
      * of the target registry according to the provided `entity_map`.

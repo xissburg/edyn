@@ -28,7 +28,7 @@ public:
         m_island_coordinator.refresh<Component...>(entity);
     }
 
-    scalar m_fixed_dt {1.0/60};
+    scalar m_fixed_dt {scalar(1.0/60)};
 
 private:
     entt::registry* m_registry;

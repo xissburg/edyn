@@ -25,7 +25,7 @@ broadphase_worker::broadphase_worker(entt::registry &registry)
     registry.on_destroy<tree_resident>().connect<&broadphase_worker::on_destroy_tree_resident>(*this);
 }
 
-void broadphase_worker::on_construct_aabb(entt::registry &registry, entt::entity entity) {
+void broadphase_worker::on_construct_aabb(entt::registry &, entt::entity entity) {
     // Perform initialization later when the entity is fully constructed.
     m_new_aabb_entities.push_back(entity);
 }

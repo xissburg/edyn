@@ -28,6 +28,12 @@ struct collision_context {
     }
 };
 
+#if defined(_MSC_VER)
+// Disable "unreferenced formal parameter" warning.
+__pragma(warning(push))
+__pragma(warning(disable:4100))
+#endif
+
 // Calls `collide` with the `shA` and `shB` parameters swapped and swaps
 // the returned result so the contact pivots and normals match up with the
 // order of shapes A and B.
@@ -66,7 +72,7 @@ void collide(const sphere_shape &shA, const sphere_shape &shB,
 // Plane-Plane
 inline
 void collide(const plane_shape &shA, const plane_shape &shB,
-                         const collision_context &ctx, collision_result &result) {
+             const collision_context &ctx, collision_result &result) {
     // collision between infinite planes is undefined here.
 }
 
@@ -354,6 +360,10 @@ void swap_collide(const ShapeAType &shA, const ShapeBType &shB,
     collide(shB, shA, ctx.swapped(), result);
     result.swap(ctx.ornB, ctx.ornA);
 }
+
+#if defined(_MSC_VER)
+__pragma(warning(pop))
+#endif
 
 }
 

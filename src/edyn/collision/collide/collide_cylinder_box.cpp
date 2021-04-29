@@ -231,7 +231,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         break;
         case box_feature::vertex:
             vertices_in_B[0] = shB.get_vertex(sep_axis.feature_indexB);
-        }            
+        }
 
         // Check if box feature vertices are inside a cylinder cap face (by checking
         // if its distance from the cylinder axis is smaller than the cylinder radius).
@@ -267,11 +267,11 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         }
 
         // Check if circle and box edges intersect.
-        for (size_t i = 0; i < num_edges_to_check; ++i) {
+        for (size_t edge_idx = 0; edge_idx < num_edges_to_check; ++edge_idx) {
             // Transform vertices to `shA` (cylinder) space. The cylinder axis
             // is the x-axis.
-            auto v0_B = vertices_in_B[i];
-            auto v1_B = vertices_in_B[(i + 1) % 4];
+            auto v0_B = vertices_in_B[edge_idx];
+            auto v1_B = vertices_in_B[(edge_idx + 1) % 4];
 
             auto v0_w = to_world_space(v0_B, posB, ornB);
             auto v1_w = to_world_space(v1_B, posB, ornB);
@@ -279,28 +279,23 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             auto v0_A = to_object_space(v0_w, posA, ornA);
             auto v1_A = to_object_space(v1_w, posA, ornA);
 
-            scalar s0, s1;
+            scalar s[2];
             auto num_points = intersect_line_circle(to_vector2_zy(v0_A), 
                                                     to_vector2_zy(v1_A), 
-                                                    shA.radius, s0, s1);
+                                                    shA.radius, s[0], s[1]);
 
             if (num_points > 0) {
                 ++num_edge_intersections;
                 last_edge = std::make_pair(v0_w, v1_w);
 
-                s0 = clamp_unit(s0);
-                auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
-                auto pivotA = lerp(v0_A, v1_A, s0);
-                pivotA.x = pivotA_x;
-                auto pivotB = lerp(v0_B, v1_B, s0);
-                result.maybe_add_point({pivotA, pivotB, normalB, sep_axis.distance});
+                auto pivotA_x = shA.half_length * to_sign(sep_axis.feature_indexA == 0);
 
-                if (num_points == 2) {
-                    s1 = clamp_unit(s1);
-                    auto pivotA = lerp(v0_A, v1_A, s1);
+                for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+                    auto t = clamp_unit(s[pt_idx]);
+                    auto pivotA = lerp(v0_A, v1_A, t);
                     pivotA.x = pivotA_x;
-                    auto pivotB = lerp(v0_B, v1_B, s1);
-                    result.maybe_add_point({pivotA, pivotB, normalB, sep_axis.distance});
+                    auto pivotB = lerp(v0_B, v1_B, t);
+                    result.maybe_add_point({ pivotA, pivotB, normalB, sep_axis.distance });
                 }
             }
         }
@@ -314,7 +309,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
                 if (point_in_quad(posA_in_B, vertices_in_B, sep_axis.dir)) {
                     auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
                     for(int i = 0; i < 4; ++i) {
-                        auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
+                        auto pivotA_x = shA.half_length * to_sign(sep_axis.feature_indexA == 0);
                         auto pivotA = vector3{pivotA_x, 
                                               shA.radius * multipliers[i], 
                                               shA.radius * multipliers[(i + 1) % 4]};
@@ -339,7 +334,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
                 tangent = normalize(tangent);
 
-                auto pivotA_x = shA.half_length * (sep_axis.feature_indexA == 0 ? 1 : -1);
+                auto pivotA_x = shA.half_length * to_sign(sep_axis.feature_indexA == 0);
                 auto pivotA = vector3{pivotA_x, tangent.y * shA.radius, tangent.x * shA.radius};
                 // Transform pivotA into box space and project onto box face.
                 auto pivotB = posA_in_B + rotate(ornA_in_B, pivotA);

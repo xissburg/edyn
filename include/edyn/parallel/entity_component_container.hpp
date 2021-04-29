@@ -13,17 +13,17 @@
 
 namespace edyn {
 
-class island_delta;
-
 struct entity_component_container_base {
     virtual ~entity_component_container_base() {}
-    virtual void import(const island_delta &, entt::registry &, entity_map &) = 0;
+    virtual void import(entt::registry &, entity_map &) = 0;
     virtual void reserve(size_t size) = 0;
     virtual bool empty() const = 0;
     virtual void clear() = 0;
 };
 
-template<typename Component>
+// Only enable the updated component container for non-empty components since
+// it doesn't make sense to update empty components because they have no data.
+template<typename Component, std::enable_if_t<!std::is_empty_v<Component>, bool> = true>
 struct updated_entity_component_container: public entity_component_container_base {
     std::vector<std::pair<entt::entity, Component>> pairs;
 
@@ -31,7 +31,7 @@ struct updated_entity_component_container: public entity_component_container_bas
         pairs.emplace_back(entity, comp);
     }
 
-    void import(const island_delta &delta, entt::registry &registry, entity_map &map) override {
+    void import(entt::registry &registry, entity_map &map) override {
         auto ctx = merge_context{&registry, &map};
         auto view = registry.view<Component>();
 
@@ -40,11 +40,9 @@ struct updated_entity_component_container: public entity_component_container_bas
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);
 
-            if constexpr(!std::is_empty_v<Component>) {
-                auto &old_component = view.get(local_entity);
-                merge<merge_type::updated>(&old_component, pair.second, ctx);
-                registry.replace<Component>(local_entity, pair.second);
-            }
+            auto& old_component = view.get(local_entity);
+            merge<merge_type::updated>(&old_component, pair.second, ctx);
+            registry.replace<Component>(local_entity, pair.second);
         }
     }
 
@@ -69,7 +67,7 @@ struct created_entity_component_container: public entity_component_container_bas
         pairs.emplace_back(entity, comp);
     }
 
-    void import(const island_delta &delta, entt::registry &registry, entity_map &map) override {
+    void import(entt::registry &registry, entity_map &map) override {
         auto ctx = merge_context{&registry, &map};
         size_t index = 0;
 
@@ -121,7 +119,7 @@ template<typename Component>
 struct destroyed_entity_component_container: public entity_component_container_base {
     std::vector<entt::entity> entities;
 
-    void import(const island_delta &, entt::registry &registry, entity_map &map) override {
+    void import(entt::registry &registry, entity_map &map) override {
         for (auto remote_entity : entities) {
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);

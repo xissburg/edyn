@@ -28,9 +28,9 @@ class broadphase_main {
     // manifolds between different islands a little earlier and decrease the
     // probability they'll arrive in the corresponding island worker when the
     // shapes are already intersecting.
-    constexpr static auto m_threshold = contact_breaking_threshold * 4;
+    constexpr static auto m_threshold = contact_breaking_threshold * scalar(4);
     constexpr static auto m_aabb_offset = vector3_one * -m_threshold;
-    constexpr static auto m_separation_threshold = m_threshold * 1.3;
+    constexpr static auto m_separation_threshold = m_threshold * scalar(1.3);
 
     entity_pair_vector intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB,
                                          const aabb_view_t &aabb_view,

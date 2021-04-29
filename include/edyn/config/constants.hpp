@@ -10,11 +10,22 @@ inline constexpr size_t max_constraint_rows = 16;
 inline constexpr size_t max_contacts = 4;
 inline constexpr size_t max_constrained_entities = 2;
 
-inline constexpr scalar contact_breaking_threshold = 0.02;
-inline constexpr scalar contact_caching_threshold = 0.04;
-inline constexpr scalar island_time_to_sleep = 2;
-inline constexpr scalar island_linear_sleep_threshold = 0.005;
-inline constexpr scalar island_angular_sleep_threshold = pi / 48;
+inline constexpr auto contact_breaking_threshold = scalar(0.02);
+inline constexpr auto contact_caching_threshold = scalar(0.04);
+
+/**
+ * The magnitude of the linear and angular velocity of all rigid bodies in an 
+ * island must stay under these thresholds for the island to eventually fall
+ * asleep.
+ */
+inline constexpr auto island_linear_sleep_threshold = scalar(0.005);
+inline constexpr auto island_angular_sleep_threshold = pi / scalar(48);
+
+/**
+ * The amount of time in seconds that the velocity of all rigid bodies must stay
+ * under the threshold for the island to fall asleep.
+ */
+inline constexpr auto island_time_to_sleep = scalar(2);
 
 /**
  * Being exact when determining support features can lead to the undesired 
@@ -22,7 +33,7 @@ inline constexpr scalar island_angular_sleep_threshold = pi / 48;
  * the support point is found and then all points behind it within a tolerance
  * are selected as part of the support feature.
  */
-inline constexpr scalar support_feature_tolerance = 0.01;
+inline constexpr auto support_feature_tolerance = scalar(0.01);
 
 }
 

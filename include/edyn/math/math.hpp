@@ -58,6 +58,13 @@ inline auto sqr(T a) {
     return a * a;
 }
 
+/**
+ * @return 1 if `b` is true, -1 if `b is false.
+ */
+inline auto to_sign(bool b) {
+    return b ? scalar(1) : scalar(-1);
+}
+
 }
 
 #endif // EDYN_MATH_MATH_HPP

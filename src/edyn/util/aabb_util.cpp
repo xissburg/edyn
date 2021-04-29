@@ -8,7 +8,7 @@ namespace edyn {
 
 static constexpr scalar aabb_half_extent = 99999;
 
-AABB plane_aabb(const vector3 &normal, scalar constant, const vector3 &pos, const quaternion &orn) {
+AABB plane_aabb(const vector3 &normal, scalar constant) {
     vector3 unit_min, unit_max;
 
     if (normal == vector3_x) {
@@ -34,7 +34,7 @@ AABB plane_aabb(const vector3 &normal, scalar constant, const vector3 &pos, cons
         unit_max = {-1, -1, -1};
     }
     
-    auto pos_world = pos + normal * constant;
+    auto pos_world = normal * constant;
     return {unit_min * aabb_half_extent + pos_world, 
             unit_max * aabb_half_extent + pos_world};
 }
@@ -164,7 +164,8 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
 }
 
 AABB shape_aabb(const plane_shape &sh, const vector3 &pos, const quaternion &orn) {
-    return plane_aabb(sh.normal, sh.constant, pos, orn);
+    // Position and orientation are ignored for planes.
+    return plane_aabb(sh.normal, sh.constant);
 }
 
 AABB shape_aabb(const sphere_shape &sh, const vector3 &pos, const quaternion &orn) {

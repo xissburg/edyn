@@ -68,7 +68,7 @@ public:
     template<typename Func>
     void visit(const AABB &aabb, Func func) const {
         std::vector<uint32_t> stack;
-        size_t root_node_idx = 0;
+        uint32_t root_node_idx = 0;
         stack.push_back(root_node_idx);
 
         while (!stack.empty()) {

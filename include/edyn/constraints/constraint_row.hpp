@@ -48,12 +48,12 @@ struct constraint_row {
  * Optional info to be used when setting up a constraint row.
  */
 struct constraint_row_options {
-    scalar error {0};
+    scalar error {scalar(0)};
 
     // Error reduction parameter.
-    scalar erp {0.2};
+    scalar erp {scalar(0.2)};
 
-    scalar restitution {0};
+    scalar restitution {scalar(0)};
 };
 
 }

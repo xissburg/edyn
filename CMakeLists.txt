@@ -4,15 +4,8 @@ project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
 # Options
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
-
-if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_SOURCE_DIR})
-    option(EDYN_BUILD_EXAMPLES "Build examples" ON)
-    option(EDYN_BUILD_TESTS "Build tests with gtest" ON)
-else()
-    option(EDYN_BUILD_EXAMPLES "Build examples" OFF)
-    option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
-endif()
-
+option(EDYN_BUILD_EXAMPLES "Build examples" ON)
+option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
 option(EDYN_DISABLE_ASSERT "Disable assertions in Edyn for better performance." ON)
 option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF)
 
@@ -110,13 +103,20 @@ if(UNIX)
     )
 endif()
 
+if(WIN32)
+    set(Edyn_SOURCES
+        ${Edyn_SOURCES}
+	src/edyn/time/windows/time.cpp
+    )
+endif()
+
 add_library(Edyn)
 target_sources(Edyn PRIVATE ${Edyn_SOURCES})
 
 configure_file(${Edyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${Edyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
 install(FILES ${Edyn_BINARY_DIR}/include/build_settings.h DESTINATION include/edyn)
 
-target_include_directories(Edyn 
+target_include_directories(Edyn
     PUBLIC ${Edyn_SOURCE_DIR}/include
     PUBLIC ${Edyn_BINARY_DIR}/include
 )
@@ -128,15 +128,15 @@ target_compile_definitions(Edyn PUBLIC  $<$<CONFIG:Debug>:EDYN_DEBUG>)
 target_compile_definitions(Edyn PUBLIC  $<$<BOOL:${EDYN_DISABLE_ASSERT}>:EDYN_DISABLE_ASSERT>)
 target_compile_definitions(Edyn PRIVATE $<$<BOOL:${EDYN_DISABLE_ASSERT}>:ENTT_DISABLE_ASSERT>)
 
-target_compile_options(Edyn PUBLIC 
+target_compile_options(Edyn PUBLIC
     $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
 
-target_link_libraries(Edyn PUBLIC 
+target_link_libraries(Edyn PUBLIC
     EnTT::EnTT
     $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined>)
 
 if(MSVC)
-    target_compile_options(Edyn PRIVATE /W4 /WX)
+    target_compile_options(Edyn PRIVATE /W4)
 else()
     target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()

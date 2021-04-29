@@ -7,6 +7,7 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/shapes/triangle_mesh.hpp"
 #include <memory>
+#include <string>
 
 namespace edyn {
 

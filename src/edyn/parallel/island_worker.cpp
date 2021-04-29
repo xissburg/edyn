@@ -402,7 +402,7 @@ void island_worker::begin_step() {
 
 void island_worker::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(m_fixed_dt);
+    m_solver.update(scalar(m_fixed_dt));
     m_state = state::broadphase;
 }
 

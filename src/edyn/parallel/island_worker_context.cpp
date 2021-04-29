@@ -42,8 +42,7 @@ void island_worker_context::read_messages() {
 }
 
 void island_worker_context::send_delta() {
-    auto delta = m_delta_builder->finish();
-    send<island_delta>(std::move(delta));
+    send<island_delta>(m_delta_builder->finish());
 }
 
 void island_worker_context::flush() {
