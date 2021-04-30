@@ -240,8 +240,9 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             // Check if cylinder face center is in polygon.
             if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, posB)) {
                 auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
+                auto pivotB_x = shB.half_length * to_sign(feature_indexB == 0);
+
                 for(int i = 0; i < 4; ++i) {
-                    auto pivotB_x = shB.half_length * to_sign(feature_indexB == 0);
                     auto pivotB = vector3{pivotB_x, 
                                           shB.radius * multipliers[i], 
                                           shB.radius * multipliers[(i + 1) % 4]};

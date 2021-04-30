@@ -4,8 +4,8 @@ namespace edyn {
 
 void collide(const sphere_shape &sphere, const plane_shape &plane, 
              const collision_context &ctx, collision_result &result) {
-    auto normal = rotate(ctx.ornB, plane.normal);
-    auto center = ctx.posB + rotate(ctx.ornB, plane.normal * plane.constant);
+    auto normal = plane.normal;
+    auto center = plane.normal * plane.constant;
     auto d = ctx.posA - center;
     auto l = dot(normal, d);
 

@@ -5,6 +5,11 @@
 
 namespace edyn {
 
+/**
+ * @brief A plane shape.
+ * @remarks Planes can only be assigned to static rigid bodies.
+ * Position and orientation are ignored during collision detection.
+ */
 struct plane_shape {
     vector3 normal;
     scalar constant;
