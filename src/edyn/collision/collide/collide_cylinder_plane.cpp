@@ -7,107 +7,69 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
-    const auto &posB = ctx.posB;
-    const auto &ornB = ctx.ornB;
-    const auto threshold = ctx.threshold;
+    
+    auto normal = shB.normal;
+    auto center = normal * shB.constant;
 
-    auto cyl_axis = rotate(ornA, vector3_x);
-    vector3 disc_pos[] = {posA - cyl_axis * shA.half_length, posA + cyl_axis * shA.half_length};
-    auto normal = rotate(ornB, shB.normal);
-    auto center = posB + rotate(ornB, shB.normal * shB.constant);
+    cylinder_feature featureA;
+    size_t feature_indexA;
+    vector3 supA;
+    scalar projA;
+    shA.support_feature(posA, ornA, center, -normal,
+                        featureA, feature_indexA, supA, projA,
+                        support_feature_tolerance);
+    // Flip sign since we're calculating the support point along -normal.
+    auto distance = projA *= -1;
 
-    auto n_proj = normal - cyl_axis * dot(normal, cyl_axis);
-    auto n_proj_len2 = length_sqr(n_proj);
+    if (distance > ctx.threshold) {
+        return;
+    }
 
-    if (n_proj_len2 > scalar(1e-7)) {
-        n_proj /= std::sqrt(n_proj_len2);
-        auto r = n_proj * shA.radius;
+    switch (featureA) {
+    case cylinder_feature::face:{
+        auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
+        auto pivotA_x = shA.half_length * to_sign(feature_indexA == 0);
 
-        for (int i = 0; i < 2; ++i) {
-            //auto disc_center_dist = dot(disc_pos[i] - center, normal);
-            // Project the negated plane normal onto disc and scale it to make its
-            // length equals to the disc radius to obtain the closest point to the
-            // plane.
-
-            auto p = disc_pos[i] - r;
-            auto dist = dot(p - center, normal);
-
-            if (dist < threshold) {
-                auto idx = result.num_points % max_contacts;
-                ++result.num_points;
-
-                result.point[idx].pivotA = rotate(conjugate(ornA), p - posA);
-                result.point[idx].pivotB = rotate(conjugate(ornB), p - normal * dist - posB);
-                result.point[idx].normalB = shB.normal;
-                result.point[idx].distance = dist;
-
-                // If the center of the disc is also close to the plane, add 
-                // points to the sides.
-                /* if (disc_center_dist < threshold) {
-                    // Rotate `r` by 90 degrees along the cylinder axis.
-                    {
-                        auto idx = result.num_points % max_contacts;
-                        ++result.num_points;
-
-                        auto rot90 = quaternion_axis_angle(cyl_axis, pi / 2);
-                        auto p0 = disc_pos[i] + rotate(rot90, r);
-                        result.point[idx].pivotA = rotate(conjugate(ornA), p0 - posA);
-                        result.point[idx].pivotB = rotate(conjugate(ornB), p0 - normal * disc_center_dist - posB);
-                        result.point[idx].normalB = shB.normal;
-                        result.point[idx].distance = disc_center_dist;
-                    }
-
-                    // Rotate `r` by -90 degrees along the cylinder axis.
-                    {
-                        auto idx = result.num_points % max_contacts;
-                        ++result.num_points;
-
-                        auto rot90 = quaternion_axis_angle(cyl_axis, -pi / 2);
-                        auto p0 = disc_pos[i] + rotate(rot90, r);
-                        result.point[idx].pivotA = rotate(conjugate(ornA), p0 - posA);
-                        result.point[idx].pivotB = rotate(conjugate(ornB), p0 - normal * disc_center_dist - posB);
-                        result.point[idx].normalB = shB.normal;
-                        result.point[idx].distance = disc_center_dist;
-                    }
-
-                    // If the point opposite to the closest is also close to the 
-                    // plane, add it to the result.
-                    auto p1 = disc_pos[i] + r;
-                    auto dist1 = dot(p1 - center, normal);
-
-                    if (dist1 < threshold) {
-                        auto idx = result.num_points % max_contacts;
-                        ++result.num_points;
-
-                        result.point[idx].pivotA = rotate(conjugate(ornA), p1 - posA);
-                        result.point[idx].pivotB = rotate(conjugate(ornB), p1 - normal * dist1 - posB);
-                        result.point[idx].normalB = shB.normal;
-                        result.point[idx].distance = dist1;
-                    }
-                } */
-            }
+        for(int i = 0; i < 4; ++i) {
+            auto pivotA = vector3{pivotA_x,
+                                  shA.radius * multipliers[i],
+                                  shA.radius * multipliers[(i + 1) % 4]};
+            auto pivotA_world = to_world_space(pivotA, posA, ornA);
+            auto pivotB = project_plane(pivotA_world, center, normal);
+            auto local_distance = dot(pivotA_world - pivotB, normal);
+            result.maybe_add_point({pivotA, pivotB, normal, local_distance});
         }
-    } else {
-        // Disc and plane are parallel. Find closest disc and add 
-        // multiple points on the perimeter of the disc.
-        auto disc_center_dist0 = dot(disc_pos[0] - center, normal);
-        auto disc_center_dist1 = dot(disc_pos[1] - center, normal);
-        auto side = to_sign(disc_center_dist0 > disc_center_dist1);
-
-        result.num_points = 4;
-
-        result.point[0].pivotA = {side * shA.half_length, shA.radius, 0};
-        result.point[1].pivotA = {side * shA.half_length, -shA.radius, 0};
-        result.point[2].pivotA = {side * shA.half_length, 0, shA.radius};
-        result.point[3].pivotA = {side * shA.half_length, 0, -shA.radius};
-
-        for (int k = 0; k < 4; ++k) {
-            auto p_world = posA + rotate(ornA, result.point[k].pivotA);
-            auto p_proj = p_world - normal * dot(p_world - center, normal);
-            result.point[k].pivotB = rotate(conjugate(ornB), p_proj - posB);
-            result.point[k].normalB = shB.normal;
-            result.point[k].distance = std::min(disc_center_dist0, disc_center_dist1);
+        break;
+    }
+    case cylinder_feature::side_edge:
+    case cylinder_feature::cap_edge: {
+        auto cyl_axis = quaternion_x(ornA);
+        auto cyl_vertices = std::array<vector3, 2>{};
+        auto num_vertices = 0;
+        
+        if (featureA == cylinder_feature::cap_edge) {
+            cyl_vertices[0] = posA + cyl_axis * shA.half_length * to_sign(feature_indexA == 0);
+            num_vertices = 1;
+        } else {
+            cyl_vertices[0] = posA - cyl_axis * shA.half_length;
+            cyl_vertices[1] = posA + cyl_axis * shA.half_length;
+            num_vertices = 2;
         }
+
+        // Negated normal projected onto plane of cylinder caps. Multiply it by
+        // radius and add the cap center to get the exact pivot on A.
+        auto dirA = normalize(project_direction(-normal, cyl_axis));
+
+        for (auto i = 0; i < num_vertices; ++i) {
+            auto &vertex = cyl_vertices[i];
+            auto pivotA_world = vertex + dirA * shA.radius;
+            auto pivotA = to_object_space(pivotA_world, posA, ornA);
+            auto pivotB = project_plane(pivotA_world, center, normal);
+            auto local_distance = dot(pivotA_world - pivotB, normal);
+            result.maybe_add_point({pivotA, pivotB, normal, local_distance});
+        }
+        break;
+    }
     }
 }
 

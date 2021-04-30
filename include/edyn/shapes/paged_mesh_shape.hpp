@@ -8,7 +8,8 @@ namespace edyn {
 
 /**
  * @brief A concave triangle mesh shape with paging support.
- * @remark The `collide` functions involving this shape ignore position and
+ * @remarks Paged triangle meshes can only be assigned to static rigid bodies.
+ * The `collide` functions involving this shape ignore position and
  * orientation. If the mesh needs to be transformed, do so while constructing
  * or loading it.
  */

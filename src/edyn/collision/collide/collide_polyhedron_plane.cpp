@@ -9,12 +9,10 @@ namespace edyn {
 void collide(const polyhedron_shape &shA, const plane_shape &shB, 
              const collision_context &ctx, collision_result &result) {
     auto &posA = ctx.posA;
-    auto &posB = ctx.posB;
-    auto &ornB = ctx.ornB;
     auto &rmeshA = *shA.rotated;
 
-    auto normal = rotate(ornB, shB.normal);
-    auto center = posB + rotate(ornB, shB.normal * shB.constant);
+    auto normal = shB.normal;
+    auto center = shB.normal * shB.constant;
     scalar distance = EDYN_SCALAR_MAX;
 
     // Find distance between polyhedron and plane.
@@ -35,9 +33,8 @@ void collide(const polyhedron_shape &shA, const plane_shape &shB,
         if (vertex_dist > distance + support_feature_tolerance) continue;
 
         auto pivotA = shA.mesh->vertices[i];
-        auto pivotB_world = vertex_world - normal * vertex_dist;
-        auto pivotB = to_object_space(pivotB_world, posB, ornB);
-        result.maybe_add_point({pivotA, pivotB, shB.normal, vertex_dist});
+        auto pivotB = vertex_world - normal * vertex_dist;
+        result.maybe_add_point({pivotA, pivotB, normal, vertex_dist});
     }
 }
 

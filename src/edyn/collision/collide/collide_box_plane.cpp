@@ -6,14 +6,14 @@ namespace edyn {
 
 void collide(const box_shape &shA, const plane_shape &shB, 
              const collision_context &ctx, collision_result &result) {
-    auto normal = rotate(ctx.ornB, shB.normal);
-    auto center = to_world_space(shB.normal * shB.constant, ctx.posB, ctx.ornB);
+    auto center = shB.normal * shB.constant;
 
     box_feature featureA;
     size_t feature_indexA;
     scalar projectionA;
-    shA.support_feature(ctx.posA, ctx.ornA, center, -normal, featureA, 
-                        feature_indexA, projectionA, support_feature_tolerance);
+    shA.support_feature(ctx.posA, ctx.ornA, center, -shB.normal, 
+                        featureA, feature_indexA, projectionA, 
+                        support_feature_tolerance);
     auto distance = -projectionA;
 
     if (distance > ctx.threshold) {
@@ -42,9 +42,9 @@ void collide(const box_shape &shA, const plane_shape &shB,
     for (size_t i = 0; i < num_vertices; ++i) {
         auto &pivotA = vertices[i];
         auto pivotA_world = to_world_space(pivotA, ctx.posA, ctx.ornA);
-        auto pivotB_world = project_plane(pivotA_world, center, normal);
+        auto pivotB_world = project_plane(pivotA_world, center, shB.normal);
         auto pivotB = to_object_space(pivotB_world, ctx.posB, ctx.ornB);
-        auto local_distance = dot(pivotA_world - pivotB_world, normal);
+        auto local_distance = dot(pivotA_world - pivotB_world, shB.normal);
         result.add_point({pivotA, pivotB, shB.normal, local_distance});
     }
 }
