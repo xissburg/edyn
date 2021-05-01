@@ -15,25 +15,35 @@ vector3 moment_of_inertia_solid_box(scalar mass, const vector3 &extents) {
 }
 
 vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius) {
-    auto xx = scalar(0.5) * mass * radius * radius;
-    auto yy_zz = mass * (scalar(1) / scalar(12) * (scalar(3) * radius * radius + len * len) +
-                    scalar(0.4) * radius * radius + 
-                    scalar(0.375) * radius * len + 
-                    scalar(0.25) * len * len);
+    // Reference: Open Dynamics Engine, mass.cpp
+    // https://bitbucket.org/odedevs/ode/src/5dd0dfa3bdd91b2885542485067a9559936eff1c/ode/src/mass.cpp#lines-141
+    auto cyl_vol = cylinder_volume(radius, len);
+    auto sph_vol = sphere_volume(radius); // Volume of hemispherical caps.
+    auto total_vol = cyl_vol + sph_vol;
+    auto cyl_mass = mass * cyl_vol / total_vol;
+    auto sph_mass = mass * sph_vol / total_vol;
+
+    auto cyl_inertia = moment_of_inertia_solid_cylinder(cyl_mass, len, radius);
+    auto sph_inertia = moment_of_inertia_solid_sphere(sph_mass, radius);
+
+    auto xx = sph_inertia + cyl_inertia.x;
+    auto yy_zz = sph_mass * (scalar(0.4) * radius * radius + 
+                             scalar(0.375) * radius * len + 
+                             scalar(0.25 * len * len)) + cyl_inertia.y;
     return {xx, yy_zz, yy_zz};
 }
 
-vector3 moment_of_inertia_solid_sphere(scalar mass, scalar radius) {
-    auto s = scalar(0.4) * mass * radius * radius;
-    return {s, s, s};
+scalar moment_of_inertia_solid_sphere(scalar mass, scalar radius) {
+    return scalar(0.4) * mass * radius * radius;
 }
 
-vector3 moment_of_inertia_hollow_sphere(scalar mass, scalar radius) {
-    auto s = scalar(2) / scalar(3) * mass * radius * radius;
-    return {s, s, s};
+scalar moment_of_inertia_hollow_sphere(scalar mass, scalar radius) {
+    return scalar(2) / scalar(3) * mass * radius * radius;
 }
 
 vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius) {
+    // Reference:
+    // https://xissburg.github.io/2021-04-30-calculating-moment-of-inertia-cylinder/
     scalar xx = scalar(0.5) * mass * radius * radius;
     scalar yy_zz =  scalar(1) / scalar(12) * mass * (scalar(3) * radius * radius + len * len);
     return {xx, yy_zz, yy_zz};
@@ -117,7 +127,7 @@ matrix3x3 moment_of_inertia(const plane_shape &sh, scalar mass) {
 }
 
 matrix3x3 moment_of_inertia(const sphere_shape &sh, scalar mass) {
-    return diagonal_matrix(moment_of_inertia_solid_sphere(mass, sh.radius));
+    return matrix3x3_identity * moment_of_inertia_solid_sphere(mass, sh.radius);
 }
 
 matrix3x3 moment_of_inertia(const cylinder_shape &sh, scalar mass) {

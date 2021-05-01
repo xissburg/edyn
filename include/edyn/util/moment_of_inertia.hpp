@@ -11,8 +11,8 @@ namespace edyn {
 
 vector3 moment_of_inertia_solid_box(scalar mass, const vector3 &extents);
 vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius);
-vector3 moment_of_inertia_solid_sphere(scalar mass, scalar radius);
-vector3 moment_of_inertia_hollow_sphere(scalar mass, scalar radius);
+scalar moment_of_inertia_solid_sphere(scalar mass, scalar radius);
+scalar moment_of_inertia_hollow_sphere(scalar mass, scalar radius);
 
 /**
  * @brief Calculates the diagonal of the inertia tensor for a solid cylinder
