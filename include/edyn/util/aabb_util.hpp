@@ -47,7 +47,6 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
                       const vector3 &pos, const quaternion &orn);
 
 // Calculate AABB for all types of shapes.
-struct shape;
 struct plane_shape;
 struct sphere_shape;
 struct cylinder_shape;
@@ -67,15 +66,6 @@ AABB shape_aabb(const box_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const compound_shape &sh, const vector3 &pos, const quaternion &orn);
-
-/**
- * @brief Visits the `shape`'s variant and calculates the the AABB.
- * @param sh The shape.
- * @param pos Shape's position.
- * @param orn Shape's orientation.
- * @return The AABB.
- */
-AABB shape_aabb(const shape &sh, const vector3 &pos, const quaternion &orn);
 
 }
 

@@ -1,7 +1,6 @@
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/tree_node.hpp"
 #include "edyn/comp/aabb.hpp"
-#include "edyn/comp/shape.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
@@ -10,10 +9,8 @@
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include "edyn/math/constants.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include <entt/entt.hpp>
-#include <vector>
 
 namespace edyn {
 

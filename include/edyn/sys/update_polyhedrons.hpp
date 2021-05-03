@@ -12,8 +12,7 @@ struct quaternion;
 
 /**
  * @brief Updates the rotated mesh of all polyhedron shapes, including the ones
- * in compound shapes. These have to have been assigned as components of the 
- * entity holding the `shape` component.
+ * in compound shapes.
  * @param registry Source of polyhedrons.
  */
 void update_polyhedrons(entt::registry &registry);

@@ -1,7 +1,7 @@
 #ifndef EDYN_SHARED_COMP_HPP
 #define EDYN_SHARED_COMP_HPP
 
-#include <tuple>
+#include "edyn/util/tuple_util.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/linacc.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -30,7 +30,7 @@ namespace edyn {
  * Tuple of components that are exchanged between island coordinator and
  * island workers.
  */
-using shared_components = std::tuple<
+using shared_components = tuple_cat_type<std::tuple<
     island_timestamp,
     AABB, 
     collision_filter, 
@@ -53,7 +53,6 @@ using shared_components = std::tuple<
     material, 
     position,
     orientation, 
-    shape, 
     contact_manifold, 
     contact_point, 
     continuous,
@@ -64,8 +63,9 @@ using shared_components = std::tuple<
     sleeping_tag,
     sleeping_disabled_tag, 
     disabled_tag,
-    continuous_contacts_tag
->;
+    continuous_contacts_tag,
+    shape_index
+>, shapes_tuple_t>::type;
 
 }
 

@@ -173,11 +173,11 @@ matrix3x3 moment_of_inertia(const paged_mesh_shape &sh, scalar mass) {
     return diagonal_matrix(vector3_max);
 }
 
-matrix3x3 moment_of_inertia(const shape &sh, scalar mass) {
+matrix3x3 moment_of_inertia(const shapes_variant_t &var, scalar mass) {
     matrix3x3 inertia;
-    std::visit([&] (auto &&s) {
-        inertia = moment_of_inertia(s, mass);
-    }, sh.var);
+    std::visit([&] (auto &&shape) {
+        inertia = moment_of_inertia(shape, mass);
+    }, var);
     return inertia;
 }
 

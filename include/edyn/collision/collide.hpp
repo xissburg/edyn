@@ -6,7 +6,7 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/shapes/compound_shape.hpp"
 #include "edyn/util/aabb_util.hpp"
-#include "edyn/util/tuple.hpp"
+#include "edyn/util/tuple_util.hpp"
 
 namespace edyn {
 

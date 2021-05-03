@@ -9,25 +9,34 @@
 
 namespace edyn {
 
-template<typename S>
-AABB updated_aabb(const S &sh, const vector3 &pos, const quaternion &orn) {
-    return shape_aabb(sh, pos, orn);
+template<typename ShapeType>
+AABB updated_aabb(const ShapeType &shape, const vector3 &pos, const quaternion &orn) {
+    return shape_aabb(shape, pos, orn);
 }
 
 template<>
-AABB updated_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion &orn) {
-    // Polyhedron AABB is calculated in `update_polyhedrons` along with
-    // the vertex rotations.
-    return {};
+AABB updated_aabb(const polyhedron_shape &polyhedron,
+                  const vector3 &pos, const quaternion &orn) {
+    // `shape_aabb` rotates each vertex of a polyhedron to calculate the AABB.
+    // Specialize `updated_aabb` for polyhedrons to use the rotated mesh.
+    return point_cloud_aabb(polyhedron.rotated->vertices);
+}
+
+template<typename ShapeType>
+void update_aabbs(entt::registry &registry) {
+    auto view = registry.view<position, orientation, ShapeType, AABB>();
+    view.each([] (position &pos, orientation &orn, ShapeType &shape, AABB &aabb) {
+        aabb = updated_aabb(shape, pos, orn);
+    });
+}
+
+template<typename... Ts>
+void update_aabbs(entt::registry &registry, std::tuple<Ts...>) {
+    (update_aabbs<Ts>(registry), ...);
 }
 
 void update_aabbs(entt::registry &registry) {
-    auto view = registry.view<position, orientation, shape, AABB>();
-    view.each([] (position &pos, orientation &orn, shape &sh, AABB &aabb) {
-        std::visit([&] (auto &&s) {
-            aabb = updated_aabb(s, pos, orn);
-        }, sh.var);
-    });
+    update_aabbs(registry, non_static_shapes_tuple_t{});
 }
 
 }

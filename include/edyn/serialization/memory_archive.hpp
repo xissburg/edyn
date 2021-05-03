@@ -7,7 +7,7 @@
 #include <array>
 #include <map>
 #include "edyn/config/config.h"
-#include "edyn/util/tuple.hpp"
+#include "edyn/util/tuple_util.hpp"
 #include "edyn/serialization/s11n_util.hpp"
 
 namespace edyn {

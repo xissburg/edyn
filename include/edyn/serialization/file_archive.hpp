@@ -8,7 +8,7 @@
 
 #include "edyn/serialization/s11n_util.hpp"
 #include "edyn/config/config.h"
-#include "edyn/util/tuple.hpp"
+#include "edyn/util/tuple_util.hpp"
 
 namespace edyn {
 
