@@ -5,9 +5,10 @@
 #include <entt/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/aabb.hpp"
-#include "edyn/comp/shape.hpp"
+#include "edyn/comp/shape_index.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/collision_result.hpp"
 

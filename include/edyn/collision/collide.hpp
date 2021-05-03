@@ -1,10 +1,8 @@
 #ifndef EDYN_COLLISION_COLLIDE_HPP
 #define EDYN_COLLISION_COLLIDE_HPP
 
-#include "edyn/comp/shape.hpp"
+#include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/collision_result.hpp"
-#include "edyn/math/quaternion.hpp"
-#include "edyn/shapes/compound_shape.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 

@@ -22,7 +22,7 @@ void collide(const compound_shape &shA, const compound_shape &shB,
         // Collide child shape with compound.
         std::visit([&] (auto &&sh) {
             collide(shA, sh, child_ctx, child_result);
-        }, nodeB.var);
+        }, nodeB.shape_var);
 
         // Transform the B elements of the result points from child shape space
         // into B's space.

@@ -44,12 +44,13 @@ void update_polyhedrons(entt::registry &registry) {
         update_polyhedron(polyhedron, orn);
     });
 
+    // TODO: Not all compounds hold a polyhedron, so this could be very wasteful.
     auto compound_view = registry.view<position, orientation, compound_shape>();
     compound_view.each([] (position &pos, orientation &orn, compound_shape &compound) {
         for (auto &node : compound.nodes) {
-            if (!std::holds_alternative<polyhedron_shape>(node.var)) continue;
+            if (!std::holds_alternative<polyhedron_shape>(node.shape_var)) continue;
 
-            auto &polyhedron = std::get<polyhedron_shape>(node.var);
+            auto &polyhedron = std::get<polyhedron_shape>(node.shape_var);
             auto world_orn = orn * node.orientation;
             update_polyhedron(polyhedron, world_orn);
         }

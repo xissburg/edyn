@@ -5,7 +5,7 @@
 #include <cstdint>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
-#include "edyn/comp/shape.hpp"
+#include "edyn/shapes/shapes.hpp"
 
 namespace edyn {
 

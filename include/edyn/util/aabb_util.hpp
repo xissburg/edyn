@@ -2,6 +2,7 @@
 #define EDYN_UTIL_AABB_UTIL_HPP
 
 #include "edyn/comp/aabb.hpp"
+#include "edyn/shapes/shapes.hpp"
 
 namespace edyn {
 
@@ -66,6 +67,15 @@ AABB shape_aabb(const box_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const compound_shape &sh, const vector3 &pos, const quaternion &orn);
+
+/**
+ * @brief Visits the shape variant and calculates the the AABB.
+ * @param var The shape variant.
+ * @param pos Shape's position.
+ * @param orn Shape's orientation.
+ * @return The AABB.
+ */
+AABB shape_aabb(const shapes_variant_t &var, const vector3 &pos, const quaternion &orn);
 
 }
 

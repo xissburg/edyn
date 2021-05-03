@@ -22,27 +22,32 @@ template <typename T, typename... Us>
 struct has_type<T, std::variant<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
 
 namespace detail {
-    template<typename T, typename... Ts, size_t... I>
-    constexpr size_t index_of(std::index_sequence<I...>) {
-        auto idx = std::numeric_limits<size_t>::max();
-        ((idx = (std::is_same_v<std::tuple_element_t<I, std::tuple<Ts...>>, T> ? I : idx)), ...);
-        return idx;
-    }
+    template<typename IndexType, typename T, typename... Ts>
+    struct index_of;
+
+    template<typename IndexType, typename T, typename... Ts>
+    struct index_of<IndexType, T, T, Ts...> : std::integral_constant<IndexType, 0>{};
+
+    template<typename IndexType, typename T, typename U, typename... Ts>
+    struct index_of<IndexType, T, U, Ts...> : std::integral_constant<IndexType, 1 + index_of<IndexType, T, Ts...>::value>{};
+
+    template<typename IndexType, typename T, typename... Ts>
+    static constexpr IndexType index_of_v = index_of<IndexType, T, Ts...>::value;
 }
 
 /**
  * Find index of a type in a template parameter pack.
  */
-template<typename T, typename... Ts>
-constexpr size_t index_of() {
-    return detail::index_of<T, Ts...>(std::make_index_sequence<sizeof...(Ts)>{});
+template<typename T, typename... Ts, typename IndexType = size_t>
+constexpr IndexType index_of() {
+    return detail::index_of_v<IndexType, T, Ts...>;
 }
 
 /**
  * Find index of a type in a tuple.
  */
-template<typename T, typename... Ts>
-constexpr size_t index_of(std::tuple<Ts...>) {
+template<typename T, typename... Ts, typename IndexType = size_t>
+constexpr IndexType index_of(std::tuple<Ts...>) {
     return index_of<T, Ts...>();
 }
 
@@ -72,10 +77,10 @@ struct tuple_to_variant<std::tuple<Ts...>> {
  * Concatenate tuple types.
  */
 template<typename... Ts>
-struct tuple_cat_type;
+struct tuple_type_cat;
 
 template<typename... Ts, typename... Us>
-struct tuple_cat_type<std::tuple<Ts...>, std::tuple<Us...>> {
+struct tuple_type_cat<std::tuple<Ts...>, std::tuple<Us...>> {
     using type = std::tuple<Ts..., Us...>;
 };
 

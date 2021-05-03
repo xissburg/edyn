@@ -1,7 +1,6 @@
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
-#include "edyn/comp/shape.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/util/aabb_util.hpp"
@@ -17,8 +16,9 @@ AABB updated_aabb(const ShapeType &shape, const vector3 &pos, const quaternion &
 template<>
 AABB updated_aabb(const polyhedron_shape &polyhedron,
                   const vector3 &pos, const quaternion &orn) {
-    // `shape_aabb` rotates each vertex of a polyhedron to calculate the AABB.
-    // Specialize `updated_aabb` for polyhedrons to use the rotated mesh.
+    // `shape_aabb(const polyhedron_shape &, ...)` rotates each vertex of a
+    // polyhedron to calculate the AABB. Specialize `updated_aabb` for
+    // polyhedrons to use the rotated mesh.
     auto aabb = point_cloud_aabb(polyhedron.rotated->vertices);
     aabb.min += pos;
     aabb.max += pos;
@@ -39,7 +39,8 @@ void update_aabbs(entt::registry &registry, std::tuple<Ts...>) {
 }
 
 void update_aabbs(entt::registry &registry) {
-    update_aabbs(registry, non_static_shapes_tuple_t{});
+    // Update AABBs for all shapes that can be transformed.
+    update_aabbs(registry, dynamic_shapes_tuple_t{});
 }
 
 }

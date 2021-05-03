@@ -1,6 +1,4 @@
 #include "edyn/util/aabb_util.hpp"
-#include "edyn/comp/aabb.hpp"
-#include "edyn/comp/shape.hpp"
 #include "edyn/util/shape_util.hpp"
 #include <variant>
 

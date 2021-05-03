@@ -8,18 +8,9 @@
 
 namespace edyn {
 
-// Generate a view type using a tuple of component types.
-template<typename... Ts>
-struct tuple_view_type;
-
-template<typename... Ts>
-struct tuple_view_type<std::tuple<Ts...>> {
-    using type = entt::basic_view<entt::entity, entt::exclude_t<>, Ts...>;
-};
-
 // Get a view with component types from a tuple.
 template<typename... Ts>
-auto get_view_from_tuple(entt::registry &registry, std::tuple<Ts...>) {
+auto get_view_from_tuple(entt::registry &registry, [[maybe_unused]] std::tuple<Ts...>) {
     return registry.view<Ts...>();
 }
 
@@ -29,10 +20,21 @@ inline auto get_tuple_of_views(entt::registry &registry) {
     return std::make_tuple(registry.view<Ts>()...);
 }
 
+// Get a tuple containing a view of each type in the given tuple.
 template<typename... Ts>
 inline auto get_tuple_of_views(entt::registry &registry, [[maybe_unused]] std::tuple<Ts...>) {
     return get_tuple_of_views<Ts...>(registry);
 }
+
+template<typename... Ts>
+struct map_to_tuple_of_views;
+
+// Declares a tuple type which holds single component views for each of the
+// types in the given tuple.
+template<typename... Ts>
+struct map_to_tuple_of_views<std::tuple<Ts...>> {
+    using type = std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...>;
+};
 
 }
 

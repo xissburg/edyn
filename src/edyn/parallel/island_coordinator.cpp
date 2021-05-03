@@ -5,8 +5,9 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/present_position.hpp"
-#include "edyn/comp/shape.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/shape_index.hpp"
+#include "edyn/shapes/shapes.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
@@ -19,10 +20,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/util/vector.hpp"
-#include "edyn/util/visit_component.hpp"
 #include <entt/entt.hpp>
-#include <type_traits>
-#include <variant>
 
 namespace edyn {
 

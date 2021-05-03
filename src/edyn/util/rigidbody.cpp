@@ -18,7 +18,6 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/util/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
-#include "edyn/comp/shape.hpp"
 
 namespace edyn {
 
@@ -126,10 +125,9 @@ void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar ma
 void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
     auto mass = registry.get<edyn::mass>(entity);
     auto sh_idx = registry.get<shape_index>(entity);
-    auto shapes_views_tuple = get_tuple_of_shape_views(registry);
     matrix3x3 I;
 
-    visit_shape(sh_idx, entity, shapes_views_tuple, [&] (auto &&shape) {
+    visit_shape(sh_idx, entity, registry, [&] (auto &&shape) {
         I = moment_of_inertia(shape, mass);
     });
 

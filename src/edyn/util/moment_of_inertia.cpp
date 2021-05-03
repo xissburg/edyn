@@ -163,7 +163,7 @@ matrix3x3 moment_of_inertia(const compound_shape &sh, scalar mass) {
             auto i = orn * moment_of_inertia(s, m) * transpose(orn);
             auto d = skew_matrix(node.position);
             inertia += i + transpose(d) * d * m;
-        }, node.var);
+        }, node.shape_var);
     }
 
     return inertia;

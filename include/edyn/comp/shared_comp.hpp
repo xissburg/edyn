@@ -16,11 +16,12 @@
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/comp/shape.hpp"
+#include "edyn/comp/shape_index.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/continuous.hpp"
+#include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 
@@ -30,7 +31,7 @@ namespace edyn {
  * Tuple of components that are exchanged between island coordinator and
  * island workers.
  */
-using shared_components = tuple_cat_type<std::tuple<
+using shared_components = tuple_type_cat<std::tuple<
     island_timestamp,
     AABB, 
     collision_filter, 
@@ -65,7 +66,7 @@ using shared_components = tuple_cat_type<std::tuple<
     disabled_tag,
     continuous_contacts_tag,
     shape_index
->, shapes_tuple_t>::type;
+>, shapes_tuple_t>::type; // Concatenate with all shapes at the end.
 
 }
 

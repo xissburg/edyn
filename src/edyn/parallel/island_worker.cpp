@@ -622,10 +622,10 @@ void island_worker::init_new_shapes() {
         auto has_polyhedron = false;
 
         for (auto &node : compound.nodes) {
-            if (!std::holds_alternative<polyhedron_shape>(node.var)) continue;
+            if (!std::holds_alternative<polyhedron_shape>(node.shape_var)) continue;
 
             has_polyhedron = true;
-            auto &polyhedron = std::get<polyhedron_shape>(node.var);
+            auto &polyhedron = std::get<polyhedron_shape>(node.shape_var);
             auto local_orn = orn * node.orientation;
             auto rotated = make_rotated_mesh(*polyhedron.mesh, local_orn);
             polyhedron.rotated = std::make_shared<rotated_mesh>(std::move(rotated));
