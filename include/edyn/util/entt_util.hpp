@@ -19,8 +19,19 @@ struct tuple_view_type<std::tuple<Ts...>> {
 
 // Get a view with component types from a tuple.
 template<typename... Ts>
-auto get_tuple_view(entt::registry &registry, std::tuple<Ts...>) {
+auto get_view_from_tuple(entt::registry &registry, std::tuple<Ts...>) {
     return registry.view<Ts...>();
+}
+
+// Get a tuple containing a view of each given type.
+template<typename... Ts>
+inline auto get_tuple_of_views(entt::registry &registry) {
+    return std::make_tuple(registry.view<Ts>()...);
+}
+
+template<typename... Ts>
+inline auto get_tuple_of_views(entt::registry &registry, [[maybe_unused]] std::tuple<Ts...>) {
+    return get_tuple_of_views<Ts...>(registry);
 }
 
 }

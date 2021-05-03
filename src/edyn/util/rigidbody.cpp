@@ -126,10 +126,10 @@ void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar ma
 void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
     auto mass = registry.get<edyn::mass>(entity);
     auto sh_idx = registry.get<shape_index>(entity);
-    auto shapes_view = get_shapes_view(registry);
+    auto shapes_views_tuple = get_tuple_of_shape_views(registry);
     matrix3x3 I;
 
-    visit_shape(sh_idx, entity, shapes_view, [&] (auto &&shape) {
+    visit_shape(sh_idx, entity, shapes_views_tuple, [&] (auto &&shape) {
         I = moment_of_inertia(shape, mass);
     });
 

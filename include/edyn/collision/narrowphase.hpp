@@ -21,7 +21,7 @@ using transform_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, posit
 using contact_manifold_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_manifold>;
 
 void detect_collision(const contact_manifold &, collision_result &, 
-                      const body_view_t &, const shapes_view_t &);
+                      const body_view_t &, const tuple_of_shape_views_t &);
 void process_result(entt::registry &, entt::entity manifold_entity, 
                     contact_manifold &, const collision_result &, 
                     const transform_view_t &);
@@ -69,13 +69,13 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
                                            contact_manifold_view_t &manifold_view) {
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();
-    auto shapes_view = get_shapes_view(*m_registry);
+    auto views_tuple = get_tuple_of_shape_views(*m_registry);
 
     for (auto it = begin; it != end; ++it) {
         entt::entity entity = *it;
         auto &manifold = manifold_view.get(entity);
         collision_result result;
-        detect_collision(manifold, result, body_view, shapes_view);
+        detect_collision(manifold, result, body_view, views_tuple);
         process_result(*m_registry, entity, manifold, result, tr_view);
     }
 }

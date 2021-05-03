@@ -398,7 +398,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto static_view = m_registry->view<static_tag>();
     auto continuous_contacts_view = m_registry->view<continuous_contacts_tag>();
     auto collision_view = m_registry->view<shape_index, AABB, collision_filter>();
-    auto shapes_view = get_shapes_view(*m_registry);
+    auto shape_views_tuple = get_tuple_of_shape_views(*m_registry);
 
     for (auto entity : nodes) {
         if (procedural_view.contains(entity)) {
@@ -435,7 +435,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 auto sh_idx = collision_view.get<shape_index>(entity);
                 ctx->m_delta_builder->created(entity, sh_idx);
 
-                visit_component(shapes_tuple_t{}, sh_idx.value, entity, shapes_view, [&] (auto &&shape) {
+                visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
                     ctx->m_delta_builder->created(entity, shape);
                 });
 
@@ -474,7 +474,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                     auto sh_idx = collision_view.get<shape_index>(entity);
                     ctx->m_delta_builder->created(entity, sh_idx);
 
-                    visit_component(shapes_tuple_t{}, sh_idx.value, entity, shapes_view, [&] (auto &&shape) {
+                    visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
                         ctx->m_delta_builder->created(entity, shape);
                     });
 

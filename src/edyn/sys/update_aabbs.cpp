@@ -19,7 +19,10 @@ AABB updated_aabb(const polyhedron_shape &polyhedron,
                   const vector3 &pos, const quaternion &orn) {
     // `shape_aabb` rotates each vertex of a polyhedron to calculate the AABB.
     // Specialize `updated_aabb` for polyhedrons to use the rotated mesh.
-    return point_cloud_aabb(polyhedron.rotated->vertices);
+    auto aabb = point_cloud_aabb(polyhedron.rotated->vertices);
+    aabb.min += pos;
+    aabb.max += pos;
+    return aabb;
 }
 
 template<typename ShapeType>

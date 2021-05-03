@@ -41,18 +41,7 @@ using non_static_shapes_tuple_t = std::tuple<
     compound_shape
 >;
 
-//using shapes_variant_t = tuple_to_variant<shapes_tuple_t>::type;
-using shapes_variant_t = std::variant<
-    plane_shape,
-    sphere_shape,
-    cylinder_shape,
-    capsule_shape,
-    mesh_shape,
-    box_shape,
-    polyhedron_shape,
-    paged_mesh_shape,
-    compound_shape
->;
+using shapes_variant_t = tuple_to_variant<shapes_tuple_t>::type;
 
 struct shape_index {
     size_t value;
@@ -63,16 +52,24 @@ constexpr size_t get_shape_index() {
     return index_of<ShapeType>(shapes_tuple_t{});
 }
 
-inline auto get_shapes_view(entt::registry &registry) {
-    return get_tuple_view(registry, shapes_tuple_t{});
+inline auto get_tuple_of_shape_views(entt::registry &registry) {
+    return get_tuple_of_views(registry, shapes_tuple_t{});
 }
 
-using shapes_view_t = tuple_view_type<shapes_tuple_t>::type;
+template<typename... Ts>
+struct map_to_tuple_of_views;
+
+template<typename... Ts>
+struct map_to_tuple_of_views<std::tuple<Ts...>> {
+    using type = std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...>;
+};
+
+using tuple_of_shape_views_t = map_to_tuple_of_views<shapes_tuple_t>::type;
 
 template<typename VisitorType>
 void visit_shape(const shape_index &index, entt::entity entity,
-                 const shapes_view_t &view, VisitorType visitor) {
-    visit_component(shapes_tuple_t{}, index.value, entity, view, visitor);
+                 const tuple_of_shape_views_t &views_tuple, VisitorType visitor) {
+    visit_component(shapes_tuple_t{}, index.value, entity, views_tuple, visitor);
 }
 
 /**

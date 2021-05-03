@@ -2,6 +2,7 @@
 #define EDYN_UTIL_VISIT_COMPONENT_HPP
 
 #include <entt/fwd.hpp>
+#include <entt/entity/view.hpp>
 #include <array>
 
 namespace edyn {
@@ -14,33 +15,35 @@ namespace edyn {
  * @return A function that takes an entity, a view and a visitor and calls the
  * visitor with the component for the entity that's in the view.
  */
-template<typename T, typename ViewType, typename VisitorType>
+template<typename VisitorType, typename ViewsTupleType, typename T>
 constexpr auto make_visit_function() {
-    return [] (entt::entity entity, ViewType &view, VisitorType visitor) {
-        visitor(view.template get<T>(entity));
+    using ViewType = entt::basic_view<entt::entity, entt::exclude_t<>, T>;
+    return [] (entt::entity entity, const ViewsTupleType &views_tuple, VisitorType visitor) {
+        visitor(std::get<ViewType>(views_tuple).template get<T>(entity));
     };
 }
 
 /**
  * @brief Stores an array of visiting functions for each given type.
  */
-template<typename VisitorType, typename ViewType, typename... Ts>
+template<typename VisitorType, typename ViewsTupleType, typename... Ts>
 struct visit_function_array {
-    using VisitFuncType = void(*)(entt::entity, ViewType &, VisitorType);
+    using VisitFuncType = void(*)(entt::entity, const ViewsTupleType &, VisitorType);
     std::array<VisitFuncType, sizeof...(Ts)> functions;
 
     constexpr visit_function_array() : functions{} {
         size_t i = 0;
-        ((functions[i++] = make_visit_function<Ts, ViewType, VisitorType>()), ...);
+        ((functions[i++] = make_visit_function<VisitorType, ViewsTupleType, Ts>()), ...);
     }
 };
 
 /**
  * @brief Holds a table of functions to visit each given component type.
  */
-template<typename VisitorType, typename ViewType, typename... Ts>
+template<typename VisitorType, typename... Ts>
 struct visitor_table {
-    static constexpr auto array = visit_function_array<VisitorType, ViewType, Ts...>();
+    using ViewsTupleType = std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...>;
+    static constexpr auto array = visit_function_array<VisitorType, ViewsTupleType, Ts...>();
 };
 
 /**
@@ -56,17 +59,19 @@ struct visitor_table {
  * @param view The view where the component will be fetched from.
  * @param visitor Function that will be called with the desired component.
  */
-template<typename... Ts, typename IndexType, typename ViewType, typename VisitorType>
+template<typename... Ts, typename IndexType, typename VisitorType>
 void visit_component(IndexType index, entt::entity entity,
-                     ViewType &view, VisitorType visitor) {
-    constexpr auto table = visitor_table<VisitorType, ViewType, Ts...>{};
-    table.array.functions[index](entity, view, visitor);
+                     const std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...> &views_tuple,
+                     VisitorType visitor) {
+    constexpr auto table = visitor_table<VisitorType, Ts...>{};
+    table.array.functions[index](entity, views_tuple, visitor);
 }
 
-template<typename... Ts, typename IndexType, typename ViewType, typename VisitorType>
+template<typename... Ts, typename IndexType, typename VisitorType>
 void visit_component(std::tuple<Ts...>, IndexType index, entt::entity entity,
-                     ViewType &view, VisitorType visitor) {
-    visit_component<Ts...>(index, entity, view, visitor);
+                     const std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...> &views_tuple, 
+                     VisitorType visitor) {
+    visit_component<Ts...>(index, entity, views_tuple, visitor);
 }
 
 }

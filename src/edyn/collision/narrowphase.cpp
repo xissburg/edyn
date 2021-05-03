@@ -244,7 +244,7 @@ void prune(contact_manifold &manifold,
 }
 
 void detect_collision(const contact_manifold &manifold, collision_result &result, 
-                      const body_view_t &body_view, const shapes_view_t &shapes_view) {
+                      const body_view_t &body_view, const tuple_of_shape_views_t &views_tuple) {
     auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
     auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
     const auto offset = vector3_one * -contact_breaking_threshold;
@@ -258,8 +258,8 @@ void detect_collision(const contact_manifold &manifold, collision_result &result
         auto shape_indexB = body_view.get<shape_index>(manifold.body[1]);
         auto ctx = collision_context{posA, ornA, aabbA, posB, ornB, aabbB, contact_breaking_threshold};
 
-        visit_shape(shape_indexA, manifold.body[0], shapes_view, [&] (auto &&shA) {
-            visit_shape(shape_indexB, manifold.body[1], shapes_view, [&] (auto &&shB) {
+        visit_shape(shape_indexA, manifold.body[0], views_tuple, [&] (auto &&shA) {
+            visit_shape(shape_indexB, manifold.body[1], views_tuple, [&] (auto &&shB) {
                 collide(shA, shB, ctx, result);
             });
         });
@@ -308,7 +308,7 @@ void narrowphase::update_async(job &completion_job) {
     auto manifold_view = m_registry->view<contact_manifold>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto cp_view = m_registry->view<contact_point, constraint_impulse>();
-    auto shapes_view = get_shapes_view(*m_registry);
+    auto shapes_views_tuple = get_tuple_of_shape_views(*m_registry);
 
     // Resize result collection vectors to allocate one slot for each iteration
     // of the parallel_for.
@@ -317,13 +317,13 @@ void narrowphase::update_async(job &completion_job) {
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, 
-            [this, body_view, manifold_view, cp_view, shapes_view] (size_t index) {
+            [this, body_view, manifold_view, cp_view, shapes_views_tuple] (size_t index) {
         auto entity = manifold_view[index];
         auto &manifold = manifold_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
 
-        detect_collision(manifold, result, body_view, shapes_view);
+        detect_collision(manifold, result, body_view, shapes_views_tuple);
         process_collision(entity, manifold, result, cp_view,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;

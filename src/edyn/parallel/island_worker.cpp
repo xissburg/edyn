@@ -630,10 +630,6 @@ void island_worker::init_new_shapes() {
             auto rotated = make_rotated_mesh(*polyhedron.mesh, local_orn);
             polyhedron.rotated = std::make_shared<rotated_mesh>(std::move(rotated));
         }
-
-        if (has_polyhedron) {
-            m_registry.emplace<compound_shape>(entity, compound);
-        }
     }
 
     m_new_polyhedron_shapes.clear();
