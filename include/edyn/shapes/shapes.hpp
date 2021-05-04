@@ -42,8 +42,8 @@ using shapes_tuple_t = tuple_type_cat<dynamic_shapes_tuple_t, static_shapes_tupl
 using shapes_variant_t = tuple_to_variant<shapes_tuple_t>::type;
 
 /**
- * @brief Returns the index value of a shape type. This is the value that's
- * stored in a `shape_index` component.
+ * @brief Returns the index value of a shape type. This is the value that
+ * should be stored in a `shape_index` component.
  * @tparam ShapeType One of the shape types in `shapes_tuple_t`.
  * @return Index of shape type.
  */
@@ -65,8 +65,8 @@ using tuple_of_shape_views_t = map_to_tuple_of_views<shapes_tuple_t>::type;
 
 /**
  * @brief Obtains the shape held by `entity` using a shape index and passes
- * it to `visitor`. There must be a shape of the correct type associated to
- * the given entity in the registry.
+ * it to `visitor`. There must be a shape of the correct type assigned to the
+ * given entity in the registry.
  * @tparam VisitorType Visitor function type.
  * @param index Shape index, usually obtained from a `shape_index` component.
  * @param entity The entity holding the shape.
