@@ -1,7 +1,7 @@
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/sys/update_polyhedrons.hpp"
+#include "edyn/sys/update_rotated_meshes.hpp"
 
 namespace edyn {
 

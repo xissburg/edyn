@@ -129,6 +129,14 @@ Contact points are not updated in the main registry continuously since that woul
 
 The physical shape of a rigid body is stored in `edyn::shape` which holds a `std::variant` with all shape types in its parameter pack. It's necessary to fork the project and modify the code to add custom shapes. It is also necessary to provide a `edyn::collide` function for every permutation of the custom shape with all existing shapes.
 
+## Polyhedrons and rotated mesh optimization
+
+To avoid having to rotate every vertex position and face normal when doing closest point calculation involving polyhedrons, they are rotated only once after the simulation step and are cached in a `edyn::rotated_mesh`. These rotated values can be reused in multiple collision tests in a single step (note that not all collision tests use these values since most of them are done in the polyhedron's object space).
+
+Unlike the `edyn::convex_mesh` held by a polyhedron, the `edyn::rotated_mesh` is mutable and is only meaningful to the entity it is assigned to, whereas the `edyn::convex_mesh` is immutable and thread-safe and can be shared among multiple polyhedrons. Thus, a new `edyn::rotated_mesh` is created for every new polyhedron in the `edyn::island_worker`. Having the same instance being shared with other workers would not be a problem for dynamic entities, since they can only be present in one worker at a time. However, that's not true for kinematic objects, which can hold a polyhedron shape and be presented in multiple threads.
+
+The polyhedron keeps a weak reference to the `edyn::rotated_mesh` thus the `edyn::island_worker` actually owns the rotated meshes and is responsible for keeping them alive until the polyhedron is destroyed. They are stored in `edyn::rotated_mesh_list` components because `edyn::compound_shape`s can hold multiple polyhedrons, thus it is necessary to be able to store a list of `edyn::rotated_mesh`es for them. The first `edyn::rotated_mesh_list` is assigned to the entity holding the shape itself. New entities are created for the next ones and are linked to the previous. When the original entity is deleted, all linked `edyn::rotated_mesh_list` are deleted in succession.
+
 ## Paged triangle mesh shape
 
 For the shape of the world's terrain, a triangle mesh shape is usually the best choice. For larger worlds, it is interesting to split up this terrain in smaller chunks and load them in and out of the world as needed. The `edyn::paged_triangle_mesh` offers a deferred loading mechanism that will load chunks of a concave triangle mesh as dynamic objects enter their bounding boxes. It must be initialized with a set of entities with a `edyn::AABB` assigned and an `Archive` (which is templated).

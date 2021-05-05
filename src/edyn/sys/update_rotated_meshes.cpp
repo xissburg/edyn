@@ -1,8 +1,7 @@
-#include "edyn/sys/update_polyhedrons.hpp"
+#include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/shapes/polyhedron_shape.hpp"
-#include "edyn/shapes/compound_shape.hpp"
+#include "edyn/comp/rotated_mesh_list.hpp"
 #include <entt/entt.hpp>
 #include <variant>
 
@@ -34,25 +33,22 @@ void update_rotated_mesh(rotated_mesh &rotated, const convex_mesh &mesh,
     update_rotated_mesh_normals(rotated, mesh, orn);
 }
 
-void update_polyhedron(polyhedron_shape &polyhedron, const quaternion &orn) {
-    update_rotated_mesh(*polyhedron.rotated, *polyhedron.mesh, orn);
-}
+void update_rotated_meshes(entt::registry &registry) {
+    auto rotated_view = registry.view<rotated_mesh_list>();
+    auto view = registry.view<orientation, rotated_mesh_list>();
+    view.each([&rotated_view] (orientation &orn, rotated_mesh_list &rotated_list) {
+        auto *rot_list_ptr = &rotated_list;
 
-void update_polyhedrons(entt::registry &registry) {
-    auto poly_view = registry.view<position, orientation, polyhedron_shape>();
-    poly_view.each([] (position &pos, orientation &orn, polyhedron_shape &polyhedron) {
-        update_polyhedron(polyhedron, orn);
-    });
+        while(true) {
+            // TODO: `rot_list_ptr->orientation` is often `quaternion_identity`.
+            // What could be done to avoid this often unnecessary multiplication?
+            update_rotated_mesh(*rot_list_ptr->rotated, *rot_list_ptr->mesh, orn * rot_list_ptr->orientation);
 
-    // TODO: Not all compounds hold a polyhedron, so this could be very wasteful.
-    auto compound_view = registry.view<position, orientation, compound_shape>();
-    compound_view.each([] (position &pos, orientation &orn, compound_shape &compound) {
-        for (auto &node : compound.nodes) {
-            if (!std::holds_alternative<polyhedron_shape>(node.shape_var)) continue;
+            if (rot_list_ptr->next == entt::null) {
+                break;
+            }
 
-            auto &polyhedron = std::get<polyhedron_shape>(node.shape_var);
-            auto world_orn = orn * node.orientation;
-            update_polyhedron(polyhedron, world_orn);
+            rot_list_ptr = &rotated_view.get(rot_list_ptr->next);
         }
     });
 }

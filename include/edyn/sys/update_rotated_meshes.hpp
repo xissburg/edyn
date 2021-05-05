@@ -1,11 +1,10 @@
-#ifndef EDYN_SYS_UPDATE_POLYHEDRONS_HPP
-#define EDYN_SYS_UPDATE_POLYHEDRONS_HPP
+#ifndef EDYN_SYS_UPDATE_ROTATED_MESHES_HPP
+#define EDYN_SYS_UPDATE_ROTATED_MESHES_HPP
 
 #include <entt/fwd.hpp>
 
 namespace edyn {
 
-struct polyhedron_shape;
 struct rotated_mesh;
 struct convex_mesh;
 struct quaternion;
@@ -13,17 +12,9 @@ struct quaternion;
 /**
  * @brief Updates the rotated mesh of all polyhedron shapes, including the ones
  * in compound shapes.
- * @param registry Source of polyhedrons.
+ * @param registry Source of shapes.
  */
-void update_polyhedrons(entt::registry &registry);
-
-/**
- * @brief Updates the rotated mesh of a single polyhedron.
- * @param polyhedron The polyhedron to be updated.
- * @param orn Orientation to be applied to the polyhedron's convex mesh
- * vertices and normals.
- */
-void update_polyhedron(polyhedron_shape &polyhedron, const quaternion &orn);
+void update_rotated_meshes(entt::registry &registry);
 
 /**
  * @brief Updates rotated mesh by appliying a rotation to the vertex positions
@@ -37,4 +28,4 @@ void update_rotated_mesh(rotated_mesh &rotated, const convex_mesh &mesh,
 
 }
 
-#endif // EDYN_SYS_UPDATE_POLYHEDRONS_HPP
+#endif // EDYN_SYS_UPDATE_ROTATED_MESHES_HPP
