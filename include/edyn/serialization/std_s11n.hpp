@@ -8,7 +8,7 @@
 #include <variant>
 #include <type_traits>
 #include <entt/core/ident.hpp>
-#include "edyn/util/tuple.hpp"
+#include "edyn/util/tuple_util.hpp"
 
 namespace edyn {
 
@@ -117,7 +117,7 @@ void serialize(Archive& archive, std::variant<Ts...>& var) {
     } else {
         std::visit([&archive] (auto &&t) {
             using T = std::decay_t<decltype(t)>;
-            auto id = index_of_v<size_t, T, Ts...>;
+            auto id = index_of<T, Ts...>();
             archive(id);
             archive(t);
         }, var);

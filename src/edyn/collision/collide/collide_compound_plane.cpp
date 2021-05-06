@@ -20,7 +20,7 @@ void collide(const compound_shape &shA, const plane_shape &shB,
 
         std::visit([&] (auto &&sh) {
             collide(sh, shB, child_ctx, child_result);
-        }, node.var);
+        }, node.shape_var);
 
         for (size_t i = 0; i < child_result.num_points; ++i) {
             auto &child_point = child_result.point[i];

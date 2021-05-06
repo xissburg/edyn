@@ -5,7 +5,7 @@
 #include <cstdint>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
-#include "edyn/comp/shape.hpp"
+#include "edyn/shapes/shapes.hpp"
 
 namespace edyn {
 
@@ -54,13 +54,13 @@ matrix3x3 moment_of_inertia(const compound_shape &sh, scalar mass);
 matrix3x3 moment_of_inertia(const paged_mesh_shape &sh, scalar mass);
 
 /**
- * @brief Visits the `shape`'s variant and calcualtes the moment of inertia of the
+ * @brief Visits the shape variant and calculates the moment of inertia of the
  * shape it holds.
- * @param sh The shape.
+ * @param var The shape variant.
  * @param mass Shape's mass.
  * @return Inertia tensor.
  */
-matrix3x3 moment_of_inertia(const shape &sh, scalar mass);
+matrix3x3 moment_of_inertia(const shapes_variant_t &var, scalar mass);
 
 }
 
