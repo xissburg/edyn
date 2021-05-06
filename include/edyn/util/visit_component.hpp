@@ -10,9 +10,10 @@ namespace edyn {
 namespace detail {
     /**
     * @brief Creates a function that invokes a visitor with a component argument.
-    * @tparam T Component type.
-    * @tparam ViewType Type of view that holds components of type T among others.
     * @tparam VisitorType Type of visitor function which takes an auto rvalue.
+    * @tparam ViewsTupleType Type of tuple that holds a view of each of the
+    * supported component types.
+    * @tparam T Component type.
     * @return A function that takes an entity, a view and a visitor and calls the
     * visitor with the component for the entity that's in the view.
     */
@@ -20,15 +21,16 @@ namespace detail {
     constexpr auto make_visit_function() {
         using ViewType = entt::basic_view<entt::entity, entt::exclude_t<>, T>;
         return [] (entt::entity entity, const ViewsTupleType &views_tuple, VisitorType visitor) {
-            visitor(std::get<ViewType>(views_tuple).template get<T>(entity));
+            visitor(std::get<ViewType>(views_tuple).template get(entity));
         };
     }
 
     /**
     * @brief Stores an array of visiting functions for each given type.
     */
-    template<typename VisitorType, typename ViewsTupleType, typename... Ts>
+    template<typename VisitorType, typename... Ts>
     struct visit_function_array {
+        using ViewsTupleType = std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...>;
         using VisitFuncType = void(*)(entt::entity, const ViewsTupleType &, VisitorType);
         std::array<VisitFuncType, sizeof...(Ts)> functions;
 
@@ -43,8 +45,7 @@ namespace detail {
     */
     template<typename VisitorType, typename... Ts>
     struct visitor_table {
-        using ViewsTupleType = std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...>;
-        static constexpr auto array = visit_function_array<VisitorType, ViewsTupleType, Ts...>();
+        static constexpr auto array = visit_function_array<VisitorType, Ts...>();
     };
 }
 
@@ -53,12 +54,11 @@ namespace detail {
  * of provided component types in constant time.
  * @tparam Ts Family of related component types.
  * @tparam IndexType Type of integral index.
- * @tparam ViewType Type of view that holds components of all types `Ts...`.
  * @tparam VisitorType Type of visitor function which takes an auto rvalue.
  * @param index Index in the family of component types of which component should
  * be visited among all types.
  * @param entity Entity of interest.
- * @param view The view where the component will be fetched from.
+ * @param views_tuple Tuple of views for each type `Ts...`.
  * @param visitor Function that will be called with the desired component.
  */
 template<typename... Ts, typename IndexType, typename VisitorType>
@@ -78,6 +78,8 @@ void visit_component(std::tuple<Ts...>, IndexType index, entt::entity entity,
 }
 
 namespace detail {
+    // Similar to the ones above except this operates on a registry directly.
+
     // Creates a function that invokes a visitor with a component argument.
     template<typename VisitorType, typename T>
     constexpr auto make_visit_registry_function() {
@@ -124,6 +126,7 @@ void visit_component(IndexType index, entt::entity entity,
     table.array.functions[index](entity, registry, visitor);
 }
 
+/*! @copydoc visit_component */
 template<typename... Ts, typename IndexType, typename VisitorType>
 void visit_component(std::tuple<Ts...>, IndexType index, entt::entity entity,
                      entt::registry &registry, VisitorType visitor) {

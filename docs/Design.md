@@ -20,8 +20,8 @@ registry.emplace<edyn::linvel>(entity, edyn::vector3_zero);
 registry.emplace<edyn::angvel>(entity, 0, 0.314, 0);
 auto mass = edyn::scalar{50};
 registry.emplace<edyn::mass>(entity, mass);
-auto &shape = registry.emplace<edyn::shape>(entity, edyn::box_shape{0.5, 0.2, 0.4});
-registry.emplace<edyn::inertia>(entity, edyn::moment_of_inertia(shape, mass));
+auto &box = registry.emplace<edyn::box_shape>(entity, edyn::vector3{0.5, 0.2, 0.4});
+registry.emplace<edyn::inertia>(entity, edyn::moment_of_inertia(box, mass));
 registry.emplace<edyn::material>(entity, 0.2, 0.9); // Restitution and friction.
 registry.emplace<edyn::linacc>(entity, edyn::gravity_earth);
 ```
@@ -103,7 +103,7 @@ In narrow-phase, closest point calculation is performed for the rigid body pair 
 
 Contact point persistence is important for stability and to preserve continuity over time. New contact points that are near existing points get merged together, thus extending the lifetime of an existing contact and reusing the previously applied impulse for _warm starting_ later in the constraint solver. Contact points that are separating (in either tangential or normal directions) are destroyed.
 
-Entities that don't have a `edyn::shape` also don't have a `edyn::AABB` associated with them and thus are ignored in broad-phase which leads to no collisions ever happening. Rigid bodies without a shape are considered _implicit_.
+Entities that don't have a shape also don't have a `edyn::AABB` assigned to them and thus are ignored in broad-phase which leads to no collisions ever happening. Rigid bodies without a shape are considered _implicit_.
 
 To enable collision response for an entity, a `edyn::material` component must be assigned which basically contains the _restitution_ and _friction coefficient_. Otherwise, the entity behaves as a _sensor_, i.e. collision detection is performed but no impulses are applied and intersection events can still be observed.
 
@@ -127,7 +127,9 @@ Contact points are not updated in the main registry continuously since that woul
 
 # Shapes
 
-The physical shape of a rigid body is stored in `edyn::shape` which holds a `std::variant` with all shape types in its parameter pack. It's necessary to fork the project and modify the code to add custom shapes. It is also necessary to provide a `edyn::collide` function for every permutation of the custom shape with all existing shapes.
+The physical shape of a rigid body can be any of the `edyn::*_shape` components, which are assigned directly to the rigid body entity. Along with the shape of specific type, a `edyn::shape_index` is assigned which can be used to read the shape an entity contains using the `edyn::visit_shape` function.
+
+It's necessary to fork the project and modify the code to add custom shapes. It is also necessary to provide a `edyn::collide` function for every permutation of the custom shape with all existing shapes.
 
 ## Polyhedrons and rotated mesh optimization
 
