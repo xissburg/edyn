@@ -67,8 +67,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
         dir /= std::sqrt(dir_len_sqr);
 
         if (dot(posA - posB, dir) < 0) {
-            // Make it point towards A.
-            dir *= -1;
+            dir *= -1; // Make it point towards A.
         }
 
         auto projA = -capsule_support_projection(capsule_vertices, shA.radius, -dir);

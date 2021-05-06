@@ -10,56 +10,55 @@ void collide(const capsule_shape &shA, const capsule_shape &shB,
     const auto &posB = ctx.posB;
     const auto &ornB = ctx.ornB;
 
-    // Half-length vector in world-space.
-    auto hlA = rotate(ornA, vector3_x * shA.half_length);
-    auto hlB = rotate(ornB, vector3_x * shB.half_length);
+    auto verticesA = shA.get_vertices(posA, ornA);
+    auto verticesB = shB.get_vertices(posB, ornB);
 
-    // Center of hemispheres on capsule's ends.
-    auto p0A = posA - hlA;
-    auto p1A = posA + hlA;
-
-    auto p0B = posB - hlB;
-    auto p1B = posB + hlB;
-
-    scalar s, t, sp, tp;
-    vector3 cA, cB, cAp, cBp;
+    scalar s[2], t[2];
+    vector3 closestA[2], closestB[2];
     size_t num_points;
 
-    auto l2 = closest_point_segment_segment(p0A, p1A, p0B, p1B, s, t, cA, cB, 
-                                            &num_points, &sp, &tp, &cAp, &cBp);
-    auto r = shA.radius + shB.radius + ctx.threshold;
+    auto dist_sqr = closest_point_segment_segment(verticesA[0], verticesA[1], 
+                                                  verticesB[0], verticesB[1], 
+                                                  s[0], t[0], closestA[0], closestB[0], &num_points, 
+                                                  &s[1], &t[1], &closestA[1], &closestB[1]);
+    auto min_dist = shA.radius + shB.radius + ctx.threshold;
     
-    if (l2 > r * r) {
+    if (dist_sqr > min_dist * min_dist) {
         return;
     }
 
-    auto l = std::sqrt(l2);
-    vector3 dn;
+    vector3 normal;
+    scalar distance;
 
-    if (l2 > EDYN_EPSILON) {
-        auto d = cA - cB;
-        dn = d / l;
+    if (dist_sqr > EDYN_EPSILON) {
+        auto dist = std::sqrt(dist_sqr);
+        normal = (closestA[0] - closestB[0]) / dist;
+        distance = dist - shA.radius - shB.radius;
     } else {
-        dn = vector3_y;
+        // Seguments intersect in 3D.
+        auto axisA = verticesA[1] - verticesA[0];
+        auto axisB = verticesB[1] - verticesB[0];
+        normal = cross(axisA, axisB);
+
+        if (dot(posA - posB, normal) < 0) {
+            normal *= -1; // Make it point towards A.
+        }
+        
+        if (!try_normalize(normal)) {
+            normal = vector3_y;
+        }
+
+        distance = -(shA.radius + shB.radius);
     }
 
-    auto rA = (cA - dn * shA.radius) - posA;
-    auto rB = (cB + dn * shB.radius) - posB;
+    auto normalB = rotate(conjugate(ornB), normal);
 
-    result.num_points = num_points;
-    result.point[0].pivotA = rotate(conjugate(ornA), rA);
-    result.point[0].pivotB = rotate(conjugate(ornB), rB);
-    result.point[0].normalB = rotate(conjugate(ornB), dn);
-    result.point[0].distance = l - shA.radius - shB.radius;
-
-    if (num_points > 1) {
-        auto rAp = (cAp - dn * shA.radius) - posA;
-        auto rBp = (cBp + dn * shB.radius) - posB;
-
-        result.point[1].pivotA = rotate(conjugate(ornA), rAp);
-        result.point[1].pivotB = rotate(conjugate(ornB), rBp);
-        result.point[1].normalB = rotate(conjugate(ornB), dn);
-        result.point[1].distance = l - shA.radius - shB.radius;
+    for (size_t i = 0; i < num_points; ++i) {
+        auto pivotA_world = closestA[i] - normal * shA.radius;
+        auto pivotB_world = closestB[i] + normal * shB.radius;
+        auto pivotA = to_object_space(pivotA_world, posA, ornA);
+        auto pivotB = to_object_space(pivotB_world, posB, ornB);
+        result.add_point({pivotA, pivotB, normalB, distance});
     }
 }
 
