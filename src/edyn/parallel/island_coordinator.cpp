@@ -6,6 +6,8 @@
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/shape_index.hpp"
+#include "edyn/shapes/shapes.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
@@ -19,8 +21,6 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/util/vector.hpp"
 #include <entt/entt.hpp>
-#include <type_traits>
-#include <variant>
 
 namespace edyn {
 
@@ -391,11 +391,12 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto acc_view = m_registry->view<linacc>();
     auto material_view = m_registry->view<material>();
     auto presentation_view = m_registry->view<present_position, present_orientation>();
-    auto shape_view = m_registry->view<shape, AABB, collision_filter>();
     auto continuous_view = m_registry->view<continuous>();
     auto procedural_view = m_registry->view<procedural_tag>();
     auto static_view = m_registry->view<static_tag>();
     auto continuous_contacts_view = m_registry->view<continuous_contacts_tag>();
+    auto collision_view = m_registry->view<shape_index, AABB, collision_filter>();
+    auto shape_views_tuple = get_tuple_of_shape_views(*m_registry);
 
     for (auto entity : nodes) {
         if (procedural_view.contains(entity)) {
@@ -424,19 +425,25 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
             }
 
             if (presentation_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, presentation_view.get<present_position>(entity));   
-                ctx->m_delta_builder->created(entity, presentation_view.get<present_orientation>(entity));   
+                ctx->m_delta_builder->created(entity, presentation_view.get<present_position>(entity));
+                ctx->m_delta_builder->created(entity, presentation_view.get<present_orientation>(entity));
             }
 
-            if (shape_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, shape_view.get<shape>(entity));   
-                ctx->m_delta_builder->created(entity, shape_view.get<AABB>(entity));   
-                ctx->m_delta_builder->created(entity, shape_view.get<collision_filter>(entity));   
+            if (collision_view.contains(entity)) {
+                auto sh_idx = collision_view.get<shape_index>(entity);
+                ctx->m_delta_builder->created(entity, sh_idx);
+
+                visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
+                    ctx->m_delta_builder->created(entity, shape);
+                });
+
+                ctx->m_delta_builder->created(entity, collision_view.get<AABB>(entity));
+                ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));
             }
             
             ctx->m_delta_builder->created(entity, dynamic_tag{});
             ctx->m_delta_builder->created(entity, procedural_tag{});
-            ctx->m_delta_builder->created(entity, continuous_view.get(entity));   
+            ctx->m_delta_builder->created(entity, continuous_view.get(entity));
         } else {
             auto &resident = multi_resident_view.get(entity);
 
@@ -461,10 +468,16 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                     ctx->m_delta_builder->created(entity, material_view.get(entity));
                 }
 
-                if (shape_view.contains(entity)) {
-                    ctx->m_delta_builder->created(entity, shape_view.get<shape>(entity));   
-                    ctx->m_delta_builder->created(entity, shape_view.get<AABB>(entity));   
-                    ctx->m_delta_builder->created(entity, shape_view.get<collision_filter>(entity));   
+                if (collision_view.contains(entity)) {
+                    auto sh_idx = collision_view.get<shape_index>(entity);
+                    ctx->m_delta_builder->created(entity, sh_idx);
+
+                    visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
+                        ctx->m_delta_builder->created(entity, shape);
+                    });
+
+                    ctx->m_delta_builder->created(entity, collision_view.get<AABB>(entity));   
+                    ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));   
                 }
 
                 if (static_view.contains(entity)) {

@@ -6,7 +6,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/matrix3x3.hpp"
-#include "edyn/comp/shape.hpp"
+#include "edyn/shapes/shapes.hpp"
 
 namespace edyn {
 
@@ -43,7 +43,7 @@ struct rigidbody_def {
     vector3 gravity {gravity_earth};
 
     // Optional shape for collidable entities.
-    std::optional<shape> shape_opt; 
+    std::optional<shapes_variant_t> shape_opt; 
 
     scalar restitution {0};
     scalar friction {0.5};

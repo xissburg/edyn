@@ -10,7 +10,6 @@
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/collision/static_tree.hpp"
-#include "edyn/util/aabb_util.hpp"
 
 namespace edyn {
 
@@ -18,6 +17,7 @@ namespace edyn {
  * @brief A shape which contains other shapes.
  */
 struct compound_shape {
+    // Variant with types of shapes a compound is able to hold.
     using shapes_variant_t = std::variant<
         sphere_shape, 
         cylinder_shape,
@@ -27,7 +27,7 @@ struct compound_shape {
     >;
 
     struct shape_node {
-        shapes_variant_t var;
+        shapes_variant_t shape_var;
         vector3 position;
         quaternion orientation;
         AABB aabb;
@@ -36,12 +36,12 @@ struct compound_shape {
     /**
      * @brief Inserts another shape into the compound.
      * @tparam T Shape type. Must be one of the types in `shapes_variant_t`.
-     * @param sh The shape to be inserted.
+     * @param shape The shape to be inserted.
      * @param pos Position of the shape in the compound's object space.
      * @param orn Orientation of the shape in the compound's object space.
      */
     template<typename T>
-    void add_shape(const T &sh, const vector3 &pos, const quaternion &orn);
+    void add_shape(const T &shape, const vector3 &pos, const quaternion &orn);
 
     /**
      * @brief Must be called after all shapes are added to wrap up the compound
@@ -81,13 +81,12 @@ struct compound_shape {
 };
 
 template<typename T>
-void compound_shape::add_shape(const T &sh, const vector3 &pos, const quaternion &orn) {
+void compound_shape::add_shape(const T &shape, const vector3 &pos, const quaternion &orn) {
     EDYN_ASSERT(tree.empty()); // Assure tree wasn't built yet.
     auto node = shape_node{};
-    node.var = {sh};
+    node.shape_var = {shape};
     node.position = pos;
     node.orientation = orn;
-    node.aabb = shape_aabb(sh, pos, orn);
     nodes.push_back(node);
 }
 
@@ -97,9 +96,9 @@ void compound_shape::visit(const AABB &aabb, Func func) const {
     
     tree.visit(aabb, [&] (auto index) {
         auto &node = nodes[index];
-        std::visit([&] (auto &&sh) {
-            func(sh, node);
-        }, node.var);
+        std::visit([&] (auto &&shape) {
+            func(shape, node);
+        }, node.shape_var);
     });
 }
 

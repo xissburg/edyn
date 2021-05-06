@@ -3,7 +3,6 @@
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
-#include "edyn/comp/shape.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -70,9 +69,13 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     }
 
     if (auto opt = def.shape_opt) {
-        auto &sh = registry.emplace<shape>(entity, *opt);
-        auto aabb = shape_aabb(sh, def.position, def.orientation);
-        registry.emplace<AABB>(entity, aabb);
+        std::visit([&] (auto &&sh) {
+            using ShapeType = std::decay_t<decltype(sh)>;
+            registry.emplace<ShapeType>(entity, sh);
+            registry.emplace<shape_index>(entity, get_shape_index<ShapeType>());
+            auto aabb = shape_aabb(sh, def.position, def.orientation);
+            registry.emplace<AABB>(entity, aabb);
+        }, *def.shape_opt);
 
         auto &filter = registry.emplace<collision_filter>(entity);
         filter.group = def.collision_group;
@@ -121,11 +124,14 @@ void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar ma
 
 void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
     auto mass = registry.get<edyn::mass>(entity);
+    auto sh_idx = registry.get<shape_index>(entity);
+    matrix3x3 I;
 
-    auto &shape = registry.get<edyn::shape>(entity);
-    auto I = moment_of_inertia(shape, mass);
+    visit_shape(sh_idx, entity, registry, [&] (auto &&shape) {
+        I = moment_of_inertia(shape, mass);
+    });
+
     registry.replace<edyn::inertia>(entity, I);
-
     auto inv_I = inverse_matrix_symmetric(I);
     registry.replace<edyn::inertia_inv>(entity, inv_I);
 

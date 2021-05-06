@@ -91,16 +91,16 @@ TEST(test_collision, collide_box_box_face_edge) {
 
 TEST(test_collision, collide_polyhedron_sphere) {
     auto mesh = std::make_shared<edyn::convex_mesh>();
-    // Make a box.
+
     edyn::make_box_mesh({0.5, 0.5, 0.5}, mesh->vertices, mesh->indices, mesh->faces);
     mesh->calculate_normals();
     mesh->calculate_edges();
 
-    auto rotated = std::make_shared<edyn::rotated_mesh>(edyn::make_rotated_mesh(*mesh));
+    auto rotated = edyn::make_rotated_mesh(*mesh);
 
     auto polyhedron = edyn::polyhedron_shape{};
     polyhedron.mesh = mesh;
-    polyhedron.rotated = rotated;
+    polyhedron.rotated = &rotated;
 
     auto sphere = edyn::sphere_shape{0.5};
 

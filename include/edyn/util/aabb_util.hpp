@@ -2,6 +2,7 @@
 #define EDYN_UTIL_AABB_UTIL_HPP
 
 #include "edyn/comp/aabb.hpp"
+#include "edyn/shapes/shapes.hpp"
 
 namespace edyn {
 
@@ -47,17 +48,6 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
                       const vector3 &pos, const quaternion &orn);
 
 // Calculate AABB for all types of shapes.
-struct shape;
-struct plane_shape;
-struct sphere_shape;
-struct cylinder_shape;
-struct capsule_shape;
-struct mesh_shape;
-struct box_shape;
-struct polyhedron_shape;
-struct paged_mesh_shape;
-struct compound_shape;
-
 AABB shape_aabb(const plane_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const sphere_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const cylinder_shape &sh, const vector3 &pos, const quaternion &orn);
@@ -69,13 +59,13 @@ AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion
 AABB shape_aabb(const compound_shape &sh, const vector3 &pos, const quaternion &orn);
 
 /**
- * @brief Visits the `shape`'s variant and calculates the the AABB.
- * @param sh The shape.
+ * @brief Visits the shape variant and calculates the the AABB.
+ * @param var The shape variant.
  * @param pos Shape's position.
  * @param orn Shape's orientation.
  * @return The AABB.
  */
-AABB shape_aabb(const shape &sh, const vector3 &pos, const quaternion &orn);
+AABB shape_aabb(const shapes_variant_t &var, const vector3 &pos, const quaternion &orn);
 
 }
 
