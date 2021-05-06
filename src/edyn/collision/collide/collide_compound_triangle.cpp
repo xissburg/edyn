@@ -1,7 +1,5 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/math/quaternion.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
-#include "edyn/util/aabb_util.hpp"
 
 namespace edyn {
 

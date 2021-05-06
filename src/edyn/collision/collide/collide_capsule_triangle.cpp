@@ -44,22 +44,18 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
                                       v0, v1, s, t, closest_cap, closest_tri);
 
         auto dir = closest_tri - closest_cap;
-        auto dir_len_sqr = length_sqr(dir);
 
-        if (!(dir_len_sqr > EDYN_EPSILON)) {
+        if (!try_normalize(dir)) {
             // Segments intersect in 3D space (unlikely scenario). Try the cross
             // product between edges.
             auto tri_edge = v1 - v0;
             dir = cross(tri_edge, capsule_vertices[1] - capsule_vertices[0]);
-            dir_len_sqr = length_sqr(dir);
 
-            if (!(dir_len_sqr > EDYN_EPSILON)) {
+            if (!try_normalize(dir)) {
                 // Segments are parallel and colinear.
                 continue;
             }
         }
-
-        dir /= std::sqrt(dir_len_sqr);
 
         if (dot(posA - v0, dir) < 0) {
             dir *= -1; // Make it point towards capsule.

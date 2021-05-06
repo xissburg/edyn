@@ -1,5 +1,4 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/util/aabb_util.hpp"
 
 namespace edyn {
 

@@ -105,8 +105,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
                                   s[1], closest_circle[1], closest_line[1], dir);
 
         if (dot(posA - posB, dir) < 0) {
-            // Make it point towards A.
-            dir *= -1;
+            dir *= -1; // Make it point towards A.
         }
 
         auto projA = -capsule_support_projection(capsule_vertices, shA.radius, -dir);
