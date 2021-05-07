@@ -105,99 +105,103 @@ struct box_shape {
     void support_feature(const vector3 &pos, const quaternion &orn, 
                          const vector3 &axis_pos, const vector3 &axis_dir,
                          box_feature &out_feature, size_t &out_feature_index,
-                         scalar &out_projection,
-                         scalar threshold) const;
+                         scalar &out_projection, scalar threshold) const;
+
+    /*! @copydoc support_feature */
+    void support_feature(const vector3 &pos, const quaternion &orn,
+                         const vector3 &axis_dir, box_feature &feature,
+                         size_t &feature_index, scalar threshold) const;
 
     /**
      * Get vertex position in object space.
-     * @param i The vertex index in [0, 8).
+     * @param vertex_idx The vertex index in [0, 8).
      * @return Vertex position in object space.
      */
-    vector3 get_vertex(size_t i) const;
+    vector3 get_vertex(size_t vertex_idx) const;
 
     /**
      * Get vertex position in world space.
-     * @param i The vertex index in [0, 8).
+     * @param vertex_idx The vertex index in [0, 8).
      * @param pos Position of geometric center.
      * @param orn Orientation.
      * @return Vertex position in world space.
      */
-    vector3 get_vertex(size_t i, const vector3 &pos, const quaternion &orn) const;
+    vector3 get_vertex(size_t vertex_idx, const vector3 &pos, const quaternion &orn) const;
 
     /**
      * Get vertex positions of an edge in object space.
-     * @param i Edge index in [0, 12).
+     * @param edge_idx Edge index in [0, 12).
      * @return Position of the two vertices in object space.
      */
-    std::array<vector3, 2> get_edge(size_t i) const;
+    std::array<vector3, 2> get_edge(size_t edge_idx) const;
 
     /**
      * Get vertex positions of an edge in world space.
-     * @param i Edge index in [0, 12).
+     * @param edge_idx Edge index in [0, 12).
      * @param pos Position of geometric center.
      * @param orn Orientation.
      * @return Position of the two vertices in world space.
      */
-    std::array<vector3, 2> get_edge(size_t i, const vector3 &pos, const quaternion &orn) const;
+    std::array<vector3, 2> get_edge(size_t edge_idx, const vector3 &pos, const quaternion &orn) const;
 
     /**
      * Get the vertex positions of a face in object space.
-     * @param i Face index in [0, 6).
+     * @param face_idx Face index in [0, 6).
      * @return Position of the four vertices in object space.
      */
-    std::array<vector3, 4> get_face(size_t i) const;
+    std::array<vector3, 4> get_face(size_t face_idx) const;
 
     /**
      * Get the vertex positions of a face in world space.
-     * @param i Face index in [0, 6).
+     * @param face_idx Face index in [0, 6).
      * @param pos Position of geometric center.
      * @param orn Orientation.
      * @return Position of the four vertices in world space.
      */
-    std::array<vector3, 4> get_face(size_t i, const vector3 &pos, const quaternion &orn) const;
+    std::array<vector3, 4> get_face(size_t face_idx, const vector3 &pos, const quaternion &orn) const;
 
     /**
      * Get face normal in object space.
-     * @param i Face index in [0, 6).
+     * @param face_idx Face index in [0, 6).
      * @return Face normal in object space.
      */
-    vector3 get_face_normal(size_t i) const;
+    vector3 get_face_normal(size_t face_idx) const;
 
     /**
      * Get face normal in world space.
-     * @param i Face index in [0, 6).
+     * @param face_idx Face index in [0, 6).
      * @param orn Orientation.
      * @return Face normal in world space.
      */
-    vector3 get_face_normal(size_t i, const quaternion &orn) const;
+    vector3 get_face_normal(size_t face_idx, const quaternion &orn) const;
 
     /**
      * Get point at center of the i-th face in world space.
-     * @param i Face index in [0, 6).
+     * @param face_idx Face index in [0, 6).
      * @param pos Position of geometric center of box.
      * @param orn Orientation of the box.
      * @return Point at center of the i-th face in world space.
      */
-    vector3 get_face_center(size_t i, const vector3 &pos, const quaternion &orn) const;
+    vector3 get_face_center(size_t face_idx, const vector3 &pos, const quaternion &orn) const;
 
     /**
      * Get a basis representing the tangent space of the i-th face where the x
      * and z axes (i.e. columns 0 and 2 in the matrix) are tangent to the face
      * and the y axis (i.e. column 1 in the matrix) is orthogonal to the face,
      * pointing outside the box.
-     * @param i Face index in [0, 6).
+     * @param face_idx Face index in [0, 6).
      * @param orn Orientation of the box.
      * @return Matrix representing a tangent space basis on the i-th face.
      */
-    matrix3x3 get_face_basis(size_t i, const quaternion &orn) const;
+    matrix3x3 get_face_basis(size_t face_idx, const quaternion &orn) const;
 
     /**
      * Get half of the extent of a rectangular face.
-     * @param i Face index in [0, 6).
+     * @param face_idx Face index in [0, 6).
      * @return Half of the bidimensional extent of the rectangular face, 
      *         according to the basis given by `get_face_basis`.
      */
-    vector2 get_face_half_extents(size_t i) const;
+    vector2 get_face_half_extents(size_t face_idx) const;
 
     /**
      * Get edge index from vertex indices.
@@ -215,6 +219,12 @@ struct box_shape {
      */
     size_t support_face_index(const vector3 &dir) const;
 
+    /** 
+     * Get index of i-th vertex of a face.
+     * @param face_idx Index of face in [0, 6).
+     * @param face_vertex_idx Index of vertex in face in [0, 4).
+     * @return Vertex index.
+     */
     size_t get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const;
 };
 

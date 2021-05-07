@@ -143,7 +143,7 @@ void collide(const box_shape &box, const triangle_shape &tri,
                 continue;
             }
 
-            if (point_in_quad(tri.vertices[i], verticesA, normalA)) {
+            if (point_in_polygonal_prism(verticesA, normalA, tri.vertices[i])) {
                 // Triangle vertex is inside box face.
                 auto pivot_on_face = project_plane(tri.vertices[i], verticesA[0], normalA);
                 auto pivotA = to_object_space(pivot_on_face, posA, ornA);
@@ -237,7 +237,7 @@ void collide(const box_shape &box, const triangle_shape &tri,
         size_t num_edge_vert_in_box_face = 0;
 
         for (int i = 0; i < 2; ++i) {
-            if (point_in_quad(edge_vertices[i], verticesA, normalA)) {
+            if (point_in_polygonal_prism(verticesA, normalA, edge_vertices[i])) {
                 // Edge's vertex is inside face.
                 auto pivot_on_face = project_plane(edge_vertices[i], verticesA[0], normalA);
                 auto pivotA = to_object_space(pivot_on_face, posA, ornA);
@@ -374,7 +374,7 @@ void collide(const box_shape &box, const triangle_shape &tri,
         auto face_normal = box.get_face_normal(feature_indexA, ornA);
         auto face_vertices = box.get_face(feature_indexA, posA, ornA);
 
-        if (point_in_quad(vertex, face_vertices, face_normal)) {
+        if (point_in_polygonal_prism(face_vertices, face_normal, vertex)) {
             auto vertex_proj = vertex + sep_axis * distance;
             auto pivotA = to_object_space(vertex_proj, posA, ornA);
             auto pivotB = vertex;
