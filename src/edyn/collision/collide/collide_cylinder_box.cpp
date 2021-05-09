@@ -27,8 +27,8 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
     const auto cyl_axis = quaternion_x(ornA);
     const auto cyl_vertices = std::array<vector3, 2>{
-        posA - cyl_axis * shA.half_length,
-        posA + cyl_axis * shA.half_length
+        posA + cyl_axis * shA.half_length,
+        posA - cyl_axis * shA.half_length
     };
 
     vector3 sep_axis;
@@ -126,23 +126,20 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
             // Find closest point between circle and triangle edge segment.
             size_t num_points;
-            scalar s0, s1;
-            vector3 cc0, cl0, cc1, cl1;
+            scalar s[2];
+            vector3 closest_circle[2];
+            vector3 closest_line[2];
             vector3 dir;
             closest_point_circle_line(face_center, ornA, shA.radius,
-                                      edge_vertices[0], edge_vertices[1],
-                                      num_points, s0, cc0, cl0, s1, cc1, cl1,
+                                      edge_vertices[0], edge_vertices[1], num_points,
+                                      s[0], closest_circle[0], closest_line[0],
+                                      s[1], closest_circle[1], closest_line[1],
                                       dir, support_feature_tolerance);
 
             // If there are two closest points, it means the segment is parallel
             // to the plane of the circle, which means the separating axis would
             // be a cylinder cap face which was already handled.
             if (num_points == 2) {
-                continue;
-            }
-
-            // Ignore points outside segment.
-            if (!(s0 > 0 && s0 < 1)) {
                 continue;
             }
 
@@ -169,8 +166,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
     cylinder_feature featureA;
     size_t feature_indexA;
-    shA.support_feature(posA, ornA, vector3_zero, -sep_axis,
-                        featureA, feature_indexA,
+    shA.support_feature(posA, ornA, -sep_axis, featureA, feature_indexA,
                         support_feature_tolerance);
 
     box_feature featureB;

@@ -20,8 +20,7 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
 
     cylinder_feature featureA;
     size_t feature_indexA;
-    shA.support_feature(posA, ornA, center, -normal,
-                        featureA, feature_indexA,
+    shA.support_feature(posA, ornA, -normal, featureA, feature_indexA,
                         support_feature_tolerance);
 
     switch (featureA) {

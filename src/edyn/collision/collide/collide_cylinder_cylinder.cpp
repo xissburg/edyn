@@ -171,14 +171,12 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
 
     cylinder_feature featureA;
     size_t feature_indexA;
-    shA.support_feature(posA, ornA, vector3_zero, -sep_axis,
-                        featureA, feature_indexA,
+    shA.support_feature(posA, ornA, -sep_axis, featureA, feature_indexA,
                         support_feature_tolerance);
 
     cylinder_feature featureB;
     size_t feature_indexB;
-    shB.support_feature(posB, ornB, vector3_zero, sep_axis,
-                        featureB, feature_indexB,
+    shB.support_feature(posB, ornB, sep_axis, featureB, feature_indexB,
                         support_feature_tolerance);
 
     auto get_local_distance = [&] (vector3 pivotA, vector3 pivotB) {

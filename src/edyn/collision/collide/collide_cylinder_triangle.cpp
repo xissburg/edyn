@@ -76,7 +76,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         axis.tri_feature = triangle_feature::face;
         axis.dir = tri.normal;
 
-        cylinder.support_feature(posA, ornA, tri.vertices[0], -tri.normal,
+        cylinder.support_feature(posA, ornA, -tri.normal,
                             axis.cyl_feature, axis.cyl_feature_index,
                             support_feature_tolerance);
 

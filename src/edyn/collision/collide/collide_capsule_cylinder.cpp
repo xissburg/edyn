@@ -167,8 +167,8 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     auto contact_origin_cyl = sep_axis * projection_cyl;
     cylinder_feature featureB;
     size_t feature_indexB;
-    shB.support_feature(posB, ornB, contact_origin_cyl, sep_axis, featureB,
-                        feature_indexB, support_feature_tolerance);
+    shB.support_feature(posB, ornB, sep_axis, featureB, feature_indexB,
+                        support_feature_tolerance);
 
     switch (featureB) {
     case cylinder_feature::face: {
