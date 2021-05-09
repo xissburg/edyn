@@ -7,7 +7,7 @@
 
 namespace edyn {
 
-void collide(const capsule_shape &shA, const cylinder_shape &shB, 
+void collide(const capsule_shape &shA, const cylinder_shape &shB,
              const collision_context &ctx, collision_result &result) {
     const auto posA = vector3_zero;
     const auto &ornA = ctx.ornA;
@@ -35,7 +35,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         auto projA = -capsule_support_projection(capsule_vertices, shA.radius, -dir);
         auto projB = dot(posB, dir) + shB.half_length;
         auto dist = projA - projB;
-        
+
         if (dist > distance) {
             distance = dist;
             projection_cyl = projB;
@@ -59,7 +59,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
             auto projA = dot(posA, dir) - shA.radius;
             auto projB = dot(posB, dir) + shB.radius;
             auto dist = projA - projB;
-            
+
             if (dist > distance) {
                 distance = dist;
                 projection_cyl = projB;
@@ -99,9 +99,9 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         vector3 closest_circle[2], closest_line[2];
         vector3 dir;
 
-        closest_point_circle_line(cylinder_vertices[i], ornB, shB.radius, 
-                                  capsule_vertices[0], capsule_vertices[1], num_points, 
-                                  s[0], closest_circle[0], closest_line[0], 
+        closest_point_circle_line(cylinder_vertices[i], ornB, shB.radius,
+                                  capsule_vertices[0], capsule_vertices[1], num_points,
+                                  s[0], closest_circle[0], closest_line[0],
                                   s[1], closest_circle[1], closest_line[1], dir);
 
         if (dot(posA - posB, dir) < 0) {
@@ -167,10 +167,8 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     auto contact_origin_cyl = sep_axis * projection_cyl;
     cylinder_feature featureB;
     size_t feature_indexB;
-    vector3 supB;
-    scalar projectionB;
     shB.support_feature(posB, ornB, contact_origin_cyl, sep_axis, featureB,
-                        feature_indexB, supB, projectionB, support_feature_tolerance);
+                        feature_indexB, support_feature_tolerance);
 
     switch (featureB) {
     case cylinder_feature::face: {
@@ -199,7 +197,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
             auto v1 = to_object_space(capsule_vertices[1], posB, ornB);
             scalar s[2];
 
-            auto num_points = intersect_line_circle(to_vector2_zy(v0), to_vector2_zy(v1), 
+            auto num_points = intersect_line_circle(to_vector2_zy(v0), to_vector2_zy(v1),
                                                     shB.radius, s[0], s[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
@@ -214,7 +212,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
             }
         } else {
             // Cylinder cap face against capsule vertex.
-            auto &closest_capsule_vertex = proj_capsule_vertices[0] < proj_capsule_vertices[1] ? 
+            auto &closest_capsule_vertex = proj_capsule_vertices[0] < proj_capsule_vertices[1] ?
                                            capsule_vertices[0] : capsule_vertices[1];
             auto pivotA_world = closest_capsule_vertex - sep_axis * shA.radius;
             auto pivotB_world = project_plane(closest_capsule_vertex, contact_origin_cyl, sep_axis);
@@ -230,9 +228,9 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         size_t num_points;
 
         closest_point_segment_segment(
-            capsule_vertices[0], capsule_vertices[1], 
-            cylinder_vertices[0], cylinder_vertices[1], 
-            s[0], t[0], closest_capsule[0], closest_cylinder[0], &num_points, 
+            capsule_vertices[0], capsule_vertices[1],
+            cylinder_vertices[0], cylinder_vertices[1],
+            s[0], t[0], closest_capsule[0], closest_cylinder[0], &num_points,
             &s[1], &t[1], &closest_capsule[1], &closest_cylinder[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
@@ -244,8 +242,9 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         break;
     }
     case cylinder_feature::cap_edge: {
-        auto pivotB = to_object_space(supB, posB, ornB);
-        auto pivotA = to_object_space(supB + sep_axis * distance, posA, ornA);
+        auto supportB = shB.support_point(posB, ornB, sep_axis);
+        auto pivotB = to_object_space(supportB, posB, ornB);
+        auto pivotA = to_object_space(supportB + sep_axis * distance, posA, ornA);
         result.add_point({pivotA, pivotB, normalB, distance});
         break;
     }

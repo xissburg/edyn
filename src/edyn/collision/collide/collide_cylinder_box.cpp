@@ -12,7 +12,7 @@
 
 namespace edyn {
 
-void collide(const cylinder_shape &shA, const box_shape &shB, 
+void collide(const cylinder_shape &shA, const box_shape &shB,
              const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
@@ -124,14 +124,14 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         for (size_t j = 0; j < get_box_num_features(box_feature::edge); ++j) {
             auto edge_vertices = shB.get_edge(j, posB, ornB);
 
-            // Find closest point between circle and triangle edge segment. 
+            // Find closest point between circle and triangle edge segment.
             size_t num_points;
             scalar s0, s1;
             vector3 cc0, cl0, cc1, cl1;
             vector3 dir;
-            closest_point_circle_line(face_center, ornA, shA.radius, 
-                                      edge_vertices[0], edge_vertices[1], 
-                                      num_points, s0, cc0, cl0, s1, cc1, cl1, 
+            closest_point_circle_line(face_center, ornA, shA.radius,
+                                      edge_vertices[0], edge_vertices[1],
+                                      num_points, s0, cc0, cl0, s1, cc1, cl1,
                                       dir, support_feature_tolerance);
 
             // If there are two closest points, it means the segment is parallel
@@ -167,12 +167,10 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
     auto normalB = rotate(conjugate(ornB), sep_axis);
 
-    scalar feature_distanceA;
     cylinder_feature featureA;
     size_t feature_indexA;
-    vector3 supportA;
     shA.support_feature(posA, ornA, vector3_zero, -sep_axis,
-                        featureA, feature_indexA, supportA, feature_distanceA,
+                        featureA, feature_indexA,
                         support_feature_tolerance);
 
     box_feature featureB;
@@ -292,8 +290,8 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
                     for(int i = 0; i < 4; ++i) {
                         auto j = (i + 1) % 4;
                         auto pivotA_x = shA.half_length * to_sign(feature_indexA == 0);
-                        auto pivotA = vector3{pivotA_x, 
-                                              shA.radius * multipliers[i], 
+                        auto pivotA = vector3{pivotA_x,
+                                              shA.radius * multipliers[i],
                                               shA.radius * multipliers[j]};
                         auto pivotA_in_B = to_world_space(pivotA, posA_in_B, ornA_in_B);
                         auto local_distance = dot(pivotA_in_B - verticesB_local[0], face_normal_local);
@@ -407,11 +405,12 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
             result.add_point({pivotA, pivotB, normalB, distance});
         }
-        }  
+        }
     }
     break;
 
     case cylinder_feature::cap_edge: {
+        auto supportA = shA.support_point(posA, ornA, -sep_axis);
         auto pivotA = to_object_space(supportA, posA, ornA);
         auto pivotB = to_object_space(supportA - sep_axis * distance, posB, ornB);
         result.maybe_add_point({pivotA, pivotB, normalB, distance});

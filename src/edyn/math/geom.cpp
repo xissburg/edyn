@@ -287,7 +287,7 @@ scalar closest_point_circle_line(
 
     // Newton-Raphson iterations.
     auto theta = initial_theta;
-    size_t max_iterations = 3;
+    size_t max_iterations = 20;
 
     for (size_t i = 0; i < max_iterations; ++i) {
         auto sin_theta = std::sin(theta);
@@ -495,7 +495,7 @@ scalar closest_point_circle_circle(
 
     // Newton-Raphson iterations.
     auto phi = initial_phi;
-    size_t max_iterations = 10;
+    size_t max_iterations = 20;
 
     for (size_t i = 0; i < max_iterations; ++i) {
         auto cos_phi = std::cos(phi);

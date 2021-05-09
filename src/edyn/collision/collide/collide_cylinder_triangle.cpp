@@ -8,22 +8,22 @@ namespace edyn {
 // Separating-axis test. Find axis with greatest distance between projection
 // intervals.
 // Axes to be tested:
-// - Cylinder cap normals. Simply find the triangle vertices that are 
+// - Cylinder cap normals. Simply find the triangle vertices that are
 //   further down in both directions.
 // - Triangle face normal. The cylinder could be laying sideways onto the
 //   triangle face, or it could be erect above the triangle face thus having
-//   one of its caps sitting on it, or else the axis projections can be 
+//   one of its caps sitting on it, or else the axis projections can be
 //   found via the support points of the caps along the negative triangle
 //   normal.
 // - Cylinder sidewall faces and the cross product between sidewall edges and
-//   triangle edges. The sidewalls are thought to have infinitely thin faces 
-//   and edges running straight from one cap to the other. They're handled 
+//   triangle edges. The sidewalls are thought to have infinitely thin faces
+//   and edges running straight from one cap to the other. They're handled
 //   together using the cross product between the cylinder axis and each
 //   triangle axis as a separating axis.
 // - Cylinder face edges against triangle edges. The closest point between
 //   the circle and edge segment are calculated. The vector connecting them
 //   is taken as the separating axis. The projections must then be calculated
-//   using support points. 
+//   using support points.
 
 struct separating_axis_cyl_tri {
     vector3 dir;
@@ -63,7 +63,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         get_triangle_support_feature(tri.vertices, posA, cylinder_axis,
                                      axis.tri_feature, axis.tri_feature_index,
                                      axis.distance, support_feature_tolerance);
-    
+
         axis.distance = -(cylinder.half_length + axis.distance);
         if (!tri.ignore_feature(axis.tri_feature, axis.tri_feature_index, axis.dir)) {
             sep_axes.push_back(axis);
@@ -78,7 +78,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
 
         cylinder.support_feature(posA, ornA, tri.vertices[0], -tri.normal,
                             axis.cyl_feature, axis.cyl_feature_index,
-                            axis.pivotA, axis.distance, support_feature_tolerance);
+                            support_feature_tolerance);
 
         // Make distance negative when penetrating.
         axis.distance *= -1;
@@ -173,7 +173,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
             auto &v0 = tri.vertices[j];
             auto &v1 = tri.vertices[(j + 1) % 3];
 
-            // Find closest point between circle and triangle edge segment. 
+            // Find closest point between circle and triangle edge segment.
             size_t num_points;
             scalar s0, s1;
             vector3 cc0, cl0, cc1, cl1;
@@ -181,7 +181,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
             closest_point_circle_line(disc_center, ornA, cylinder.radius, v0, v1,
                                       num_points, s0, cc0, cl0, s1, cc1, cl1,
                                       normal, support_feature_tolerance);
-            
+
             if (s0 > 0 && s0 < 1) {
                 if (dot(tri.normal, normal) < 0) {
                     normal *= -1;
@@ -189,10 +189,8 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
 
                 auto axis = separating_axis_cyl_tri{};
 
-                scalar projA, projB;
-                cylinder.support_feature(posA, ornA, v0, -normal,
-                                         axis.cyl_feature, axis.cyl_feature_index,
-                                         axis.pivotA, projA, support_feature_tolerance);
+                auto projA = cylinder.support_projection(posA, ornA, -normal);
+                scalar projB;
 
                 // Precalculate the pivot on the triangle, which is the point on
                 // the edge [v0,v1] closest to the pivot on the cylinder.
@@ -239,7 +237,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
 
         for (size_t i = 0; i < num_vertices_to_check; ++i) {
             auto k = (sep_axis.tri_feature_index + i) % 3;
-            
+
             if (tri.ignore_vertex(k, sep_axis.dir)) {
                 continue;
             }
@@ -263,10 +261,10 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         size_t num_edges_to_check = 0;
         size_t last_edge_index = 0;
 
-        if (sep_axis.tri_feature == triangle_feature::edge && 
+        if (sep_axis.tri_feature == triangle_feature::edge &&
             num_vertices_in_face < 2) {
             num_edges_to_check = 1;
-        } else if (sep_axis.tri_feature == triangle_feature::face && 
+        } else if (sep_axis.tri_feature == triangle_feature::face &&
                     num_vertices_in_face < 3) {
             num_edges_to_check = 3;
         }
@@ -377,7 +375,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
                 if (tri.is_concave_edge[i]) {
                     continue;
                 }
-                
+
                 auto &v0 = tri.vertices[i];
                 auto &v1 = tri.vertices[(i + 1) % 3];
                 auto q0 = to_vector2_xz(to_object_space(v0, tri_origin, tri_basis));
@@ -404,7 +402,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
             vector3 p0[2], p1[2];
             size_t num_points = 0;
             closest_point_segment_segment(cylinder_vertices[1], cylinder_vertices[0], v0, v1,
-                                          s[0], t[0], p0[0], p1[0], &num_points, 
+                                          s[0], t[0], p0[0], p1[0], &num_points,
                                           &s[1], &t[1], &p0[1], &p1[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
