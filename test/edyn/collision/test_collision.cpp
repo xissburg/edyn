@@ -319,3 +319,175 @@ TEST(test_collision, collide_cylinder_cylinder_side_edge_vs_side_edge_parallel) 
                     edyn::distance_sqr(result.point[1].normalB, normalB) < EDYN_EPSILON);
     }
 }
+
+TEST(test_collision, collide_cylinder_box_side_edge_vs_edge_parallel) {
+    auto cylinder = edyn::cylinder_shape{0.2, 0.2};
+    auto box = edyn::box_shape{0.3, 0.1, 0.2};
+
+    auto ctx = edyn::collision_context{};
+    ctx.posA = {0.12, 0.9, -0.05};
+    ctx.ornA = edyn::quaternion_axis_angle(edyn::normalize(edyn::vector3{0, 1, 0}), -edyn::pi * 0.5);
+    ctx.posB = {0, 0.5, 0};
+    ctx.ornB = edyn::quaternion_axis_angle(edyn::normalize(edyn::vector3{0, 0, 1}), 3 * edyn::pi/2);
+    ctx.threshold = 0.04;
+
+    auto result = edyn::collision_result{};
+    edyn::collide(cylinder, box, ctx, result);
+    ASSERT_EQ(result.num_points, 2);
+
+    auto expected_distance = edyn::scalar(-0.0980195999);
+    ASSERT_SCALAR_EQ(result.point[0].distance, expected_distance);
+    ASSERT_SCALAR_EQ(result.point[1].distance, expected_distance);
+
+    {
+        auto pivotA = edyn::vector3{0.199999988, -0.196116149, 0.0392232165};
+        auto pivotB = edyn::vector3{-0.300000012, 0.100000009, 0.149999991};
+        auto normalB = edyn::vector3{-0.980580687, 0.19611609, 0};
+
+        ASSERT_TRUE(edyn::distance_sqr(result.point[0].pivotA, pivotA) < EDYN_EPSILON ||
+                    edyn::distance_sqr(result.point[1].pivotA, pivotA) < EDYN_EPSILON);
+
+        ASSERT_TRUE(edyn::distance_sqr(result.point[0].pivotB, pivotB) < EDYN_EPSILON ||
+                    edyn::distance_sqr(result.point[1].pivotB, pivotB) < EDYN_EPSILON);
+
+        ASSERT_TRUE(edyn::distance_sqr(result.point[0].normalB, normalB) < EDYN_EPSILON ||
+                    edyn::distance_sqr(result.point[1].normalB, normalB) < EDYN_EPSILON);
+    }
+
+    {
+        auto pivotA = edyn::vector3{-0.149999991, -0.196116149, 0.039223209};
+        auto pivotB = edyn::vector3{-0.300000012, 0.100000009, -0.200000003};
+        auto normalB = edyn::vector3{-0.980580687, 0.19611609, 0};
+
+        ASSERT_TRUE(edyn::distance_sqr(result.point[0].pivotA, pivotA) < EDYN_EPSILON ||
+                    edyn::distance_sqr(result.point[1].pivotA, pivotA) < EDYN_EPSILON);
+
+        ASSERT_TRUE(edyn::distance_sqr(result.point[0].pivotB, pivotB) < EDYN_EPSILON ||
+                    edyn::distance_sqr(result.point[1].pivotB, pivotB) < EDYN_EPSILON);
+
+        ASSERT_TRUE(edyn::distance_sqr(result.point[0].normalB, normalB) < EDYN_EPSILON ||
+                    edyn::distance_sqr(result.point[1].normalB, normalB) < EDYN_EPSILON);
+    }
+}
+
+TEST(test_collision, collide_cylinder_box_side_edge_vs_edge) {
+    auto cylinder = edyn::cylinder_shape{0.2, 0.2};
+    auto box = edyn::box_shape{0.3, 0.1, 0.2};
+
+    auto ctx = edyn::collision_context{};
+    ctx.posA = {0.13, 1, 0.05};
+    ctx.ornA = edyn::quaternion_axis_angle(edyn::normalize(edyn::vector3{0, 0, 1}), -edyn::pi * 0.25);
+    ctx.posB = {0, 0.5, 0};
+    ctx.ornB = edyn::quaternion_axis_angle(edyn::normalize(edyn::vector3{0, 0, 1}), 3 * edyn::pi/2);
+    ctx.threshold = 0.04;
+
+    auto result = edyn::collision_result{};
+    edyn::collide(cylinder, box, ctx, result);
+    ASSERT_EQ(result.num_points, 1);
+
+    auto &pt = result.point[0];
+
+    ASSERT_SCALAR_EQ(result.point[0].distance, edyn::scalar(-0.0373654366));
+
+    auto pivotA = edyn::vector3{0.120208159, -0.199999988, 0};
+    auto pivotB = edyn::vector3{-0.300000012, 0.100000009, 0.049999997};
+    auto normalB = edyn::vector3{-0.707106649, 0.707106769, 0};
+
+    ASSERT_TRUE(edyn::distance_sqr(pt.pivotA, pivotA) < EDYN_EPSILON);
+    ASSERT_TRUE(edyn::distance_sqr(pt.pivotB, pivotB) < EDYN_EPSILON);
+    ASSERT_TRUE(edyn::distance_sqr(pt.normalB, normalB) < EDYN_EPSILON);
+}
+
+TEST(test_collision, collide_cylinder_box_cap_edge_vs_edge) {
+    auto cylinder = edyn::cylinder_shape{0.2, 0.2};
+    auto box = edyn::box_shape{0.3, 0.1, 0.2};
+
+    auto ctx = edyn::collision_context{};
+    ctx.posA = {0.1, 0.9, 0.01};
+    ctx.ornA = edyn::quaternion_axis_angle(edyn::normalize(edyn::vector3{0, 0, 1}), -edyn::pi * 0.25);
+    ctx.posB = {0, 0.5, 0};
+    ctx.ornB = edyn::quaternion_axis_angle(edyn::normalize(edyn::vector3{1, 0, 0}), edyn::pi/3);
+    ctx.threshold = 0.04;
+
+    auto result = edyn::collision_result{};
+    edyn::collide(cylinder, box, ctx, result);
+    ASSERT_EQ(result.num_points, 1);
+
+    auto &pt = result.point[0];
+
+    ASSERT_SCALAR_EQ(result.point[0].distance, edyn::scalar(-0.104495525));
+
+    auto pivotA = edyn::vector3{0.199999988, -0.196491167, -0.0372988172};
+    auto pivotB = edyn::vector3{0.102481082, 0.099999994, -0.200000018};
+    auto normalB = edyn::vector3{0, 0.610765815, -0.791811347};
+
+    ASSERT_TRUE(edyn::distance_sqr(pt.pivotA, pivotA) < EDYN_EPSILON);
+    ASSERT_TRUE(edyn::distance_sqr(pt.pivotB, pivotB) < EDYN_EPSILON);
+    ASSERT_TRUE(edyn::distance_sqr(pt.normalB, normalB) < EDYN_EPSILON);
+}
+
+TEST(test_collision, collide_cylinder_box_face_face) {
+    auto cylinder = edyn::cylinder_shape{0.2, 0.2};
+    auto box = edyn::box_shape{0.3, 0.1, 0.2};
+
+    auto ctx = edyn::collision_context{};
+    ctx.posA = {0.21, 0.8, 0.02};
+    ctx.ornA = edyn::quaternion_axis_angle(edyn::normalize(edyn::vector3{0, 0, 1}), -edyn::pi * 0.5);
+    ctx.posB = {0, 0.5, 0};
+    ctx.ornB = edyn::quaternion_axis_angle(edyn::normalize(edyn::vector3{0, 1, 0}), edyn::pi/2);
+    ctx.threshold = 0.04;
+
+    auto result = edyn::collision_result{};
+    edyn::collide(cylinder, box, ctx, result);
+    ASSERT_EQ(result.num_points, 3);
+
+    for (auto i = 0; i < result.num_points; ++i) {
+        ASSERT_TRUE(std::abs(result.point[i].distance) < EDYN_EPSILON);
+        ASSERT_TRUE(edyn::distance_sqr(result.point[i].normalB, edyn::vector3_y) < EDYN_EPSILON);
+    }
+
+    {
+        auto pivotA = edyn::vector3{0.2, -0.01, 0.2};
+        auto pivotB = edyn::vector3{-0.22, 0.1, 0.2};
+        bool containsA = false;
+        bool containsB = false;
+
+        for (auto i = 0; i < result.num_points; ++i) {
+            containsA |= edyn::distance_sqr(result.point[i].pivotA, pivotA) < EDYN_EPSILON;
+            containsB |= edyn::distance_sqr(result.point[i].pivotB, pivotB) < EDYN_EPSILON;
+        }
+
+        ASSERT_TRUE(containsA);
+        ASSERT_TRUE(containsB);
+    }
+
+    {
+        auto pivotA = edyn::vector3{0.2, -0.01, -0.2};
+        auto pivotB = edyn::vector3{0.18, 0.1, 0.2};
+        bool containsA = false;
+        bool containsB = false;
+
+        for (auto i = 0; i < result.num_points; ++i) {
+            containsA |= edyn::distance_sqr(result.point[i].pivotA, pivotA) < EDYN_EPSILON;
+            containsB |= edyn::distance_sqr(result.point[i].pivotB, pivotB) < EDYN_EPSILON;
+        }
+
+        ASSERT_TRUE(containsA);
+        ASSERT_TRUE(containsB);
+    }
+
+    {
+        auto pivotA = edyn::vector3{0.2, -0.2, 0};
+        auto pivotB = edyn::vector3{-0.02, 0.1, 0.01};
+        bool containsA = false;
+        bool containsB = false;
+
+        for (auto i = 0; i < result.num_points; ++i) {
+            containsA |= edyn::distance_sqr(result.point[i].pivotA, pivotA) < EDYN_EPSILON;
+            containsB |= edyn::distance_sqr(result.point[i].pivotB, pivotB) < EDYN_EPSILON;
+        }
+
+        ASSERT_TRUE(containsA);
+        ASSERT_TRUE(containsB);
+    }
+}
