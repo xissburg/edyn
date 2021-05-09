@@ -19,9 +19,17 @@ struct cylinder_shape {
     scalar radius;
     scalar half_length;
 
-    std::array<vector3, 2> get_vertices(const vector3 &pos, const quaternion &orn) const {
+    /**
+     * @brief Get the world space position of the center of both cylinder
+     * cap faces. The first is the center of the face along the positive axis
+     * direction.
+     * @param pos Position of center.
+     * @param orn Cylinder orientation.
+     * @return An array with two positions.
+     */
+    auto get_vertices(const vector3 &pos, const quaternion &orn) const {
         const auto axis = quaternion_x(orn);
-        return {
+        return std::array<vector3, 2>{
             pos + axis * half_length,
             pos - axis * half_length
         };
@@ -36,8 +44,7 @@ struct cylinder_shape {
     void support_feature(const vector3 &dir, cylinder_feature &out_feature,
                          size_t &out_feature_index, scalar threshold) const;
 
-    void support_feature(const vector3 &pos, const quaternion &orn,
-                         const vector3 &axis_pos, const vector3 &axis_dir,
+    void support_feature(const vector3 &pos, const quaternion &orn, const vector3 &axis_dir,
                          cylinder_feature &out_feature, size_t &out_feature_index,
                          scalar threshold) const;
 };
