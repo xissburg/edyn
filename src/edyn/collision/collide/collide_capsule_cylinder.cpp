@@ -164,7 +164,6 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     auto is_capsule_edge = std::abs(proj_capsule_vertices[0] -
                                     proj_capsule_vertices[1]) < support_feature_tolerance;
 
-    auto contact_origin_cyl = sep_axis * projection_cyl;
     cylinder_feature featureB;
     size_t feature_indexB;
     shB.support_feature(posB, ornB, sep_axis, featureB, feature_indexB,
@@ -173,25 +172,6 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     switch (featureB) {
     case cylinder_feature::face: {
         if (is_capsule_edge) {
-            // Check if the capsule vertices are inside the circular cap.
-            for (size_t i = 0; i < 2; ++i) {
-                auto &vertex = capsule_vertices[i];
-
-                if (distance_sqr_line(cylinder_vertices[0], cyl_axis, vertex) < shB.radius * shB.radius) {
-                    auto pivotA_world = vertex - sep_axis * shA.radius;
-                    auto pivotB_world = project_plane(vertex, contact_origin_cyl, sep_axis);
-                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                    auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    auto local_distance = dot(pivotA_world - contact_origin_cyl, sep_axis);
-                    result.add_point({pivotA, pivotB, normalB, local_distance});
-                }
-            }
-
-            // Both vertices are inside the circle. Unnecessary to look for intersections.
-            if (result.num_points == 2) {
-                return;
-            }
-
             // Check if the capsule edge intersects the circular cap.
             auto v0 = to_object_space(capsule_vertices[0], posB, ornB);
             auto v1 = to_object_space(capsule_vertices[1], posB, ornB);
@@ -201,13 +181,12 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
                                                     shB.radius, s[0], s[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
-                if (s[i] < 0 || s[i] > 1) continue;
-
-                auto pivotA_world = lerp(capsule_vertices[0], capsule_vertices[1], s[i]) - sep_axis * shA.radius;
-                auto pivotB_world = project_plane(pivotA_world, contact_origin_cyl, sep_axis);
+                auto t = clamp_unit(s[i]);
+                auto pivotA_world = lerp(capsule_vertices[0], capsule_vertices[1], t) - sep_axis * shA.radius;
+                auto pivotB_world = project_plane(pivotA_world, cylinder_vertices[feature_indexB], sep_axis);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                auto local_distance = dot(pivotA_world - contact_origin_cyl, sep_axis);
+                auto local_distance = dot(pivotA_world - pivotB_world, sep_axis);
                 result.add_point({pivotA, pivotB, normalB, local_distance});
             }
         } else {
@@ -215,7 +194,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
             auto &closest_capsule_vertex = proj_capsule_vertices[0] < proj_capsule_vertices[1] ?
                                            capsule_vertices[0] : capsule_vertices[1];
             auto pivotA_world = closest_capsule_vertex - sep_axis * shA.radius;
-            auto pivotB_world = project_plane(closest_capsule_vertex, contact_origin_cyl, sep_axis);
+            auto pivotB_world = project_plane(closest_capsule_vertex, cylinder_vertices[feature_indexB], sep_axis);
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
             auto pivotB = to_object_space(pivotB_world, posB, ornB);
             result.add_point({pivotA, pivotB, normalB, distance});
