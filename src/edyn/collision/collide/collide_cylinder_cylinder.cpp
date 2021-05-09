@@ -97,7 +97,7 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
             auto is_circleA = j == 0;
             auto circle_pos = is_circleA ? verticesA[i] : verticesB[i];
 
-            // Find closest point between circle and triangle edge segment.
+            // Find closest point between circle and and cylinder axis.
             size_t num_points;
             scalar s0, s1;
             vector3 closest_circle[2];
@@ -117,11 +117,6 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
             // to the plane of the circle, which means the separating axis would
             // be a cylinder cap face which was already handled.
             if (num_points == 2) {
-                continue;
-            }
-
-            // Ignore points outside segment.
-            if (!(s0 > 0 && s0 < 1)) {
                 continue;
             }
 
