@@ -24,7 +24,6 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
     scalar distance = -EDYN_SCALAR_MAX;
     scalar projection_poly = EDYN_SCALAR_MAX;
-    scalar projection_cyl = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
 
     // Face normals of polyhedron.
@@ -43,7 +42,6 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         if (dist > distance) {
             distance = dist;
             projection_poly = projA;
-            projection_cyl = projB;
             sep_axis = normal_world;
         }
     }
@@ -58,7 +56,6 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         if (dist > distance) {
             distance = dist;
             projection_poly = projA;
-            projection_cyl = projB;
             sep_axis = dir;
         }
     }
@@ -67,15 +64,11 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
         auto [vertexA0, vertexA1] = shA.mesh->get_edge(i);
         auto poly_edge = vertexA1 - vertexA0;
-
         auto dir = cross(poly_edge, cyl_axis);
-        auto dir_len_sqr = length_sqr(dir);
 
-        if (!(dir_len_sqr > EDYN_EPSILON)) {
+        if (!try_normalize(dir)) {
             continue;
         }
-
-        dir /= std::sqrt(dir_len_sqr);
 
         if (dot(posB, dir) > 0) {
             // Make it point towards A.
@@ -89,7 +82,6 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         if (dist > distance) {
             distance = dist;
             projection_poly = projA;
-            projection_cyl = projB;
             sep_axis = dir;
         }
     }
@@ -99,13 +91,10 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         vector3 closest; scalar t;
         closest_point_line(face_center_neg, cyl_axis, rvertex, t, closest);
         auto dir = rvertex - closest;
-        auto dir_len_sqr = length_sqr(dir);
 
-        if (!(dir_len_sqr > EDYN_EPSILON)) {
+        if (!try_normalize(dir)) {
             continue;
         }
-
-        dir /= std::sqrt(dir_len_sqr);
 
         if (dot(posB, dir) > 0) {
             // Make it point towards A.
@@ -119,7 +108,6 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         if (dist > distance) {
             distance = dist;
             projection_poly = projA;
-            projection_cyl = projB;
             sep_axis = dir;
         }
     }
@@ -140,6 +128,11 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
                                       num_points, s0, cc0, cl0, s1, cc1, cl1,
                                       dir, support_feature_tolerance);
 
+            // Ignore edges that are parallel to circle. Those would be handled
+            // by the cylinder cap face normals.
+            if (num_points == 2) continue;
+
+            // Ignore points out of the segment range.
             if (!(s0 > 0 && s0 < 1)) continue;
 
             if (dot(posB, dir) > 0) {
@@ -154,7 +147,6 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             if (dist > distance) {
                 distance = dist;
                 projection_poly = projA;
-                projection_cyl = projB;
                 sep_axis = dir;
             }
         }
@@ -178,6 +170,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     switch (featureB) {
     case cylinder_feature::face: {
         size_t num_vertices_in_face = 0;
+        auto sign_faceB = to_sign(feature_indexB == 0);
 
         // Check if polygon vertices are inside a cylinder cap face (by checking
         // if its distance from the cylinder axis is smaller than the cylinder radius).
@@ -190,7 +183,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
             auto pivotA = pointA;
             auto pivotB = to_object_space(pointA, posB, ornB);
-            pivotB.x = shB.half_length * to_sign(feature_indexB == 0);
+            pivotB.x = shB.half_length * sign_faceB;
             result.maybe_add_point({pivotA, pivotB, normalB, distance});
 
             ++num_vertices_in_face;
@@ -222,11 +215,12 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
                                                     shB.radius, s[0], s[1]);
 
             for (size_t j = 0; j < num_points; ++j) {
-                if (s[j] < 0 || s[j] > 1) continue;
+                auto t = s[j];
+                if (t < 0 || t> 1) continue;
 
-                auto pivotA = lerp(v0A, v1A, s[j]);
-                auto pivotB = lerp(v0B, v1B, s[j]);
-                pivotB.x = shB.half_length * to_sign(feature_indexB == 0);
+                auto pivotA = lerp(v0A, v1A, t);
+                auto pivotB = lerp(v0B, v1B, t);
+                pivotB.x = shB.half_length * sign_faceB;
                 result.maybe_add_point({pivotA, pivotB, normalB, distance});
 
                 ++num_edge_intersections;
@@ -237,14 +231,14 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             // Check if cylinder face center is in polygon.
             if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, posB)) {
                 auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
-                auto pivotB_x = shB.half_length * to_sign(feature_indexB == 0);
+                auto pivotB_x = shB.half_length * sign_faceB;
 
                 for(int i = 0; i < 4; ++i) {
                     auto pivotB = vector3{pivotB_x,
                                           shB.radius * multipliers[i],
                                           shB.radius * multipliers[(i + 1) % 4]};
                     auto pivotA = to_world_space(pivotB, posB, ornB);
-                    pivotA = project_plane(pivotA, polygon.origin, normalB);
+                    pivotA = project_plane(pivotA, polygon.origin, sep_axis);
                     result.maybe_add_point({pivotA, pivotB, normalB, distance});
                 }
             }
