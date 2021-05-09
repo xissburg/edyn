@@ -10,10 +10,9 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
 
     auto normal = shB.normal;
     auto center = normal * shB.constant;
-    auto projA = shA.support_projection(posA, ornA, -normal);
-
-    // Flip sign since we're calculating the support point along -normal.
-    auto distance = projA *= -1;
+    auto projA = -shA.support_projection(posA, ornA, -normal);
+    auto projB = shB.constant;
+    auto distance = projA - projB;
 
     if (distance > ctx.threshold) {
         return;
