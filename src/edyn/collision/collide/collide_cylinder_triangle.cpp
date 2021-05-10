@@ -1,4 +1,6 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/math/geom.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"
@@ -63,11 +65,45 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         }
     }
 
-    // Cylinder side edges.
+    // Cylinder side edges vs triangle edges.
     for (size_t i = 0; i < 3; ++i) {
-        auto &axisA = cylinder_axis;
-        auto &axisB = tri.edges[i];
-        auto dir = cross(axisA, axisB);
+        auto dir = cross(cylinder_axis, tri.edges[i]);
+
+        if (!try_normalize(dir)) {
+            continue;
+        }
+
+        if (dot(posA - tri.vertices[i], dir) < 0) {
+            dir *= -1; // Make it point towards cylinder.
+        }
+
+        triangle_feature tri_feature;
+        size_t tri_feature_idx;
+        scalar projB;
+        get_triangle_support_feature(tri.vertices, vector3_zero, dir,
+                                     tri_feature, tri_feature_idx,
+                                     projB, support_feature_tolerance);
+
+        if (tri.ignore_feature(tri_feature, tri_feature_idx, dir)) {
+            continue;
+        }
+
+        auto projA = -cylinder.support_projection(posA, ornA, -dir);
+        auto dist = projA - projB;
+
+        if (dist > distance) {
+            distance = dist;
+            sep_axis = dir;
+            featureB = tri_feature;
+            feature_indexB = tri_feature_idx;
+        }
+    }
+
+    // Cylinder side edges vs triangle vertices.
+    for (size_t i = 0; i < 3; ++i) {
+        vector3 closest; scalar t;
+        closest_point_line(posA, cylinder_axis, tri.vertices[i], t, closest);
+        auto dir = closest - tri.vertices[i];
 
         if (!try_normalize(dir)) {
             continue;
@@ -267,16 +303,21 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
             result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
         }
     } else if (featureA == cylinder_feature::face && featureB == triangle_feature::vertex) {
-        auto sign_faceA = to_sign(feature_indexA == 0);
         auto vertexB = tri.vertices[feature_indexB];
-        auto vertexA_x = cylinder.half_length * sign_faceA;
-        auto vertexA = to_object_space(vertexB, posA, ornA);
-        auto local_distance = (vertexA.x - vertexA_x) * sign_faceA;
-        vertexA.x = vertexA_x; // Project onto face by setting the x value directly.
-        result.maybe_add_point({vertexA, vertexB, sep_axis, local_distance});
+
+        if (distance_sqr_line(posA, cylinder_axis, vertexB) < cylinder.radius * cylinder.radius) {
+            auto sign_faceA = to_sign(feature_indexA == 0);
+            auto vertexA_x = cylinder.half_length * sign_faceA;
+            auto vertexA = to_object_space(vertexB, posA, ornA);
+            auto local_distance = (vertexA.x - vertexA_x) * sign_faceA;
+            vertexA.x = vertexA_x; // Project onto face by setting the x value directly.
+            result.maybe_add_point({vertexA, vertexB, sep_axis, local_distance});
+        }
     } else if (featureA == cylinder_feature::side_edge && featureB == triangle_feature::face) {
         // Cylinder is on its side laying on the triangle face.
         // Check if cylinder vertices are inside triangle face.
+        size_t num_vert_in_tri_face = 0;
+
         for (auto &vertex : cylinder_vertices) {
             if (point_in_triangle(tri.vertices, tri.normal, vertex)) {
                 auto pivotA_world = vertex - tri.normal * cylinder.radius;
@@ -284,11 +325,12 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
                 auto pivotB = project_plane(vertex, tri.vertices[0], tri.normal);
                 auto local_distance = dot(pivotA_world - tri.vertices[0], tri.normal);
                 result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
+                ++num_vert_in_tri_face;
             }
         }
 
         // Both vertices are inside the triangle. Unnecessary to look for intersections.
-        if (result.num_points == 2) {
+        if (num_vert_in_tri_face == 2) {
             return;
         }
 
@@ -330,29 +372,45 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         vector3 p0[2], p1[2];
         size_t num_points = 0;
         closest_point_segment_segment(cylinder_vertices[1], cylinder_vertices[0], v0, v1,
-                                        s[0], t[0], p0[0], p1[0], &num_points,
-                                        &s[1], &t[1], &p0[1], &p1[1]);
+                                      s[0], t[0], p0[0], p1[0], &num_points,
+                                      &s[1], &t[1], &p0[1], &p1[1]);
 
-        for (size_t i = 0; i < num_points; ++i) {
-            auto pA_in_B = p0[i] - sep_axis * cylinder.radius;
-            auto pA = to_object_space(pA_in_B, posA, ornA);
-            result.maybe_add_point({pA, p1[i], sep_axis, distance});
+        // Should be parallel to separating axis.
+        if (!(length_sqr(cross(p1[0] - p0[0], sep_axis)) > EDYN_EPSILON)) {
+            for (size_t i = 0; i < num_points; ++i) {
+                auto pA_in_B = p0[i] - sep_axis * cylinder.radius;
+                auto pA = to_object_space(pA_in_B, posA, ornA);
+                result.maybe_add_point({pA, p1[i], sep_axis, distance});
+            }
         }
     } else if (featureA == cylinder_feature::side_edge && featureB == triangle_feature::vertex) {
         auto pivotB = tri.vertices[feature_indexB];
         vector3 pivotA; scalar t;
         closest_point_segment(cylinder_vertices[0], cylinder_vertices[1], pivotB, t, pivotA);
-        pivotA -= sep_axis * cylinder.radius;
-        pivotA = to_object_space(pivotA, posA, ornA);
-        result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
-    } else if (featureA == cylinder_feature::cap_edge) {
+
+        if (t > 0 && t < 1) {
+            pivotA -= sep_axis * cylinder.radius;
+            pivotA = to_object_space(pivotA, posA, ornA);
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+        }
+    } else if (featureA == cylinder_feature::cap_edge && featureB == triangle_feature::face) {
         auto pivotA_world = cylinder.support_point(posA, ornA, -sep_axis);
 
-        // Do not add point if it's a triangle face and the point lies outside.
-        if (featureB != triangle_feature::face ||
-            point_in_triangle(tri.vertices, tri.normal, pivotA_world)) {
+        if (point_in_triangle(tri.vertices, tri.normal, pivotA_world)) {
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            auto pivotB = pivotA_world - sep_axis * distance;
+            auto pivotB = project_plane(pivotA_world, tri.vertices[0], tri.normal);
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+        }
+    } else if (featureA == cylinder_feature::cap_edge && featureB == triangle_feature::edge) {
+        auto pivotA_world = cylinder.support_point(posA, ornA, -sep_axis);
+        auto v0 = tri.vertices[feature_indexB];
+        auto v1 = tri.vertices[(feature_indexB + 1) % 3];
+        vector3 closest; scalar t;
+        closest_point_line(v0, v1 - v0, pivotA_world, t, closest);
+
+        if (t > 0 && t < 1 && !(length_sqr(cross(pivotA_world - closest, sep_axis)) > EDYN_EPSILON)) {
+            auto pivotA = to_object_space(pivotA_world, posA, ornA);
+            auto pivotB = closest;
             result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     }

@@ -29,6 +29,13 @@ namespace edyn {
 scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
                              const vector3 &p, scalar &t, vector3 &q);
 
+/**
+ * @brief Computes the squared distance between a point and a line.
+ * @param q0 A point in the line.
+ * @param dir Direction vector of line.
+ * @param p The point.
+ * @return Square of distance between point and line.
+ */
 scalar distance_sqr_line(const vector3 &q0, const vector3 &dir,
                          const vector3 &p);
 
