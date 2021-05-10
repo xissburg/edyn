@@ -11,7 +11,7 @@ namespace edyn {
 
 void collide(const polyhedron_shape &poly, const triangle_shape &tri,
              const collision_context &ctx, collision_result &result) {
-    // Polyhedron vs triangle SAT. The triangle vertices are shifted by the 
+    // Polyhedron vs triangle SAT. The triangle vertices are shifted by the
     // polyhedron's position so all calculations are effectively done with
     // the polyhedron in the origin. The rotated mesh is used thus no rotations
     // are necessary.
@@ -44,8 +44,8 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
         triangle_feature feature;
         size_t feature_idx;
         scalar tri_proj;
-        get_triangle_support_feature(tri_vertices, vector3_zero, normal, 
-                                     feature, feature_idx, tri_proj, 
+        get_triangle_support_feature(tri_vertices, vector3_zero, normal,
+                                     feature, feature_idx, tri_proj,
                                      support_feature_tolerance);
 
         if (tri.ignore_feature(feature, feature_idx, normal)) {
@@ -88,13 +88,10 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
 
         for (size_t j = 0; j < tri.edges.size(); ++j) {
             auto dir = cross(poly_edge, tri.edges[j]);
-            auto dir_len_sqr = length_sqr(dir);
 
-            if (!(dir_len_sqr > EDYN_EPSILON)) {
+            if (!try_normalize(dir)) {
                 continue;
             }
-
-            dir /= std::sqrt(dir_len_sqr);
 
             auto &vertexB0 = tri_vertices[j];
 
@@ -107,8 +104,8 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
             triangle_feature feature;
             size_t feature_idx;
             scalar proj_tri;
-            get_triangle_support_feature(tri_vertices, vector3_zero, dir, 
-                                         feature, feature_idx, proj_tri, 
+            get_triangle_support_feature(tri_vertices, vector3_zero, dir,
+                                         feature, feature_idx, proj_tri,
                                          support_feature_tolerance);
 
             if (tri.ignore_feature(feature, feature_idx, dir)) {
@@ -165,7 +162,7 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
     }
 
     // If the closest triangle feature is its face, check if the vertices of the
-    // convex hull of the closest vertices of the polyhedron lie within the 
+    // convex hull of the closest vertices of the polyhedron lie within the
     // triangle.
     if (tri_feature == triangle_feature::face) {
         for (auto idxA : polygon.hull) {
@@ -200,7 +197,7 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
 
     // Calculate 2D intersection of edges on the closest features.
     if (polygon.hull.size() > 1 && hull_tri_size > 1) {
-        // If the feature is a polygon, it will be necessary to wrap around the 
+        // If the feature is a polygon, it will be necessary to wrap around the
         // vertex array. If it is just one edge, then avoid calculating the same
         // segment-segment intersection twice.
         const auto size_poly = polygon.hull.size();
@@ -221,7 +218,7 @@ void collide(const polyhedron_shape &poly, const triangle_shape &tri,
                 auto idx1B = hull_tri[(j + 1) % hull_tri_size];
                 auto &v0B = plane_vertices_tri[idx0B];
                 auto &v1B = plane_vertices_tri[idx1B];
-                auto num_points = intersect_segments(v0A, v1A, v0B, v1B, 
+                auto num_points = intersect_segments(v0A, v1A, v0B, v1B,
                                                      s[0], t[0], s[1], t[1]);
 
                 for (size_t k = 0; k < num_points; ++k) {

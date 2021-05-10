@@ -8,7 +8,7 @@ namespace edyn {
 
 void collide(const polyhedron_shape &shA, const capsule_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    // Convex polyhedron vs capsule SAT. All calculations done in the 
+    // Convex polyhedron vs capsule SAT. All calculations done in the
     // polyhedron's space.
     const auto posB = to_object_space(ctx.posB, ctx.posA, ctx.ornA);
     const auto ornB = conjugate(ctx.ornA) * ctx.ornB;
@@ -43,17 +43,14 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
         auto [vertexA0, vertexA1] = shA.mesh->get_edge(i);
         scalar s, t;
         vector3 closestA, closestB;
-        closest_point_segment_segment(vertexA0, vertexA1, 
-                                      capsule_vertices[0], capsule_vertices[1], 
+        closest_point_segment_segment(vertexA0, vertexA1,
+                                      capsule_vertices[0], capsule_vertices[1],
                                       s, t, closestA, closestB);
         auto dir = closestA - closestB;
-        auto dir_len_sqr = length_sqr(dir);
 
-        if (!(dir_len_sqr > EDYN_EPSILON)) {
+        if (!try_normalize(dir)) {
             continue;
         }
-
-        dir /= std::sqrt(dir_len_sqr);
 
         if (dot(posB, dir) > 0) {
             // Make it point towards A.
@@ -106,10 +103,10 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
         if (result.num_points == 2) {
             return;
         }
-        
-        // Check if the capsule edge intersects the polygon's edges. 
+
+        // Check if the capsule edge intersects the polygon's edges.
         if (polygon.hull.size() > 1) {
-            // If the feature is a polygon, it will be necessary to wrap around the 
+            // If the feature is a polygon, it will be necessary to wrap around the
             // vertex array. If it is just one edge, then avoid calculating the same
             // segment-segment intersection twice.
             const auto sizeA = polygon.hull.size();
@@ -127,7 +124,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
                 auto &v0A = polygon.plane_vertices[idx0A];
                 auto &v1A = polygon.plane_vertices[idx1A];
 
-                auto num_points = intersect_segments(v0A, v1A, plane_capsule_vertices[0], plane_capsule_vertices[1], 
+                auto num_points = intersect_segments(v0A, v1A, plane_capsule_vertices[0], plane_capsule_vertices[1],
                                                      s[0], t[0], s[1], t[1]);
 
                 for (size_t k = 0; k < num_points; ++k) {
@@ -148,7 +145,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
             result.add_point({pivotA, pivotB, normalB, distance});
         }
     } else {
-        auto &closest_capsule_vertex = proj_capsule_vertices[0] > proj_capsule_vertices[1] ? 
+        auto &closest_capsule_vertex = proj_capsule_vertices[0] > proj_capsule_vertices[1] ?
                                        capsule_vertices[0] : capsule_vertices[1];
         auto pivotB_world = closest_capsule_vertex + sep_axis * shB.radius;
         auto pivotB = to_object_space(pivotB_world, posB, ornB);

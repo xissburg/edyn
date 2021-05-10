@@ -47,7 +47,7 @@ void collide(const box_shape &box, const triangle_shape &tri,
         }
 
         // `proj` is the projection of the support point on the triangle onto
-        // `axisA` considering it starts at `posA`. The projection of the box
+        // `dir` considering it starts at `posA`. The projection of the box
         // onto this axis is the half extent in this direction.
         auto dist = -(box.half_extents[j] + proj);
 
@@ -78,32 +78,28 @@ void collide(const box_shape &box, const triangle_shape &tri,
         for (size_t j = 0; j < 3; ++j) {
             auto &axisB = tri.edges[j];
             auto dir = cross(axisA, axisB);
-            auto dir_len_sqr = length_sqr(dir);
 
-            if (!(dir_len_sqr > EDYN_EPSILON)) {
+            if (!try_normalize(dir)) {
                 continue;
             }
 
-            dir /= std::sqrt(dir_len_sqr);
-
             if (dot(posA - tri.vertices[j], dir) < 0) {
-                // Make it point towards box.
-                dir *= -1;
+                dir *= -1; // Make it point towards box.
             }
 
             triangle_feature tri_feature;
             size_t tri_feature_idx;
             scalar projB;
-            get_triangle_support_feature(tri.vertices, vector3_zero, dir, 
-                                         tri_feature, tri_feature_idx, 
+            get_triangle_support_feature(tri.vertices, vector3_zero, dir,
+                                         tri_feature, tri_feature_idx,
                                          projB, support_feature_tolerance);
 
             if (tri.ignore_feature(tri_feature, tri_feature_idx, dir)) {
                 continue;
             }
 
-            auto projA = box.support_projection(posA, ornA, -dir);
-            auto dist = -(projA + projB);
+            auto projA = -box.support_projection(posA, ornA, -dir);
+            auto dist = projA - projB;
 
             if (dist > distance) {
                 distance = dist;
@@ -192,7 +188,7 @@ void collide(const box_shape &box, const triangle_shape &tri,
             // Convert this into a 2D segment intersection problem in the box' space.
             auto b0_in_A = to_object_space(b0, posA, ornA);
             auto b1_in_A = to_object_space(b1, posA, ornA);
-            
+
             vector2 half_extents;
             vector2 p0, p1;
 
@@ -358,8 +354,8 @@ void collide(const box_shape &box, const triangle_shape &tri,
         scalar s[2], t[2];
         vector3 pA[2], pB[2];
         size_t num_points = 0;
-        closest_point_segment_segment(edgeA[0], edgeA[1], edgeB[0], edgeB[1], 
-                                      s[0], t[0], pA[0], pB[0], &num_points, 
+        closest_point_segment_segment(edgeA[0], edgeA[1], edgeB[0], edgeB[1],
+                                      s[0], t[0], pA[0], pB[0], &num_points,
                                       &s[1], &t[1], &pA[1], &pB[1]);
 
         for (size_t i = 0; i < num_points; ++i) {

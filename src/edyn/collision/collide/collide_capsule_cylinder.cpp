@@ -46,12 +46,8 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     // Cylinder edge vs capsule edge.
     {
         auto dir = cross(cyl_axis, cap_axis);
-        auto dir_len_sqr = length_sqr(dir);
 
-        if (dir_len_sqr > EDYN_EPSILON) {
-            auto dir_len = std::sqrt(dir_len_sqr);
-            dir /= dir_len;
-
+        if (try_normalize(dir)) {
             if (dot(posA - posB, dir) < 0) {
                 dir *= -1; // Make dir point towards A.
             }
@@ -72,14 +68,11 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     for (auto &vertex : capsule_vertices) {
         vector3 closest; scalar t;
         closest_point_line(posB, cyl_axis, vertex, t, closest);
-
         auto dir = vertex - closest; // Points towards A.
-        auto dir_len_sqr = length_sqr(dir);
 
-        if (!(dir_len_sqr > EDYN_EPSILON)) continue;
-
-        auto dir_len = std::sqrt(dir_len_sqr);
-        dir /= dir_len;
+        if (!try_normalize(dir)) {
+            continue;
+        }
 
         auto projA = -capsule_support_projection(capsule_vertices, shA.radius, -dir);
         auto projB = shB.support_projection(posB, ornB, dir);
@@ -125,14 +118,11 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
             auto &vertex = capsule_vertices[j];
             vector3 closest;
             closest_point_disc(cylinder_vertices[i], ornB, shB.radius, vertex, closest);
-
             auto dir = closest - vertex;
-            auto dir_len_sqr = length_sqr(dir);
 
-            if (!(dir_len_sqr > EDYN_EPSILON)) continue;
-
-            auto dir_len = std::sqrt(dir_len_sqr);
-            dir /= dir_len;
+            if (!try_normalize(dir)) {
+                continue;
+            }
 
             if (dot(posA - posB, dir) < 0) {
                 dir *= -1; // Make it point towards A.
