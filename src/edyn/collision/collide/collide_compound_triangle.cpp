@@ -3,9 +3,9 @@
 
 namespace edyn {
 
-void collide(const compound_shape &compound, const triangle_shape &tri,
+void collide(const compound_shape &compound, const triangle_mesh &mesh, size_t tri_idx,
              const collision_context &ctx, collision_result &result) {
-    auto local_vertices = tri.vertices;
+    auto local_vertices = mesh.get_triangle_vertices(tri_idx);
 
     for (auto &vertex : local_vertices) {
         vertex = to_object_space(vertex, ctx.posA, ctx.ornA);
@@ -20,7 +20,7 @@ void collide(const compound_shape &compound, const triangle_shape &tri,
         child_ctx.ornA = ctx.ornA * node.orientation;
 
         collision_result child_result;
-        collide(sh, tri, child_ctx, child_result);
+        collide(sh, mesh, tri_idx, child_ctx, child_result);
 
         // The elements of A in the collision points must be transformed from
         // the child node's space into the compound's space.

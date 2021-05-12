@@ -11,8 +11,10 @@
 
 namespace edyn {
 
-void collide(const box_shape &box, const triangle_shape &tri,
+void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
              const collision_context &ctx, collision_result &result) {
+    auto tri = mesh.get_triangle(tri_idx);
+
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
     const auto threshold = ctx.threshold;

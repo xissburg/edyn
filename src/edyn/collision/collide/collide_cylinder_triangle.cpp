@@ -8,8 +8,10 @@
 
 namespace edyn {
 
-void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
+void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t tri_idx,
              const collision_context &ctx, collision_result &result) {
+    auto tri = mesh.get_triangle(tri_idx);
+
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
 
@@ -324,7 +326,7 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = project_plane(vertex, tri.vertices[0], tri.normal);
                 auto local_distance = dot(pivotA_world - tri.vertices[0], tri.normal);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
+                result.maybe_add_point({pivotA, pivotB, tri.normal, local_distance});
                 ++num_vert_in_tri_face;
             }
         }
@@ -358,11 +360,11 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
             auto num_points = intersect_segments(p0, p1, q0, q1, s[0], t[0], s[1], t[1]);
 
             for (size_t k = 0; k < num_points; ++k) {
-                auto pivotA_world = lerp(cylinder_vertices[0], cylinder_vertices[1], s[k]) - sep_axis * cylinder.radius;
+                auto pivotA_world = lerp(cylinder_vertices[0], cylinder_vertices[1], s[k]) - tri.normal * cylinder.radius;
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = lerp(v0, v1, t[k]);
-                auto local_distance = dot(pivotA_world - tri.vertices[0], sep_axis);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
+                auto local_distance = dot(pivotA_world - tri.vertices[0], tri.normal);
+                result.maybe_add_point({pivotA, pivotB, tri.normal, local_distance});
             }
         }
     } else if (featureA == cylinder_feature::side_edge && featureB == triangle_feature::edge) {
@@ -385,21 +387,29 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         }
     } else if (featureA == cylinder_feature::side_edge && featureB == triangle_feature::vertex) {
         auto pivotB = tri.vertices[feature_indexB];
-        vector3 pivotA; scalar t;
-        closest_point_segment(cylinder_vertices[0], cylinder_vertices[1], pivotB, t, pivotA);
+        vector3 closest; scalar t;
+        closest_point_line(posA, cylinder_axis, pivotB, t, closest);
 
         if (t > 0 && t < 1) {
-            pivotA -= sep_axis * cylinder.radius;
-            pivotA = to_object_space(pivotA, posA, ornA);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            auto dir = closest - pivotB;
+
+            if (dot(posA - pivotB, dir) < 0) {
+                dir *= -1;
+            }
+
+            if (try_normalize(dir)) {
+                auto pivotA_world = closest - dir * cylinder.radius;
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                result.maybe_add_point({pivotA, pivotB, dir, distance});
+            }
         }
     } else if (featureA == cylinder_feature::cap_edge && featureB == triangle_feature::face) {
-        auto pivotA_world = cylinder.support_point(posA, ornA, -sep_axis);
+        auto pivotA_world = cylinder.support_point(posA, ornA, -tri.normal);
 
         if (point_in_triangle(tri.vertices, tri.normal, pivotA_world)) {
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
             auto pivotB = project_plane(pivotA_world, tri.vertices[0], tri.normal);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            result.maybe_add_point({pivotA, pivotB, tri.normal, distance});
         }
     } else if (featureA == cylinder_feature::cap_edge && featureB == triangle_feature::edge) {
         auto pivotA_world = cylinder.support_point(posA, ornA, -sep_axis);
@@ -407,11 +417,16 @@ void collide(const cylinder_shape &cylinder, const triangle_shape &tri,
         auto v1 = tri.vertices[(feature_indexB + 1) % 3];
         vector3 closest; scalar t;
         closest_point_line(v0, v1 - v0, pivotA_world, t, closest);
+        auto dir = pivotA_world - closest;
 
-        if (t > 0 && t < 1 && !(length_sqr(cross(pivotA_world - closest, sep_axis)) > EDYN_EPSILON)) {
+        if (t > 0 && t < 1 && try_normalize(dir)) {
+            if (dot(posA - closest, dir) < 0) {
+                dir *= -1;
+            }
+
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
             auto pivotB = closest;
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            result.maybe_add_point({pivotA, pivotB, dir, distance});
         }
     }
 }

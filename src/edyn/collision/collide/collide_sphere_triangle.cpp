@@ -2,8 +2,9 @@
 
 namespace edyn {
 
-void collide(const sphere_shape &sphere, const triangle_shape &tri,
+void collide(const sphere_shape &sphere, const triangle_mesh &mesh, size_t tri_idx,
              const collision_context &ctx, collision_result &result) {
+    auto tri = mesh.get_triangle(tri_idx);
     const auto &sphere_pos = ctx.posA;
     const auto &sphere_orn = ctx.ornA;
     const auto threshold = ctx.threshold;
@@ -52,9 +53,9 @@ void collide(const sphere_shape &sphere, const triangle_shape &tri,
                 } else {
                     edge_normal = tri.normal;
                 }
-                
+
                 // Check if angle between edge normal and the i-th triangle normal
-                // is in the range between the i-th and k-th triangle normals. 
+                // is in the range between the i-th and k-th triangle normals.
                 if (dot(edge_normal, tri.normal) > tri.cos_angles[i]) {
                     dist_sqr = edge_dist_sqr;
                     closest_point = edge_point;
@@ -66,7 +67,7 @@ void collide(const sphere_shape &sphere, const triangle_shape &tri,
         }
 
         if (has_contact) {
-            auto pivotA = to_object_space(sphere_pos - closest_edge_normal * sphere.radius, 
+            auto pivotA = to_object_space(sphere_pos - closest_edge_normal * sphere.radius,
                                           sphere_pos, sphere_orn);
             auto pivotB = closest_point;
             auto normalB = closest_edge_normal;
