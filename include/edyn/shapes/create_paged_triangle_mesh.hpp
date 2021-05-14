@@ -49,7 +49,7 @@ struct submesh_builder {
             auto local_num_triangles = info.ids.size();
             auto global_indices = std::vector<size_t>();
             global_indices.reserve(local_num_triangles * 3);
-            
+
             for (auto it = info.ids.begin(); it != info.ids.end(); ++it) {
                 for (size_t i = 0; i < 3; ++i) {
                     auto index = *(index_begin + ((*it) * 3 + i));
@@ -66,33 +66,33 @@ struct submesh_builder {
 
             // Create triangle mesh for this leaf and allocate vertices and indices.
             auto trimesh = std::make_unique<triangle_mesh>();
-            trimesh->vertices.reserve(local_indices.size());
-            trimesh->indices.reserve(global_indices.size());
+            trimesh->m_vertices.reserve(local_indices.size());
+            trimesh->m_indices.reserve(global_indices.size());
 
             // Insert vertices into triangle mesh.
             for (auto idx : local_indices) {
-                trimesh->vertices.push_back(*(vertex_begin + idx));
+                trimesh->m_vertices.push_back(*(vertex_begin + idx));
             }
 
             // Obtain local indices from global indices and add to triangle mesh.
             for (auto idx : global_indices) {
                 auto it = std::find(local_indices.begin(), local_indices.end(), idx);
                 auto local_idx = std::distance(local_indices.begin(), it);
-                trimesh->indices.push_back(local_idx);
+                trimesh->m_indices.push_back(local_idx);
             }
 
             // Initialize triangle mesh.
             trimesh->build_tree();
 
             // Edge-angles are calculated after the entire tree is ready so that
-            // neighboring triangles that reside in another submesh are also 
+            // neighboring triangles that reside in another submesh are also
             // considered. Thus, only allocate space for edge angle info.
-            trimesh->initialize_edge_angles();
+            trimesh->initialize();
 
             // Create node.
             auto &paged_node = paged_tri_mesh->m_cache[idx];
-            paged_node.num_vertices = trimesh->vertices.size();
-            paged_node.num_indices = trimesh->indices.size();
+            paged_node.num_vertices = trimesh->m_vertices.size();
+            paged_node.num_indices = trimesh->m_indices.size();
             paged_node.trimesh = std::move(trimesh);
         });
     }
@@ -148,11 +148,11 @@ void create_paged_triangle_mesh(
 
     // Resize LRU queue to have the number of leaves.
     paged_tri_mesh.m_lru_indices.resize(paged_tri_mesh.m_cache.size());
-    std::iota(paged_tri_mesh.m_lru_indices.begin(), 
+    std::iota(paged_tri_mesh.m_lru_indices.begin(),
               paged_tri_mesh.m_lru_indices.end(), 0);
 
     paged_tri_mesh.m_is_loading_submesh = std::make_unique<std::atomic<bool>[]>(paged_tri_mesh.m_cache.size());
-    
+
     // Calculate edge angles.
     constexpr scalar merge_distance = 0.01;
     paged_tri_mesh.calculate_edge_angles(merge_distance);

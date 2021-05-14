@@ -54,7 +54,7 @@ inline auto lerp(T a, T b, Scalar s) {
  * @return The square of a number.
  */
 template<typename T>
-inline auto sqr(T a) {
+inline auto square(T a) {
     return a * a;
 }
 

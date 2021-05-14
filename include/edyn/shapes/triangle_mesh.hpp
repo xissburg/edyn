@@ -16,13 +16,13 @@ namespace edyn {
  * accelerate closest point queries.
  */
 class triangle_mesh {
+public:
     void initialize();
     void calculate_face_normals();
     void init_edge_indices();
     void calculate_edge_normals();
-    void init_vertex_edge_indices();
+    void init_vertex_tangents();
     void init_face_edge_indices();
-    void calculate_concave_vertices();
     void calculate_concave_edges();
     void build_tree();
 
@@ -38,6 +38,19 @@ public:
     }
 
     triangle_vertices get_triangle_vertices(size_t tri_idx) const;
+
+    vector3 get_triangle_normal(size_t tri_idx) const {
+        EDYN_ASSERT(tri_idx < m_normals.size());
+        return m_normals[tri_idx];
+    }
+
+    std::array<vector3, 2> get_edge_vertices(size_t edge_idx) const {
+        EDYN_ASSERT(edge_idx < m_edge_indices.size());
+        return {
+            m_vertices[m_edge_indices[edge_idx][0]],
+            m_vertices[m_edge_indices[edge_idx][1]]
+        };
+    }
 
     template<typename Func>
     void visit(const AABB &aabb, Func func) const {
@@ -63,11 +76,36 @@ public:
         }
     }
 
-    bool ignore_vertex(size_t vertex_idx, const vector3 &dir) const;
+    bool in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) const;
 
-    bool ignore_edge(size_t edge_idx, const vector3 &dir) const;
+    bool in_edge_voronoi(size_t edge_idx, const vector3 &dir) const;
 
-private:
+    bool is_concave_vertex(size_t vertex_idx) const {
+        EDYN_ASSERT(vertex_idx < m_is_concave_vertex.size());
+        return m_is_concave_vertex[vertex_idx];
+    }
+
+    bool is_concave_edge(size_t edge_idx) const {
+        EDYN_ASSERT(edge_idx < m_is_concave_edge.size());
+        return m_is_concave_edge[edge_idx];
+    }
+
+    bool ignore_triangle_feature(size_t tri_idx, triangle_feature tri_feature,
+                                 size_t feature_idx, const vector3 &dir) const;
+
+    index_type get_face_vertex_index(size_t tri_idx, size_t vertex_idx) const {
+        EDYN_ASSERT(tri_idx < m_face_edge_indices.size());
+        EDYN_ASSERT(vertex_idx < 3);
+        return m_indices[tri_idx][vertex_idx];
+    }
+
+    index_type get_face_edge_index(size_t tri_idx, size_t edge_idx) const {
+        EDYN_ASSERT(tri_idx < m_face_edge_indices.size());
+        EDYN_ASSERT(edge_idx < 3);
+        return m_face_edge_indices[tri_idx][edge_idx];
+    }
+
+//private:
     // Vertex positions.
     std::vector<vector3> m_vertices;
 
@@ -88,15 +126,15 @@ private:
     // same and point towards the single face that contains this edge.
     std::vector<std::array<vector3, 2>> m_edge_normals;
 
-    // Indices of edges that share a vertex. There is a sequence of N
-    // indices for each vertex. The range of the sequence is stored in
-    // `vertex_edge_index_ranges`.
-    std::vector<index_type> m_vertex_edge_indices;
+    // Vectors that are tangent to a vertex. More specifically, these are the
+    // directions of the edges that depart from a vertex. There is a sequence
+    // of N indices for each vertex. The range of the sequence is stored in
+    // `m_vertex_tangent_ranges`.
+    std::vector<vector3> m_vertex_tangents;
 
-    // Each pair of values represent the start of the edge index list in the
-    // `vertex_edge_indices` array followed by the number of indices, i.e.
-    // the number of edges sharing a vertex.
-    std::vector<std::array<index_type, 2>> m_vertex_edge_index_ranges;
+    // Each pair of values represent the start and end of the vertex tangent
+    // list in the `m_vertex_tangents` array.
+    std::vector<std::array<index_type, 2>> m_vertex_tangent_ranges;
 
     // Each element represents the indices of the three edges of a face.
     std::vector<std::array<index_type, 3>> m_face_edge_indices;
@@ -104,6 +142,10 @@ private:
     // Indices of the two faces that share the i-th edge. Perimetral edges will
     // have the same value for both faces.
     std::vector<std::array<index_type, 2>> m_edge_face_indices;
+
+    // Indices of edges that are located on the boundary of the mesh. These
+    // edges are associated with a single triangle.
+    std::vector<index_type> m_boundary_edge_indices;
 
     // Whether an edge is concave.
     std::vector<bool> m_is_concave_edge;

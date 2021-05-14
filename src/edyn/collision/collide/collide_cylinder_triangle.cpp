@@ -10,8 +10,6 @@ namespace edyn {
 
 void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t tri_idx,
              const collision_context &ctx, collision_result &result) {
-    auto tri = mesh.get_triangle(tri_idx);
-
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
 
@@ -20,6 +18,9 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
         posA + cylinder_axis * cylinder.half_length,
         posA - cylinder_axis * cylinder.half_length
     };
+
+    auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
+    auto tri_normal = mesh.get_triangle_normal(tri_idx);
 
     triangle_feature featureB;
     size_t feature_indexB;
@@ -33,11 +34,11 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
         triangle_feature tri_feature;
         size_t tri_feature_idx;
         scalar proj;
-        get_triangle_support_feature(tri.vertices, posA, dir,
+        get_triangle_support_feature(tri_vertices, posA, dir,
                                      tri_feature, tri_feature_idx, proj,
                                      support_feature_tolerance);
 
-        if (tri.ignore_feature(tri_feature, tri_feature_idx, dir)) {
+        if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_idx, dir)) {
             continue;
         }
 
@@ -56,37 +57,40 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
 
     // Triangle face normal.
     {
-        auto projA = -cylinder.support_projection(posA, ornA, -tri.normal);
-        auto projB = dot(tri.vertices[0], tri.normal);
+        auto projA = -cylinder.support_projection(posA, ornA, -tri_normal);
+        auto projB = dot(tri_vertices[0], tri_normal);
         auto dist = projA - projB;
 
         if (dist > distance) {
             distance = dist;
-            sep_axis = tri.normal;
+            sep_axis = tri_normal;
             featureB = triangle_feature::face;
         }
     }
 
     // Cylinder side edges vs triangle edges.
     for (size_t i = 0; i < 3; ++i) {
-        auto dir = cross(cylinder_axis, tri.edges[i]);
+        auto v0 = tri_vertices[i];
+        auto v1 = tri_vertices[(i + 1) % 3];
+        auto tri_edge = v1 - v0;
+        auto dir = cross(cylinder_axis, tri_edge);
 
         if (!try_normalize(dir)) {
             continue;
         }
 
-        if (dot(posA - tri.vertices[i], dir) < 0) {
+        if (dot(posA - tri_vertices[i], dir) < 0) {
             dir *= -1; // Make it point towards cylinder.
         }
 
         triangle_feature tri_feature;
         size_t tri_feature_idx;
         scalar projB;
-        get_triangle_support_feature(tri.vertices, vector3_zero, dir,
+        get_triangle_support_feature(tri_vertices, vector3_zero, dir,
                                      tri_feature, tri_feature_idx,
                                      projB, support_feature_tolerance);
 
-        if (tri.ignore_feature(tri_feature, tri_feature_idx, dir)) {
+        if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_idx, dir)) {
             continue;
         }
 
@@ -104,25 +108,25 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
     // Cylinder side edges vs triangle vertices.
     for (size_t i = 0; i < 3; ++i) {
         vector3 closest; scalar t;
-        closest_point_line(posA, cylinder_axis, tri.vertices[i], t, closest);
-        auto dir = closest - tri.vertices[i];
+        closest_point_line(posA, cylinder_axis, tri_vertices[i], t, closest);
+        auto dir = closest - tri_vertices[i];
 
         if (!try_normalize(dir)) {
             continue;
         }
 
-        if (dot(posA - tri.vertices[i], dir) < 0) {
+        if (dot(posA - tri_vertices[i], dir) < 0) {
             dir *= -1; // Make it point towards cylinder.
         }
 
         triangle_feature tri_feature;
         size_t tri_feature_idx;
         scalar projB;
-        get_triangle_support_feature(tri.vertices, vector3_zero, dir,
+        get_triangle_support_feature(tri_vertices, vector3_zero, dir,
                                      tri_feature, tri_feature_idx,
                                      projB, support_feature_tolerance);
 
-        if (tri.ignore_feature(tri_feature, tri_feature_idx, dir)) {
+        if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_idx, dir)) {
             continue;
         }
 
@@ -142,8 +146,8 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
         auto circle_pos = cylinder_vertices[i];
 
         for (size_t j = 0; j < 3; ++j) {
-            auto &v0 = tri.vertices[j];
-            auto &v1 = tri.vertices[(j + 1) % 3];
+            auto &v0 = tri_vertices[j];
+            auto &v1 = tri_vertices[(j + 1) % 3];
 
             // Find closest point between circle and triangle edge segment.
             size_t num_points;
@@ -156,18 +160,18 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
                                       s[1], closest_circle[1], closest_line[1],
                                       dir, support_feature_tolerance);
 
-            if (dot(posA - tri.vertices[i], dir) < 0) {
+            if (dot(posA - tri_vertices[i], dir) < 0) {
                 dir *= -1; // Make it point towards cylinder.
             }
 
             triangle_feature tri_feature;
             size_t tri_feature_idx;
             scalar projB;
-            get_triangle_support_feature(tri.vertices, vector3_zero, dir,
+            get_triangle_support_feature(tri_vertices, vector3_zero, dir,
                                         tri_feature, tri_feature_idx,
                                         projB, support_feature_tolerance);
 
-            if (tri.ignore_feature(tri_feature, tri_feature_idx, dir)) {
+            if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_idx, dir)) {
                 continue;
             }
 
@@ -200,15 +204,17 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
 
         // Check if circle and triangle edges intersect.
         for (size_t i = 0; i < 3; ++i) {
-            if (tri.ignore_edge(i, sep_axis)) {
+            auto edge_idx = mesh.get_face_edge_index(tri_idx, i);
+
+            if (mesh.in_edge_voronoi(edge_idx, sep_axis)) {
                 continue;
             }
 
             // Transform vertices to cylinder space.
-            auto v0 = tri.vertices[i];
+            auto v0 = tri_vertices[i];
             auto v0_A = to_object_space(v0, posA, ornA);
 
-            auto v1 = tri.vertices[(i + 1) % 3];
+            auto v1 = tri_vertices[(i + 1) % 3];
             auto v1_A = to_object_space(v1, posA, ornA);
 
             scalar s[2];
@@ -253,7 +259,7 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
         // contained in the triangle.
         if (num_edge_intersections == 0) {
             // Check if cylinder center is contained in the triangle prism.
-            if (point_in_triangle(tri.vertices, tri.normal, posA)) {
+            if (point_in_triangle(tri_vertices, tri_normal, posA)) {
                 auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
                 for(size_t i = 0; i < 4; ++i) {
                     auto pivotA_x = cylinder.half_length * sign_faceA;
@@ -261,16 +267,18 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
                                           cylinder.radius * multipliers[i],
                                           cylinder.radius * multipliers[(i + 1) % 4]};
                     auto pivotB = to_world_space(pivotA, posA, ornA);
-                    pivotB = project_plane(pivotB, tri.vertices[0], tri.normal);
+                    pivotB = project_plane(pivotB, tri_vertices[0], tri_normal);
                     result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
                 }
             }
         } else if (num_edge_intersections == 1) {
             // If it intersects a single edge, only two contact points have been added,
             // thus add extra points to create a stable base.
-            auto tangent = cross(tri.normal, tri.edges[last_edge_index]);
+            auto edge_dir = tri_vertices[(last_edge_index + 1) % 3] - tri_vertices[last_edge_index];
+            auto tangent = cross(tri_normal, edge_dir);
             auto other_vertex_idx = (last_edge_index + 2) % 3;
-            if (dot(tangent, tri.vertices[other_vertex_idx] - tri.vertices[last_edge_index]) < 0) {
+
+            if (dot(tangent, tri_vertices[other_vertex_idx] - tri_vertices[last_edge_index]) < 0) {
                 tangent *= -1;
             }
 
@@ -278,15 +286,15 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
             auto circle_pos = cylinder_vertices[feature_indexA];
             auto pivotA_in_B = circle_pos + tangent * cylinder.radius;
             auto pivotA = to_object_space(pivotA_in_B, posA, ornA);
-            auto pivotB = project_plane(pivotA_in_B, tri.vertices[0], tri.normal);
+            auto pivotB = project_plane(pivotA_in_B, tri_vertices[0], tri_normal);
             result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     } else if (featureA == cylinder_feature::face && featureB == triangle_feature::edge) {
         // Transform vertices to cylinder space.
-        auto v0 = tri.vertices[feature_indexB];
+        auto v0 = tri_vertices[feature_indexB];
         auto v0_A = to_object_space(v0, posA, ornA);
 
-        auto v1 = tri.vertices[(feature_indexB + 1) % 3];
+        auto v1 = tri_vertices[(feature_indexB + 1) % 3];
         auto v1_A = to_object_space(v1, posA, ornA);
 
         scalar s[2];
@@ -305,7 +313,7 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
             result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
         }
     } else if (featureA == cylinder_feature::face && featureB == triangle_feature::vertex) {
-        auto vertexB = tri.vertices[feature_indexB];
+        auto vertexB = tri_vertices[feature_indexB];
 
         if (distance_sqr_line(posA, cylinder_axis, vertexB) < cylinder.radius * cylinder.radius) {
             auto sign_faceA = to_sign(feature_indexA == 0);
@@ -321,12 +329,12 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
         size_t num_vert_in_tri_face = 0;
 
         for (auto &vertex : cylinder_vertices) {
-            if (point_in_triangle(tri.vertices, tri.normal, vertex)) {
-                auto pivotA_world = vertex - tri.normal * cylinder.radius;
+            if (point_in_triangle(tri_vertices, tri_normal, vertex)) {
+                auto pivotA_world = vertex - tri_normal * cylinder.radius;
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                auto pivotB = project_plane(vertex, tri.vertices[0], tri.normal);
-                auto local_distance = dot(pivotA_world - tri.vertices[0], tri.normal);
-                result.maybe_add_point({pivotA, pivotB, tri.normal, local_distance});
+                auto pivotB = project_plane(vertex, tri_vertices[0], tri_normal);
+                auto local_distance = dot(pivotA_world - tri_vertices[0], tri_normal);
+                result.maybe_add_point({pivotA, pivotB, tri_normal, local_distance});
                 ++num_vert_in_tri_face;
             }
         }
@@ -337,22 +345,23 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
         }
 
         // Check if the cylinder edge intersects the triangle edges.
-        auto &tri_origin = tri.vertices[0];
-        auto tangent = normalize(tri.vertices[1] - tri.vertices[0]);
-        auto bitangent = cross(tri.normal, tangent);
-        auto tri_basis = matrix3x3_columns(tangent, tri.normal, bitangent);
+        auto &tri_origin = tri_vertices[0];
+        auto tangent = normalize(tri_vertices[1] - tri_vertices[0]);
+        auto bitangent = cross(tri_normal, tangent);
+        auto tri_basis = matrix3x3_columns(tangent, tri_normal, bitangent);
 
         auto p0 = to_vector2_xz(to_object_space(cylinder_vertices[0], tri_origin, tri_basis));
         auto p1 = to_vector2_xz(to_object_space(cylinder_vertices[1], tri_origin, tri_basis));
 
         for (int i = 0; i < 3; ++i) {
+            auto edge_idx = mesh.get_face_edge_index(tri_idx, i);
             // Ignore concave edges.
-            if (tri.is_concave_edge[i]) {
+            if (mesh.is_concave_edge(edge_idx)) {
                 continue;
             }
 
-            auto &v0 = tri.vertices[i];
-            auto &v1 = tri.vertices[(i + 1) % 3];
+            auto &v0 = tri_vertices[i];
+            auto &v1 = tri_vertices[(i + 1) % 3];
             auto q0 = to_vector2_xz(to_object_space(v0, tri_origin, tri_basis));
             auto q1 = to_vector2_xz(to_object_space(v1, tri_origin, tri_basis));
 
@@ -360,16 +369,16 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
             auto num_points = intersect_segments(p0, p1, q0, q1, s[0], t[0], s[1], t[1]);
 
             for (size_t k = 0; k < num_points; ++k) {
-                auto pivotA_world = lerp(cylinder_vertices[0], cylinder_vertices[1], s[k]) - tri.normal * cylinder.radius;
+                auto pivotA_world = lerp(cylinder_vertices[0], cylinder_vertices[1], s[k]) - tri_normal * cylinder.radius;
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = lerp(v0, v1, t[k]);
-                auto local_distance = dot(pivotA_world - tri.vertices[0], tri.normal);
-                result.maybe_add_point({pivotA, pivotB, tri.normal, local_distance});
+                auto local_distance = dot(pivotA_world - tri_vertices[0], tri_normal);
+                result.maybe_add_point({pivotA, pivotB, tri_normal, local_distance});
             }
         }
     } else if (featureA == cylinder_feature::side_edge && featureB == triangle_feature::edge) {
-        auto v0 = tri.vertices[feature_indexB];
-        auto v1 = tri.vertices[(feature_indexB + 1) % 3];
+        auto v0 = tri_vertices[feature_indexB];
+        auto v1 = tri_vertices[(feature_indexB + 1) % 3];
         scalar s[2], t[2];
         vector3 p0[2], p1[2];
         size_t num_points = 0;
@@ -386,7 +395,7 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
             }
         }
     } else if (featureA == cylinder_feature::side_edge && featureB == triangle_feature::vertex) {
-        auto pivotB = tri.vertices[feature_indexB];
+        auto pivotB = tri_vertices[feature_indexB];
         vector3 closest; scalar t;
         closest_point_line(posA, cylinder_axis, pivotB, t, closest);
 
@@ -404,17 +413,17 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
             }
         }
     } else if (featureA == cylinder_feature::cap_edge && featureB == triangle_feature::face) {
-        auto pivotA_world = cylinder.support_point(posA, ornA, -tri.normal);
+        auto pivotA_world = cylinder.support_point(posA, ornA, -tri_normal);
 
-        if (point_in_triangle(tri.vertices, tri.normal, pivotA_world)) {
+        if (point_in_triangle(tri_vertices, tri_normal, pivotA_world)) {
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            auto pivotB = project_plane(pivotA_world, tri.vertices[0], tri.normal);
-            result.maybe_add_point({pivotA, pivotB, tri.normal, distance});
+            auto pivotB = project_plane(pivotA_world, tri_vertices[0], tri_normal);
+            result.maybe_add_point({pivotA, pivotB, tri_normal, distance});
         }
     } else if (featureA == cylinder_feature::cap_edge && featureB == triangle_feature::edge) {
         auto pivotA_world = cylinder.support_point(posA, ornA, -sep_axis);
-        auto v0 = tri.vertices[feature_indexB];
-        auto v1 = tri.vertices[(feature_indexB + 1) % 3];
+        auto v0 = tri_vertices[feature_indexB];
+        auto v1 = tri_vertices[(feature_indexB + 1) % 3];
         vector3 closest; scalar t;
         closest_point_line(v0, v1 - v0, pivotA_world, t, closest);
         auto dir = pivotA_world - closest;

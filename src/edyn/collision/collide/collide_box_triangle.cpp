@@ -13,11 +13,12 @@ namespace edyn {
 
 void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
              const collision_context &ctx, collision_result &result) {
-    auto tri = mesh.get_triangle(tri_idx);
-
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
     const auto threshold = ctx.threshold;
+
+    auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
+    auto tri_normal = mesh.get_triangle_normal(tri_idx);
 
     triangle_feature featureB;
     size_t feature_indexB;
@@ -40,11 +41,11 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
         triangle_feature tri_feature;
         size_t tri_feature_idx;
         scalar proj;
-        get_triangle_support_feature(tri.vertices, posA, dir,
+        get_triangle_support_feature(tri_vertices, posA, dir,
                                      tri_feature, tri_feature_idx, proj,
                                      support_feature_tolerance);
 
-        if (tri.ignore_feature(tri_feature, tri_feature_idx, dir)) {
+        if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_idx, dir)) {
             continue;
         }
 
@@ -63,12 +64,12 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
 
     // Triangle face normal.
     {
-        auto proj = box.support_projection(posA, ornA, -tri.normal);
-        auto dist = -(proj + dot(tri.vertices[0], tri.normal));
+        auto proj = box.support_projection(posA, ornA, -tri_normal);
+        auto dist = -(proj + dot(tri_vertices[0], tri_normal));
 
         if (dist > distance) {
             distance = dist;
-            sep_axis = tri.normal;
+            sep_axis = tri_normal;
             featureB = triangle_feature::face;
         }
     }
@@ -78,25 +79,27 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
         auto &axisA = box_axes[i];
 
         for (size_t j = 0; j < 3; ++j) {
-            auto &axisB = tri.edges[j];
+            auto v0 = tri_vertices[j];
+            auto v1 = tri_vertices[(j + 1) % 3];
+            auto axisB = v1 - v0;
             auto dir = cross(axisA, axisB);
 
             if (!try_normalize(dir)) {
                 continue;
             }
 
-            if (dot(posA - tri.vertices[j], dir) < 0) {
+            if (dot(posA - tri_vertices[j], dir) < 0) {
                 dir *= -1; // Make it point towards box.
             }
 
             triangle_feature tri_feature;
             size_t tri_feature_idx;
             scalar projB;
-            get_triangle_support_feature(tri.vertices, vector3_zero, dir,
+            get_triangle_support_feature(tri_vertices, vector3_zero, dir,
                                          tri_feature, tri_feature_idx,
                                          projB, support_feature_tolerance);
 
-            if (tri.ignore_feature(tri_feature, tri_feature_idx, dir)) {
+            if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_idx, dir)) {
                 continue;
             }
 
@@ -136,16 +139,15 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
         size_t num_tri_vert_in_box_face = 0;
 
         for (int i = 0; i < 3; ++i) {
-            // Ignore vertices that are on a concave edge.
-            if (tri.is_concave_vertex[i]) {
+            if (mesh.is_concave_vertex(mesh.get_face_vertex_index(tri_idx, i))) {
                 continue;
             }
 
-            if (point_in_polygonal_prism(verticesA, normalA, tri.vertices[i])) {
+            if (point_in_polygonal_prism(verticesA, normalA, tri_vertices[i])) {
                 // Triangle vertex is inside box face.
-                auto pivot_on_face = project_plane(tri.vertices[i], verticesA[0], normalA);
+                auto pivot_on_face = project_plane(tri_vertices[i], verticesA[0], normalA);
                 auto pivotA = to_object_space(pivot_on_face, posA, ornA);
-                auto pivotB = tri.vertices[i];
+                auto pivotB = tri_vertices[i];
                 auto local_distance = dot(pivot_on_face - pivotB, sep_axis);
                 result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
                 ++num_tri_vert_in_box_face;
@@ -162,10 +164,10 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
         size_t num_box_vert_in_tri_face = 0;
 
         for (int i = 0; i < 4; ++i) {
-            if (point_in_triangle(tri.vertices, tri.normal, verticesA[i])) {
+            if (point_in_triangle(tri_vertices, tri_normal, verticesA[i])) {
                 auto pivotA = verticesA_local[i];
-                auto pivotB = project_plane(verticesA[i], tri.vertices[0], tri.normal);
-                auto local_distance = dot(verticesA[i] - tri.vertices[0], sep_axis);
+                auto pivotB = project_plane(verticesA[i], tri_vertices[0], tri_normal);
+                auto local_distance = dot(verticesA[i] - tri_vertices[0], sep_axis);
                 result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
                 ++num_box_vert_in_tri_face;
             }
@@ -180,12 +182,12 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
         // Perform edge intersection tests.
         for (int i = 0; i < 3; ++i) {
             // Ignore concave edges.
-            if (tri.is_concave_edge[i]) {
+            if (mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, i))) {
                 continue;
             }
 
-            auto &b0 = tri.vertices[i];
-            auto &b1 = tri.vertices[(i + 1) % 3];
+            auto &b0 = tri_vertices[i];
+            auto &b1 = tri_vertices[(i + 1) % 3];
 
             // Convert this into a 2D segment intersection problem in the box' space.
             auto b0_in_A = to_object_space(b0, posA, ornA);
@@ -220,7 +222,7 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
             }
         }
     } else if (featureA == box_feature::face && featureB == triangle_feature::edge) {
-        EDYN_ASSERT(!tri.is_concave_edge[feature_indexB]);
+        EDYN_ASSERT(!mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, feature_indexB)));
 
         auto normalA = box.get_face_normal(feature_indexA, ornA);
         auto verticesA_local = box.get_face(feature_indexA);
@@ -230,8 +232,8 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
         }
 
         // Check if edge vertices are inside box face.
-        vector3 edge_vertices[] = {tri.vertices[feature_indexB],
-                                   tri.vertices[(feature_indexB + 1) % 3]};
+        vector3 edge_vertices[] = {tri_vertices[feature_indexB],
+                                   tri_vertices[(feature_indexB + 1) % 3]};
         size_t num_edge_vert_in_box_face = 0;
 
         for (int i = 0; i < 2; ++i) {
@@ -289,10 +291,10 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
         for (size_t i = 0; i < 2; ++i) {
             verticesA[i] = to_world_space(verticesA_local[i], posA, ornA);
 
-            if (point_in_triangle(tri.vertices, tri.normal, verticesA[i])) {
+            if (point_in_triangle(tri_vertices, tri_normal, verticesA[i])) {
                 auto pivotA = verticesA_local[i];
-                auto pivotB = project_plane(verticesA[i], tri.vertices[0], tri.normal);
-                auto local_distance = dot(verticesA[i] - tri.vertices[0], sep_axis);
+                auto pivotB = project_plane(verticesA[i], tri_vertices[0], tri_normal);
+                auto local_distance = dot(verticesA[i] - tri_vertices[0], sep_axis);
                 result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
                 ++num_edge_vert_in_tri_face;
             }
@@ -304,24 +306,24 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
         }
 
         // Perform edge intersections in triangle's 2D space.
-        auto &tri_origin = tri.vertices[0];
-        auto tangent = normalize(tri.vertices[1] - tri.vertices[0]);
-        auto bitangent = cross(tri.normal, tangent); // Consequentially unit length.
-        auto tri_basis = matrix3x3_columns(tangent, tri.normal, bitangent);
+        auto &tri_origin = tri_vertices[0];
+        auto tangent = normalize(tri_vertices[1] - tri_vertices[0]);
+        auto bitangent = cross(tri_normal, tangent); // Consequentially unit length.
+        auto tri_basis = matrix3x3_columns(tangent, tri_normal, bitangent);
 
         auto v0A_in_tri = to_object_space(verticesA[0], tri_origin, tri_basis);
         auto v1A_in_tri = to_object_space(verticesA[1], tri_origin, tri_basis);
         auto p0 = to_vector2_xz(v0A_in_tri);
         auto p1 = to_vector2_xz(v1A_in_tri);
 
-        for (int i = 0; i < 3; ++i) {
+        for (auto i = 0; i < 3; ++i) {
             // Ignore concave edges.
-            if (tri.is_concave_edge[i]) {
+            if (mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, i))) {
                 continue;
             }
 
-            auto &v0 = tri.vertices[i];
-            auto &v1 = tri.vertices[(i + 1) % 3];
+            auto &v0 = tri_vertices[i];
+            auto &v1 = tri_vertices[(i + 1) % 3];
 
             auto v0B_in_tri = to_object_space(v0, tri_origin, tri_basis);
             auto v1B_in_tri = to_object_space(v1, tri_origin, tri_basis);
@@ -340,7 +342,7 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
             }
         }
     } else if (featureA == box_feature::edge && featureB == triangle_feature::edge) {
-        EDYN_ASSERT(!tri.is_concave_edge[feature_indexB]);
+        EDYN_ASSERT(!mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, feature_indexB)));
 
         auto edgeA_local = box.get_edge(feature_indexA);
         vector3 edgeA[] = {
@@ -349,8 +351,8 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
         };
 
         vector3 edgeB[] = {
-            tri.vertices[feature_indexB],
-            tri.vertices[(feature_indexB + 1) % 3]
+            tri_vertices[feature_indexB],
+            tri_vertices[(feature_indexB + 1) % 3]
         };
 
         scalar s[2], t[2];
@@ -366,9 +368,9 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
             result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     } else if (featureA == box_feature::face && featureB == triangle_feature::vertex) {
-        EDYN_ASSERT(!tri.is_concave_vertex[feature_indexB]);
+        EDYN_ASSERT(!mesh.is_concave_vertex(mesh.get_face_vertex_index(tri_idx, feature_indexB)));
 
-        auto vertex = tri.vertices[feature_indexB];
+        auto vertex = tri_vertices[feature_indexB];
         auto face_normal = box.get_face_normal(feature_indexA, ornA);
         auto face_vertices = box.get_face(feature_indexA, posA, ornA);
 
@@ -381,8 +383,8 @@ void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
     } else if (featureA == box_feature::vertex && featureB == triangle_feature::face) {
         auto pivotA = box.get_vertex(feature_indexA);
         auto pivotA_world = to_world_space(pivotA, posA, ornA);
-        auto pivotB = pivotA_world - tri.normal * distance;
-        if (point_in_triangle(tri.vertices, tri.normal, pivotB)) {
+        auto pivotB = pivotA_world - tri_normal * distance;
+        if (point_in_triangle(tri_vertices, tri_normal, pivotB)) {
             result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     }
