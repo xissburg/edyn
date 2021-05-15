@@ -397,7 +397,8 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
     } else if (featureA == cylinder_feature::side_edge && featureB == triangle_feature::vertex) {
         auto pivotB = tri_vertices[feature_indexB];
         vector3 closest; scalar t;
-        closest_point_line(posA, cylinder_axis, pivotB, t, closest);
+        auto axis = cylinder_vertices[1] - cylinder_vertices[0];
+        closest_point_line(cylinder_vertices[0], axis, pivotB, t, closest);
 
         if (t > 0 && t < 1) {
             auto dir = closest - pivotB;

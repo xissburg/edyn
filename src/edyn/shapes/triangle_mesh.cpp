@@ -50,15 +50,16 @@ void triangle_mesh::init_edge_indices() {
 }
 
 void triangle_mesh::init_vertex_tangents() {
-    m_vertex_tangent_ranges.reserve(m_vertices.size());
+    //m_vertex_tangent_ranges.reserve(m_vertices.size());
 
     // The total number of vertex tangents is not easily calculated. Since each
     // vertex is shared by at least 2 edges, reserve the number of vertices
     // times 2.
-    m_vertex_tangents.reserve(m_vertices.size() * 2);
+    //m_vertex_tangents.reserve(m_vertices.size() * 2);
+    m_vertex_tangents.resize(m_vertices.size());
 
     for (index_type v_idx = 0; v_idx < m_vertices.size(); ++v_idx) {
-        auto range_start = static_cast<index_type>(m_vertex_tangent_ranges.size());
+        //auto range_start = static_cast<index_type>(m_vertex_tangent_ranges.size());
 
         for (index_type e_idx = 0; e_idx < m_edge_indices.size(); ++e_idx) {
             auto edge_indices = m_edge_indices[e_idx];
@@ -72,12 +73,12 @@ void triangle_mesh::init_vertex_tangents() {
                     tangent *= -1; // Point away of vertex.
                 }
 
-                m_vertex_tangents.push_back(tangent);
+                m_vertex_tangents[v_idx].push_back(tangent);
             }
         }
 
-        auto range_end = static_cast<index_type>(m_vertex_tangent_ranges.size());
-        m_vertex_tangent_ranges.push_back({range_start, range_end});
+        //auto range_end = static_cast<index_type>(m_vertex_tangent_ranges.size());
+        //m_vertex_tangent_ranges.push_back({range_start, range_end});
     }
 }
 
@@ -143,9 +144,9 @@ void triangle_mesh::calculate_edge_normals() {
     m_edge_normals.reserve(m_edge_indices.size());
 
     for (index_type e_idx = 0; e_idx < m_edge_indices.size(); ++e_idx) {
-        auto vertex_indices = m_edge_indices[e_idx];
-        auto face_indices = m_edge_face_indices[e_idx];
-        auto edge_normals = m_edge_normals.emplace_back();
+        auto &vertex_indices = m_edge_indices[e_idx];
+        auto &face_indices = m_edge_face_indices[e_idx];
+        auto &edge_normals = m_edge_normals.emplace_back();
 
         for (size_t i = 0; i < face_indices.size(); ++i) {
             auto f_idx = face_indices[i];
@@ -230,13 +231,13 @@ bool triangle_mesh::in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) con
 
     // `dir` must be within the pyramid that originates at the vertex and has
     // the edges sharing this vertex as face normals.
-    auto vertex_tangent_range = m_vertex_tangent_ranges[vertex_idx];
-    auto first_tangent_idx = vertex_tangent_range[0];
-    auto last_tangent_idx = vertex_tangent_range[1];
+    //auto vertex_tangent_range = m_vertex_tangent_ranges[vertex_idx];
+    //auto first_tangent_idx = vertex_tangent_range[0];
+    //auto last_tangent_idx = vertex_tangent_range[1];
 
-    for (auto i = first_tangent_idx; i < last_tangent_idx; ++i) {
-        auto tangent = m_vertex_tangents[i];
-
+    //for (auto i = first_tangent_idx; i < last_tangent_idx; ++i) {
+    //    auto tangent = m_vertex_tangents[i];
+    for (auto &tangent : m_vertex_tangents[vertex_idx]) {
         if (dot(dir, tangent) > 0) {
             return false;
         }

@@ -130,11 +130,11 @@ public:
     // directions of the edges that depart from a vertex. There is a sequence
     // of N indices for each vertex. The range of the sequence is stored in
     // `m_vertex_tangent_ranges`.
-    std::vector<vector3> m_vertex_tangents;
+    std::vector<std::vector<vector3>> m_vertex_tangents;
 
     // Each pair of values represent the start and end of the vertex tangent
     // list in the `m_vertex_tangents` array.
-    std::vector<std::array<index_type, 2>> m_vertex_tangent_ranges;
+    //std::vector<std::array<index_type, 2>> m_vertex_tangent_ranges;
 
     // Each element represents the indices of the three edges of a face.
     std::vector<std::array<index_type, 3>> m_face_edge_indices;

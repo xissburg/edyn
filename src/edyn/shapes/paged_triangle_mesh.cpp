@@ -81,7 +81,8 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
         num_boundary_edges += m_cache[i].trimesh->m_boundary_edge_indices.size();
     }
 
-    parallel_for(size_t{0}, num_boundary_edges, [&] (size_t index) {
+    //parallel_for(size_t{0}, num_boundary_edges, [&] (size_t index) {
+    for (size_t index = 0; index < num_boundary_edges; ++index) {
         size_t count = 0;
         size_t mesh_idx_i = 0;
         size_t boundary_edge_idx_i = 0;
@@ -107,6 +108,10 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
         auto inset = vector3 {-merge_distance, -merge_distance, -merge_distance};
         auto visit_aabb = edge_aabb.inset(inset);
 
+        // Edges at the boundary should have the same edge normal in both
+        // directions coming from the `triangle_mesh` local initialization.
+        EDYN_ASSERT(submesh_i.m_edge_normals[edge_idx][1] == submesh_i.m_edge_normals[edge_idx][0]);
+
         this->visit_cache(visit_aabb, [&] (size_t mesh_idx_k, size_t tri_idx_k) {
             if (mesh_idx_i == mesh_idx_k) {
                 return;
@@ -118,20 +123,47 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
             for (size_t i = 0; i < 3; ++i) {
                 auto j = (i + 1) % 3;
                 auto d0i = distance_sqr(edge_vertices[0], vertices_k[i]);
-                auto d0j = distance_sqr(edge_vertices[0], vertices_k[j]);
-                auto d1i = distance_sqr(edge_vertices[1], vertices_k[i]);
                 auto d1j = distance_sqr(edge_vertices[1], vertices_k[j]);
+                auto d1i = distance_sqr(edge_vertices[1], vertices_k[i]);
+                auto d0j = distance_sqr(edge_vertices[0], vertices_k[j]);
                 auto m = merge_distance * merge_distance;
 
-                if ((d0i < m && d0j < m) || (d1i < m && d1j < m)) {
+                if ((d0i < m && d1j < m) || (d1i < m && d0j < m)) {
                     auto normal = this->get_submesh(mesh_idx_k)->get_triangle_normal(tri_idx_k);
                     auto edge = vertices_k[j] - vertices_k[i];
+                    // Should not have been assigned to yet.
+                    EDYN_ASSERT(submesh_i.m_edge_normals[edge_idx][1] == submesh_i.m_edge_normals[edge_idx][0]);
                     submesh_i.m_edge_normals[edge_idx][1] = normalize(cross(normal, edge));
                     break;
                 }
             }
         });
-    });
+
+        for (size_t i = 0; i < edge_vertices.size(); ++i) {
+            auto &vertex = edge_vertices[i];
+            auto vertex_aabb = AABB{vertex + inset, vertex - inset};
+            this->visit_cache(vertex_aabb, [&] (size_t mesh_idx_k, size_t tri_idx_k) {
+                if (mesh_idx_i == mesh_idx_k) {
+                    return;
+                }
+
+                const auto &vertices_k = this->get_triangle_vertices(mesh_idx_k, tri_idx_k);
+
+                for (size_t j = 0; j < 3; ++j) {
+                    auto &vertex_k = vertices_k[j];
+
+                    if (distance_sqr(vertex, vertex_k) < merge_distance * merge_distance) {
+                        continue;
+                    }
+
+                    auto edge = vertex_k - vertex;
+                    auto v_idx = submesh_i.m_edge_indices[edge_idx][i];
+                    submesh_i.m_vertex_tangents[v_idx].push_back(edge);
+                }
+            });
+        }
+    //});
+    }
 }
 
 std::shared_ptr<triangle_mesh> paged_triangle_mesh::get_submesh(size_t idx) {

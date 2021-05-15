@@ -15,7 +15,7 @@ void serialize(Archive &archive, triangle_mesh &tri_mesh) {
     archive(tri_mesh.m_edge_indices);
     archive(tri_mesh.m_edge_normals);
     archive(tri_mesh.m_vertex_tangents);
-    archive(tri_mesh.m_vertex_tangent_ranges);
+    //archive(tri_mesh.m_vertex_tangent_ranges);
     archive(tri_mesh.m_face_edge_indices);
     archive(tri_mesh.m_edge_face_indices);
     archive(tri_mesh.m_boundary_edge_indices);
@@ -33,7 +33,7 @@ size_t serialization_sizeof(const triangle_mesh &tri_mesh) {
         serialization_sizeof(tri_mesh.m_edge_indices) +
         serialization_sizeof(tri_mesh.m_edge_normals) +
         serialization_sizeof(tri_mesh.m_vertex_tangents) +
-        serialization_sizeof(tri_mesh.m_vertex_tangent_ranges) +
+        //serialization_sizeof(tri_mesh.m_vertex_tangent_ranges) +
         serialization_sizeof(tri_mesh.m_face_edge_indices) +
         serialization_sizeof(tri_mesh.m_edge_face_indices) +
         serialization_sizeof(tri_mesh.m_boundary_edge_indices) +

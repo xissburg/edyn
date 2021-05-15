@@ -67,18 +67,22 @@ struct submesh_builder {
             // Create triangle mesh for this leaf and allocate vertices and indices.
             auto trimesh = std::make_unique<triangle_mesh>();
             trimesh->m_vertices.reserve(local_indices.size());
-            trimesh->m_indices.reserve(global_indices.size());
 
             // Insert vertices into triangle mesh.
             for (auto idx : local_indices) {
                 trimesh->m_vertices.push_back(*(vertex_begin + idx));
             }
 
+            trimesh->m_indices.resize(local_num_triangles);
+
             // Obtain local indices from global indices and add to triangle mesh.
-            for (auto idx : global_indices) {
-                auto it = std::find(local_indices.begin(), local_indices.end(), idx);
-                auto local_idx = std::distance(local_indices.begin(), it);
-                trimesh->m_indices.push_back(local_idx);
+            for (auto tri_idx = 0; tri_idx < local_num_triangles; ++tri_idx) {
+                for (size_t i = 0; i < 3; ++i) {
+                    auto v_idx = global_indices[tri_idx * 3 + i];
+                    auto it = std::find(local_indices.begin(), local_indices.end(), v_idx);
+                    auto local_idx = std::distance(local_indices.begin(), it);
+                    trimesh->m_indices[tri_idx][i] = local_idx;
+                }
             }
 
             // Initialize triangle mesh.
@@ -124,13 +128,13 @@ void create_paged_triangle_mesh(
     auto original_max_cache_size = paged_tri_mesh.m_max_cache_num_vertices;
     paged_tri_mesh.m_max_cache_num_vertices = SIZE_MAX;
 
-    auto num_indices = std::distance(index_begin, index_end);
+    auto num_indices = static_cast<size_t>(std::distance(index_begin, index_end));
     auto num_triangles = num_indices / 3;
 
     // Calculate AABB of each triangle.
     std::vector<AABB> aabbs(num_triangles);
 
-    parallel_for(size_t{0}, size_t{num_triangles}, [&] (size_t i) {
+    parallel_for(size_t{0}, num_triangles, [&] (size_t i) {
         auto verts = triangle_vertices{
             *(vertex_begin + *(index_begin + (i * 3 + 0))),
             *(vertex_begin + *(index_begin + (i * 3 + 1))),

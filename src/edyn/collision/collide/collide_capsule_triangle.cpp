@@ -4,12 +4,15 @@
 
 namespace edyn {
 
-void collide(const capsule_shape &capsule, const triangle_shape &tri,
+void collide(const capsule_shape &capsule, const triangle_mesh &mesh, size_t tri_idx,
              const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
-    const auto threshold = ctx.threshold;
+
     const auto capsule_vertices = capsule.get_vertices(posA, ornA);
+
+    const auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
+    const auto tri_normal = mesh.get_triangle_normal(tri_idx);
 
     triangle_feature tri_feature;
     size_t tri_feature_index;
@@ -20,9 +23,9 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
 
     // Triangle face normal.
     {
-        auto dir = tri.normal;
+        auto dir = tri_normal;
         auto proj_cap = -capsule_support_projection(capsule_vertices, capsule.radius, -dir);
-        auto proj_tri = dot(tri.vertices[0], tri.normal);
+        auto proj_tri = dot(tri_vertices[0], tri_normal);
         auto dist = proj_cap - proj_tri;
 
         if (dist > distance) {
@@ -30,17 +33,17 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
             projection_cap = proj_cap;
             projection_tri = proj_tri;
             tri_feature = triangle_feature::face;
-            sep_axis = tri.normal;
+            sep_axis = tri_normal;
         }
     }
 
     // Triangle edges vs capsule edge.
     for (size_t i = 0; i < 3; ++i) {
-        auto &v0 = tri.vertices[i];
-        auto &v1 = tri.vertices[(i + 1) % 3];
+        auto &v0 = tri_vertices[i];
+        auto &v1 = tri_vertices[(i + 1) % 3];
         scalar s, t;
         vector3 closest_tri, closest_cap;
-        closest_point_segment_segment(capsule_vertices[0], capsule_vertices[1], 
+        closest_point_segment_segment(capsule_vertices[0], capsule_vertices[1],
                                       v0, v1, s, t, closest_cap, closest_tri);
 
         auto dir = closest_tri - closest_cap;
@@ -64,10 +67,10 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
         triangle_feature feature;
         size_t feature_idx;
         scalar proj_tri;
-        get_triangle_support_feature(tri.vertices, vector3_zero, dir, feature, 
+        get_triangle_support_feature(tri_vertices, vector3_zero, dir, feature,
                                      feature_idx, proj_tri, support_feature_tolerance);
 
-        if (tri.ignore_feature(feature, feature_idx, dir)) {
+        if (mesh.ignore_triangle_feature(tri_idx, feature, feature_idx, dir)) {
             continue;
         }
 
@@ -84,7 +87,7 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
         }
     }
 
-    if (distance > threshold) {
+    if (distance > ctx.threshold) {
         return;
     }
 
@@ -103,11 +106,11 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
         if (is_capsule_edge) {
             // Check if capsule vertex is inside triangle face.
             for (auto &vertex : capsule_vertices) {
-                if (point_in_triangle(tri.vertices, sep_axis, vertex)) {
+                if (point_in_triangle(tri_vertices, sep_axis, vertex)) {
                     auto pivotA_world = vertex - sep_axis * capsule.radius;
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                    auto pivotB = project_plane(vertex, tri.vertices[0], sep_axis);
-                    auto local_distance = dot(pivotA_world - tri.vertices[0], sep_axis);
+                    auto pivotB = project_plane(vertex, tri_vertices[0], sep_axis);
+                    auto local_distance = dot(pivotA_world - tri_vertices[0], sep_axis);
                     result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
                 }
             }
@@ -118,22 +121,22 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
             }
 
             // Check if the capsule edge intersects the triangle edges.
-            auto &tri_origin = tri.vertices[0];
-            auto tangent = normalize(tri.vertices[1] - tri.vertices[0]);
-            auto bitangent = cross(tri.normal, tangent);
-            auto tri_basis = matrix3x3_columns(tangent, tri.normal, bitangent);
+            auto &tri_origin = tri_vertices[0];
+            auto tangent = normalize(tri_vertices[1] - tri_vertices[0]);
+            auto bitangent = cross(tri_normal, tangent);
+            auto tri_basis = matrix3x3_columns(tangent, tri_normal, bitangent);
 
             auto p0 = to_vector2_xz(to_object_space(capsule_vertices[0], tri_origin, tri_basis));
             auto p1 = to_vector2_xz(to_object_space(capsule_vertices[1], tri_origin, tri_basis));
 
             for (int i = 0; i < 3; ++i) {
                 // Ignore concave edges.
-                if (tri.is_concave_edge[i]) {
+                if (mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, i))) {
                     continue;
                 }
-                
-                auto &v0 = tri.vertices[i];
-                auto &v1 = tri.vertices[(i + 1) % 3];
+
+                auto &v0 = tri_vertices[i];
+                auto &v1 = tri_vertices[(i + 1) % 3];
                 auto q0 = to_vector2_xz(to_object_space(v0, tri_origin, tri_basis));
                 auto q1 = to_vector2_xz(to_object_space(v1, tri_origin, tri_basis));
 
@@ -144,7 +147,7 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
                     auto pivotA_world = lerp(capsule_vertices[0], capsule_vertices[1], s[k]) - sep_axis * capsule.radius;
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = lerp(v0, v1, t[k]);
-                    auto local_distance = dot(pivotA_world - tri.vertices[0], sep_axis);
+                    auto local_distance = dot(pivotA_world - tri_vertices[0], sep_axis);
                     result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
                 }
             }
@@ -152,24 +155,24 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
             // Triangle face against capsule vertex.
             auto &closest_capsule_vertex = capsule_vertices[capsule_vertex_index];
 
-            if (point_in_triangle(tri.vertices, tri.normal, closest_capsule_vertex)) {
+            if (point_in_triangle(tri_vertices, tri_normal, closest_capsule_vertex)) {
                 auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                auto pivotB = project_plane(closest_capsule_vertex, tri.vertices[0], sep_axis);
+                auto pivotB = project_plane(closest_capsule_vertex, tri_vertices[0], sep_axis);
                 result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
             }
         }
         break;
     }
     case triangle_feature::edge: {
-        auto &v0 = tri.vertices[tri_feature_index];
-        auto &v1 = tri.vertices[(tri_feature_index + 1) % 3];
+        auto &v0 = tri_vertices[tri_feature_index];
+        auto &v1 = tri_vertices[(tri_feature_index + 1) % 3];
 
         if (is_capsule_edge) {
             scalar s[2], t[2];
             vector3 closest_tri[2], closest_cap[2];
             size_t num_points;
-            closest_point_segment_segment(capsule_vertices[0], capsule_vertices[1], v0, v1, 
+            closest_point_segment_segment(capsule_vertices[0], capsule_vertices[1], v0, v1,
                                           s[0], t[0], closest_cap[0], closest_tri[0], &num_points,
                                           &s[1], &t[1], &closest_cap[1], &closest_tri[1]);
 
@@ -191,7 +194,7 @@ void collide(const capsule_shape &capsule, const triangle_shape &tri,
         break;
     }
     case triangle_feature::vertex: {
-        auto &pivotB = tri.vertices[tri_feature_index];
+        auto &pivotB = tri_vertices[tri_feature_index];
 
         if (is_capsule_edge) {
             auto edge = capsule_vertices[1] - capsule_vertices[0];
