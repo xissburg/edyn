@@ -4,14 +4,14 @@
 
 namespace edyn {
 
-void collide(const capsule_shape &capsule, const triangle_mesh &mesh, size_t tri_idx,
+void collide(const capsule_shape &capsule, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
 
     const auto capsule_vertices = capsule.get_vertices(posA, ornA);
 
-    const auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
+    /*const auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
     const auto tri_normal = mesh.get_triangle_normal(tri_idx);
 
     triangle_feature tri_feature;
@@ -211,7 +211,7 @@ void collide(const capsule_shape &capsule, const triangle_mesh &mesh, size_t tri
             result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     }
-    }
+    }*/
 }
 
 }

@@ -86,8 +86,6 @@ struct submesh_builder {
             }
 
             // Initialize triangle mesh.
-            trimesh->build_tree();
-
             // Edge-angles are calculated after the entire tree is ready so that
             // neighboring triangles that reside in another submesh are also
             // considered. Thus, only allocate space for edge angle info.

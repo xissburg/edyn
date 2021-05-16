@@ -75,7 +75,7 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
     // For each edge on the boundary of each trimesh, visit the triangles which
     // share that edge among all submeshes and adjust all edge normals and
     // vertex tangents to account
-    size_t num_boundary_edges = 0;
+    /*size_t num_boundary_edges = 0;
 
     for (size_t i = 0; i < m_cache.size(); ++i) {
         num_boundary_edges += m_cache[i].trimesh->m_boundary_edge_indices.size();
@@ -112,7 +112,7 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
         // directions coming from the `triangle_mesh` local initialization.
         EDYN_ASSERT(submesh_i.m_edge_normals[edge_idx][1] == submesh_i.m_edge_normals[edge_idx][0]);
 
-        this->visit_cache(visit_aabb, [&] (size_t mesh_idx_k, size_t tri_idx_k) {
+        this->visit_cached_triangles(visit_aabb, [&] (size_t mesh_idx_k, size_t tri_idx_k) {
             if (mesh_idx_i == mesh_idx_k) {
                 return;
             }
@@ -142,7 +142,7 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
         for (size_t i = 0; i < edge_vertices.size(); ++i) {
             auto &vertex = edge_vertices[i];
             auto vertex_aabb = AABB{vertex + inset, vertex - inset};
-            this->visit_cache(vertex_aabb, [&] (size_t mesh_idx_k, size_t tri_idx_k) {
+            this->visit_cached_triangles(vertex_aabb, [&] (size_t mesh_idx_k, size_t tri_idx_k) {
                 if (mesh_idx_i == mesh_idx_k) {
                     return;
                 }
@@ -158,12 +158,13 @@ void paged_triangle_mesh::calculate_edge_angles(scalar merge_distance) {
 
                     auto edge = vertex_k - vertex;
                     auto v_idx = submesh_i.m_edge_indices[edge_idx][i];
-                    submesh_i.m_vertex_tangents[v_idx].push_back(edge);
+                    // TODO: this is not right.
+                    //submesh_i.m_vertex_tangents[v_idx].push_back(edge);
                 }
             });
         }
     //});
-    }
+    }*/
 }
 
 std::shared_ptr<triangle_mesh> paged_triangle_mesh::get_submesh(size_t idx) {

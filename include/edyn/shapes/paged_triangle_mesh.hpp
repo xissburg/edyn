@@ -15,7 +15,7 @@ class paged_triangle_mesh_file_input_archive;
 class paged_triangle_mesh_file_output_archive;
 class finish_load_mesh_job;
 
-// Forward declaration of `detail::submesh_builder` needed by `friend` 
+// Forward declaration of `detail::submesh_builder` needed by `friend`
 // declaration in `paged_triangle_mesh`.
 namespace detail {
     template<typename VertexIterator, typename IndexIterator, typename IdIterator>
@@ -36,31 +36,76 @@ public:
 
     paged_triangle_mesh(std::shared_ptr<triangle_mesh_page_loader_base> loader);
 
+    template<typename Func>
+    void visit_submeshes(const AABB &aabb, Func func) {
+        constexpr auto inset = vector3 {
+            -contact_breaking_threshold,
+            -contact_breaking_threshold,
+            -contact_breaking_threshold
+        };
+        auto inset_aabb = aabb.inset(inset);
+
+        m_tree.visit(inset_aabb, [&] (auto mesh_idx) {
+            load_node_if_needed(mesh_idx);
+
+            if (m_cache[mesh_idx].trimesh) {
+                func(mesh_idx);
+                mark_recent_visit(mesh_idx);
+            }
+        });
+    }
+
+    template<typename Func>
+    void visit_cached_edges(const AABB &aabb, Func func) const {
+        for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
+            auto trimesh = m_cache[mesh_idx].trimesh;
+
+            if (trimesh) {
+                trimesh->visit_edges(aabb, [=] (uint32_t edge_idx) {
+                    func(mesh_idx, edge_idx);
+                });
+            }
+        }
+    }
+
+    template<typename Func>
+    void visit_all_cached_edges(Func func) const {
+        for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
+            auto trimesh = m_cache[mesh_idx].trimesh;
+
+            if (trimesh) {
+                for (size_t edge_idx = 0; edge_idx < trimesh->num_edges(); ++edge_idx) {
+                    func(mesh_idx, edge_idx);
+                }
+            }
+        }
+    }
+
     /**
      * @brief Visits all triangles that intersect the given AABB.
      * @param aabb The AABB to visit.
      * @param func An element into which the `operator()` will be called.
-     *      The expected signature is: 
+     *      The expected signature is:
      *      `void(uint32_t mesh_idx, uint32_t tri_idx)`
      *      Where:
      *      - `mesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
      */
     template<typename Func>
-    void visit(const AABB &aabb, Func func) {
+    void visit_triangles(const AABB &aabb, Func func) {
         constexpr auto inset = vector3 {
-            -contact_breaking_threshold, 
-            -contact_breaking_threshold, 
+            -contact_breaking_threshold,
+            -contact_breaking_threshold,
             -contact_breaking_threshold
         };
         auto inset_aabb = aabb.inset(inset);
-        
+
         m_tree.visit(inset_aabb, [&] (auto mesh_idx) {
             load_node_if_needed(mesh_idx);
             auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit(inset_aabb, [=] (uint32_t tri_idx) {
+                trimesh->visit_triangles(inset_aabb, [=] (uint32_t tri_idx) {
                     func(mesh_idx, tri_idx);
                 });
                 mark_recent_visit(mesh_idx);
@@ -71,14 +116,14 @@ public:
     /**
      * @brief Visits all triangles of all nodes.
      * @param func An element into which the `operator()` will be called.
-     *      The expected signature is: 
+     *      The expected signature is:
      *      `void(uint32_t mesh_idx, uint32_t tri_idx)`
      *      Where:
      *      - `mesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
      */
     template<typename Func>
-    void visit_all(Func func) {        
+    void visit_all_triangles(Func func) {
         for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
             load_node_if_needed(mesh_idx);
             auto trimesh = m_cache[mesh_idx].trimesh;
@@ -93,23 +138,23 @@ public:
 
     /**
      * @brief Visits all cached triangles that intersect the given AABB, which
-     *      means no new triangle meshes will be loaded into the cache in the 
+     *      means no new triangle meshes will be loaded into the cache in the
      *      call.
      * @param aabb The AABB to visit.
      * @param func An element into which the `operator()` will be called.
-     *      The expected signature is: 
+     *      The expected signature is:
      *      `void(uint32_t mesh_idx, uint32_t tri_idx)`
      *      Where:
      *      - `mesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
      */
     template<typename Func>
-    void visit_cache(const AABB &aabb, Func func) const {
+    void visit_cached_triangles(const AABB &aabb, Func func) const {
         for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
             auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit(aabb, [=] (uint32_t tri_idx) {
+                trimesh->visit_triangles(aabb, [=] (uint32_t tri_idx) {
                     func(mesh_idx, tri_idx);
                 });
             }
@@ -119,14 +164,14 @@ public:
     /**
      * @brief Visits all triangles of all cached nodes.
      * @param func An element into which the `operator()` will be called.
-     *      The expected signature is: 
+     *      The expected signature is:
      *      `void(uint32_t mesh_idx, uint32_t tri_idx)`
      *      Where:
      *      - `mesh_idx` is the index of the submesh.
      *      - `tri_idx` is the triangle index within the submesh.
      */
     template<typename Func>
-    void visit_cache_all(Func func) const {
+    void visit_cache_all_triangles(Func func) const {
         for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
             auto trimesh = m_cache[mesh_idx].trimesh;
 
@@ -158,8 +203,8 @@ public:
 
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
-     * is loaded, if the number of vertices would exceed this number, the 
-     * least recently visited nodes will be unloaded until the new total 
+     * is loaded, if the number of vertices would exceed this number, the
+     * least recently visited nodes will be unloaded until the new total
      * number of vertices stays below this value.
      */
     size_t m_max_cache_num_vertices = 1 << 13;
@@ -177,10 +222,10 @@ public:
     friend class paged_triangle_mesh_file_input_archive;
     friend class paged_triangle_mesh_file_output_archive;
 
-    friend void serialize(paged_triangle_mesh_file_output_archive &archive, 
+    friend void serialize(paged_triangle_mesh_file_output_archive &archive,
                           paged_triangle_mesh &paged_tri_mesh);
 
-    friend void serialize(paged_triangle_mesh_file_input_archive &archive, 
+    friend void serialize(paged_triangle_mesh_file_input_archive &archive,
                           paged_triangle_mesh &paged_tri_mesh);
 
 private:

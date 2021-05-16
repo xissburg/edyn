@@ -3,24 +3,19 @@
 
 namespace edyn {
 
-void collide(const compound_shape &compound, const triangle_mesh &mesh, size_t tri_idx,
+void collide(const compound_shape &compound, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result) {
-    auto local_vertices = mesh.get_triangle_vertices(tri_idx);
-
-    for (auto &vertex : local_vertices) {
-        vertex = to_object_space(vertex, ctx.posA, ctx.ornA);
-    }
-
-    auto aabb = get_triangle_aabb(local_vertices);
-
-    compound.visit(aabb, [&] (auto &&sh, const compound_shape::shape_node &node) {
+    for (auto &node : compound.nodes) {
         // New collision context with child shape in world space.
         auto child_ctx = ctx;
         child_ctx.posA = to_world_space(node.position, ctx.posA, ctx.ornA);
         child_ctx.ornA = ctx.ornA * node.orientation;
 
         collision_result child_result;
-        collide(sh, mesh, tri_idx, child_ctx, child_result);
+
+        std::visit([&] (auto &&sh) {
+            collide(sh, mesh, child_ctx, child_result);
+        }, node.shape_var);
 
         // The elements of A in the collision points must be transformed from
         // the child node's space into the compound's space.
@@ -29,7 +24,7 @@ void collide(const compound_shape &compound, const triangle_mesh &mesh, size_t t
             child_point.pivotA = to_world_space(child_point.pivotA, node.position, node.orientation);
             result.maybe_add_point(child_point);
         }
-    });
+    }
 }
 
 }

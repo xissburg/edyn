@@ -51,7 +51,7 @@ TEST(triangle_mesh_serialization, test) {
     ASSERT_EQ(trimesh.m_vertices.size()       , input_trimesh.m_vertices.size());
     ASSERT_EQ(trimesh.m_indices.size()        , input_trimesh.m_indices.size());
     ASSERT_EQ(trimesh.m_is_concave_edge.size(), input_trimesh.m_is_concave_edge.size());
-    ASSERT_EQ(trimesh.m_tree.m_nodes.size()   , input_trimesh.m_tree.m_nodes.size());
+    ASSERT_EQ(trimesh.m_triangle_tree.m_nodes.size()   , input_trimesh.m_triangle_tree.m_nodes.size());
 
     // Check AABBs.
     ASSERT_SCALAR_EQ(trimesh.get_aabb().min.y, input_trimesh.get_aabb().min.y);
@@ -77,17 +77,17 @@ TEST(triangle_mesh_serialization, test) {
     }
 
     // Check trees.
-    for (size_t i = 0; i < trimesh.m_tree.m_nodes.size(); ++i) {
-        ASSERT_SCALAR_EQ(trimesh.m_tree.m_nodes[i].aabb.min.x, input_trimesh.m_tree.m_nodes[i].aabb.min.x);
-        ASSERT_SCALAR_EQ(trimesh.m_tree.m_nodes[i].aabb.min.y, input_trimesh.m_tree.m_nodes[i].aabb.min.y);
-        ASSERT_SCALAR_EQ(trimesh.m_tree.m_nodes[i].aabb.min.z, input_trimesh.m_tree.m_nodes[i].aabb.min.z);
+    for (size_t i = 0; i < trimesh.m_triangle_tree.m_nodes.size(); ++i) {
+        ASSERT_SCALAR_EQ(trimesh.m_triangle_tree.m_nodes[i].aabb.min.x, input_trimesh.m_triangle_tree.m_nodes[i].aabb.min.x);
+        ASSERT_SCALAR_EQ(trimesh.m_triangle_tree.m_nodes[i].aabb.min.y, input_trimesh.m_triangle_tree.m_nodes[i].aabb.min.y);
+        ASSERT_SCALAR_EQ(trimesh.m_triangle_tree.m_nodes[i].aabb.min.z, input_trimesh.m_triangle_tree.m_nodes[i].aabb.min.z);
 
-        ASSERT_SCALAR_EQ(trimesh.m_tree.m_nodes[i].aabb.max.x, input_trimesh.m_tree.m_nodes[i].aabb.max.x);
-        ASSERT_SCALAR_EQ(trimesh.m_tree.m_nodes[i].aabb.max.y, input_trimesh.m_tree.m_nodes[i].aabb.max.y);
-        ASSERT_SCALAR_EQ(trimesh.m_tree.m_nodes[i].aabb.max.z, input_trimesh.m_tree.m_nodes[i].aabb.max.z);
+        ASSERT_SCALAR_EQ(trimesh.m_triangle_tree.m_nodes[i].aabb.max.x, input_trimesh.m_triangle_tree.m_nodes[i].aabb.max.x);
+        ASSERT_SCALAR_EQ(trimesh.m_triangle_tree.m_nodes[i].aabb.max.y, input_trimesh.m_triangle_tree.m_nodes[i].aabb.max.y);
+        ASSERT_SCALAR_EQ(trimesh.m_triangle_tree.m_nodes[i].aabb.max.z, input_trimesh.m_triangle_tree.m_nodes[i].aabb.max.z);
 
-        ASSERT_EQ(trimesh.m_tree.m_nodes[i].child1, input_trimesh.m_tree.m_nodes[i].child1);
-        ASSERT_EQ(trimesh.m_tree.m_nodes[i].child2, input_trimesh.m_tree.m_nodes[i].child2);
-        ASSERT_EQ(trimesh.m_tree.m_nodes[i].id, input_trimesh.m_tree.m_nodes[i].id);
+        ASSERT_EQ(trimesh.m_triangle_tree.m_nodes[i].child1, input_trimesh.m_triangle_tree.m_nodes[i].child1);
+        ASSERT_EQ(trimesh.m_triangle_tree.m_nodes[i].child2, input_trimesh.m_triangle_tree.m_nodes[i].child2);
+        ASSERT_EQ(trimesh.m_triangle_tree.m_nodes[i].id, input_trimesh.m_triangle_tree.m_nodes[i].id);
     }
 }

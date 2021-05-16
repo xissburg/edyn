@@ -24,17 +24,32 @@ public:
     void init_vertex_tangents();
     void init_face_edge_indices();
     void calculate_concave_edges();
-    void build_tree();
+    void build_vertex_tree();
+    void build_edge_tree();
+    void build_triangle_tree();
 
 public:
     using index_type = uint16_t;
+
+    size_t num_vertices() const {
+        return m_vertices.size();
+    }
+
+    size_t num_edges() const {
+        return m_edge_indices.size();
+    }
 
     size_t num_triangles() const {
         return m_indices.size();
     }
 
     AABB get_aabb() const {
-        return m_tree.root_aabb();
+        return m_vertex_tree.root_aabb();
+    }
+
+    vector3 get_vertex_position(size_t vertex_idx) const {
+        EDYN_ASSERT(vertex_idx < m_vertices.size());
+        return m_vertices[vertex_idx];
     }
 
     triangle_vertices get_triangle_vertices(size_t tri_idx) const;
@@ -52,15 +67,29 @@ public:
         };
     }
 
-    template<typename Func>
-    void visit(const AABB &aabb, Func func) const {
-        constexpr auto inset = vector3 {
-            -contact_breaking_threshold,
-            -contact_breaking_threshold,
-            -contact_breaking_threshold
-        };
+    auto get_edge_face_indices(size_t edge_idx) const {
+        EDYN_ASSERT(edge_idx < m_edge_face_indices.size());
+        return m_edge_face_indices[edge_idx];
+    }
 
-        m_tree.visit(aabb.inset(inset), func);
+    auto get_edge_normals(size_t edge_idx) const {
+        EDYN_ASSERT(edge_idx < m_edge_normals.size());
+        return m_edge_normals[edge_idx];
+    }
+
+    template<typename Func>
+    void visit_vertices(const AABB &aabb, Func func) const {
+        m_vertex_tree.visit(aabb, func);
+    }
+
+    template<typename Func>
+    void visit_edges(const AABB &aabb, Func func) const {
+        m_edge_tree.visit(aabb, func);
+    }
+
+    template<typename Func>
+    void visit_triangles(const AABB &aabb, Func func) const {
+        m_triangle_tree.visit(aabb, func);
     }
 
     template<typename Func>
@@ -88,6 +117,11 @@ public:
     bool is_concave_edge(size_t edge_idx) const {
         EDYN_ASSERT(edge_idx < m_is_concave_edge.size());
         return m_is_concave_edge[edge_idx];
+    }
+
+    bool is_boundary_edge(size_t edge_idx) const {
+        EDYN_ASSERT(edge_idx < m_is_boundary_edge.size());
+        return m_is_boundary_edge[edge_idx];
     }
 
     bool ignore_triangle_feature(size_t tri_idx, triangle_feature tri_feature,
@@ -128,13 +162,13 @@ public:
 
     // Vectors that are tangent to a vertex. More specifically, these are the
     // directions of the edges that depart from a vertex. There is a sequence
-    // of N indices for each vertex. The range of the sequence is stored in
+    // of N directions for each vertex. The range of the sequence is stored in
     // `m_vertex_tangent_ranges`.
-    std::vector<std::vector<vector3>> m_vertex_tangents;
+    std::vector<vector3> m_vertex_tangents;
 
     // Each pair of values represent the start and end of the vertex tangent
     // list in the `m_vertex_tangents` array.
-    //std::vector<std::array<index_type, 2>> m_vertex_tangent_ranges;
+    std::vector<std::array<index_type, 2>> m_vertex_tangent_ranges;
 
     // Each element represents the indices of the three edges of a face.
     std::vector<std::array<index_type, 3>> m_face_edge_indices;
@@ -143,9 +177,9 @@ public:
     // have the same value for both faces.
     std::vector<std::array<index_type, 2>> m_edge_face_indices;
 
-    // Indices of edges that are located on the boundary of the mesh. These
-    // edges are associated with a single triangle.
-    std::vector<index_type> m_boundary_edge_indices;
+    // Indicates whether an edge is at the boundary. These edges are associated
+    // with a single triangle.
+    std::vector<bool> m_is_boundary_edge;
 
     // Whether an edge is concave.
     std::vector<bool> m_is_concave_edge;
@@ -153,7 +187,9 @@ public:
     // Whether a vertex is concave.
     std::vector<bool> m_is_concave_vertex;
 
-    static_tree m_tree;
+    static_tree m_vertex_tree;
+    static_tree m_edge_tree;
+    static_tree m_triangle_tree;
 };
 
 }

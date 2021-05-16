@@ -6,13 +6,15 @@ namespace edyn {
 
 void triangle_mesh::initialize() {
     // Order is important.
-    build_tree();
     calculate_face_normals();
     init_edge_indices();
     init_vertex_tangents();
     init_face_edge_indices();
     calculate_edge_normals();
     calculate_concave_edges();
+    build_vertex_tree();
+    build_edge_tree();
+    build_triangle_tree();
 }
 
 void triangle_mesh::calculate_face_normals() {
@@ -50,16 +52,16 @@ void triangle_mesh::init_edge_indices() {
 }
 
 void triangle_mesh::init_vertex_tangents() {
-    //m_vertex_tangent_ranges.reserve(m_vertices.size());
+    m_vertex_tangent_ranges.reserve(m_vertices.size());
 
     // The total number of vertex tangents is not easily calculated. Since each
     // vertex is shared by at least 2 edges, reserve the number of vertices
     // times 2.
-    //m_vertex_tangents.reserve(m_vertices.size() * 2);
-    m_vertex_tangents.resize(m_vertices.size());
+    m_vertex_tangents.reserve(m_vertices.size() * 2);
 
     for (index_type v_idx = 0; v_idx < m_vertices.size(); ++v_idx) {
-        //auto range_start = static_cast<index_type>(m_vertex_tangent_ranges.size());
+        auto range_start = static_cast<index_type>(m_vertex_tangents.size());
+        auto range_end = range_start;
 
         for (index_type e_idx = 0; e_idx < m_edge_indices.size(); ++e_idx) {
             auto edge_indices = m_edge_indices[e_idx];
@@ -73,12 +75,13 @@ void triangle_mesh::init_vertex_tangents() {
                     tangent *= -1; // Point away of vertex.
                 }
 
-                m_vertex_tangents[v_idx].push_back(tangent);
+                m_vertex_tangents.push_back(tangent);
+                ++range_end;
             }
         }
 
-        //auto range_end = static_cast<index_type>(m_vertex_tangent_ranges.size());
-        //m_vertex_tangent_ranges.push_back({range_start, range_end});
+        EDYN_ASSERT(range_start != range_end);
+        m_vertex_tangent_ranges.push_back({range_start, range_end});
     }
 }
 
@@ -89,6 +92,8 @@ void triangle_mesh::init_face_edge_indices() {
     constexpr auto idx_max = std::numeric_limits<index_type>::max();
     std::fill(m_edge_face_indices.begin(), m_edge_face_indices.end(),
               std::array<index_type, 2>{idx_max, idx_max});
+
+    m_is_boundary_edge.resize(m_edge_indices.size());
 
     for (index_type f_idx = 0; f_idx < m_indices.size(); ++f_idx) {
         auto indices = m_indices[f_idx];
@@ -131,8 +136,11 @@ void triangle_mesh::init_face_edge_indices() {
         auto &edge_face_indices = m_edge_face_indices[edge_idx];
         EDYN_ASSERT(edge_face_indices[0] != idx_max);
 
-        if (edge_face_indices[1] == idx_max) {
-            m_boundary_edge_indices.push_back(edge_idx);
+        auto is_boundary_edge = edge_face_indices[1] == idx_max;
+        m_is_boundary_edge[edge_idx] = is_boundary_edge;
+
+        if (is_boundary_edge) {
+            m_is_boundary_edge[edge_idx] = true;
             // Assign the same value for the second entry for boundary edges,
             // thus defining a 180 degree convex edge.
             edge_face_indices[1] = edge_face_indices[0];
@@ -199,7 +207,38 @@ void triangle_mesh::calculate_concave_edges() {
     }
 }
 
-void triangle_mesh::build_tree() {
+void triangle_mesh::build_vertex_tree() {
+    std::vector<AABB> aabbs;
+    aabbs.reserve(num_vertices());
+
+    for (size_t i = 0; i < num_vertices(); ++i) {
+        auto aabb = AABB{m_vertices[i], m_vertices[i]};
+        aabbs.push_back(aabb);
+    }
+
+    auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
+        node.id = *ids_begin;
+    };
+    m_vertex_tree.build(aabbs.begin(), aabbs.end(), report_leaf);
+}
+
+void triangle_mesh::build_edge_tree() {
+    std::vector<AABB> aabbs;
+    aabbs.reserve(num_edges());
+
+    for (size_t i = 0; i < num_edges(); ++i) {
+        auto verts = get_edge_vertices(i);
+        auto aabb = AABB{min(verts[0], verts[1]), max(verts[0], verts[1])};
+        aabbs.push_back(aabb);
+    }
+
+    auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
+        node.id = *ids_begin;
+    };
+    m_edge_tree.build(aabbs.begin(), aabbs.end(), report_leaf);
+}
+
+void triangle_mesh::build_triangle_tree() {
     std::vector<AABB> aabbs;
     aabbs.reserve(num_triangles());
 
@@ -212,15 +251,16 @@ void triangle_mesh::build_tree() {
     auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
         node.id = *ids_begin;
     };
-    m_tree.build(aabbs.begin(), aabbs.end(), report_leaf);
+    m_triangle_tree.build(aabbs.begin(), aabbs.end(), report_leaf);
 }
 
 triangle_vertices triangle_mesh::get_triangle_vertices(size_t tri_idx) const {
     EDYN_ASSERT(tri_idx < m_indices.size());
+    auto indices = m_indices[tri_idx];
     return {
-        m_vertices[m_indices[tri_idx][0]],
-        m_vertices[m_indices[tri_idx][1]],
-        m_vertices[m_indices[tri_idx][2]]
+        m_vertices[indices[0]],
+        m_vertices[indices[1]],
+        m_vertices[indices[2]]
     };
 }
 
@@ -231,13 +271,13 @@ bool triangle_mesh::in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) con
 
     // `dir` must be within the pyramid that originates at the vertex and has
     // the edges sharing this vertex as face normals.
-    //auto vertex_tangent_range = m_vertex_tangent_ranges[vertex_idx];
-    //auto first_tangent_idx = vertex_tangent_range[0];
-    //auto last_tangent_idx = vertex_tangent_range[1];
+    auto vertex_tangent_range = m_vertex_tangent_ranges[vertex_idx];
+    auto first_tangent_idx = vertex_tangent_range[0];
+    auto last_tangent_idx = vertex_tangent_range[1];
 
-    //for (auto i = first_tangent_idx; i < last_tangent_idx; ++i) {
-    //    auto tangent = m_vertex_tangents[i];
-    for (auto &tangent : m_vertex_tangents[vertex_idx]) {
+    for (auto i = first_tangent_idx; i < last_tangent_idx; ++i) {
+        auto tangent = m_vertex_tangents[i];
+
         if (dot(dir, tangent) > 0) {
             return false;
         }

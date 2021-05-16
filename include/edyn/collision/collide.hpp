@@ -40,27 +40,27 @@ void swap_collide(const ShapeAType &shA, const ShapeBType &shB,
                   const collision_context &ctx, collision_result &result);
 
 // Sphere-Triangle Mesh
-void collide(const sphere_shape &sphere, const triangle_mesh &mesh, size_t tri_idx,
+void collide(const sphere_shape &sphere, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result);
 
 // Cylinder-Triangle Mesh
-void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t tri_idx,
+void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result);
 
 // Capsule-Triangle Mesh
-void collide(const capsule_shape &capsule, const triangle_mesh &mesh, size_t tri_idx,
+void collide(const capsule_shape &capsule, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result);
 
 // Box-Triangle Mesh
-void collide(const box_shape &box, const triangle_mesh &mesh, size_t tri_idx,
+void collide(const box_shape &box, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result);
 
 // Polyhedron-Triangle Mesh
-void collide(const polyhedron_shape &poly, const triangle_mesh &mesh, size_t tri_idx,
+void collide(const polyhedron_shape &poly, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result);
 
 // Compound-Triangle Mesh
-void collide(const compound_shape &compound, const triangle_mesh &mesh, size_t tri_idx,
+void collide(const compound_shape &compound, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result);
 
 // Sphere-Sphere
@@ -317,11 +317,7 @@ void collide(const T &shA, const compound_shape &shB,
 template<typename T>
 void collide(const T &shA, const mesh_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    // Position and orientation of mesh are ignored. All vertices are assumed
-    // to be in world space.
-    shB.trimesh->visit(ctx.aabbA, [&] (size_t tri_idx) {
-        collide(shA, *shB.trimesh, tri_idx, ctx, result);
-    });
+    collide(shA, *shB.trimesh, ctx, result);
 }
 
 // Mesh-Box/Sphere/Cylinder/Capsule/Polyhedron/Compound
@@ -335,11 +331,9 @@ void collide(const mesh_shape &shA, const T &shB,
 template<typename T>
 void collide(const T &shA, const paged_mesh_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    // Position and orientation of mesh are ignored. All vertices are assumed
-    // to be in world space.
-    shB.trimesh->visit(ctx.aabbA, [&] (size_t mesh_idx, size_t tri_idx) {
+    shB.trimesh->visit_submeshes(ctx.aabbA, [&] (size_t mesh_idx) {
         auto trimesh = shB.trimesh->get_submesh(mesh_idx);
-        collide(shA, *trimesh, tri_idx, ctx, result);
+        collide(shA, *trimesh, ctx, result);
     });
 }
 

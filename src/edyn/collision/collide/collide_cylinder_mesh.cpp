@@ -8,7 +8,7 @@
 
 namespace edyn {
 
-void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t tri_idx,
+void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
@@ -19,7 +19,7 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
         posA - cylinder_axis * cylinder.half_length
     };
 
-    auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
+    /*auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
     auto tri_normal = mesh.get_triangle_normal(tri_idx);
 
     triangle_feature featureB;
@@ -438,7 +438,7 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh, size_t t
             auto pivotB = closest;
             result.maybe_add_point({pivotA, pivotB, dir, distance});
         }
-    }
+    }*/
 }
 
 }
