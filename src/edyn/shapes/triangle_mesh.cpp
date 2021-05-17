@@ -1,6 +1,7 @@
 #include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/math/scalar.hpp"
 #include <limits>
+#include <cmath>
 
 namespace edyn {
 
@@ -161,10 +162,11 @@ void triangle_mesh::calculate_edge_normals() {
 
             // If this edge is on the perimeter it will only have a single face
             // associated with it. Assign the edge normal from the first face
-            // to the second entry to indicate a 180 degree convex edge.
-            if (f_idx == std::numeric_limits<index_type>::max()) {
-                EDYN_ASSERT(i > 0);
-                edge_normals[i] = edge_normals[0];
+            // plus an offset to the second entry to indicate a near 180 degree
+            // convex edge.
+            if (i > 0 && f_idx == face_indices[0]) {
+                auto normal = m_normals[f_idx];
+                edge_normals[i] = edge_normals[0] - normal * 0.001;
                 break;
             }
 
@@ -179,7 +181,7 @@ void triangle_mesh::calculate_edge_normals() {
                     auto v1 = m_vertices[i1];
                     auto edge = v1 - v0;
                     auto normal = m_normals[f_idx];
-                    edge_normals[i] = cross(normal, edge);
+                    edge_normals[i] = normalize(cross(normal, edge));
                 }
             }
         }
@@ -262,6 +264,26 @@ triangle_vertices triangle_mesh::get_triangle_vertices(size_t tri_idx) const {
         m_vertices[indices[1]],
         m_vertices[indices[2]]
     };
+}
+
+std::array<vector3, 2> triangle_mesh::get_convex_edge_face_normals(size_t edge_idx) const {
+    EDYN_ASSERT(!is_concave_edge(edge_idx));
+
+    auto edge_vertices = get_edge_vertices(edge_idx);
+    auto edge_dir = edge_vertices[1] - edge_vertices[0];
+    auto edge_normals = get_edge_normals(edge_idx);
+    auto face_normals = std::array<vector3, 2>{
+        cross(edge_dir, edge_normals[0]),
+        cross(edge_dir, edge_normals[1])
+    };
+
+    // Face normals could be pointing in the wrong direction. Since this is
+    // a convex edge, the dot product of the normal of one face with the
+    // edge normal of the other must be smaller than zero.
+    face_normals[0] *= std::copysign(scalar(1), -dot(face_normals[0], edge_normals[1]));
+    face_normals[1] *= std::copysign(scalar(1), -dot(face_normals[1], edge_normals[0]));
+
+    return face_normals;
 }
 
 bool triangle_mesh::in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) const {

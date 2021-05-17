@@ -77,6 +77,14 @@ public:
         return m_edge_normals[edge_idx];
     }
 
+    /**
+     * @brief Returns the normals of the faces that share an edge
+     * which is assumed to be convex.
+     * @param edge_idx Edge index.
+     * @return Two face normals.
+     */
+    std::array<vector3, 2> get_convex_edge_face_normals(size_t edge_idx) const ;
+
     template<typename Func>
     void visit_vertices(const AABB &aabb, Func func) const {
         m_vertex_tree.visit(aabb, func);

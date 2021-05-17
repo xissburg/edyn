@@ -3,6 +3,7 @@
 #include "edyn/math/math.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
+#include <cmath>
 
 namespace edyn {
 
@@ -26,15 +27,11 @@ void collide(const sphere_shape &sphere, const triangle_mesh &mesh,
             return;
         }
 
-        auto dir_len = std::sqrt(dir_len_sqr);
-        dir /= dir_len;
-
         if (!mesh.in_vertex_voronoi(vertex_idx, dir)) {
-            dir *= -1;
-            if (!mesh.in_vertex_voronoi(vertex_idx, dir)) {
-                return;
-            }
+            return;
         }
+
+        dir /= std::sqrt(dir_len_sqr);
 
         auto pivotA = rotate(conjugate(sphere_orn), -dir * sphere.radius);
         auto pivotB = vertex;
@@ -70,12 +67,10 @@ void collide(const sphere_shape &sphere, const triangle_mesh &mesh,
 
         // Flip direction if the sphere center is behind both faces that share
         // this edge.
-        auto edge_normals = mesh.get_edge_normals(edge_idx);
-        auto face_normal0 = cross(edge_dir, edge_normals[0]);
-        auto face_normal1 = cross(-edge_dir, edge_normals[1]);
+        auto face_normals = mesh.get_convex_edge_face_normals(edge_idx);
 
-        if (dot(dir, face_normal0) < 0 &&
-            dot(dir, face_normal1) < 0) {
+        if (dot(dir, face_normals[0]) < 0 &&
+            dot(dir, face_normals[1]) < 0) {
             dir *= -1;
         }
 
