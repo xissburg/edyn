@@ -1,6 +1,8 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 
 namespace edyn {
@@ -16,22 +18,6 @@ void collide(const box_shape &box, const triangle_mesh &mesh,
         quaternion_x(ctx.ornA),
         quaternion_y(ctx.ornA),
         quaternion_z(ctx.ornA)
-    };
-
-    const vector3 box_dir =
-        box_axes[0] * box.half_extents[0] +
-        box_axes[1] * box.half_extents[1] +
-        box_axes[2] * box.half_extents[2];
-
-    const auto box_vertices = std::array<vector3, 8> {
-        box_dir * vector3{ 1,  1,  1},
-        box_dir * vector3{-1,  1,  1},
-        box_dir * vector3{-1, -1,  1},
-        box_dir * vector3{ 1, -1,  1},
-        box_dir * vector3{ 1,  1, -1},
-        box_dir * vector3{-1,  1, -1},
-        box_dir * vector3{-1, -1, -1},
-        box_dir * vector3{ 1, -1, -1},
     };
 
     const vector3 box_dir_local =
@@ -50,6 +36,13 @@ void collide(const box_shape &box, const triangle_mesh &mesh,
         box_dir_local * vector3{ 1, -1, -1},
     };
 
+    auto rotA = matrix3x3_columns(box_axes[0], box_axes[1], box_axes[2]);
+
+    auto box_vertices = std::array<vector3, 8>{};
+    for (size_t i = 0; i < box_vertices.size(); ++i) {
+        box_vertices[i] = to_world_space(box_vertices_local[i], posA, rotA);
+    }
+
     mesh.visit_vertices(visit_aabb, [&] (auto vertex_idx) {
         if (mesh.is_concave_vertex(vertex_idx)) return;
 
@@ -61,44 +54,43 @@ void collide(const box_shape &box, const triangle_mesh &mesh,
             // Vertex is inside box.
             vector3 closest, normal;
             auto distance = closest_point_box_inside(box.half_extents, proj, closest, normal);
+            // Make normal point towards box.
+            normal = rotate(ornA, -normal);
 
             if (!mesh.in_vertex_voronoi(vertex_idx, normal)) {
-                    normal *= -1;
-
-                if (!mesh.in_vertex_voronoi(vertex_idx, normal)) {
-                    return;
-                }
+                return;
             }
 
             auto pivotA = closest;
             auto pivotB = vertex;
-            auto normalB = rotate(ornA, normal);
-            result.maybe_add_point({pivotA, pivotB, normalB, -distance});
+            result.maybe_add_point({pivotA, pivotB, normal, -distance});
         } else {
-            if (std::abs(proj[1]) < box.half_extents[1] &&
-                std::abs(proj[2]) < box.half_extents[2]) {
-                auto distance = std::abs(proj[0]) - box.half_extents[0];
+            for (size_t i = 0; i < 3; ++i) {
+                auto j = (i + 1) % 3;
+                auto k = (i + 2) % 3;
 
-                if (distance > ctx.threshold) {
-                    return;
-                }
+                if (std::abs(proj[j]) < box.half_extents[j] &&
+                    std::abs(proj[k]) < box.half_extents[k]) {
+                    auto distance = std::abs(proj[i]) - box.half_extents[i];
 
-                auto normal = box_axes[0];
-                auto sign = scalar(-1);
+                    if (distance > ctx.threshold) {
+                        return;
+                    }
 
-                if (!mesh.in_vertex_voronoi(vertex_idx, normal)) {
-                    normal *= -1;
-                    sign = scalar(1);
+                    auto sign = proj[i] > 0 ? scalar(1) : scalar(-1);
+                    auto normal = box_axes[i] * -sign;
 
                     if (!mesh.in_vertex_voronoi(vertex_idx, normal)) {
                         return;
                     }
-                }
 
-                auto point = vector3{sign * box.half_extents[0], proj[1], proj[2]};
-                auto pivotA = rotate(conjugate(ornA), point);
-                auto pivotB = vertex;
-                result.maybe_add_point({pivotA, pivotB, normal, distance});
+                    auto pivotA = proj;
+                    pivotA[i] = sign * box.half_extents[i];
+                    auto pivotB = vertex;
+                    result.maybe_add_point({pivotA, pivotB, normal, distance});
+
+                    break;
+                }
             }
         }
     });
@@ -202,19 +194,27 @@ void collide(const box_shape &box, const triangle_mesh &mesh,
     mesh.visit_triangles(visit_aabb, [&] (auto tri_idx) {
         auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
         auto tri_normal = mesh.get_triangle_normal(tri_idx);
+        auto projA = -box.support_projection(posA, ornA, -tri_normal);
+        auto projB = dot(tri_vertices[0], tri_normal);
+        auto distance = projA - projB;
+
+        if (distance > ctx.threshold) {
+            return;
+        }
 
         for (size_t i = 0; i < box_vertices.size(); ++i) {
             auto box_vertex = box_vertices[i];
-            auto distance = dot(box_vertex - tri_vertices[0], tri_normal);
+            auto proj_vertex = dot(box_vertex, tri_normal);
 
-            if (distance > ctx.threshold) {
+            if (proj_vertex > projA + support_feature_tolerance) {
                 continue;
             }
 
             if (point_in_triangle(tri_vertices, tri_normal, box_vertex)) {
                 auto pivotA = box_vertices_local[i];
                 auto pivotB = project_plane(box_vertex, tri_vertices[0], tri_normal);
-                result.maybe_add_point({pivotA, pivotB, tri_normal, distance});
+                auto local_distance = dot(box_vertex - tri_vertices[0], tri_normal);
+                result.maybe_add_point({pivotA, pivotB, tri_normal, local_distance});
             }
         }
     });
