@@ -194,6 +194,11 @@ void triangle_mesh::calculate_concave_edges() {
     std::fill(m_is_concave_vertex.begin(), m_is_concave_vertex.end(), false);
 
     for (size_t e_idx = 0; e_idx < m_edge_indices.size(); ++e_idx) {
+        // Boundary edges are always convex.
+        if (is_boundary_edge(e_idx)) {
+            continue;
+        }
+
         auto face_indices = m_edge_face_indices[e_idx];
         auto edge_normal0 = m_edge_normals[e_idx][0];
         auto face_normal1 = m_normals[face_indices[1]];
