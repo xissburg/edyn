@@ -202,7 +202,8 @@ void triangle_mesh::calculate_concave_edges() {
         auto face_indices = m_edge_face_indices[e_idx];
         auto edge_normal0 = m_edge_normals[e_idx][0];
         auto face_normal1 = m_normals[face_indices[1]];
-        auto is_concave = dot(face_normal1, edge_normal0) > 0;
+        // Treat very shallow edges as concave as well.
+        auto is_concave = dot(face_normal1, edge_normal0) > -EDYN_EPSILON;
         m_is_concave_edge[e_idx] = is_concave;
 
         if (is_concave) {
@@ -278,8 +279,8 @@ std::array<vector3, 2> triangle_mesh::get_convex_edge_face_normals(size_t edge_i
     auto edge_dir = edge_vertices[1] - edge_vertices[0];
     auto edge_normals = get_edge_normals(edge_idx);
     auto face_normals = std::array<vector3, 2>{
-        cross(edge_dir, edge_normals[0]),
-        cross(edge_dir, edge_normals[1])
+        normalize(cross(edge_dir, edge_normals[0])),
+        normalize(cross(edge_dir, edge_normals[1]))
     };
 
     // Face normals could be pointing in the wrong direction. Since this is
@@ -319,7 +320,7 @@ bool triangle_mesh::in_edge_voronoi(size_t edge_idx, const vector3 &dir) const {
     }
 
     auto normals = m_edge_normals[edge_idx];
-    return dot(dir, normals[0]) < 0 && dot(dir, normals[1]) < 0;
+    return dot(dir, normals[0]) < EDYN_EPSILON && dot(dir, normals[1]) < EDYN_EPSILON;
 }
 
 bool triangle_mesh::ignore_triangle_feature(size_t tri_idx, triangle_feature tri_feature,
