@@ -49,7 +49,7 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh,
             }
         }
 
-        if (distance > ctx.threshold) {
+        if (distance > ctx.threshold || !mesh.in_vertex_voronoi(vertex_idx, sep_axis)) {
             return;
         }
 
