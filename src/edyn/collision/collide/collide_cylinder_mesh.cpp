@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
@@ -18,6 +19,57 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh,
         posA + cylinder_axis * cylinder.half_length,
         posA - cylinder_axis * cylinder.half_length
     };
+
+    const auto inset = vector3_one * -contact_breaking_threshold;
+    const auto visit_aabb = ctx.aabbA.inset(inset);
+
+    mesh.visit_vertices(visit_aabb, [&] (auto vertex_idx) {
+        if (mesh.is_concave_vertex(vertex_idx)) return;
+
+        auto vertex = mesh.get_vertex_position(vertex_idx);
+        vector3 closest; scalar t;
+        auto dist_sqr = closest_point_line(cylinder_vertices[0], cylinder_vertices[1] - cylinder_vertices[0], vertex, t, closest);
+        const auto min_dist = cylinder.radius + ctx.threshold;
+        auto dir = closest - vertex;
+
+        if (dist_sqr > min_dist * min_dist || !try_normalize(dir)) {
+            return;
+        }
+
+        if (t > 0 && t < 1) {
+            auto aspect_ratio = cylinder.radius / (cylinder.half_length * 2);
+
+            if (dist_sqr < cylinder.radius * cylinder.radius &&
+                ((t < aspect_ratio && dist_sqr < square(cylinder.radius * (1 - t / aspect_ratio))) ||
+                 (1 - t < aspect_ratio && dist_sqr < square(cylinder.radius * (1 - (1 - t) / aspect_ratio))))) {
+                // Vertex is inside cylinder and is closer to the inside of a
+                // cylinder cap face.
+                auto face_idx = t < aspect_ratio ? 0 : 1;
+                auto normal = cylinder_axis * (face_idx == 0 ? -1 : 1);
+                auto pivotA_world = project_plane(vertex, cylinder_vertices[face_idx], normal);
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                auto pivotB = vertex;
+                auto distance = dot(pivotA_world - vertex, normal);
+                result.maybe_add_point({pivotA, pivotB, normal, distance});
+            } else {
+                // Vertex is closer to the side of the cylinder.
+                auto pivotA_world = closest - dir * cylinder.radius;
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                auto pivotB = vertex;
+                auto distance = dot(closest - vertex, dir);
+                result.maybe_add_point({pivotA, pivotB, dir, distance});
+            }
+        } else {
+            // Vertex is closer to one of the cylinder cap faces.
+            auto face_idx = t < 0 ? 0 : 1;
+            auto normal = cylinder_axis * (face_idx == 0 ? -1 : 1);
+            auto pivotA_world = project_plane(vertex, cylinder_vertices[face_idx], normal);
+            auto pivotA = to_object_space(pivotA_world, posA, ornA);
+            auto pivotB = vertex;
+            auto distance = dot(pivotA_world - vertex, normal);
+            result.maybe_add_point({pivotA, pivotB, normal, distance});
+        }
+    });
 
     /*auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
     auto tri_normal = mesh.get_triangle_normal(tri_idx);
