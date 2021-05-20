@@ -24,23 +24,40 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh,
     const auto visit_aabb = ctx.aabbA.inset(inset);
 
     mesh.visit_vertices(visit_aabb, [&] (auto vertex_idx) {
-        if (mesh.is_concave_vertex(vertex_idx)) return;
+        if (mesh.is_concave_vertex(vertex_idx)) {
+            return;
+        }
 
         auto vertex = mesh.get_vertex_position(vertex_idx);
+        auto sep_axis = vector3_zero;
+        auto distance = -EDYN_SCALAR_MAX;
 
         // Check cylinder cap faces.
-        auto distance0 = dot(cylinder_vertices[0] - vertex, -cylinder_axis);
-        auto distance1 = dot(cylinder_vertices[1] - vertex, cylinder_axis);
+        auto axis0 = -cylinder_axis;
 
-        auto sep_axis = distance0 > distance1 ? -cylinder_axis : cylinder_axis;
-        auto distance = std::max(distance0, distance1);
+        if (mesh.in_vertex_voronoi(vertex_idx, axis0)) {
+            auto dist0 = dot(cylinder_vertices[0] - vertex, axis0);
+            distance = dist0;
+            sep_axis = axis0;
+        }
+
+        auto axis1 = cylinder_axis;
+
+        if (mesh.in_vertex_voronoi(vertex_idx, axis1)) {
+            auto dist1 = dot(cylinder_vertices[1] - vertex, axis1);
+
+            if (dist1 > distance) {
+                distance = dist1;
+                sep_axis = axis1;
+            }
+        }
 
         // Check cylinder axis.
         vector3 closest; scalar t;
         closest_point_line(cylinder_vertices[0], cylinder_vertices[1] - cylinder_vertices[0], vertex, t, closest);
         auto closest_dir = closest - vertex;
 
-        if (try_normalize(closest_dir)) {
+        if (try_normalize(closest_dir) && mesh.in_vertex_voronoi(vertex_idx, closest_dir)) {
             auto dist_line = dot(closest - vertex, closest_dir) - cylinder.radius;
 
             if (dist_line > distance) {
@@ -49,7 +66,7 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh,
             }
         }
 
-        if (distance > ctx.threshold || !mesh.in_vertex_voronoi(vertex_idx, sep_axis)) {
+        if (distance > ctx.threshold || distance == -EDYN_SCALAR_MAX) {
             return;
         }
 
