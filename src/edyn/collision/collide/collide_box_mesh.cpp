@@ -109,6 +109,12 @@ void collide(const box_shape &box, const triangle_mesh &mesh,
 
         // Do not consider this edge if the neighboring faces have a smaller
         // amount of penetration, i.e. a bigger distance.
+        // This is a necessary check for a situation where the box touches one
+        // of the faces and this edge has a sharp angle (generally greater than
+        // 90 degrees) which would cause it to shoot towards the edge since a
+        // very deep intersection would be considered with a direction that is
+        // within the Voronoi region. This test could be eliminated if it could
+        // be assumed that the mesh does not have sharp angles.
         auto distances_faces = std::array<scalar, face_normals.size()>{};
 
         for (auto i = 0; i < face_normals.size(); ++i) {
@@ -157,7 +163,7 @@ void collide(const box_shape &box, const triangle_mesh &mesh,
             }
         }
 
-        if (distance > ctx.threshold || sep_axis == vector3_zero) {
+        if (distance > ctx.threshold || distance == -EDYN_SCALAR_MAX) {
             return;
         }
 
