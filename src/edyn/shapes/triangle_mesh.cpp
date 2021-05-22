@@ -202,8 +202,8 @@ void triangle_mesh::calculate_concave_edges() {
         auto face_indices = m_edge_face_indices[e_idx];
         auto edge_normal0 = m_edge_normals[e_idx][0];
         auto face_normal1 = m_normals[face_indices[1]];
-        // Treat very shallow edges as concave as well.
-        auto is_concave = dot(face_normal1, edge_normal0) > -EDYN_EPSILON;
+
+        auto is_concave = dot(face_normal1, edge_normal0) > 0;
         m_is_concave_edge[e_idx] = is_concave;
 
         if (is_concave) {
@@ -293,9 +293,9 @@ std::array<vector3, 2> triangle_mesh::get_convex_edge_face_normals(size_t edge_i
 }
 
 bool triangle_mesh::in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) const {
-    if (m_is_concave_vertex[vertex_idx]) {
+    /* if (m_is_concave_vertex[vertex_idx]) {
         return false;
-    }
+    } */
 
     // `dir` must be within the pyramid that originates at the vertex and has
     // the edges sharing this vertex as face normals.
@@ -306,7 +306,7 @@ bool triangle_mesh::in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) con
     for (auto i = first_tangent_idx; i < last_tangent_idx; ++i) {
         auto tangent = m_vertex_tangents[i];
 
-        if (dot(dir, tangent) > 0) {
+        if (dot(dir, tangent) > EDYN_EPSILON) {
             return false;
         }
     }
@@ -331,7 +331,7 @@ bool triangle_mesh::ignore_triangle_feature(size_t tri_idx, triangle_feature tri
     case triangle_feature::vertex:
         return !in_vertex_voronoi(get_face_vertex_index(tri_idx, feature_idx), dir);
     case triangle_feature::face:
-        return false;
+        return dot(dir, get_triangle_normal(tri_idx)) < 0.9;
     }
     return false;
 }

@@ -5,6 +5,10 @@ namespace edyn {
 
 void collide(const compound_shape &compound, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result) {
+    // TODO Possible optimization: find the triangle mesh node which encompasses
+    // the compound's AABB and start the tree queries from that node in the
+    // child collision tests.
+
     for (auto &node : compound.nodes) {
         // New collision context with child shape in world space.
         auto child_ctx = ctx;

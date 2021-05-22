@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/collision/collision_result.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
@@ -9,18 +10,18 @@
 
 namespace edyn {
 
-void collide(const polyhedron_shape &poly, const triangle_mesh &mesh,
+static
+void collide(const polyhedron_shape &poly, const triangle_mesh &mesh, size_t tri_idx,
              const collision_context &ctx, collision_result &result) {
-    // Polyhedron vs triangle SAT. The triangle vertices are shifted by the
-    // polyhedron's position so all calculations are effectively done with
-    // the polyhedron in the origin. The rotated mesh is used thus no rotations
-    // are necessary.
-    /*const auto &pos_poly = ctx.posA;
+    // The triangle vertices are shifted by the polyhedron's position so all
+    // calculations are effectively done with the polyhedron in the origin.
+    // The rotated mesh is used thus no rotations are necessary.
+    const auto &pos_poly = ctx.posA;
     const auto &orn_poly = ctx.ornA;
     const auto &rmesh = *poly.rotated;
 
-    const auto tri_vertices_original = mesh.get_triangle_vertices(tri_idx);
-    const auto tri_normal = mesh.get_triangle_normal(tri_idx);
+    auto tri_vertices_original = mesh.get_triangle_vertices(tri_idx);
+    auto tri_normal = mesh.get_triangle_normal(tri_idx);
 
     // Shift vertices into A's positional object space.
     auto tri_vertices = tri_vertices_original;
@@ -49,10 +50,6 @@ void collide(const polyhedron_shape &poly, const triangle_mesh &mesh,
         get_triangle_support_feature(tri_vertices, vector3_zero, normal,
                                      feature, feature_idx, tri_proj,
                                      support_feature_tolerance);
-
-        if (mesh.ignore_triangle_feature(tri_idx, feature, feature_idx, normal)) {
-            continue;
-        }
 
         auto dist = dot(poly_vertex - normal * tri_proj, normal);
 
@@ -100,7 +97,7 @@ void collide(const polyhedron_shape &poly, const triangle_mesh &mesh,
 
             auto &vertexB0 = tri_vertices[j];
 
-            // Polyhedron is assumed to be located at the origin.
+            // Polyhedron is located at the origin.
             if (dot(vector3_zero - vertexB0, dir) < 0) {
                 // Make it point towards A.
                 dir *= -1;
@@ -112,10 +109,6 @@ void collide(const polyhedron_shape &poly, const triangle_mesh &mesh,
             get_triangle_support_feature(tri_vertices, vector3_zero, dir,
                                          feature, feature_idx, proj_tri,
                                          support_feature_tolerance);
-
-            if (mesh.ignore_triangle_feature(tri_idx, feature, feature_idx, dir)) {
-                continue;
-            }
 
             auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -dir);
             auto dist = proj_poly - proj_tri;
@@ -132,6 +125,10 @@ void collide(const polyhedron_shape &poly, const triangle_mesh &mesh,
     }
 
     if (distance > ctx.threshold) {
+        return;
+    }
+
+    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
     }
 
@@ -238,7 +235,17 @@ void collide(const polyhedron_shape &poly, const triangle_mesh &mesh,
                 }
             }
         }
-    }*/
+    }
+}
+
+void collide(const polyhedron_shape &poly, const triangle_mesh &mesh,
+             const collision_context &ctx, collision_result &result) {
+    const auto inset = vector3_one * -contact_breaking_threshold;
+    const auto visit_aabb = ctx.aabbA.inset(inset);
+
+    mesh.visit_triangles(visit_aabb, [&] (auto tri_idx) {
+        collide(poly, mesh, tri_idx, ctx, result);
+    });
 }
 
 }

@@ -22,7 +22,7 @@ struct convex_mesh {
     // Vertex indices of all faces.
     std::vector<uint16_t> indices;
 
-    // Each subsequent pair of integers represents the indices of the two 
+    // Each subsequent pair of integers represents the indices of the two
     // vertices of an edge in the `vertices` array.
     std::vector<uint16_t> edges;
 
@@ -63,6 +63,21 @@ struct convex_mesh {
         return indices[index_idx];
     }
 
+    template<typename Func>
+    void each_face_vertex(size_t face_idx, Func func) const {
+        auto face_index_idx = face_idx * 2;
+        auto first_index_idx = faces[face_index_idx];
+        auto vertex_count = faces[face_index_idx + 1];
+
+        for (auto i = 0; i < vertex_count; ++i) {
+            func(vertices[indices[first_index_idx + i]]);
+        }
+    }
+
+    bool point_in_face(size_t face_idx, const vector3 &point) const;
+
+    bool point_in_rotated_face(const rotated_mesh &, size_t face_idx, const vector3 &point) const;
+
     /**
      * @brief Returns the number of vertices on a face.
      * @param face_idx Face index.
@@ -89,7 +104,7 @@ struct convex_mesh {
      * @return The coordinates of the two rotated vertices.
      */
     std::array<vector3, 2> get_rotated_edge(const rotated_mesh &, size_t idx) const;
-    
+
     void calculate_normals();
 
     void calculate_edges();
@@ -98,7 +113,7 @@ struct convex_mesh {
 };
 
 /**
- * @brief Accompanying component for `convex_mesh`es containg their 
+ * @brief Accompanying component for `convex_mesh`es containg their
  * rotated vertices and normals to prevent repeated recalculation of
  * these values.
  */

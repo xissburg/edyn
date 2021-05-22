@@ -93,6 +93,37 @@ void convex_mesh::calculate_edges() {
     }
 }
 
+template<typename T>
+bool convex_mesh_point_in_face(const T &source, const convex_mesh &mesh, size_t face_idx, const vector3 &point) {
+    auto face_index_idx = face_idx * 2;
+    auto first_index_idx = mesh.faces[face_index_idx];
+    auto vertex_count = mesh.faces[face_index_idx + 1];
+    auto normal = source.normals[face_idx];
+
+    for (size_t i = 0; i < vertex_count; ++i) {
+        const auto j = (i + 1) % vertex_count;
+        auto &v0 = source.vertices[mesh.indices[first_index_idx + i]];
+        auto &v1 = source.vertices[mesh.indices[first_index_idx + j]];
+        auto d = v1 - v0;
+        auto t = cross(d, normal);
+
+        if (dot(point - v0, t) > EDYN_EPSILON) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool convex_mesh::point_in_face(size_t face_idx, const vector3 &point) const {
+    return convex_mesh_point_in_face(*this, *this, face_idx, point);
+}
+
+bool convex_mesh::point_in_rotated_face(const rotated_mesh &rmesh, size_t face_idx,
+                                        const vector3 &point) const {
+    return convex_mesh_point_in_face(rmesh, *this, face_idx, point);
+}
+
 void convex_mesh::validate() const {
     // Check if all faces are flat.
     for (size_t i = 0; i < num_faces(); ++i) {
