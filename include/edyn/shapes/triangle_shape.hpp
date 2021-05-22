@@ -40,7 +40,7 @@ struct triangle_shape {
     // this triangle and the normal of the other triangle that is a neighbor
     // through the edge.
     std::array<scalar, 3> cos_angles;
-    
+
     // Edge vectors, i.e. `vertices[(i+1)%3] - vertices[i]` for the ith edge.
     std::array<vector3, 3> edges;
 
@@ -79,16 +79,16 @@ struct triangle_shape {
      * @param dir Collision normal.
      * @return Whether the collision should be ignored.
      */
-    bool ignore_feature(triangle_feature tri_feature, 
+    bool ignore_feature(triangle_feature tri_feature,
                         size_t idx, const vector3 &dir) const;
 };
 
 /**
- * Checks whether point `p` is contained within the infinite prism with 
+ * Checks whether point `p` is contained within the infinite prism with
  * triangular base defined by the given `vertices` and direction `normal`.
  */
-bool point_in_triangle(const triangle_vertices &, 
-                       const vector3 &normal, 
+bool point_in_triangle(const triangle_vertices &,
+                       const vector3 &normal,
                        const vector3 &p);
 
 triangle_edges get_triangle_edges(const triangle_vertices &);
@@ -97,13 +97,15 @@ triangle_edges get_triangle_edges(const triangle_vertices &);
  * Gets the greatest projection of the triangle onto the given axis
  * along with the feature present at the extreme.
  */
-void get_triangle_support_feature(const triangle_vertices &, 
+void get_triangle_support_feature(const triangle_vertices &,
                                   const vector3 &axis_pos, const vector3 &axis_dir,
                                   triangle_feature &tri_feature,
                                   size_t &tri_feature_index,
                                   scalar &projection, scalar threshold);
 
 vector3 get_triangle_support_point(const triangle_vertices &, const vector3 &dir);
+
+scalar get_triangle_support_projection(const triangle_vertices &, const vector3 &dir);
 
 size_t get_triangle_feature_num_vertices(triangle_feature feature);
 

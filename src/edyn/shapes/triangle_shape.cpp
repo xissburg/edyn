@@ -37,7 +37,7 @@ bool triangle_shape::ignore_vertex(size_t idx, const vector3 &dir) const {
     return dot(dir, normal) < cos_angles[idx];
 }
 
-bool triangle_shape::ignore_feature(triangle_feature tri_feature, 
+bool triangle_shape::ignore_feature(triangle_feature tri_feature,
                                     size_t idx, const vector3 &dir) const {
     switch (tri_feature) {
     case triangle_feature::edge:
@@ -50,8 +50,8 @@ bool triangle_shape::ignore_feature(triangle_feature tri_feature,
     return false;
 }
 
-bool point_in_triangle(const triangle_vertices &vertices, 
-                       const vector3 &normal, 
+bool point_in_triangle(const triangle_vertices &vertices,
+                       const vector3 &normal,
                        const vector3 &p) {
     auto edges = get_triangle_edges(vertices);
 
@@ -67,7 +67,7 @@ bool point_in_triangle(const triangle_vertices &vertices,
     auto d1 = dot(en1, q1);
     auto d2 = dot(en2, q2);
 
-    return (d0 >= 0 && d1 >= 0 && d2 >= 0) || 
+    return (d0 >= 0 && d1 >= 0 && d2 >= 0) ||
            (d0 <= 0 && d1 <= 0 && d2 <= 0);
 }
 
@@ -79,7 +79,7 @@ triangle_edges get_triangle_edges(const triangle_vertices &vertices) {
     };
 }
 
-void get_triangle_support_feature(const triangle_vertices &vertices, 
+void get_triangle_support_feature(const triangle_vertices &vertices,
                                   const vector3 &axis_pos, const vector3 &axis_dir,
                                   triangle_feature &tri_feature,
                                   size_t &tri_feature_index,
@@ -90,8 +90,8 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
         auto &v = vertices[i];
         auto proj_i = dot(v - axis_pos, axis_dir);
 
-        // If the projection is near the current maximum, it means 
-        // there's another vertex already at that spot, thus the 
+        // If the projection is near the current maximum, it means
+        // there's another vertex already at that spot, thus the
         // feature could be either an edge or the face.
         if (i > 0 && std::abs(proj_i - projection) < threshold) {
             // If the maximum feature is a vertex, then the current vertex
@@ -100,8 +100,8 @@ void get_triangle_support_feature(const triangle_vertices &vertices,
                 tri_feature = triangle_feature::edge;
 
                 if (i == 2) {
-                    // If this is the third vertex (index 2), the previous in this 
-                    // for loop could have been either vertex 1 or 0. If 0, then the 
+                    // If this is the third vertex (index 2), the previous in this
+                    // for loop could have been either vertex 1 or 0. If 0, then the
                     // edge is the last one, i.e. edge 2. If 1, then the edge is #1.
                     if (tri_feature_index == 0) {
                         tri_feature_index = 2;
@@ -143,6 +143,21 @@ vector3 get_triangle_support_point(const triangle_vertices &vertices, const vect
     }
 
     return sup;
+}
+
+scalar get_triangle_support_projection(const triangle_vertices &vertices, const vector3 &dir) {
+    auto max_proj = -EDYN_SCALAR_MAX;
+
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        const auto &point_local = vertices[i];
+        auto proj = dot(point_local, dir);
+
+        if (proj > max_proj) {
+            max_proj = proj;
+        }
+    }
+
+    return max_proj;
 }
 
 size_t get_triangle_feature_num_vertices(triangle_feature feature) {

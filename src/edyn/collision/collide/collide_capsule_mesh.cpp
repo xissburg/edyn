@@ -1,23 +1,22 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/math/geom.hpp"
+#include "edyn/shapes/triangle_shape.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/math.hpp"
 
 namespace edyn {
 
-void collide(const capsule_shape &capsule, const triangle_mesh &mesh,
-             const collision_context &ctx, collision_result &result) {
+static void collide_capsule_triangle(
+    const capsule_shape &capsule, const triangle_mesh &mesh, size_t tri_idx,
+    const std::array<vector3, 2> &capsule_vertices,
+    const collision_context &ctx, collision_result &result) {
+
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
-
-    const auto capsule_vertices = capsule.get_vertices(posA, ornA);
-
-    /*const auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
+    const auto capsule_axis = capsule_vertices[1] - capsule_vertices[0];
+    const auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
     const auto tri_normal = mesh.get_triangle_normal(tri_idx);
 
-    triangle_feature tri_feature;
-    size_t tri_feature_index;
-    auto projection_cap = -EDYN_SCALAR_MAX;
-    auto projection_tri = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
     auto distance = -EDYN_SCALAR_MAX;
 
@@ -30,9 +29,6 @@ void collide(const capsule_shape &capsule, const triangle_mesh &mesh,
 
         if (dist > distance) {
             distance = dist;
-            projection_cap = proj_cap;
-            projection_tri = proj_tri;
-            tri_feature = triangle_feature::face;
             sep_axis = tri_normal;
         }
     }
@@ -41,53 +37,85 @@ void collide(const capsule_shape &capsule, const triangle_mesh &mesh,
     for (size_t i = 0; i < 3; ++i) {
         auto &v0 = tri_vertices[i];
         auto &v1 = tri_vertices[(i + 1) % 3];
-        scalar s, t;
-        vector3 closest_tri, closest_cap;
-        closest_point_segment_segment(capsule_vertices[0], capsule_vertices[1],
-                                      v0, v1, s, t, closest_cap, closest_tri);
 
-        auto dir = closest_tri - closest_cap;
+        auto edge_dir = v1 - v0;
+        auto dir = cross(edge_dir, capsule_axis);
 
         if (!try_normalize(dir)) {
-            // Segments intersect in 3D space (unlikely scenario). Try the cross
-            // product between edges.
-            auto tri_edge = v1 - v0;
-            dir = cross(tri_edge, capsule_vertices[1] - capsule_vertices[0]);
-
-            if (!try_normalize(dir)) {
-                // Segments are parallel and colinear.
-                continue;
-            }
+            continue;
         }
 
         if (dot(posA - v0, dir) < 0) {
             dir *= -1; // Make it point towards capsule.
         }
 
-        triangle_feature feature;
-        size_t feature_idx;
-        scalar proj_tri;
-        get_triangle_support_feature(tri_vertices, vector3_zero, dir, feature,
-                                     feature_idx, proj_tri, support_feature_tolerance);
-
-        if (mesh.ignore_triangle_feature(tri_idx, feature, feature_idx, dir)) {
-            continue;
-        }
-
         auto proj_cap = -capsule_support_projection(capsule_vertices, capsule.radius, -dir);
+        auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
         auto dist = proj_cap - proj_tri;
 
         if (dist > distance) {
             distance = dist;
-            projection_cap = proj_cap;
-            projection_tri = proj_tri;
-            tri_feature = feature;
-            tri_feature_index = feature_idx;
             sep_axis = dir;
         }
     }
 
+    // Triangle vertices vs capsule edge.
+    for (auto &vertex : tri_vertices) {
+        vector3 closest; scalar t;
+        closest_point_line(capsule_vertices[0], capsule_axis, vertex, t, closest);
+        auto dir = closest - vertex;
+
+        if (!try_normalize(dir)) {
+            continue;
+        }
+
+        auto proj_cap = -capsule_support_projection(capsule_vertices, capsule.radius, -dir);
+        auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
+        auto dist = proj_cap - proj_tri;
+
+        if (dist > distance) {
+            distance = dist;
+            sep_axis = dir;
+        }
+    }
+
+    // Capsule vertices vs Triangle edges.
+    for (size_t i = 0; i < 3; ++i) {
+        auto &v0 = tri_vertices[i];
+        auto &v1 = tri_vertices[(i + 1) % 3];
+        auto edge_dir = v1 - v0;
+
+        for (auto &capsule_vertex : capsule_vertices) {
+            vector3 closest; scalar t;
+            closest_point_line(v0, edge_dir, capsule_vertex, t, closest);
+            auto dir = capsule_vertex - closest;
+
+            if (!try_normalize(dir)) {
+                continue;
+            }
+
+            auto proj_cap = -capsule_support_projection(capsule_vertices, capsule.radius, -dir);
+            auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
+            auto dist = proj_cap - proj_tri;
+
+            if (dist > distance) {
+                distance = dist;
+                sep_axis = dir;
+            }
+        }
+    }
+
     if (distance > ctx.threshold) {
+        return;
+    }
+
+    triangle_feature tri_feature;
+    size_t tri_feature_index;
+    scalar proj_tri;
+    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis, tri_feature,
+                                 tri_feature_index, proj_tri, support_feature_tolerance);
+
+    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
     }
 
@@ -211,7 +239,21 @@ void collide(const capsule_shape &capsule, const triangle_mesh &mesh,
             result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     }
-    }*/
+    }
+}
+
+void collide(const capsule_shape &capsule, const triangle_mesh &mesh,
+             const collision_context &ctx, collision_result &result) {
+    const auto &posA = ctx.posA;
+    const auto &ornA = ctx.ornA;
+    const auto capsule_vertices = capsule.get_vertices(posA, ornA);
+
+    const auto inset = vector3_one * -contact_breaking_threshold;
+    const auto visit_aabb = ctx.aabbA.inset(inset);
+
+    mesh.visit_triangles(visit_aabb, [&] (auto tri_idx) {
+        collide_capsule_triangle(capsule, mesh, tri_idx, capsule_vertices, ctx, result);
+    });
 }
 
 }
