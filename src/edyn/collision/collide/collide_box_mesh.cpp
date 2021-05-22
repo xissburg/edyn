@@ -4,6 +4,7 @@
 #include "edyn/math/math.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/shapes/triangle_shape.hpp"
 
 namespace edyn {
 
@@ -17,8 +18,6 @@ static void collide_box_triangle(
     auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
     auto tri_normal = mesh.get_triangle_normal(tri_idx);
 
-    triangle_feature tri_feature;
-    size_t tri_feature_index;
     auto distance = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
 
@@ -27,23 +26,13 @@ static void collide_box_triangle(
         auto j = i % 3;
         auto dir = box_axes[j] * to_sign(i < 3);
 
-        triangle_feature feature;
-        size_t feature_idx;
-        scalar proj;
-        get_triangle_support_feature(tri_vertices, posA, dir,
-                                        feature, feature_idx, proj,
-                                        support_feature_tolerance);
-
-        // `proj` is the projection of the support point on the triangle onto
-        // `dir` considering it starts at `posA`. The projection of the box
-        // onto this axis is the half extent in this direction.
-        auto dist = -(box.half_extents[j] + proj);
+        auto projA = -(dot(posA, -dir) + box.half_extents[j]);
+        auto projB = get_triangle_support_projection(tri_vertices, dir);
+        auto dist = projA - projB;
 
         if (dist > distance) {
             distance = dist;
             sep_axis = dir;
-            tri_feature = feature;
-            tri_feature_index = feature_idx;
         }
     }
 
@@ -55,7 +44,6 @@ static void collide_box_triangle(
         if (dist > distance) {
             distance = dist;
             sep_axis = tri_normal;
-            tri_feature = triangle_feature::face;
         }
     }
 
@@ -75,21 +63,13 @@ static void collide_box_triangle(
                 dir *= -1; // Make it point towards box.
             }
 
-            triangle_feature feature;
-            size_t feature_idx;
-            scalar projB;
-            get_triangle_support_feature(tri_vertices, vector3_zero, dir,
-                                        feature, feature_idx,
-                                        projB, support_feature_tolerance);
-
             auto projA = -box.support_projection(posA, ornA, -dir);
+            auto projB = get_triangle_support_projection(tri_vertices, dir);
             auto dist = projA - projB;
 
             if (dist > distance) {
                 distance = dist;
                 sep_axis = dir;
-                tri_feature = feature;
-                tri_feature_index = feature_idx;
             }
         }
     }
@@ -98,6 +78,13 @@ static void collide_box_triangle(
     if (distance > ctx.threshold) {
         return;
     }
+
+    triangle_feature tri_feature;
+    size_t tri_feature_index;
+    scalar projectionB;
+    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
+                                 tri_feature, tri_feature_index,
+                                 projectionB, support_feature_tolerance);
 
     if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
