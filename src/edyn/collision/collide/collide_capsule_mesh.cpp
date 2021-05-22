@@ -13,7 +13,6 @@ static void collide_capsule_triangle(
 
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
-    const auto capsule_axis = capsule_vertices[1] - capsule_vertices[0];
     const auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
     const auto tri_normal = mesh.get_triangle_normal(tri_idx);
 
@@ -37,13 +36,28 @@ static void collide_capsule_triangle(
     for (size_t i = 0; i < 3; ++i) {
         auto &v0 = tri_vertices[i];
         auto &v1 = tri_vertices[(i + 1) % 3];
+        scalar s, t;
+        vector3 closest_tri, closest_cap;
+        closest_point_segment_segment(capsule_vertices[0], capsule_vertices[1],
+                                      v0, v1, s, t, closest_cap, closest_tri);
 
-        auto edge_dir = v1 - v0;
-        auto dir = cross(edge_dir, capsule_axis);
+        auto dir = closest_tri - closest_cap;
+        auto dir_len_sqr = length_sqr(dir);
 
-        if (!try_normalize(dir)) {
-            continue;
+        if (!(dir_len_sqr > EDYN_EPSILON)) {
+            // Segments intersect in 3D space (unlikely scenario). Try the cross
+            // product between edges.
+            auto tri_edge = v1 - v0;
+            dir = cross(tri_edge, capsule_vertices[1] - capsule_vertices[0]);
+            dir_len_sqr = length_sqr(dir);
+
+            if (!(dir_len_sqr > EDYN_EPSILON)) {
+                // Segments are parallel and colinear.
+                continue;
+            }
         }
+
+        dir /= std::sqrt(dir_len_sqr);
 
         if (dot(posA - v0, dir) < 0) {
             dir *= -1; // Make it point towards capsule.
@@ -56,52 +70,6 @@ static void collide_capsule_triangle(
         if (dist > distance) {
             distance = dist;
             sep_axis = dir;
-        }
-    }
-
-    // Triangle vertices vs capsule edge.
-    for (auto &vertex : tri_vertices) {
-        vector3 closest; scalar t;
-        closest_point_line(capsule_vertices[0], capsule_axis, vertex, t, closest);
-        auto dir = closest - vertex;
-
-        if (!try_normalize(dir)) {
-            continue;
-        }
-
-        auto proj_cap = -capsule_support_projection(capsule_vertices, capsule.radius, -dir);
-        auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
-        auto dist = proj_cap - proj_tri;
-
-        if (dist > distance) {
-            distance = dist;
-            sep_axis = dir;
-        }
-    }
-
-    // Capsule vertices vs Triangle edges.
-    for (size_t i = 0; i < 3; ++i) {
-        auto &v0 = tri_vertices[i];
-        auto &v1 = tri_vertices[(i + 1) % 3];
-        auto edge_dir = v1 - v0;
-
-        for (auto &capsule_vertex : capsule_vertices) {
-            vector3 closest; scalar t;
-            closest_point_line(v0, edge_dir, capsule_vertex, t, closest);
-            auto dir = capsule_vertex - closest;
-
-            if (!try_normalize(dir)) {
-                continue;
-            }
-
-            auto proj_cap = -capsule_support_projection(capsule_vertices, capsule.radius, -dir);
-            auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
-            auto dist = proj_cap - proj_tri;
-
-            if (dist > distance) {
-                distance = dist;
-                sep_axis = dir;
-            }
         }
     }
 
