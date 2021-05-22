@@ -210,7 +210,7 @@ size_t insert_index(const std::array<vector3, N> &points,
 
     // Look for a similar point.
     for (size_t i = 0; i < num_points; ++i) {
-        if (abs(points[i] - new_point) < vector3_one * EDYN_EPSILON) {
+        if (distance_sqr(points[i], new_point) < EDYN_EPSILON) {
             return i;
         }
     }

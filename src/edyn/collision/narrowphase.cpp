@@ -19,7 +19,6 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include <entt/entt.hpp>
-#include <variant>
 
 namespace edyn {
 
