@@ -30,10 +30,7 @@ static void collide_polyhedron_triangle(
         v -= pos_poly;
     }
 
-    triangle_feature tri_feature;
-    size_t tri_feature_index;
     auto projection_poly = EDYN_SCALAR_MAX;
-    auto projection_tri = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
     scalar distance = -EDYN_SCALAR_MAX;
 
@@ -43,23 +40,13 @@ static void collide_polyhedron_triangle(
         auto vertex_idx = poly.mesh->first_vertex_index(i);
         auto &poly_vertex = rmesh.vertices[vertex_idx];
 
-        // Find feature on triangle that's furthest along the opposite direction
-        // of the face normal.
-        triangle_feature feature;
-        size_t feature_idx;
-        scalar tri_proj;
-        get_triangle_support_feature(tri_vertices, vector3_zero, normal,
-                                     feature, feature_idx, tri_proj,
-                                     support_feature_tolerance);
-
-        auto dist = dot(poly_vertex - normal * tri_proj, normal);
+        auto proj_poly = dot(poly_vertex, normal);
+        auto proj_tri = get_triangle_support_projection(tri_vertices, normal);
+        auto dist = proj_poly - proj_tri;
 
         if (dist > distance) {
             distance = dist;
-            projection_poly = dot(poly_vertex, normal);
-            projection_tri = tri_proj;
-            tri_feature = feature;
-            tri_feature_index = feature_idx;
+            projection_poly = proj_poly;
             sep_axis = normal;
         }
     }
@@ -75,8 +62,6 @@ static void collide_polyhedron_triangle(
         if (dist > distance) {
             distance = dist;
             projection_poly = proj_poly;
-            projection_tri = proj_tri;
-            tri_feature = triangle_feature::face;
             sep_axis = tri_normal;
         }
     }
@@ -104,22 +89,13 @@ static void collide_polyhedron_triangle(
                 dir *= -1;
             }
 
-            triangle_feature feature;
-            size_t feature_idx;
-            scalar proj_tri;
-            get_triangle_support_feature(tri_vertices, vector3_zero, dir,
-                                         feature, feature_idx, proj_tri,
-                                         support_feature_tolerance);
-
             auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -dir);
+            auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
             auto dist = proj_poly - proj_tri;
 
             if (dist > distance) {
                 distance = dist;
                 projection_poly = proj_poly;
-                projection_tri = proj_tri;
-                tri_feature = feature;
-                tri_feature_index = feature_idx;
                 sep_axis = dir;
             }
         }
@@ -128,6 +104,13 @@ static void collide_polyhedron_triangle(
     if (distance > ctx.threshold) {
         return;
     }
+
+    triangle_feature tri_feature;
+    size_t tri_feature_index;
+    scalar projection_tri;
+    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
+                                 tri_feature, tri_feature_index, projection_tri,
+                                 support_feature_tolerance);
 
     if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
