@@ -55,6 +55,15 @@ static void collide_box_triangle(
         test_direction_and_distance(dir, dist);
     };
 
+    // Triangle face normal.
+    {
+        auto proj = box.support_projection(posA, ornA, -tri_normal);
+        // No need to check if greater than `distance` since this is the first.
+        distance = -(proj + dot(tri_vertices[0], tri_normal));
+        sep_axis = tri_normal;
+        tri_feature = triangle_feature::face;
+    }
+
     // Box faces.
     for (size_t i = 0; i < 6; ++i) {
         auto j = i % 3;
@@ -64,18 +73,6 @@ static void collide_box_triangle(
         auto projB = get_triangle_support_projection(tri_vertices, dir);
         auto dist = projA - projB;
         test_direction_and_distance(dir, dist);
-    }
-
-    // Triangle face normal.
-    {
-        auto proj = box.support_projection(posA, ornA, -tri_normal);
-        auto dist = -(proj + dot(tri_vertices[0], tri_normal));
-
-        if (dist > distance) {
-            distance = dist;
-            sep_axis = tri_normal;
-            tri_feature = triangle_feature::face;
-        }
     }
 
     // Edges.
