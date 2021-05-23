@@ -12,10 +12,14 @@ inline constexpr size_t max_constrained_entities = 2;
 
 /**
  * If the normal or tangential separation of a contact point goes above this
- * value, it will be destroyed. This is also the minimum distance between new
- * contact points for them to be considered.
+ * value, it will be destroyed.
  */
 inline constexpr auto contact_breaking_threshold = scalar(0.02);
+
+/**
+ * Existing contact points that are this close to a new point, will be merged.
+ */
+inline constexpr auto contact_merging_threshold = scalar(0.01);
 
 /**
  * New contact points will be merged with existing ones if their distance is
