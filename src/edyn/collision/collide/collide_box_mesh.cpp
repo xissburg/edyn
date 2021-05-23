@@ -74,7 +74,6 @@ static void collide_box_triangle(
         }
     }
 
-    // No collision.
     if (distance > ctx.threshold) {
         return;
     }
@@ -204,7 +203,7 @@ static void collide_box_triangle(
 
         // Check if edge vertices are inside box face.
         vector3 edge_vertices[] = {tri_vertices[tri_feature_index],
-                                    tri_vertices[(tri_feature_index + 1) % 3]};
+                                   tri_vertices[(tri_feature_index + 1) % 3]};
         size_t num_edge_vert_in_box_face = 0;
 
         for (int i = 0; i < 2; ++i) {
