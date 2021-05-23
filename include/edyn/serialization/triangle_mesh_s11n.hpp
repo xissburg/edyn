@@ -19,8 +19,7 @@ void serialize(Archive &archive, triangle_mesh &tri_mesh) {
     archive(tri_mesh.m_face_edge_indices);
     archive(tri_mesh.m_edge_face_indices);
     archive(tri_mesh.m_is_boundary_edge);
-    archive(tri_mesh.m_is_concave_edge);
-    archive(tri_mesh.m_is_concave_vertex);
+    archive(tri_mesh.m_is_convex_edge);
     archive(tri_mesh.m_triangle_tree);
 }
 
@@ -37,8 +36,7 @@ size_t serialization_sizeof(const triangle_mesh &tri_mesh) {
         serialization_sizeof(tri_mesh.m_face_edge_indices) +
         serialization_sizeof(tri_mesh.m_edge_face_indices) +
         serialization_sizeof(tri_mesh.m_is_boundary_edge) +
-        serialization_sizeof(tri_mesh.m_is_concave_edge) +
-        serialization_sizeof(tri_mesh.m_is_concave_vertex) +
+        serialization_sizeof(tri_mesh.m_is_convex_edge) +
         serialization_sizeof(tri_mesh.m_triangle_tree);
 }
 

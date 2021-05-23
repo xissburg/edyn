@@ -50,7 +50,7 @@ TEST(triangle_mesh_serialization, test) {
     // Check sizes.
     ASSERT_EQ(trimesh.m_vertices.size()       , input_trimesh.m_vertices.size());
     ASSERT_EQ(trimesh.m_indices.size()        , input_trimesh.m_indices.size());
-    ASSERT_EQ(trimesh.m_is_concave_edge.size(), input_trimesh.m_is_concave_edge.size());
+    ASSERT_EQ(trimesh.m_is_convex_edge.size(), input_trimesh.m_is_convex_edge.size());
     ASSERT_EQ(trimesh.m_triangle_tree.m_nodes.size()   , input_trimesh.m_triangle_tree.m_nodes.size());
 
     // Check AABBs.
@@ -72,8 +72,8 @@ TEST(triangle_mesh_serialization, test) {
         ASSERT_EQ(trimesh.m_indices[i], input_trimesh.m_indices[i]);
     }
 
-    for (size_t i = 0; i < trimesh.m_is_concave_edge.size(); ++i) {
-        ASSERT_EQ(trimesh.m_is_concave_edge[i], input_trimesh.m_is_concave_edge[i]);
+    for (size_t i = 0; i < trimesh.m_is_convex_edge.size(); ++i) {
+        ASSERT_EQ(trimesh.m_is_convex_edge[i], input_trimesh.m_is_convex_edge[i]);
     }
 
     // Check trees.

@@ -12,7 +12,7 @@ void triangle_mesh::initialize() {
     init_vertex_tangents();
     init_face_edge_indices();
     calculate_edge_normals();
-    calculate_concave_edges();
+    calculate_convex_edges();
     build_triangle_tree();
 }
 
@@ -186,10 +186,8 @@ void triangle_mesh::calculate_edge_normals() {
     }
 }
 
-void triangle_mesh::calculate_concave_edges() {
-    m_is_concave_edge.resize(m_edge_indices.size());
-    m_is_concave_vertex.resize(m_vertices.size());
-    std::fill(m_is_concave_vertex.begin(), m_is_concave_vertex.end(), false);
+void triangle_mesh::calculate_convex_edges() {
+    m_is_convex_edge.resize(m_edge_indices.size());
 
     for (size_t e_idx = 0; e_idx < m_edge_indices.size(); ++e_idx) {
         // Boundary edges are always convex.
@@ -201,15 +199,8 @@ void triangle_mesh::calculate_concave_edges() {
         auto edge_normal0 = m_edge_normals[e_idx][0];
         auto face_normal1 = m_normals[face_indices[1]];
 
-        auto is_concave = dot(face_normal1, edge_normal0) > 0;
-        m_is_concave_edge[e_idx] = is_concave;
-
-        if (is_concave) {
-            // If an edge is concave, both of its vertices are also concave.
-            auto vertex_indices = m_edge_indices[e_idx];
-            m_is_concave_vertex[vertex_indices[0]] = true;
-            m_is_concave_vertex[vertex_indices[1]] = true;
-        }
+        auto is_convex = dot(face_normal1, edge_normal0) < -EDYN_EPSILON;
+        m_is_convex_edge[e_idx] = is_convex;
     }
 }
 
@@ -240,7 +231,7 @@ triangle_vertices triangle_mesh::get_triangle_vertices(size_t tri_idx) const {
 }
 
 std::array<vector3, 2> triangle_mesh::get_convex_edge_face_normals(size_t edge_idx) const {
-    EDYN_ASSERT(!is_concave_edge(edge_idx));
+    EDYN_ASSERT(is_convex_edge(edge_idx));
 
     auto edge_vertices = get_edge_vertices(edge_idx);
     auto edge_dir = edge_vertices[1] - edge_vertices[0];
@@ -260,10 +251,6 @@ std::array<vector3, 2> triangle_mesh::get_convex_edge_face_normals(size_t edge_i
 }
 
 bool triangle_mesh::in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) const {
-    /* if (m_is_concave_vertex[vertex_idx]) {
-        return false;
-    } */
-
     // `dir` must be within the pyramid that originates at the vertex and has
     // the edges sharing this vertex as face normals.
     auto vertex_tangent_range = m_vertex_tangent_ranges[vertex_idx];
@@ -282,7 +269,7 @@ bool triangle_mesh::in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) con
 }
 
 bool triangle_mesh::in_edge_voronoi(size_t edge_idx, const vector3 &dir) const {
-    if (m_is_concave_edge[edge_idx]) {
+    if (!m_is_convex_edge[edge_idx]) {
         return false;
     }
 

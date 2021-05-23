@@ -1,5 +1,5 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/util/triangle_util.hpp"
 
 namespace edyn {
 

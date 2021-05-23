@@ -5,7 +5,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/util/triangle_util.hpp"
 
 namespace edyn {
 
@@ -16,17 +16,20 @@ static void collide_box_triangle(
 
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
-    auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
-    auto tri_normal = mesh.get_triangle_normal(tri_idx);
+    const auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
+    const auto tri_normal = mesh.get_triangle_normal(tri_idx);
+    const auto tri_center = average(tri_vertices);
 
     auto distance = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
     triangle_feature tri_feature;
     size_t tri_feature_index;
 
-    auto test_direction = [&] (vector3 dir, scalar dist) -> bool {
+    // Check if the given distance is better than the current and if the
+    // direction is valid and assign them as the best choice if so.
+    auto test_direction_and_distance = [&] (vector3 dir, scalar dist) {
         if (!(dist > distance)) {
-            return false;
+            return;
         }
 
         triangle_feature feature;
@@ -36,15 +39,20 @@ static void collide_box_triangle(
                                      feature, feature_index,
                                      proj_tri, support_feature_tolerance);
 
-        if (mesh.ignore_triangle_feature(tri_idx, feature, feature_index, dir)) {
-            return false;
+        if (!mesh.ignore_triangle_feature(tri_idx, feature, feature_index, dir)) {
+            sep_axis = dir;
+            distance = dist;
+            tri_feature = feature;
+            tri_feature_index = feature_index;
         }
+    };
 
-        sep_axis = dir;
-        distance = dist;
-        tri_feature = feature;
-        tri_feature_index = feature_index;
-        return true;
+    // Check if the given direction is the best so far and set it if so.
+    auto test_direction = [&] (vector3 dir) {
+        auto projA = -box.support_projection(posA, ornA, -dir);
+        auto projB = get_triangle_support_projection(tri_vertices, dir);
+        auto dist = projA - projB;
+        test_direction_and_distance(dir, dist);
     };
 
     // Box faces.
@@ -55,7 +63,7 @@ static void collide_box_triangle(
         auto projA = -(dot(posA, -dir) + box.half_extents[j]);
         auto projB = get_triangle_support_projection(tri_vertices, dir);
         auto dist = projA - projB;
-        test_direction(dir, dist);
+        test_direction_and_distance(dir, dist);
     }
 
     // Triangle face normal.
@@ -70,13 +78,6 @@ static void collide_box_triangle(
         }
     }
 
-    auto add_direction = [&] (vector3 dir) {
-        auto projA = -box.support_projection(posA, ornA, -dir);
-        auto projB = get_triangle_support_projection(tri_vertices, dir);
-        auto dist = projA - projB;
-        test_direction(dir, dist);
-    };
-
     // Edges.
     for (size_t i = 0; i < 3; ++i) {
         auto &axisA = box_axes[i];
@@ -89,8 +90,19 @@ static void collide_box_triangle(
                 continue;
             }
 
-            add_direction(dir);
-            add_direction(-dir);
+            // Choose the direction that points towards the vector that
+            // goes from the center of the triangle to the center of the box,
+            // i.e. has a positive dot product with it.
+            if (dot(posA - tri_center, dir) < 0) {
+                dir *= -1;
+            }
+
+            test_direction(dir);
+
+            // A more accurate though more expensive approach is to try both
+            // directions and pick whichever gives the least amount of penetration.
+            //test_direction(dir);
+            //test_direction(-dir);
         }
     }
 
@@ -161,7 +173,7 @@ static void collide_box_triangle(
         // Perform edge intersection tests.
         for (int i = 0; i < 3; ++i) {
             // Ignore concave edges.
-            if (mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, i))) {
+            if (!mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, i))) {
                 continue;
             }
 
@@ -201,7 +213,7 @@ static void collide_box_triangle(
             }
         }
     } else if (box_feature == box_feature::face && tri_feature == triangle_feature::edge) {
-        EDYN_ASSERT(!mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, tri_feature_index)));
+        EDYN_ASSERT(mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, tri_feature_index)));
 
         auto normalA = box.get_face_normal(feature_indexA, ornA);
         auto verticesA_local = box.get_face(feature_indexA);
@@ -297,7 +309,7 @@ static void collide_box_triangle(
 
         for (int i = 0; i < 3; ++i) {
             // Ignore concave edges.
-            if (mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, i))) {
+            if (!mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, i))) {
                 continue;
             }
 
@@ -321,7 +333,7 @@ static void collide_box_triangle(
             }
         }
     } else if (box_feature == box_feature::edge && tri_feature == triangle_feature::edge) {
-        EDYN_ASSERT(!mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, tri_feature_index)));
+        EDYN_ASSERT(mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, tri_feature_index)));
 
         auto edgeA_local = box.get_edge(feature_indexA);
         vector3 edgeA[] = {

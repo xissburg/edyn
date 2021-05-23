@@ -1,6 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/util/triangle_util.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/math.hpp"
 
@@ -15,21 +15,21 @@ static void collide_capsule_triangle(
     const auto &ornA = ctx.ornA;
     const auto tri_vertices = mesh.get_triangle_vertices(tri_idx);
     const auto tri_normal = mesh.get_triangle_normal(tri_idx);
+    const auto tri_center = average(tri_vertices);
 
     auto sep_axis = vector3_zero;
     auto distance = -EDYN_SCALAR_MAX;
+    triangle_feature tri_feature;
+    size_t tri_feature_index;
 
     // Triangle face normal.
     {
         auto dir = tri_normal;
         auto proj_cap = -capsule_support_projection(capsule_vertices, capsule.radius, -dir);
         auto proj_tri = dot(tri_vertices[0], tri_normal);
-        auto dist = proj_cap - proj_tri;
-
-        if (dist > distance) {
-            distance = dist;
-            sep_axis = tri_normal;
-        }
+        distance = proj_cap - proj_tri;
+        sep_axis = tri_normal;
+        tri_feature = triangle_feature::face;
     }
 
     // Triangle edges vs capsule edge.
@@ -59,7 +59,7 @@ static void collide_capsule_triangle(
 
         dir /= std::sqrt(dir_len_sqr);
 
-        if (dot(posA - v0, dir) < 0) {
+        if (dot(posA - tri_center, dir) < 0) {
             dir *= -1; // Make it point towards capsule.
         }
 
@@ -68,22 +68,24 @@ static void collide_capsule_triangle(
         auto dist = proj_cap - proj_tri;
 
         if (dist > distance) {
-            distance = dist;
-            sep_axis = dir;
+            // Only consider this direction if it should not be ignored by the
+            // triangle's support feature.
+            triangle_feature feature;
+            size_t feature_index;
+            get_triangle_support_feature(tri_vertices, vector3_zero, dir,
+                                         feature, feature_index,
+                                         proj_tri, support_feature_tolerance);
+
+            if (!mesh.ignore_triangle_feature(tri_idx, feature, feature_index, dir)) {
+                sep_axis = dir;
+                distance = dist;
+                tri_feature = feature;
+                tri_feature_index = feature_index;
+            }
         }
     }
 
     if (distance > ctx.threshold) {
-        return;
-    }
-
-    triangle_feature tri_feature;
-    size_t tri_feature_index;
-    scalar proj_tri;
-    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis, tri_feature,
-                                 tri_feature_index, proj_tri, support_feature_tolerance);
-
-    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
     }
 
@@ -127,7 +129,7 @@ static void collide_capsule_triangle(
 
             for (int i = 0; i < 3; ++i) {
                 // Ignore concave edges.
-                if (mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, i))) {
+                if (!mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, i))) {
                     continue;
                 }
 

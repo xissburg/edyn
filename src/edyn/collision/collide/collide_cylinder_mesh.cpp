@@ -5,7 +5,7 @@
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/util/triangle_util.hpp"
 
 namespace edyn {
 
@@ -176,7 +176,7 @@ void collide_cylinder_triangle(
         // Check if circle and triangle edges intersect.
         for (int i = 0; i < 3; ++i) {
             // Ignore concave edges.
-            if (mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, i))) {
+            if (!mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, i))) {
                 continue;
             }
 
@@ -205,7 +205,7 @@ void collide_cylinder_triangle(
             }
         }
     } else if (cyl_feature == cylinder_feature::face && tri_feature == triangle_feature::edge) {
-        EDYN_ASSERT(!mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, tri_feature_index)));
+        EDYN_ASSERT(mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, tri_feature_index)));
 
         vector3 edge_vertices[] = {tri_vertices[tri_feature_index],
                                     tri_vertices[(tri_feature_index + 1) % 3]};
@@ -280,7 +280,7 @@ void collide_cylinder_triangle(
 
         for (int i = 0; i < 3; ++i) {
             // Ignore concave edges.
-            if (mesh.is_concave_edge(mesh.get_face_edge_index(tri_idx, i))) {
+            if (!mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, i))) {
                 continue;
             }
 

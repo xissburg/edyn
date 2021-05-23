@@ -2,7 +2,7 @@
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/config/constants.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/util/triangle_util.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"

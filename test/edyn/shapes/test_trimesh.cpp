@@ -31,7 +31,5 @@ TEST(test_trimesh, voronoi_regions) {
     ASSERT_FALSE(trimesh.in_vertex_voronoi(4, {1, 0, 0.5}));
     ASSERT_TRUE(trimesh.in_vertex_voronoi(2, {-1, 0.1, -1}));
 
-    ASSERT_TRUE(trimesh.is_concave_vertex(0));
-    ASSERT_FALSE(trimesh.is_concave_vertex(3));
-    ASSERT_TRUE(trimesh.is_concave_edge(trimesh.get_face_edge_index(4, 2)));
+    ASSERT_FALSE(trimesh.is_convex_edge(trimesh.get_face_edge_index(4, 2)));
 }

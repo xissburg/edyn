@@ -6,7 +6,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
+#include "edyn/util/triangle_util.hpp"
 #include "edyn/collision/static_tree.hpp"
 
 namespace edyn {
@@ -23,7 +23,7 @@ public:
     void calculate_edge_normals();
     void init_vertex_tangents();
     void init_face_edge_indices();
-    void calculate_concave_edges();
+    void calculate_convex_edges();
     void build_triangle_tree();
 
 public:
@@ -105,14 +105,9 @@ public:
 
     bool in_edge_voronoi(size_t edge_idx, const vector3 &dir) const;
 
-    bool is_concave_vertex(size_t vertex_idx) const {
-        EDYN_ASSERT(vertex_idx < m_is_concave_vertex.size());
-        return m_is_concave_vertex[vertex_idx];
-    }
-
-    bool is_concave_edge(size_t edge_idx) const {
-        EDYN_ASSERT(edge_idx < m_is_concave_edge.size());
-        return m_is_concave_edge[edge_idx];
+    bool is_convex_edge(size_t edge_idx) const {
+        EDYN_ASSERT(edge_idx < m_is_convex_edge.size());
+        return m_is_convex_edge[edge_idx];
     }
 
     bool is_boundary_edge(size_t edge_idx) const {
@@ -177,11 +172,8 @@ public:
     // with a single triangle.
     std::vector<bool> m_is_boundary_edge;
 
-    // Whether an edge is concave.
-    std::vector<bool> m_is_concave_edge;
-
-    // Whether a vertex is concave.
-    std::vector<bool> m_is_concave_vertex;
+    // Whether an edge is convex.
+    std::vector<bool> m_is_convex_edge;
 
     static_tree m_triangle_tree;
 };

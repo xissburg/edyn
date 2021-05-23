@@ -148,7 +148,8 @@ static
 bool maybe_remove_point(contact_manifold &manifold, const contact_point &cp, size_t pt_idx,
                         const vector3 &posA, const quaternion &ornA,
                         const vector3 &posB, const quaternion &ornB) {
-    constexpr auto threshold_sqr = contact_breaking_threshold * contact_breaking_threshold;
+    constexpr auto threshold = contact_breaking_threshold;
+    constexpr auto threshold_sqr = threshold * threshold;
 
     // Remove separating contact points.
     auto pA = posA + rotate(ornA, cp.pivotA);
@@ -159,8 +160,7 @@ bool maybe_remove_point(contact_manifold &manifold, const contact_point &cp, siz
     auto tangential_dir = d - normal_dist * n; // tangential separation on contact plane
     auto tangential_dist_sqr = length_sqr(tangential_dir);
 
-    if (normal_dist < contact_breaking_threshold &&
-        tangential_dist_sqr < threshold_sqr) {
+    if (normal_dist < threshold && tangential_dist_sqr < threshold_sqr) {
         return false;
     }
 
