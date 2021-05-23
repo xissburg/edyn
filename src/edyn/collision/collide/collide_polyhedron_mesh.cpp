@@ -1,7 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/config/constants.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
 #include "edyn/util/shape_util.hpp"
@@ -30,9 +29,36 @@ static void collide_polyhedron_triangle(
         v -= pos_poly;
     }
 
-    auto projection_poly = EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
-    scalar distance = -EDYN_SCALAR_MAX;
+    auto distance = -EDYN_SCALAR_MAX;
+    triangle_feature tri_feature;
+    size_t tri_feature_index;
+    scalar projection_tri;
+    scalar projection_poly;
+
+    auto test_direction = [&] (vector3 dir, scalar dist) -> bool {
+        if (!(dist > distance)) {
+            return false;
+        }
+
+        triangle_feature feature;
+        size_t feature_index;
+        scalar proj_tri;
+        get_triangle_support_feature(tri_vertices, vector3_zero, dir,
+                                     feature, feature_index,
+                                     proj_tri, support_feature_tolerance);
+
+        if (mesh.ignore_triangle_feature(tri_idx, feature, feature_index, dir)) {
+            return false;
+        }
+
+        sep_axis = dir;
+        distance = dist;
+        tri_feature = feature;
+        tri_feature_index = feature_index;
+        projection_tri = proj_tri;
+        return true;
+    };
 
     // Polyhedron face normals.
     for (size_t i = 0; i < poly.mesh->num_faces(); ++i) {
@@ -44,10 +70,8 @@ static void collide_polyhedron_triangle(
         auto proj_tri = get_triangle_support_projection(tri_vertices, normal);
         auto dist = proj_poly - proj_tri;
 
-        if (dist > distance) {
-            distance = dist;
+        if (test_direction(normal, dist)) {
             projection_poly = proj_poly;
-            sep_axis = normal;
         }
     }
 
@@ -61,10 +85,22 @@ static void collide_polyhedron_triangle(
 
         if (dist > distance) {
             distance = dist;
-            projection_poly = proj_poly;
             sep_axis = tri_normal;
+            tri_feature = triangle_feature::face;
+            projection_tri = proj_tri;
+            projection_poly = proj_poly;
         }
     }
+
+    auto add_direction = [&] (vector3 dir) {
+        auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -dir);
+        auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
+        auto dist = proj_poly - proj_tri;
+
+        if (test_direction(dir, dist)) {
+            projection_poly = proj_poly;
+        }
+    };
 
     // Edge vs edge.
     for (size_t i = 0; i < poly.mesh->num_edges(); ++i) {
@@ -81,38 +117,12 @@ static void collide_polyhedron_triangle(
                 continue;
             }
 
-            auto &vertexB0 = tri_vertices[j];
-
-            // Polyhedron is located at the origin.
-            if (dot(vector3_zero - vertexB0, dir) < 0) {
-                // Make it point towards A.
-                dir *= -1;
-            }
-
-            auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -dir);
-            auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
-            auto dist = proj_poly - proj_tri;
-
-            if (dist > distance) {
-                distance = dist;
-                projection_poly = proj_poly;
-                sep_axis = dir;
-            }
+            add_direction(dir);
+            add_direction(-dir);
         }
     }
 
     if (distance > ctx.threshold) {
-        return;
-    }
-
-    triangle_feature tri_feature;
-    size_t tri_feature_index;
-    scalar projection_tri;
-    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
-                                 tri_feature, tri_feature_index, projection_tri,
-                                 support_feature_tolerance);
-
-    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
     }
 

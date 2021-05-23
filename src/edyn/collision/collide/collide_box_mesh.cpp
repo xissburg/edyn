@@ -4,6 +4,7 @@
 #include "edyn/math/math.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/shapes/triangle_shape.hpp"
 
 namespace edyn {
@@ -20,6 +21,31 @@ static void collide_box_triangle(
 
     auto distance = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
+    triangle_feature tri_feature;
+    size_t tri_feature_index;
+
+    auto test_direction = [&] (vector3 dir, scalar dist) -> bool {
+        if (!(dist > distance)) {
+            return false;
+        }
+
+        triangle_feature feature;
+        size_t feature_index;
+        scalar proj_tri;
+        get_triangle_support_feature(tri_vertices, vector3_zero, dir,
+                                     feature, feature_index,
+                                     proj_tri, support_feature_tolerance);
+
+        if (mesh.ignore_triangle_feature(tri_idx, feature, feature_index, dir)) {
+            return false;
+        }
+
+        sep_axis = dir;
+        distance = dist;
+        tri_feature = feature;
+        tri_feature_index = feature_index;
+        return true;
+    };
 
     // Box faces.
     for (size_t i = 0; i < 6; ++i) {
@@ -29,11 +55,7 @@ static void collide_box_triangle(
         auto projA = -(dot(posA, -dir) + box.half_extents[j]);
         auto projB = get_triangle_support_projection(tri_vertices, dir);
         auto dist = projA - projB;
-
-        if (dist > distance) {
-            distance = dist;
-            sep_axis = dir;
-        }
+        test_direction(dir, dist);
     }
 
     // Triangle face normal.
@@ -44,8 +66,16 @@ static void collide_box_triangle(
         if (dist > distance) {
             distance = dist;
             sep_axis = tri_normal;
+            tri_feature = triangle_feature::face;
         }
     }
+
+    auto add_direction = [&] (vector3 dir) {
+        auto projA = -box.support_projection(posA, ornA, -dir);
+        auto projB = get_triangle_support_projection(tri_vertices, dir);
+        auto dist = projA - projB;
+        test_direction(dir, dist);
+    };
 
     // Edges.
     for (size_t i = 0; i < 3; ++i) {
@@ -59,33 +89,12 @@ static void collide_box_triangle(
                 continue;
             }
 
-            if (dot(posA - tri_vertices[j], dir) < 0) {
-                dir *= -1; // Make it point towards box.
-            }
-
-            auto projA = -box.support_projection(posA, ornA, -dir);
-            auto projB = get_triangle_support_projection(tri_vertices, dir);
-            auto dist = projA - projB;
-
-            if (dist > distance) {
-                distance = dist;
-                sep_axis = dir;
-            }
+            add_direction(dir);
+            add_direction(-dir);
         }
     }
 
     if (distance > ctx.threshold) {
-        return;
-    }
-
-    triangle_feature tri_feature;
-    size_t tri_feature_index;
-    scalar projectionB;
-    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
-                                 tri_feature, tri_feature_index,
-                                 projectionB, support_feature_tolerance);
-
-    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
     }
 
@@ -333,6 +342,8 @@ static void collide_box_triangle(
                                     &s[1], &t[1], &pA[1], &pB[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
+            if (!(s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1)) continue;
+
             auto pivotA = lerp(edgeA_local[0], edgeA_local[1], s[i]);
             auto pivotB = pB[i]; // Triangle already located in world space.
             result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
@@ -353,8 +364,8 @@ static void collide_box_triangle(
     } else if (box_feature == box_feature::vertex && tri_feature == triangle_feature::face) {
         auto pivotA = box.get_vertex(feature_indexA);
         auto pivotA_world = to_world_space(pivotA, posA, ornA);
-        auto pivotB = pivotA_world - tri_normal * distance;
-        if (point_in_triangle(tri_vertices, tri_normal, pivotB)) {
+        if (point_in_triangle(tri_vertices, tri_normal, pivotA_world)) {
+            auto pivotB = pivotA_world - tri_normal * distance;
             result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     }
