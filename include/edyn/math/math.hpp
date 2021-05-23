@@ -3,6 +3,8 @@
 
 #include "constants.hpp"
 #include <algorithm>
+#include <cmath>
+#include <array>
 
 namespace edyn {
 
@@ -63,6 +65,20 @@ inline auto square(T a) {
  */
 inline auto to_sign(bool b) {
     return b ? scalar(1) : scalar(-1);
+}
+
+/**
+ * @brief Calculate average of N values, i.e. their sum divided by N.
+ * @param array Array of values.
+ * @return Average value.
+ */
+template<typename T, size_t N>
+inline auto average(const std::array<T, N> &array) {
+    auto sum = array[0];
+    for (size_t i = 1; i < N; ++i) {
+        sum += array[i];
+    }
+    return sum / N;
 }
 
 }
