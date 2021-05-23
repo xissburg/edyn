@@ -24,8 +24,6 @@ public:
     void init_vertex_tangents();
     void init_face_edge_indices();
     void calculate_concave_edges();
-    void build_vertex_tree();
-    void build_edge_tree();
     void build_triangle_tree();
 
 public:
@@ -44,7 +42,7 @@ public:
     }
 
     AABB get_aabb() const {
-        return m_vertex_tree.root_aabb();
+        return m_triangle_tree.root_aabb();
     }
 
     vector3 get_vertex_position(size_t vertex_idx) const {
@@ -84,16 +82,6 @@ public:
      * @return Two face normals.
      */
     std::array<vector3, 2> get_convex_edge_face_normals(size_t edge_idx) const ;
-
-    template<typename Func>
-    void visit_vertices(const AABB &aabb, Func func) const {
-        m_vertex_tree.visit(aabb, func);
-    }
-
-    template<typename Func>
-    void visit_edges(const AABB &aabb, Func func) const {
-        m_edge_tree.visit(aabb, func);
-    }
 
     template<typename Func>
     void visit_triangles(const AABB &aabb, Func func) const {
@@ -195,8 +183,6 @@ public:
     // Whether a vertex is concave.
     std::vector<bool> m_is_concave_vertex;
 
-    static_tree m_vertex_tree;
-    static_tree m_edge_tree;
     static_tree m_triangle_tree;
 };
 

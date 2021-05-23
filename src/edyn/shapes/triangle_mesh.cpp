@@ -13,8 +13,6 @@ void triangle_mesh::initialize() {
     init_face_edge_indices();
     calculate_edge_normals();
     calculate_concave_edges();
-    build_vertex_tree();
-    build_edge_tree();
     build_triangle_tree();
 }
 
@@ -213,37 +211,6 @@ void triangle_mesh::calculate_concave_edges() {
             m_is_concave_vertex[vertex_indices[1]] = true;
         }
     }
-}
-
-void triangle_mesh::build_vertex_tree() {
-    std::vector<AABB> aabbs;
-    aabbs.reserve(num_vertices());
-
-    for (size_t i = 0; i < num_vertices(); ++i) {
-        auto aabb = AABB{m_vertices[i], m_vertices[i]};
-        aabbs.push_back(aabb);
-    }
-
-    auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
-        node.id = *ids_begin;
-    };
-    m_vertex_tree.build(aabbs.begin(), aabbs.end(), report_leaf);
-}
-
-void triangle_mesh::build_edge_tree() {
-    std::vector<AABB> aabbs;
-    aabbs.reserve(num_edges());
-
-    for (size_t i = 0; i < num_edges(); ++i) {
-        auto verts = get_edge_vertices(i);
-        auto aabb = AABB{min(verts[0], verts[1]), max(verts[0], verts[1])};
-        aabbs.push_back(aabb);
-    }
-
-    auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
-        node.id = *ids_begin;
-    };
-    m_edge_tree.build(aabbs.begin(), aabbs.end(), report_leaf);
 }
 
 void triangle_mesh::build_triangle_tree() {

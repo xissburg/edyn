@@ -56,19 +56,6 @@ public:
     }
 
     template<typename Func>
-    void visit_cached_edges(const AABB &aabb, Func func) const {
-        for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
-            auto trimesh = m_cache[mesh_idx].trimesh;
-
-            if (trimesh) {
-                trimesh->visit_edges(aabb, [=] (uint32_t edge_idx) {
-                    func(mesh_idx, edge_idx);
-                });
-            }
-        }
-    }
-
-    template<typename Func>
     void visit_all_cached_edges(Func func) const {
         for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
             auto trimesh = m_cache[mesh_idx].trimesh;
