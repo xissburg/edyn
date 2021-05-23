@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/util/triangle_util.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/math.hpp"
@@ -184,10 +185,13 @@ static void collide_capsule_triangle(
             auto &closest_capsule_vertex = capsule_vertices[capsule_vertex_index];
             vector3 pivotB; scalar t;
             closest_point_line(v0, v1 - v0, closest_capsule_vertex, t, pivotB);
-
-            auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
-            auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            auto dir = closest_capsule_vertex - pivotB;
+            // dir and sep_axis have to be parallel.
+            if (!(length_sqr(cross(dir, sep_axis)) > EDYN_EPSILON)) {
+                auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            }
         }
         break;
     }
@@ -198,10 +202,13 @@ static void collide_capsule_triangle(
             auto edge = capsule_vertices[1] - capsule_vertices[0];
             vector3 closest; scalar t;
             closest_point_line(capsule_vertices[0], edge, pivotB, t, closest);
-
-            auto pivotA_world = closest - sep_axis * capsule.radius;
-            auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            auto dir = closest - pivotB;
+            // dir and sep_axis have to be parallel.
+            if (!(length_sqr(cross(dir, sep_axis)) > EDYN_EPSILON)) {
+                auto pivotA_world = closest - sep_axis * capsule.radius;
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            }
         } else {
             auto &closest_capsule_vertex = capsule_vertices[capsule_vertex_index];
             auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
