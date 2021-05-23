@@ -207,7 +207,7 @@ size_t insert_index(const std::array<vector3, N> &points,
                     const vector3 &new_point,
                     scalar new_point_depth) {
     EDYN_ASSERT(num_points <= N);
-    const auto max_dist_similar_sqr = contact_breaking_threshold * contact_breaking_threshold;
+    const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
 
     // Look for a similar point.
     for (size_t i = 0; i < num_points; ++i) {
