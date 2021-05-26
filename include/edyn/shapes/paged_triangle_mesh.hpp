@@ -18,7 +18,6 @@ class finish_load_mesh_job;
 // Forward declaration of `detail::submesh_builder` needed by `friend`
 // declaration in `paged_triangle_mesh`.
 namespace detail {
-    template<typename VertexIterator, typename IndexIterator, typename IdIterator>
     struct submesh_builder;
 }
 
@@ -203,7 +202,6 @@ public:
         IndexIterator index_begin, IndexIterator index_end,
         size_t max_tri_per_submesh);
 
-    template<typename VertexIterator, typename IndexIterator, typename IdIterator>
     friend struct detail::submesh_builder;
 
     friend class paged_triangle_mesh_file_input_archive;
@@ -219,7 +217,6 @@ private:
     void load_node_if_needed(size_t trimesh_idx);
     void mark_recent_visit(size_t trimesh_idx);
     void unload_least_recently_visited_node();
-    void calculate_edge_angles(scalar merge_distance);
 
     static_tree m_tree;
     std::vector<triangle_mesh_node> m_cache;

@@ -15,18 +15,14 @@ namespace detail {
  * ids for that submesh. After `static_tree::build` finishes, the `build` function
  * must be called to create the submeshes and add them to the paged triangle mesh.
  */
-template<typename VertexIterator, typename IndexIterator, typename IdIterator>
 struct submesh_builder {
-    paged_triangle_mesh *paged_tri_mesh;
-    VertexIterator vertex_begin, vertex_end;
-    IndexIterator index_begin, index_end;
-
     struct build_info {
         std::vector<uint32_t> ids;
     };
     std::vector<build_info> infos;
 
-    void operator()(static_tree::tree_node &node, IdIterator ids_begin, IdIterator ids_end) {
+    template<typename It>
+    void operator()(static_tree::tree_node &node, It ids_begin, It ids_end) {
         // Assign the `build_info` index as the node id which will later be
         // matched with the submesh id.
         node.id = infos.size();
@@ -37,9 +33,12 @@ struct submesh_builder {
         infos.push_back(info);
     }
 
-    void build() {
+    template<typename VertexIterator, typename IndexIterator>
+    void build(paged_triangle_mesh &paged_tri_mesh, const triangle_mesh &global_tri_mesh,
+               VertexIterator vertex_begin, VertexIterator vertex_end,
+               IndexIterator index_begin, IndexIterator index_end) {
         // Allocate space in cache for all submeshes.
-        paged_tri_mesh->m_cache.resize(infos.size());
+        paged_tri_mesh.m_cache.resize(infos.size());
 
         // Create submeshes using the triangle indices stored in the `build_info`s.
         parallel_for(size_t{0}, infos.size(), [&] (size_t idx) {
@@ -65,37 +64,95 @@ struct submesh_builder {
             local_indices.erase(local_indices_erase_begin, local_indices.end());
 
             // Create triangle mesh for this leaf and allocate vertices and indices.
-            auto trimesh = std::make_unique<triangle_mesh>();
-            trimesh->m_vertices.reserve(local_indices.size());
+            auto submesh = std::make_unique<triangle_mesh>();
+            submesh->m_vertices.reserve(local_indices.size());
 
             // Insert vertices into triangle mesh.
             for (auto idx : local_indices) {
-                trimesh->m_vertices.push_back(*(vertex_begin + idx));
+                submesh->m_vertices.push_back(*(vertex_begin + idx));
             }
 
-            trimesh->m_indices.resize(local_num_triangles);
+            submesh->m_indices.resize(local_num_triangles);
 
             // Obtain local indices from global indices and add to triangle mesh.
             for (auto tri_idx = 0; tri_idx < local_num_triangles; ++tri_idx) {
                 for (size_t i = 0; i < 3; ++i) {
-                    auto v_idx = global_indices[tri_idx * 3 + i];
-                    auto it = std::find(local_indices.begin(), local_indices.end(), v_idx);
-                    auto local_idx = std::distance(local_indices.begin(), it);
-                    trimesh->m_indices[tri_idx][i] = local_idx;
+                    auto vertex_idx = global_indices[tri_idx * 3 + i];
+                    // The local vertex index is the index of the element in
+                    // `local_indices` which is equals to the global `vertex_idx`.
+                    auto it = std::find(local_indices.begin(), local_indices.end(), vertex_idx);
+                    auto local_vertex_idx = std::distance(local_indices.begin(), it);
+                    submesh->m_indices[tri_idx][i] = local_vertex_idx;
+                }
+
+                auto global_tri_idx = info.ids[tri_idx];
+                submesh->m_normals[tri_idx] = global_tri_mesh.m_normals[global_tri_idx];
+            }
+
+            // `initialize()` should not be called on the submesh. Initialize
+            // submesh selectively, copying already calculated data from the
+            // full triangle mesh, which includes adjacency information related
+            // to the neighboring submeshes.
+            submesh->init_edge_indices();
+            submesh->init_face_edge_indices();
+            submesh->build_triangle_tree();
+
+            submesh->m_vertex_tangent_ranges.reserve(submesh->m_vertices.size());
+            submesh->m_vertex_tangents.reserve(submesh->m_vertices.size() * 2);
+
+            // Assign vertex tangents.
+            for (auto local_vertex_idx = 0; local_vertex_idx < local_indices.size(); ++local_vertex_idx) {
+                auto global_vertex_idx = local_indices[local_vertex_idx];
+                auto global_range = global_tri_mesh.m_vertex_tangent_ranges[global_vertex_idx];
+                auto global_range_start = global_range[0];
+                auto global_range_end = global_range[1];
+
+                auto local_range_start = static_cast<triangle_mesh::index_type>(submesh->m_vertex_tangents.size());
+                auto local_range_end = local_range_start;
+
+                for (auto i = global_range_start; i < global_range_end; ++i) {
+                    auto tangent = global_tri_mesh.m_vertex_tangents[i];
+                    submesh->m_vertex_tangents.push_back(tangent);
+                    ++local_range_end;
+                }
+
+                EDYN_ASSERT(local_range_start != local_range_end);
+                submesh->m_vertex_tangent_ranges.push_back({local_range_start, local_range_end});
+            }
+
+            submesh->m_edge_normals.resize(submesh->m_edge_indices.size());
+            submesh->m_is_convex_edge.resize(submesh->m_edge_indices.size());
+
+            // Assign edge normals.
+            for (auto edge_idx = 0; edge_idx < submesh->m_edge_indices.size(); ++edge_idx) {
+                size_t global_vertex_indices[] = {
+                    local_indices[submesh->m_edge_indices[edge_idx][0]],
+                    local_indices[submesh->m_edge_indices[edge_idx][1]]
+                };
+                for (auto global_edge_idx = 0; global_edge_idx < global_tri_mesh.m_edge_indices.size(); ++global_edge_idx) {
+                    auto indices = global_tri_mesh.m_edge_indices[global_edge_idx];
+                    auto is_same = indices[0] == global_vertex_indices[0] &&
+                                   indices[1] == global_vertex_indices[1];
+                    auto is_reversed = indices[0] == global_vertex_indices[1] &&
+                                       indices[1] == global_vertex_indices[0];
+
+                    if (is_same || is_reversed) {
+                        submesh->m_edge_normals[edge_idx] = global_tri_mesh.m_edge_normals[global_edge_idx];
+
+                        if (is_reversed) {
+                            std::swap(submesh->m_edge_normals[edge_idx][0], submesh->m_edge_normals[edge_idx][1]);
+                        }
+
+                        submesh->m_is_convex_edge[edge_idx] = global_tri_mesh.m_is_convex_edge[global_edge_idx];
+                    }
                 }
             }
 
-            // Initialize triangle mesh.
-            // Edge-angles are calculated after the entire tree is ready so that
-            // neighboring triangles that reside in another submesh are also
-            // considered. Thus, only allocate space for edge angle info.
-            trimesh->initialize();
-
             // Create node.
-            auto &paged_node = paged_tri_mesh->m_cache[idx];
-            paged_node.num_vertices = trimesh->m_vertices.size();
-            paged_node.num_indices = trimesh->m_indices.size();
-            paged_node.trimesh = std::move(trimesh);
+            auto &paged_node = paged_tri_mesh.m_cache[idx];
+            paged_node.num_vertices = submesh->m_vertices.size();
+            paged_node.num_indices = submesh->m_indices.size();
+            paged_node.trimesh = std::move(submesh);
         });
     }
 };
@@ -121,13 +178,28 @@ void create_paged_triangle_mesh(
     // Only allowed to create a mesh if this instance is empty.
     EDYN_ASSERT(paged_tri_mesh.m_tree.empty() && paged_tri_mesh.m_cache.empty());
 
+    auto num_vertices = std::distance(vertex_begin, vertex_end);
+    auto num_indices = static_cast<size_t>(std::distance(index_begin, index_end));
+    auto num_triangles = num_indices / 3;
+
+    // Create a `triangle_mesh` containing the full list of vertices and indices
+    // and then break it up into smaller meshes.
+    auto global_tri_mesh = triangle_mesh{};
+    global_tri_mesh.m_vertices.reserve(num_vertices);
+    global_tri_mesh.m_indices.reserve(num_triangles);
+
+    global_tri_mesh.m_vertices.insert(global_tri_mesh.m_vertices.end(), vertex_begin, vertex_end);
+
+    for (auto it = index_begin; it != index_end; it += 3) {
+        global_tri_mesh.m_indices.push_back({*it, *(it + 1), *(it + 2)});
+    }
+
+    global_tri_mesh.initialize();
+
     // Do not limit cache size when building the triangle mesh. Keep all submeshes
     // in memory to later calculate edge angles (adjacency).
     auto original_max_cache_size = paged_tri_mesh.m_max_cache_num_vertices;
     paged_tri_mesh.m_max_cache_num_vertices = SIZE_MAX;
-
-    auto num_indices = static_cast<size_t>(std::distance(index_begin, index_end));
-    auto num_triangles = num_indices / 3;
 
     // Calculate AABB of each triangle.
     std::vector<AABB> aabbs(num_triangles);
@@ -142,11 +214,9 @@ void create_paged_triangle_mesh(
     });
 
     // Build tree and submeshes.
-    auto builder = detail::submesh_builder<VertexIterator, IndexIterator, std::vector<uint32_t>::iterator>{
-        &paged_tri_mesh, vertex_begin, vertex_end, index_begin, index_end
-    };
+    auto builder = detail::submesh_builder{};
     paged_tri_mesh.m_tree.build(aabbs.begin(), aabbs.end(), builder, max_tri_per_submesh);
-    builder.build();
+    builder.build(paged_tri_mesh, global_tri_mesh, vertex_begin, vertex_end, index_begin, index_end);
 
     // Resize LRU queue to have the number of leaves.
     paged_tri_mesh.m_lru_indices.resize(paged_tri_mesh.m_cache.size());
@@ -154,10 +224,6 @@ void create_paged_triangle_mesh(
               paged_tri_mesh.m_lru_indices.end(), 0);
 
     paged_tri_mesh.m_is_loading_submesh = std::make_unique<std::atomic<bool>[]>(paged_tri_mesh.m_cache.size());
-
-    // Calculate edge angles.
-    constexpr scalar merge_distance = 0.01;
-    paged_tri_mesh.calculate_edge_angles(merge_distance);
 
     // Reset cache settings.
     paged_tri_mesh.m_max_cache_num_vertices = original_max_cache_size;

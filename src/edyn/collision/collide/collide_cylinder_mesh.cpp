@@ -248,7 +248,7 @@ void collide_cylinder_triangle(
         // Check if edge vertices are inside triangle face.
         size_t num_edge_vert_in_tri_face = 0;
 
-        auto radial_dir = project_direction(-sep_axis, cylinder_axis);
+        auto radial_dir = normalize(project_direction(-sep_axis, cylinder_axis));
 
         for (auto vertex : cylinder_vertices) {
             if (point_in_triangle(tri_vertices, tri_normal, vertex)) {
@@ -342,7 +342,7 @@ void collide_cylinder_triangle(
         if (point_in_triangle(tri_vertices, tri_normal, supportA)) {
             auto pivotA = to_object_space(supportA, posA, ornA);
             auto pivotB = project_plane(supportA, tri_vertices[0], tri_normal);
-            result.add_point({pivotA, pivotB, tri_normal, distance});
+            result.maybe_add_point({pivotA, pivotB, tri_normal, distance});
         }
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::edge) {
         auto supportA = cylinder.support_point(posA, ornA, -sep_axis);

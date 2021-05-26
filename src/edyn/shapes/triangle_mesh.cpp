@@ -190,8 +190,9 @@ void triangle_mesh::calculate_convex_edges() {
     m_is_convex_edge.resize(m_edge_indices.size());
 
     for (size_t e_idx = 0; e_idx < m_edge_indices.size(); ++e_idx) {
-        // Boundary edges are always convex.
         if (is_boundary_edge(e_idx)) {
+            // Boundary edges are always convex.
+            m_is_convex_edge[e_idx] = true;
             continue;
         }
 
