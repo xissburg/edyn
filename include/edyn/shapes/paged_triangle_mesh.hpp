@@ -100,29 +100,6 @@ public:
     }
 
     /**
-     * @brief Visits all triangles of all nodes.
-     * @param func An element into which the `operator()` will be called.
-     *      The expected signature is:
-     *      `void(uint32_t mesh_idx, uint32_t tri_idx)`
-     *      Where:
-     *      - `mesh_idx` is the index of the submesh.
-     *      - `tri_idx` is the triangle index within the submesh.
-     */
-    template<typename Func>
-    void visit_all_triangles(Func func) {
-        for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
-            load_node_if_needed(mesh_idx);
-            auto trimesh = m_cache[mesh_idx].trimesh;
-
-            if (trimesh) {
-                for (size_t tri_idx = 0; tri_idx < trimesh->num_triangles(); ++tri_idx) {
-                    func(mesh_idx, tri_idx);
-                }
-            }
-        }
-    }
-
-    /**
      * @brief Visits all cached triangles that intersect the given AABB, which
      *      means no new triangle meshes will be loaded into the cache in the
      *      call.
@@ -157,7 +134,7 @@ public:
      *      - `tri_idx` is the triangle index within the submesh.
      */
     template<typename Func>
-    void visit_cache_all_triangles(Func func) const {
+    void visit_all_cached_triangles(Func func) const {
         for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
             auto trimesh = m_cache[mesh_idx].trimesh;
 
