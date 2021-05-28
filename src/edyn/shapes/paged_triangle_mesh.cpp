@@ -1,6 +1,5 @@
 #include "edyn/shapes/paged_triangle_mesh.hpp"
 #include "edyn/parallel/parallel_for.hpp"
-#include "edyn/util/aabb_util.hpp"
 #include <atomic>
 #include <limits>
 #include <entt/entt.hpp>

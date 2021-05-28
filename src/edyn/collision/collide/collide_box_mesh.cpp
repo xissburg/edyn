@@ -94,8 +94,8 @@ static void collide_box_triangle(
     size_t tri_feature_index;
     scalar proj_tri;
     get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
-                                    tri_feature, tri_feature_index,
-                                    proj_tri, support_feature_tolerance);
+                                 tri_feature, tri_feature_index,
+                                 proj_tri, support_feature_tolerance);
 
     if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
