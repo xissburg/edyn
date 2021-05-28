@@ -25,9 +25,9 @@ static void collide_capsule_triangle(
     {
         auto dir = tri_normal;
         auto proj_cap = -capsule_support_projection(capsule_vertices, capsule.radius, -dir);
-        auto proj_tri = dot(tri_vertices[0], tri_normal);
+        auto proj_tri = dot(tri_vertices[0], dir);
         distance = proj_cap - proj_tri;
-        sep_axis = tri_normal;
+        sep_axis = dir;
     }
 
     // Triangle edges vs capsule edge.

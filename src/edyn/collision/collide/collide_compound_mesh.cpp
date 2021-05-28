@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/util/aabb_util.hpp"
 #include "edyn/util/triangle_util.hpp"
 
 namespace edyn {
@@ -14,6 +15,7 @@ void collide(const compound_shape &compound, const triangle_mesh &mesh,
         auto child_ctx = ctx;
         child_ctx.posA = to_world_space(node.position, ctx.posA, ctx.ornA);
         child_ctx.ornA = ctx.ornA * node.orientation;
+        child_ctx.aabbA = aabb_to_world_space(node.aabb, ctx.posA, ctx.ornA);
 
         collision_result child_result;
 
