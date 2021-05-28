@@ -20,8 +20,6 @@ static void collide_capsule_triangle(
 
     auto sep_axis = vector3_zero;
     auto distance = -EDYN_SCALAR_MAX;
-    triangle_feature tri_feature;
-    size_t tri_feature_index;
 
     // Triangle face normal.
     {
@@ -30,7 +28,6 @@ static void collide_capsule_triangle(
         auto proj_tri = dot(tri_vertices[0], tri_normal);
         distance = proj_cap - proj_tri;
         sep_axis = tri_normal;
-        tri_feature = triangle_feature::face;
     }
 
     // Triangle edges vs capsule edge.
@@ -69,24 +66,23 @@ static void collide_capsule_triangle(
         auto dist = proj_cap - proj_tri;
 
         if (dist > distance) {
-            // Only consider this direction if it should not be ignored by the
-            // triangle's support feature.
-            triangle_feature feature;
-            size_t feature_index;
-            get_triangle_support_feature(tri_vertices, vector3_zero, dir,
-                                         feature, feature_index,
-                                         proj_tri, support_feature_tolerance);
-
-            if (!mesh.ignore_triangle_feature(tri_idx, feature, feature_index, dir)) {
-                sep_axis = dir;
-                distance = dist;
-                tri_feature = feature;
-                tri_feature_index = feature_index;
-            }
+            distance = dist;
+            sep_axis = dir;
         }
     }
 
     if (distance > ctx.threshold) {
+        return;
+    }
+
+    triangle_feature tri_feature;
+    size_t tri_feature_index;
+    scalar proj_tri;
+    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
+                                 tri_feature, tri_feature_index,
+                                 proj_tri, support_feature_tolerance);
+
+    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
     }
 

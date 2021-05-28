@@ -22,37 +22,17 @@ static void collide_box_triangle(
 
     auto distance = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
-    triangle_feature tri_feature;
-    size_t tri_feature_index;
-
-    // Check if the given distance is better than the current and if the
-    // direction is valid and assign them as the best choice if so.
-    auto test_direction_and_distance = [&] (vector3 dir, scalar dist) {
-        if (!(dist > distance)) {
-            return;
-        }
-
-        triangle_feature feature;
-        size_t feature_index;
-        scalar proj_tri;
-        get_triangle_support_feature(tri_vertices, vector3_zero, dir,
-                                     feature, feature_index,
-                                     proj_tri, support_feature_tolerance);
-
-        if (!mesh.ignore_triangle_feature(tri_idx, feature, feature_index, dir)) {
-            sep_axis = dir;
-            distance = dist;
-            tri_feature = feature;
-            tri_feature_index = feature_index;
-        }
-    };
 
     // Check if the given direction is the best so far and set it if so.
     auto test_direction = [&] (vector3 dir) {
         auto projA = -box.support_projection(posA, ornA, -dir);
         auto projB = get_triangle_support_projection(tri_vertices, dir);
         auto dist = projA - projB;
-        test_direction_and_distance(dir, dist);
+
+        if (dist > distance) {
+            distance = dist;
+            sep_axis = dir;
+        }
     };
 
     // Triangle face normal.
@@ -61,7 +41,6 @@ static void collide_box_triangle(
         // No need to check if greater than `distance` since this is the first.
         distance = -(proj + dot(tri_vertices[0], tri_normal));
         sep_axis = tri_normal;
-        tri_feature = triangle_feature::face;
     }
 
     // Box faces.
@@ -72,7 +51,11 @@ static void collide_box_triangle(
         auto projA = -(dot(posA, -dir) + box.half_extents[j]);
         auto projB = get_triangle_support_projection(tri_vertices, dir);
         auto dist = projA - projB;
-        test_direction_and_distance(dir, dist);
+
+        if (dist > distance) {
+            distance = dist;
+            sep_axis = dir;
+        }
     }
 
     // Edges.
@@ -104,6 +87,17 @@ static void collide_box_triangle(
     }
 
     if (distance > ctx.threshold) {
+        return;
+    }
+
+    triangle_feature tri_feature;
+    size_t tri_feature_index;
+    scalar proj_tri;
+    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
+                                    tri_feature, tri_feature_index,
+                                    proj_tri, support_feature_tolerance);
+
+    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
     }
 

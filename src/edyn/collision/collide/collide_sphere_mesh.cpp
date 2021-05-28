@@ -20,8 +20,6 @@ static void collide_sphere_triangle(
     // Triangle normal.
     auto distance = dot(sphere_pos - tri_vertices[0], tri_normal) - sphere.radius;
     auto sep_axis = tri_normal;
-    auto tri_feature = triangle_feature::face;
-    size_t tri_feature_index;
 
     // Triangle edges.
     for (size_t i = 0; i < 3; ++i) {
@@ -40,25 +38,23 @@ static void collide_sphere_triangle(
         auto dist = projA - projB;
 
         if (dist > distance) {
-            // Only consider this direction if it should not be ignored by the
-            // triangle's support feature.
-            triangle_feature feature;
-            size_t feature_index;
-            scalar proj_tri;
-            get_triangle_support_feature(tri_vertices, vector3_zero, dir,
-                                         feature, feature_index,
-                                         proj_tri, support_feature_tolerance);
-
-            if (!mesh.ignore_triangle_feature(tri_idx, feature, feature_index, dir)) {
-                sep_axis = dir;
-                distance = dist;
-                tri_feature = feature;
-                tri_feature_index = feature_index;
-            }
+            distance = dist;
+            sep_axis = dir;
         }
     }
 
     if (distance > ctx.threshold) {
+        return;
+    }
+
+    triangle_feature tri_feature;
+    size_t tri_feature_index;
+    scalar proj_tri;
+    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
+                                 tri_feature, tri_feature_index,
+                                 proj_tri, support_feature_tolerance);
+
+    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
         return;
     }
 
