@@ -36,17 +36,17 @@ static void collide_polyhedron_triangle(
 
     // Polyhedron face normals.
     for (size_t i = 0; i < poly.mesh->num_faces(); ++i) {
-        auto normal = -rmesh.normals[i]; // Point towards polyhedron.
+        auto dir = -rmesh.normals[i]; // Point towards polyhedron.
         auto vertex_idx = poly.mesh->first_vertex_index(i);
         auto &poly_vertex = rmesh.vertices[vertex_idx];
 
-        auto proj_poly = dot(poly_vertex, normal);
-        auto proj_tri = get_triangle_support_projection(tri_vertices, normal);
+        auto proj_poly = dot(poly_vertex, dir);
+        auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
         auto dist = proj_poly - proj_tri;
 
         if (dist > distance) {
             distance = dist;
-            sep_axis = tri_normal;
+            sep_axis = dir;
             projection_tri = proj_tri;
             projection_poly = proj_poly;
         }
@@ -75,7 +75,7 @@ static void collide_polyhedron_triangle(
 
         if (dist > distance) {
             distance = dist;
-            sep_axis = tri_normal;
+            sep_axis = dir;
             projection_tri = proj_tri;
             projection_poly = proj_poly;
         }
