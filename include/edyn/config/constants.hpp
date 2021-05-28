@@ -17,13 +17,15 @@ inline constexpr size_t max_constrained_entities = 2;
 inline constexpr auto contact_breaking_threshold = scalar(0.02);
 
 /**
- * Existing contact points that are this close to a new point, will be merged.
+ * During collision detection, as new points are added to the result, existing
+ * contact points that are this close to a new point will be merged.
  */
 inline constexpr auto contact_merging_threshold = scalar(0.01);
 
 /**
- * New contact points will be merged with existing ones if their distance is
- * below this threshold, thus extending their lifetime.
+ * When adding new points to a contact manifold, new contact points will be
+ * merged with existing ones if their distance is below this threshold, thus
+ * extending their lifetime.
  */
 inline constexpr auto contact_caching_threshold = scalar(0.04);
 
