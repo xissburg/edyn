@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <variant>
+#include <string>
 #include <type_traits>
 #include <entt/core/ident.hpp>
 #include "edyn/util/tuple_util.hpp"
@@ -45,7 +46,7 @@ void serialize(Archive &archive, std::vector<bool> &vector) {
     constexpr auto set_num_bits = sizeof(set_type) * 8;
     // Number of sets of bits of size `set_num_bits`.
     // Use ceiling on integer division.
-    const auto num_sets = size / set_num_bits + (size % set_num_bits != 0); 
+    const auto num_sets = size / set_num_bits + (size % set_num_bits != 0);
 
     for (size_t i = 0; i < num_sets; ++i) {
         const auto start = i * set_num_bits;
@@ -76,7 +77,7 @@ inline
 size_t serialization_sizeof(const std::vector<bool> &vec) {
     using set_type = uint32_t;
     constexpr auto set_num_bits = sizeof(set_type) * 8;
-    const auto num_sets = vec.size() / set_num_bits + (vec.size() % set_num_bits != 0); 
+    const auto num_sets = vec.size() / set_num_bits + (vec.size() % set_num_bits != 0);
     return sizeof(size_t) + num_sets * sizeof(set_type);
 }
 

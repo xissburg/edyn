@@ -1,9 +1,6 @@
 #include "edyn/shapes/triangle_mesh.hpp"
-#include "edyn/math/scalar.hpp"
 #include <limits>
-#include <cmath>
 #include <set>
-#include <algorithm>
 
 namespace edyn {
 
@@ -101,7 +98,8 @@ void triangle_mesh::init_vertex_tangents() {
     // The total number of vertex tangents is not easily calculated. Since each
     // vertex is shared by at least 2 edges, reserve the number of vertices
     // times 2.
-    m_vertex_tangents.reserve(m_vertices.size() * 2);
+    m_vertex_tangents.reserve_data(m_vertices.size() * 2);
+    m_vertex_tangents.reserve_nested(m_vertices.size());
 
     for (size_t v_idx = 0; v_idx < m_vertices.size(); ++v_idx) {
         m_vertex_tangents.push_array();

@@ -8,102 +8,14 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/util/triangle_util.hpp"
 #include "edyn/collision/static_tree.hpp"
+#include "edyn/util/commutative_pair.hpp"
+#include "edyn/util/flat_nested_array.hpp"
 
 namespace edyn {
 
-template<typename T>
-struct commutative_pair {
-    T first;
-    T second;
-
-    commutative_pair() = default;
-    commutative_pair(T first, T second)
-        : first(first)
-        , second(second)
-    {}
-
-    auto operator[](size_t idx) const {
-        EDYN_ASSERT(idx < 2);
-        return idx == 0 ? first : second;
-    }
-
-    bool operator==(const commutative_pair &other) const {
-        return (first == other.first && second == other.second) ||
-               (first == other.second && second == other.first);
-    }
-
-    bool operator<(const commutative_pair &other) const {
-        if (first == other.second && second == other.first) {
-            return false;
-        }
-        if (first == other.first) {
-            return second < other.second;
-        }
-        return first < other.first;
-    }
-};
-
-template<typename T>
-class flat_nested_array {
-public:
-    class inner_array {
-    public:
-        inner_array(const flat_nested_array<T> *parent, size_t range_start, size_t size)
-            : m_parent(parent)
-            , m_range_start(range_start)
-            , m_size(size)
-        {}
-
-        const T & operator[](size_t idx) const {
-            EDYN_ASSERT(idx < m_size);
-            return m_parent->m_data[m_range_start + idx];
-        }
-
-        size_t size() const {
-            return m_size;
-        }
-
-    private:
-        const flat_nested_array<T> *m_parent;
-        size_t m_range_start;
-        size_t m_size;
-    };
-
-    void push_array() {
-        m_range_starts.push_back(m_data.size());
-    }
-
-    void push_back(const T &value) {
-        m_data.push_back(value);
-    }
-
-    size_t size() const {
-        return m_range_starts.size();
-    }
-
-    void reserve(size_t count) {
-        m_data.reserve(count);
-    }
-
-    inner_array operator[](size_t idx) const {
-        EDYN_ASSERT(idx < m_range_starts.size());
-        auto next_idx = idx + 1;
-        auto range_start = m_range_starts[idx];
-        auto range_end = next_idx < m_range_starts.size() ? m_range_starts[next_idx] : m_data.size();
-        auto range_size = range_end - range_start;
-        return inner_array(this, range_start, range_size);
-    }
-
-    template<typename Archive, typename U>
-    friend void serialize(Archive &, flat_nested_array<U> &);
-
-    template<typename U>
-    friend size_t serialization_sizeof(const flat_nested_array<U> &);
-
-private:
-    std::vector<T> m_data;
-    std::vector<size_t> m_range_starts;
-};
+namespace detail {
+    struct submesh_builder;
+}
 
 /**
  * @brief A triangle mesh. Includes adjacency information and a tree to
@@ -121,6 +33,22 @@ public:
 
 public:
     using index_type = uint32_t;
+
+    template<typename It>
+    void insert_vertices(It first, It last) {
+        m_vertices.reserve(std::distance(first, last));
+        m_vertices.insert(m_vertices.end(), first, last);
+    }
+
+    template<typename It>
+    void insert_indices(It first, It last) {
+        auto num_triangles = std::distance(first, last) / 3;
+        m_indices.reserve(num_triangles);
+
+        for (auto it = first; it != last; it += 3) {
+            m_indices.push_back({*it, *(it + 1), *(it + 2)});
+        }
+    }
 
     size_t num_vertices() const {
         return m_vertices.size();
@@ -171,8 +99,8 @@ public:
     /**
      * @brief Returns the normals of the faces that share an edge
      * which is assumed to be convex.
-     * @param edge_idx Edge index.
-     * @return Two face normals.
+     * @param edge_idx Convex edge index.
+     * @return Two adjacent face normals.
      */
     std::array<vector3, 2> get_convex_edge_face_normals(size_t edge_idx) const ;
 
@@ -223,7 +151,12 @@ public:
         return m_face_edge_indices[tri_idx][edge_idx];
     }
 
-//private:
+    template<typename Archive>
+    friend void serialize(Archive &, triangle_mesh &);
+    friend size_t serialization_sizeof(const triangle_mesh &);
+    friend struct detail::submesh_builder;
+
+private:
     // Vertex positions.
     std::vector<vector3> m_vertices;
 
@@ -238,6 +171,8 @@ public:
     // vertex indices for one edge.
     std::vector<commutative_pair<index_type>> m_edge_vertex_indices;
 
+    // Indices of edges for each vertex. Each element is a list of indices of
+    // edges that share the vertex.
     flat_nested_array<index_type> m_vertex_edge_indices;
 
     // Vectors that are orthogonal to an edge and parallel to the faces that
