@@ -6,7 +6,7 @@
 
 namespace edyn {
 
-struct triangle_mesh;
+class triangle_mesh;
 
 class triangle_mesh_page_loader_base {
 public:

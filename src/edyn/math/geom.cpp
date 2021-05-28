@@ -287,7 +287,7 @@ scalar closest_point_circle_line(
 
     // Newton-Raphson iterations.
     auto theta = initial_theta;
-    size_t max_iterations = 3;
+    size_t max_iterations = 20;
 
     for (size_t i = 0; i < max_iterations; ++i) {
         auto sin_theta = std::sin(theta);
@@ -495,7 +495,7 @@ scalar closest_point_circle_circle(
 
     // Newton-Raphson iterations.
     auto phi = initial_phi;
-    size_t max_iterations = 10;
+    size_t max_iterations = 20;
 
     for (size_t i = 0; i < max_iterations; ++i) {
         auto cos_phi = std::cos(phi);
@@ -694,26 +694,6 @@ scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, co
 	vector3 tmp2 = cross(a[2], b[2]);
 
 	return std::max(std::max(length_sqr(tmp0), length_sqr(tmp1)), length_sqr(tmp2));
-}
-
-bool point_in_quad(const vector3 &p, 
-                   const std::array<vector3, 4> &quad_vertices, 
-                   const vector3 &quad_normal) {
-
-    std::array<vector3, 4> quad_tangents;
-    for (int i = 0; i < 4; ++i) {
-        auto &v0 = quad_vertices[i];
-        auto &v1 = quad_vertices[(i + 1) % 4];
-        quad_tangents[i] = cross(quad_normal, v1 - v0);
-    }
-
-    scalar dots[4];
-    for (int i = 0; i < 4; ++i) {
-        dots[i] = dot(p - quad_vertices[i], quad_tangents[i]);
-    }
-
-    return dots[0] > -EDYN_EPSILON && dots[1] > -EDYN_EPSILON &&
-           dots[2] > -EDYN_EPSILON && dots[3] > -EDYN_EPSILON;
 }
 
 vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p) {

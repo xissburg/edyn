@@ -47,7 +47,7 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     projectionB = max_proj_B;
 }
 
-void collide(const polyhedron_shape &shA, const polyhedron_shape &shB, 
+void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
              const collision_context &ctx, collision_result &result) {
     // Calculate collision with shape A in the origin for better floating point
     // precision. Position of shape B is modified accordingly.
@@ -68,14 +68,14 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
     auto sep_axis = vector3_zero;
 
     // Find best support direction among all face normals of A.
-    max_support_direction(shA, rmeshA, posA, shB, rmeshB, posB, 
+    max_support_direction(shA, rmeshA, posA, shB, rmeshB, posB,
                           sep_axis, distance, projectionA, projectionB);
 
     // Find best support direction among all face normals of B.
     {
         scalar dist, projA, projB;
         vector3 dir;
-        max_support_direction(shB, rmeshB, posB, shA, rmeshA, posA, 
+        max_support_direction(shB, rmeshB, posB, shA, rmeshA, posA,
                               dir, dist, projB, projA);
 
         if (dist > distance) {
@@ -100,13 +100,10 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
             auto [vertexB0, vertexB1] = shB.mesh->get_rotated_edge(rmeshB, j);
             auto edgeB = vertexB1 - vertexB0;
             auto dir = cross(edgeA, edgeB);
-            auto dir_len_sqr = length_sqr(dir);
 
-            if (!(dir_len_sqr > EDYN_EPSILON)) {
+            if (!try_normalize(dir)) {
                 continue;
             }
-
-            dir /= std::sqrt(dir_len_sqr);
 
             if (dot(posA - posB, dir) < 0) {
                 // Make it point towards A.
@@ -136,7 +133,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
         rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
         sep_axis, projectionA, true, support_feature_tolerance);
     auto polygonB = point_cloud_support_polygon(
-        rmeshB.vertices.begin(), rmeshB.vertices.end(), posB, 
+        rmeshB.vertices.begin(), rmeshB.vertices.end(), posB,
         sep_axis, projectionB, false, support_feature_tolerance);
 
     // First, add contact points for vertices that lie inside the opposing face.
@@ -171,7 +168,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
 
     // Calculate 2D intersection of edges on the closest features.
     if (polygonA.hull.size() > 1 && polygonB.hull.size() > 1) {
-        // If the feature is a polygon, it will be necessary to wrap around the 
+        // If the feature is a polygon, it will be necessary to wrap around the
         // vertex array. If it is just one edge, then avoid calculating the same
         // segment-segment intersection twice.
         const auto sizeA = polygonA.hull.size();
@@ -191,7 +188,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                 auto idx1B = polygonB.hull[(j + 1) % sizeB];
                 auto &v0B = polygonB.plane_vertices[idx0B];
                 auto &v1B = polygonB.plane_vertices[idx1B];
-                auto num_points = intersect_segments(v0A, v1A, v0B, v1B, 
+                auto num_points = intersect_segments(v0A, v1A, v0B, v1B,
                                                      s[0], t[0], s[1], t[1]);
 
                 for (size_t k = 0; k < num_points; ++k) {

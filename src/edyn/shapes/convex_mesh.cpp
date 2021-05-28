@@ -22,7 +22,7 @@ std::array<vector3, 2> convex_mesh::get_edge(size_t idx) const {
     };
 }
 
-std::array<vector3, 2> convex_mesh::get_rotated_edge(const rotated_mesh &rmesh, 
+std::array<vector3, 2> convex_mesh::get_rotated_edge(const rotated_mesh &rmesh,
                                                      size_t idx) const {
     EDYN_ASSERT(idx * 2 + 1 < edges.size());
     EDYN_ASSERT(rmesh.vertices.size() == vertices.size());

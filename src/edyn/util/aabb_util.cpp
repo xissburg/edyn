@@ -28,12 +28,12 @@ AABB plane_aabb(const vector3 &normal, scalar constant) {
         unit_min = {-1, -1,  0};
         unit_max = { 1,  1,  1};
     } else {
-        unit_min = { 1 , 1 , 1};
-        unit_max = {-1, -1, -1};
+        unit_min = {-1, -1, -1};
+        unit_max = { 1,  1,  1};
     }
-    
+
     auto pos_world = normal * constant;
-    return {unit_min * aabb_half_extent + pos_world, 
+    return {unit_min * aabb_half_extent + pos_world,
             unit_max * aabb_half_extent + pos_world};
 }
 
@@ -147,7 +147,7 @@ AABB point_cloud_aabb(const std::vector<vector3> &points) {
     return aabb;
 }
 
-AABB point_cloud_aabb(const std::vector<vector3> &points, 
+AABB point_cloud_aabb(const std::vector<vector3> &points,
                       const vector3 &pos, const quaternion &orn) {
     // TODO: implement and use `parallel_reduce`.
     auto aabb = AABB{vector3_max, -vector3_max};
@@ -180,7 +180,7 @@ AABB shape_aabb(const capsule_shape &sh, const vector3 &pos, const quaternion &o
 
 AABB shape_aabb(const mesh_shape &sh, const vector3 &pos, const quaternion &orn) {
     return {
-        sh.trimesh->get_aabb().min + pos, 
+        sh.trimesh->get_aabb().min + pos,
         sh.trimesh->get_aabb().max + pos
     };
 }
@@ -195,7 +195,7 @@ AABB shape_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion
 
 AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &orn) {
     return {
-        sh.trimesh->get_aabb().min + pos, 
+        sh.trimesh->get_aabb().min + pos,
         sh.trimesh->get_aabb().max + pos
     };
 }

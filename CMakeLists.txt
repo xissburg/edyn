@@ -34,25 +34,25 @@ set(Edyn_SOURCES
     src/edyn/collision/collide/collide_capsule_cylinder.cpp
     src/edyn/collision/collide/collide_capsule_plane.cpp
     src/edyn/collision/collide/collide_capsule_sphere.cpp
-    src/edyn/collision/collide/collide_capsule_triangle.cpp
+    src/edyn/collision/collide/collide_capsule_mesh.cpp
     src/edyn/collision/collide/collide_box_box.cpp
     src/edyn/collision/collide/collide_box_plane.cpp
     src/edyn/collision/collide/collide_capsule_box.cpp
     src/edyn/collision/collide/collide_cylinder_box.cpp
     src/edyn/collision/collide/collide_sphere_box.cpp
-    src/edyn/collision/collide/collide_cylinder_triangle.cpp
-    src/edyn/collision/collide/collide_sphere_triangle.cpp
-    src/edyn/collision/collide/collide_box_triangle.cpp
+    src/edyn/collision/collide/collide_cylinder_mesh.cpp
+    src/edyn/collision/collide/collide_sphere_mesh.cpp
+    src/edyn/collision/collide/collide_box_mesh.cpp
     src/edyn/collision/collide/collide_polyhedron_capsule.cpp
     src/edyn/collision/collide/collide_polyhedron_cylinder.cpp
     src/edyn/collision/collide/collide_polyhedron_box.cpp
     src/edyn/collision/collide/collide_polyhedron_plane.cpp
     src/edyn/collision/collide/collide_polyhedron_polyhedron.cpp
     src/edyn/collision/collide/collide_polyhedron_sphere.cpp
-    src/edyn/collision/collide/collide_polyhedron_triangle.cpp
+    src/edyn/collision/collide/collide_polyhedron_mesh.cpp
     src/edyn/collision/collide/collide_compound_compound.cpp
     src/edyn/collision/collide/collide_compound_plane.cpp
-    src/edyn/collision/collide/collide_compound_triangle.cpp
+    src/edyn/collision/collide/collide_compound_mesh.cpp
     src/edyn/collision/collision_result.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
@@ -74,7 +74,7 @@ set(Edyn_SOURCES
     src/edyn/util/shape_volume.cpp
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
-    src/edyn/shapes/triangle_shape.cpp
+    src/edyn/util/triangle_util.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp

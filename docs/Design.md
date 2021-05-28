@@ -113,9 +113,9 @@ Due to the multi-threaded design of _Edyn_, the broad-phase and narrow-phase are
 
 The _Separating-Axis Theorem (SAT)_ states that if there is one axis where the intervals resulted from the projection of two convex shapes on this axis do not intersect, then the shapes also do not intersect. The projections on the axis can be used to determine the signed distance along that axis. The axis with largest signed distance gives us the _minimum translation vector_, which is a minimal displacement that can be applied to either shape to bring them into contact if they're not intersecting or separate them if they're intersecting. Using this axis, the closest features can be found on each shape and a contact manifold can be assembled.
 
-The general structure of a _SAT_ implementation initially searches for the axis that gives the largest signed distance between the projections of the two shapes. If the largest distance is bigger than a threshold (usually 2cm), the shapes are considered to not intersect. Otherwise, the _support features_ of each shape are calculated along that direction. Then the support features must be intersected to find the contact points.
+The general structure of a _SAT_ implementation initially searches for the axis that gives the largest signed distance between the projections of the two shapes _A_ and _B_. The direction is always chosen to point outside of _B_ and towards _A_. Then the projection of _A_ is taken as the negative of the largest projection onto the opposite direction and the projection of _B_ is taken as the largest projection onto the axis. This gives us the maximal projection along the axis for both shapes and the distance is simply the difference between the projection of _A_ and the projection of _B_. If the largest distance is bigger than a threshold (usually 2cm), the collision is ignored and no contact points are generated. Otherwise, the _support features_ of each shape are found along that direction. Then the closest points between the support features are calculated as the contact points.
 
-The support feature is a _feature_ that's located furthest along a direction. A _feature_ is a simpler element of a shape, such as vertex, edge and face on a box or polyhedron, cap face, side edge and cap edge on a cylinder.
+The support feature is a _feature_ that's located furthest along a direction. A _feature_ is a simpler element of a shape, such as vertex, edge and face on a box or polyhedron, cap face, side edge and cap edge on a cylinder. This concept allows the collision detection to be split in two steps: first the closest features are found, then the closest points between the two features are found. Features are simpler and allows for the exact contact points to be calculated in a more manageable way.
 
 The features are intersected on a case-by-case basis and contact points are inserted into the resulting manifold which holds a limited number of points. If the manifold is full, it has to replace an existing point by the new, or leave it as is. The deciding factor is the area of the contact polygon, which is tries to maximize. A contact manifold with larger area tends to give greater stability.
 
@@ -123,7 +123,7 @@ The features are intersected on a case-by-case basis and contact points are inse
 
 Collision events can be observed by listening to `on_construct<entt::contact_point>` or `on_destroy<entt::contact_point>` in the `entt::registry` to observe contact construction and destruction, respectively.
 
-Contact points are not updated in the main registry continuously since that would be wasteful by default. In some cases it's desirable to have information such as the contact position, normal vector and applied normal and/of friction impulse in every frame, which can be used to play sounds or to drive a particle system, for example. If updated contact information is necessary, a `edyn::continuous` component must be assigned to the contact point when it's constructed and it must be marked as dirty so the changes can be propagated to the island worker where it resides. Another possibility is to assign a `edyn::continuous_contacts_tag` to a rigid body entity so every contact involving this entity will be automatically marked as continuous.
+Contact points are not updated in the main registry continuously since that would be wasteful by default. In some cases it's desirable to have information such as the contact position, normal vector and applied normal and/of friction impulse in every frame, which can be used to play sounds or to drive a particle system, for example. If updated contact information is necessary, a `edyn::continuous` component must be assigned to the contact point when it's constructed and it must be marked as dirty so the changes can be propagated to the island worker where it resides. Another possibility is to assign a `edyn::continuous_contacts_tag` to a rigid body entity so every contact involving this entity will be automatically marked as continuous. This tag will be assigned to any new rigid bodies whose `edyn::rigidbody_def` has the `continuous_contacts` property set to true.
 
 # Shapes
 
@@ -139,15 +139,37 @@ Unlike the `edyn::convex_mesh` held by a polyhedron, the `edyn::rotated_mesh` is
 
 The polyhedron keeps a weak reference to the `edyn::rotated_mesh` thus the `edyn::island_worker` actually owns the rotated meshes and is responsible for keeping them alive until the polyhedron is destroyed. They are stored in `edyn::rotated_mesh_list` components because `edyn::compound_shape`s can hold multiple polyhedrons, thus it is necessary to be able to store a list of `edyn::rotated_mesh`es for them. The first `edyn::rotated_mesh_list` is assigned to the entity holding the shape itself. New entities are created for the next ones and are linked to the previous. When the original entity is deleted, all linked `edyn::rotated_mesh_list` are deleted in succession.
 
+## Triangle mesh shape
+
+The `edyn::triangle_mesh` represents a (usually large) concave mesh of triangles. It contains a static bounding volume tree which provides a quicker way to find all triangles that intersect a given AABB.
+
+Voronoi regions are used to prevent internal edge collisions with each individual triangle. For each edge, two vectors are stored, each being orthogonal to the edge and parallel to the face on that side of the edge, pointing towards the face. They're termed _edge normals_. For each vertex, a set of vectors are stored, pointing in the direction of each edge that shares the vertex and away from the vertex. They're termed _vertex tangents_. During collision detection, if the closest feature is an edge, the dot product between the separating axis and both edge normals must be negative. If the closest feature is a vertex, the dot product between the separating axis and all vertex tangents must be negative. Otherwise, the collision with that triangle is ignored.
+
+Triangle meshes can be set up with a list of vertices and indices and then it calculates everything that's need with an invocation of `edyn::triangle_mesh::initialize()`. The list of vertices and indices can be loaded from an `*.obj` file using `edyn::load_tri_mesh_from_obj`. Loading from an `*.obj` can be slow because of parsing and recalculation of all internal properties of a triangle mesh, such as triangle normals, edge normals and vertex tangents. To speed things up, the triangle mesh can be written into a binary file using an output archive:
+
+```cpp
+auto output = edyn::file_output_archive("trimesh.bin");
+edyn::serialize(output, trimesh);
+```
+
+And then loaded quickly using an input archive:
+
+```cpp
+auto input = edyn::file_input_archive("trimesh.bin");
+edyn::serialize(input, trimesh);
+```
+
 ## Paged triangle mesh shape
 
-For the shape of the world's terrain, a triangle mesh shape is usually the best choice. For larger worlds, it is interesting to split up this terrain in smaller chunks and load them in and out of the world as needed. The `edyn::paged_triangle_mesh` offers a deferred loading mechanism that will load chunks of a concave triangle mesh as dynamic objects enter their bounding boxes. It must be initialized with a set of entities with a `edyn::AABB` assigned and an `Archive` (which is templated).
+For the shape of the world's terrain, a triangle mesh shape is usually the best choice. For larger worlds, it is interesting to split up this terrain in smaller chunks and load them in and out of the world as needed. The `edyn::paged_triangle_mesh` offers a deferred loading mechanism that will load chunks of a concave triangle mesh as dynamic objects enter their bounding boxes. It keeps a static bounding volume tree with one `edyn::triangle_mesh` on each leaf node and loads them on demand.
 
-As dynamic entities move into the `edyn::AABB`s (which should be immutable), it will ask the archive to load the triangle mesh for that region if the entity does not have a `edyn::triangle_mesh` assigned. The `Archive` object must implement `void operator()(entt::entity)` which will load the required triangle mesh (usually asynchronously) and then will assign a `edyn::triangle_mesh` to the given entity when done. Since it might take time to load the mesh from file and deserialize it, the AABBs should be inflated to prevent collisions from being missed.
+It can be created from a list of vertices and indices using the `edyn::create_paged_triangle_mesh` function, which will split the large mesh into smaller chunks. Right after the call, all submeshes will be loaded into the cache which allows it to be fully written to a binary file using a `edyn::paged_triangle_mesh_file_output_archive`. The cache can be cleared afterwards calling `edyn::paged_triangle_mesh::clear_cache()`. Now the mesh can be loaded quickly from file using a `edyn::paged_triangle_mesh_file_input_archive`.
 
-When there are no dynamic entities in the AABB of the chunk, it becomes a candidate for unloading.
+As dynamic entities move into the AABB of the submeshes, it will ask the loader to load the triangle mesh for that region if it's not available yet. It uses a `edyn::triangle_mesh_page_loader_base` to load the required triangle mesh (usually asynchronously) and then will assign a `edyn::triangle_mesh` to the node when done. Since it might take time to load the mesh from file and deserialize it, the query AABB should be inflated to prevent collisions from being missed.
 
-Edge adjacency and Voronoi regions are used to prevent internal edge collisions.
+When there are no dynamic entities in the AABB of the submesh, it becomes a candidate for unloading.
+
+In the creation process of a `edyn::paged_triangle_mesh`, the whole mesh is loaded into a single `edyn::triangle_mesh`. Then, it's split up into smaller chunks during the construction of the static bounding volume tree of submeshes, which is configured to continue splitting until the number of triangles in a node is under a certain threshold. For each leaf node, a new `edyn::triangle_mesh` is created containing only the triangles in that node. The submeshes require a special initialization procedure so that adjacency with other submeshes can be accounted for. This part will take already calculated information from the global triangle mesh and assign that directly into the submesh, particularly edge normals and vertex tangents, which are crucial to prevent internal edge collisions at the submesh boundaries.
 
 # Multi-threading
 
@@ -173,11 +195,11 @@ Using the `edyn::job_scheduler` it is possible to schedule a job to run after a 
 
 Dynamic entities that cannot immediately affect the motion of others can be simulated in isolation. More precisely, two dynamic entities _A_ and _B_ which are not connected via constraints are not capable of immediately affecting the motion of each other. That means, the motion of _A_ and _B_ is independent and thus could be performed in two separate threads.
 
-An _island_ is a set of entities that are connected via constraints, directly or indirectly. The motion of one dynamic entity in an island will likely have an effect on the motion of all other dynamic entities in the island, thus the constraints in one island have to be solved together. 
+An _island_ is a set of entities that are connected via constraints, directly or indirectly. The motion of one dynamic entity in an island will likely have an effect on the motion of all other dynamic entities in the island, thus the constraints in one island have to be solved together.
 
 ### The Island Node Graph
 
-Islands are modeled as a graph, where the rigid bodies are nodes and the constraints and contact manifolds are edges. The graph is stored in a data structure outside of the ECS, `edyn::island_graph`, where nodes and edges have a numerical id, i.e. `edyn::island_graph::index_type`. This is an undirected, non-weighted graph which allows multiple edges between nodes. Node entities are assigned a `edyn::graph_node` and edges are assigned a `edyn::graph_edge` which hold the id of the node or edge in the graph. This allows a conversion from node/edge index to entity and vice-versa. 
+Islands are modeled as a graph, where the rigid bodies are nodes and the constraints and contact manifolds are edges. The graph is stored in a data structure outside of the ECS, `edyn::island_graph`, where nodes and edges have a numerical id, i.e. `edyn::island_graph::index_type`. This is an undirected, non-weighted graph which allows multiple edges between nodes. Node entities are assigned a `edyn::graph_node` and edges are assigned a `edyn::graph_edge` which hold the id of the node or edge in the graph. This allows a conversion from node/edge index to entity and vice-versa.
 
 Individual islands can be found using the concept of _connected components_ from graph theory. Islands are represented by an entity with a `edyn::island` component and all node and edge entities have a `edyn::island_resident` component (or `edyn::multi_island_resident` for non-procedural entities) which holds the entity id of the island where they're located at the moment. As nodes are created, destroyed or modified, islands can split into two or more islands, and they can also merge with other islands.
 
@@ -225,7 +247,7 @@ The `edyn::island_coordinator` looks for entities from different islands that co
 
 The island worker runs a broad-phase collision detection using two dynamic trees: one for procedural entities and another one for non-procedural entities. In every update of the `edyn::broadphase_worker`, it looks for AABB intersections between each procedural entity and the leaf nodes of both trees. The procedural tree has the AABB of its nodes updated prior to that and later the worker includes a `edyn::tree_view` of the procedural tree in the `edyn::island_delta` so the coordinator can query the same tree when looking for collision pairs between different islands.
 
-The main thread runs its broad-phase using `edyn::broadphase_main`, which is responsible for creating `edyn::contact_manifold`s between nodes that reside in different islands, thus creating the connection between islands since they are unaware of each other. These manifolds are inserted as edges in the main `edyn::island_graph`. As new `edyn::contact_manifold`s are created, the `edyn::island_coordinator` merges islands since they now form a single connected component. 
+The main thread runs its broad-phase using `edyn::broadphase_main`, which is responsible for creating `edyn::contact_manifold`s between nodes that reside in different islands, thus creating the connection between islands since they are unaware of each other. These manifolds are inserted as edges in the main `edyn::island_graph`. As new `edyn::contact_manifold`s are created, the `edyn::island_coordinator` merges islands since they now form a single connected component.
 
 `edyn::broadphase_main` has one dynamic tree for island AABBs and another dynamic tree for non-procedural entities. The former contains nodes for each island which are constructed from the AABB of the root node of the `edyn::tree_view` of that island, which is the AABB enclosing all procedural entities in the island. For each awake island, it queries the island dynamic tree to find other islands that could be intersecting. For each pair of islands that are found to be intersecting, it uses the `edyn::tree_view` of both to find pairs of procedural entities that could collide. It picks the smaller of the two trees and iterates its leaf nodes and for each leaf it queries the other tree to find intersecting pairs. Then, it queries the non-procedural tree to find non-procedural entities that could collide with procedural entities in the island. Then it once again drills down a level and queries the island `edyn::tree_view` to find collision pairs.
 
@@ -275,17 +297,11 @@ _TODO_
 
 The networking model follows a client-server architecture where the server is authoritative but gives the client freedom to directly set the state of the entities it owns in some situations. The goal is to synchronize the simulation on both ends, accounting for network latency and jitter.
 
-The server is the source of truth, containing the actual physics simulation encompassing all entities and components including extra external components used by systems provided by the user of this library. The server has to frequently broadcast to all clients a snapshot of the dynamic components which change very often such as position and velocity. Steady components, which change casually, have to broadcast only when updated.
+The server is the source of truth, containing the actual physics simulation encompassing all entities and components including extra external components used by systems provided by the user of this library. The server has to frequently broadcast to all clients a snapshot of the dynamic components which change very often such as position and velocity. Steady components, which change casually, have to be broadcast only when updated.
 
 The server also receives data from the clients, which can be commands to be applied to the entities owned by that client and also component state to be set onto the entities in the server, which the server will have to decide whether to apply them or not.
 
-The client will send commands generated by user inputs and also the dynamic state of the entities it controls/owns.
-
 When receiving data from the server, the received state will be in the past due to network latency, thus the client must _extrapolate_ it before merging it onto the local simulation.
-
-All data shared between client and server is generated using registry snapshots from _EnTT_. Thus, all that's being sent are entities and components which are put into a snapshot and serialized for network use.
-
-The issues above will be discussed in greater detail in the following subsections.
 
 ## Server receives data from client
 

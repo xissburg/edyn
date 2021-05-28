@@ -18,7 +18,7 @@ namespace edyn {
 /**
  * @brief Computes the point in the segment `q(t) = q0 + t*(q1 - q0)` closest
  * to point `p`.
- * 
+ *
  * @param q0 Initial point in segment.
  * @param q1 End point in segment.
  * @param p The point.
@@ -29,13 +29,20 @@ namespace edyn {
 scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
                              const vector3 &p, scalar &t, vector3 &q);
 
+/**
+ * @brief Computes the squared distance between a point and a line.
+ * @param q0 A point in the line.
+ * @param dir Direction vector of line.
+ * @param p The point.
+ * @return Square of distance between point and line.
+ */
 scalar distance_sqr_line(const vector3 &q0, const vector3 &dir,
                          const vector3 &p);
 
 /**
  * @brief Computes the point in the line `q(t) = q0 + t*dir` closest
  * to point `p`.
- * 
+ *
  * @param q0 Point in line.
  * @param dir Line direction vector.
  * @param p The point.
@@ -47,10 +54,10 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
                           const vector3 &p, scalar &t, vector3 &r);
 
 /**
- * @brief Computes the closest points `c1` and `c2` of segments 
- * `s1(s) = p1 + s*(q1 - p1)` and `s2(t) = p2 + t*(q2 - p2)`, 
+ * @brief Computes the closest points `c1` and `c2` of segments
+ * `s1(s) = p1 + s*(q1 - p1)` and `s2(t) = p2 + t*(q2 - p2)`,
  * where `0 <= s <= 1` and `0 <= t <= 1`.
- * 
+ *
  * @param p1 Initial point in the first segment.
  * @param q1 End point in the first segment.
  * @param p2 Initial point in the second segment.
@@ -60,7 +67,7 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
  * @param c1 Outputs the point in `s1` closest to `s2`.
  * @param c2 Outputs the point in `s2` closest to `s1`.
  * @param num_points Optional pointer to store the number of closest points. If
- *        not `nullptr` and the segments are parallel, two closest points will 
+ *        not `nullptr` and the segments are parallel, two closest points will
  *        be generated if the projection of one segment onto the other is a range
  *        of points.
  * @param sp Outputs the parameter where `s1(s)` gives the closest point to `s2`
@@ -73,15 +80,15 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
  *        parallel.
  * @return The squared distance between `s1(s)` and `s2(t)`.
  */
-scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1, 
-                                     const vector3 &p2, const vector3 &q2, 
-                                     scalar &s, scalar &t, 
+scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
+                                     const vector3 &p2, const vector3 &q2,
+                                     scalar &s, scalar &t,
                                      vector3 &c1, vector3 &c2,
                                      size_t *num_points = nullptr,
-                                     scalar *sp = nullptr, scalar *tp = nullptr, 
+                                     scalar *sp = nullptr, scalar *tp = nullptr,
                                      vector3 *c1p = nullptr, vector3 *c2p = nullptr);
 
-scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius, 
+scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius,
                           const vector3 &p, vector3 &q);
 
 /**
@@ -92,8 +99,8 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
  * @param radius Circle radius.
  * @param p0 A point in the line.
  * @param p1 Another point in the line.
- * @param num_points Number of closest points. Can be two in case the line is 
- *        nearly parallel to the plane that contains the circle and its 
+ * @param num_points Number of closest points. Can be two in case the line is
+ *        nearly parallel to the plane that contains the circle and its
  *        projection onto the plane intersects the circle.
  * @param s0 Outputs the parameter where the line gives the first closest point
  *        to the circle.
@@ -109,15 +116,15 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
  */
 scalar closest_point_circle_line(
     const vector3 &cpos, const quaternion &corn, scalar radius,
-    const vector3 &p0, const vector3 &p1, size_t &num_points, 
+    const vector3 &p0, const vector3 &p1, size_t &num_points,
     scalar &s0, vector3 &rc0, vector3 &rl0,
-    scalar &s1, vector3 &rc1, vector3 &rl1, 
-    vector3 &normal, scalar threshold = contact_breaking_threshold);
+    scalar &s1, vector3 &rc1, vector3 &rl1,
+    vector3 &normal, scalar threshold = support_feature_tolerance);
 
 scalar closest_point_circle_circle(
     const vector3 &posA, const quaternion &ornA, scalar radiusA,
     const vector3 &posB, const quaternion &ornB, scalar radiusB,
-    size_t &num_points, vector3 &rA0, vector3 &rB0, vector3 &rA1, vector3 &rB1, 
+    size_t &num_points, vector3 &rA0, vector3 &rB0, vector3 &rA1, vector3 &rB1,
     vector3 &normal);
 
 /**
@@ -156,7 +163,7 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
  * @param s1 Outputs the parameter of the second intersection, if there is one.
  * @return Number of intersections.
  */
-size_t intersect_line_circle(const vector2 &p0, const vector2 &p1, 
+size_t intersect_line_circle(const vector2 &p0, const vector2 &p1,
                              scalar radius, scalar &s0, scalar &s1);
 
 /**
@@ -173,11 +180,11 @@ size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
                                const vector2 &posB, scalar radiusB,
                                vector2 &res0, vector2 &res1);
 
-vector3 support_point_circle(scalar radius, const vector3 &pos, 
+vector3 support_point_circle(scalar radius, const vector3 &pos,
                              const quaternion &orn, const vector3 &dir);
 
 template<size_t N>
-void support_point_vertices(const std::array<vector3, N> &vertices, 
+void support_point_vertices(const std::array<vector3, N> &vertices,
                               const vector3 &dir, size_t &idx, scalar &proj) {
     proj = -EDYN_SCALAR_MAX;
 
@@ -200,6 +207,14 @@ size_t insert_index(const std::array<vector3, N> &points,
                     const vector3 &new_point,
                     scalar new_point_depth) {
     EDYN_ASSERT(num_points <= N);
+    const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
+
+    // Look for a similar point.
+    for (size_t i = 0; i < num_points; ++i) {
+        if (distance_sqr(points[i], new_point) < max_dist_similar_sqr) {
+            return i;
+        }
+    }
 
     // Return the index after last to signal the insertion of a new point.
     if (num_points < N) {
@@ -223,13 +238,13 @@ size_t insert_index(const std::array<vector3, N> &points,
     // Do not calculate it for the deepest point.
     if (deepest_dist_idx != 0) {
         areas[0] = area_4_points(new_point, points[1], points[2], points[3]);
-    } 
+    }
     if (deepest_dist_idx != 1) {
         areas[1] = area_4_points(new_point, points[0], points[2], points[3]);
-    } 
+    }
     if (deepest_dist_idx != 2) {
         areas[2] = area_4_points(new_point, points[0], points[1], points[3]);
-    } 
+    }
     if (deepest_dist_idx != 3) {
         areas[3] = area_4_points(new_point, points[0], points[1], points[2]);
     }
@@ -253,11 +268,7 @@ size_t insert_index(const std::array<vector3, N> &points,
     return N;
 }
 
-bool point_in_quad(const vector3 &p, 
-                   const std::array<vector3, 4> &quad_vertices, 
-                   const vector3 &quad_normal);
-
-/** 
+/**
  * Finds the point closest to `p` on the surface of the axis-aligned box
  * with the given half extent if `p` is outside the box.
  * @param half_extent Half the extent on the box along each axis.
@@ -277,7 +288,7 @@ vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p);
  * @param normal Outputs the normal of the face where `closest` is located.
  * @return Distance between closest points.
  */
-scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, 
+scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p,
                                 vector3 &closest, vector3 &normal);
 
 /**
@@ -307,12 +318,12 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
  * @param point Point to test.
  * @return Whether the point is inside the convex polygon or not.
  */
-bool point_in_polygonal_prism(const std::vector<vector3> &vertices, 
+bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
                               const std::vector<size_t> &indices,
                               const vector3 &normal, const vector3 &point);
 
 template<size_t N>
-bool point_in_polygonal_prism(const std::array<vector3, N> &vertices, 
+bool point_in_polygonal_prism(const std::array<vector3, N> &vertices,
                               const vector3 &normal, const vector3 &point) {
     const auto count = vertices.size();
     EDYN_ASSERT(count > 2);

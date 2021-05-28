@@ -7,23 +7,59 @@
 
 namespace edyn {
 
+template<typename Archive, typename T>
+void serialize(Archive &archive, commutative_pair<T> &pair) {
+    archive(pair.first);
+    archive(pair.second);
+}
+
+template<typename T>
+constexpr size_t serialization_sizeof(const commutative_pair<T> &pair) {
+    return 2 * sizeof(T);
+}
+
+template<typename Archive, typename T>
+void serialize(Archive &archive, flat_nested_array<T> &array) {
+    archive(array.m_data);
+    archive(array.m_range_starts);
+}
+
+template<typename T>
+size_t serialization_sizeof(const flat_nested_array<T> &array) {
+    return serialization_sizeof(array.m_data) + serialization_sizeof(array.m_range_starts);
+}
+
 template<typename Archive>
 void serialize(Archive &archive, triangle_mesh &tri_mesh) {
-    archive(tri_mesh.vertices);
-    archive(tri_mesh.indices);
-    archive(tri_mesh.cos_angles);
-    archive(tri_mesh.is_concave_edge);
-    archive(tri_mesh.tree);
+    archive(tri_mesh.m_vertices);
+    archive(tri_mesh.m_indices);
+    archive(tri_mesh.m_normals);
+    archive(tri_mesh.m_edge_vertex_indices);
+    archive(tri_mesh.m_vertex_edge_indices);
+    archive(tri_mesh.m_edge_normals);
+    archive(tri_mesh.m_vertex_tangents);
+    archive(tri_mesh.m_face_edge_indices);
+    archive(tri_mesh.m_edge_face_indices);
+    archive(tri_mesh.m_is_boundary_edge);
+    archive(tri_mesh.m_is_convex_edge);
+    archive(tri_mesh.m_triangle_tree);
 }
 
 inline
 size_t serialization_sizeof(const triangle_mesh &tri_mesh) {
-    return 
-        serialization_sizeof(tri_mesh.vertices) +
-        serialization_sizeof(tri_mesh.indices) +
-        serialization_sizeof(tri_mesh.cos_angles) +
-        serialization_sizeof(tri_mesh.is_concave_edge) +
-        serialization_sizeof(tri_mesh.tree);
+    return
+        serialization_sizeof(tri_mesh.m_vertices) +
+        serialization_sizeof(tri_mesh.m_indices) +
+        serialization_sizeof(tri_mesh.m_normals) +
+        serialization_sizeof(tri_mesh.m_edge_vertex_indices) +
+        serialization_sizeof(tri_mesh.m_vertex_edge_indices) +
+        serialization_sizeof(tri_mesh.m_edge_normals) +
+        serialization_sizeof(tri_mesh.m_vertex_tangents) +
+        serialization_sizeof(tri_mesh.m_face_edge_indices) +
+        serialization_sizeof(tri_mesh.m_edge_face_indices) +
+        serialization_sizeof(tri_mesh.m_is_boundary_edge) +
+        serialization_sizeof(tri_mesh.m_is_convex_edge) +
+        serialization_sizeof(tri_mesh.m_triangle_tree);
 }
 
 }

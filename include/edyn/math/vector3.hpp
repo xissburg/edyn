@@ -201,6 +201,19 @@ inline vector3 normalize(const vector3 &v) {
     return v / l;
 }
 
+// Normalizes vector if it's length is greater than a threshold above zero.
+// Returns where the vector was normalized.
+inline bool try_normalize(vector3 &v) {
+    auto lsqr = length_sqr(v);
+
+    if (lsqr > EDYN_EPSILON) {
+        v /= std::sqrt(lsqr);
+        return true;
+    }
+
+    return false;
+}
+
 // Projects direction vector `v` onto plane with normal `n`.
 inline vector3 project_direction(const vector3 &v, const vector3 &n) {
     return v - n * dot(v, n);

@@ -1,6 +1,7 @@
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/shape_util.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 #include <cstdint>
 
 namespace edyn {
@@ -93,7 +94,7 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
     }
 }
 
-void box_shape::support_feature(const vector3 &pos, const quaternion &orn, 
+void box_shape::support_feature(const vector3 &pos, const quaternion &orn,
                                 const vector3 &axis_pos, const vector3 &axis_dir,
                                 box_feature &feature, size_t &feature_index,
                                 scalar &projection, scalar threshold) const {
@@ -102,8 +103,16 @@ void box_shape::support_feature(const vector3 &pos, const quaternion &orn,
     projection += dot(pos - axis_pos, axis_dir);
 }
 
-vector3 box_shape::get_vertex(size_t i) const {
-    EDYN_ASSERT(i < get_box_num_features(box_feature::vertex));
+void box_shape::support_feature(const vector3 &pos, const quaternion &orn,
+                                const vector3 &axis_dir, box_feature &feature,
+                                size_t &feature_index, scalar threshold) const {
+    auto local_dir = rotate(conjugate(orn), axis_dir);
+    scalar projection;
+    support_feature(local_dir, feature, feature_index, projection, threshold);
+}
+
+vector3 box_shape::get_vertex(size_t vertex_idx) const {
+    EDYN_ASSERT(vertex_idx < get_box_num_features(box_feature::vertex));
     constexpr vector3 multipliers[] = {
         { 1,  1,  1},
         { 1, -1,  1},
@@ -114,41 +123,41 @@ vector3 box_shape::get_vertex(size_t i) const {
         {-1, -1, -1},
         {-1, -1,  1}
     };
-    return half_extents * multipliers[i];
+    return half_extents * multipliers[vertex_idx];
 }
 
-vector3 box_shape::get_vertex(size_t i, const vector3 &pos, const quaternion &orn) const {
-    return pos + rotate(orn, get_vertex(i));
+vector3 box_shape::get_vertex(size_t vertex_idx, const vector3 &pos, const quaternion &orn) const {
+    return pos + rotate(orn, get_vertex(vertex_idx));
 }
 
-std::array<vector3, 2> box_shape::get_edge(size_t i) const {
-    EDYN_ASSERT(i < get_box_num_features(box_feature::edge));
+std::array<vector3, 2> box_shape::get_edge(size_t edge_idx) const {
+    EDYN_ASSERT(edge_idx < get_box_num_features(box_feature::edge));
     return {
-        get_vertex(edge_indices[i * 2 + 0]),
-        get_vertex(edge_indices[i * 2 + 1])
+        get_vertex(edge_indices[edge_idx * 2 + 0]),
+        get_vertex(edge_indices[edge_idx * 2 + 1])
     };
 }
 
-std::array<vector3, 2> box_shape::get_edge(size_t i, const vector3 &pos, const quaternion &orn) const {
-    auto edge_vertices = get_edge(i);
+std::array<vector3, 2> box_shape::get_edge(size_t edge_idx, const vector3 &pos, const quaternion &orn) const {
+    auto edge_vertices = get_edge(edge_idx);
     return {
         pos + rotate(orn, edge_vertices[0]),
         pos + rotate(orn, edge_vertices[1])
     };
 }
 
-std::array<vector3, 4> box_shape::get_face(size_t i) const {
-    EDYN_ASSERT(i < 6);
+std::array<vector3, 4> box_shape::get_face(size_t face_idx) const {
+    EDYN_ASSERT(face_idx < 6);
     return {
-        get_vertex(face_indices[i * 4 + 0]),
-        get_vertex(face_indices[i * 4 + 1]),
-        get_vertex(face_indices[i * 4 + 2]),
-        get_vertex(face_indices[i * 4 + 3])
+        get_vertex(face_indices[face_idx * 4 + 0]),
+        get_vertex(face_indices[face_idx * 4 + 1]),
+        get_vertex(face_indices[face_idx * 4 + 2]),
+        get_vertex(face_indices[face_idx * 4 + 3])
     };
 }
 
-std::array<vector3, 4> box_shape::get_face(size_t i, const vector3 &pos, const quaternion &orn) const {
-    auto face_vertices = get_face(i);
+std::array<vector3, 4> box_shape::get_face(size_t face_idx, const vector3 &pos, const quaternion &orn) const {
+    auto face_vertices = get_face(face_idx);
     return {
         pos + rotate(orn, face_vertices[0]),
         pos + rotate(orn, face_vertices[1]),
@@ -158,21 +167,22 @@ std::array<vector3, 4> box_shape::get_face(size_t i, const vector3 &pos, const q
 }
 
 static
-vector3 get_face_tangent(size_t i) {
-    EDYN_ASSERT(i < 6);
-    constexpr vector3 normals[] = {
-        { 0,  1,  0},
-        { 0, -1,  0},
+vector3 get_face_tangent(size_t face_idx) {
+    EDYN_ASSERT(face_idx < 6);
+    // Tangents point to the "side" of a face.
+    constexpr vector3 tangents[] = {
         { 0,  0,  1},
         { 0,  0, -1},
         { 1,  0,  0},
         {-1,  0,  0},
+        { 0,  1,  0},
+        { 0, -1,  0},
     };
-    return normals[i];
+    return tangents[face_idx];
 }
 
-vector3 box_shape::get_face_normal(size_t i) const {
-    EDYN_ASSERT(i < 6);
+vector3 box_shape::get_face_normal(size_t face_idx) const {
+    EDYN_ASSERT(face_idx < 6);
     constexpr vector3 normals[] = {
         { 1,  0,  0},
         {-1,  0,  0},
@@ -181,34 +191,36 @@ vector3 box_shape::get_face_normal(size_t i) const {
         { 0,  0,  1},
         { 0,  0, -1}
     };
-    return normals[i];
+    return normals[face_idx];
 }
 
-vector3 box_shape::get_face_normal(size_t i, const quaternion &orn) const {
-    return rotate(orn, get_face_normal(i));
+vector3 box_shape::get_face_normal(size_t face_idx, const quaternion &orn) const {
+    return rotate(orn, get_face_normal(face_idx));
 }
 
-vector3 box_shape::get_face_center(size_t i, const vector3 &pos, const quaternion &orn) const {
-    auto n = get_face_normal(i, orn);
-    auto e = half_extents[i / 2];
+vector3 box_shape::get_face_center(size_t face_idx, const vector3 &pos, const quaternion &orn) const {
+    auto n = get_face_normal(face_idx, orn);
+    auto e = half_extents[face_idx / 2];
     return pos + n * e;
 }
 
-matrix3x3 box_shape::get_face_basis(size_t i, const quaternion &orn) const {
-    auto y = get_face_normal(i);
-    auto x = get_face_tangent(i);
+matrix3x3 box_shape::get_face_basis(size_t face_idx, const quaternion &orn) const {
+    auto y = get_face_normal(face_idx);
+    auto x = get_face_tangent(face_idx);
     auto z = cross(x, y);
     return matrix3x3_columns(rotate(orn, x), rotate(orn, y), rotate(orn, z));
 }
 
-vector2 box_shape::get_face_half_extents(size_t i) const {
-    EDYN_ASSERT(i < 6);
-    if (i == 0 || i == 1) {
-        return vector2{half_extents.y, half_extents.z};
-    } else if (i == 2 || i == 3) {
-        return vector2{half_extents.z, half_extents.x};
+vector2 box_shape::get_face_half_extents(size_t face_idx) const {
+    EDYN_ASSERT(face_idx < 6);
+    // The x component should have the extent on the side on a face according
+    // to its basis and the y component should have the vertical extent.
+    if (face_idx == 0 || face_idx == 1) {
+        return to_vector2_zy(half_extents);
+    } else if (face_idx == 2 || face_idx == 3) {
+        return to_vector2_xz(half_extents);
     }
-    return vector2{half_extents.x, half_extents.y};
+    return to_vector2_yx(half_extents);
 }
 
 size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {    
@@ -238,6 +250,8 @@ size_t box_shape::support_face_index(const vector3 &dir) const {
 }
 
 size_t box_shape::get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const {
+    EDYN_ASSERT(face_idx < 6);
+    EDYN_ASSERT(face_vertex_idx < 4);
     return face_indices[face_idx * 4 + face_vertex_idx];
 }
 

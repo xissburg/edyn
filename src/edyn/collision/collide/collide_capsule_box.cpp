@@ -9,7 +9,7 @@
 
 namespace edyn {
 
-void collide(const capsule_shape &shA, const box_shape &shB, 
+void collide(const capsule_shape &shA, const box_shape &shB,
              const collision_context &ctx, collision_result &result) {
     const auto posA = vector3_zero;
     const auto &ornA = ctx.ornA;
@@ -54,21 +54,17 @@ void collide(const capsule_shape &shA, const box_shape &shB,
         auto [vertexA0, vertexA1] = shB.get_edge(i, posB, ornB);
         scalar s, t;
         vector3 closestA, closestB;
-        closest_point_segment_segment(vertexA0, vertexA1, 
-                                      capsule_vertices[0], capsule_vertices[1], 
+        closest_point_segment_segment(vertexA0, vertexA1,
+                                      capsule_vertices[0], capsule_vertices[1],
                                       s, t, closestA, closestB);
         auto dir = closestA - closestB;
-        auto dir_len_sqr = length_sqr(dir);
 
-        if (!(dir_len_sqr > EDYN_EPSILON)) {
+        if (!try_normalize(dir)) {
             continue;
         }
 
-        dir /= std::sqrt(dir_len_sqr);
-
         if (dot(posA - posB, dir) < 0) {
-            // Make it point towards A.
-            dir *= -1;
+            dir *= -1; // Make it point towards A.
         }
 
         auto projA = -capsule_support_projection(capsule_vertices, shA.radius, -dir);
@@ -99,7 +95,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
     scalar feature_distanceB;
     box_feature featureB;
     size_t feature_indexB;
-    shB.support_feature(posB, ornB, contact_origin_box, sep_axis, 
+    shB.support_feature(posB, ornB, contact_origin_box, sep_axis,
                         featureB, feature_indexB,
                         feature_distanceB, support_feature_tolerance);
 
@@ -149,7 +145,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
             }
         } else {
             // Capsule edge vs box face.
-            auto &closest_capsule_vertex = proj_capsule_vertices[0] < proj_capsule_vertices[1] ? 
+            auto &closest_capsule_vertex = proj_capsule_vertices[0] < proj_capsule_vertices[1] ?
                                            capsule_vertices[0] : capsule_vertices[1];
             auto pivotA_world = closest_capsule_vertex - sep_axis * shA.radius;
             auto pivotB_world = project_plane(pivotA_world, contact_origin_box, sep_axis);
@@ -167,8 +163,8 @@ void collide(const capsule_shape &shA, const box_shape &shB,
             vector3 closestA[2], closestB[2];
             size_t num_points;
             closest_point_segment_segment(capsule_vertices[0], capsule_vertices[1],
-                                          edge_vertices[0], edge_vertices[1],  
-                                          s[0], t[0], closestA[0], closestB[0], &num_points, 
+                                          edge_vertices[0], edge_vertices[1],
+                                          s[0], t[0], closestA[0], closestB[0], &num_points,
                                           &s[1], &t[1], &closestA[1], &closestB[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
@@ -180,7 +176,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
             }
         } else {
             // Capsule vertex against box edge.
-            auto &closest_capsule_vertex = proj_capsule_vertices[0] < proj_capsule_vertices[1] ? 
+            auto &closest_capsule_vertex = proj_capsule_vertices[0] < proj_capsule_vertices[1] ?
                                            capsule_vertices[0] : capsule_vertices[1];
             auto edge_dir = edge_vertices[1] - edge_vertices[0];
             vector3 pivotB_world; scalar t;

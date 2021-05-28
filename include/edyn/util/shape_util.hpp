@@ -22,9 +22,34 @@ namespace edyn {
  * @param vertices Array to be filled with vertices.
  * @param indices Array to be filled with indices for each triangle.
  */
-void make_plane_mesh(scalar extent_x, scalar extent_z, 
-                     size_t num_vertices_x, size_t num_vertices_z, 
-                     std::vector<vector3> &vertices, std::vector<uint16_t> &indices);
+template<typename IndexType>
+void make_plane_mesh(scalar extent_x, scalar extent_z,
+                     size_t num_vertices_x, size_t num_vertices_z,
+                     std::vector<vector3> &vertices, std::vector<IndexType> &indices) {
+    const auto half_extent_x = extent_x * scalar(0.5);
+    const auto half_extent_z = extent_z * scalar(0.5);
+    const auto quad_size_x = extent_x / (num_vertices_x - 1);
+    const auto quad_size_z = extent_z / (num_vertices_z - 1);
+
+    for (size_t j = 0; j < num_vertices_z; ++j) {
+        auto z = -half_extent_z + j * quad_size_z;
+        for (size_t i = 0; i < num_vertices_x; ++i) {
+            vertices.push_back({-half_extent_x + i * quad_size_x, 0, z});
+        }
+    }
+
+    for (size_t j = 0; j < num_vertices_z - 1; ++j) {
+        for (size_t i = 0; i < num_vertices_x - 1; ++i) {
+            indices.push_back(j * num_vertices_x + i + 1);
+            indices.push_back(j * num_vertices_x + i);
+            indices.push_back((j + 1) * num_vertices_x + i);
+
+            indices.push_back((j + 1) * num_vertices_x + i);
+            indices.push_back((j + 1) * num_vertices_x + i + 1);
+            indices.push_back(j * num_vertices_x + i + 1);
+        }
+    }
+}
 
 /**
  * @brief Builds a convex mesh in the shape of a box.
@@ -55,7 +80,7 @@ struct obj_mesh {
  * @return Success or failure.
  */
 bool load_meshes_from_obj(const std::string &path,
-                          std::vector<obj_mesh> &meshes, 
+                          std::vector<obj_mesh> &meshes,
                           const vector3 &pos = vector3_zero,
                           const quaternion &orn = quaternion_identity,
                           const vector3 &scale = vector3_one);
@@ -68,8 +93,8 @@ bool load_meshes_from_obj(const std::string &path,
  * @param indices Array to be filled with indices for each triangle.
  * @return Success or failure.
  */
-bool load_tri_mesh_from_obj(const std::string &path, 
-                            std::vector<vector3> &vertices, 
+bool load_tri_mesh_from_obj(const std::string &path,
+                            std::vector<vector3> &vertices,
                             std::vector<uint16_t> &indices);
 
 /**
@@ -165,7 +190,7 @@ std::vector<size_t> calculate_convex_hull(std::vector<vector2> &points, scalar t
 bool point_inside_convex_polygon(const std::vector<vector2> &vertices, const vector2 &point);
 
 /**
- * @brief Swaps vertices to make the winding of the sequence (v0, v1, v2) 
+ * @brief Swaps vertices to make the winding of the sequence (v0, v1, v2)
  * counter-clockwise.
  * @param v0 A vertex of a triangle.
  * @param v1 Another vertex of a triangle.
@@ -179,7 +204,7 @@ void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2);
 struct support_polygon {
     // Vertices in world space.
     std::vector<vector3> vertices;
-    // Vertices on the 2D contact plane, i.e. `vertices` transformed into 
+    // Vertices on the 2D contact plane, i.e. `vertices` transformed into
     // the contact space with `to_vector2_xz` applied to them.
     std::vector<vector2> plane_vertices;
     // Indices of the vertices that are in the convex hull of the polygon,
@@ -194,7 +219,7 @@ struct support_polygon {
 
 /**
  * @brief Finds the polygon in a point cloud that's furthest away in the given
- * direction. 
+ * direction. The result could be an edge, i.e. only two vertices.
  * @tparam It Type of iterator of a `vector3` container.
  * @param first Iterator to the first element of the point cloud.
  * @param last Iterator to the last element of the point cloud.
@@ -202,15 +227,15 @@ struct support_polygon {
  * @param dir A direction vector (non-zero).
  * @param projection The support projection along the given direction, i.e. the
  * value returned by `point_cloud_support_point(first, last, +/-dir)`.
- * @param positive_side Whether the direction points towards or away of the 
+ * @param positive_side Whether the direction points towards or away of the
  * point cloud. Must be true if it points towards.
  * @param tolerance The distance from the projection boundary which decides
  * whether the vertex is part of the support polygon.
  */
 template<typename It>
-support_polygon point_cloud_support_polygon(It first, It last, 
+support_polygon point_cloud_support_polygon(It first, It last,
                                             const vector3 &offset,
-                                            const vector3 &dir, 
+                                            const vector3 &dir,
                                             scalar projection,
                                             const bool positive_side,
                                             scalar tolerance) {
@@ -260,8 +285,8 @@ support_polygon point_cloud_support_polygon(It first, It last,
  * @param closest Point on the boundary of the polygon that's closest to `p`.
  * @return False if `p` is inside the polygon.
  */
-bool closest_point_convex_polygon(const std::vector<vector2> &vertices, 
-                                  const std::vector<size_t> &indices, 
+bool closest_point_convex_polygon(const std::vector<vector2> &vertices,
+                                  const std::vector<size_t> &indices,
                                   const vector2 &p, vector2 &closest);
 
 /**
@@ -272,7 +297,7 @@ bool closest_point_convex_polygon(const std::vector<vector2> &vertices,
  * @param closest Point on the boundary of the polygon that's closest to `p`.
  * @return False if `p` is inside the polygon.
  */
-bool closest_point_polygon(const support_polygon &polygon, 
+bool closest_point_polygon(const support_polygon &polygon,
                            const vector2 &p, vector2 &closest);
 
 /**
@@ -330,7 +355,7 @@ vector3 cylinder_support_point(scalar radius, scalar half_length,
  * @param dir A direction vector (non-zero).
  * @return A support point.
  */
-vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &pos, 
+vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &pos,
                                const quaternion &orn, const vector3 &dir);
 
 /**
@@ -343,7 +368,7 @@ vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 
  * @param dir A direction vector (non-zero).
  * @return The maximal projection.
  */
-scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos, 
+scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos,
                                    const quaternion &orn, const vector3 &dir);
 
 /**

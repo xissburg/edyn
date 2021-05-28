@@ -22,7 +22,7 @@ struct convex_mesh {
     // Vertex indices of all faces.
     std::vector<uint16_t> indices;
 
-    // Each subsequent pair of integers represents the indices of the two 
+    // Each subsequent pair of integers represents the indices of the two
     // vertices of an edge in the `vertices` array.
     std::vector<uint16_t> edges;
 
@@ -89,7 +89,7 @@ struct convex_mesh {
      * @return The coordinates of the two rotated vertices.
      */
     std::array<vector3, 2> get_rotated_edge(const rotated_mesh &, size_t idx) const;
-    
+
     void calculate_normals();
 
     void calculate_edges();
@@ -98,7 +98,7 @@ struct convex_mesh {
 };
 
 /**
- * @brief Accompanying component for `convex_mesh`es containg their 
+ * @brief Accompanying component for `convex_mesh`es containg their
  * rotated vertices and normals to prevent repeated recalculation of
  * these values.
  */

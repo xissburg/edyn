@@ -1,28 +1,27 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/math/quaternion.hpp"
-#include "edyn/shapes/triangle_shape.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/triangle_util.hpp"
 
 namespace edyn {
 
-void collide(const compound_shape &compound, const triangle_shape &tri,
+void collide(const compound_shape &compound, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result) {
-    auto local_vertices = tri.vertices;
+    // TODO Possible optimization: find the triangle mesh node which encompasses
+    // the compound's AABB and start the tree queries from that node in the
+    // child collision tests.
 
-    for (auto &vertex : local_vertices) {
-        vertex = to_object_space(vertex, ctx.posA, ctx.ornA);
-    }
-
-    auto aabb = get_triangle_aabb(local_vertices);
-
-    compound.visit(aabb, [&] (auto &&sh, const compound_shape::shape_node &node) {
+    for (auto &node : compound.nodes) {
         // New collision context with child shape in world space.
         auto child_ctx = ctx;
         child_ctx.posA = to_world_space(node.position, ctx.posA, ctx.ornA);
         child_ctx.ornA = ctx.ornA * node.orientation;
+        child_ctx.aabbA = aabb_to_world_space(node.aabb, ctx.posA, ctx.ornA);
 
         collision_result child_result;
-        collide(sh, tri, child_ctx, child_result);
+
+        std::visit([&] (auto &&sh) {
+            collide(sh, mesh, child_ctx, child_result);
+        }, node.shape_var);
 
         // The elements of A in the collision points must be transformed from
         // the child node's space into the compound's space.
@@ -31,7 +30,7 @@ void collide(const compound_shape &compound, const triangle_shape &tri,
             child_point.pivotA = to_world_space(child_point.pivotA, node.position, node.orientation);
             result.maybe_add_point(child_point);
         }
-    });
+    }
 }
 
 }

@@ -3,27 +3,25 @@
 
 namespace edyn {
 
-void collide(const cylinder_shape &shA, const plane_shape &shB, 
+void collide(const cylinder_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
-    
+
     auto normal = shB.normal;
     auto center = normal * shB.constant;
-
-    cylinder_feature featureA;
-    size_t feature_indexA;
-    vector3 supA;
-    scalar projA;
-    shA.support_feature(posA, ornA, center, -normal,
-                        featureA, feature_indexA, supA, projA,
-                        support_feature_tolerance);
-    // Flip sign since we're calculating the support point along -normal.
-    auto distance = projA *= -1;
+    auto projA = -shA.support_projection(posA, ornA, -normal);
+    auto projB = shB.constant;
+    auto distance = projA - projB;
 
     if (distance > ctx.threshold) {
         return;
     }
+
+    cylinder_feature featureA;
+    size_t feature_indexA;
+    shA.support_feature(posA, ornA, -normal, featureA, feature_indexA,
+                        support_feature_tolerance);
 
     switch (featureA) {
     case cylinder_feature::face:{
@@ -46,7 +44,7 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
         auto cyl_axis = quaternion_x(ornA);
         auto cyl_vertices = std::array<vector3, 2>{};
         auto num_vertices = 0;
-        
+
         if (featureA == cylinder_feature::cap_edge) {
             cyl_vertices[0] = posA + cyl_axis * shA.half_length * to_sign(feature_indexA == 0);
             num_vertices = 1;

@@ -10,36 +10,8 @@
 
 namespace edyn {
 
-void make_plane_mesh(scalar extent_x, scalar extent_z, 
-                     size_t num_vertices_x, size_t num_vertices_z, 
-                     std::vector<vector3> &vertices, std::vector<uint16_t> &indices) {
-    const auto half_extent_x = extent_x * scalar(0.5);
-    const auto half_extent_z = extent_z * scalar(0.5);
-    const auto quad_size_x = extent_x / (num_vertices_x - 1);
-    const auto quad_size_z = extent_z / (num_vertices_z - 1);
-
-    for (size_t j = 0; j < num_vertices_z; ++j) {
-        auto z = -half_extent_z + j * quad_size_z;
-        for (size_t i = 0; i < num_vertices_x; ++i) {
-            vertices.push_back({-half_extent_x + i * quad_size_x, 0, z});
-        }
-    }
-
-    for (size_t j = 0; j < num_vertices_z - 1; ++j) {
-        for (size_t i = 0; i < num_vertices_x - 1; ++i) {
-            indices.push_back(j * num_vertices_x + i + 1);
-            indices.push_back(j * num_vertices_x + i);
-            indices.push_back((j + 1) * num_vertices_x + i);
-
-            indices.push_back((j + 1) * num_vertices_x + i);
-            indices.push_back((j + 1) * num_vertices_x + i + 1);
-            indices.push_back(j * num_vertices_x + i + 1);
-        }
-    }
-}
-
 void make_box_mesh(const vector3 &he,
-                   std::vector<vector3> &vertices, 
+                   std::vector<vector3> &vertices,
                    std::vector<uint16_t> &indices,
                    std::vector<uint16_t> &faces) {
     vertices.push_back({-he.x, -he.y, -he.z});
@@ -72,8 +44,8 @@ static vector3 read_vector3(std::istringstream &iss) {
     return v;
 }
 
-static void read_face(std::istringstream &iss, 
-                      std::vector<uint16_t> &indices, 
+static void read_face(std::istringstream &iss,
+                      std::vector<uint16_t> &indices,
                       std::vector<uint16_t> &faces,
                       uint16_t offset) {
     // Store where this face starts in the `indices` array.
@@ -125,7 +97,7 @@ bool load_meshes_from_obj(const std::string &path,
         } else if (cmd == "v") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
             auto v = read_vector3(iss);
-            
+
             if (scale != vector3_one) {
                 v *= scale;
             }
@@ -133,11 +105,11 @@ bool load_meshes_from_obj(const std::string &path,
             if (orn != quaternion_identity) {
                 v = rotate(orn, v);
             }
-            
+
             if (pos != vector3_zero ) {
                 v += pos;
             }
-            
+
             mesh.vertices.push_back(v);
         } else if (cmd == "f") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
@@ -152,8 +124,8 @@ bool load_meshes_from_obj(const std::string &path,
     return true;
 }
 
-bool load_tri_mesh_from_obj(const std::string &path, 
-                        std::vector<vector3> &vertices, 
+bool load_tri_mesh_from_obj(const std::string &path,
+                        std::vector<vector3> &vertices,
                         std::vector<uint16_t> &indices) {
     auto file = std::ifstream(path);
 
@@ -204,8 +176,8 @@ scalar point_cloud_support_projection(const std::vector<vector3> &points, const 
     return point_cloud_support_projection(points.begin(), points.end(), dir);
 }
 
-size_t split_hull_edge(const std::vector<vector2> &points, 
-                     std::vector<size_t> &hull, 
+size_t split_hull_edge(const std::vector<vector2> &points,
+                     std::vector<size_t> &hull,
                      size_t i0, size_t i1, scalar tolerance) {
 
     auto v0 = points[hull[i0]];
@@ -343,8 +315,8 @@ void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2) {
     }
 }
 
-bool closest_point_convex_polygon(const std::vector<vector2> &vertices, 
-                                  const std::vector<size_t> &indices, 
+bool closest_point_convex_polygon(const std::vector<vector2> &vertices,
+                                  const std::vector<size_t> &indices,
                                   const vector2 &p, vector2 &closest) {
     // Find Voronoi region which contains `p`.
     for (auto i = 0; i < indices.size(); ++i) {
@@ -395,7 +367,7 @@ bool closest_point_convex_polygon(const std::vector<vector2> &vertices,
     return false;
 }
 
-bool closest_point_polygon(const support_polygon &polygon, 
+bool closest_point_polygon(const support_polygon &polygon,
                            const vector2 &p, vector2 &closest) {
     return closest_point_convex_polygon(polygon.plane_vertices, polygon.hull, p, closest);
 }
@@ -417,8 +389,8 @@ vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 
     if (lyz2 > EDYN_EPSILON) {
         auto d = radius / std::sqrt(lyz2);
         return {dir.x < 0 ? -half_length : half_length, dir.y * d, dir.z * d};
-    } 
-    
+    }
+
     return {dir.x < 0 ? -half_length : half_length, radius, 0};
 }
 
@@ -429,12 +401,12 @@ vector3 cylinder_support_point(scalar radius, scalar half_length,
     return rotate(orn, pt);
 }
 
-vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &pos, 
+vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &pos,
                                const quaternion &orn, const vector3 &dir) {
     return pos + cylinder_support_point(radius, half_length, orn, dir);
 }
 
-scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos, 
+scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos,
                                    const quaternion &orn, const vector3 &dir) {
     auto local_dir = rotate(conjugate(orn), dir);
     auto pt = cylinder_support_point(radius, half_length, local_dir);

@@ -1,4 +1,5 @@
 #include "edyn/collision/narrowphase.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/position.hpp"
@@ -18,7 +19,6 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include <entt/entt.hpp>
-#include <variant>
 
 namespace edyn {
 
@@ -48,7 +48,7 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
 }
 
 static
-void create_contact_constraint(entt::registry &registry, 
+void create_contact_constraint(entt::registry &registry,
                                entt::entity contact_entity,
                                contact_point &cp) {
     auto &materialA = registry.get<material>(cp.body[0]);
@@ -73,16 +73,14 @@ void create_contact_constraint(entt::registry &registry,
     contact.damping = damping;
 }
 
-template<typename ContactPointViewType> static 
-size_t find_nearest_contact(const contact_manifold &manifold, 
-                            const collision_result::collision_point &coll_pt,
-                            const ContactPointViewType &cp_view) {
+static
+size_t find_nearest_contact(const contact_point &cp,
+                            const collision_result &result) {
     auto shortest_dist = contact_caching_threshold * contact_caching_threshold;
-    auto num_points = manifold.num_points();
-    auto nearest_idx = num_points;
+    auto nearest_idx = result.num_points;
 
-    for (size_t i = 0; i < num_points; ++i) {
-        auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
+    for (size_t i = 0; i < result.num_points; ++i) {
+        auto &coll_pt = result.point[i];
         auto dA = length_sqr(coll_pt.pivotA - cp.pivotA);
         auto dB = length_sqr(coll_pt.pivotB - cp.pivotB);
 
@@ -101,9 +99,9 @@ size_t find_nearest_contact(const contact_manifold &manifold,
 }
 
 static
-void create_contact_point(entt::registry& registry, 
+void create_contact_point(entt::registry& registry,
                           entt::entity manifold_entity,
-                          contact_manifold& manifold, 
+                          contact_manifold& manifold,
                           const collision_result::collision_point& rp) {
     auto idx = manifold.num_points();
     if (idx >= max_contacts) return;
@@ -146,27 +144,85 @@ void destroy_contact_point(entt::registry &registry, entt::entity manifold_entit
     registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold>();
 }
 
-using contact_point_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_point, constraint_impulse>; 
+static
+bool maybe_remove_point(contact_manifold &manifold, const contact_point &cp, size_t pt_idx,
+                        const vector3 &posA, const quaternion &ornA,
+                        const vector3 &posB, const quaternion &ornB) {
+    constexpr auto threshold = contact_breaking_threshold;
+    constexpr auto threshold_sqr = threshold * threshold;
 
-template<typename Function> static
-void process_collision(entt::entity manifold_entity, contact_manifold &manifold, 
+    // Remove separating contact points.
+    auto pA = posA + rotate(ornA, cp.pivotA);
+    auto pB = posB + rotate(ornB, cp.pivotB);
+    auto n = rotate(ornB, cp.normalB);
+    auto d = pA - pB;
+    auto normal_dist = dot(d, n);
+    auto tangential_dir = d - normal_dist * n; // tangential separation on contact plane
+    auto tangential_dist_sqr = length_sqr(tangential_dir);
+
+    if (normal_dist < threshold && tangential_dist_sqr < threshold_sqr) {
+        return false;
+    }
+
+    // Swap with last element.
+    size_t last_idx = manifold.num_points() - 1;
+
+    if (last_idx != pt_idx) {
+        manifold.point[pt_idx] = manifold.point[last_idx];
+    }
+
+    manifold.point[last_idx] = entt::null;
+
+    return true;
+}
+
+using contact_point_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, contact_point, constraint_impulse>;
+
+template<typename NewPointFunc, typename DestroyPointFunc> static
+void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                        const collision_result &result,
-                       const contact_point_view_t &cp_view, 
-                       Function new_point_func) {
+                       const contact_point_view_t &cp_view,
+                       const transform_view_t &tr_view,
+                       NewPointFunc new_point_func,
+                       DestroyPointFunc destroy_point_func) {
+    auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
+    auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
+
     // Merge new with existing contact points.
+    auto processed_indices = std::array<bool, max_contacts>{};
+    std::fill(processed_indices.begin(), processed_indices.end(), false);
+
+    for (size_t i = manifold.num_points(); i > 0; --i) {
+        auto pt_idx = i - 1;
+        // Find a point in the result that's closest to the current point and
+        // replace it. If there isn't any, check if the point is separating and
+        // remove it if so. Increment lifetime if the point survives or gets
+        // replaced by a matching result point.
+        auto point_entity = manifold.point[pt_idx];
+        auto &cp = cp_view.get<contact_point>(point_entity);
+        ++cp.lifetime;
+
+        auto nearest_idx = find_nearest_contact(cp, result);
+
+        if (nearest_idx < result.num_points) {
+            merge_point(result.point[nearest_idx], cp);
+            processed_indices[nearest_idx] = true;
+        } else if (maybe_remove_point(manifold, cp, pt_idx, posA, ornA, posB, ornB)) {
+            destroy_point_func(point_entity);
+        }
+    }
+
+    // Insert the remaining points seeking to maximize the contact area.
     for (size_t pt_idx = 0; pt_idx < result.num_points; ++pt_idx) {
+        if (processed_indices[pt_idx]) {
+            continue;
+        }
+
         auto &rp = result.point[pt_idx];
+        auto insert_idx = manifold.num_points();
 
-        // Find closest existing point.
-        auto nearest_idx = find_nearest_contact(manifold, rp, cp_view);
-
-        if (nearest_idx < manifold.num_points()) {
-            auto &cp = cp_view.get<contact_point>(manifold.point[nearest_idx]);
-            ++cp.lifetime;
-            merge_point(rp, cp);
-        } else {
-            // Assign it to array of points and set it up.
-            // Find best insertion index. Try pivotA first.
+        if (insert_idx == max_contacts) {
+            // Look for a point to be replaced. Try pivotA first.
             std::array<vector3, max_contacts> pivots;
             std::array<scalar, max_contacts> distances;
             auto num_points = manifold.num_points();
@@ -177,74 +233,40 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                 distances[i] = cp.distance;
             }
 
-            auto idx = insert_index(pivots, distances, num_points, rp.pivotB, rp.distance);
+            insert_idx = insert_index(pivots, distances, num_points, rp.pivotB, rp.distance);
 
             // No closest point found for pivotA, try pivotB.
-            if (idx >= num_points) {
+            if (insert_idx >= num_points) {
                 for (size_t i = 0; i < num_points; ++i) {
                     auto &cp = cp_view.get<contact_point>(manifold.point[i]);
                     pivots[i] = cp.pivotB;
                 }
 
-                idx = insert_index(pivots, distances, manifold.num_points(), rp.pivotB, rp.distance);
+                insert_idx = insert_index(pivots, distances, manifold.num_points(), rp.pivotB, rp.distance);
             }
+        }
 
-            if (idx < max_contacts) {
-                auto is_new_contact = idx == manifold.num_points();
+        if (insert_idx < max_contacts) {
+            auto is_new_contact = insert_idx == manifold.num_points();
 
-                if (is_new_contact) {
-                    new_point_func(rp);
-                } else {
-                    // Replace existing contact point.
-                    auto contact_entity = manifold.point[idx];
-                    auto &cp = cp_view.get<contact_point>(contact_entity);
-                    cp.lifetime = 0;
-                    merge_point(rp, cp);
+            if (is_new_contact) {
+                new_point_func(rp);
+            } else {
+                // Replace existing contact point.
+                auto contact_entity = manifold.point[insert_idx];
+                auto &cp = cp_view.get<contact_point>(contact_entity);
+                cp.lifetime = 0;
+                merge_point(rp, cp);
 
-                    // Zero out warm-starting impulses.
-                    auto &imp = cp_view.get<constraint_impulse>(contact_entity);
-                    imp.zero_out();
-                }
+                // Zero out warm-starting impulses.
+                auto &imp = cp_view.get<constraint_impulse>(contact_entity);
+                imp.zero_out();
             }
         }
     }
 }
 
-template<typename ContactPointViewType, typename Function> static
-void prune(contact_manifold &manifold,
-           const vector3 &posA, const quaternion &ornA, 
-           const vector3 &posB, const quaternion &ornB,
-           const ContactPointViewType &cp_view, Function destroy_point_func) {
-    constexpr auto threshold_sqr = contact_breaking_threshold * contact_breaking_threshold;
-
-    // Remove separating contact points.
-    for (size_t i = manifold.num_points(); i > 0; --i) {
-        size_t k = i - 1;
-        auto point_entity = manifold.point[k];
-        auto &cp = cp_view.template get<contact_point>(point_entity);
-        auto pA = posA + rotate(ornA, cp.pivotA);
-        auto pB = posB + rotate(ornB, cp.pivotB);
-        auto n = rotate(ornB, cp.normalB);
-        auto d = pA - pB;
-        auto dn = dot(d, n); // separation along normal
-        auto dp = d - dn * n; // tangential separation on contact plane
-
-        if (dn > contact_breaking_threshold || length_sqr(dp) > threshold_sqr) {
-            // Swap with last element.
-            size_t last_idx = manifold.num_points() - 1;
-            
-            if (last_idx != k) {
-                manifold.point[k] = manifold.point[last_idx];
-            }
-
-            manifold.point[last_idx] = entt::null;
-
-            destroy_point_func(point_entity);
-        }
-    }
-}
-
-void detect_collision(const contact_manifold &manifold, collision_result &result, 
+void detect_collision(const contact_manifold &manifold, collision_result &result,
                       const body_view_t &body_view, const tuple_of_shape_views_t &views_tuple) {
     auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(manifold.body[0]);
     auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(manifold.body[1]);
@@ -269,19 +291,15 @@ void detect_collision(const contact_manifold &manifold, collision_result &result
     }
 }
 
-void process_result(entt::registry &registry, entt::entity manifold_entity, 
-                    contact_manifold &manifold, const collision_result &result, 
+void process_result(entt::registry &registry, entt::entity manifold_entity,
+                    contact_manifold &manifold, const collision_result &result,
                     const transform_view_t &tr_view) {
     auto cp_view = registry.view<contact_point, constraint_impulse>();
-    process_collision(manifold_entity, manifold, result, cp_view,
+
+    process_collision(manifold_entity, manifold, result, cp_view, tr_view,
                       [&] (const collision_result::collision_point &rp) {
         create_contact_point(registry, manifold_entity, manifold, rp);
-    });
-
-    auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
-    auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
-    prune(manifold, posA, ornA, posB, ornB, cp_view,
-          [&] (entt::entity contact_entity) {
+    }, [&] (entt::entity contact_entity) {
         destroy_contact_point(registry, manifold_entity, contact_entity);
     });
 }
@@ -308,6 +326,7 @@ void narrowphase::update_async(job &completion_job) {
 
     auto manifold_view = m_registry->view<contact_manifold>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
+    auto tr_view = m_registry->view<position, orientation>();
     auto cp_view = m_registry->view<contact_point, constraint_impulse>();
     auto shapes_views_tuple = get_tuple_of_shape_views(*m_registry);
 
@@ -317,25 +336,19 @@ void narrowphase::update_async(job &completion_job) {
     m_cp_destruction_infos.resize(manifold_view.size());
     auto &dispatcher = job_dispatcher::global();
 
-    parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, 
-            [this, body_view, manifold_view, cp_view, shapes_views_tuple] (size_t index) {
+    parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job,
+            [this, body_view, tr_view, manifold_view, cp_view, shapes_views_tuple] (size_t index) {
         auto entity = manifold_view[index];
         auto &manifold = manifold_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
+        auto &destruction_info = m_cp_destruction_infos[index];
 
         detect_collision(manifold, result, body_view, shapes_views_tuple);
-        process_collision(entity, manifold, result, cp_view,
+        process_collision(entity, manifold, result, cp_view, tr_view,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
-        });
-        
-        auto &destruction_info = m_cp_destruction_infos[index];
-        auto [posA, ornA] = body_view.get<position, orientation>(manifold.body[0]);
-        auto [posB, ornB] = body_view.get<position, orientation>(manifold.body[1]);
-
-        prune(manifold, posA, ornA, posB, ornB, cp_view, 
-              [&destruction_info] (entt::entity contact_entity) {
+        }, [&destruction_info] (entt::entity contact_entity) {
             destruction_info.contact_entity[destruction_info.count++] = contact_entity;
         });
     });
