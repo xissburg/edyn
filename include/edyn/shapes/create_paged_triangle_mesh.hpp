@@ -73,6 +73,7 @@ struct submesh_builder {
             }
 
             submesh->m_indices.resize(local_num_triangles);
+            submesh->m_normals.resize(local_num_triangles);
 
             // Obtain local indices from global indices and add to triangle mesh.
             for (auto tri_idx = 0; tri_idx < local_num_triangles; ++tri_idx) {
@@ -94,58 +95,71 @@ struct submesh_builder {
             // full triangle mesh, which includes adjacency information related
             // to the neighboring submeshes.
             submesh->init_edge_indices();
-            submesh->init_face_edge_indices();
             submesh->build_triangle_tree();
 
-            submesh->m_vertex_tangent_ranges.reserve(submesh->m_vertices.size());
             submesh->m_vertex_tangents.reserve(submesh->m_vertices.size() * 2);
 
             // Assign vertex tangents.
             for (auto local_vertex_idx = 0; local_vertex_idx < local_indices.size(); ++local_vertex_idx) {
                 auto global_vertex_idx = local_indices[local_vertex_idx];
-                auto global_range = global_tri_mesh.m_vertex_tangent_ranges[global_vertex_idx];
-                auto global_range_start = global_range[0];
-                auto global_range_end = global_range[1];
+                auto global_tangents = global_tri_mesh.m_vertex_tangents[global_vertex_idx];
+                // Start new nested array of tangents for current vertex.
+                submesh->m_vertex_tangents.push_array();
 
-                auto local_range_start = static_cast<triangle_mesh::index_type>(submesh->m_vertex_tangents.size());
-                auto local_range_end = local_range_start;
-
-                for (auto i = global_range_start; i < global_range_end; ++i) {
-                    auto tangent = global_tri_mesh.m_vertex_tangents[i];
+                for (auto i = 0; i < global_tangents.size(); ++i) {
+                    auto tangent = global_tangents[i];
                     submesh->m_vertex_tangents.push_back(tangent);
-                    ++local_range_end;
                 }
-
-                EDYN_ASSERT(local_range_start != local_range_end);
-                submesh->m_vertex_tangent_ranges.push_back({local_range_start, local_range_end});
             }
 
-            submesh->m_edge_normals.resize(submesh->m_edge_indices.size());
-            submesh->m_is_convex_edge.resize(submesh->m_edge_indices.size());
+            auto local_num_edges = submesh->m_edge_vertex_indices.size();
+            submesh->m_edge_normals.resize(local_num_edges);
+            submesh->m_is_convex_edge.resize(local_num_edges);
 
             // Assign edge normals.
-            for (auto edge_idx = 0; edge_idx < submesh->m_edge_indices.size(); ++edge_idx) {
-                size_t global_vertex_indices[] = {
-                    local_indices[submesh->m_edge_indices[edge_idx][0]],
-                    local_indices[submesh->m_edge_indices[edge_idx][1]]
-                };
-                for (auto global_edge_idx = 0; global_edge_idx < global_tri_mesh.m_edge_indices.size(); ++global_edge_idx) {
-                    auto indices = global_tri_mesh.m_edge_indices[global_edge_idx];
-                    auto is_same = indices[0] == global_vertex_indices[0] &&
-                                   indices[1] == global_vertex_indices[1];
-                    auto is_reversed = indices[0] == global_vertex_indices[1] &&
-                                       indices[1] == global_vertex_indices[0];
+            for (auto edge_idx = 0; edge_idx < local_num_edges; ++edge_idx) {
+                // Find corresponding global edge index.
+                // Get indices of vertices of this edge in the submesh.
+                auto local_vertex_index0 = submesh->m_edge_vertex_indices[edge_idx].first;
+                auto local_vertex_index1 = submesh->m_edge_vertex_indices[edge_idx].second;
+                // Also get vertex indices in the global mesh.
+                auto global_vertex_index0 = local_indices[local_vertex_index0];
+                auto global_vertex_index1 = local_indices[local_vertex_index1];
+                // Get list of global edge indices which share the first vertex
+                // and find the edge that contains both global vertices.
+                auto global_edge_indices = global_tri_mesh.m_vertex_edge_indices[global_vertex_index0];
 
-                    if (is_same || is_reversed) {
-                        submesh->m_edge_normals[edge_idx] = global_tri_mesh.m_edge_normals[global_edge_idx];
+            #ifndef EDYN_DISABLE_ASSERT
+                auto edge_was_found = false;
+            #endif
 
-                        if (is_reversed) {
-                            std::swap(submesh->m_edge_normals[edge_idx][0], submesh->m_edge_normals[edge_idx][1]);
-                        }
+                for (auto i = 0; i < global_edge_indices.size(); ++i) {
+                    auto global_edge_idx = global_edge_indices[i];
+                    auto global_edge_vertex_indices = global_tri_mesh.m_edge_vertex_indices[global_edge_idx];
 
-                        submesh->m_is_convex_edge[edge_idx] = global_tri_mesh.m_is_convex_edge[global_edge_idx];
+                    // If one of the vertices is the second one then this must be it.
+                    if (global_edge_vertex_indices[0] != global_vertex_index1 &&
+                        global_edge_vertex_indices[1] != global_vertex_index1) {
+                        continue;
                     }
+
+                    // Ensure the first vertex index matches expectation.
+                    EDYN_ASSERT(global_edge_vertex_indices[0] == global_vertex_index0 ||
+                                global_edge_vertex_indices[1] == global_vertex_index0);
+
+                    auto edge_normals = global_tri_mesh.m_edge_normals[global_edge_idx];
+                    auto is_convex = global_tri_mesh.m_is_convex_edge[global_edge_idx];
+                    submesh->m_edge_normals[edge_idx] = edge_normals;
+                    submesh->m_is_convex_edge[edge_idx] = is_convex;
+
+                #ifndef EDYN_DISABLE_ASSERT
+                    edge_was_found = true;
+                #endif
+
+                    break;
                 }
+
+                EDYN_ASSERT(edge_was_found);
             }
 
             // Create node.

@@ -2,6 +2,8 @@
 #include "edyn/math/scalar.hpp"
 #include <limits>
 #include <cmath>
+#include <set>
+#include <algorithm>
 
 namespace edyn {
 
@@ -10,7 +12,6 @@ void triangle_mesh::initialize() {
     calculate_face_normals();
     init_edge_indices();
     init_vertex_tangents();
-    init_face_edge_indices();
     calculate_edge_normals();
     calculate_convex_edges();
     build_triangle_tree();
@@ -28,107 +29,57 @@ void triangle_mesh::calculate_face_normals() {
 }
 
 void triangle_mesh::init_edge_indices() {
-    for (auto indices : m_indices) {
-        for (size_t i = 0; i < 3; ++i) {
-            auto j = (i + 1) % 3;
-            auto i0 = indices[i];
-            auto i1 = indices[j];
-            auto contains = false;
-
-            for (auto edge_indices : m_edge_indices) {
-                if ((edge_indices[0] == i0 && edge_indices[1] == i1) ||
-                    (edge_indices[0] == i1 && edge_indices[1] == i0)) {
-                    contains = true;
-                    break;
-                }
-            }
-
-            if (!contains) {
-                m_edge_indices.push_back({i0, i1});
-            }
-        }
-    }
-}
-
-void triangle_mesh::init_vertex_tangents() {
-    m_vertex_tangent_ranges.reserve(m_vertices.size());
-
-    // The total number of vertex tangents is not easily calculated. Since each
-    // vertex is shared by at least 2 edges, reserve the number of vertices
-    // times 2.
-    m_vertex_tangents.reserve(m_vertices.size() * 2);
-
-    for (index_type v_idx = 0; v_idx < m_vertices.size(); ++v_idx) {
-        auto range_start = static_cast<index_type>(m_vertex_tangents.size());
-        auto range_end = range_start;
-
-        for (index_type e_idx = 0; e_idx < m_edge_indices.size(); ++e_idx) {
-            auto edge_indices = m_edge_indices[e_idx];
-
-            if (edge_indices[0] == v_idx || edge_indices[1] == v_idx) {
-                auto v0 = m_vertices[edge_indices[0]];
-                auto v1 = m_vertices[edge_indices[1]];
-                auto tangent = normalize(v1 - v0);
-
-                if (edge_indices[1] == v_idx) {
-                    tangent *= -1; // Point away of vertex.
-                }
-
-                m_vertex_tangents.push_back(tangent);
-                ++range_end;
-            }
-        }
-
-        EDYN_ASSERT(range_start != range_end);
-        m_vertex_tangent_ranges.push_back({range_start, range_end});
-    }
-}
-
-void triangle_mesh::init_face_edge_indices() {
-    m_face_edge_indices.reserve(m_indices.size());
-    m_edge_face_indices.resize(m_edge_indices.size());
-
     constexpr auto idx_max = std::numeric_limits<index_type>::max();
-    std::fill(m_edge_face_indices.begin(), m_edge_face_indices.end(),
-              std::array<index_type, 2>{idx_max, idx_max});
+    m_face_edge_indices.resize(m_indices.size());
+    auto vertex_edge_indices = std::vector<std::set<index_type>>(m_vertices.size());
 
-    m_is_boundary_edge.resize(m_edge_indices.size());
-
-    for (index_type f_idx = 0; f_idx < m_indices.size(); ++f_idx) {
-        auto indices = m_indices[f_idx];
-        auto &face_edge_indices = m_face_edge_indices.emplace_back();
+    for (size_t face_idx = 0; face_idx < m_indices.size(); ++face_idx) {
+        auto indices = m_indices[face_idx];
 
         for (size_t i = 0; i < 3; ++i) {
             auto j = (i + 1) % 3;
             auto i0 = indices[i];
             auto i1 = indices[j];
-            auto e_idx = index_type{};
+            auto pair = commutative_pair(i0, i1);
+            auto edge_idx = SIZE_MAX;
 
-            for (; e_idx < m_edge_indices.size(); ++e_idx) {
-                auto edge_indices = m_edge_indices[e_idx];
-
-                if ((edge_indices[0] == i0 && edge_indices[1] == i1) ||
-                    (edge_indices[0] == i1 && edge_indices[1] == i0)) {
-                    // Assign edge index for i-th edge in this face.
-                    face_edge_indices[i] = e_idx;
-                    // Also assign a face index to this edge.
-                    auto &edge_face_indices = m_edge_face_indices[e_idx];
-
-                    if (edge_face_indices[0] == idx_max) {
-                        edge_face_indices[0] = f_idx;
-                    } else {
-                        EDYN_ASSERT(edge_face_indices[0] != idx_max);
-                        edge_face_indices[1] = f_idx;
-                    }
-
+            for (size_t k = 0; k < m_edge_vertex_indices.size(); ++k) {
+                if (m_edge_vertex_indices[k] == pair) {
+                    edge_idx = k;
                     break;
                 }
             }
 
-            // Ensure a value was assigned.
-            EDYN_ASSERT(e_idx != m_edge_indices.size());
+            if (edge_idx == SIZE_MAX) {
+                edge_idx = m_edge_vertex_indices.size();
+                m_edge_vertex_indices.push_back(pair);
+                m_edge_face_indices.push_back({idx_max, idx_max});
+            }
+
+            vertex_edge_indices[i0].insert(edge_idx);
+            vertex_edge_indices[i1].insert(edge_idx);
+
+            m_face_edge_indices[face_idx][i] = edge_idx;
+
+            auto &edge_face_indices = m_edge_face_indices[edge_idx];
+
+            if (edge_face_indices[0] == idx_max) {
+                edge_face_indices[0] = face_idx;
+            } else if (face_idx != edge_face_indices[0]){
+                edge_face_indices[1] = face_idx;
+            }
         }
     }
+
+    for (auto edge_indices : vertex_edge_indices) {
+        m_vertex_edge_indices.push_array();
+
+        for (auto edge_idx : edge_indices) {
+            m_vertex_edge_indices.push_back(edge_idx);
+        }
+    }
+
+    m_is_boundary_edge.resize(m_edge_vertex_indices.size());
 
     // Edges with a single valid _edge face index_ are at the boundary.
     for (index_type edge_idx = 0; edge_idx < m_edge_face_indices.size(); ++edge_idx) {
@@ -139,7 +90,6 @@ void triangle_mesh::init_face_edge_indices() {
         m_is_boundary_edge[edge_idx] = is_boundary_edge;
 
         if (is_boundary_edge) {
-            m_is_boundary_edge[edge_idx] = true;
             // Assign the same value for the second entry for boundary edges,
             // thus defining a 180 degree convex edge.
             edge_face_indices[1] = edge_face_indices[0];
@@ -147,11 +97,38 @@ void triangle_mesh::init_face_edge_indices() {
     }
 }
 
-void triangle_mesh::calculate_edge_normals() {
-    m_edge_normals.reserve(m_edge_indices.size());
+void triangle_mesh::init_vertex_tangents() {
+    // The total number of vertex tangents is not easily calculated. Since each
+    // vertex is shared by at least 2 edges, reserve the number of vertices
+    // times 2.
+    m_vertex_tangents.reserve(m_vertices.size() * 2);
 
-    for (index_type e_idx = 0; e_idx < m_edge_indices.size(); ++e_idx) {
-        auto &vertex_indices = m_edge_indices[e_idx];
+    for (size_t v_idx = 0; v_idx < m_vertices.size(); ++v_idx) {
+        m_vertex_tangents.push_array();
+        auto edge_indices = m_vertex_edge_indices[v_idx];
+
+        for (size_t k = 0; k < edge_indices.size(); ++k) {
+            auto edge_idx = edge_indices[k];
+            auto i0 = m_edge_vertex_indices[edge_idx].first;
+            auto i1 = m_edge_vertex_indices[edge_idx].second;
+            auto v0 = m_vertices[i0];
+            auto v1 = m_vertices[i1];
+            auto tangent = normalize(v1 - v0);
+
+            if (i1 == v_idx) {
+                tangent *= -1; // Point away of vertex.
+            }
+
+            m_vertex_tangents.push_back(tangent);
+        }
+    }
+}
+
+void triangle_mesh::calculate_edge_normals() {
+    m_edge_normals.reserve(m_edge_vertex_indices.size());
+
+    for (index_type e_idx = 0; e_idx < m_edge_vertex_indices.size(); ++e_idx) {
+        auto &vertex_indices = m_edge_vertex_indices[e_idx];
         auto &face_indices = m_edge_face_indices[e_idx];
         auto &edge_normals = m_edge_normals.emplace_back();
 
@@ -187,9 +164,9 @@ void triangle_mesh::calculate_edge_normals() {
 }
 
 void triangle_mesh::calculate_convex_edges() {
-    m_is_convex_edge.resize(m_edge_indices.size());
+    m_is_convex_edge.resize(m_edge_vertex_indices.size());
 
-    for (size_t e_idx = 0; e_idx < m_edge_indices.size(); ++e_idx) {
+    for (size_t e_idx = 0; e_idx < m_edge_vertex_indices.size(); ++e_idx) {
         if (is_boundary_edge(e_idx)) {
             // Boundary edges are always convex.
             m_is_convex_edge[e_idx] = true;
@@ -254,14 +231,10 @@ std::array<vector3, 2> triangle_mesh::get_convex_edge_face_normals(size_t edge_i
 bool triangle_mesh::in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) const {
     // `dir` must be within the pyramid that originates at the vertex and has
     // the edges sharing this vertex as face normals.
-    auto vertex_tangent_range = m_vertex_tangent_ranges[vertex_idx];
-    auto first_tangent_idx = vertex_tangent_range[0];
-    auto last_tangent_idx = vertex_tangent_range[1];
+    auto tangents = m_vertex_tangents[vertex_idx];
 
-    for (auto i = first_tangent_idx; i < last_tangent_idx; ++i) {
-        auto tangent = m_vertex_tangents[i];
-
-        if (dot(dir, tangent) > EDYN_EPSILON) {
+    for (auto i = 0; i < tangents.size(); ++i) {
+        if (dot(dir, tangents[i]) > EDYN_EPSILON) {
             return false;
         }
     }
