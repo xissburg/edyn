@@ -63,21 +63,6 @@ struct convex_mesh {
         return indices[index_idx];
     }
 
-    template<typename Func>
-    void each_face_vertex(size_t face_idx, Func func) const {
-        auto face_index_idx = face_idx * 2;
-        auto first_index_idx = faces[face_index_idx];
-        auto vertex_count = faces[face_index_idx + 1];
-
-        for (auto i = 0; i < vertex_count; ++i) {
-            func(vertices[indices[first_index_idx + i]]);
-        }
-    }
-
-    bool point_in_face(size_t face_idx, const vector3 &point) const;
-
-    bool point_in_rotated_face(const rotated_mesh &, size_t face_idx, const vector3 &point) const;
-
     /**
      * @brief Returns the number of vertices on a face.
      * @param face_idx Face index.
