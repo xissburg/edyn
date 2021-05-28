@@ -196,7 +196,6 @@ void create_paged_triangle_mesh(
     // Only allowed to create a mesh if this instance is empty.
     EDYN_ASSERT(paged_tri_mesh.m_tree.empty() && paged_tri_mesh.m_cache.empty());
 
-    auto num_vertices = std::distance(vertex_begin, vertex_end);
     auto num_indices = static_cast<size_t>(std::distance(index_begin, index_end));
     auto num_triangles = num_indices / 3;
 

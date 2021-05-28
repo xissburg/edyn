@@ -14,7 +14,7 @@ private:
 };
 
 TEST(test_paged_trimesh, voronoi_regions) {
-    /*edyn::init();
+    edyn::init();
 
     std::vector<edyn::vector3> vertices;
     std::vector<edyn::triangle_mesh::index_type> indices;
@@ -52,5 +52,5 @@ TEST(test_paged_trimesh, voronoi_regions) {
             ASSERT_FALSE(submesh->in_vertex_voronoi(vertex_idx, {0, -1, 0}));
             ASSERT_FALSE(submesh->in_vertex_voronoi(vertex_idx, {1, 0, 0.5}));
         }
-    });*/
+    });
 }
