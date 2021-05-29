@@ -3,7 +3,6 @@
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_angvel.hpp"
-#include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/sys/update_inertias.hpp"
@@ -89,7 +88,6 @@ void solver::update(scalar dt) {
 
     // Apply forces and acceleration.
     integrate_linacc(registry, dt);
-    apply_gravity(registry, dt);
 
     // Setup constraints.
     prepare_constraints(registry, m_row_cache, dt);

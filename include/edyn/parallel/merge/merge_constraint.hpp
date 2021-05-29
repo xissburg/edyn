@@ -45,6 +45,16 @@ void merge(const contact_constraint *old_comp, contact_constraint &new_comp, mer
     merge<MergeType>(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
 }
 
+template<merge_type MergeType>
+void merge(const null_constraint *old_comp, null_constraint &new_comp, merge_context &ctx) {
+    merge<MergeType>(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+}
+
+template<merge_type MergeType>
+void merge(const gravity_constraint *old_comp, gravity_constraint &new_comp, merge_context &ctx) {
+    merge<MergeType>(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+}
+
 }
 
 #endif // EDYN_PARALLEL_MERGE_MERGE_CONSTRAINT_HPP

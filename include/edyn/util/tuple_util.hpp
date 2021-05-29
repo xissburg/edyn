@@ -84,6 +84,11 @@ struct tuple_type_cat<std::tuple<Ts...>, std::tuple<Us...>> {
     using type = std::tuple<Ts..., Us...>;
 };
 
+template<typename... Ts, typename... Us, typename... Vs>
+struct tuple_type_cat<std::tuple<Ts...>, std::tuple<Us...>, std::tuple<Vs...>> {
+    using type = std::tuple<Ts..., Us..., Vs...>;
+};
+
 }
 
 #endif // EDYN_UTIL_TUPLE_UTIL_HPP

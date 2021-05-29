@@ -10,4 +10,3 @@
 #include "edyn/serialization/comp/mass_s11n.hpp"
 #include "edyn/serialization/comp/material_s11n.hpp"
 #include "edyn/serialization/comp/tag_s11n.hpp"
-#include "edyn/serialization/comp/gravity_s11n.hpp"
