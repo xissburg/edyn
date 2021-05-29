@@ -7,13 +7,14 @@
 
 namespace edyn {
 
-world::world(entt::registry &registry) 
+world::world(entt::registry &registry)
     : m_registry(&registry)
     , m_bphase(registry)
     , m_island_coordinator(registry)
 {
     job_dispatcher::global().assure_current_queue();
     registry.set<entity_graph>();
+    m_island_coordinator.set_fixed_dt(m_fixed_dt);
 }
 
 world::~world() {
@@ -42,6 +43,11 @@ void world::set_paused(bool paused) {
 
 void world::step() {
     m_island_coordinator.step_simulation();
+}
+
+void world::set_fixed_dt(scalar dt) {
+    m_fixed_dt = dt;
+    m_island_coordinator.set_fixed_dt(dt);
 }
 
 }

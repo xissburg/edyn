@@ -34,7 +34,7 @@ island_coordinator::island_coordinator(entt::registry &registry)
 
     registry.on_destroy<island_resident>().connect<&island_coordinator::on_destroy_island_resident>(*this);
     registry.on_destroy<multi_island_resident>().connect<&island_coordinator::on_destroy_multi_island_resident>(*this);
-    
+
     registry.on_destroy<contact_manifold>().connect<&island_coordinator::on_destroy_contact_manifold>(*this);
 }
 
@@ -95,7 +95,7 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
     // Notify the worker of the destruction which happened in the main registry
     // first.
     ctx->m_delta_builder->destroyed(entity);
-    
+
     // Manually call these on_destroy functions since they could be triggered
     // by the EnTT delegate after the island resident is destroyed and the island
     // resident component is needed in these on_destroy functions.
@@ -189,7 +189,7 @@ void island_coordinator::init_new_nodes() {
                 island_entities.push_back(other_resident.island_entity);
             }
             // This entity must not be visited because it is already in an
-            // island. This prevents visiting the entire island which 
+            // island. This prevents visiting the entire island which
             // would be wasteful.
             return false;
         },
@@ -282,7 +282,7 @@ void island_coordinator::init_new_edges() {
             if (node_resident0.island_entity == node_resident1.island_entity) {
                 island_entity = node_resident0.island_entity;
             } else {
-                merge_islands({node_resident0.island_entity, node_resident1.island_entity}, 
+                merge_islands({node_resident0.island_entity, node_resident1.island_entity},
                               {}, {edge_entity});
             }
         }
@@ -313,11 +313,11 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     // `update` function which reschedules itself to be run over and over again.
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
-    auto *worker = new island_worker(island_entity, m_fixed_dt, 
+    auto *worker = new island_worker(island_entity, m_fixed_dt,
                                      message_queue_in_out(main_queue_input, isle_queue_output));
-    auto ctx = std::make_unique<island_worker_context>(island_entity, worker, 
+    auto ctx = std::make_unique<island_worker_context>(island_entity, worker,
                                                        message_queue_in_out(isle_queue_input, main_queue_output));
-    
+
     // Insert the first entity mapping between the remote island entity and
     // the local island entity.
     ctx->m_entity_map.insert(worker->island_entity(), island_entity);
@@ -347,7 +347,7 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     return island_entity;
 }
 
-void island_coordinator::insert_to_island(entt::entity island_entity, 
+void island_coordinator::insert_to_island(entt::entity island_entity,
                                           const std::vector<entt::entity> &nodes,
                                           const std::vector<entt::entity> &edges) {
 
@@ -440,7 +440,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 ctx->m_delta_builder->created(entity, collision_view.get<AABB>(entity));
                 ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));
             }
-            
+
             ctx->m_delta_builder->created(entity, dynamic_tag{});
             ctx->m_delta_builder->created(entity, procedural_tag{});
             ctx->m_delta_builder->created(entity, continuous_view.get(entity));
@@ -476,8 +476,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                         ctx->m_delta_builder->created(entity, shape);
                     });
 
-                    ctx->m_delta_builder->created(entity, collision_view.get<AABB>(entity));   
-                    ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));   
+                    ctx->m_delta_builder->created(entity, collision_view.get<AABB>(entity));
+                    ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));
                 }
 
                 if (static_view.contains(entity)) {
@@ -533,7 +533,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
             }
         } else {
             std::apply([&] (auto ... c) {
-                ((m_registry->has<decltype(c)>(entity) ? 
+                ((m_registry->has<decltype(c)>(entity) ?
                     ctx->m_delta_builder->created(entity, m_registry->get<decltype(c)>(entity)) :
                     void(0)), ...);
             }, constraints_tuple_t{});
@@ -638,11 +638,11 @@ void island_coordinator::refresh_dirty_entities() {
             builder->created(entity);
         }
 
-        builder->created(entity, *m_registry, 
+        builder->created(entity, *m_registry,
             dirty.created_indexes.begin(), dirty.created_indexes.end());
-        builder->updated(entity, *m_registry, 
+        builder->updated(entity, *m_registry,
             dirty.updated_indexes.begin(), dirty.updated_indexes.end());
-        builder->destroyed(entity, 
+        builder->destroyed(entity,
             dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
     };
 
@@ -812,7 +812,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
                 contains_procedural = true;
                 ctx->m_nodes.erase(entity);
             } else if (!vector_contains(remaining_non_procedural_entities, entity)) {
-                // Remove island that was split from multi-residents if they're not 
+                // Remove island that was split from multi-residents if they're not
                 // present in the source island.
                 auto &resident = multi_resident_view.get(entity);
                 resident.island_entities.erase(split_island_entity);
@@ -865,6 +865,7 @@ void island_coordinator::update() {
 
 void island_coordinator::set_paused(bool paused) {
     m_paused = paused;
+
     for (auto &pair : m_island_ctx_map) {
         auto &ctx = pair.second;
         ctx->send<msg::set_paused>(paused);
@@ -878,6 +879,15 @@ void island_coordinator::step_simulation() {
 
         auto &ctx = pair.second;
         ctx->send<msg::step_simulation>();
+    }
+}
+
+void island_coordinator::set_fixed_dt(scalar dt) {
+    m_fixed_dt = dt;
+
+    for (auto &pair : m_island_ctx_map) {
+        auto &ctx = pair.second;
+        ctx->send<msg::set_fixed_dt>(dt);
     }
 }
 

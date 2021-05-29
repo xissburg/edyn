@@ -21,7 +21,7 @@ namespace edyn {
 
 static
 scalar solve(constraint_row &row) {
-    auto delta_relvel = dot(row.J[0], *row.dvA) + 
+    auto delta_relvel = dot(row.J[0], *row.dvA) +
                         dot(row.J[1], *row.dwA) +
                         dot(row.J[2], *row.dvB) +
                         dot(row.J[3], *row.dwB);
@@ -62,8 +62,8 @@ void update_impulses(entt::registry &registry, row_cache &cache) {
     // Assign impulses from constraint rows back into the `constraint_impulse`
     // components. The rows are inserted into the cache for each constraint type
     // in the order they're found in `constraints_tuple_t` and in the same order
-    // they're in their EnTT pools, which means the rows in the cache can be 
-    // matched by visiting each constraint type in the order they appear in the 
+    // they're in their EnTT pools, which means the rows in the cache can be
+    // matched by visiting each constraint type in the order they appear in the
     // tuple.
     size_t con_idx = 0;
     size_t row_idx = 0;
@@ -73,7 +73,7 @@ void update_impulses(entt::registry &registry, row_cache &cache) {
     }, constraints_tuple_t{});
 }
 
-solver::solver(entt::registry &registry) 
+solver::solver(entt::registry &registry)
     : m_registry(&registry)
 {
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
@@ -93,8 +93,6 @@ void solver::update(scalar dt) {
 
     // Setup constraints.
     prepare_constraints(registry, m_row_cache, dt);
-
-    EDYN_ASSERT(m_row_cache.rows.size() == m_row_cache.rows.size());
 
     // Solve constraints.
     for (uint32_t i = 0; i < iterations; ++i) {
@@ -123,7 +121,7 @@ void solver::update(scalar dt) {
     // Integrate velocities to obtain new transforms.
     integrate_linvel(registry, dt);
     integrate_angvel(registry, dt);
-    
+
     // Update rotated vertices of convex meshes after rotations change. It is
     // important to do this before `update_aabbs` because the rotated meshes
     // will be used to calculate AABBs of polyhedrons.

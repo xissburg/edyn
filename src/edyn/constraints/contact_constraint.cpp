@@ -34,9 +34,9 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     cache.rows.reserve(cache.rows.size() + con_view.size() * num_rows_per_constraint);
 
     con_view.each([&] (entt::entity entity, contact_constraint &con, contact_point &cp) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = 
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto &imp = imp_view.get(entity);
 
@@ -51,9 +51,9 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         // Create normal row.
         auto &normal_row = cache.rows.emplace_back();
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA; 
+        normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
         normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
-        normal_row.dvA = &dvA; normal_row.dwA = &dwA; 
+        normal_row.dvA = &dvA; normal_row.dwA = &dwA;
         normal_row.dvB = &dvB; normal_row.dwB = &dwB;
         normal_row.impulse = imp.values[0];
         normal_row.lower_limit = 0;
@@ -91,7 +91,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         // Create friction row.
         auto tangent_relvel = relvel - normal * normal_relvel;
         auto tangent_relspd = length(tangent_relvel);
-        auto tangent = tangent_relspd > EDYN_EPSILON ? 
+        auto tangent = tangent_relspd > EDYN_EPSILON ?
             tangent_relvel / tangent_relspd : vector3_x;
 
         auto &friction_row = cache.rows.emplace_back();
