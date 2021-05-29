@@ -14,7 +14,6 @@
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
-#include "edyn/comp/gravity.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/comp/material.hpp"
@@ -33,40 +32,33 @@ namespace edyn {
  */
 using shared_components = tuple_type_cat<std::tuple<
     island_timestamp,
-    AABB, 
-    collision_filter, 
+    AABB,
+    collision_filter,
     constraint_impulse,
-    point_constraint, 
-    distance_constraint,
-    soft_distance_constraint,
-    hinge_constraint,
-    generic_constraint,
-    contact_constraint,
-    gravity, 
-    inertia, 
-    inertia_inv, 
-    inertia_world_inv, 
+    inertia,
+    inertia_inv,
+    inertia_world_inv,
     linacc,
-    angvel, 
-    linvel, 
-    mass, 
-    mass_inv, 
-    material, 
+    angvel,
+    linvel,
+    mass,
+    mass_inv,
+    material,
     position,
-    orientation, 
-    contact_manifold, 
-    contact_point, 
+    orientation,
+    contact_manifold,
+    contact_point,
     continuous,
-    dynamic_tag, 
-    kinematic_tag, 
-    static_tag, 
+    dynamic_tag,
+    kinematic_tag,
+    static_tag,
     procedural_tag,
     sleeping_tag,
-    sleeping_disabled_tag, 
+    sleeping_disabled_tag,
     disabled_tag,
     continuous_contacts_tag,
     shape_index
->, shapes_tuple_t>::type; // Concatenate with all shapes at the end.
+>, constraints_tuple_t, shapes_tuple_t>::type; // Concatenate with all shapes and constraints at the end.
 
 }
 

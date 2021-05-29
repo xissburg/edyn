@@ -60,9 +60,10 @@ set(Edyn_SOURCES
     src/edyn/constraints/point_constraint.cpp
     src/edyn/constraints/hinge_constraint.cpp
     src/edyn/constraints/generic_constraint.cpp
+    src/edyn/constraints/null_constraint.cpp
+    src/edyn/constraints/gravity_constraint.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/world.cpp
-    src/edyn/sys/apply_gravity.cpp
     src/edyn/sys/update_aabbs.cpp
     src/edyn/sys/update_rotated_meshes.cpp
     src/edyn/sys/update_inertias.cpp

@@ -9,6 +9,8 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/hinge_constraint.hpp"
 #include "edyn/constraints/generic_constraint.hpp"
+#include "edyn/constraints/null_constraint.hpp"
+#include "edyn/constraints/gravity_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
 
@@ -19,12 +21,14 @@ namespace edyn {
  * the more important constraints should be the last in the list.
  */
 using constraints_tuple_t = std::tuple<
+    null_constraint,
+    gravity_constraint,
     point_constraint,
     distance_constraint,
     soft_distance_constraint,
     hinge_constraint,
     generic_constraint,
-    contact_constraint 
+    contact_constraint
 >;
 
 inline

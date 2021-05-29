@@ -8,7 +8,6 @@
 #include "edyn/parallel/merge/merge_contact_point.hpp"
 #include "edyn/parallel/merge/merge_contact_manifold.hpp"
 #include "edyn/parallel/merge/merge_constraint.hpp"
-#include "edyn/parallel/merge/merge_gravity.hpp"
 #include "edyn/parallel/merge/merge_tree_view.hpp"
 
 namespace edyn {
