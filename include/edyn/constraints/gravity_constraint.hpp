@@ -8,6 +8,9 @@
 
 namespace edyn {
 
+/**
+ * @brief Applies gravitational attraction forces between two entities.
+ */
 struct gravity_constraint : public constraint_base {
 
 };
