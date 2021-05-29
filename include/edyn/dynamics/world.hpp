@@ -22,19 +22,24 @@ public:
 
     /**
      * @brief Updates components in the islands where the entity resides.
-     */ 
+     */
     template<typename... Component>
     void refresh(entt::entity entity) {
         m_island_coordinator.refresh<Component...>(entity);
     }
 
-    scalar m_fixed_dt {scalar(1.0/60)};
+    void set_fixed_dt(scalar dt);
+
+    auto get_fixed_dt() {
+        return m_fixed_dt;
+    }
 
 private:
     entt::registry* m_registry;
     broadphase_main m_bphase;
     island_coordinator m_island_coordinator;
 
+    scalar m_fixed_dt {scalar(1.0/60)};
     bool m_paused {false};
 };
 

@@ -84,6 +84,7 @@ void island_worker::init() {
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
+    m_message_queue.sink<msg::set_fixed_dt>().connect<&island_worker::on_set_fixed_dt>(*this);
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
 
     process_messages();
@@ -500,7 +501,7 @@ void island_worker::finish_step() {
     // Unfortunately, an island cannot be split immediately, because a merge could
     // happen at the same time in the coordinator, which might reference entities
     // that won't be present here anymore in the next update because they were moved
-    // into another island which the coordinator could not be aware of at the 
+    // into another island which the coordinator could not be aware of at the
     // moment it was merging this island with another. Thus, this island sets its
     // splitting flag to true and sends the split request to the coordinator and it
     // is put to sleep until the coordinator calls `split()` which executes the
@@ -526,7 +527,7 @@ bool island_worker::should_split() {
             if (!m_registry.ctx<entity_graph>().is_single_connected_component()) {
                 return true;
             }
-        }            
+        }
     } else {
         m_pending_split_calculation = true;
         m_calculate_split_timestamp = time;
@@ -581,7 +582,7 @@ void island_worker::reschedule_later() {
 }
 
 void island_worker::reschedule() {
-    // Do not reschedule if it's awaiting a split to be completed. The main 
+    // Do not reschedule if it's awaiting a split to be completed. The main
     // thread modifies the worker's registry during a split so this job must
     // not be run in parallel with that task.
     if (m_splitting.load(std::memory_order_relaxed)) return;
@@ -637,7 +638,7 @@ void island_worker::init_new_shapes() {
             if (!std::holds_alternative<polyhedron_shape>(node.shape_var)) continue;
 
             // Assign a `rotated_mesh_list` to this entity for the first
-            // polyhedron and link it with more rotated meshes for the 
+            // polyhedron and link it with more rotated meshes for the
             // remaining polyhedrons.
             auto &polyhedron = std::get<polyhedron_shape>(node.shape_var);
             auto local_orn = orn * node.orientation;
@@ -705,7 +706,7 @@ bool island_worker::could_go_to_sleep() {
     for (auto entity : vel_view) {
         auto [v, w] = vel_view.get<linvel, angvel>(entity);
 
-        if ((length_sqr(v) > island_linear_sleep_threshold * island_linear_sleep_threshold) || 
+        if ((length_sqr(v) > island_linear_sleep_threshold * island_linear_sleep_threshold) ||
             (length_sqr(w) > island_angular_sleep_threshold * island_angular_sleep_threshold)) {
             return false;
         }
@@ -748,6 +749,10 @@ void island_worker::on_step_simulation(const msg::step_simulation &) {
     }
 }
 
+void island_worker::on_set_fixed_dt(const msg::set_fixed_dt &msg) {
+    m_fixed_dt = msg.dt;
+}
+
 entity_graph::connected_components_t island_worker::split() {
     EDYN_ASSERT(m_splitting.load(std::memory_order_relaxed));
 
@@ -767,7 +772,7 @@ entity_graph::connected_components_t island_worker::split() {
 
     // Sort connected components by size. The biggest component will stay
     // in this island worker.
-    std::sort(connected_components.begin(), connected_components.end(), 
+    std::sort(connected_components.begin(), connected_components.end(),
         [] (auto &lhs, auto &rhs) {
             auto lsize = lhs.nodes.size() + lhs.edges.size();
             auto rsize = rhs.nodes.size() + rhs.edges.size();

@@ -43,7 +43,7 @@ struct rigidbody_def {
     vector3 gravity {gravity_earth};
 
     // Optional shape for collidable entities.
-    std::optional<shapes_variant_t> shape_opt; 
+    std::optional<shapes_variant_t> shape_opt;
 
     scalar restitution {0};
     scalar friction {0.5};
@@ -58,10 +58,15 @@ struct rigidbody_def {
     // Mark all contacts involving this rigid body as continuous.
     bool continuous_contacts {false};
 
-    // Whether this entity will be used for presentation and needs 
+    // Whether this entity will be used for presentation and needs
     // position/orientation interpolation.
     bool presentation {true};
 
+    /**
+     * @brief Assigns the default moment of inertia of the current shape
+     * using the current mass.
+     * Assumes `shape_opt` to contain a value.
+     */
     void update_inertia();
 };
 
@@ -92,8 +97,8 @@ void rigidbody_update_inertia(entt::registry &, entt::entity);
  * the entity's center/position, in world space, i.e.
  * `actual_world_space_location - position`.
  */
-void rigidbody_apply_impulse(entt::registry &, entt::entity, 
-                             const vector3 &impulse, 
+void rigidbody_apply_impulse(entt::registry &, entt::entity,
+                             const vector3 &impulse,
                              const vector3 &rel_location);
 
 void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);

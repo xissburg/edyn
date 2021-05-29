@@ -26,7 +26,7 @@ class island_coordinator final {
     void init_new_edges();
     void init_new_non_procedural_node(entt::entity);
     entt::entity create_island(double timestamp, bool sleeping);
-    void insert_to_island(entt::entity island_entity, 
+    void insert_to_island(entt::entity island_entity,
                           const std::vector<entt::entity> &nodes,
                           const std::vector<entt::entity> &edges);
     entt::entity merge_islands(const std::vector<entt::entity> &island_entities,
@@ -53,7 +53,7 @@ public:
     void on_destroy_multi_island_resident(entt::registry &, entt::entity);
     void on_island_delta(entt::entity, const island_delta &);
     void on_split_island(entt::entity, const msg::split_island &);
-    
+
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
     void update();
@@ -64,7 +64,11 @@ public:
     template<typename... Component>
     void refresh(entt::entity entity);
 
-    scalar m_fixed_dt {scalar(1.0/60)};
+    void set_fixed_dt(scalar dt);
+
+    auto get_fixed_dt() {
+        return m_fixed_dt;
+    }
 
 private:
     entt::registry *m_registry;
@@ -74,6 +78,7 @@ private:
     std::vector<entt::entity> m_new_graph_edges;
     std::vector<entt::entity> m_islands_to_split;
 
+    scalar m_fixed_dt {scalar(1.0/60)};
     bool m_importing_delta {false};
     bool m_paused {false};
 };

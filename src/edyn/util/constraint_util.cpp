@@ -13,7 +13,7 @@
 namespace edyn {
 
 namespace internal {
-    void pre_make_constraint(entt::entity entity, entt::registry &registry, 
+    void pre_make_constraint(entt::entity entity, entt::registry &registry,
                              entt::entity body0, entt::entity body1, bool is_graph_edge) {
         registry.emplace<constraint_impulse>(entity);
         auto &con_dirty = registry.get_or_emplace<dirty>(entity);
@@ -71,7 +71,7 @@ scalar restitution_curve(scalar restitution, scalar relvel) {
     return restitution * decay;
 }
 
-void prepare_row(constraint_row &row, 
+void prepare_row(constraint_row &row,
                  const constraint_row_options &options,
                  const vector3 &linvelA, const vector3 &linvelB,
                  const vector3 &angvelA, const vector3 &angvelB) {
@@ -81,11 +81,11 @@ void prepare_row(constraint_row &row,
                      dot(row.inv_IB * row.J[3], row.J[3]);
     row.eff_mass = 1 / J_invM_JT;
 
-    auto relvel = dot(row.J[0], linvelA) + 
+    auto relvel = dot(row.J[0], linvelA) +
                   dot(row.J[1], angvelA) +
                   dot(row.J[2], linvelB) +
                   dot(row.J[3], angvelB);
-    
+
     auto restitution = restitution_curve(options.restitution, relvel);
     row.rhs = -(options.error * options.erp + relvel * (1 + restitution));
 }

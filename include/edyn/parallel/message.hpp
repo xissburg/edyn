@@ -1,10 +1,16 @@
 #ifndef EDYN_PARALLEL_MESSAGE_HPP
 #define EDYN_PARALLEL_MESSAGE_HPP
 
+#include "edyn/math/scalar.hpp"
+
 namespace edyn::msg {
 
 struct set_paused {
     bool paused;
+};
+
+struct set_fixed_dt {
+    scalar dt;
 };
 
 struct step_simulation {};

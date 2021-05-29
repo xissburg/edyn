@@ -84,6 +84,7 @@ public:
 
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);
+    void on_set_fixed_dt(const msg::set_fixed_dt &msg);
     void on_wake_up_island(const msg::wake_up_island &);
 
     entity_graph::connected_components_t split();
