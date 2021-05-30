@@ -413,6 +413,8 @@ void island_worker::begin_step() {
     init_new_shapes();
     init_new_imported_contact_manifolds();
 
+    m_nphase.create_contact_constraints();
+
     m_state = state::solve;
 }
 
