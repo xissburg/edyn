@@ -66,7 +66,7 @@ void narrowphase::finish_async_update() {
 
         for (size_t j = 0; j < info_result.count; ++j) {
             auto contact_entity = create_contact_point(*m_registry, entity, manifold, info_result.point[j]);
-            add_pending_contact(contact_entity, manifold.body);
+            add_new_contact_point(contact_entity, manifold.body);
         }
     }
 
@@ -85,23 +85,23 @@ void narrowphase::finish_async_update() {
     m_cp_destruction_infos.clear();
 }
 
-void narrowphase::add_pending_contact(entt::entity contact_entity,
+void narrowphase::add_new_contact_point(entt::entity contact_entity,
                                       std::array<entt::entity, 2> body) {
     if (m_registry->has<material>(body[0]) &&
         m_registry->has<material>(body[1])) {
-        m_pending_contact_points.push_back(contact_entity);
+        m_new_contact_points.push_back(contact_entity);
     }
 }
 
 void narrowphase::create_contact_constraints() {
     auto cp_view = m_registry->view<contact_point>();
 
-    for (auto contact_entity : m_pending_contact_points) {
+    for (auto contact_entity : m_new_contact_points) {
         auto &cp = cp_view.get(contact_entity);
         create_contact_constraint(*m_registry, contact_entity, cp);
     }
 
-    m_pending_contact_points.clear();
+    m_new_contact_points.clear();
 }
 
 }

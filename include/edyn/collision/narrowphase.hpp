@@ -29,8 +29,8 @@ class narrowphase {
         size_t count {0};
     };
 
-    void add_pending_contact(entt::entity contact_entity,
-                             std::array<entt::entity, 2> body);
+    void add_new_contact_point(entt::entity contact_entity,
+                               std::array<entt::entity, 2> body);
 
 public:
     narrowphase(entt::registry &);
@@ -63,7 +63,7 @@ private:
     entt::registry *m_registry;
     std::vector<contact_point_construction_info> m_cp_construction_infos;
     std::vector<contact_point_destruction_info> m_cp_destruction_infos;
-    std::vector<entt::entity> m_pending_contact_points;
+    std::vector<entt::entity> m_new_contact_points;
 };
 
 template<typename Iterator>
@@ -90,7 +90,7 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
         process_collision(manifold_entity, manifold, result, cp_view, imp_view, tr_view,
                           [&] (const collision_result::collision_point &rp) {
             auto contact_entity = create_contact_point(*m_registry, manifold_entity, manifold, rp);
-            add_pending_contact(contact_entity, manifold.body);
+            add_new_contact_point(contact_entity, manifold.body);
         }, [&] (entt::entity contact_entity) {
             destroy_contact_point(*m_registry, manifold_entity, contact_entity);
         });
