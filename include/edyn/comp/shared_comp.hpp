@@ -30,7 +30,7 @@ namespace edyn {
  * Tuple of components that are exchanged between island coordinator and
  * island workers.
  */
-using shared_components = tuple_type_cat<std::tuple<
+static const auto shared_components = std::tuple_cat(std::tuple<
     island_timestamp,
     AABB,
     collision_filter,
@@ -58,7 +58,7 @@ using shared_components = tuple_type_cat<std::tuple<
     disabled_tag,
     continuous_contacts_tag,
     shape_index
->, constraints_tuple_t, shapes_tuple_t>::type; // Concatenate with all shapes and constraints at the end.
+>{}, constraints_tuple, shapes_tuple); // Concatenate with all shapes and constraints at the end.
 
 }
 

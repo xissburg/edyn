@@ -536,7 +536,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 ((m_registry->has<decltype(c)>(entity) ?
                     ctx->m_delta_builder->created(entity, m_registry->get<decltype(c)>(entity)) :
                     void(0)), ...);
-            }, constraints_tuple_t{});
+            }, constraints_tuple);
 
             ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
             ctx->m_delta_builder->created(entity, impulse_view.get(entity));
@@ -727,7 +727,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each(constraints_tuple_t{}, [&] (entt::entity remote_entity, const auto &con) {
+    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;

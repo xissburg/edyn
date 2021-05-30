@@ -22,7 +22,7 @@ struct row_cache {
 
     // Number of rows in each constraint. This is sorted in the same order
     // as in the pool of each constraint type and ordered by the order which
-    // the constraint types appear in the `constraints_tuple_t` tuple.
+    // the constraint types appear in the `constraints_tuple`.
     std::vector<size_t> con_num_rows;
 };
 

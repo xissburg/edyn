@@ -18,38 +18,39 @@
 
 namespace edyn {
 
-// Types of shapes that can be transformed.
-using dynamic_shapes_tuple_t = std::tuple<
+// Shapes that can be transformed.
+static const auto dynamic_shapes_tuple = std::tuple<
     sphere_shape,
     cylinder_shape,
     capsule_shape,
     box_shape,
     polyhedron_shape,
     compound_shape
->;
+>{};
 
-// Types of shapes which can't be transformed.
-using static_shapes_tuple_t = std::tuple<
+// Shapes which can't be transformed.
+static const auto static_shapes_tuple = std::tuple<
     plane_shape,
     mesh_shape,
     paged_mesh_shape
->;
+>{};
 
-// Type of tuple containing all shape types.
-using shapes_tuple_t = tuple_type_cat<dynamic_shapes_tuple_t, static_shapes_tuple_t>::type;
+// Tuple containing all shape types.
+static const auto shapes_tuple = std::tuple_cat(dynamic_shapes_tuple, static_shapes_tuple);
 
-// Type of variant containing all shape types.
-using shapes_variant_t = tuple_to_variant<shapes_tuple_t>::type;
+// Variant containing all shape types.
+static const auto shapes_variant = tuple_to_variant(shapes_tuple);
+using shapes_variant_t = std::decay_t<decltype(shapes_variant)>;
 
 /**
  * @brief Returns the index value of a shape type. This is the value that
  * should be stored in a `shape_index` component.
- * @tparam ShapeType One of the shape types in `shapes_tuple_t`.
+ * @tparam ShapeType One of the shape types in `shapes_tuple`.
  * @return Index of shape type.
  */
 template<typename ShapeType>
 constexpr size_t get_shape_index() {
-    return index_of<ShapeType>(shapes_tuple_t{});
+    return index_of<ShapeType>(shapes_tuple);
 }
 
 /**
@@ -58,10 +59,10 @@ constexpr size_t get_shape_index() {
  * @param registry The source of shapes.
  */
 inline auto get_tuple_of_shape_views(entt::registry &registry) {
-    return get_tuple_of_views(registry, shapes_tuple_t{});
+    return get_tuple_of_views(registry, shapes_tuple);
 }
 
-using tuple_of_shape_views_t = map_to_tuple_of_views<shapes_tuple_t>::type;
+using tuple_of_shape_views_t = map_to_tuple_of_views<std::decay_t<decltype(shapes_tuple)>>::type;
 
 /**
  * @brief Obtains the shape held by `entity` using a shape index and passes
@@ -77,7 +78,7 @@ using tuple_of_shape_views_t = map_to_tuple_of_views<shapes_tuple_t>::type;
 template<typename VisitorType>
 void visit_shape(const shape_index &index, entt::entity entity,
                  const tuple_of_shape_views_t &views_tuple, VisitorType visitor) {
-    visit_component(shapes_tuple_t{}, index.value, entity, views_tuple, visitor);
+    visit_component(shapes_tuple, index.value, entity, views_tuple, visitor);
 }
 
 /**
@@ -94,7 +95,7 @@ void visit_shape(const shape_index &index, entt::entity entity,
 template<typename VisitorType>
 void visit_shape(const shape_index &index, entt::entity entity,
                  entt::registry &registry, VisitorType visitor) {
-    visit_component(shapes_tuple_t{}, index.value, entity, registry, visitor);
+    visit_component(shapes_tuple, index.value, entity, registry, visitor);
 }
 
 }

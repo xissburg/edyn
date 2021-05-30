@@ -5,7 +5,7 @@ namespace edyn {
 
 std::unique_ptr<island_delta_builder> make_island_delta_builder_default() {
     return std::unique_ptr<island_delta_builder>(
-        new island_delta_builder_impl(shared_components{}));
+        new island_delta_builder_impl(shared_components));
 }
 
 make_island_delta_builder_func_t g_make_island_delta_builder = &make_island_delta_builder_default;
@@ -34,7 +34,7 @@ bool island_delta_builder::empty() const {
 }
 
 bool island_delta_builder::needs_wakeup() const {
-    if (!m_delta.m_created_entities.empty() || 
+    if (!m_delta.m_created_entities.empty() ||
         !m_delta.m_destroyed_entities.empty()) {
         return true;
     }
@@ -50,7 +50,7 @@ bool island_delta_builder::needs_wakeup() const {
             return true;
         }
     }
-    
+
     for (auto &ptr : m_delta.m_destroyed_components) {
         if (ptr && !ptr->empty()) {
             return true;

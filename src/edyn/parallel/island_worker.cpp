@@ -238,7 +238,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each(constraints_tuple_t{}, [&] (entt::entity remote_entity, const auto &con) {
+    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;

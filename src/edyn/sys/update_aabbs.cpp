@@ -40,7 +40,7 @@ void update_aabbs(entt::registry &registry, std::tuple<Ts...>) {
 
 void update_aabbs(entt::registry &registry) {
     // Update AABBs for all shapes that can be transformed.
-    update_aabbs(registry, dynamic_shapes_tuple_t{});
+    update_aabbs(registry, dynamic_shapes_tuple);
 }
 
 }

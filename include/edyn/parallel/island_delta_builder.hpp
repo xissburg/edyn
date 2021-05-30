@@ -319,16 +319,16 @@ void island_delta_builder::_reserve_created(size_t size) {
 /**
  * @brief Implementation of `island_delta_builder` which allows a list of
  * support components to be specified.
- * 
+ *
  * @note
  * When users find the need to add extra logic to the physics simulation, they'll
- * need to have their custom components be shared between island coordinator and 
+ * need to have their custom components be shared between island coordinator and
  * island worker so that their custom system update functions can work on these
  * components (functions assigned via `edyn::set_external_system_pre_step`, etc).
- * This class provides implementations of the functions that update the 
+ * This class provides implementations of the functions that update the
  * `island_delta` by component id, which is required for functionalities such
  * as marking all components as created/updated and marking components as dirty.
- * 
+ *
  * @tparam Component Pack of supported component types.
  */
 template<typename... Component>
@@ -339,41 +339,41 @@ public:
     {}
 
     void created(entt::entity entity, entt::registry &registry, entt::id_type id) override {
-        ((entt::type_index<Component>::value() == id ? 
+        ((entt::type_index<Component>::value() == id ?
             island_delta_builder::created<Component>(entity, registry) : (void)0), ...);
     }
 
     void created_all(entt::entity entity, entt::registry &registry) override {
-        ((registry.has<Component>(entity) ? 
+        ((registry.has<Component>(entity) ?
             island_delta_builder::created<Component>(entity, registry) : (void)0), ...);
     }
 
     void updated(entt::entity entity, entt::registry &registry, entt::id_type id) override {
-        ((entt::type_index<Component>::value() == id ? 
+        ((entt::type_index<Component>::value() == id ?
             island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
     }
 
     void updated_all(entt::entity entity, entt::registry &registry) override {
-        ((registry.has<Component>(entity) ? 
+        ((registry.has<Component>(entity) ?
             island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
     }
 
     void destroyed(entt::entity entity, entt::id_type id) override {
-        ((entt::type_index<Component>::value() == id ? 
+        ((entt::type_index<Component>::value() == id ?
             island_delta_builder::destroyed<Component>(entity) : (void)0), ...);
     }
 };
 
 /**
- * @brief Function type of a factory function that creates instances of a 
+ * @brief Function type of a factory function that creates instances of a
  * registry delta builder implementation.
  */
 using make_island_delta_builder_func_t = std::unique_ptr<island_delta_builder>(*)();
 
 /**
  * @brief Pointer to a factory function that makes new delta builders.
- * 
- * The default function returns a delta builder configured with all default 
+ *
+ * The default function returns a delta builder configured with all default
  * shared components (`edyn::shared_components`) but it can be replaced by
  * a function that returns a builder which additionally handles external
  * components set by the user.
@@ -382,24 +382,24 @@ extern make_island_delta_builder_func_t g_make_island_delta_builder;
 
 /**
  * @brief Creates a new delta builder.
- * 
- * Returns a delta builder implementation that supports handling all shared 
+ *
+ * Returns a delta builder implementation that supports handling all shared
  * component types plus any external component set by the user.
- * 
+ *
  * @return Safe pointer to an instance of a delta builder implementation.
  */
 std::unique_ptr<island_delta_builder> make_island_delta_builder();
 
 /**
  * @brief Registers external components to be shared between island coordinator
- * and island workers. 
+ * and island workers.
  * @tparam Component External component types.
  */
 template<typename... Component>
 void register_external_components() {
     g_make_island_delta_builder = [] () {
         auto external = std::tuple<Component...>{};
-        auto all_components = std::tuple_cat(edyn::shared_components{}, external);
+        auto all_components = std::tuple_cat(edyn::shared_components, external);
         return std::unique_ptr<edyn::island_delta_builder>(
             new edyn::island_delta_builder_impl(all_components));
     };

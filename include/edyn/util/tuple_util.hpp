@@ -63,31 +63,12 @@ struct map_tuple<T, std::tuple<Us...>> {
 };
 
 /**
- * Convert a tuple type to a variant type with the same template parameters.
+ * Convert a tuple to a variant with the same types.
  */
 template<typename... Ts>
-struct tuple_to_variant;
-
-template<typename... Ts>
-struct tuple_to_variant<std::tuple<Ts...>> {
-    using type = std::variant<Ts...>;
-};
-
-/**
- * Concatenate tuple types.
- */
-template<typename... Ts>
-struct tuple_type_cat;
-
-template<typename... Ts, typename... Us>
-struct tuple_type_cat<std::tuple<Ts...>, std::tuple<Us...>> {
-    using type = std::tuple<Ts..., Us...>;
-};
-
-template<typename... Ts, typename... Us, typename... Vs>
-struct tuple_type_cat<std::tuple<Ts...>, std::tuple<Us...>, std::tuple<Vs...>> {
-    using type = std::tuple<Ts..., Us..., Vs...>;
-};
+auto tuple_to_variant(std::tuple<Ts...>) {
+    return std::variant<Ts...>{};
+}
 
 }
 

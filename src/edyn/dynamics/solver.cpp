@@ -60,7 +60,7 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
 void update_impulses(entt::registry &registry, row_cache &cache) {
     // Assign impulses from constraint rows back into the `constraint_impulse`
     // components. The rows are inserted into the cache for each constraint type
-    // in the order they're found in `constraints_tuple_t` and in the same order
+    // in the order they're found in `constraints_tuple` and in the same order
     // they're in their EnTT pools, which means the rows in the cache can be
     // matched by visiting each constraint type in the order they appear in the
     // tuple.
@@ -69,7 +69,7 @@ void update_impulses(entt::registry &registry, row_cache &cache) {
 
     std::apply([&] (auto ... c) {
         (update_impulse<decltype(c)>(registry, cache, con_idx, row_idx), ...);
-    }, constraints_tuple_t{});
+    }, constraints_tuple);
 }
 
 solver::solver(entt::registry &registry)
