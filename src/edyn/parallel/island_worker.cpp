@@ -413,6 +413,15 @@ void island_worker::begin_step() {
     init_new_shapes();
     init_new_imported_contact_manifolds();
 
+    // Create new contact constraints at the beginning of the step. Since
+    // contact points are created at the end of a step, creating constraints
+    // at that point would mean that they'd have zero applied impulse,
+    // which leads to contact point construction observers not getting the
+    // value of the initial impulse of a new contact. Doing it here, means
+    // that at the end of the step, the `constraint_impulse` will have the
+    // value of the impulse applied and the construction of `constraint_impulse`
+    // or `contact_constraint` can be observed to capture the initial impact
+    // of a new contact.
     m_nphase.create_contact_constraints();
 
     m_state = state::solve;

@@ -125,6 +125,8 @@ Collision events can be observed by listening to `on_construct<entt::contact_poi
 
 Contact points are not updated in the main registry continuously since that would be wasteful by default. In some cases it's desirable to have information such as the contact position, normal vector and applied normal and/of friction impulse in every frame, which can be used to play sounds or to drive a particle system, for example. If updated contact information is necessary, a `edyn::continuous` component must be assigned to the contact point when it's constructed and it must be marked as dirty so the changes can be propagated to the island worker where it resides. Another possibility is to assign a `edyn::continuous_contacts_tag` to a rigid body entity so every contact involving this entity will be automatically marked as continuous. This tag will be assigned to any new rigid bodies whose `edyn::rigidbody_def` has the `continuous_contacts` property set to true.
 
+Due to the order of the internal updates (see [The Physics Step](#the-physics-step) for details), the contact constraint is not created immediately after a new contact point, which means that when an `on_construct<entt::contact_point>` is triggered, the collision impulse will not be available. If that information is required, listen to construction of `edyn::constraint_impulse` instead. These are created at the beginning of the next step and the solver will assign the applied impulse to it. It contains an array of impulses for each constraint row. In case of a `edyn::contact_constraint`, the first element is the normal impulse and the second is the friction impulse.
+
 # Shapes
 
 The physical shape of a rigid body can be any of the `edyn::*_shape` components, which are assigned directly to the rigid body entity. Along with the shape of specific type, a `edyn::shape_index` is assigned which can be used to read the shape an entity contains using the `edyn::visit_shape` function.
@@ -232,6 +234,21 @@ The `edyn::island worker` has a message queue (single producer, single consumer)
 Using the job system, each island can be scheduled to run the simulation in the background in separate threads taking advantage of the job system's load balancing. In the `edyn::island_worker` main function, it performs a single step of the simulation instead of all steps necessary to bring the simulation to the current time to minimize the amount of time spent in the worker queue. If the timestamp of the current step plus the fixed delta time is after the current time, it means the island worker can rest for a little bit and in this case it reschedules itself to run at a later time. Otherwise it dispatches itself to run again as soon as possible. The simulation step is not necessarily performed in one shot (see [Parallel-Substeps](#parallel-sub-steps))
 
 The `edyn::island_worker` is dynamically allocated by the `edyn::island_coordinator` and it manages its own lifetime. When it is asked to be terminated by the coordinator by means of `edyn::island_worker_context::terminate()`, it will deallocate itself when it's executed again in a worker thread. This eliminates the need for the coordinator to manage the worker's lifetime which would require synchronizing its termination.
+
+### The Physics Step
+
+The physics simulation step happens in each island worker independently. This is the order of major updates:
+
+- Process messages and island deltas, thus sychronizing state with the main registry, which might create new entities in the local registry.
+- Detect collision for new manifolds that have been imported from the main registry.
+- Create contact constraints for new contact points. This includes new points generated in the collision detection of imported manifolds and contact points that were created in the previous physics step.
+- Apply external forces such as gravity.
+- Solve constraints.
+- Apply constraint impulses.
+- Integrate velocities to obtain new positions and orientations.
+- Now that rigid bodies have moved, run the broad-phase collision detection to create/destroy collision pairs (i.e. `edyn::contact_manifold`).
+- Perform narrow-phase collision detection to generate new contact points. Contact constraints are not created yet.
+- Send island delta to coordinator.
 
 ### Splitting Islands
 
