@@ -92,8 +92,8 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
     auto [posB, ornB] = tr_view.template get<position, orientation>(manifold.body[1]);
 
     // Merge new with existing contact points.
-    auto processed_indices = std::array<bool, max_contacts>{};
-    std::fill(processed_indices.begin(), processed_indices.end(), false);
+    auto merged_indices = std::array<bool, max_contacts>{};
+    std::fill(merged_indices.begin(), merged_indices.end(), false);
 
     for (size_t i = manifold.num_points(); i > 0; --i) {
         auto pt_idx = i - 1;
@@ -107,67 +107,93 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
 
         auto nearest_idx = find_nearest_contact(cp, result);
 
-        if (nearest_idx < result.num_points) {
+        if (nearest_idx < result.num_points && !merged_indices[nearest_idx]) {
             merge_point(result.point[nearest_idx], cp);
-            processed_indices[nearest_idx] = true;
+            merged_indices[nearest_idx] = true;
         } else if (maybe_remove_point(manifold, cp, pt_idx, posA, ornA, posB, ornB)) {
             destroy_point_func(point_entity);
         }
     }
 
+    // Use a local array of points to store the final combination of existing
+    // with new contact points.
+    struct local_contact_point {
+        collision_result::collision_point point;
+        bool replaced {false};
+    };
+
+    auto local_points = std::array<local_contact_point, max_contacts>{};
+    auto num_points = manifold.num_points();
+
+    for (size_t i = 0; i < num_points; ++i) {
+        auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
+        local_points[i].point = {cp.pivotA, cp.pivotB, cp.normalB, cp.distance};
+    }
+
     // Insert the remaining points seeking to maximize the contact area.
     for (size_t pt_idx = 0; pt_idx < result.num_points; ++pt_idx) {
-        if (processed_indices[pt_idx]) {
+        if (merged_indices[pt_idx]) {
             continue;
         }
 
         auto &rp = result.point[pt_idx];
-        auto insert_idx = manifold.num_points();
+        auto insert_idx = num_points;
 
         if (insert_idx == max_contacts) {
             // Look for a point to be replaced. Try pivotA first.
             std::array<vector3, max_contacts> pivots;
             std::array<scalar, max_contacts> distances;
-            auto num_points = manifold.num_points();
 
             for (size_t i = 0; i < num_points; ++i) {
-                auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
-                pivots[i] = cp.pivotB;
-                distances[i] = cp.distance;
+                pivots[i] = local_points[i].point.pivotA;
+                distances[i] = local_points[i].point.distance;
             }
 
-            insert_idx = insert_index(pivots, distances, num_points, rp.pivotB, rp.distance);
+            insert_idx = insert_index(pivots, distances, num_points, rp.pivotA, rp.distance);
 
             // No closest point found for pivotA, try pivotB.
             if (insert_idx >= num_points) {
                 for (size_t i = 0; i < num_points; ++i) {
-                    auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
-                    pivots[i] = cp.pivotB;
+                    pivots[i] = local_points[i].point.pivotB;
                 }
 
-                insert_idx = insert_index(pivots, distances, manifold.num_points(), rp.pivotB, rp.distance);
+                insert_idx = insert_index(pivots, distances, num_points, rp.pivotB, rp.distance);
             }
         }
 
         if (insert_idx < max_contacts) {
-            auto is_new_contact = insert_idx == manifold.num_points();
+            auto is_new_contact = insert_idx == num_points;
 
             if (is_new_contact) {
-                new_point_func(rp);
+                local_points[num_points++].point = rp;
             } else {
-                // Replace existing contact point.
-                auto contact_entity = manifold.point[insert_idx];
-                auto &cp = cp_view.template get<contact_point>(contact_entity);
-                cp.lifetime = 0;
-                merge_point(rp, cp);
-
-                // Zero out warm-starting impulses. Check if it contains a `constraint_impulse`
-                // because in a rare occasion it might be replacing a new contact point.
-                if (imp_view.contains(contact_entity)) {
-                    auto &imp = imp_view.template get<constraint_impulse>(contact_entity);
-                    imp.zero_out();
-                }
+                local_points[insert_idx].point = rp;
+                local_points[insert_idx].replaced = true;
             }
+        }
+    }
+
+    // Assign some points to manifold and replace others.
+    for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+        auto num_manifold_points = manifold.num_points();
+
+        if (pt_idx < num_manifold_points) {
+            if (local_points[pt_idx].replaced) {
+                auto point_entity = manifold.point[pt_idx];
+                // Swap with last element.
+                size_t last_idx = num_manifold_points - 1;
+
+                if (last_idx != pt_idx) {
+                    manifold.point[pt_idx] = manifold.point[last_idx];
+                }
+
+                manifold.point[last_idx] = entt::null;
+
+                destroy_point_func(point_entity);
+                new_point_func(local_points[pt_idx].point);
+            }
+        } else {
+            new_point_func(local_points[pt_idx].point);
         }
     }
 }
