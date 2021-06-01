@@ -50,6 +50,7 @@ void narrowphase::update_async(job &completion_job) {
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
         }, [&destruction_info] (entt::entity contact_entity) {
+            EDYN_ASSERT(contact_entity != entt::null);
             destruction_info.contact_entity[destruction_info.count++] = contact_entity;
         });
     });
@@ -57,6 +58,16 @@ void narrowphase::update_async(job &completion_job) {
 
 void narrowphase::finish_async_update() {
     auto manifold_view = m_registry->view<contact_manifold>();
+
+    // Destroy contact points.
+    for (size_t i = 0; i < manifold_view.size(); ++i) {
+        auto entity = manifold_view[i];
+        auto &info_result = m_cp_destruction_infos[i];
+
+        for (size_t j = 0; j < info_result.count; ++j) {
+            destroy_contact_point(*m_registry, entity, info_result.contact_entity[j]);
+        }
+    }
 
     // Create contact points.
     for (size_t i = 0; i < manifold_view.size(); ++i) {
@@ -70,19 +81,8 @@ void narrowphase::finish_async_update() {
         }
     }
 
-    m_cp_construction_infos.clear();
-
-    // Destroy contact points.
-    for (size_t i = 0; i < manifold_view.size(); ++i) {
-        auto entity = manifold_view[i];
-        auto &info_result = m_cp_destruction_infos[i];
-
-        for (size_t j = 0; j < info_result.count; ++j) {
-            destroy_contact_point(*m_registry, entity, info_result.contact_entity[j]);
-        }
-    }
-
     m_cp_destruction_infos.clear();
+    m_cp_construction_infos.clear();
 }
 
 void narrowphase::add_new_contact_point(entt::entity contact_entity,
@@ -97,6 +97,9 @@ void narrowphase::create_contact_constraints() {
     auto cp_view = m_registry->view<contact_point>();
 
     for (auto contact_entity : m_new_contact_points) {
+        if (!m_registry->valid(contact_entity)) {
+            continue; // Might've been destroyed.
+        }
         auto &cp = cp_view.get(contact_entity);
         create_contact_constraint(*m_registry, contact_entity, cp);
     }

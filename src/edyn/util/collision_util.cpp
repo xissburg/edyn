@@ -137,11 +137,7 @@ bool maybe_remove_point(contact_manifold &manifold, const contact_point &cp, siz
 
     // Swap with last element.
     size_t last_idx = manifold.num_points() - 1;
-
-    if (last_idx != pt_idx) {
-        manifold.point[pt_idx] = manifold.point[last_idx];
-    }
-
+    manifold.point[pt_idx] = manifold.point[last_idx];
     manifold.point[last_idx] = entt::null;
 
     return true;
