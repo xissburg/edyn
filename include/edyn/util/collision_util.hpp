@@ -115,21 +115,15 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         }
     }
 
-    auto merged_all = true;
-
-    for (size_t i = 0; i < result.num_points; ++i) {
-        if (!merged_indices[i]) {
-            merged_all = false;
-            break;
-        }
-    }
-
-    if (merged_all) {
+    // Do not continue if all result points were merged.
+    auto merged_indices_end = merged_indices.begin() + result.num_points;
+    if (std::find(merged_indices.begin(), merged_indices_end, false) == merged_indices_end) {
         return;
     }
 
     // Use a local array of points to store the final combination of existing
-    // with new contact points.
+    // with new contact points. Points can be inserted and replaced thus doing
+    // this directly into the manifold would create some confusion.
     struct local_contact_point {
         collision_result::collision_point point;
         entt::entity entity {entt::null};
@@ -137,6 +131,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         bool inserted {false};
     };
 
+    // Start with current manifold points.
     auto local_points = std::array<local_contact_point, max_contacts>{};
     auto num_points = manifold.num_points();
 
@@ -146,7 +141,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         local_points[i].entity = manifold.point[i];
     }
 
-    // Insert the remaining points seeking to maximize the contact area.
+    // Insert the remaining result points seeking to maximize the contact area.
     for (size_t pt_idx = 0; pt_idx < result.num_points; ++pt_idx) {
         if (merged_indices[pt_idx]) {
             continue;
@@ -194,13 +189,20 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
     // Assign some points to manifold and replace others.
     for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
         if (local_points[pt_idx].inserted) {
+            // Notify creation of a new point if it was inserted. It could have
+            // been replaced after being inserted in the steps above, but in
+            // either case, it's still a new point.
             new_point_func(local_points[pt_idx].point);
         } else if (local_points[pt_idx].replaced) {
+            // If it was replaced, the old point must be destroyed and a new
+            // point must be created.
             auto point_entity = local_points[pt_idx].entity;
+            EDYN_ASSERT(point_entity != entt::null);
             auto num_manifold_points = manifold.num_points();
 
             for (size_t i = 0; i < num_manifold_points; ++i) {
                 if (manifold.point[i] == point_entity) {
+                    // Assign last to i-th and set last to null.
                     size_t last_idx = num_manifold_points - 1;
                     manifold.point[i] = manifold.point[last_idx];
                     manifold.point[last_idx] = entt::null;
