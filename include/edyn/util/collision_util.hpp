@@ -6,6 +6,7 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -95,7 +96,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
     auto merged_indices = std::array<bool, max_contacts>{};
     std::fill(merged_indices.begin(), merged_indices.end(), false);
 
-    for (size_t i = manifold.num_points(); i > 0; --i) {
+    for (auto i = manifold.num_points(); i > 0; --i) {
         auto pt_idx = i - 1;
         // Find a point in the result that's closest to the current point and
         // replace it. If there isn't any, check if the point is separating and
@@ -115,11 +116,26 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         }
     }
 
+    auto merged_all = true;
+
+    for (size_t i = 0; i < result.num_points; ++i) {
+        if (!merged_indices[i]) {
+            merged_all = false;
+            break;
+        }
+    }
+
+    if (merged_all) {
+        return;
+    }
+
     // Use a local array of points to store the final combination of existing
     // with new contact points.
     struct local_contact_point {
         collision_result::collision_point point;
+        entt::entity entity {entt::null};
         bool replaced {false};
+        bool inserted {false};
     };
 
     auto local_points = std::array<local_contact_point, max_contacts>{};
@@ -128,6 +144,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
     for (size_t i = 0; i < num_points; ++i) {
         auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
         local_points[i].point = {cp.pivotA, cp.pivotB, cp.normalB, cp.distance};
+        local_points[i].entity = manifold.point[i];
     }
 
     // Insert the remaining points seeking to maximize the contact area.
@@ -165,7 +182,9 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
             auto is_new_contact = insert_idx == num_points;
 
             if (is_new_contact) {
-                local_points[num_points++].point = rp;
+                auto idx = num_points++;
+                local_points[idx].point = rp;
+                local_points[idx].inserted = true;
             } else {
                 local_points[insert_idx].point = rp;
                 local_points[insert_idx].replaced = true;
@@ -175,24 +194,22 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
 
     // Assign some points to manifold and replace others.
     for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
-        auto num_manifold_points = manifold.num_points();
+        if (local_points[pt_idx].inserted) {
+            new_point_func(local_points[pt_idx].point);
+        } else if (local_points[pt_idx].replaced) {
+            auto point_entity = local_points[pt_idx].entity;
+            auto num_manifold_points = manifold.num_points();
 
-        if (pt_idx < num_manifold_points) {
-            if (local_points[pt_idx].replaced) {
-                auto point_entity = manifold.point[pt_idx];
-                // Swap with last element.
-                size_t last_idx = num_manifold_points - 1;
-
-                if (last_idx != pt_idx) {
-                    manifold.point[pt_idx] = manifold.point[last_idx];
+            for (size_t i = 0; i < num_manifold_points; ++i) {
+                if (manifold.point[i] == point_entity) {
+                    size_t last_idx = num_manifold_points - 1;
+                    manifold.point[i] = manifold.point[last_idx];
+                    manifold.point[last_idx] = entt::null;
+                    break;
                 }
-
-                manifold.point[last_idx] = entt::null;
-
-                destroy_point_func(point_entity);
-                new_point_func(local_points[pt_idx].point);
             }
-        } else {
+
+            destroy_point_func(point_entity);
             new_point_func(local_points[pt_idx].point);
         }
     }

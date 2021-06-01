@@ -50,6 +50,7 @@ void narrowphase::update_async(job &completion_job) {
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
         }, [&destruction_info] (entt::entity contact_entity) {
+            EDYN_ASSERT(contact_entity != entt::null);
             destruction_info.contact_entity[destruction_info.count++] = contact_entity;
         });
     });
@@ -68,8 +69,6 @@ void narrowphase::finish_async_update() {
         }
     }
 
-    m_cp_destruction_infos.clear();
-
     // Create contact points.
     for (size_t i = 0; i < manifold_view.size(); ++i) {
         auto entity = manifold_view[i];
@@ -82,6 +81,7 @@ void narrowphase::finish_async_update() {
         }
     }
 
+    m_cp_destruction_infos.clear();
     m_cp_construction_infos.clear();
 }
 
