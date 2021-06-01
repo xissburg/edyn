@@ -25,7 +25,7 @@ void rigidbody_def::update_inertia() {
     inertia = moment_of_inertia(*shape_opt, mass);
 }
 
-void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {    
+void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {
     registry.emplace<position>(entity, def.position);
     registry.emplace<orientation>(entity, def.orientation);
 
@@ -103,6 +103,8 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // Instruct island worker to continuously send position, orientation and
         // velocity updates back to coordinator. The velocity is needed for calculation
         // of the present position and orientation in `update_presentation`.
+        // TODO: synchronized merges would eliminate the need to share these
+        // components continuously.
         registry.emplace<continuous>(entity).insert<position, orientation, linvel, angvel>();
     }
 
@@ -141,7 +143,7 @@ void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
     registry.replace<edyn::inertia_world_inv>(entity, inv_IW);
 }
 
-void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity, 
+void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
                              const vector3 &impulse, const vector3 &rel_location) {
     auto &m_inv = registry.get<mass_inv>(entity);
     auto &i_inv = registry.get<inertia_world_inv>(entity);

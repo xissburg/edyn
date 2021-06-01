@@ -358,7 +358,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
     auto manifold_view = m_registry->view<contact_manifold>();
-    auto point_view = m_registry->view<contact_point, contact_constraint>();
+    auto cp_view = m_registry->view<contact_point>();
+    auto contact_view = m_registry->view<contact_constraint>();
     auto impulse_view = m_registry->view<constraint_impulse>();
 
     // Calculate total number of certain kinds of entities to later reserve
@@ -521,11 +522,14 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 auto &point_resident = resident_view.get(point_entity);
                 point_resident.island_entity = island_entity;
 
-                auto [point, con] = point_view.get<contact_point, contact_constraint>(point_entity);
+                auto point = cp_view.get(point_entity);
                 ctx->m_delta_builder->created(point_entity);
                 ctx->m_delta_builder->created(point_entity, point);
-                ctx->m_delta_builder->created(point_entity, con);
-                ctx->m_delta_builder->created(point_entity, impulse_view.get(point_entity));
+
+                if (contact_view.contains(point_entity)) {
+                    ctx->m_delta_builder->created(point_entity, contact_view.get(point_entity));
+                    ctx->m_delta_builder->created(point_entity, impulse_view.get(point_entity));
+                }
 
                 if (continuous_view.contains(point_entity)) {
                     ctx->m_delta_builder->created(point_entity, continuous_view.get(point_entity));

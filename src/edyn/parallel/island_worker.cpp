@@ -21,6 +21,7 @@
 #include "edyn/parallel/external_system.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/vector.hpp"
+#include "edyn/util/collision_util.hpp"
 #include <memory>
 #include <variant>
 #include <entt/entt.hpp>
@@ -252,6 +253,27 @@ void island_worker::on_island_delta(const island_delta &delta) {
         m_registry.emplace<graph_edge>(local_entity, edge_index);
     });
 
+    // New contact points might be coming from another island after a merge or
+    // split and they might not yet have a contact constraint associated with
+    // them if they were just created in the last step of the island where it's
+    // coming from.
+    auto cp_view = m_registry.view<contact_point>();
+    auto cc_view = m_registry.view<contact_constraint>();
+    delta.created_for_each<contact_point>([&] (entt::entity remote_entity, const contact_point &) {
+        if (!m_entity_map.has_rem(remote_entity)) {
+            return;
+        }
+
+        auto local_entity = m_entity_map.remloc(remote_entity);
+
+        if (cc_view.contains(local_entity)) {
+            return;
+        }
+
+        auto &cp = cp_view.get(local_entity);
+        create_contact_constraint(m_registry, local_entity, cp);
+    });
+
     m_importing_delta = false;
 }
 
@@ -283,6 +305,14 @@ void island_worker::sync() {
     // functioning correctly when constraints are moved from one island to another.
     m_registry.view<constraint_impulse>().each([&] (entt::entity entity, constraint_impulse &imp) {
         m_delta_builder->updated(entity, imp);
+    });
+
+    // Updated contact points are needed when moving entities from one island to
+    // another when merging/splitting in the coordinator.
+    // TODO: synchronized merges would eliminate the need to share these
+    // components continuously.
+    m_registry.view<contact_point>().each([&] (entt::entity entity, contact_point &cp) {
+        m_delta_builder->updated(entity, cp);
     });
 
     // Update continuous components.
