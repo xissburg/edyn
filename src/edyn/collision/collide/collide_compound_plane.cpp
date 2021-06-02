@@ -6,7 +6,8 @@ namespace edyn {
 void collide(const compound_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result) {
     for (auto &node : shA.nodes) {
-        auto aabbA = aabb_to_world_space(node.aabb, ctx.posA, ctx.ornA);
+        const auto inset = vector3_one * -contact_breaking_threshold;
+        auto aabbA = aabb_to_world_space(node.aabb, ctx.posA, ctx.ornA).inset(inset);
 
         if (!intersect(aabbA, ctx.aabbB)) {
             continue;
