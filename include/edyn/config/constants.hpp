@@ -49,7 +49,7 @@ inline constexpr auto island_time_to_sleep = scalar(2);
  * the support point is found and then all points behind it within a tolerance
  * are selected as part of the support feature.
  */
-inline constexpr auto support_feature_tolerance = scalar(0.01);
+inline constexpr auto support_feature_tolerance = scalar(0.004);
 
 }
 

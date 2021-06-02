@@ -88,10 +88,6 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                        TransformView &tr_view,
                        NewPointFunc new_point_func,
                        DestroyPointFunc destroy_point_func) {
-    if (result.num_points == 0) {
-        return;
-    }
-
     auto [posA, ornA] = tr_view.template get<position, orientation>(manifold.body[0]);
     auto [posB, ornB] = tr_view.template get<position, orientation>(manifold.body[1]);
 

@@ -136,6 +136,7 @@ bool maybe_remove_point(contact_manifold &manifold, const contact_point &cp, siz
     }
 
     // Swap with last element.
+    EDYN_ASSERT(manifold.num_points() > 0);
     size_t last_idx = manifold.num_points() - 1;
     manifold.point[pt_idx] = manifold.point[last_idx];
     manifold.point[last_idx] = entt::null;

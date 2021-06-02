@@ -2,39 +2,35 @@
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/quaternion.hpp"
-#include "edyn/math/scalar.hpp"
+#include "edyn/util/shape_util.hpp"
 
 namespace edyn {
 
-void collide(const polyhedron_shape &shA, const plane_shape &shB, 
+void collide(const polyhedron_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result) {
     auto &posA = ctx.posA;
     auto &rmeshA = *shA.rotated;
 
     auto normal = shB.normal;
-    auto center = shB.normal * shB.constant;
-    scalar distance = EDYN_SCALAR_MAX;
+    auto center = shB.normal * shB.constant - posA;
 
-    // Find distance between polyhedron and plane.
-    for (auto &rvertex : rmeshA.vertices) {
-        auto vertex_world = posA + rvertex;
-        auto vertex_dist = dot(vertex_world - center, normal);
-        distance = std::min(vertex_dist, distance);
-    }
+    auto proj_poly = -point_cloud_support_projection(rmeshA.vertices, -normal);
+    auto proj_plane = dot(center, normal);
+    scalar distance = proj_poly - proj_plane;
 
     if (distance > ctx.threshold) return;
 
-    // Add points to all vertices that are within a range from the
-    // minimum distance.
-    for (size_t i = 0; i < rmeshA.vertices.size(); ++i) {
-        auto vertex_world = posA + rmeshA.vertices[i];
-        auto vertex_dist = dot(vertex_world - center, normal);
+    auto polygon = point_cloud_support_polygon(
+        rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
+        normal, proj_poly, true, support_feature_tolerance);
 
-        if (vertex_dist > distance + support_feature_tolerance) continue;
+    for (auto idxA : polygon.hull) {
+        auto &pointA = polygon.vertices[idxA];
 
-        auto pivotA = shA.mesh->vertices[i];
-        auto pivotB = vertex_world - normal * vertex_dist;
-        result.maybe_add_point({pivotA, pivotB, normal, vertex_dist});
+        auto pivotA = rotate(conjugate(ctx.ornA), pointA);
+        auto local_distance = dot(pointA - center, normal);
+        auto pivotB = pointA - normal * local_distance + posA; // Project onto plane.
+        result.maybe_add_point({pivotA, pivotB, normal, local_distance});
     }
 }
 
