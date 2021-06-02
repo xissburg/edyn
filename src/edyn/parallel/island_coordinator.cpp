@@ -445,6 +445,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
             ctx->m_delta_builder->created(entity, dynamic_tag{});
             ctx->m_delta_builder->created(entity, procedural_tag{});
             ctx->m_delta_builder->created(entity, continuous_view.get(entity));
+
+            ctx->m_delta_builder->created_external(entity, *m_registry);
         } else {
             auto &resident = multi_resident_view.get(entity);
 
@@ -486,6 +488,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 } else {
                     ctx->m_delta_builder->created(entity, kinematic_tag{});
                 }
+
+                ctx->m_delta_builder->created_external(entity, *m_registry);
             } else if (!static_view.contains(entity)) {
                 // Non-procedural entity is already in this island.
                 // If kinematic, update transform and velocity.
@@ -493,6 +497,9 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 ctx->m_delta_builder->updated(entity, tr_view.get<orientation>(entity));
                 ctx->m_delta_builder->updated(entity, vel_view.get<linvel>(entity));
                 ctx->m_delta_builder->updated(entity, vel_view.get<angvel>(entity));
+
+                // Also update external components.
+                ctx->m_delta_builder->updated_external(entity, *m_registry);
             }
         }
 
@@ -545,6 +552,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
             ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
             ctx->m_delta_builder->created(entity, impulse_view.get(entity));
         }
+
+        ctx->m_delta_builder->created_external(entity, *m_registry);
     }
 }
 

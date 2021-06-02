@@ -4,13 +4,14 @@
 #include <tuple>
 #include <memory>
 #include <utility>
+#include "edyn/comp/shared_comp.hpp"
 #include "edyn/parallel/entity_component_container.hpp"
 #include "edyn/parallel/island_delta.hpp"
 
 namespace edyn {
 
 /**
- * @brief Provides the means to build a `island_delta`.
+ * @brief Provides the means to build an `island_delta`.
  */
 class island_delta_builder {
 
@@ -154,6 +155,8 @@ public:
      */
     virtual void created_all(entt::entity entity, entt::registry &registry) = 0;
 
+    virtual void created_external(entt::entity entity, entt::registry &registry) = 0;
+
     /**
      * @brief Adds the given components to the list of updated components.
      * @tparam Component Pack of component types.
@@ -217,6 +220,8 @@ public:
      * @param registry The source registry.
      */
     virtual void updated_all(entt::entity entity, entt::registry &registry) = 0;
+
+    virtual void updated_external(entt::entity entity, entt::registry &registry) = 0;
 
     /**
      * @brief Marks components as deleted or marks the entity as destroyed if no
@@ -333,6 +338,24 @@ void island_delta_builder::_reserve_created(size_t size) {
  */
 template<typename... Component>
 class island_delta_builder_impl: public island_delta_builder {
+
+    template<typename Comp>
+    void _created_external(entt::entity entity, entt::registry &registry) {
+        if constexpr(!has_type<Comp, shared_components_t>::value) {
+            if (registry.has<Comp>(entity)) {
+                island_delta_builder::created<Comp>(entity, registry);
+            }
+        }
+    }
+
+    template<typename Comp>
+    void _updated_external(entt::entity entity, entt::registry &registry) {
+        if constexpr(!has_type<Comp, shared_components_t>::value) {
+            if (registry.has<Comp>(entity)) {
+                island_delta_builder::updated<Comp>(entity, registry);
+            }
+        }
+    }
 public:
     island_delta_builder_impl() = default;
     island_delta_builder_impl([[maybe_unused]] std::tuple<Component...>)
@@ -348,6 +371,10 @@ public:
             island_delta_builder::created<Component>(entity, registry) : (void)0), ...);
     }
 
+    void created_external(entt::entity entity, entt::registry &registry) override {
+        (_created_external<Component>(entity, registry), ...);
+    }
+
     void updated(entt::entity entity, entt::registry &registry, entt::id_type id) override {
         ((entt::type_index<Component>::value() == id ?
             island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
@@ -356,6 +383,10 @@ public:
     void updated_all(entt::entity entity, entt::registry &registry) override {
         ((registry.has<Component>(entity) ?
             island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
+    }
+
+    void updated_external(entt::entity entity, entt::registry &registry) override {
+        (_updated_external<Component>(entity, registry), ...);
     }
 
     void destroyed(entt::entity entity, entt::id_type id) override {
@@ -399,9 +430,9 @@ template<typename... Component>
 void register_external_components() {
     g_make_island_delta_builder = [] () {
         auto external = std::tuple<Component...>{};
-        auto all_components = std::tuple_cat(edyn::shared_components, external);
-        return std::unique_ptr<edyn::island_delta_builder>(
-            new edyn::island_delta_builder_impl(all_components));
+        auto all_components = std::tuple_cat(shared_components, external);
+        return std::unique_ptr<island_delta_builder>(
+            new island_delta_builder_impl(all_components));
     };
 }
 
