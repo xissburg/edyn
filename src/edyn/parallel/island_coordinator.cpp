@@ -197,8 +197,7 @@ void island_coordinator::init_new_nodes() {
         },
         [&] () { // connectedComponentFunc
             if (island_entities.empty()) {
-                const auto timestamp = (double)performance_counter() / (double)performance_frequency();
-                auto island_entity = create_island(timestamp, false);
+                auto island_entity = create_island(m_timestamp, false);
                 insert_to_island(island_entity, connected_nodes, connected_edges);
             } else if (island_entities.size() == 1) {
                 auto island_entity = *island_entities.begin();
@@ -632,7 +631,7 @@ entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &
     // and thus its timestamp is outdated.
     if (m_registry->has<sleeping_tag>(island_entity)) {
         auto &isle_timestamp = m_registry->get<island_timestamp>(island_entity);
-        isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
+        isle_timestamp.value = m_timestamp;
     }
 
     return island_entity;
@@ -865,6 +864,8 @@ void island_coordinator::sync() {
 }
 
 void island_coordinator::update() {
+    m_timestamp = (double)performance_counter() / (double)performance_frequency();
+
     for (auto &pair : m_island_ctx_map) {
         pair.second->read_messages();
     }

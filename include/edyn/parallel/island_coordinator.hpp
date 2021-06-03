@@ -80,6 +80,7 @@ private:
     std::vector<entt::entity> m_islands_to_split;
 
     bool m_importing_delta {false};
+    double m_timestamp;
 };
 
 template<typename... Component>
