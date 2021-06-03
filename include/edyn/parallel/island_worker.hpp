@@ -18,6 +18,8 @@
 
 namespace edyn {
 
+struct settings;
+
 void island_worker_func(job::data_type &);
 
 /**
@@ -62,7 +64,7 @@ class island_worker final {
     void update();
 
 public:
-    island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue);
+    island_worker(entt::entity island_entity, const settings &, message_queue_in_out message_queue);
 
     ~island_worker();
 
@@ -105,12 +107,10 @@ private:
     solver m_solver;
     message_queue_in_out m_message_queue;
 
-    double m_fixed_dt;
     double m_step_start_time;
     std::optional<double> m_sleep_timestamp;
 
     state m_state;
-    bool m_paused;
     std::atomic<bool> m_splitting;
 
     std::unique_ptr<island_delta_builder> m_delta_builder;

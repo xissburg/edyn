@@ -313,7 +313,7 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     // `update` function which reschedules itself to be run over and over again.
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
-    auto *worker = new island_worker(island_entity, m_fixed_dt,
+    auto *worker = new island_worker(island_entity, m_registry->ctx<settings>(),
                                      message_queue_in_out(main_queue_input, isle_queue_output));
     auto ctx = std::make_unique<island_worker_context>(island_entity, worker,
                                                        message_queue_in_out(isle_queue_input, main_queue_output));
@@ -337,10 +337,6 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     }
 
     ctx->send<island_delta>(builder->finish());
-
-    if (m_paused) {
-        ctx->send<msg::set_paused>(true);
-    }
 
     m_island_ctx_map.emplace(island_entity, std::move(ctx));
 

@@ -29,6 +29,7 @@
 #include "parallel/island_delta_builder.hpp"
 #include "util/moment_of_inertia.hpp"
 #include "collision/contact_manifold_map.hpp"
+#include "context/settings.hpp"
 
 namespace edyn {
 
@@ -96,6 +97,30 @@ void update(entt::registry &registry);
  * @param registry Data source.
  */
 void step_simulation(entt::registry &registry);
+
+/**
+ * @brief Assigns a function to be called once after a new island worker is
+ * created and initialized in a worker thread.
+ * @param registry Data source.
+ * @param func The function.
+ */
+void set_external_system_init(entt::registry &registry, external_system_func_t func);
+
+/**
+ * @brief Assigns a function to be called before each simulation step in each
+ * island worker in a worker thread.
+ * @param registry Data source.
+ * @param func The function.
+ */
+void set_external_system_pre_step(entt::registry &registry, external_system_func_t func);
+
+/**
+ * @brief Assigns a function to be called after each simulation step in each
+ * island worker in a worker thread.
+ * @param registry Data source.
+ * @param func The function.
+ */
+void set_external_system_post_step(entt::registry &registry, external_system_func_t func);
 
 /**
  * @brief Propagates changes to a component to the island worker where the

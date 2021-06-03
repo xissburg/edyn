@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
         edyn::delay(100);
     }
 
+    edyn::detach(registry);
     edyn::deinit();
 
     return 0;

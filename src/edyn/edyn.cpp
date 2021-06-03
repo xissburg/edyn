@@ -72,6 +72,18 @@ void step_simulation(entt::registry &registry) {
     registry.ctx<island_coordinator>().step_simulation();
 }
 
+void set_external_system_init(entt::registry &registry, external_system_func_t func) {
+    registry.ctx<settings>().external_system_init = func;
+}
+
+void set_external_system_pre_step(entt::registry &registry, external_system_func_t func) {
+    registry.ctx<settings>().external_system_pre_step = func;
+}
+
+void set_external_system_post_step(entt::registry &registry, external_system_func_t func) {
+    registry.ctx<settings>().external_system_post_step = func;
+}
+
 template<typename... Component>
 void refresh(entt::registry &registry, entt::entity entity) {
     registry.ctx<island_coordinator>().refresh<Component...>(entity);

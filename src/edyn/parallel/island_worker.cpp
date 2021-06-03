@@ -18,10 +18,10 @@
 #include "edyn/comp/rotated_mesh_list.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/tree_view.hpp"
-#include "edyn/parallel/external_system.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/util/collision_util.hpp"
+#include "edyn/context/settings.hpp"
 #include <memory>
 #include <variant>
 #include <entt/entt.hpp>
@@ -44,10 +44,8 @@ void island_worker_func(job::data_type &data) {
     }
 }
 
-island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, message_queue_in_out message_queue)
+island_worker::island_worker(entt::entity island_entity, const settings &settings, message_queue_in_out message_queue)
     : m_message_queue(message_queue)
-    , m_fixed_dt(fixed_dt)
-    , m_paused(false)
     , m_splitting(false)
     , m_state(state::init)
     , m_bphase(m_registry)
@@ -61,6 +59,7 @@ island_worker::island_worker(entt::entity island_entity, scalar fixed_dt, messag
     , m_calculate_split_timestamp(0)
 {
     m_registry.set<entity_graph>();
+    m_registry.set<edyn::settings>(settings);
 
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
@@ -90,8 +89,9 @@ void island_worker::init() {
 
     process_messages();
 
-    if (g_external_system_init) {
-        (*g_external_system_init)(m_registry);
+    auto &settings = m_registry.ctx<edyn::settings>();
+    if (settings.external_system_init) {
+        (*settings.external_system_init)(m_registry);
     }
 
     // Assign tree view containing the updated broad-phase tree.
@@ -415,14 +415,16 @@ bool island_worker::should_step() {
         return true;
     }
 
-    if (m_paused || m_registry.has<sleeping_tag>(m_island_entity)) {
+    auto &settings = m_registry.ctx<edyn::settings>();
+
+    if (settings.paused || m_registry.has<sleeping_tag>(m_island_entity)) {
         return false;
     }
 
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto dt = time - isle_time.value;
 
-    if (dt < m_fixed_dt) {
+    if (dt < settings.fixed_dt) {
         return false;
     }
 
@@ -434,8 +436,10 @@ bool island_worker::should_step() {
 
 void island_worker::begin_step() {
     EDYN_ASSERT(m_state == state::begin_step);
-    if (g_external_system_pre_step) {
-        (*g_external_system_pre_step)(m_registry);
+
+    auto &settings = m_registry.ctx<edyn::settings>();
+    if (settings.external_system_pre_step) {
+        (*settings.external_system_pre_step)(m_registry);
     }
 
     // Initialize new shapes before new manifolds because it'll perform
@@ -459,7 +463,7 @@ void island_worker::begin_step() {
 
 void island_worker::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(scalar(m_fixed_dt));
+    m_solver.update(scalar(m_registry.ctx<edyn::settings>().fixed_dt));
     m_state = state::broadphase;
 }
 
@@ -512,14 +516,17 @@ void island_worker::finish_step() {
     // Set a limit on the number of steps the worker can lag behind the current
     // time to prevent it from getting stuck in the past in case of a
     // substantial slowdown.
+    auto &settings = m_registry.ctx<edyn::settings>();
+    const auto fixed_dt = settings.fixed_dt;
+
     constexpr int max_lagging_steps = 10;
-    auto num_steps = int(std::floor(dt / m_fixed_dt));
+    auto num_steps = int(std::floor(dt / fixed_dt));
 
     if (num_steps > max_lagging_steps) {
-        auto remainder = dt - num_steps * m_fixed_dt;
-        isle_time.value = m_step_start_time - (remainder + max_lagging_steps * m_fixed_dt);
+        auto remainder = dt - num_steps * fixed_dt;
+        isle_time.value = m_step_start_time - (remainder + max_lagging_steps * fixed_dt);
     } else {
-        isle_time.value += m_fixed_dt;
+        isle_time.value += fixed_dt;
     }
 
     m_delta_builder->updated<island_timestamp>(m_island_entity, isle_time);
@@ -531,8 +538,8 @@ void island_worker::finish_step() {
 
     maybe_go_to_sleep();
 
-    if (g_external_system_post_step) {
-        (*g_external_system_post_step)(m_registry);
+    if (settings.external_system_post_step) {
+        (*settings.external_system_post_step)(m_registry);
     }
 
     sync();
@@ -586,7 +593,7 @@ void island_worker::maybe_reschedule() {
     if (m_splitting.load(std::memory_order_relaxed)) return;
 
     auto sleeping = m_registry.has<sleeping_tag>(m_island_entity);
-    auto paused = m_paused;
+    auto paused = m_registry.ctx<edyn::settings>().paused;
 
     // The update is done and this job can be rescheduled after this point
     auto reschedule_count = m_reschedule_counter.exchange(0, std::memory_order_acq_rel);
@@ -613,7 +620,8 @@ void island_worker::reschedule_later() {
     // before the current time, schedule it to run at a later time.
     auto time = (double)performance_counter() / (double)performance_frequency();
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
-    auto delta_time = isle_time.value + m_fixed_dt - time;
+    auto fixed_dt = m_registry.ctx<edyn::settings>().fixed_dt;
+    auto delta_time = isle_time.value + fixed_dt - time;
 
     if (delta_time > 0) {
         job_dispatcher::global().async_after(delta_time, m_this_job);
@@ -778,7 +786,7 @@ void island_worker::go_to_sleep() {
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {
-    m_paused = msg.paused;
+    m_registry.ctx<edyn::settings>().paused = msg.paused;
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto timestamp = (double)performance_counter() / (double)performance_frequency();
     isle_time.value = timestamp;
@@ -791,7 +799,7 @@ void island_worker::on_step_simulation(const msg::step_simulation &) {
 }
 
 void island_worker::on_set_fixed_dt(const msg::set_fixed_dt &msg) {
-    m_fixed_dt = msg.dt;
+    m_registry.ctx<edyn::settings>().fixed_dt = msg.dt;
 }
 
 entity_graph::connected_components_t island_worker::split() {
