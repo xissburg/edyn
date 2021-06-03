@@ -1,13 +1,13 @@
 #ifndef EDYN_PARALLEL_ISLAND_DELTA_BUILDER_HPP
 #define EDYN_PARALLEL_ISLAND_DELTA_BUILDER_HPP
 
-#include <entt/entity/fwd.hpp>
 #include <tuple>
 #include <memory>
 #include <utility>
+#include <entt/entity/fwd.hpp>
 #include "edyn/comp/shared_comp.hpp"
-#include "edyn/parallel/entity_component_container.hpp"
 #include "edyn/parallel/island_delta.hpp"
+#include "edyn/parallel/entity_component_container.hpp"
 
 namespace edyn {
 

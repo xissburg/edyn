@@ -100,29 +100,29 @@ auto entity = edyn::make_rigidbody(registry, def);
 
 # Basics
 
-_Edyn_ is built as a multi-threaded library from the ground up which requires initializing its worker threads on start-up invoking `edyn::init()`, and then a `edyn::world` must be created before setting up the scene:
+_Edyn_ is built as a multi-threaded library from the ground up which requires initializing its worker threads on start-up invoking `edyn::init()`, and then it must be attached to an `entt::registry` before setting up the scene:
 
 ```cpp
 #include <entt/entt.hpp>
 #include <edyn/edyn.hpp>
 
-edyn::init();
 entt::registry registry;
-auto &world = registry.set<edyn::world>(registry);
+edyn::init();
+edyn::attach(registry);
 
 // Create rigid bodies and constraints...
 
-// Call `edyn::world::update()` periodically in your main loop somewhere.
+// Call `edyn::update()` periodically in your main loop somewhere.
 for (;;) {
-  world.update();
+  edyn::update(registry);
   // Do something with the results, e.g. render scene.
   // ...
 }
 ```
 
-When `edyn::world::update()` is called, it processes any pending changes, creates/destroys workers if needed, dispatches messages to workers, reads and processes messages from workers which are merged into the `entt::registry`, perparing the entities and components to be rendered right after.
+When `edyn::update()` is called, it processes any pending changes, creates/destroys workers if needed, dispatches messages to workers, reads and processes messages from workers which are merged into the `entt::registry`, preparing the entities and components to be rendered right after.
 
-Due to its multi-threaded nature, all changes to relevant components in the main `entt::registry` need to be propagated to the worker threads. The `edyn::world` doesn't automatically pick up these changes, thus it's necessary to notify it either by calling `edyn::world::refresh()` or assigning a `edyn::dirty` component to the entity and calling some of its functions such as `edyn::dirty::updated()` (e.g. `registry.emplace<edyn::dirty>(entity).updated<edyn::position, edyn::linvel>()`).
+Due to its multi-threaded nature, all changes to relevant components in the main `entt::registry` need to be propagated to the worker threads. _Edyn_ doesn't automatically pick up these changes, thus it's necessary to notify it either by calling `edyn::refresh()` or assigning a `edyn::dirty` component to the entity and calling some of its functions such as `edyn::dirty::updated()` (e.g. `registry.emplace<edyn::dirty>(entity).updated<edyn::position, edyn::linvel>()`).
 
 # Design Philosophy
 
