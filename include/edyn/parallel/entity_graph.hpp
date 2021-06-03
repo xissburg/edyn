@@ -82,7 +82,7 @@ public:
     template<typename Func>
     void visit_neighbors(index_type node_index, Func func) const;
 
-    /** 
+    /**
      * @brief Visit all edges between two nodes.
      * @tparam Func Visitor function type.
      * @param node_index0 Index of first node.
@@ -93,6 +93,15 @@ public:
     void visit_edges(index_type node_index0, index_type node_index1, Func func) const;
 
     /**
+     * @brief Visit all edges originating at a node.
+     * @tparam Func Visitor function type.
+     * @param node_index0 Index of node.
+     * @param func Vistor function with signature `void(entt::entity)`.
+     */
+    template<typename Func>
+    void visit_edges(index_type node_index, Func func) const;
+
+    /**
      * @brief Visits nodes and edges that can be reached from the provided range
      * of nodes.
      * @tparam It Node container iterator type.
@@ -100,27 +109,27 @@ public:
      * @tparam VisitEdgeFunc Type of edge visitor function.
      * @tparam ShouldFunc Type of function that decides whether to visit a node.
      * @tparam ComponentFunc Type of function that's called for every connected
-     * component found. 
+     * component found.
      * @param first An iterator to the first element of a range of node indices.
      * @param last An iterator past the last element of a range of node indices.
      * @param visitNodeFunc Function called for each node being visited.
      * @param visitEdgeFunc Function called for each edge being visited.
      * @param shouldFunc Function that returns whether to proceed visitng node.
-     * @param componentFunc Function called for each connected component that is 
+     * @param componentFunc Function called for each connected component that is
      * formed.
      */
-    template<typename It, typename VisitNodeFunc, 
-             typename VisitEdgeFunc, typename ShouldFunc, 
+    template<typename It, typename VisitNodeFunc,
+             typename VisitEdgeFunc, typename ShouldFunc,
              typename ComponentFunc>
-    void reach(It first, It last, VisitNodeFunc visitNodeFunc, 
-               VisitEdgeFunc visitEdgeFunc, ShouldFunc shouldFunc, 
+    void reach(It first, It last, VisitNodeFunc visitNodeFunc,
+               VisitEdgeFunc visitEdgeFunc, ShouldFunc shouldFunc,
                ComponentFunc componentFunc);
 
     using connected_components_t = std::vector<connected_component>;
 
     /**
      * Calculates and returns all connected components of this graph.
-     * Non-connecting nodes are not walked through and can be present in 
+     * Non-connecting nodes are not walked through and can be present in
      * multiple connected components.
      * @return The connected components.
      */
@@ -182,11 +191,31 @@ void entity_graph::visit_edges(index_type node_index0, index_type node_index1, F
     }
 }
 
-template<typename It, typename VisitNodeFunc, 
-         typename VisitEdgeFunc, typename ShouldFunc, 
+template<typename Func>
+void entity_graph::visit_edges(index_type node_index, Func func) const {
+    EDYN_ASSERT(node_index < m_nodes.size());
+
+    auto adj_index = m_nodes[node_index].adjacency_index;
+    while (adj_index != null_index) {
+        auto &adj = m_adjacencies[adj_index];
+        auto edge_index = adj.edge_index;
+
+        while (edge_index != null_index) {
+            auto &edge = m_edges[edge_index];
+            EDYN_ASSERT(edge.entity != entt::null);
+            func(edge.entity);
+            edge_index = edge.next;
+        }
+
+        adj_index = adj.next;
+    }
+}
+
+template<typename It, typename VisitNodeFunc,
+         typename VisitEdgeFunc, typename ShouldFunc,
          typename ComponentFunc>
-void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc, 
-                         VisitEdgeFunc visitEdgeFunc, ShouldFunc shouldFunc, 
+void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
+                         VisitEdgeFunc visitEdgeFunc, ShouldFunc shouldFunc,
                          ComponentFunc componentFunc) {
     EDYN_ASSERT(std::distance(first, last) > 0);
 
@@ -256,7 +285,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
         // Look for a node in the list that has not yet been visited.
         for (auto it = first; it != last; ++it) {
             auto node_index = *it;
-            if (m_nodes[node_index].entity != entt::null && 
+            if (m_nodes[node_index].entity != entt::null &&
                 !m_visited[node_index]) {
                 EDYN_ASSERT(!m_nodes[node_index].non_connecting);
                 to_visit.emplace_back(node_index);

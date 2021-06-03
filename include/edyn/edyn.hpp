@@ -2,6 +2,8 @@
 #include "edyn/init.hpp"
 #include "comp/shared_comp.hpp"
 #include "comp/dirty.hpp"
+#include "comp/graph_node.hpp"
+#include "comp/graph_edge.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
 #include "math/vector3.hpp"
@@ -28,3 +30,4 @@
 #include "parallel/message_queue.hpp"
 #include "parallel/island_delta_builder.hpp"
 #include "util/moment_of_inertia.hpp"
+#include "collision/contact_manifold_map.hpp"
