@@ -30,6 +30,8 @@ public:
 
     void stop();
 
+    bool running() const;
+
     /**
      * Schedules a job to run asynchronously in a worker thread.
      */

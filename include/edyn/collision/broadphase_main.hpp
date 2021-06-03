@@ -8,7 +8,6 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
-#include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/util/entity_pair.hpp"
 
 namespace edyn {
@@ -19,12 +18,12 @@ struct multi_island_resident;
 
 class broadphase_main {
 
-    using aabb_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, AABB>; 
-    using multi_resident_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, multi_island_resident>; 
-    using tree_view_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, tree_view>; 
-    using collision_filter_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, collision_filter>; 
+    using aabb_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, AABB>;
+    using multi_resident_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, multi_island_resident>;
+    using tree_view_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, tree_view>;
+    using collision_filter_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, collision_filter>;
 
-    // A higher threshold is used in the main broadphase to create contact 
+    // A higher threshold is used in the main broadphase to create contact
     // manifolds between different islands a little earlier and decrease the
     // probability they'll arrive in the corresponding island worker when the
     // shapes are already intersecting.
@@ -60,7 +59,6 @@ private:
     entt::registry *m_registry;
     dynamic_tree m_island_tree; // Tree for island AABBs.
     dynamic_tree m_np_tree; // Tree for non-procedural entities.
-    contact_manifold_map m_manifold_map;
     std::vector<entity_pair_vector> m_pair_results;
 
     bool should_collide(entt::entity e0, entt::entity e1, const collision_filter_view_t &) const;

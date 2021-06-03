@@ -63,7 +63,6 @@ set(Edyn_SOURCES
     src/edyn/constraints/null_constraint.cpp
     src/edyn/constraints/gravity_constraint.cpp
     src/edyn/dynamics/solver.cpp
-    src/edyn/dynamics/world.cpp
     src/edyn/sys/update_aabbs.cpp
     src/edyn/sys/update_rotated_meshes.cpp
     src/edyn/sys/update_inertias.cpp
@@ -95,7 +94,6 @@ set(Edyn_SOURCES
     src/edyn/parallel/external_system.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/edyn.cpp
-    src/edyn/init.cpp
 )
 
 if(UNIX)
