@@ -5,6 +5,7 @@
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/tree_resident.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/comp/tag.hpp"
@@ -15,7 +16,6 @@ namespace edyn {
 
 broadphase_main::broadphase_main(entt::registry &registry)
     : m_registry(&registry)
-    , m_manifold_map(registry)
 {
     // Add tree nodes for islands (which have a `tree_view`) and for static and
     // kinematic entities.
@@ -92,9 +92,11 @@ void broadphase_main::update() {
             m_pair_results[index] = find_intersecting_islands(island_entityA, aabb_view, multi_resident_view, tree_view_view, filter_view);
         });
 
+        auto &manifold_map = m_registry->ctx<contact_manifold_map>();
+
         for (auto &results : m_pair_results) {
             for (auto &pair : results) {
-                if (!m_manifold_map.contains(pair)) {
+                if (!manifold_map.contains(pair)) {
                     make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);
                 }
             }
@@ -109,7 +111,7 @@ void broadphase_main::update() {
                 make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);
             }
         }
-    }    
+    }
 }
 
 entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity island_entityA,
@@ -120,7 +122,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
     auto &tree_viewA = tree_view_view.get(island_entityA);
     auto island_aabb = tree_viewA.root_aabb().inset(m_aabb_offset);
     entity_pair_vector results;
-    
+
     // Query the dynamic tree to find other islands whose AABB intersects the
     // current island's AABB.
     m_island_tree.query(island_aabb, [&] (tree_node_id_t idB) {
@@ -173,6 +175,7 @@ entity_pair_vector broadphase_main::intersect_islands_a(const tree_view &tree_vi
                                                         const aabb_view_t &aabb_view,
                                                         const collision_filter_view_t &filter_view) const {
     entity_pair_vector results;
+    auto &manifold_map = m_registry->ctx<contact_manifold_map>();
 
     // `tree_viewA` is iterated and for each node an AABB query is performed in
     // `tree_viewB`, thus for better performance `tree_viewA` should be smaller
@@ -185,7 +188,7 @@ entity_pair_vector broadphase_main::intersect_islands_a(const tree_view &tree_vi
         tree_viewB.query(aabbA, [&] (tree_node_id_t idB) {
             auto entityB = tree_viewB.get_node(idB).entity;
 
-            if (should_collide(entityA, entityB, filter_view) && !m_manifold_map.contains(entityA, entityB)) {
+            if (should_collide(entityA, entityB, filter_view) && !manifold_map.contains(entityA, entityB)) {
                 auto &aabbB = aabb_view.get(entityB);
 
                 if (intersect(aabbA, aabbB)) {
@@ -203,11 +206,12 @@ entity_pair_vector broadphase_main::intersect_island_np(const tree_view &island_
                                                         const collision_filter_view_t &filter_view) const {
     auto np_aabb = aabb_view.get(np_entity).inset(m_aabb_offset);
     entity_pair_vector results;
+    auto &manifold_map = m_registry->ctx<contact_manifold_map>();
 
     island_tree.query(np_aabb, [&] (tree_node_id_t idA) {
         auto entity = island_tree.get_node(idA).entity;
 
-        if (should_collide(entity, np_entity, filter_view) && !m_manifold_map.contains(entity, np_entity)) {
+        if (should_collide(entity, np_entity, filter_view) && !manifold_map.contains(entity, np_entity)) {
             auto &aabb = aabb_view.get(entity);
 
             if (intersect(aabb, np_aabb)) {
@@ -219,7 +223,7 @@ entity_pair_vector broadphase_main::intersect_island_np(const tree_view &island_
     return results;
 }
 
-bool broadphase_main::should_collide(entt::entity e0, entt::entity e1, 
+bool broadphase_main::should_collide(entt::entity e0, entt::entity e1,
                                      const collision_filter_view_t &filter_view) const {
     // Entities should never be equal because they should come from
     // different islands at this point.
@@ -227,7 +231,7 @@ bool broadphase_main::should_collide(entt::entity e0, entt::entity e1,
 
     auto &filter0 = filter_view.get(e0);
     auto &filter1 = filter_view.get(e1);
-    return ((filter0.group & filter1.mask) > 0) && 
+    return ((filter0.group & filter1.mask) > 0) &&
            ((filter1.group & filter0.mask) > 0);
 }
 

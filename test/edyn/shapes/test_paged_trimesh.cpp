@@ -1,6 +1,4 @@
 #include "../common/common.hpp"
-#include "edyn/shapes/create_paged_triangle_mesh.hpp"
-#include "edyn/shapes/paged_triangle_mesh.hpp"
 
 class triangle_mesh_page_loader: public edyn::triangle_mesh_page_loader_base {
 public:

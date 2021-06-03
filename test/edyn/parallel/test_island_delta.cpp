@@ -1,5 +1,4 @@
 #include "../common/common.hpp"
-#include "edyn/constraints/constraint_row.hpp"
 #include <tuple>
 #include <memory>
 
@@ -34,10 +33,11 @@ bool array_contains(std::array<T, N> &arr, const T &val) {
 }
 
 TEST(island_delta_test, test_island_delta_export_import) {
-    edyn::register_external_components<custom_component, parent_component>();
-    edyn::init();
-
     entt::registry reg0;
+    edyn::init();
+    edyn::attach(reg0);
+    edyn::register_external_components<custom_component, parent_component>(reg0);
+
     auto child0 = reg0.create();
     auto child1 = reg0.create();
     auto ent0 = reg0.create();
@@ -49,7 +49,7 @@ TEST(island_delta_test, test_island_delta_export_import) {
     reg0.emplace<custom_component>(ent2, 3.14, child0);
 
     auto map0 = edyn::entity_map{};
-    auto builder = edyn::make_island_delta_builder();
+    auto builder = edyn::make_island_delta_builder(reg0);
     builder->created(ent0);
     builder->created(ent0, reg0.get<parent_component>(ent0));
     builder->created(ent1);
@@ -60,12 +60,15 @@ TEST(island_delta_test, test_island_delta_export_import) {
     builder->created_all(ent2, reg0);
 
     entt::registry reg1;
+    edyn::attach(reg1);
+    edyn::register_external_components<custom_component, parent_component>(reg1);
+
     auto map1 = edyn::entity_map{};
 
     auto delta = builder->finish();
     delta.import(reg1, map1);
 
-    auto builder1 = edyn::make_island_delta_builder();
+    auto builder1 = edyn::make_island_delta_builder(reg1);
 
     // `map1` contains the entity mapping between reg0 and reg1 (corresponding
     // entities are created on import and mappings are added to `map1`).
@@ -95,7 +98,7 @@ TEST(island_delta_test, test_island_delta_export_import) {
     auto &custom = reg1.get<custom_component>(map1.remloc(ent2));
     custom.entity = map1.remloc(ent2);
     builder1->updated_all(map1.remloc(ent2), reg1);
-    
+
     builder1->finish().import(reg0, map0);
 
     ASSERT_TRUE(array_contains(reg0.get<parent_component>(ent0).entity, ent1));
@@ -103,4 +106,8 @@ TEST(island_delta_test, test_island_delta_export_import) {
     ASSERT_EQ(reg0.get<edyn::contact_point>(ent1).body[0], child0);
     ASSERT_SCALAR_EQ(reg0.get<edyn::contact_point>(ent1).distance, 6.28);
     ASSERT_EQ(reg0.get<custom_component>(ent2).entity, ent2);
+
+    edyn::detach(reg0);
+    edyn::detach(reg1);
+    edyn::deinit();
 }

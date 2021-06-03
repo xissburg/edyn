@@ -1,16 +1,18 @@
 #include "edyn/parallel/island_worker_context.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/parallel/island_delta_builder.hpp"
 
 namespace edyn {
 
 island_worker_context::island_worker_context(entt::entity island_entity,
             island_worker *worker,
+            std::unique_ptr<island_delta_builder> delta_builder,
             message_queue_in_out message_queue)
     : m_island_entity(island_entity)
     , m_worker(worker)
     , m_message_queue(message_queue)
-    , m_delta_builder(make_island_delta_builder())
+    , m_delta_builder(std::move(delta_builder))
     , m_pending_flush(false)
 {
     m_message_queue.sink<island_delta>().connect<&island_worker_context::on_island_delta>(*this);

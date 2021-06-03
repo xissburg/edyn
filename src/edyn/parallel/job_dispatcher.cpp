@@ -14,7 +14,7 @@ job_dispatcher &job_dispatcher::global() {
     return instance;
 }
 
-job_dispatcher::job_dispatcher() 
+job_dispatcher::job_dispatcher()
     : m_scheduler(*this)
 {}
 
@@ -60,6 +60,10 @@ void job_dispatcher::stop() {
 
     m_workers.clear();
     m_threads.clear();
+}
+
+bool job_dispatcher::running() const {
+    return !m_threads.empty();
 }
 
 void job_dispatcher::async(const job &j) {

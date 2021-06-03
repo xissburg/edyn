@@ -14,11 +14,9 @@ void print_entities(entt::registry& registry) {
 }
 
 int main(int argc, char** argv) {
-    edyn::init();
     entt::registry registry;
-    // Create an `edyn::world` into the registry's context. The `edyn::world`
-    // must be created before any rigid bodies are added to the registry.
-    auto& world = registry.set<edyn::world>(registry);
+    edyn::init();
+    edyn::attach(registry);
 
     auto def = edyn::rigidbody_def();
     def.presentation = true;
@@ -32,10 +30,13 @@ int main(int argc, char** argv) {
     edyn::make_rigidbody(registry, def);
 
     for (;;) {
-        world.update();
+        edyn::update(registry);
         print_entities(registry);
         edyn::delay(100);
     }
+
+    edyn::detach(registry);
+    edyn::deinit();
 
     return 0;
 }

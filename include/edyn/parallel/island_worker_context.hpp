@@ -7,11 +7,12 @@
 #include "edyn/util/entity_set.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/parallel/island_worker.hpp"
 
 namespace edyn {
+
+class island_delta_builder;
 
 /**
  * Context of an island worker in the main thread in an island coordinator.
@@ -37,6 +38,7 @@ public:
 
     island_worker_context(entt::entity island_entity,
                 island_worker *worker,
+                std::unique_ptr<island_delta_builder> delta_builder,
                 message_queue_in_out message_queue);
     ~island_worker_context();
 
@@ -46,7 +48,7 @@ public:
     bool delta_empty() const;
 
     /**
-     * Returns whether the island needs to be waken up after sending the 
+     * Returns whether the island needs to be waken up after sending the
      * current delta to it.
      */
     bool delta_needs_wakeup() const;
@@ -77,7 +79,7 @@ public:
         m_message_queue.send<Message>(std::forward<Args>(args)...);
         m_pending_flush = true;
     }
-    
+
     void on_island_delta(const island_delta &);
 
     auto island_delta_sink() {

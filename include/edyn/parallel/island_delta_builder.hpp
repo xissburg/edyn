@@ -4,9 +4,10 @@
 #include <tuple>
 #include <memory>
 #include <utility>
+#include <entt/entity/fwd.hpp>
 #include "edyn/comp/shared_comp.hpp"
-#include "edyn/parallel/entity_component_container.hpp"
 #include "edyn/parallel/island_delta.hpp"
+#include "edyn/parallel/entity_component_container.hpp"
 
 namespace edyn {
 
@@ -394,52 +395,6 @@ public:
             island_delta_builder::destroyed<Component>(entity) : (void)0), ...);
     }
 };
-
-/**
- * @brief Function type of a factory function that creates instances of a
- * registry delta builder implementation.
- */
-using make_island_delta_builder_func_t = std::unique_ptr<island_delta_builder>(*)();
-
-/**
- * @brief Pointer to a factory function that makes new delta builders.
- *
- * The default function returns a delta builder configured with all default
- * shared components (`edyn::shared_components`) but it can be replaced by
- * a function that returns a builder which additionally handles external
- * components set by the user.
- */
-extern make_island_delta_builder_func_t g_make_island_delta_builder;
-
-/**
- * @brief Creates a new delta builder.
- *
- * Returns a delta builder implementation that supports handling all shared
- * component types plus any external component set by the user.
- *
- * @return Safe pointer to an instance of a delta builder implementation.
- */
-std::unique_ptr<island_delta_builder> make_island_delta_builder();
-
-/**
- * @brief Registers external components to be shared between island coordinator
- * and island workers.
- * @tparam Component External component types.
- */
-template<typename... Component>
-void register_external_components() {
-    g_make_island_delta_builder = [] () {
-        auto external = std::tuple<Component...>{};
-        auto all_components = std::tuple_cat(shared_components, external);
-        return std::unique_ptr<island_delta_builder>(
-            new island_delta_builder_impl(all_components));
-    };
-}
-
-/**
- * @brief Removes registered external components and resets to defaults.
- */
-void remove_external_components();
 
 }
 
