@@ -91,7 +91,9 @@ set(Edyn_SOURCES
     src/edyn/parallel/island_delta.cpp
     src/edyn/parallel/island_delta_builder.cpp
     src/edyn/parallel/island_worker_context.cpp
+    src/edyn/parallel/make_island_delta_builder.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
+    src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
 )
 

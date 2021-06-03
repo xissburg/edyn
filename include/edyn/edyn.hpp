@@ -1,3 +1,6 @@
+#ifndef EDYN_EDYN_HPP
+#define EDYN_EDYN_HPP
+
 #include "edyn/build_settings.h"
 #include "comp/shared_comp.hpp"
 #include "comp/dirty.hpp"
@@ -26,6 +29,7 @@
 #include "parallel/parallel_for.hpp"
 #include "parallel/parallel_for_async.hpp"
 #include "parallel/message_queue.hpp"
+#include "parallel/island_coordinator.hpp"
 #include "parallel/island_delta_builder.hpp"
 #include "util/moment_of_inertia.hpp"
 #include "collision/contact_manifold_map.hpp"
@@ -99,6 +103,28 @@ void update(entt::registry &registry);
 void step_simulation(entt::registry &registry);
 
 /**
+ * @brief Registers external components to be shared between island coordinator
+ * and island workers.
+ * @tparam Component External component types.
+ */
+template<typename... Component>
+void register_external_components(entt::registry &registry) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.make_island_delta_builder = [] () {
+        auto external = std::tuple<Component...>{};
+        auto all_components = std::tuple_cat(shared_components, external);
+        return std::unique_ptr<island_delta_builder>(
+            new island_delta_builder_impl(all_components));
+    };
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
+/**
+ * @brief Removes registered external components and resets to defaults.
+ */
+void remove_external_components(entt::registry &registry);
+
+/**
  * @brief Assigns a function to be called once after a new island worker is
  * created and initialized in a worker thread.
  * @param registry Data source.
@@ -121,6 +147,19 @@ void set_external_system_pre_step(entt::registry &registry, external_system_func
  * @param func The function.
  */
 void set_external_system_post_step(entt::registry &registry, external_system_func_t func);
+
+/**
+ * @brief Set all external system functions in one call. See individual setters
+ * for details.
+ * @param registry Data source.
+ * @param init_func Initialization function called on island worker start up.
+ * @param pre_step_func Called before each step.
+ * @param post_step_func Called after each step.
+ */
+void set_external_system_functions(entt::registry &registry,
+                                   external_system_func_t init_func,
+                                   external_system_func_t pre_step_func,
+                                   external_system_func_t post_step_func);
 
 /**
  * @brief Propagates changes to a component to the island worker where the
@@ -149,3 +188,5 @@ bool manifold_exists(entt::registry &registry, entity_pair entities);
 entt::entity get_manifold_entity(entt::registry &registry, entity_pair entities);
 
 }
+
+#endif // EDYN_EDYN_HPP

@@ -7,6 +7,7 @@
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
@@ -20,6 +21,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/util/vector.hpp"
+#include "edyn/context/settings.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -313,9 +315,11 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     // `update` function which reschedules itself to be run over and over again.
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
-    auto *worker = new island_worker(island_entity, m_registry->ctx<settings>(),
+    auto &settings = m_registry->ctx<edyn::settings>();
+    auto *worker = new island_worker(island_entity, settings,
                                      message_queue_in_out(main_queue_input, isle_queue_output));
     auto ctx = std::make_unique<island_worker_context>(island_entity, worker,
+                                                       (*settings.make_island_delta_builder)(),
                                                        message_queue_in_out(isle_queue_input, main_queue_output));
 
     // Insert the first entity mapping between the remote island entity and
@@ -328,7 +332,7 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
 
     // Send over a delta containing this island entity to the island worker
     // before it even starts.
-    auto builder = make_island_delta_builder();
+    auto builder = (*settings.make_island_delta_builder)();
     builder->created(island_entity, isle_time);
 
     if (sleeping) {
@@ -873,8 +877,6 @@ void island_coordinator::update() {
 }
 
 void island_coordinator::set_paused(bool paused) {
-    m_paused = paused;
-
     for (auto &pair : m_island_ctx_map) {
         auto &ctx = pair.second;
         ctx->send<msg::set_paused>(paused);
@@ -892,11 +894,18 @@ void island_coordinator::step_simulation() {
 }
 
 void island_coordinator::set_fixed_dt(scalar dt) {
-    m_fixed_dt = dt;
-
     for (auto &pair : m_island_ctx_map) {
         auto &ctx = pair.second;
         ctx->send<msg::set_fixed_dt>(dt);
+    }
+}
+
+void island_coordinator::settings_changed() {
+    auto &settings = m_registry->ctx<edyn::settings>();
+
+    for (auto &pair : m_island_ctx_map) {
+        auto &ctx = pair.second;
+        ctx->send<msg::set_settings>(settings);
     }
 }
 

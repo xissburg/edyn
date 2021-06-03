@@ -3,21 +3,6 @@
 
 namespace edyn {
 
-std::unique_ptr<island_delta_builder> make_island_delta_builder_default() {
-    return std::unique_ptr<island_delta_builder>(
-        new island_delta_builder_impl(shared_components));
-}
-
-make_island_delta_builder_func_t g_make_island_delta_builder = &make_island_delta_builder_default;
-
-std::unique_ptr<island_delta_builder> make_island_delta_builder() {
-    return (*g_make_island_delta_builder)();
-}
-
-void remove_external_components() {
-    g_make_island_delta_builder = &make_island_delta_builder_default;
-}
-
 void island_delta_builder::created(entt::entity entity) {
     m_delta.m_created_entities.push_back(entity);
 }

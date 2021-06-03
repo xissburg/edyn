@@ -9,6 +9,7 @@
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
@@ -51,7 +52,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     , m_bphase(m_registry)
     , m_nphase(m_registry)
     , m_solver(m_registry)
-    , m_delta_builder(make_island_delta_builder())
+    , m_delta_builder((*settings.make_island_delta_builder)())
     , m_importing_delta(false)
     , m_topology_changed(false)
     , m_pending_split_calculation(false)
@@ -280,7 +281,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
 void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     if (!m_registry.has<sleeping_tag>(m_island_entity)) return;
 
-    auto builder = make_island_delta_builder();
+    auto builder = make_island_delta_builder(m_registry);
 
     auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
     isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
@@ -800,6 +801,10 @@ void island_worker::on_step_simulation(const msg::step_simulation &) {
 
 void island_worker::on_set_fixed_dt(const msg::set_fixed_dt &msg) {
     m_registry.ctx<edyn::settings>().fixed_dt = msg.dt;
+}
+
+void island_worker::on_set_settings(const msg::set_settings &msg) {
+    m_registry.ctx<settings>() = msg.settings;
 }
 
 entity_graph::connected_components_t island_worker::split() {

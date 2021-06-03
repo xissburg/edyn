@@ -13,12 +13,14 @@
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/entity_graph.hpp"
+#include "edyn/util/entity_map.hpp"
 
 namespace edyn {
 
 struct settings;
+class island_delta;
+class island_delta_builder;
 
 void island_worker_func(job::data_type &);
 
@@ -87,6 +89,7 @@ public:
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);
     void on_set_fixed_dt(const msg::set_fixed_dt &msg);
+    void on_set_settings(const msg::set_settings &msg);
     void on_wake_up_island(const msg::wake_up_island &);
 
     entity_graph::connected_components_t split();

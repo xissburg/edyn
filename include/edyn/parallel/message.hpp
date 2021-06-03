@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_MESSAGE_HPP
 
 #include "edyn/math/scalar.hpp"
+#include "edyn/context/settings.hpp"
 
 namespace edyn::msg {
 
@@ -11,6 +12,10 @@ struct set_paused {
 
 struct set_fixed_dt {
     scalar dt;
+};
+
+struct set_settings {
+    settings settings;
 };
 
 struct step_simulation {};

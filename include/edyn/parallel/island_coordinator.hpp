@@ -9,6 +9,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
+#include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/message.hpp"
 
 namespace edyn {
@@ -66,9 +67,9 @@ public:
 
     void set_fixed_dt(scalar dt);
 
-    auto get_fixed_dt() {
-        return m_fixed_dt;
-    }
+    // Call when settings have changed in the registry's context. It will
+    // propagate changes to island workers.
+    void settings_changed();
 
 private:
     entt::registry *m_registry;
@@ -78,9 +79,7 @@ private:
     std::vector<entt::entity> m_new_graph_edges;
     std::vector<entt::entity> m_islands_to_split;
 
-    scalar m_fixed_dt {scalar(1.0/60)};
     bool m_importing_delta {false};
-    bool m_paused {false};
 };
 
 template<typename... Component>
