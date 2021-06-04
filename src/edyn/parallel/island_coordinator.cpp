@@ -618,6 +618,18 @@ entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &
     return island_entity;
 }
 
+void island_coordinator::create_island(std::vector<entt::entity> nodes, bool sleeping) {
+#ifndef EDYN_DISABLE_ASSERT
+    for (auto entity : nodes) {
+        EDYN_ASSERT(m_registry->has<graph_node>(entity));
+    }
+#endif
+
+    auto timestamp = (double)performance_counter() / (double)performance_frequency();
+    auto island_entity = create_island(timestamp, sleeping);
+    insert_to_island(island_entity, nodes, {});
+}
+
 void island_coordinator::refresh_dirty_entities() {
     auto dirty_view = m_registry->view<dirty>();
     auto resident_view = m_registry->view<island_resident>();

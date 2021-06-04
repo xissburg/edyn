@@ -70,6 +70,8 @@ public:
     // propagate changes to island workers.
     void settings_changed();
 
+    void create_island(std::vector<entt::entity> nodes, bool sleeping = false);
+
 private:
     entt::registry *m_registry;
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;

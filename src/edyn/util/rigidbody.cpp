@@ -18,6 +18,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/util/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/parallel/island_coordinator.hpp"
 
 namespace edyn {
 
@@ -117,6 +118,19 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
     auto ent = registry.create();
     make_rigidbody(ent, registry, def);
     return ent;
+}
+
+std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std::vector<rigidbody_def> &defs) {
+    std::vector<entt::entity> entities;
+    entities.reserve(defs.size());
+
+    for (auto &def : defs) {
+        entities.push_back(make_rigidbody(registry, def));
+    }
+
+    auto &coordinator = registry.ctx<island_coordinator>();
+    coordinator.create_island(entities);
+    return entities;
 }
 
 void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar mass) {

@@ -1,6 +1,7 @@
 #ifndef EDYN_UTIL_RIGIDBODY_HPP
 #define EDYN_UTIL_RIGIDBODY_HPP
 
+#include <vector>
 #include <optional>
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
@@ -71,11 +72,30 @@ struct rigidbody_def {
 };
 
 /**
- * Assigns to `entity` all necessary components to build a rigid body according
- * to the given definition.
+ * @brief Assigns to `entity` all necessary components to build a rigid body
+ * according to the given definition.
+ * @param entity Target rigid body entity.
+ * @param registry Data source and destination.
+ * @param def Rigid body definition.
  */
 void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
+
+/**
+ * @brief Creates an entity and assigns all necessary components to build a
+ * rigid body according to the given definition.
+ * @param registry Data source and destination.
+ * @param def Rigid body definition.
+ * @return Rigid body entity.
+ */
 entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
+
+/**
+ * @brief Creates many rigid bodies at once.
+ * @param registry Data source.
+ * @param defs Rigid body definitions.
+ * @return Entities corresponding to each rigid body definition.
+ */
+std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std::vector<rigidbody_def> &defs);
 
 /**
  * Sets the mass of a rigid body and recalculates its inertia. It assumes the
@@ -92,7 +112,10 @@ void rigidbody_set_mass(entt::registry &, entt::entity, scalar mass);
 void rigidbody_update_inertia(entt::registry &, entt::entity);
 
 /**
- * Applies `impulse` to entity.
+ * @brief Applies `impulse` to entity.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param impulse Impulse vector.
  * @param rel_location Location where the impulse should be applied relative to
  * the entity's center/position, in world space, i.e.
  * `actual_world_space_location - position`.
@@ -106,6 +129,7 @@ void update_kinematic_orientation(entt::registry &, entt::entity, const quaterni
 void clear_kinematic_velocities(entt::registry &);
 
 bool validate_rigidbody(entt::entity &, entt::registry &);
+
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP
