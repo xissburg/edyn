@@ -136,22 +136,40 @@ void island_coordinator::on_destroy_contact_manifold(entt::registry &registry, e
     }
 }
 
-void island_coordinator::init_new_nodes() {
-    if (m_new_graph_nodes.empty()) return;
+void island_coordinator::init_new_nodes_and_edges() {
+    if (m_new_graph_nodes.empty() && m_new_graph_edges.empty()) return;
 
+    auto &graph = m_registry->ctx<entity_graph>();
     auto node_view = m_registry->view<graph_node>();
-    std::vector<entity_graph::index_type> procedural_node_indices;
+    auto edge_view = m_registry->view<graph_edge>();
+    std::set<entity_graph::index_type> procedural_node_indices;
 
     for (auto entity : m_new_graph_nodes) {
         if (m_registry->has<procedural_tag>(entity)) {
             auto &node = node_view.get(entity);
-            procedural_node_indices.push_back(node.node_index);
+            procedural_node_indices.insert(node.node_index);
         } else {
             init_new_non_procedural_node(entity);
         }
     }
 
+    for (auto edge_entity : m_new_graph_edges) {
+        auto &edge = edge_view.get(edge_entity);
+        auto node_entities = graph.edge_node_entities(edge.edge_index);
+
+        if (m_registry->has<procedural_tag>(node_entities.first)) {
+            auto &node = node_view.get(node_entities.first);
+            procedural_node_indices.insert(node.node_index);
+        }
+
+        if (m_registry->has<procedural_tag>(node_entities.second)) {
+            auto &node = node_view.get(node_entities.second);
+            procedural_node_indices.insert(node.node_index);
+        }
+    }
+
     m_new_graph_nodes.clear();
+    m_new_graph_edges.clear();
 
     if (procedural_node_indices.empty()) return;
 
@@ -160,25 +178,43 @@ void island_coordinator::init_new_nodes() {
     std::vector<entt::entity> island_entities;
     auto resident_view = m_registry->view<island_resident>();
     auto procedural_view = m_registry->view<procedural_tag>();
-    auto &graph = m_registry->ctx<entity_graph>();
 
     graph.reach(
         procedural_node_indices.begin(), procedural_node_indices.end(),
         [&] (entt::entity entity) { // visitNodeFunc
-            connected_nodes.push_back(entity);
+            // Always add non-procedurals to the connected component.
+            // Only add procedural if it's not in an island yet.
+            auto is_procedural = procedural_view.contains(entity);
+
+            if (!is_procedural ||
+                (is_procedural && resident_view.get(entity).island_entity == entt::null)) {
+                connected_nodes.push_back(entity);
+            }
         },
         [&] (entt::entity entity) { // visitEdgeFunc
-            connected_edges.push_back(entity);
+            auto &edge_resident = resident_view.get(entity);
+
+            if (edge_resident.island_entity == entt::null) {
+                connected_edges.push_back(entity);
+            } else {
+                auto contains_island = vector_contains(island_entities, edge_resident.island_entity);
+
+                if (!contains_island) {
+                    island_entities.push_back(edge_resident.island_entity);
+                }
+            }
         },
         [&] (entity_graph::index_type node_index) { // shouldVisitFunc
             auto other_entity = graph.node_entity(node_index);
 
             // Collect islands involved in this connected component.
-            // Only consider the island of procedural entities.
+            // Always visit the non-procedural nodes. Their edges won't be
+            // visited later because in the graph they're non-connecting nodes.
             if (!procedural_view.contains(other_entity)) {
                 return true;
             }
 
+            // Visit neighbor node if it's not in an island yet.
             auto &other_resident = resident_view.get(other_entity);
 
             if (other_resident.island_entity == entt::null) {
@@ -190,10 +226,17 @@ void island_coordinator::init_new_nodes() {
             if (!contains_island) {
                 island_entities.push_back(other_resident.island_entity);
             }
-            // This entity must not be visited because it is already in an
-            // island. This prevents visiting the entire island which
-            // would be wasteful.
-            return false;
+
+            bool continue_visiting = false;
+
+            // Visit neighbor if it contains an edge that is not in an island yet.
+            graph.visit_edges(node_index, [&] (entt::entity edge_entity) {
+                if (resident_view.get(edge_entity).island_entity == entt::null) {
+                    continue_visiting = true;
+                }
+            });
+
+            return continue_visiting;
         },
         [&] () { // connectedComponentFunc
             if (island_entities.empty()) {
@@ -236,68 +279,6 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
             ctx->m_delta_builder->created_all(node_entity, *m_registry);
         }
     });
-}
-
-void island_coordinator::init_new_edges() {
-    if (m_new_graph_edges.empty()) return;
-
-    auto &graph = m_registry->ctx<entity_graph>();
-    auto resident_view = m_registry->view<island_resident>();
-    auto multi_resident_view = m_registry->view<multi_island_resident>();
-    auto edge_view = m_registry->view<graph_edge>();
-    std::vector<entt::entity> island_pairs;
-
-    for (auto edge_entity : m_new_graph_edges) {
-        // Check if edge is already part of an island.
-        auto &resident = resident_view.get(edge_entity);
-        if (resident.island_entity != entt::null) continue;
-
-        // Check if nodes of this edge are in the same island.
-        auto &edge = edge_view.get(edge_entity);
-        auto neighbors = graph.edge_node_entities(edge.edge_index);
-        auto island_entity = entt::entity{entt::null};
-        auto non_procedural_entity = entt::entity{entt::null};
-
-        if (!m_registry->has<procedural_tag>(neighbors.first)) {
-            EDYN_ASSERT(m_registry->has<procedural_tag>(neighbors.second));
-            auto &node_resident0 = multi_resident_view.get(neighbors.first);
-            auto &node_resident1 = resident_view.get(neighbors.second);
-            island_entity = node_resident1.island_entity;
-
-            if (node_resident0.island_entities.count(node_resident1.island_entity) == 0) {
-                non_procedural_entity = neighbors.first;
-            }
-        } else if (!m_registry->has<procedural_tag>(neighbors.second)) {
-            EDYN_ASSERT(m_registry->has<procedural_tag>(neighbors.first));
-            auto &node_resident0 = resident_view.get(neighbors.first);
-            auto &node_resident1 = multi_resident_view.get(neighbors.second);
-            island_entity = node_resident0.island_entity;
-
-            if (node_resident1.island_entities.count(node_resident0.island_entity) == 0) {
-                non_procedural_entity = neighbors.second;
-            }
-        } else {
-            auto &node_resident0 = resident_view.get(neighbors.first);
-            auto &node_resident1 = resident_view.get(neighbors.second);
-
-            if (node_resident0.island_entity == node_resident1.island_entity) {
-                island_entity = node_resident0.island_entity;
-            } else {
-                merge_islands({node_resident0.island_entity, node_resident1.island_entity},
-                              {}, {edge_entity});
-            }
-        }
-
-        if (island_entity != entt::null) {
-            if (non_procedural_entity != entt::null) {
-                insert_to_island(island_entity, {non_procedural_entity}, {edge_entity});
-            } else {
-                insert_to_island(island_entity, {}, {edge_entity});
-            }
-        }
-    }
-
-    m_new_graph_edges.clear();
 }
 
 entt::entity island_coordinator::create_island(double timestamp, bool sleeping) {
@@ -870,8 +851,7 @@ void island_coordinator::update() {
         pair.second->read_messages();
     }
 
-    init_new_nodes();
-    init_new_edges();
+    init_new_nodes_and_edges();
     refresh_dirty_entities();
     sync();
     split_islands();

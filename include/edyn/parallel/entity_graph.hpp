@@ -222,14 +222,24 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
     m_visited.assign(m_nodes.size(), false);
     m_visited_edges.assign(m_edges.size(), false);
 
-    std::vector<index_type> to_visit;
-    to_visit.push_back(*first);
-    // All provided nodes are expected to be connecting.
-    EDYN_ASSERT(!m_nodes[*first].non_connecting);
-
     std::vector<index_type> non_connecting_indices;
+    std::vector<index_type> to_visit;
 
-    while (true) {
+    for (auto it = first; it != last; ++it) {
+        auto start_node_index = *it;
+        // All provided nodes are expected to be connecting.
+        EDYN_ASSERT(!m_nodes[start_node_index].non_connecting);
+
+        if (m_visited[start_node_index]) {
+            continue;
+        }
+
+        if (!shouldFunc(start_node_index)) {
+            continue;
+        }
+
+        to_visit.push_back(start_node_index);
+
         // Visit nodes reachable from the initial node inserted into `to_visit`.
         while (!to_visit.empty()) {
             auto node_index = to_visit.back();
@@ -241,11 +251,13 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
             EDYN_ASSERT(node.entity != entt::null);
             visitNodeFunc(node.entity);
 
+            // Stop here for non-connecting nodes. Do not visit edges.
             if (node.non_connecting) {
                 non_connecting_indices.push_back(node_index);
                 continue;
             }
 
+            // Visit all edges in all adjacencies.
             auto adj_index = node.adjacency_index;
 
             while (adj_index != null_index) {
@@ -264,10 +276,12 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
                     edge_index = edge.next;
                 }
 
+                // Perhaps visit neighboring node and its edges next.
                 auto neighbor_index = adj.node_index;
 
                 if (!m_visited[neighbor_index] && shouldFunc(neighbor_index)) {
                     to_visit.emplace_back(neighbor_index);
+                    // Set as visited to avoid adding it to `to_visit` more than once.
                     m_visited[neighbor_index] = true;
                 }
 
@@ -275,28 +289,18 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
             }
         }
 
+        // Finished one connected component.
         componentFunc();
 
+        // Set non-connecting nodes as not visited so they'll be visited again
+        // for the next connected components. Non-connecting nodes are shared
+        // among connected components.
         for (auto node_index : non_connecting_indices) {
             m_visited[node_index] = false;
         }
+
         non_connecting_indices.clear();
-
-        // Look for a node in the list that has not yet been visited.
-        for (auto it = first; it != last; ++it) {
-            auto node_index = *it;
-            if (m_nodes[node_index].entity != entt::null &&
-                !m_visited[node_index]) {
-                EDYN_ASSERT(!m_nodes[node_index].non_connecting);
-                to_visit.emplace_back(node_index);
-                break;
-            }
-        }
-
-        // No more nodes left to visit.
-        if (to_visit.empty()) {
-            break;
-        }
+        to_visit.clear();
     }
 }
 

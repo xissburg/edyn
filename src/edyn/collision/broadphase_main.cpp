@@ -55,14 +55,14 @@ void broadphase_main::update() {
     // Update island AABBs in tree (ignore sleeping islands).
     auto exclude_sleeping = entt::exclude_t<sleeping_tag>{};
     auto tree_view_resident_view = m_registry->view<tree_view, tree_resident>(exclude_sleeping);
-    tree_view_resident_view.each([&] (entt::entity, tree_view &tree_view, tree_resident &node) {
+    tree_view_resident_view.each([&] (tree_view &tree_view, tree_resident &node) {
         m_island_tree.move(node.id, tree_view.root_aabb());
     });
 
     // Update kinematic AABBs in tree.
     // TODO: only do this for kinematic entities that had their AABB updated.
     auto kinematic_aabb_node_view = m_registry->view<tree_resident, AABB, kinematic_tag>();
-    kinematic_aabb_node_view.each([&] (entt::entity, tree_resident &node, AABB &aabb) {
+    kinematic_aabb_node_view.each([&] (tree_resident &node, AABB &aabb) {
         m_np_tree.move(node.id, aabb);
     });
 
@@ -71,9 +71,9 @@ void broadphase_main::update() {
     auto tree_view_not_sleeping_view = m_registry->view<tree_view>(exclude_sleeping);
 
     std::vector<entt::entity> awake_island_entities;
-    tree_view_not_sleeping_view.each([&awake_island_entities] (entt::entity entity, tree_view &) {
+    for (auto entity : tree_view_not_sleeping_view) {
         awake_island_entities.push_back(entity);
-    });
+    }
 
     if (awake_island_entities.empty()) {
         return;

@@ -12,7 +12,7 @@ void update_contact_distances(entt::registry &registry) {
     auto cp_view = registry.view<contact_point>();
     auto tr_view = registry.view<position, orientation>();
 
-    cp_view.each([&] (auto, contact_point &cp) {
+    cp_view.each([&] (contact_point &cp) {
         auto [posA, ornA] = tr_view.get<position, orientation>(cp.body[0]);
         auto [posB, ornB] = tr_view.get<position, orientation>(cp.body[1]);
         auto pivotA_world = posA + rotate(ornA, cp.pivotA);
