@@ -107,11 +107,6 @@ void set_external_system_functions(entt::registry &registry,
     registry.ctx<island_coordinator>().settings_changed();
 }
 
-template<typename... Component>
-void refresh(entt::registry &registry, entt::entity entity) {
-    registry.ctx<island_coordinator>().refresh<Component...>(entity);
-}
-
 bool manifold_exists(entt::registry &registry, entity_pair entities) {
     auto &manifold_map = registry.ctx<contact_manifold_map>();
     return manifold_map.contains(entities);

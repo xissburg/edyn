@@ -34,6 +34,8 @@
 #include "util/moment_of_inertia.hpp"
 #include "collision/contact_manifold_map.hpp"
 #include "context/settings.hpp"
+#include <entt/fwd.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
@@ -169,7 +171,9 @@ void set_external_system_functions(entt::registry &registry,
  * @param entity The entity that owns the component.
  */
 template<typename... Component>
-void refresh(entt::registry &registry, entt::entity entity);
+void refresh(entt::registry &registry, entt::entity entity) {
+    registry.ctx<island_coordinator>().refresh<Component...>(entity);
+}
 
 /**
  * @brief Checks whether there is a contact manifold connecting the two entities.
