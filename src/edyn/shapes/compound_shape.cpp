@@ -5,7 +5,7 @@
 
 namespace edyn {
 
-compound_shape::compound_shape(const std::string &path_to_obj, 
+compound_shape::compound_shape(const std::string &path_to_obj,
                                const vector3 &pos,
                                const quaternion &orn,
                                const vector3 &scale) {
@@ -17,19 +17,23 @@ compound_shape::compound_shape(const std::string &path_to_obj,
 
     EDYN_ASSERT(!meshes.empty());
 
+    // Create a polyhedron shape for each mesh.
     for (auto &mesh : meshes) {
         auto center = mesh_centroid(mesh.vertices, mesh.indices, mesh.faces);
+
+        // Make all vertices to be positioned with respect to the centroid.
+        // This is important for correct moment of inertia calculation using
+        // the parallel axis theorem, which requires the moment of inertia
+        // about the center of mass as input.
+        for (auto &v : mesh.vertices) {
+            v -= center;
+        }
 
         auto polyhedron = polyhedron_shape{};
         polyhedron.mesh = std::make_shared<convex_mesh>();
         polyhedron.mesh->vertices = std::move(mesh.vertices);
         polyhedron.mesh->indices = std::move(mesh.indices);
         polyhedron.mesh->faces = std::move(mesh.faces);
-
-        for (auto &v : polyhedron.mesh->vertices) {
-            v -= center;
-        }
-
         polyhedron.mesh->calculate_normals();
         polyhedron.mesh->calculate_edges();
 

@@ -2,16 +2,26 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
+#include "edyn/util/shape_util.hpp"
 
 namespace edyn {
 
 void convex_mesh::initialize() {
     calculate_normals();
     calculate_edges();
+    shift_to_centroid();
 
 #ifdef EDYN_DEBUG
     validate();
 #endif
+}
+
+void convex_mesh::shift_to_centroid() {
+    auto center = mesh_centroid(vertices, indices, faces);
+
+    for (auto &v : vertices) {
+        v -= center;
+    }
 }
 
 std::array<vector3, 2> convex_mesh::get_edge(size_t idx) const {

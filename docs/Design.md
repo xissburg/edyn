@@ -239,7 +239,7 @@ The `edyn::island_worker` is dynamically allocated by the `edyn::island_coordina
 
 The physics simulation step happens in each island worker independently. This is the order of major updates:
 
-- Process messages and island deltas, thus sychronizing state with the main registry, which might create new entities in the local registry.
+- Process messages and island deltas, thus synchronizing state with the main registry, which might create new entities in the local registry.
 - Detect collision for new manifolds that have been imported from the main registry.
 - Create contact constraints for new contact points. This includes new points generated in the collision detection of imported manifolds and contact points that were created in the previous physics step.
 - Apply external forces such as gravity.
