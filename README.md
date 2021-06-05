@@ -61,20 +61,20 @@ There's no explicit mention of a rigid body in the code, but during the physics 
 
 ```cpp
 // Apply gravity acceleration, increasing linear velocity.
-auto view = registry.view<edyn::linvel, const edyn::linacc, const edyn::dynamic_tag>();
-view.each([dt] (auto entity, edyn::linvel &vel, const edyn::linacc &acc, [[maybe_unused]] auto) {
+auto view = registry.view<edyn::linvel, edyn::linacc, edyn::dynamic_tag>();
+view.each([dt] (edyn::linvel &vel, edyn::linacc &acc) {
   vel += acc * dt;
 });
 // ...
 // Move entity with its linear velocity.
-auto view = registry.view<edyn::position, const edyn::linvel, const edyn::dynamic_tag>();
-view.each([dt] (auto entity, edyn::position &pos, const edyn::linvel &vel, [[maybe_unused]] auto) {
+auto view = registry.view<edyn::position, edyn::linvel, edyn::dynamic_tag>();
+view.each([dt] (edyn::position &pos, edyn::linvel &vel) {
   pos += vel * dt;
 });
 // ...
 // Rotate entity with its angular velocity.
-auto view = registry.view<edyn::orientation, const edyn::angvel, const edyn::dynamic_tag>();
-view.each([dt] (auto entity, edyn::orientation &orn, const edyn::angvel &vel, [[maybe_unused]] auto) {
+auto view = registry.view<edyn::orientation, edyn::angvel, edyn::dynamic_tag>();
+view.each([dt] (edyn::orientation &orn, edyn::angvel &vel) {
   orn = edyn::integrate(orn, vel, dt);
 });
 ```
