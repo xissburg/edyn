@@ -7,13 +7,13 @@
 
 namespace edyn {
 
-template<merge_type MergeType>
+template<> inline
 void merge(const contact_manifold *old_comp, contact_manifold &new_comp, merge_context &ctx) {
     for (auto &entity : new_comp.body) {
         entity = ctx.map->remloc(entity);
     }
 
-    merge_entity_array<MergeType>(old_comp, new_comp, &contact_manifold::point, ctx);
+    merge_entity_array(old_comp, new_comp, &contact_manifold::point, ctx);
 }
 
 }

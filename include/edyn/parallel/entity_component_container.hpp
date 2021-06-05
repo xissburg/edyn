@@ -40,7 +40,7 @@ struct updated_entity_component_container: public entity_component_container_bas
             auto local_entity = map.remloc(remote_entity);
 
             auto& old_component = view.get(local_entity);
-            merge<merge_type::updated>(&old_component, pair.second, ctx);
+            merge(&old_component, pair.second, ctx);
             registry.replace<Component>(local_entity, pair.second);
         }
     }
@@ -93,7 +93,7 @@ struct created_entity_component_container: public entity_component_container_bas
             if constexpr(std::is_empty_v<Component>) {
                 registry.emplace<Component>(local_entity);
             } else {
-                merge<merge_type::created>(static_cast<Component *>(nullptr), pair.second, ctx);
+                merge(static_cast<Component *>(nullptr), pair.second, ctx);
                 registry.emplace<Component>(local_entity, pair.second);
             }
 

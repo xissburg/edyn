@@ -9,11 +9,11 @@
 
 namespace edyn {
 
-template<merge_type MergeType, typename Component>
-void merge_entity_set(const Component *old_comp, 
-                         Component &new_comp, 
-                         entity_set Component:: *member, 
-                         const merge_context &ctx) {
+template<typename Component>
+void merge_entity_set(const Component *old_comp,
+                      Component &new_comp,
+                      entity_set Component:: *member,
+                      const merge_context &ctx) {
 
     entity_set entities;
 
@@ -26,7 +26,7 @@ void merge_entity_set(const Component *old_comp,
 
     new_comp.*member = entities;
 
-    if constexpr(MergeType == merge_type::updated) {
+    if (old_comp != nullptr) {
         // Reinsert entities from old which are still valid.
         for (auto old_entity : old_comp->*member) {
             if (!ctx.registry->valid(old_entity)) continue;
@@ -36,12 +36,12 @@ void merge_entity_set(const Component *old_comp,
     }
 }
 
-template<merge_type MergeType, typename Component, std::size_t N>
-void merge_entity_array(const Component *old_comp, 
-                        Component &new_comp, 
-                        std::array<entt::entity, N> Component:: *member, 
+template<typename Component, std::size_t N>
+void merge_entity_array(const Component *old_comp,
+                        Component &new_comp,
+                        std::array<entt::entity, N> Component:: *member,
                         const merge_context &ctx) {
-    
+
     for (auto &entity : new_comp.*member) {
         if (entity == entt::null) continue;
 
@@ -57,14 +57,14 @@ void merge_entity_array(const Component *old_comp,
         }
     }
 
-    if constexpr(MergeType == merge_type::updated) {
+    if (old_comp != nullptr) {
         // Reinsert entities from old which are still valid;
         for (auto &old_entity : old_comp->*member) {
             if (!ctx.registry->valid(old_entity)) continue;
-            
+
             auto found_it = std::find((new_comp.*member).begin(), (new_comp.*member).end(), old_entity);
             if (found_it != (new_comp.*member).end()) continue;
-            
+
             // Find a null entry to replace with.
             auto null_it = std::find((new_comp.*member).begin(), (new_comp.*member).end(), entt::entity{entt::null});
             EDYN_ASSERT(null_it != (new_comp.*member).end());

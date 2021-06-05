@@ -7,17 +7,12 @@ namespace edyn {
 
 class entity_map;
 
-enum class merge_type : int {
-    created, 
-    updated
-};
-
 struct merge_context {
     const entt::registry *registry;
     const entity_map *map;
 };
 
-template<merge_type, typename Component>
+template<typename Component>
 void merge(const Component *old_comp, Component &new_comp, merge_context &) {}
 
 }

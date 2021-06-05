@@ -7,7 +7,7 @@
 
 namespace edyn {
 
-template<merge_type MergeType>
+template<> inline
 void merge(const tree_view *old_comp, tree_view &new_comp, merge_context &ctx) {
     new_comp.each([&] (tree_view::tree_node &node) {
         node.entity = ctx.map->remloc(node.entity);

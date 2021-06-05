@@ -14,12 +14,12 @@ struct parent_component {
 // `custom_component` needs a custom merge function to map its entity into the
 // context of the other registry where it's being imported into.
 namespace edyn {
-    template<merge_type MergeType>
+    template<> inline
     void merge(const custom_component *old_comp, custom_component &new_comp, merge_context &ctx) {
         new_comp.entity = ctx.map->remloc(new_comp.entity);
     }
 
-    template<merge_type MergeType>
+    template<> inline
     void merge(const parent_component *old_comp, parent_component &new_comp, merge_context &ctx) {
         for (auto &entity : new_comp.entity) {
             entity = ctx.map->remloc(entity);

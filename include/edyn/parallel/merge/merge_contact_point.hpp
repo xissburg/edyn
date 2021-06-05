@@ -7,7 +7,7 @@
 
 namespace edyn {
 
-template<merge_type MergeType>
+template<> inline
 void merge(const contact_point *old_comp, contact_point &new_comp, merge_context &ctx) {
     for (auto &entity : new_comp.body) {
         entity = ctx.map->remloc(entity);
