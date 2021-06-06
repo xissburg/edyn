@@ -343,6 +343,17 @@ bool point_in_polygonal_prism(const std::array<vector3, N> &vertices,
     return true;
 }
 
+/**
+ * @brief Test if a segment intersects an AABB.
+ * @param p0 First point in the segment.
+ * @param p1 Second point in the segment.
+ * @param aabb_min Minimum of AABB.
+ * @param aabb_max Maximum of AABB.
+ * @return Whether segment intersects AABB.
+ */
+bool intersect_segment_aabb(vector3 p0, vector3 p1,
+                            vector3 aabb_min, vector3 aabb_max);
+
 }
 
 #endif // EDYN_MATH_GEOM_HPP

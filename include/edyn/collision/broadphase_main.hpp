@@ -50,6 +50,15 @@ public:
     broadphase_main(entt::registry &);
     void update();
 
+    template<typename Func>
+    void raycast_islands(vector3 p0, vector3 p1, Func func);
+
+    template<typename Func>
+    void raycast_island(entt::entity island_entity, vector3 p0, vector3 p1, Func func);
+
+    template<typename Func>
+    void raycast_non_procedural(vector3 p0, vector3 p1, Func func);
+
     void on_construct_tree_view(entt::registry &, entt::entity);
     void on_construct_static_tag(entt::registry &, entt::entity);
     void on_construct_static_kinematic_tag(entt::registry &, entt::entity);
@@ -63,6 +72,20 @@ private:
 
     bool should_collide(entt::entity e0, entt::entity e1, const collision_filter_view_t &) const;
 };
+
+template<typename Func>
+void broadphase_main::raycast_islands(vector3 p0, vector3 p1, Func func) {
+    m_island_tree.raycast(p0, p1, [&] (tree_node_id_t id) {
+        func(m_island_tree.get_node(id).entity);
+    });
+}
+
+template<typename Func>
+void broadphase_main::raycast_non_procedural(vector3 p0, vector3 p1, Func func) {
+    m_np_tree.raycast(p0, p1, [&] (tree_node_id_t id) {
+        func(m_np_tree.get_node(id).entity);
+    });
+}
 
 }
 

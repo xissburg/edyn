@@ -4,12 +4,13 @@
 #include <vector>
 #include <entt/entity/entity.hpp>
 #include "edyn/collision/tree_node.hpp"
+#include "edyn/math/geom.hpp"
 
 namespace edyn {
 
 /**
  * @brief View of a tree.
- * 
+ *
  * Can be used to take a snapshot of a `dynamic_tree` and share it with other
  * parts of the application.
  */
@@ -54,6 +55,9 @@ public:
     template<typename Func>
     void query(const AABB &aabb, Func func) const;
 
+    template<typename Func>
+    void raycast(vector3 p0, vector3 p1, Func func) const;
+
     /**
      * @brief Calls the given function for each leaf node.
      * @tparam Func Type of the function object to invoke.
@@ -97,7 +101,7 @@ public:
 
     /**
      * @brief Get the total number of nodes in this tree, including empty nodes.
-     * 
+     *
      * Some nodes in `m_nodes` are part of the "free list" (see `dynamic_tree::m_free_list`)
      * thus this is not always exactly the total number of nodes in the tree but
      * it provides an inexpensive way to check if two trees differ greatly in size.
@@ -163,6 +167,30 @@ void tree_view::each(Func func) {
     for (auto &node : m_nodes) {
         if (node.entity != entt::null) {
             func(node);
+        }
+    }
+}
+
+template<typename Func>
+void tree_view::raycast(vector3 p0, vector3 p1, Func func) const {
+    std::vector<tree_node_id_t> stack;
+    stack.push_back(m_root);
+
+    while (!stack.empty()) {
+        auto id = stack.back();
+        stack.pop_back();
+
+        if (id == null_node_id) continue;
+
+        auto &node = m_nodes[id];
+
+        if (intersect_segment_aabb(p0, p1, node.aabb.min, node.aabb.max)) {
+            if (node.leaf()) {
+                func(id);
+            } else {
+                stack.push_back(node.child1);
+                stack.push_back(node.child2);
+            }
         }
     }
 }

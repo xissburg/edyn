@@ -1,7 +1,7 @@
 #ifndef EDYN_COMP_SHAPE_INDEX_HPP
 #define EDYN_COMP_SHAPE_INDEX_HPP
 
-#include <cstdint>
+#include <cstddef>
 
 namespace edyn {
 
