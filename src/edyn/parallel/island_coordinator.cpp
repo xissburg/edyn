@@ -371,7 +371,6 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto mass_view = m_registry->view<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>();
     auto acc_view = m_registry->view<linacc>();
     auto material_view = m_registry->view<material>();
-    auto presentation_view = m_registry->view<present_position, present_orientation>();
     auto continuous_view = m_registry->view<continuous>();
     auto procedural_view = m_registry->view<procedural_tag>();
     auto static_view = m_registry->view<static_tag>();
@@ -403,11 +402,6 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
             if (material_view.contains(entity)) {
                 ctx->m_delta_builder->created(entity, material_view.get(entity));
-            }
-
-            if (presentation_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, presentation_view.get<present_position>(entity));
-                ctx->m_delta_builder->created(entity, presentation_view.get<present_orientation>(entity));
             }
 
             if (collision_view.contains(entity)) {
@@ -682,6 +676,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
 
     // Insert nodes in the graph for each rigid body.
     auto &graph = m_registry->ctx<entity_graph>();
+    auto &index_source = source_ctx->m_delta_builder->get_index_source();
     auto insert_node = [&] (entt::entity remote_entity, auto &) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 
@@ -700,9 +695,9 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         source_ctx->m_nodes.insert(local_entity);
     };
 
-    delta.created_for_each<dynamic_tag>(insert_node);
-    delta.created_for_each<static_tag>(insert_node);
-    delta.created_for_each<kinematic_tag>(insert_node);
+    delta.created_for_each<dynamic_tag>(index_source, insert_node);
+    delta.created_for_each<static_tag>(index_source, insert_node);
+    delta.created_for_each<kinematic_tag>(index_source, insert_node);
 
     auto assign_island_to_contact_points = [&] (const contact_manifold &manifold) {
         auto num_points = manifold.num_points();
@@ -717,7 +712,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     };
 
     // Insert edges in the graph for contact manifolds.
-    delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
+    delta.created_for_each<contact_manifold>(index_source, [&] (entt::entity remote_entity, const contact_manifold &manifold) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
@@ -732,7 +727,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
+    delta.created_for_each(constraints_tuple, index_source, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
@@ -748,7 +743,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         source_ctx->m_edges.insert(local_entity);
     });
 
-    delta.updated_for_each<contact_manifold>([&] (entt::entity, const contact_manifold &manifold) {
+    delta.updated_for_each<contact_manifold>(index_source, [&] (entt::entity, const contact_manifold &manifold) {
         assign_island_to_contact_points(manifold);
     });
 

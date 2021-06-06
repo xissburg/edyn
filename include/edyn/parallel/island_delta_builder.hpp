@@ -19,7 +19,7 @@ class island_delta_builder {
     template<typename Component>
     void _created(entt::entity entity, const Component &component) {
         using container_type = created_entity_component_container<Component>;
-        const auto index = entt::type_index<Component>::value();
+        const auto index = m_index_source->index_of<Component>();
 
         if (!(index < m_delta.m_created_components.size())) {
             m_delta.m_created_components.resize(index + 1);
@@ -38,7 +38,7 @@ class island_delta_builder {
     template<typename Component, std::enable_if_t<!std::is_empty_v<Component>, bool> = true>
     void _updated(entt::entity entity, const Component &component) {
         using container_type = updated_entity_component_container<Component>;
-        const auto index = entt::type_index<Component>::value();
+        const auto index = m_index_source->index_of<Component>();
 
         if (!(index < m_delta.m_updated_components.size())) {
             m_delta.m_updated_components.resize(index + 1);
@@ -55,7 +55,7 @@ class island_delta_builder {
     template<typename Component>
     void _destroyed(entt::entity entity) {
         using container_type = destroyed_entity_component_container<Component>;
-        const auto index = entt::type_index<Component>::value();
+        const auto index = m_index_source->index_of<Component>();
 
         if (!(index < m_delta.m_destroyed_components.size())) {
             m_delta.m_destroyed_components.resize(index + 1);
@@ -292,8 +292,15 @@ public:
         return std::move(m_delta);
     }
 
+    const component_index_source & get_index_source() const {
+        return *m_index_source.get();
+    }
+
 private:
     island_delta m_delta;
+
+protected:
+    std::unique_ptr<component_index_source> m_index_source;
 };
 
 template<typename... Component>
@@ -308,7 +315,7 @@ void island_delta_builder::reserve_created(size_t size) {
 template<typename Component>
 void island_delta_builder::_reserve_created(size_t size) {
     using container_type = created_entity_component_container<Component>;
-    const auto index = entt::type_index<Component>::value();
+    const auto index = m_index_source->index_of<Component>();
 
     if (!(index < m_delta.m_created_components.size())) {
         m_delta.m_created_components.resize(index + 1);
@@ -358,9 +365,9 @@ class island_delta_builder_impl: public island_delta_builder {
         }
     }
 public:
-    island_delta_builder_impl() = default;
-    island_delta_builder_impl([[maybe_unused]] std::tuple<Component...>)
-    {}
+    island_delta_builder_impl([[maybe_unused]] std::tuple<Component...>) {
+        m_index_source = std::make_unique<external_component_index_source<Component...>>();
+    }
 
     void created(entt::entity entity, entt::registry &registry, entt::id_type id) override {
         ((entt::type_index<Component>::value() == id ?

@@ -118,7 +118,7 @@ void serialize(Archive& archive, std::variant<Ts...>& var) {
     } else {
         std::visit([&archive] (auto &&t) {
             using T = std::decay_t<decltype(t)>;
-            auto id = index_of<T, Ts...>();
+            auto id = index_of_v<size_t, T, Ts...>;
             archive(id);
             archive(t);
         }, var);

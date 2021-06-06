@@ -21,34 +21,30 @@ struct has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...>
 template <typename T, typename... Us>
 struct has_type<T, std::variant<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
 
-namespace detail {
-    template<typename IndexType, typename T, typename... Ts>
-    struct index_of;
+template<typename IndexType, typename T, typename... Ts>
+struct index_of;
 
-    template<typename IndexType, typename T, typename... Ts>
-    struct index_of<IndexType, T, T, Ts...> : std::integral_constant<IndexType, 0>{};
+template<typename IndexType, typename T, typename... Ts>
+struct index_of<IndexType, T, T, Ts...> : std::integral_constant<IndexType, 0>{};
 
-    template<typename IndexType, typename T, typename U, typename... Ts>
-    struct index_of<IndexType, T, U, Ts...> : std::integral_constant<IndexType, 1 + index_of<IndexType, T, Ts...>::value>{};
+template<typename IndexType, typename T, typename U, typename... Ts>
+struct index_of<IndexType, T, U, Ts...> : std::integral_constant<IndexType, 1 + index_of<IndexType, T, Ts...>::value>{};
 
-    template<typename IndexType, typename T, typename... Ts>
-    static constexpr IndexType index_of_v = index_of<IndexType, T, Ts...>::value;
-}
+template<typename IndexType, typename T, typename... Ts>
+static constexpr IndexType index_of_v = index_of<IndexType, T, Ts...>::value;
 
 /**
- * Find index of a type in a template parameter pack.
+ * Find index of a type in a tuple type.
  */
-template<typename T, typename... Ts, typename IndexType = size_t>
-constexpr IndexType index_of() {
-    return detail::index_of_v<IndexType, T, Ts...>;
-}
+template<typename IndexType, typename T, typename... Ts>
+struct index_of<IndexType, T, std::tuple<Ts...>> : index_of<IndexType, T, Ts...>{};
 
 /**
  * Find index of a type in a tuple.
  */
 template<typename T, typename... Ts, typename IndexType = size_t>
-constexpr IndexType index_of(std::tuple<Ts...>) {
-    return index_of<T, Ts...>();
+constexpr IndexType tuple_index_of(std::tuple<Ts...>) {
+    return index_of_v<IndexType, T, Ts...>;
 }
 
 /**
