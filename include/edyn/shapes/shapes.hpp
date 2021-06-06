@@ -50,7 +50,7 @@ using shapes_variant_t = std::decay_t<decltype(shapes_variant)>;
  */
 template<typename ShapeType>
 constexpr size_t get_shape_index() {
-    return index_of<ShapeType>(shapes_tuple);
+    return tuple_index_of<ShapeType>(shapes_tuple);
 }
 
 /**

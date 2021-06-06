@@ -1,7 +1,6 @@
 #ifndef EDYN_SHARED_COMP_HPP
 #define EDYN_SHARED_COMP_HPP
 
-#include "edyn/util/tuple_util.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/linacc.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -10,8 +9,6 @@
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/present_position.hpp"
-#include "edyn/comp/present_orientation.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/tag.hpp"
@@ -21,6 +18,7 @@
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/shapes/shapes.hpp"
+#include "edyn/collision/tree_view.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 
@@ -57,7 +55,8 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     sleeping_disabled_tag,
     disabled_tag,
     continuous_contacts_tag,
-    shape_index
+    shape_index,
+    tree_view
 >{}, constraints_tuple, shapes_tuple); // Concatenate with all shapes and constraints at the end.
 
 using shared_components_t = std::decay_t<decltype(shared_components)>;
