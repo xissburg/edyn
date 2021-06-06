@@ -6,6 +6,11 @@
 
 namespace edyn {
 
+enum class capsule_feature {
+    hemisphere,
+    side
+};
+
 struct capsule_shape {
     scalar radius;
     scalar half_length;

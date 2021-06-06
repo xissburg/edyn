@@ -892,10 +892,46 @@ bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
     return true;
 }
 
-// Reference: Real-Time Collision Detection - Christer Ericson, section 5.3.3.
+// Reference: Real-Time Collision Detection - Christer Ericson,
+// Section 5.3.3 - Intersecting Ray or Segment Against Box.
 bool intersect_segment_aabb(vector3 p0, vector3 p1,
                             vector3 aabb_min, vector3 aabb_max) {
+    auto aabb_center = (aabb_min + aabb_max) * scalar(0.5);
+    auto half_extents = aabb_max - aabb_center;
+    auto midpoint = (p0 + p1) * scalar(0.5);
+    auto half_length = p1 - midpoint;
+    midpoint -= aabb_center; // Translate box to origin.
 
+    // Test coordinate axes.
+    auto abs_half_length = abs(half_length);
+
+    for (auto i = 0; i < 3; ++i) {
+        if (std::abs(midpoint[i]) > half_extents[i] + abs_half_length[i]) {
+            return false;
+        }
+    }
+
+    // Add epsilon to better handle the parallel case.
+    abs_half_length += vector3_one * EDYN_EPSILON;
+
+    // Test cross products of segment direction with coordinate axes.
+    if (std::abs(midpoint.y * half_length.z - midpoint.z * half_length.y) >
+        half_extents.y * abs_half_length.z + half_extents.z * abs_half_length.y) {
+        return false;
+    }
+
+    if (std::abs(midpoint.z * half_length.x - midpoint.x * half_length.z) >
+        half_extents.z * abs_half_length.x + half_extents.x * abs_half_length.z) {
+        return false;
+    }
+
+    if (std::abs(midpoint.x * half_length.y - midpoint.y * half_length.x) >
+        half_extents.x * abs_half_length.y + half_extents.y * abs_half_length.x) {
+        return false;
+    }
+
+    // No separating axis found. Segment intersects AABB.
+    return true;
 }
 
 }

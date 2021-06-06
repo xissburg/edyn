@@ -2,18 +2,21 @@
 #define EDYN_COLLISION_RAYCAST_HPP
 
 #include <entt/fwd.hpp>
-#include "edyn/math/scalar.hpp"
+#include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
-#include "edyn/shapes/shapes.hpp"
+#include "edyn/collision/shape_feature.hpp"
 
 namespace edyn {
 
-struct raycast_result {
-    entt::entity entity { entt::null };
+struct shape_raycast_result {
     scalar proportion { EDYN_SCALAR_MAX };
+    shape_feature feature;
+    vector3 normal;
 };
 
-raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1);
+struct raycast_result : public shape_raycast_result {
+    entt::entity entity { entt::null };
+};
 
 struct raycast_context {
     vector3 pos;
@@ -22,15 +25,17 @@ struct raycast_context {
     vector3 p1;
 };
 
-scalar raycast(const box_shape &, const raycast_context &);
-scalar raycast(const cylinder_shape &, const raycast_context &);
-scalar raycast(const sphere_shape &, const raycast_context &);
-scalar raycast(const capsule_shape &, const raycast_context &);
-scalar raycast(const polyhedron_shape &, const raycast_context &);
-scalar raycast(const compound_shape &, const raycast_context &);
-scalar raycast(const plane_shape &, const raycast_context &);
-scalar raycast(const mesh_shape &, const raycast_context &);
-scalar raycast(const paged_mesh_shape &, const raycast_context &);
+raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1);
+
+shape_raycast_result raycast(const box_shape &, const raycast_context &);
+shape_raycast_result raycast(const cylinder_shape &, const raycast_context &);
+shape_raycast_result raycast(const sphere_shape &, const raycast_context &);
+shape_raycast_result raycast(const capsule_shape &, const raycast_context &);
+shape_raycast_result raycast(const polyhedron_shape &, const raycast_context &);
+shape_raycast_result raycast(const compound_shape &, const raycast_context &);
+shape_raycast_result raycast(const plane_shape &, const raycast_context &);
+shape_raycast_result raycast(const mesh_shape &, const raycast_context &);
+shape_raycast_result raycast(const paged_mesh_shape &, const raycast_context &);
 
 }
 

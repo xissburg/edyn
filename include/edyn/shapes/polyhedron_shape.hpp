@@ -6,10 +6,16 @@
 
 namespace edyn {
 
+enum polyhedron_feature {
+    vertex,
+    edge,
+    face
+};
+
 struct polyhedron_shape {
     /**
      * The convex mesh that backs this polyhedron. It's stored in a shared
-     * pointer because it's expensive to copy. Shapes are copied into 
+     * pointer because it's expensive to copy. Shapes are copied into
      * `island_delta`s every time islands are merged and split. This also
      * allows many rigid bodies of the same shape to exist without duplicating
      * data. It is potentially shared with multiple threads (e.g. if it is
@@ -40,8 +46,8 @@ struct polyhedron_shape {
     polyhedron_shape(std::shared_ptr<convex_mesh> mesh);
 
     /**
-     * @brief Loads a polyhedron shape from an obj file. 
-     * The obj file must have a single shape. If the obj file contains more than 
+     * @brief Loads a polyhedron shape from an obj file.
+     * The obj file must have a single shape. If the obj file contains more than
      * one shape, use a `compound_shape` instead.
      * @remark The transform is applied in this order: scale, rotation,
      * translation.
