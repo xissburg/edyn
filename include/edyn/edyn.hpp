@@ -6,6 +6,8 @@
 #include "comp/dirty.hpp"
 #include "comp/graph_node.hpp"
 #include "comp/graph_edge.hpp"
+#include "comp/present_position.hpp"
+#include "comp/present_orientation.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
 #include "math/vector3.hpp"
