@@ -3,18 +3,17 @@
 
 #include <array>
 #include <entt/fwd.hpp>
-#include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
 struct hinge_constraint : public constraint_base {
+    // Pivots in object space.
     std::array<vector3, 2> pivot;
-    std::array<matrix3x3, 2> frame;
-
-    void set_axis(const quaternion &ornA,
-                  const vector3 &axisA, const vector3 &axisB);
+    // Rotation axes in object space.
+    std::array<vector3, 2> axis;
 };
 
 template<>

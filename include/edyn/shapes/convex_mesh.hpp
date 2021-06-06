@@ -97,7 +97,6 @@ struct convex_mesh {
      */
     std::array<vector3, 2> get_rotated_edge(const rotated_mesh &, size_t idx) const;
 
-private:
     void shift_to_centroid();
     void calculate_normals();
     void calculate_edges();

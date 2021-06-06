@@ -7,9 +7,9 @@
 namespace edyn {
 
 void convex_mesh::initialize() {
+    shift_to_centroid();
     calculate_normals();
     calculate_edges();
-    shift_to_centroid();
 
 #ifdef EDYN_DEBUG
     validate();
