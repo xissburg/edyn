@@ -26,7 +26,7 @@ scalar box_shape::support_projection(const vector3 &pos, const quaternion &orn, 
     return dot(pos, dir) + dot(pt, local_dir);
 }
 
-void box_shape::support_feature(const vector3 &dir, box_feature &feature, 
+void box_shape::support_feature(const vector3 &dir, box_feature &feature,
                                 size_t &feature_index, scalar &projection,
                                 scalar threshold) const {
     // Find face that's the closest to being a support face for `dir` and then
@@ -40,7 +40,7 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
 
     // Vertex index on face [0, 4) of vertices within threshold. There's always
     // at least one (i.e. the one furthest along `dir`).
-    std::array<size_t, 4> indices; 
+    std::array<size_t, 4> indices;
     size_t count = 1;
     size_t max_proj_idx;
 
@@ -69,7 +69,7 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
         feature_index = vertex_indices[indices[0]];
     } else if (count == 2) {
         feature = box_feature::edge;
-        feature_index = get_edge_index(vertex_indices[indices[0]], 
+        feature_index = get_edge_index(vertex_indices[indices[0]],
                                        vertex_indices[indices[1]]);
     } else if (count == 3) {
         feature = box_feature::edge;
@@ -79,13 +79,13 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
         auto proj2 = projections[indices[2]];
 
         if (proj0 <= proj1 && proj0 <= proj2) {
-            feature_index = get_edge_index(vertex_indices[indices[1]], 
+            feature_index = get_edge_index(vertex_indices[indices[1]],
                                            vertex_indices[indices[2]]);
         } else if (proj1 <= proj0 && proj1 <= proj2) {
-            feature_index = get_edge_index(vertex_indices[indices[0]], 
+            feature_index = get_edge_index(vertex_indices[indices[0]],
                                            vertex_indices[indices[2]]);
         } else { // if (proj2 <= proj0 && proj2 <= proj1) {
-            feature_index = get_edge_index(vertex_indices[indices[0]], 
+            feature_index = get_edge_index(vertex_indices[indices[0]],
                                            vertex_indices[indices[1]]);
         }
     } else {
@@ -223,7 +223,21 @@ vector2 box_shape::get_face_half_extents(size_t face_idx) const {
     return to_vector2_yx(half_extents);
 }
 
-size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {    
+size_t box_shape::get_face_edge_index(size_t face_idx, size_t edge_idx) const {
+    EDYN_ASSERT(face_idx < 6);
+    EDYN_ASSERT(edge_idx < 4);
+    static constexpr size_t indices[] = {
+        0, 1, 2, 3,
+        4, 5, 6, 7,
+        3, 11, 4, 8,
+        9, 6, 10, 1,
+        8, 7, 9, 0,
+        2, 10, 5, 11
+    };
+    return indices[face_idx * 4 + edge_idx];
+}
+
+size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {
     for (size_t i = 0; i < get_box_num_features(box_feature::edge); ++i) {
         auto idx0 = edge_indices[i * 2];
         auto idx1 = edge_indices[i * 2 + 1];
@@ -241,7 +255,7 @@ size_t box_shape::get_edge_index(size_t v0_idx, size_t v1_idx) const {
 
 size_t box_shape::support_face_index(const vector3 &dir) const {
     auto max_idx = max_index_abs(dir);
-        
+
     if (dir[max_idx] < 0) {
         return max_idx * 2 + 1;
     } else {

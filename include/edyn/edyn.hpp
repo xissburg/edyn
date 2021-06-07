@@ -36,6 +36,7 @@
 #include "util/moment_of_inertia.hpp"
 #include "collision/contact_manifold_map.hpp"
 #include "context/settings.hpp"
+#include "collision/raycast.hpp"
 #include <entt/fwd.hpp>
 #include <entt/entity/registry.hpp>
 
