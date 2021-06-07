@@ -269,4 +269,120 @@ size_t box_shape::get_vertex_index_from_face(size_t face_idx, size_t face_vertex
     return face_indices[face_idx * 4 + face_vertex_idx];
 }
 
+std::pair<box_feature, size_t> box_shape::get_closest_feature_on_face(size_t face_idx, vector3 point, scalar tolerance) const {
+    box_feature feature;
+    size_t index;
+    auto trimmed_half_extents = half_extents - vector3_one * tolerance;
+
+    if (face_idx == 0 || face_idx == 1) { // X face
+        auto positive_face = point.x > 0;
+
+        if (point.y > trimmed_half_extents.y) {
+            if (point.z > trimmed_half_extents.z) {
+                feature = box_feature::vertex;
+                index = positive_face ? 0 : 4;
+            } else if (point.z < -trimmed_half_extents.z) {
+                feature = box_feature::vertex;
+                index = positive_face ? 3 : 5;
+            } else {
+                feature = box_feature::edge;
+                index = positive_face ? 3 : 4;
+            }
+        } else if (point.y < -trimmed_half_extents.y) {
+            if (point.z > trimmed_half_extents.z) {
+                feature = box_feature::vertex;
+                index = positive_face ? 1 : 7;
+            } else if (point.z < -trimmed_half_extents.z) {
+                feature = box_feature::vertex;
+                index = positive_face ? 2 : 6;
+            } else {
+                feature = box_feature::edge;
+                index = positive_face ? 1 : 6;
+            }
+        } else if (point.z > trimmed_half_extents.z) {
+            feature = box_feature::edge;
+            index = positive_face ? 0 : 7;
+        } else if (point.z < -trimmed_half_extents.z) {
+            feature = box_feature::edge;
+            index = positive_face ? 2 : 5;
+        } else {
+            feature = box_feature::face;
+            index = face_idx;
+        }
+    } else if (face_idx == 2 || face_idx == 3) { // Y face
+        auto positive_face = point.y > 0;
+
+        if (point.x > trimmed_half_extents.x) {
+            if (point.z > trimmed_half_extents.z) {
+                feature = box_feature::vertex;
+                index = positive_face ? 0 : 1;
+            } else if (point.z < -trimmed_half_extents.z) {
+                feature = box_feature::vertex;
+                index = positive_face ? 3 : 2;
+            } else {
+                feature = box_feature::edge;
+                index = positive_face ? 3 : 1;
+            }
+        } else if (point.x < -trimmed_half_extents.x) {
+            if (point.z > trimmed_half_extents.z) {
+                feature = box_feature::vertex;
+                index = positive_face ? 4 : 7;
+            } else if (point.z < -trimmed_half_extents.z) {
+                feature = box_feature::vertex;
+                index = positive_face ? 5 : 6;
+            } else {
+                feature = box_feature::edge;
+                index = positive_face ? 4 : 6;
+            }
+        } else if (point.z > trimmed_half_extents.z) {
+            feature = box_feature::edge;
+            index = positive_face ? 8 : 9;
+        } else if (point.z < -trimmed_half_extents.z) {
+            feature = box_feature::edge;
+            index = positive_face ? 11 : 10;
+        } else {
+            feature = box_feature::face;
+            index = face_idx;
+        }
+    } else if (face_idx == 4 || face_idx == 5) { // Z face
+        auto positive_face = point.z > 0;
+
+        if (point.x > trimmed_half_extents.x) {
+            if (point.y > trimmed_half_extents.y) {
+                feature = box_feature::vertex;
+                index = positive_face ? 0 : 3;
+            } else if (point.y < -trimmed_half_extents.y) {
+                feature = box_feature::vertex;
+                index = positive_face ? 1 : 2;
+            } else {
+                feature = box_feature::edge;
+                index = positive_face ? 0 : 2;
+            }
+        } else if (point.x < -trimmed_half_extents.x) {
+            if (point.y > trimmed_half_extents.y) {
+                feature = box_feature::vertex;
+                index = positive_face ? 4 : 5;
+            } else if (point.y < -trimmed_half_extents.y) {
+                feature = box_feature::vertex;
+                index = positive_face ? 7 : 6;
+            } else {
+                feature = box_feature::edge;
+                index = positive_face ? 7 : 5;
+            }
+        } else if (point.y > trimmed_half_extents.y) {
+            feature = box_feature::edge;
+            index = positive_face ? 8 : 11;
+        } else if (point.y < -trimmed_half_extents.y) {
+            feature = box_feature::edge;
+            index = positive_face ? 9 : 10;
+        } else {
+            feature = box_feature::face;
+            index = face_idx;
+        }
+    }
+
+    return {feature, index};
+}
+
+
 }

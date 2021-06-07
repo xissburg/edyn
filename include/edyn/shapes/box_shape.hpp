@@ -228,6 +228,17 @@ struct box_shape {
      * @return Vertex index.
      */
     size_t get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const;
+
+    /**
+     * Given a face and a point on it, find the feature where this point lies
+     * within a tolerance.
+     * @param face_idx The face to be tested.
+     * @param point Point on the face.
+     * @param tolerance How close to the feature the point has to be to choose
+     * that as the closest feature.
+     * @return Feature and feature index.
+     */
+    std::pair<box_feature, size_t> get_closest_feature_on_face(size_t face_idx, vector3 point, scalar tolerance) const;
 };
 
 constexpr size_t get_box_num_features(box_feature feature) {
