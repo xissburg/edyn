@@ -40,6 +40,32 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
     return length_sqr(p - r);
 }
 
+bool closest_point_line_line(const vector3 &p1, const vector3 &q1,
+                             const vector3 &p2, const vector3 &q2,
+                             scalar &s, scalar &t) {
+    // Reference: Real-Time Collision Detection - Christer Ericson,
+    // Section 5.1.8 - Closest Points of Two Lines
+    auto d1 = q1 - p1;
+    auto d2 = q2 - p2;
+    auto r = p1 - p2;
+    auto a = dot(d1, d1);
+    auto b = dot(d1, d2);
+    auto c = dot(d1, r);
+    auto e = dot(d2, d2);
+    auto f = dot(d2, r);
+    auto d = a * e - b * b;
+
+    if (!(d > EDYN_EPSILON)) {
+        return false;
+    }
+
+    auto d_inv = scalar(1) / d;
+    s = (b * f - c * e) * d_inv;
+    t = (a * f - b * c) * d_inv;
+
+    return true;
+}
+
 // Reference: Real-Time Collision Detection - Christer Ericson, section 5.1.9.
 scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                                      const vector3 &p2, const vector3 &q2,

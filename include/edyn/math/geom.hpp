@@ -54,6 +54,22 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
                           const vector3 &p, scalar &t, vector3 &r);
 
 /**
+ * @brief Computes the parameters for the closest points of two *non-parallel*
+ * lines `L1(s) = p1 + s*(q1 - p1)` and `L2(t) = p2 + t*(q2 - p2)`.
+ * @param p1 A point in the first line.
+ * @param q1 Another point in the first line.
+ * @param p2 A point in the second line.
+ * @param q2 Another point in the second line.
+ * @param s Outputs the parameter where `L1(s)` gives the closest point to `L2`.
+ * @param t Outputs the parameter where `L2(t)` gives the closest point to `L1`.
+ * @return False if lines are parallel, which means the projection of any point
+ * of L1 on L2 is a valid closest point.
+ */
+bool closest_point_line_line(const vector3 &p1, const vector3 &q1,
+                             const vector3 &p2, const vector3 &q2,
+                             scalar &s, scalar &t);
+
+/**
  * @brief Computes the closest points `c1` and `c2` of segments
  * `s1(s) = p1 + s*(q1 - p1)` and `s2(t) = p2 + t*(q2 - p2)`,
  * where `0 <= s <= 1` and `0 <= t <= 1`.

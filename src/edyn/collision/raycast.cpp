@@ -6,10 +6,14 @@
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/collision/broadphase_main.hpp"
 #include "edyn/collision/broadphase_worker.hpp"
+#include "edyn/math/geom.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/scalar.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/config/constants.hpp"
+#include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include <entt/entt.hpp>
 
@@ -119,7 +123,111 @@ shape_raycast_result raycast(const box_shape &box, const raycast_context &ctx) {
 }
 
 shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_context &ctx) {
-    return {};
+    // Let a plane be defined by the ray and the vector orthogonal to the
+    // cylinder axis and the ray (i.e. their cross product). This plane cuts
+    // the cylinder and their intersection is an ellipse with vertical half
+    // length equals to the cylinder radius and horizontal half length bigger
+    // than that. First, the parameters for the closest point between the lines
+    // spanned by the cylinder axis and the ray are found. By subtracting an
+    // amount from the parameter for the ray, the intersection point can be
+    // found.
+    auto cyl_vertices = cylinder.get_vertices(ctx.pos, ctx.orn);
+    auto ray_dir = ctx.p1 - ctx.p0;
+    auto cyl_dir = cyl_vertices[1] - cyl_vertices[0];
+    auto cyl_dir_norm = normalize(cyl_dir);
+    auto face_idx = dot(ctx.p0 - ctx.pos, cyl_dir) < 0 ? 0 : 1;
+    auto face_normal = cyl_dir_norm * (face_idx == 0 ? -1 : 1);
+    auto radius_sqr = square(cylinder.radius);
+    auto tolerance_sqr = square(raycast_feature_tolerance);
+    scalar s, t;
+
+    if (!closest_point_line_line(cyl_vertices[0], cyl_vertices[1], ctx.p0, ctx.p1, s, t)) {
+        // Cylinder and segment are parallel. Check if segment intersects a
+        // cap face.
+        vector3 closest; scalar u;
+        auto dist_sqr = closest_point_line(ctx.p0, ray_dir, cyl_vertices[face_idx], u, closest);
+
+        if (dist_sqr > radius_sqr) {
+            return {};
+        }
+
+        auto result = shape_raycast_result{};
+        result.proportion = u;
+        result.normal = face_normal;
+        result.feature.index = face_idx;
+
+        if (dist_sqr > radius_sqr - tolerance_sqr) {
+            result.feature.feature = cylinder_feature::cap_edge;
+        } else {
+            result.feature.feature = cylinder_feature::face;
+        }
+
+        return result;
+    }
+
+    auto closest_cyl = lerp(cyl_vertices[0], cyl_vertices[1], s);
+    auto closest_ray = lerp(ctx.p0, ctx.p1, t);
+    auto normal = closest_ray - closest_cyl;
+    auto dist_sqr = length_sqr(normal);
+
+    if (dist_sqr > radius_sqr) {
+        return {};
+    }
+
+    // Offset `t` backwards to place it where the intersection happens.
+    auto d = ctx.p1 - ctx.p0;
+    auto e = cyl_vertices[1] - cyl_vertices[0];
+    auto dd = dot(d, d);
+    auto ee = dot(e, e);
+    auto de = dot(d, e);
+    auto g_sqr = (radius_sqr - dist_sqr) * ee / (dd * ee - de * de);
+    auto u = t - std::sqrt(g_sqr);
+    auto intersection = lerp(ctx.p0, ctx.p1, u);
+    scalar projections[] = {
+        dot(intersection - cyl_vertices[0], cyl_dir_norm),
+        dot(intersection - cyl_vertices[1], cyl_dir_norm)
+    };
+
+    if (projections[0] > 0 && projections[1] < 0) {
+        // Intersection lies on the side of cylinder.
+        auto result = shape_raycast_result{};
+        result.proportion = u;
+        result.normal = normal / std::sqrt(dist_sqr);
+
+        if (projections[0] < raycast_feature_tolerance) {
+            result.feature.feature = cylinder_feature::cap_edge;
+            result.feature.index = 0;
+        } else if (projections[1] > -raycast_feature_tolerance) {
+            result.feature.feature = cylinder_feature::cap_edge;
+            result.feature.index = 1;
+        } else {
+            result.feature.feature = cylinder_feature::side_edge;
+        }
+        return result;
+    }
+
+    // Intersect line with plane parallel to cap face.
+    t = dot(cyl_vertices[face_idx] - ctx.p0, face_normal) / dot(ray_dir, face_normal);
+    intersection = lerp(ctx.p0, ctx.p1, t);
+    dist_sqr = distance_sqr(intersection, cyl_vertices[face_idx]);
+
+    if (dist_sqr > radius_sqr) {
+        return {};
+    }
+
+    auto result = shape_raycast_result{};
+    result.proportion = t;
+    result.normal = face_normal;
+    result.feature.feature = cylinder_feature::face;
+    result.feature.index = face_idx;
+
+    if (dist_sqr > radius_sqr - tolerance_sqr) {
+        result.feature.feature = cylinder_feature::cap_edge;
+    } else {
+        result.feature.feature = cylinder_feature::face;
+    }
+
+    return result;
 }
 
 shape_raycast_result raycast(const sphere_shape &, const raycast_context &ctx) {
