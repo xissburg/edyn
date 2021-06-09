@@ -44,7 +44,7 @@ struct rigidbody_def {
     vector3 gravity {gravity_earth};
 
     // Optional shape for collidable entities.
-    std::optional<shapes_variant_t> shape_opt;
+    std::optional<shapes_variant_t> shape;
 
     scalar restitution {0};
     scalar friction {0.5};
@@ -66,7 +66,7 @@ struct rigidbody_def {
     /**
      * @brief Assigns the default moment of inertia of the current shape
      * using the current mass.
-     * Assumes `shape_opt` to contain a value.
+     * Assumes `shape` to contain a value.
      */
     void update_inertia();
 };
