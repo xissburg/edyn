@@ -122,7 +122,20 @@ shape_raycast_result raycast(const box_shape &box, const raycast_context &ctx) {
     return result;
 }
 
-shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_context &ctx) {
+
+struct intersect_ray_cylinder_result {
+    enum class kind {
+        parallel_directions,
+        distance_greater_than_radius,
+        intersects
+    };
+
+    kind kind;
+    scalar dist_sqr;
+    vector3 normal;
+};
+
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) {
     // Let a plane be defined by the ray and the vector orthogonal to the
     // cylinder axis and the ray (i.e. their cross product). This plane cuts
     // the cylinder and their intersection is an ellipse with vertical half
@@ -131,6 +144,49 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     // spanned by the cylinder axis and the ray are found. By subtracting an
     // amount from the parameter for the ray, the intersection point can be
     // found.
+    auto cyl_dir = quaternion_x(orn);
+    vector3 cyl_vertices[] = {
+        pos + cyl_dir * half_length,
+        pos - cyl_dir * half_length
+    };
+    scalar s, t;
+
+    if (!closest_point_line_line(cyl_vertices[0], cyl_vertices[1], p0, p1, s, t)) {
+        return {intersect_ray_cylinder_result::kind::parallel_directions};
+    }
+
+    auto radius_sqr = square(radius);
+    auto closest_cyl = lerp(cyl_vertices[0], cyl_vertices[1], s);
+    auto closest_ray = lerp(p0, p1, t);
+    auto normal = closest_ray - closest_cyl;
+    auto dist_sqr = length_sqr(normal);
+
+    // Distance between lines bigger than radius.
+    if (dist_sqr > radius_sqr) {
+        return {intersect_ray_cylinder_result::kind::distance_greater_than_radius};
+    }
+
+    // Offset `t` backwards to place it where the intersection happens.
+    auto d = p1 - p0;
+    auto e = cyl_vertices[1] - cyl_vertices[0];
+    auto dd = dot(d, d);
+    auto ee = dot(e, e);
+    auto de = dot(d, e);
+    auto g_sqr = (radius_sqr - dist_sqr) * ee / (dd * ee - de * de);
+    auto g = std::sqrt(g_sqr);
+    u = t - g;
+    return {intersect_ray_cylinder_result::kind::intersects, dist_sqr, normal};
+}
+
+shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_context &ctx) {
+    scalar u;
+    auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
+                                                   cylinder.radius, cylinder.half_length, u);
+
+    if (intersect_result.kind == intersect_ray_cylinder_result::kind::distance_greater_than_radius) {
+        return {};
+    }
+
     auto cyl_vertices = cylinder.get_vertices(ctx.pos, ctx.orn);
     auto ray_dir = ctx.p1 - ctx.p0;
     auto cyl_dir = cyl_vertices[1] - cyl_vertices[0];
@@ -140,9 +196,8 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     auto radius = cylinder.radius;
     auto radius_sqr = square(radius);
     auto tolerance = raycast_feature_tolerance;
-    scalar s, t;
 
-    if (!closest_point_line_line(cyl_vertices[0], cyl_vertices[1], ctx.p0, ctx.p1, s, t)) {
+    if (intersect_result.kind == intersect_ray_cylinder_result::kind::parallel_directions) {
         // Cylinder and segment are parallel. Check if segment intersects a
         // cap face.
         vector3 closest; scalar u;
@@ -166,23 +221,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
         return result;
     }
 
-    auto closest_cyl = lerp(cyl_vertices[0], cyl_vertices[1], s);
-    auto closest_ray = lerp(ctx.p0, ctx.p1, t);
-    auto normal = closest_ray - closest_cyl;
-    auto dist_sqr = length_sqr(normal);
-
-    if (dist_sqr > radius_sqr) {
-        return {};
-    }
-
-    // Offset `t` backwards to place it where the intersection happens.
-    auto d = ctx.p1 - ctx.p0;
-    auto e = cyl_vertices[1] - cyl_vertices[0];
-    auto dd = dot(d, d);
-    auto ee = dot(e, e);
-    auto de = dot(d, e);
-    auto g_sqr = (radius_sqr - dist_sqr) * ee / (dd * ee - de * de);
-    auto u = t - std::sqrt(g_sqr);
+    // Line intersects infinite cylinder. Check if it's within finite cylinder.
     auto intersection = lerp(ctx.p0, ctx.p1, u);
     scalar projections[] = {
         dot(intersection - cyl_vertices[0], cyl_dir_norm),
@@ -193,7 +232,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
         // Intersection lies on the side of cylinder.
         auto result = shape_raycast_result{};
         result.proportion = u;
-        result.normal = normal / std::sqrt(dist_sqr);
+        result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
 
         if (projections[0] < raycast_feature_tolerance) {
             result.feature.feature = cylinder_feature::cap_edge;
@@ -204,13 +243,15 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
         } else {
             result.feature.feature = cylinder_feature::side_edge;
         }
+
         return result;
     }
 
+    // Intersection point is beyond cylinder with finite length.
     // Intersect line with plane parallel to cap face.
-    t = dot(cyl_vertices[face_idx] - ctx.p0, face_normal) / dot(ray_dir, face_normal);
+    auto t = dot(cyl_vertices[face_idx] - ctx.p0, face_normal) / dot(ray_dir, face_normal);
     intersection = lerp(ctx.p0, ctx.p1, t);
-    dist_sqr = distance_sqr(intersection, cyl_vertices[face_idx]);
+    auto dist_sqr = distance_sqr(intersection, cyl_vertices[face_idx]);
 
     if (dist_sqr > radius_sqr) {
         return {};
@@ -219,7 +260,6 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     auto result = shape_raycast_result{};
     result.proportion = t;
     result.normal = face_normal;
-    result.feature.feature = cylinder_feature::face;
     result.feature.index = face_idx;
 
     if (dist_sqr > square(radius - tolerance)) {
@@ -231,34 +271,44 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     return result;
 }
 
-shape_raycast_result raycast(const sphere_shape &sphere, const raycast_context &ctx) {
+bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t) {
     // Reference: Real-Time Collision Detection - Christer Ericson,
     // Section 5.3.2 - Intersecting Ray or Segment Against Sphere.
     // Substitute parametrized line function into sphere equation and
     // solve quadratic.
-    auto r = sphere.radius;
-    auto d = ctx.p1 - ctx.p0;
-    auto m = ctx.p0 - ctx.pos;
+    auto d = p1 - p0;
+    auto m = p0 - pos;
     auto a = dot(d, d);
     auto b = dot(m, d);
-    auto c = dot(m, m) - r * r;
+    auto c = dot(m, m) - radius * radius;
 
     // Exit if p0 is outside sphere and ray is pointing away from sphere.
     if (c > 0 && b > 0) {
-        return {};
+        return false;
     }
 
     auto discr = b * b - a * c;
 
     // A negative discriminant corresponds to ray missing sphere.
     if (discr < 0) {
-        return {};
+        return false;
     }
 
     // Ray intersects sphere. Compute smallest t.
-    auto t = (-b - std::sqrt(discr)) / a;
+    t = (-b - std::sqrt(discr)) / a;
     // If t is negative, ray started inside sphere so clamp it to zero.
     t = std::max(scalar(0), t);
+
+    return true;
+}
+
+shape_raycast_result raycast(const sphere_shape &sphere, const raycast_context &ctx) {
+    scalar t;
+
+    if (!intersect_ray_sphere(ctx.p0, ctx.p1, ctx.pos, sphere.radius, t)) {
+        return {};
+    }
+
     auto intersection = lerp(ctx.p0, ctx.p1, t);
 
     shape_raycast_result result;
@@ -267,8 +317,65 @@ shape_raycast_result raycast(const sphere_shape &sphere, const raycast_context &
     return result;
 }
 
-shape_raycast_result raycast(const capsule_shape &, const raycast_context &ctx) {
-    return {};
+shape_raycast_result raycast(const capsule_shape &capsule, const raycast_context &ctx) {
+    scalar u;
+    auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
+                                                   capsule.radius, capsule.half_length, u);
+
+    if (intersect_result.kind == intersect_ray_cylinder_result::kind::distance_greater_than_radius) {
+        return {};
+    }
+
+    auto vertices = capsule.get_vertices(ctx.pos, ctx.orn);
+    auto cap_dir = vertices[1] - vertices[0];
+    auto radius = capsule.radius;
+
+    auto intersect_hemisphere = [&] (int hemi_idx) -> shape_raycast_result {
+        if (!intersect_ray_sphere(ctx.p0, ctx.p1, vertices[hemi_idx], radius, u)) {
+            return {};
+        }
+
+        auto intersection = lerp(ctx.p0, ctx.p1, u);
+        auto normal = normalize(intersection - ctx.pos);
+
+        auto result = shape_raycast_result{};
+        result.proportion = u;
+        result.normal = normal;
+        result.feature.feature = capsule_feature::hemisphere;
+        result.feature.index = hemi_idx;
+        return result;
+    };
+
+    if (intersect_result.kind == intersect_ray_cylinder_result::kind::parallel_directions) {
+        // Capsule and segment are parallel. Check if segment intersects a
+        // hemisphere.
+        auto hemi_idx = dot(ctx.p0 - ctx.pos, cap_dir) < 0 ? 0 : 1;
+        return intersect_hemisphere(hemi_idx);
+    }
+
+    // Line intersects infinite cylinder. Check if it's within finite
+    // cylindrical section.
+    auto intersection = lerp(ctx.p0, ctx.p1, u);
+
+    scalar projections[] = {
+        dot(intersection - vertices[0], cap_dir),
+        dot(intersection - vertices[1], cap_dir)
+    };
+
+    if (projections[0] > 0 && projections[1] < 0) {
+        // Intersection lies on the side of cylindrical section.
+        auto result = shape_raycast_result{};
+        result.proportion = u;
+        result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
+        result.feature.feature = capsule_feature::side;
+
+        return result;
+    }
+
+    // Intersection point is beyond cylindrical section.
+    // Intersect line with hemisphere.
+    auto hemi_idx = projections[0] < 0 ? 0 : 1;
+    return intersect_hemisphere(hemi_idx);
 }
 
 shape_raycast_result raycast(const polyhedron_shape &, const raycast_context &ctx) {
