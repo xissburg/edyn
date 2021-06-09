@@ -14,6 +14,7 @@
 #include "edyn/math/math.hpp"
 #include "edyn/config/constants.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
+#include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include <entt/entt.hpp>
 
@@ -378,8 +379,74 @@ shape_raycast_result raycast(const capsule_shape &capsule, const raycast_context
     return intersect_hemisphere(hemi_idx);
 }
 
-shape_raycast_result raycast(const polyhedron_shape &, const raycast_context &ctx) {
-    return {};
+shape_raycast_result raycast(const polyhedron_shape &poly, const raycast_context &ctx) {
+    // Reference: Real-Time Collision Detection - Christer Ericson,
+    // Section 5.3.8 - Intersecting Ray or Segment Against Convex Polyhedron.
+    auto p0 = to_object_space(ctx.p0, ctx.pos, ctx.orn);
+    auto p1 = to_object_space(ctx.p1, ctx.pos, ctx.orn);
+    auto d = p1 - p0;
+    auto t0 = scalar(0);
+    auto t1 = scalar(1);
+    auto intersect_face_idx = SIZE_MAX;
+
+    for (size_t face_idx = 0; face_idx < poly.mesh->num_faces(); ++face_idx) {
+        auto vertex = poly.mesh->vertices[poly.mesh->first_vertex_index(face_idx)];
+        auto normal = poly.mesh->normals[face_idx];
+        auto dist = dot(vertex - p0, normal);
+        auto denom = dot(normal, d);
+
+        // Test if segment runs parallel to the plane.
+        if (std::abs(denom) < EDYN_EPSILON) {
+            // Segment does not intersect polyhedron if there's any face that is
+            // parallel to it and it lies in front of the face.
+            if (dist > 0) {
+                return {};
+            }
+        } else {
+            // Compute parametrized `t` value for intersection with plane of
+            // current face.
+            auto t = dist / denom;
+
+            if (denom < 0) {
+                // When entering face, assign `t` to `t0` if `t` is greater.
+                if (t > t0) {
+                    t0 = t;
+                    intersect_face_idx = face_idx;
+                }
+            } else {
+                // When exiting face, assign `t` to `t1` if `t` is smaller.
+                if (t < t1) {
+                    t1 = t;
+                }
+            }
+
+            // Intersection range has become empty.
+            if (t0 > t1) {
+                return {};
+            }
+        }
+    }
+
+    auto intersection = lerp(p0, p1, t0);
+    auto tolerance = raycast_feature_tolerance;
+    auto tolerance_sqr = tolerance * tolerance;
+    auto result = shape_raycast_result{};
+    result.proportion = t0;
+    result.normal = rotate(ctx.orn, poly.mesh->normals[intersect_face_idx]);
+    result.feature.feature = polyhedron_feature::face;
+    result.feature.index = intersect_face_idx;
+
+    for (size_t i = 0; i < poly.mesh->vertex_count(intersect_face_idx); ++i) {
+        auto v_idx = poly.mesh->face_vertex_index(intersect_face_idx, i);
+        auto vertex = poly.mesh->vertices[v_idx];
+
+        if (distance_sqr(vertex, intersection) < tolerance_sqr) {
+            result.feature.feature = polyhedron_feature::vertex;
+            result.feature.index = v_idx;
+        }
+    }
+
+    return result;
 }
 
 shape_raycast_result raycast(const compound_shape &, const raycast_context &ctx) {

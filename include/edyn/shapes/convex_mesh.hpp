@@ -57,17 +57,22 @@ struct convex_mesh {
         return faces.size() / 2;
     }
 
+    uint16_t face_vertex_index(size_t face_idx, size_t vertex_idx) const {
+        auto face_index_idx = face_idx * 2;
+        EDYN_ASSERT(face_index_idx < faces.size());
+        auto index_idx = faces[face_index_idx];
+        EDYN_ASSERT(index_idx < indices.size());
+        EDYN_ASSERT(vertex_idx < faces[face_index_idx + 1]);
+        return indices[index_idx + vertex_idx];
+    }
+
     /**
      * @brief Returns the index of the first vertex of a face.
      * @param face_idx Face index.
      * @return Vertex index of the first vertex in the face.
      */
     uint16_t first_vertex_index(size_t face_idx) const {
-        auto face_index_idx = face_idx * 2;
-        EDYN_ASSERT(face_index_idx < faces.size());
-        auto index_idx = faces[face_index_idx];
-        EDYN_ASSERT(index_idx < indices.size());
-        return indices[index_idx];
+        return face_vertex_index(face_idx, 0);
     }
 
     /**
