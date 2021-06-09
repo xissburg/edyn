@@ -59,7 +59,7 @@ def.orientation = edyn::quaternion_axis_angle({0, 1, 0}, edyn::to_radians(30));
 def.linvel = edyn::vector3_zero;
 def.angvel = {0, 0.314, 0};
 def.mass = 50;
-def.shape_opt = {edyn::box_shape{0.5, 0.2, 0.4}}; // Shape is optional.
+def.shape_opt = edyn::box_shape{0.5, 0.2, 0.4}; // Shape is optional.
 def.update_inertia();
 def.restitution = 0.2;
 def.friction = 0.9;
