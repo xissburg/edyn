@@ -137,8 +137,9 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     auto cyl_dir_norm = normalize(cyl_dir);
     auto face_idx = dot(ctx.p0 - ctx.pos, cyl_dir) < 0 ? 0 : 1;
     auto face_normal = cyl_dir_norm * (face_idx == 0 ? -1 : 1);
-    auto radius_sqr = square(cylinder.radius);
-    auto tolerance_sqr = square(raycast_feature_tolerance);
+    auto radius = cylinder.radius;
+    auto radius_sqr = square(radius);
+    auto tolerance = raycast_feature_tolerance;
     scalar s, t;
 
     if (!closest_point_line_line(cyl_vertices[0], cyl_vertices[1], ctx.p0, ctx.p1, s, t)) {
@@ -156,7 +157,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
         result.normal = face_normal;
         result.feature.index = face_idx;
 
-        if (dist_sqr > radius_sqr - tolerance_sqr) {
+        if (dist_sqr > square(radius - tolerance)) {
             result.feature.feature = cylinder_feature::cap_edge;
         } else {
             result.feature.feature = cylinder_feature::face;
@@ -221,7 +222,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     result.feature.feature = cylinder_feature::face;
     result.feature.index = face_idx;
 
-    if (dist_sqr > radius_sqr - tolerance_sqr) {
+    if (dist_sqr > square(radius - tolerance)) {
         result.feature.feature = cylinder_feature::cap_edge;
     } else {
         result.feature.feature = cylinder_feature::face;
@@ -230,8 +231,40 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     return result;
 }
 
-shape_raycast_result raycast(const sphere_shape &, const raycast_context &ctx) {
-    return {};
+shape_raycast_result raycast(const sphere_shape &sphere, const raycast_context &ctx) {
+    // Reference: Real-Time Collision Detection - Christer Ericson,
+    // Section 5.3.2 - Intersecting Ray or Segment Against Sphere.
+    // Substitute parametrized line function into sphere equation and
+    // solve quadratic.
+    auto r = sphere.radius;
+    auto d = ctx.p1 - ctx.p0;
+    auto m = ctx.p0 - ctx.pos;
+    auto a = dot(d, d);
+    auto b = dot(m, d);
+    auto c = dot(m, m) - r * r;
+
+    // Exit if p0 is outside sphere and ray is pointing away from sphere.
+    if (c > 0 && b > 0) {
+        return {};
+    }
+
+    auto discr = b * b - a * c;
+
+    // A negative discriminant corresponds to ray missing sphere.
+    if (discr < 0) {
+        return {};
+    }
+
+    // Ray intersects sphere. Compute smallest t.
+    auto t = (-b - std::sqrt(discr)) / a;
+    // If t is negative, ray started inside sphere so clamp it to zero.
+    t = std::max(scalar(0), t);
+    auto intersection = lerp(ctx.p0, ctx.p1, t);
+
+    shape_raycast_result result;
+    result.proportion = t;
+    result.normal = normalize(intersection - ctx.pos);
+    return result;
 }
 
 shape_raycast_result raycast(const capsule_shape &, const raycast_context &ctx) {
