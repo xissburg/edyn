@@ -332,7 +332,15 @@ void collide(const mesh_shape &shA, const T &shB,
 template<typename T>
 void collide(const T &shA, const paged_mesh_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    shB.trimesh->visit_submeshes(ctx.aabbA, [&] (size_t mesh_idx) {
+    // Inset AABB to load nearby submeshes.
+    constexpr auto inset = vector3 {
+        -contact_breaking_threshold,
+        -contact_breaking_threshold,
+        -contact_breaking_threshold
+    };
+    auto inset_aabb = ctx.aabbA.inset(inset);
+
+    shB.trimesh->visit_submeshes(inset_aabb, [&] (size_t mesh_idx) {
         auto trimesh = shB.trimesh->get_submesh(mesh_idx);
         collide(shA, *trimesh, ctx, result);
     });

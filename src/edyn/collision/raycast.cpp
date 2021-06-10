@@ -16,6 +16,8 @@
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/shapes/shapes.hpp"
+#include "edyn/shapes/triangle_mesh.hpp"
+#include "edyn/util/triangle_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -123,62 +125,6 @@ shape_raycast_result raycast(const box_shape &box, const raycast_context &ctx) {
     return result;
 }
 
-
-struct intersect_ray_cylinder_result {
-    enum class kind {
-        parallel_directions,
-        distance_greater_than_radius,
-        intersects
-    };
-
-    kind kind;
-    scalar dist_sqr;
-    vector3 normal;
-};
-
-intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) {
-    // Let a plane be defined by the ray and the vector orthogonal to the
-    // cylinder axis and the ray (i.e. their cross product). This plane cuts
-    // the cylinder and their intersection is an ellipse with vertical half
-    // length equals to the cylinder radius and horizontal half length bigger
-    // than that. First, the parameters for the closest point between the lines
-    // spanned by the cylinder axis and the ray are found. By subtracting an
-    // amount from the parameter for the ray, the intersection point can be
-    // found.
-    auto cyl_dir = quaternion_x(orn);
-    vector3 cyl_vertices[] = {
-        pos + cyl_dir * half_length,
-        pos - cyl_dir * half_length
-    };
-    scalar s, t;
-
-    if (!closest_point_line_line(cyl_vertices[0], cyl_vertices[1], p0, p1, s, t)) {
-        return {intersect_ray_cylinder_result::kind::parallel_directions};
-    }
-
-    auto radius_sqr = square(radius);
-    auto closest_cyl = lerp(cyl_vertices[0], cyl_vertices[1], s);
-    auto closest_ray = lerp(p0, p1, t);
-    auto normal = closest_ray - closest_cyl;
-    auto dist_sqr = length_sqr(normal);
-
-    // Distance between lines bigger than radius.
-    if (dist_sqr > radius_sqr) {
-        return {intersect_ray_cylinder_result::kind::distance_greater_than_radius};
-    }
-
-    // Offset `t` backwards to place it where the intersection happens.
-    auto d = p1 - p0;
-    auto e = cyl_vertices[1] - cyl_vertices[0];
-    auto dd = dot(d, d);
-    auto ee = dot(e, e);
-    auto de = dot(d, e);
-    auto g_sqr = (radius_sqr - dist_sqr) * ee / (dd * ee - de * de);
-    auto g = std::sqrt(g_sqr);
-    u = t - g;
-    return {intersect_ray_cylinder_result::kind::intersects, dist_sqr, normal};
-}
-
 shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_context &ctx) {
     scalar u;
     auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
@@ -270,37 +216,6 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     }
 
     return result;
-}
-
-bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t) {
-    // Reference: Real-Time Collision Detection - Christer Ericson,
-    // Section 5.3.2 - Intersecting Ray or Segment Against Sphere.
-    // Substitute parametrized line function into sphere equation and
-    // solve quadratic.
-    auto d = p1 - p0;
-    auto m = p0 - pos;
-    auto a = dot(d, d);
-    auto b = dot(m, d);
-    auto c = dot(m, m) - radius * radius;
-
-    // Exit if p0 is outside sphere and ray is pointing away from sphere.
-    if (c > 0 && b > 0) {
-        return false;
-    }
-
-    auto discr = b * b - a * c;
-
-    // A negative discriminant corresponds to ray missing sphere.
-    if (discr < 0) {
-        return false;
-    }
-
-    // Ray intersects sphere. Compute smallest t.
-    t = (-b - std::sqrt(discr)) / a;
-    // If t is negative, ray started inside sphere so clamp it to zero.
-    t = std::max(scalar(0), t);
-
-    return true;
 }
 
 shape_raycast_result raycast(const sphere_shape &sphere, const raycast_context &ctx) {
@@ -498,39 +413,18 @@ shape_raycast_result raycast(const plane_shape &plane, const raycast_context &ct
 }
 
 shape_raycast_result raycast(const mesh_shape &mesh, const raycast_context &ctx) {
+    auto &trimesh = mesh.trimesh;
     shape_raycast_result result;
 
-    mesh.trimesh->raycast(ctx.p0, ctx.p1, [&] (auto tri_idx) {
-        auto vertices = mesh.trimesh->get_triangle_vertices(tri_idx);
-        auto normal = mesh.trimesh->get_triangle_normal(tri_idx);
-        auto d = dot(ctx.p1 - ctx.p0, normal);
-        auto e = dot(vertices[0] - ctx.p0, normal);
+    trimesh->raycast(ctx.p0, ctx.p1, [&] (auto tri_idx) {
+        auto vertices = trimesh->get_triangle_vertices(tri_idx);
+        auto normal = trimesh->get_triangle_normal(tri_idx);
         auto t = scalar(0);
 
-        if (std::abs(d) > EDYN_EPSILON) {
-            t = e / d;
-        } else {
-            // Ray is parallel to plane. Do not continue if ray is not
-            // contained in plane.
-            if (std::abs(e) > EDYN_EPSILON) {
-                return;
-            }
+        if (!intersect_segment_triangle(ctx.p0, ctx.p1, vertices, normal, t)) {
+            return;
         }
 
-        auto intersection = lerp(ctx.p0, ctx.p1, t);
-
-        for (size_t i = 0; i < 3; ++i) {
-            auto v0 = vertices[i];
-            auto v1 = vertices[(i + 1) % 3];
-            auto edge_dir = v1 - v0;
-            auto tangent = cross(normal, edge_dir);
-
-            if (dot(tangent, intersection - v0) < 0) {
-                return;
-            }
-        }
-
-        // Intersection is inside triangle.
         if (t < result.proportion) {
             result.proportion = t;
             result.normal = normal;
@@ -541,8 +435,28 @@ shape_raycast_result raycast(const mesh_shape &mesh, const raycast_context &ctx)
     return result;
 }
 
-shape_raycast_result raycast(const paged_mesh_shape &, const raycast_context &ctx) {
-    return {};
+shape_raycast_result raycast(const paged_mesh_shape &paged_mesh, const raycast_context &ctx) {
+    shape_raycast_result result;
+
+    paged_mesh.trimesh->raycast_cached(ctx.p0, ctx.p1, [&] (auto submesh_idx, auto tri_idx) {
+        auto trimesh = paged_mesh.trimesh->get_submesh(submesh_idx);
+        auto vertices = trimesh->get_triangle_vertices(tri_idx);
+        auto normal = trimesh->get_triangle_normal(tri_idx);
+        auto t = scalar(0);
+
+        if (!intersect_segment_triangle(ctx.p0, ctx.p1, vertices, normal, t)) {
+            return;
+        }
+
+        // Intersection is inside triangle.
+        if (t < result.proportion) {
+            result.proportion = t;
+            result.normal = normal;
+            result.feature.index = (static_cast<uint64_t>(submesh_idx) << 32) | tri_idx;
+        }
+    });
+
+    return result;
 }
 
 }

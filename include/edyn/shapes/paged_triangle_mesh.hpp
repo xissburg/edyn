@@ -35,16 +35,17 @@ public:
 
     paged_triangle_mesh(std::shared_ptr<triangle_mesh_page_loader_base> loader);
 
+    /**
+     * @brief Visit submeshes which intersect the given AABB. It will start
+     * loading submeshes that are not yet in the cache so subsequent calls
+     * with a similar AABB should hit those submeshes.
+     * @tparam Func Type of the function object to invoke.
+     * @param aabb Query AABB.
+     * @param func Will be called with submesh index.
+     */
     template<typename Func>
     void visit_submeshes(const AABB &aabb, Func func) {
-        constexpr auto inset = vector3 {
-            -contact_breaking_threshold,
-            -contact_breaking_threshold,
-            -contact_breaking_threshold
-        };
-        auto inset_aabb = aabb.inset(inset);
-
-        m_tree.query(inset_aabb, [&] (auto tree_node_idx) {
+        m_tree.query(aabb, [&] (auto tree_node_idx) {
             auto mesh_idx = m_tree.get_node(tree_node_idx).id;
             load_node_if_needed(mesh_idx);
 
@@ -55,6 +56,11 @@ public:
         });
     }
 
+    /**
+     * @brief Loops over all edges present in the cache.
+     * @tparam Func Type of the function object to invoke.
+     * @param func Will be called with the submesh index and edge index.
+     */
     template<typename Func>
     void visit_all_cached_edges(Func func) const {
         for (size_t mesh_idx = 0; mesh_idx < m_cache.size(); ++mesh_idx) {
@@ -80,20 +86,13 @@ public:
      */
     template<typename Func>
     void visit_triangles(const AABB &aabb, Func func) {
-        constexpr auto inset = vector3 {
-            -contact_breaking_threshold,
-            -contact_breaking_threshold,
-            -contact_breaking_threshold
-        };
-        auto inset_aabb = aabb.inset(inset);
-
-        m_tree.query(inset_aabb, [&] (auto tree_node_idx) {
+        m_tree.query(aabb, [&] (auto tree_node_idx) {
             auto mesh_idx = m_tree.get_node(tree_node_idx).id;
             load_node_if_needed(mesh_idx);
             auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit_triangles(inset_aabb, [=] (uint32_t tri_idx) {
+                trimesh->visit_triangles(aabb, [=] (uint32_t tri_idx) {
                     func(mesh_idx, tri_idx);
                 });
                 mark_recent_visit(mesh_idx);
@@ -148,6 +147,57 @@ public:
         }
     }
 
+    /**
+     * @brief Performs a raycast on the submeshes and triangles. It will start
+     * loading any submeshes that are touched by the segment so subsequent calls
+     * will likely hit submeshes that are not currently in the cache.
+     * @tparam Func Type of the function object to invoke.
+     * @param p0 First point in the ray.
+     * @param p1 Second point in the ray.
+     * @param func Will be called with the submesh index and triangle index.
+     */
+    template<typename Func>
+    void raycast(const vector3 &p0, const vector3 &p1, Func func) {
+        m_tree.raycast(p0, p1, [&] (auto tree_node_idx) {
+            auto mesh_idx = m_tree.get_node(tree_node_idx).id;
+            load_node_if_needed(mesh_idx);
+            auto trimesh = m_cache[mesh_idx].trimesh;
+
+            if (trimesh) {
+                trimesh->raycast(p0, p1, [=] (uint32_t tri_idx) {
+                    func(mesh_idx, tri_idx);
+                });
+                mark_recent_visit(mesh_idx);
+            }
+        });
+    }
+
+    /**
+     * @brief Performs a raycast on the submeshes and triangles. Only considers
+     * submeshes that are present in the cache.
+     * @tparam Func Type of the function object to invoke.
+     * @param p0 First point in the ray.
+     * @param p1 Second point in the ray.
+     * @param func Will be called with the submesh index and triangle index.
+     */
+    template<typename Func>
+    void raycast_cached(const vector3 &p0, const vector3 &p1, Func func) const {
+        m_tree.raycast(p0, p1, [&] (auto tree_node_idx) {
+            auto mesh_idx = m_tree.get_node(tree_node_idx).id;
+            auto trimesh = m_cache[mesh_idx].trimesh;
+
+            if (trimesh) {
+                trimesh->raycast(p0, p1, [=] (uint32_t tri_idx) {
+                    func(mesh_idx, tri_idx);
+                });
+            }
+        });
+    }
+
+    /**
+     * @brief Get AABB of entire mesh.
+     * @return AABB of mesh.
+     */
     AABB get_aabb() const {
         return m_tree.root_aabb();
     }

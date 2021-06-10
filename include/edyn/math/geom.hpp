@@ -370,6 +370,26 @@ bool point_in_polygonal_prism(const std::array<vector3, N> &vertices,
 bool intersect_segment_aabb(vector3 p0, vector3 p1,
                             vector3 aabb_min, vector3 aabb_max);
 
+struct intersect_ray_cylinder_result {
+    enum class kind {
+        parallel_directions,
+        distance_greater_than_radius,
+        intersects
+    };
+
+    kind kind;
+    scalar dist_sqr;
+    vector3 normal;
+};
+
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u);
+
+bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t);
+
+bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
+                                const std::array<vector3, 3> &vertices,
+                                const vector3 &normal, scalar &t);
+
 }
 
 #endif // EDYN_MATH_GEOM_HPP
