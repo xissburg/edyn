@@ -7,17 +7,10 @@
 #include "edyn/collision/broadphase_main.hpp"
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/math/geom.hpp"
-#include "edyn/math/quaternion.hpp"
-#include "edyn/math/scalar.hpp"
-#include "edyn/math/vector3.hpp"
-#include "edyn/shapes/box_shape.hpp"
 #include "edyn/math/math.hpp"
-#include "edyn/config/constants.hpp"
-#include "edyn/shapes/cylinder_shape.hpp"
-#include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/shapes/shapes.hpp"
-#include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/util/triangle_util.hpp"
+#include "edyn/util/tuple_util.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -111,16 +104,10 @@ shape_raycast_result raycast(const box_shape &box, const raycast_context &ctx) {
         }
     }
 
-    // Find feature closest to point of intersection.
-    auto intersection = lerp(p0, p1, t_min);
-    auto [feature, feature_idx] =
-        box.get_closest_feature_on_face(face_idx, intersection, raycast_feature_tolerance);
-
     auto result = shape_raycast_result{};
     result.proportion = t_min;
     result.normal = box.get_face_normal(face_idx, ctx.orn);
-    result.feature.feature = feature;
-    result.feature.index = feature_idx;
+    result.info_var = box_raycast_info{face_idx};
 
     return result;
 }
@@ -138,11 +125,10 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     auto ray_dir = ctx.p1 - ctx.p0;
     auto cyl_dir = cyl_vertices[1] - cyl_vertices[0];
     auto cyl_dir_norm = normalize(cyl_dir);
-    auto face_idx = dot(ctx.p0 - ctx.pos, cyl_dir) < 0 ? 0 : 1;
+    auto face_idx = dot(ctx.p0 - ctx.pos, cyl_dir) < 0 ? size_t(0) : size_t(1);
     auto face_normal = cyl_dir_norm * (face_idx == 0 ? -1 : 1);
     auto radius = cylinder.radius;
     auto radius_sqr = square(radius);
-    auto tolerance = raycast_feature_tolerance;
 
     if (intersect_result.kind == intersect_ray_cylinder_result::kind::parallel_directions) {
         // Cylinder and segment are parallel. Check if segment intersects a
@@ -157,13 +143,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
         auto result = shape_raycast_result{};
         result.proportion = u;
         result.normal = face_normal;
-        result.feature.index = face_idx;
-
-        if (dist_sqr > square(radius - tolerance)) {
-            result.feature.feature = cylinder_feature::cap_edge;
-        } else {
-            result.feature.feature = cylinder_feature::face;
-        }
+        result.info_var = cylinder_raycast_info{cylinder_feature::face, face_idx};
 
         return result;
     }
@@ -180,17 +160,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
         auto result = shape_raycast_result{};
         result.proportion = u;
         result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
-
-        if (projections[0] < raycast_feature_tolerance) {
-            result.feature.feature = cylinder_feature::cap_edge;
-            result.feature.index = 0;
-        } else if (projections[1] > -raycast_feature_tolerance) {
-            result.feature.feature = cylinder_feature::cap_edge;
-            result.feature.index = 1;
-        } else {
-            result.feature.feature = cylinder_feature::side_edge;
-        }
-
+        result.info_var = cylinder_raycast_info{cylinder_feature::side_edge};
         return result;
     }
 
@@ -207,13 +177,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     auto result = shape_raycast_result{};
     result.proportion = t;
     result.normal = face_normal;
-    result.feature.index = face_idx;
-
-    if (dist_sqr > square(radius - tolerance)) {
-        result.feature.feature = cylinder_feature::cap_edge;
-    } else {
-        result.feature.feature = cylinder_feature::face;
-    }
+    result.info_var = cylinder_raycast_info{cylinder_feature::face, face_idx};
 
     return result;
 }
@@ -246,7 +210,7 @@ shape_raycast_result raycast(const capsule_shape &capsule, const raycast_context
     auto cap_dir = vertices[1] - vertices[0];
     auto radius = capsule.radius;
 
-    auto intersect_hemisphere = [&] (int hemi_idx) -> shape_raycast_result {
+    auto intersect_hemisphere = [&] (size_t hemi_idx) -> shape_raycast_result {
         if (!intersect_ray_sphere(ctx.p0, ctx.p1, vertices[hemi_idx], radius, u)) {
             return {};
         }
@@ -257,8 +221,7 @@ shape_raycast_result raycast(const capsule_shape &capsule, const raycast_context
         auto result = shape_raycast_result{};
         result.proportion = u;
         result.normal = normal;
-        result.feature.feature = capsule_feature::hemisphere;
-        result.feature.index = hemi_idx;
+        result.info_var = capsule_raycast_info{capsule_feature::hemisphere, hemi_idx};
         return result;
     };
 
@@ -283,7 +246,7 @@ shape_raycast_result raycast(const capsule_shape &capsule, const raycast_context
         auto result = shape_raycast_result{};
         result.proportion = u;
         result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
-        result.feature.feature = capsule_feature::side;
+        result.info_var = capsule_raycast_info{capsule_feature::side};
 
         return result;
     }
@@ -342,24 +305,12 @@ shape_raycast_result raycast(const polyhedron_shape &poly, const raycast_context
         }
     }
 
-    auto intersection = lerp(p0, p1, t0);
-    auto tolerance = raycast_feature_tolerance;
-    auto tolerance_sqr = tolerance * tolerance;
+    EDYN_ASSERT(intersect_face_idx != SIZE_MAX);
+
     auto result = shape_raycast_result{};
     result.proportion = t0;
     result.normal = rotate(ctx.orn, poly.mesh->normals[intersect_face_idx]);
-    result.feature.feature = polyhedron_feature::face;
-    result.feature.index = intersect_face_idx;
-
-    for (size_t i = 0; i < poly.mesh->vertex_count(intersect_face_idx); ++i) {
-        auto v_idx = poly.mesh->face_vertex_index(intersect_face_idx, i);
-        auto vertex = poly.mesh->vertices[v_idx];
-
-        if (distance_sqr(vertex, intersection) < tolerance_sqr) {
-            result.feature.feature = polyhedron_feature::vertex;
-            result.feature.index = v_idx;
-        }
-    }
+    result.info_var = polyhedron_raycast_info{intersect_face_idx};
 
     return result;
 }
@@ -379,9 +330,18 @@ shape_raycast_result raycast(const compound_shape &compound, const raycast_conte
         auto child_result = raycast(shape, child_ctx);
 
         if (child_result.proportion < result.proportion) {
-            result = child_result;
+            result.proportion = child_result.proportion;
             result.normal = rotate(ctx.orn, child_result.normal);
-            result.feature.index = node_index;
+            auto info = compound_raycast_info{node_index};
+            // Obtain and assign relevant child info.
+            using child_info_var_t = decltype(info.child_info_var);
+            std::visit([&] (auto &&child_info) {
+                using child_info_t = std::decay_t<decltype(child_info)>;
+                if constexpr(has_type<child_info_t, child_info_var_t>::value) {
+                    info.child_info_var = child_info;
+                }
+            }, child_result.info_var);
+            result.info_var = info;
         }
     });
 
@@ -428,7 +388,7 @@ shape_raycast_result raycast(const mesh_shape &mesh, const raycast_context &ctx)
         if (t < result.proportion) {
             result.proportion = t;
             result.normal = normal;
-            result.feature.index = tri_idx;
+            result.info_var = mesh_raycast_info{tri_idx};
         }
     });
 
@@ -452,7 +412,7 @@ shape_raycast_result raycast(const paged_mesh_shape &paged_mesh, const raycast_c
         if (t < result.proportion) {
             result.proportion = t;
             result.normal = normal;
-            result.feature.index = (static_cast<uint64_t>(submesh_idx) << 32) | tri_idx;
+            result.info_var = paged_mesh_raycast_info{submesh_idx, tri_idx};
         }
     });
 

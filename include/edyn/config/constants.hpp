@@ -51,11 +51,6 @@ inline constexpr auto island_time_to_sleep = scalar(2);
  */
 inline constexpr auto support_feature_tolerance = scalar(0.004);
 
-/**
- * Tolerance used when determining which shape feature is closest to the ray.
- */
-inline constexpr auto raycast_feature_tolerance = scalar(0.02);
-
 }
 
 #endif // EDYN_CONFIG_CONSTANTS_HPP
