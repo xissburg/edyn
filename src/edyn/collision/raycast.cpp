@@ -497,8 +497,48 @@ shape_raycast_result raycast(const plane_shape &plane, const raycast_context &ct
     }
 }
 
-shape_raycast_result raycast(const mesh_shape &, const raycast_context &ctx) {
-    return {};
+shape_raycast_result raycast(const mesh_shape &mesh, const raycast_context &ctx) {
+    shape_raycast_result result;
+
+    mesh.trimesh->raycast(ctx.p0, ctx.p1, [&] (auto tri_idx) {
+        auto vertices = mesh.trimesh->get_triangle_vertices(tri_idx);
+        auto normal = mesh.trimesh->get_triangle_normal(tri_idx);
+        auto d = dot(ctx.p1 - ctx.p0, normal);
+        auto e = dot(vertices[0] - ctx.p0, normal);
+        auto t = scalar(0);
+
+        if (std::abs(d) > EDYN_EPSILON) {
+            t = e / d;
+        } else {
+            // Ray is parallel to plane. Do not continue if ray is not
+            // contained in plane.
+            if (std::abs(e) > EDYN_EPSILON) {
+                return;
+            }
+        }
+
+        auto intersection = lerp(ctx.p0, ctx.p1, t);
+
+        for (size_t i = 0; i < 3; ++i) {
+            auto v0 = vertices[i];
+            auto v1 = vertices[(i + 1) % 3];
+            auto edge_dir = v1 - v0;
+            auto tangent = cross(normal, edge_dir);
+
+            if (dot(tangent, intersection - v0) < 0) {
+                return;
+            }
+        }
+
+        // Intersection is inside triangle.
+        if (t < result.proportion) {
+            result.proportion = t;
+            result.normal = normal;
+            result.feature.index = tri_idx;
+        }
+    });
+
+    return result;
 }
 
 shape_raycast_result raycast(const paged_mesh_shape &, const raycast_context &ctx) {

@@ -125,6 +125,14 @@ public:
         }
     }
 
+    template<typename Func>
+    void raycast(const vector3 &p0, const vector3 &p1, Func func) const {
+        m_triangle_tree.raycast(p0, p1, [&] (auto tree_node_idx) {
+            auto tri_idx = m_triangle_tree.get_node(tree_node_idx).id;
+            func(tri_idx);
+        });
+    }
+
     bool in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) const;
 
     bool in_edge_voronoi(size_t edge_idx, const vector3 &dir) const;
