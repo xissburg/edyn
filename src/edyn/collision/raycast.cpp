@@ -473,8 +473,28 @@ shape_raycast_result raycast(const compound_shape &compound, const raycast_conte
     return result;
 }
 
-shape_raycast_result raycast(const plane_shape &, const raycast_context &ctx) {
-    return {};
+shape_raycast_result raycast(const plane_shape &plane, const raycast_context &ctx) {
+    auto c = plane.normal * plane.constant;
+    auto d = dot(ctx.p1 - ctx.p0, plane.normal);
+    auto e = dot(c - ctx.p0, plane.normal);
+
+    if (std::abs(d) < EDYN_EPSILON) {
+        // Ray is parallel to plane.
+        if (std::abs(e) < EDYN_EPSILON) {
+            auto result = shape_raycast_result{};
+            result.proportion = 0;
+            result.normal = plane.normal;
+            return result;
+        } else {
+            return {};
+        }
+    } else {
+        auto t = e / d;
+        auto result = shape_raycast_result{};
+        result.proportion = t;
+        result.normal = plane.normal;
+        return result;
+    }
 }
 
 shape_raycast_result raycast(const mesh_shape &, const raycast_context &ctx) {
