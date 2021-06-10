@@ -5,27 +5,27 @@
 namespace edyn {
 
 dynamic_tree::dynamic_tree()
-    : m_root(null_node_id)
-    , m_free_list(null_node_id)
+    : m_root(null_tree_node_id)
+    , m_free_list(null_tree_node_id)
 {}
 
 tree_node_id_t dynamic_tree::allocate() {
-    if (m_free_list == null_node_id) {
+    if (m_free_list == null_tree_node_id) {
         auto id = static_cast<tree_node_id_t>(m_nodes.size());
         auto &node = m_nodes.emplace_back();
-        node.next = null_node_id;
-        node.parent = null_node_id;
-        node.child1 = null_node_id;
-        node.child2 = null_node_id;
+        node.next = null_tree_node_id;
+        node.parent = null_tree_node_id;
+        node.child1 = null_tree_node_id;
+        node.child2 = null_tree_node_id;
         node.entity = entt::null;
         node.height = 0;
         return id;
     } else {
         auto id = m_free_list;
         auto &node = m_nodes[id];
-        node.parent = null_node_id;
-        node.child1 = null_node_id;
-        node.child2 = null_node_id;
+        node.parent = null_tree_node_id;
+        node.child1 = null_tree_node_id;
+        node.child2 = null_tree_node_id;
         node.entity = entt::null;
         node.height = 0;
         m_free_list = node.next;
@@ -125,9 +125,9 @@ tree_node_id_t dynamic_tree::best(const AABB &aabb) {
 }
 
 void dynamic_tree::insert(tree_node_id_t leaf) {
-    if (m_root == null_node_id) {
+    if (m_root == null_tree_node_id) {
         m_root = leaf;
-        m_nodes[m_root].parent = null_node_id;
+        m_nodes[m_root].parent = null_tree_node_id;
         return;
     }
 
@@ -149,7 +149,7 @@ void dynamic_tree::insert(tree_node_id_t leaf) {
 
     auto &leaf_node = m_nodes[leaf];
 
-    if (old_parent != null_node_id) {
+    if (old_parent != null_tree_node_id) {
         // The sibling was not the root.
         auto &old_parent_node = m_nodes[old_parent];
         if (old_parent_node.child1 == sibling) {
@@ -177,7 +177,7 @@ void dynamic_tree::insert(tree_node_id_t leaf) {
 
 void dynamic_tree::remove(tree_node_id_t leaf) {
     if (leaf == m_root) {
-        m_root = null_node_id;
+        m_root = null_tree_node_id;
         return;
     }
 
@@ -185,17 +185,17 @@ void dynamic_tree::remove(tree_node_id_t leaf) {
     auto parent = node.parent;
     auto &parent_node = m_nodes[parent];
     auto sibling = parent_node.child1 == leaf ? parent_node.child2 : parent_node.child1;
-    EDYN_ASSERT(sibling != null_node_id);
+    EDYN_ASSERT(sibling != null_tree_node_id);
     auto &sibling_node = m_nodes[sibling];
 
     if (parent == m_root) {
         m_root = sibling;
-        sibling_node.parent = null_node_id;
+        sibling_node.parent = null_tree_node_id;
         free(parent);
     } else {
         // Destroy parent and connect sibling to grand parent.
         auto grandpa = parent_node.parent;
-        EDYN_ASSERT(grandpa != null_node_id);
+        EDYN_ASSERT(grandpa != null_tree_node_id);
         auto &grandpa_node = m_nodes[grandpa];
 
         if (grandpa_node.child1 == parent) {
@@ -212,11 +212,11 @@ void dynamic_tree::remove(tree_node_id_t leaf) {
 }
 
 void dynamic_tree::refit(tree_node_id_t id) {
-    while (id != null_node_id) {
+    while (id != null_tree_node_id) {
         id = balance(id);
         auto &node = m_nodes[id];
-        EDYN_ASSERT(node.child1 != null_node_id);
-        EDYN_ASSERT(node.child2 != null_node_id);
+        EDYN_ASSERT(node.child1 != null_tree_node_id);
+        EDYN_ASSERT(node.child2 != null_tree_node_id);
         node.aabb = enclosing_aabb(m_nodes[node.child1].aabb, m_nodes[node.child2].aabb);
         node.height = std::max(m_nodes[node.child1].height, m_nodes[node.child2].height) + 1;
         id = node.parent;
@@ -224,7 +224,7 @@ void dynamic_tree::refit(tree_node_id_t id) {
 }
 
 tree_node_id_t dynamic_tree::balance(tree_node_id_t idA) {
-    EDYN_ASSERT(idA != null_node_id);
+    EDYN_ASSERT(idA != null_tree_node_id);
 
     auto &nodeA = m_nodes[idA];
 
@@ -251,7 +251,7 @@ tree_node_id_t dynamic_tree::balance(tree_node_id_t idA) {
         nodeC.parent = nodeA.parent;
         nodeA.parent = idC;
 
-        if (nodeC.parent != null_node_id) {
+        if (nodeC.parent != null_tree_node_id) {
             // A's old parent should point to C.
             auto &parent_nodeC = m_nodes[nodeC.parent];
             if (parent_nodeC.child1 == idA) {
@@ -300,7 +300,7 @@ tree_node_id_t dynamic_tree::balance(tree_node_id_t idA) {
         nodeB.parent = nodeA.parent;
         nodeA.parent = idB;
 
-        if (nodeB.parent != null_node_id) {
+        if (nodeB.parent != null_tree_node_id) {
             // A's old parent should point to B.
             auto &parent_nodeB = m_nodes[nodeB.parent];
             if (parent_nodeB.child1 == idA) {

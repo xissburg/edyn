@@ -449,8 +449,28 @@ shape_raycast_result raycast(const polyhedron_shape &poly, const raycast_context
     return result;
 }
 
-shape_raycast_result raycast(const compound_shape &, const raycast_context &ctx) {
-    return {};
+shape_raycast_result raycast(const compound_shape &compound, const raycast_context &ctx) {
+    auto p0 = to_object_space(ctx.p0, ctx.pos, ctx.orn);
+    auto p1 = to_object_space(ctx.p1, ctx.pos, ctx.orn);
+    shape_raycast_result result;
+
+    compound.raycast(p0, p1, [&] (auto &&shape, auto node_index) {
+        auto &node = compound.nodes[node_index];
+        auto child_ctx = raycast_context{};
+        child_ctx.p0 = p0;
+        child_ctx.p1 = p1;
+        child_ctx.pos = node.position;
+        child_ctx.orn = node.orientation;
+        auto child_result = raycast(shape, child_ctx);
+
+        if (child_result.proportion < result.proportion) {
+            result = child_result;
+            result.normal = rotate(ctx.orn, child_result.normal);
+            result.feature.index = node_index;
+        }
+    });
+
+    return result;
 }
 
 shape_raycast_result raycast(const plane_shape &, const raycast_context &ctx) {

@@ -287,7 +287,8 @@ void collide(const compound_shape &shA, const T &shB,
     // A more precise AABB could be obtained but it would be generally more expensive.
     //auto aabbB_in_A = shape_aabb(shB, posB_in_A, ornB_in_A);
 
-    shA.visit(aabbB_in_A, [&] (auto &&sh, const compound_shape::shape_node &nodeA) {
+    shA.visit(aabbB_in_A, [&] (auto &&sh, auto node_index) {
+        auto &nodeA = shA.nodes[node_index];
         // New collision context with A's world space position and orientation.
         auto child_ctx = ctx;
         child_ctx.posA = to_world_space(nodeA.position, ctx.posA, ctx.ornA);

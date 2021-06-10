@@ -44,7 +44,8 @@ public:
         };
         auto inset_aabb = aabb.inset(inset);
 
-        m_tree.visit(inset_aabb, [&] (auto mesh_idx) {
+        m_tree.query(inset_aabb, [&] (auto tree_node_idx) {
+            auto mesh_idx = m_tree.get_node(tree_node_idx).id;
             load_node_if_needed(mesh_idx);
 
             if (m_cache[mesh_idx].trimesh) {
@@ -86,7 +87,8 @@ public:
         };
         auto inset_aabb = aabb.inset(inset);
 
-        m_tree.visit(inset_aabb, [&] (auto mesh_idx) {
+        m_tree.query(inset_aabb, [&] (auto tree_node_idx) {
+            auto mesh_idx = m_tree.get_node(tree_node_idx).id;
             load_node_if_needed(mesh_idx);
             auto trimesh = m_cache[mesh_idx].trimesh;
 

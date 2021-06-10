@@ -106,7 +106,10 @@ public:
 
     template<typename Func>
     void visit_triangles(const AABB &aabb, Func func) const {
-        m_triangle_tree.visit(aabb, func);
+        m_triangle_tree.query(aabb, [&] (auto tree_node_idx) {
+            auto tri_idx = m_triangle_tree.get_node(tree_node_idx).id;
+            func(tri_idx);
+        });
     }
 
     template<typename Func>

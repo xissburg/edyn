@@ -2,13 +2,14 @@
 #define EDYN_COLLISION_TREE_NODE_HPP
 
 #include <cstdint>
+#include <limits>
 #include <entt/fwd.hpp>
 #include "edyn/comp/aabb.hpp"
 
 namespace edyn {
 
 using tree_node_id_t = uint32_t;
-constexpr static tree_node_id_t null_node_id = UINT32_MAX;
+constexpr static tree_node_id_t null_tree_node_id = std::numeric_limits<tree_node_id_t>::max();
 
 struct tree_node {
     entt::entity entity;
@@ -26,7 +27,7 @@ struct tree_node {
     int height;
 
     bool leaf() const {
-        return child1 == null_node_id;
+        return child1 == null_tree_node_id;
     }
 };
 

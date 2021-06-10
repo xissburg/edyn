@@ -91,6 +91,7 @@ entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
 
 /**
  * @brief Creates many rigid bodies at once.
+ * A new island is created and all bodies are inserted into it.
  * @param registry Data source.
  * @param defs Rigid body definitions.
  * @return Entities corresponding to each rigid body definition.
