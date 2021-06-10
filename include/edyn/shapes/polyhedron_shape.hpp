@@ -6,12 +6,6 @@
 
 namespace edyn {
 
-enum polyhedron_feature {
-    vertex,
-    edge,
-    face
-};
-
 struct polyhedron_shape {
     /**
      * The convex mesh that backs this polyhedron. It's stored in a shared

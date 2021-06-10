@@ -40,6 +40,8 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
         });
     };
 
+    // This function works both in the coordinator and in an island worker.
+    // Pick the available broadphase and raycast their AABB trees.
     if (registry.try_ctx<broadphase_main>() != nullptr) {
         auto &bphase = registry.ctx<broadphase_main>();
         bphase.raycast_islands(p0, p1, [&] (entt::entity island_entity) {

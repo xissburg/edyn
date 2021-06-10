@@ -382,10 +382,40 @@ struct intersect_ray_cylinder_result {
     vector3 normal;
 };
 
+/**
+ * @brief Intersects a ray with a cylinder.
+ * @param p0 First point in the ray.
+ * @param p1 Second point in the ray.
+ * @param pos Cylinder position.
+ * @param orn Cylinder orientation.
+ * @param radius Cylinder radius.
+ * @param half_length Cylinder half length.
+ * @param u Output intersection parameter.
+ * @return Result containing intersection situation, the distance and normal.
+ */
 intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u);
 
+/**
+ * @brief Intersects a ray with a sphere.
+ * @param p0 First point in the ray.
+ * @param p1 Second point in the ray.
+ * @param pos Sphere position.
+ * @param orn Sphere orientation.
+ * @param radius Sphere radius.
+ * @param t Output intersection parameter.
+ * @return Whether ray intersects sphere.
+ */
 bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t);
 
+/**
+ * @brief Intersects a ray with a triangle.
+ * @param p0 First point in the ray.
+ * @param p1 Second point in the ray.
+ * @param vertices Vertex positions.
+ * @param normal Triangle normal.
+ * @param t Output intersection parameter.
+ * @return Whether ray intersects triangle.
+ */
 bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
                                 const std::array<vector3, 3> &vertices,
                                 const vector3 &normal, scalar &t);

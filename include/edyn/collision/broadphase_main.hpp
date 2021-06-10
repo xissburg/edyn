@@ -54,9 +54,6 @@ public:
     void raycast_islands(vector3 p0, vector3 p1, Func func);
 
     template<typename Func>
-    void raycast_island(entt::entity island_entity, vector3 p0, vector3 p1, Func func);
-
-    template<typename Func>
     void raycast_non_procedural(vector3 p0, vector3 p1, Func func);
 
     void on_construct_tree_view(entt::registry &, entt::entity);
