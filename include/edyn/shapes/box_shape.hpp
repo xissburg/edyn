@@ -56,7 +56,7 @@ struct box_shape {
      * @return Support point.
      */
     vector3 support_point(const quaternion &orn, const vector3 &dir) const;
-    
+
     /**
      * Get support point in world space.
      * @param pos Position of geometric center.
@@ -67,7 +67,7 @@ struct box_shape {
     vector3 support_point(const vector3 &pos, const quaternion &orn, const vector3 &dir) const;
 
     /**
-     * Get the projection of support point in a given direction. 
+     * Get the projection of support point in a given direction.
      * @param pos Position of geometric center.
      * @param orn Orientation.
      * @param dir Direction vector.
@@ -76,21 +76,21 @@ struct box_shape {
     scalar support_projection(const vector3 &pos, const quaternion &orn, const vector3 &dir) const;
 
     /**
-     * Get feature (vertex or edge or face) that's furthest along a direction 
+     * Get feature (vertex or edge or face) that's furthest along a direction
      * in object space.
      * @param dir Direction vector, in object space.
      * @param out_feature The feature type.
      * @param out_feature_index The feature index.
      * @param out_projection The projection of the feature along the direction.
-     * @param threshold Parameter that gives extra margin in the feature 
+     * @param threshold Parameter that gives extra margin in the feature
      *        classification.
      */
-    void support_feature(const vector3 &dir, box_feature &out_feature, 
+    void support_feature(const vector3 &dir, box_feature &out_feature,
                          size_t &out_feature_index, scalar &out_projection,
                          scalar threshold) const;
 
     /**
-     * Get feature (vertex or edge or face) that's furthest along a direction 
+     * Get feature (vertex or edge or face) that's furthest along a direction
      * in world space.
      * @param pos Position of geometric center.
      * @param orn Orientation.
@@ -99,10 +99,10 @@ struct box_shape {
      * @param out_feature The feature type.
      * @param out_feature_index The feature index.
      * @param out_projection The projection of the feature along the direction.
-     * @param threshold Parameter that gives extra margin in the feature 
+     * @param threshold Parameter that gives extra margin in the feature
      *        classification.
      */
-    void support_feature(const vector3 &pos, const quaternion &orn, 
+    void support_feature(const vector3 &pos, const quaternion &orn,
                          const vector3 &axis_pos, const vector3 &axis_dir,
                          box_feature &out_feature, size_t &out_feature_index,
                          scalar &out_projection, scalar threshold) const;
@@ -198,10 +198,12 @@ struct box_shape {
     /**
      * Get half of the extent of a rectangular face.
      * @param face_idx Face index in [0, 6).
-     * @return Half of the bidimensional extent of the rectangular face, 
+     * @return Half of the bidimensional extent of the rectangular face,
      *         according to the basis given by `get_face_basis`.
      */
     vector2 get_face_half_extents(size_t face_idx) const;
+
+    size_t get_face_edge_index(size_t face_idx, size_t edge_idx) const;
 
     /**
      * Get edge index from vertex indices.
@@ -219,13 +221,24 @@ struct box_shape {
      */
     size_t support_face_index(const vector3 &dir) const;
 
-    /** 
+    /**
      * Get index of i-th vertex of a face.
      * @param face_idx Index of face in [0, 6).
      * @param face_vertex_idx Index of vertex in face in [0, 4).
      * @return Vertex index.
      */
     size_t get_vertex_index_from_face(size_t face_idx, size_t face_vertex_idx) const;
+
+    /**
+     * Given a face and a point on it, find the feature where this point lies
+     * within a tolerance.
+     * @param face_idx The face to be tested.
+     * @param point Point on the face.
+     * @param tolerance How close to the feature the point has to be to choose
+     * that as the closest feature.
+     * @return Feature and feature index.
+     */
+    std::pair<box_feature, size_t> get_closest_feature_on_face(size_t face_idx, vector3 point, scalar tolerance) const;
 };
 
 constexpr size_t get_box_num_features(box_feature feature) {

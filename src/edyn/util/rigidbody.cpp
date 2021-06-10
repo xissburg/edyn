@@ -23,7 +23,7 @@
 namespace edyn {
 
 void rigidbody_def::update_inertia() {
-    inertia = moment_of_inertia(*shape_opt, mass);
+    inertia = moment_of_inertia(*shape, mass);
 }
 
 void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {
@@ -69,14 +69,14 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<present_orientation>(entity, def.orientation);
     }
 
-    if (auto opt = def.shape_opt) {
+    if (auto opt = def.shape) {
         std::visit([&] (auto &&sh) {
             using ShapeType = std::decay_t<decltype(sh)>;
             registry.emplace<ShapeType>(entity, sh);
             registry.emplace<shape_index>(entity, get_shape_index<ShapeType>());
             auto aabb = shape_aabb(sh, def.position, def.orientation);
             registry.emplace<AABB>(entity, aabb);
-        }, *def.shape_opt);
+        }, *def.shape);
 
         auto &filter = registry.emplace<collision_filter>(entity);
         filter.group = def.collision_group;

@@ -13,16 +13,16 @@ TEST(entity_graph_test, test_connected_components) {
     auto node_index0 = graph.insert_node(node_entity0);
     auto node_index1 = graph.insert_node(node_entity1);
     auto edge_index01_0 = graph.insert_edge(edge_entity01_0, node_index0, node_index1);
-    auto edge_index01_1 = graph.insert_edge(edge_entity01_1, node_index0, node_index1);
+    graph.insert_edge(edge_entity01_1, node_index0, node_index1);
 
     ASSERT_TRUE(graph.is_single_connected_component());
-    
+
     graph.visit_neighbors(node_index0, [&] (entt::entity neighbor) {
         ASSERT_TRUE(neighbor == node_entity1);
     });
 
     auto node_entity2 = registry.create();
-    auto node_index2 = graph.insert_node(node_entity2);
+    graph.insert_node(node_entity2);
 
     ASSERT_FALSE(graph.is_single_connected_component());
 

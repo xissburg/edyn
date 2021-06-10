@@ -54,6 +54,22 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
                           const vector3 &p, scalar &t, vector3 &r);
 
 /**
+ * @brief Computes the parameters for the closest points of two *non-parallel*
+ * lines `L1(s) = p1 + s*(q1 - p1)` and `L2(t) = p2 + t*(q2 - p2)`.
+ * @param p1 A point in the first line.
+ * @param q1 Another point in the first line.
+ * @param p2 A point in the second line.
+ * @param q2 Another point in the second line.
+ * @param s Outputs the parameter where `L1(s)` gives the closest point to `L2`.
+ * @param t Outputs the parameter where `L2(t)` gives the closest point to `L1`.
+ * @return False if lines are parallel, which means the projection of any point
+ * of L1 on L2 is a valid closest point.
+ */
+bool closest_point_line_line(const vector3 &p1, const vector3 &q1,
+                             const vector3 &p2, const vector3 &q2,
+                             scalar &s, scalar &t);
+
+/**
  * @brief Computes the closest points `c1` and `c2` of segments
  * `s1(s) = p1 + s*(q1 - p1)` and `s2(t) = p2 + t*(q2 - p2)`,
  * where `0 <= s <= 1` and `0 <= t <= 1`.
@@ -342,6 +358,67 @@ bool point_in_polygonal_prism(const std::array<vector3, N> &vertices,
 
     return true;
 }
+
+/**
+ * @brief Test if a segment intersects an AABB.
+ * @param p0 First point in the segment.
+ * @param p1 Second point in the segment.
+ * @param aabb_min Minimum of AABB.
+ * @param aabb_max Maximum of AABB.
+ * @return Whether segment intersects AABB.
+ */
+bool intersect_segment_aabb(vector3 p0, vector3 p1,
+                            vector3 aabb_min, vector3 aabb_max);
+
+struct intersect_ray_cylinder_result {
+    enum class kind {
+        parallel_directions,
+        distance_greater_than_radius,
+        intersects
+    };
+
+    kind kind;
+    scalar dist_sqr;
+    vector3 normal;
+};
+
+/**
+ * @brief Intersects a ray with a cylinder.
+ * @param p0 First point in the ray.
+ * @param p1 Second point in the ray.
+ * @param pos Cylinder position.
+ * @param orn Cylinder orientation.
+ * @param radius Cylinder radius.
+ * @param half_length Cylinder half length.
+ * @param u Output intersection parameter.
+ * @return Result containing intersection situation, the distance and normal.
+ */
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u);
+
+/**
+ * @brief Intersects a ray with a sphere.
+ * @param p0 First point in the ray.
+ * @param p1 Second point in the ray.
+ * @param pos Sphere position.
+ * @param orn Sphere orientation.
+ * @param radius Sphere radius.
+ * @param t Output intersection parameter.
+ * @return Whether ray intersects sphere.
+ */
+bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t);
+
+/**
+ * @brief Intersects a ray with a triangle.
+ * @param p0 First point in the ray.
+ * @param p1 Second point in the ray.
+ * @param vertices Vertex positions.
+ * @param normal Triangle normal.
+ * @param t Output intersection parameter.
+ * @return Whether ray intersects triangle.
+ */
+bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
+                                const std::array<vector3, 3> &vertices,
+                                const vector3 &normal, scalar &t);
 
 }
 

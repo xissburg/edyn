@@ -42,6 +42,9 @@ public:
      */
     tree_view view() const;
 
+    template<typename Func>
+    void raycast(vector3 p0, vector3 p1, Func func);
+
     void on_construct_aabb(entt::registry &, entt::entity);
     void on_destroy_tree_resident(entt::registry &, entt::entity);
 
@@ -53,6 +56,16 @@ private:
     std::vector<entt::entity> m_new_aabb_entities;
     std::vector<entity_pair_vector> m_pair_results;
 };
+
+template<typename Func>
+void broadphase_worker::raycast(vector3 p0, vector3 p1, Func func) {
+    m_tree.raycast(p0, p1, [&] (tree_node_id_t id) {
+        func(m_tree.get_node(id).entity);
+    });
+    m_np_tree.raycast(p0, p1, [&] (tree_node_id_t id) {
+        func(m_np_tree.get_node(id).entity);
+    });
+}
 
 }
 

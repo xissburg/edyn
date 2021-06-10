@@ -40,13 +40,39 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
     return length_sqr(p - r);
 }
 
+bool closest_point_line_line(const vector3 &p1, const vector3 &q1,
+                             const vector3 &p2, const vector3 &q2,
+                             scalar &s, scalar &t) {
+    // Reference: Real-Time Collision Detection - Christer Ericson,
+    // Section 5.1.8 - Closest Points of Two Lines
+    auto d1 = q1 - p1;
+    auto d2 = q2 - p2;
+    auto r = p1 - p2;
+    auto a = dot(d1, d1);
+    auto b = dot(d1, d2);
+    auto c = dot(d1, r);
+    auto e = dot(d2, d2);
+    auto f = dot(d2, r);
+    auto d = a * e - b * b;
+
+    if (!(d > EDYN_EPSILON)) {
+        return false;
+    }
+
+    auto d_inv = scalar(1) / d;
+    s = (b * f - c * e) * d_inv;
+    t = (a * f - b * c) * d_inv;
+
+    return true;
+}
+
 // Reference: Real-Time Collision Detection - Christer Ericson, section 5.1.9.
-scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1, 
-                                     const vector3 &p2, const vector3 &q2, 
-                                     scalar &s, scalar &t, 
+scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
+                                     const vector3 &p2, const vector3 &q2,
+                                     scalar &s, scalar &t,
                                      vector3 &c1, vector3 &c2,
                                      size_t *num_points,
-                                     scalar *sp, scalar *tp, 
+                                     scalar *sp, scalar *tp,
                                      vector3 *c1p, vector3 *c2p) {
     const auto d1 = q1 - p1; // Direction vector of segment `s1`.
     const auto d2 = q2 - p2; // Direction vector of segment `s2`.
@@ -120,7 +146,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
             const auto tnom = b * s + f;
 
             // If `t` in [0, 1] we're done. Else clamp `t`, recompute `s` for
-            // the new value of `t` using 
+            // the new value of `t` using
             // `s = dot((p2 + d2 * t) - p1, d1) / dot(d1, d1) = (t * b - c) / a`
             // and clamp `s` to [0, 1].
             if (tnom < 0) {
@@ -140,7 +166,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
     return length_sqr(c1 - c2);
 }
 
-scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, 
+scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn,
                           scalar radius, const vector3 &p, vector3 &q) {
     // Project point onto disc's plane.
     const auto normal = rotate(dorn, vector3_x);
@@ -161,7 +187,7 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn,
     return length_sqr(p - q);
 }
 
-size_t intersect_line_circle(const vector2 &p0, const vector2 &p1, 
+size_t intersect_line_circle(const vector2 &p0, const vector2 &p1,
                              scalar radius, scalar &s0, scalar &s1) {
     auto d = p1 - p0;
     auto dl2 = length_sqr(d);
@@ -186,9 +212,9 @@ size_t intersect_line_circle(const vector2 &p0, const vector2 &p1,
 
 scalar closest_point_circle_line(
     const vector3 &cpos, const quaternion &corn, scalar radius,
-    const vector3 &p0, const vector3 &p1, size_t &num_points, 
+    const vector3 &p0, const vector3 &p1, size_t &num_points,
     scalar &s0, vector3 &rc0, vector3 &rl0,
-    scalar &s1, vector3 &rc1, vector3 &rl1, 
+    scalar &s1, vector3 &rc1, vector3 &rl1,
     vector3 &normal, scalar /*threshold*/) {
 
     // Line points in local disc space. The face of the disc points towards
@@ -199,7 +225,7 @@ scalar closest_point_circle_line(
     auto qv_len_sqr = length_sqr(qv);
 
     // If the projection of a segment of the line of length `diameter` on the x axis
-    // is smaller than threshold, the line is considered to be parallel to the circle. 
+    // is smaller than threshold, the line is considered to be parallel to the circle.
     if (std::abs(qv.x) < EDYN_EPSILON) { // (std::abs(qv.x / qv_len) * diameter < threshold) {
         // Calculate line-circle intersection in the yz plane.
         // For the normal vector, calculate something orthogonal to the line.
@@ -233,7 +259,7 @@ scalar closest_point_circle_line(
 
             return dist2;
         } else {
-            // If the projection of line in the yz plane does not intersect disc 
+            // If the projection of line in the yz plane does not intersect disc
             // (despite being parallel), the closest point in the line is the point
             // closest to the circle center and the the closest point on the circle
             // is the closest point on the line projected on the circle plane,
@@ -260,7 +286,7 @@ scalar closest_point_circle_line(
 
     // The root finder below would fail if the line is orthogonal to the plane of the
     // circle and is also centered at the circle.
-    if (length_sqr(to_vector2_yz(q0)) <= EDYN_EPSILON && 
+    if (length_sqr(to_vector2_yz(q0)) <= EDYN_EPSILON &&
         length_sqr(to_vector2_yz(q1)) <= EDYN_EPSILON ) {
         num_points = 1;
         normal = quaternion_z(corn);
@@ -271,7 +297,7 @@ scalar closest_point_circle_line(
     }
 
     // Let `q(θ) = [0, sin(θ) * r, cos(θ) * r]` be the parametrized circle in the yz
-    // plane, then the function `c(θ) = q0 + ((q(θ) - q0) · qv) / (qv · qv) * qv` 
+    // plane, then the function `c(θ) = q0 + ((q(θ) - q0) · qv) / (qv · qv) * qv`
     // gives the point in the line that's closest to `q(θ)`. The function
     // `d(θ) = q(θ) - c(θ)` gives us the vector connecting the closest points.
     // The function `f(θ) = 0.5 * d(θ) · d(θ)` gives us half the squared length of
@@ -311,7 +337,7 @@ scalar closest_point_circle_line(
         auto d_d_theta = d_q_theta - d_c_theta;
         auto dd_d_theta = dd_q_theta - dd_c_theta;
 
-        // Function f(θ) = d · d / 2 gives us a scalar proportional to the 
+        // Function f(θ) = d · d / 2 gives us a scalar proportional to the
         // length of d(θ).
         // First derivative f' = d'· d
         // Second derivative f" = d'· d + d"· d
@@ -415,8 +441,8 @@ scalar closest_point_circle_circle(
 
         vector2 c0, c1;
         // A is in the origin.
-        auto np = intersect_circle_circle(vector2_zero, radiusA, 
-                                          to_vector2_zy(posB_in_A), radiusB, 
+        auto np = intersect_circle_circle(vector2_zero, radiusA,
+                                          to_vector2_zy(posB_in_A), radiusB,
                                           c0, c1);
         if (np > 0) {
             num_points = np;
@@ -470,7 +496,7 @@ scalar closest_point_circle_circle(
     }
 
     // Let `q(θ) = [0, sin(θ) * r, cos(θ) * r]` be the parametrized circle of
-    // radius `r` in the yz plane, and `p(φ) = u * cos(φ) * s + v * sin(φ) * s` 
+    // radius `r` in the yz plane, and `p(φ) = u * cos(φ) * s + v * sin(φ) * s`
     // be the other parametrized circle of radius `s` where `u` and `v` are
     // unit orthogonal vectors. The `θ` which gives us the point in `q(θ)`
     // closest to any point `a` is `atan(a_y / a_z)`, thus `θ` can be written
@@ -519,7 +545,7 @@ scalar closest_point_circle_circle(
         auto d_d_phi = d_p_phi - d_q_theta;
         auto dd_d_phi = dd_p_phi - dd_q_theta;
 
-        // Function f(φ) = d · d / 2 gives us a scalar proportional to the 
+        // Function f(φ) = d · d / 2 gives us a scalar proportional to the
         // length of d(φ).
         // First derivative f' = d'· d
         // Second derivative f" = d'· d + d"· d
@@ -673,7 +699,7 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
 
         t0 = clamp_unit(dot(p0 - q0, dq) * denom_q);
         t1 = clamp_unit(dot(p1 - q0, dq) * denom_q);
-        
+
         return std::abs(s1 - s0) < EDYN_EPSILON ? 1 : 2;
     }
 
@@ -766,7 +792,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
         if (e.x <= 0 && f.x >= 0) {
             s0 = e.y / d.y;
             s1 = f.y / d.y;
-            num_points = 2; 
+            num_points = 2;
         }
 
         return num_points;
@@ -777,7 +803,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
         if (e.y <= 0 && f.y >= 0) {
             s0 = e.x / d.x;
             s1 = f.x / d.x;
-            num_points = 2; 
+            num_points = 2;
         }
 
         return num_points;
@@ -786,7 +812,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
     /* Left edge. */ {
         auto t = e.x / d.x;
         auto qy = p0.y + d.y * t;
-        
+
         if (qy >= aabb_min.y && qy < aabb_max.y) {
             s0 = t;
             ++num_points;
@@ -796,7 +822,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
     /* Right edge. */ {
         auto t = f.x / d.x;
         auto qy = p0.y + d.y * t;
-        
+
         if (qy > aabb_min.y && qy <= aabb_max.y) {
             if (num_points == 0) {
                 s0 = t;
@@ -815,7 +841,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
     /* Bottom edge. */ {
         auto t = e.y / d.y;
         auto qx = p0.x + d.x * t;
-        
+
         if (qx >= aabb_min.x && qx < aabb_max.x) {
             if (num_points == 0) {
                 s0 = t;
@@ -834,7 +860,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
     /* Top edge. */ {
         auto t = f.y / d.y;
         auto qx = p0.x + d.x * t;
-        
+
         if (qx > aabb_min.x && qx <= aabb_max.x) {
             if (num_points == 0) {
                 s0 = t;
@@ -849,7 +875,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
     return num_points;
 }
 
-bool point_in_polygonal_prism(const std::vector<vector3> &vertices, 
+bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
                               const std::vector<size_t> &indices,
                               const vector3 &normal, const vector3 &point) {
     const auto count = indices.size();
@@ -872,7 +898,7 @@ bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
     return true;
 }
 
-bool point_in_polygonal_prism(const std::vector<vector3> &vertices, 
+bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
                               const vector3 &normal, const vector3 &point) {
     const auto count = vertices.size();
     EDYN_ASSERT(count > 2);
@@ -885,6 +911,155 @@ bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
         auto t = cross(d, normal);
 
         if (dot(point - v0, t) > EDYN_EPSILON) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Reference: Real-Time Collision Detection - Christer Ericson,
+// Section 5.3.3 - Intersecting Ray or Segment Against Box.
+bool intersect_segment_aabb(vector3 p0, vector3 p1,
+                            vector3 aabb_min, vector3 aabb_max) {
+    auto aabb_center = (aabb_min + aabb_max) * scalar(0.5);
+    auto half_extents = aabb_max - aabb_center;
+    auto midpoint = (p0 + p1) * scalar(0.5);
+    auto half_length = p1 - midpoint;
+    midpoint -= aabb_center; // Translate box to origin.
+
+    // Test coordinate axes.
+    auto abs_half_length = abs(half_length);
+
+    for (auto i = 0; i < 3; ++i) {
+        if (std::abs(midpoint[i]) > half_extents[i] + abs_half_length[i]) {
+            return false;
+        }
+    }
+
+    // Add epsilon to better handle the parallel case.
+    abs_half_length += vector3_one * EDYN_EPSILON;
+
+    // Test cross products of segment direction with coordinate axes.
+    if (std::abs(midpoint.y * half_length.z - midpoint.z * half_length.y) >
+        half_extents.y * abs_half_length.z + half_extents.z * abs_half_length.y) {
+        return false;
+    }
+
+    if (std::abs(midpoint.z * half_length.x - midpoint.x * half_length.z) >
+        half_extents.z * abs_half_length.x + half_extents.x * abs_half_length.z) {
+        return false;
+    }
+
+    if (std::abs(midpoint.x * half_length.y - midpoint.y * half_length.x) >
+        half_extents.x * abs_half_length.y + half_extents.y * abs_half_length.x) {
+        return false;
+    }
+
+    // No separating axis found. Segment intersects AABB.
+    return true;
+}
+
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) {
+    // Let a plane be defined by the ray and the vector orthogonal to the
+    // cylinder axis and the ray (i.e. their cross product). This plane cuts
+    // the cylinder and their intersection is an ellipse with vertical half
+    // length equals to the cylinder radius and horizontal half length bigger
+    // than that. First, the parameters for the closest point between the lines
+    // spanned by the cylinder axis and the ray are found. By subtracting an
+    // amount from the parameter for the ray, the intersection point can be
+    // found.
+    auto cyl_dir = quaternion_x(orn);
+    vector3 cyl_vertices[] = {
+        pos + cyl_dir * half_length,
+        pos - cyl_dir * half_length
+    };
+    scalar s, t;
+
+    if (!closest_point_line_line(cyl_vertices[0], cyl_vertices[1], p0, p1, s, t)) {
+        return {intersect_ray_cylinder_result::kind::parallel_directions};
+    }
+
+    auto radius_sqr = square(radius);
+    auto closest_cyl = lerp(cyl_vertices[0], cyl_vertices[1], s);
+    auto closest_ray = lerp(p0, p1, t);
+    auto normal = closest_ray - closest_cyl;
+    auto dist_sqr = length_sqr(normal);
+
+    // Distance between lines bigger than radius.
+    if (dist_sqr > radius_sqr) {
+        return {intersect_ray_cylinder_result::kind::distance_greater_than_radius};
+    }
+
+    // Offset `t` backwards to place it where the intersection happens.
+    auto d = p1 - p0;
+    auto e = cyl_vertices[1] - cyl_vertices[0];
+    auto dd = dot(d, d);
+    auto ee = dot(e, e);
+    auto de = dot(d, e);
+    auto g_sqr = (radius_sqr - dist_sqr) * ee / (dd * ee - de * de);
+    auto g = std::sqrt(g_sqr);
+    u = t - g;
+    return {intersect_ray_cylinder_result::kind::intersects, dist_sqr, normal};
+}
+
+bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t) {
+    // Reference: Real-Time Collision Detection - Christer Ericson,
+    // Section 5.3.2 - Intersecting Ray or Segment Against Sphere.
+    // Substitute parametrized line function into sphere equation and
+    // solve quadratic.
+    auto d = p1 - p0;
+    auto m = p0 - pos;
+    auto a = dot(d, d);
+    auto b = dot(m, d);
+    auto c = dot(m, m) - radius * radius;
+
+    // Exit if p0 is outside sphere and ray is pointing away from sphere.
+    if (c > 0 && b > 0) {
+        return false;
+    }
+
+    auto discr = b * b - a * c;
+
+    // A negative discriminant corresponds to ray missing sphere.
+    if (discr < 0) {
+        return false;
+    }
+
+    // Ray intersects sphere. Compute smallest t.
+    t = (-b - std::sqrt(discr)) / a;
+    // If t is negative, ray started inside sphere so clamp it to zero.
+    t = std::max(scalar(0), t);
+
+    return true;
+}
+
+bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
+                                const std::array<vector3, 3> &vertices,
+                                const vector3 &normal, scalar &t) {
+    auto d = dot(p1 - p0, normal);
+    auto e = dot(vertices[0] - p0, normal);
+    t = 0;
+
+    if (std::abs(d) > EDYN_EPSILON) {
+        t = e / d;
+    } else {
+        // Ray is parallel to plane. Do not continue if ray is not
+        // contained in plane.
+        if (std::abs(e) > EDYN_EPSILON) {
+            return false;
+        }
+    }
+
+    auto intersection = lerp(p0, p1, t);
+
+    for (size_t i = 0; i < 3; ++i) {
+        auto v0 = vertices[i];
+        auto v1 = vertices[(i + 1) % 3];
+        auto edge_dir = v1 - v0;
+        auto tangent = cross(normal, edge_dir);
+
+        if (dot(tangent, intersection - v0) < 0) {
             return false;
         }
     }

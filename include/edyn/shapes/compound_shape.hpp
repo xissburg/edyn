@@ -19,7 +19,7 @@ namespace edyn {
 struct compound_shape {
     // Variant with types of shapes a compound is able to hold.
     using shapes_variant_t = std::variant<
-        sphere_shape, 
+        sphere_shape,
         cylinder_shape,
         capsule_shape,
         box_shape,
@@ -60,6 +60,9 @@ struct compound_shape {
     template<typename Func>
     void visit(const AABB &aabb, Func func) const;
 
+    template<typename Func>
+    void raycast(const vector3 &p0, const vector3 &p1, Func func) const;
+
     compound_shape() = default;
 
     /**
@@ -93,11 +96,25 @@ void compound_shape::add_shape(const T &shape, const vector3 &pos, const quatern
 template<typename Func>
 void compound_shape::visit(const AABB &aabb, Func func) const {
     EDYN_ASSERT(!tree.empty());
-    
-    tree.visit(aabb, [&] (auto index) {
-        auto &node = nodes[index];
+
+    tree.query(aabb, [&] (auto tree_node_idx) {
+        auto node_id = tree.get_node(tree_node_idx).id;
+        auto &node = nodes[node_id];
         std::visit([&] (auto &&shape) {
-            func(shape, node);
+            func(shape, node_id);
+        }, node.shape_var);
+    });
+}
+
+template<typename Func>
+void compound_shape::raycast(const vector3 &p0, const vector3 &p1, Func func) const {
+    EDYN_ASSERT(!tree.empty());
+
+    tree.raycast(p0, p1, [&] (auto tree_node_idx) {
+        auto node_id = tree.get_node(tree_node_idx).id;
+        auto &node = nodes[node_id];
+        std::visit([&] (auto &&shape) {
+            func(shape, node_id);
         }, node.shape_var);
     });
 }

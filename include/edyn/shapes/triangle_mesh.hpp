@@ -106,7 +106,10 @@ public:
 
     template<typename Func>
     void visit_triangles(const AABB &aabb, Func func) const {
-        m_triangle_tree.visit(aabb, func);
+        m_triangle_tree.query(aabb, [&] (auto tree_node_idx) {
+            auto tri_idx = m_triangle_tree.get_node(tree_node_idx).id;
+            func(tri_idx);
+        });
     }
 
     template<typename Func>
@@ -120,6 +123,14 @@ public:
 
             func(i, verts);
         }
+    }
+
+    template<typename Func>
+    void raycast(const vector3 &p0, const vector3 &p1, Func func) const {
+        m_triangle_tree.raycast(p0, p1, [&] (auto tree_node_idx) {
+            auto tri_idx = m_triangle_tree.get_node(tree_node_idx).id;
+            func(tri_idx);
+        });
     }
 
     bool in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) const;

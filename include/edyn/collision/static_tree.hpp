@@ -6,6 +6,7 @@
 #include <iterator>
 #include <numeric>
 #include <algorithm>
+#include "edyn/collision/query_tree.hpp"
 
 namespace edyn {
 
@@ -13,7 +14,7 @@ constexpr uint32_t EDYN_NULL_NODE = UINT32_MAX;
 
 namespace detail {
     template<typename Iterator_AABB, typename Iterator_ids>
-    Iterator_ids aabb_set_partition(Iterator_AABB aabb_begin, Iterator_AABB aabb_end, 
+    Iterator_ids aabb_set_partition(Iterator_AABB aabb_begin, Iterator_AABB aabb_end,
                                     Iterator_ids ids_begin, Iterator_ids ids_end,
                                     const AABB &set_aabb) {
         auto aabb_size = set_aabb.max - set_aabb.min;
@@ -51,7 +52,7 @@ public:
             uint32_t id;
         };
 
-        bool is_leaf() const {
+        bool leaf() const {
             return child1 == EDYN_NULL_NODE;
         }
     };
@@ -65,33 +66,15 @@ public:
         return m_nodes.empty();
     }
 
-    template<typename Func>
-    void visit(const AABB &aabb, Func func) const {
-        std::vector<uint32_t> stack;
-        uint32_t root_node_idx = 0;
-        stack.push_back(root_node_idx);
-
-        while (!stack.empty()) {
-            auto node_idx = stack.back();
-
-            if (node_idx == EDYN_NULL_NODE) {
-                continue;
-            }
-
-            stack.pop_back();
-
-            auto &node = m_nodes[node_idx];
-
-            if (intersect(node.aabb, aabb)) {
-                if (node.is_leaf()) {
-                    func(node.id);
-                } else {
-                    stack.push_back(node.child1);
-                    stack.push_back(node.child2);
-                }
-            }
-        }
+    const tree_node & get_node(uint32_t id) const {
+        return m_nodes[id];
     }
+
+    template<typename Func>
+    void query(const AABB &aabb, Func func) const;
+
+    template<typename Func>
+    void raycast(vector3 p0, vector3 p1, Func func) const;
 
     template<typename Iterator, typename Func>
     void build(Iterator aabb_begin, Iterator aabb_end, Func &report_leaf, uint32_t max_obj_per_leaf = 1) {
@@ -104,7 +87,7 @@ public:
         // Insert root node.
         m_nodes.emplace_back();
 
-        recurse_build(aabb_begin, aabb_end, ids.begin(), ids.end(), 
+        recurse_build(aabb_begin, aabb_end, ids.begin(), ids.end(),
                       0, report_leaf, max_obj_per_leaf);
     }
 
@@ -141,15 +124,32 @@ public:
             m_nodes.emplace_back();
             m_nodes.emplace_back();
 
-            recurse_build(aabb_begin, aabb_end, ids_begin, ids_middle, 
+            recurse_build(aabb_begin, aabb_end, ids_begin, ids_middle,
                           child1, report_leaf, max_obj_per_leaf);
-            recurse_build(aabb_begin, aabb_end, ids_middle, ids_end, 
+            recurse_build(aabb_begin, aabb_end, ids_middle, ids_end,
                           child2, report_leaf, max_obj_per_leaf);
         }
     }
 
+    template<typename Archive>
+    friend void serialize(Archive &archive, static_tree &tree);
+    friend size_t serialization_sizeof(const static_tree &tree);
+
+private:
     std::vector<tree_node> m_nodes;
 };
+
+template<typename Func>
+void static_tree::query(const AABB &aabb, Func func) const {
+    uint32_t root_node_idx = 0;
+    query_tree(*this, root_node_idx, EDYN_NULL_NODE, aabb, func);
+}
+
+template<typename Func>
+void static_tree::raycast(vector3 p0, vector3 p1, Func func) const {
+    uint32_t root_node_idx = 0;
+    raycast_tree(*this, root_node_idx, EDYN_NULL_NODE, p0, p1, func);
+}
 
 }
 
