@@ -22,7 +22,8 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/context/settings.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
+#include <set>
 
 namespace edyn {
 

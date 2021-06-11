@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <optional>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/matrix3x3.hpp"

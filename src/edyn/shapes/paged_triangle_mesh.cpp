@@ -2,8 +2,8 @@
 #include "edyn/parallel/parallel_for.hpp"
 #include <atomic>
 #include <limits>
-#include <entt/entt.hpp>
 #include <mutex>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

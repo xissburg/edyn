@@ -5,7 +5,7 @@
 #include <memory>
 #include <atomic>
 #include <optional>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include <condition_variable>
 #include "edyn/parallel/job.hpp"
 #include "edyn/dynamics/solver.hpp"

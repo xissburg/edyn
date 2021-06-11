@@ -2,7 +2,7 @@
 #define EDYN_COLLISION_RAYCAST_HPP
 
 #include <variant>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"

@@ -11,7 +11,7 @@
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/util/triangle_util.hpp"
 #include "edyn/util/tuple_util.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

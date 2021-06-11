@@ -1,6 +1,6 @@
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

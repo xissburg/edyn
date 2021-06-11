@@ -1,7 +1,7 @@
 #ifndef EDYN_UTIL_ENTITY_COLLECTION_HPP
 #define EDYN_UTIL_ENTITY_COLLECTION_HPP
 
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include <unordered_set>
 
 namespace edyn {

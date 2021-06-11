@@ -12,7 +12,7 @@
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/math/geom.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

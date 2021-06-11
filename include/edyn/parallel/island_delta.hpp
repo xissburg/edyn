@@ -2,7 +2,7 @@
 #define EDYN_PARALLEL_ISLAND_DELTA_HPP
 
 #include <vector>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/component_index_source.hpp"
 #include "edyn/parallel/entity_component_container.hpp"

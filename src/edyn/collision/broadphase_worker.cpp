@@ -10,7 +10,7 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/context/settings.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

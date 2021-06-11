@@ -8,8 +8,9 @@
 #include <queue>
 #include <cstdint>
 #include <algorithm>
-
-#include <entt/entt.hpp>
+#include <entt/entity/fwd.hpp>
+#include <entt/signal/fwd.hpp>
+#include <entt/core/type_info.hpp>
 
 namespace edyn {
 
@@ -69,10 +70,10 @@ class message_queue {
     template<typename Message>
     pool_handler<Message> & assure() {
         static_assert(std::is_same_v<Message, std::decay_t<Message>>, "Invalid event type");
-        
-        auto it = std::find_if(m_pools.begin(), m_pools.end(), 
+
+        auto it = std::find_if(m_pools.begin(), m_pools.end(),
             [id = entt::type_info<Message>::id()](const auto &cpool) { return id == cpool->type_id(); });
-        return static_cast<pool_handler<Message> &>(it == m_pools.cend() ? 
+        return static_cast<pool_handler<Message> &>(it == m_pools.cend() ?
             *m_pools.emplace_back(new pool_handler<Message>{}) : **it);
     }
 
@@ -124,7 +125,7 @@ class message_queue_output {
 public:
     message_queue_output(std::shared_ptr<message_queue> queue) : m_queue(queue) {}
     message_queue_output(const message_queue_output &) = default;
-    
+
     void update() const {
         m_queue->update();
     }

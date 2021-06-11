@@ -2,7 +2,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/tag.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

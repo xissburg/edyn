@@ -1,7 +1,7 @@
 #ifndef EDYN_CONSTRAINTS_GRAVITY_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_GRAVITY_CONSTRAINT_HPP
 
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"

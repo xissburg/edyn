@@ -1,7 +1,6 @@
 #ifndef EDYN_UTIL_VISIT_COMPONENT_HPP
 #define EDYN_UTIL_VISIT_COMPONENT_HPP
 
-#include <entt/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <array>
 
@@ -72,7 +71,7 @@ void visit_component(IndexType index, entt::entity entity,
 /*! @copydoc visit_component */
 template<typename... Ts, typename IndexType, typename VisitorType>
 void visit_component(std::tuple<Ts...>, IndexType index, entt::entity entity,
-                     const std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...> &views_tuple, 
+                     const std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...> &views_tuple,
                      VisitorType visitor) {
     visit_component<Ts...>(index, entity, views_tuple, visitor);
 }

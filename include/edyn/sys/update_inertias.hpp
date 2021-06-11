@@ -1,7 +1,7 @@
 #ifndef EDYN_SYS_UPDATE_INERTIA_HPP
 #define EDYN_SYS_UPDATE_INERTIA_HPP
 
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 
@@ -10,7 +10,7 @@ namespace edyn {
  * to world space.
  */
 void update_inertias(entt::registry &);
-    
+
 }
 
 #endif // EDYN_SYS_UPDATE_INERTIA_HPP

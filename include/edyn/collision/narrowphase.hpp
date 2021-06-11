@@ -2,8 +2,7 @@
 #define EDYN_COLLISION_NARROWPHASE_HPP
 
 #include <array>
-#include <entt/fwd.hpp>
-#include <entt/entity/registry.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/comp/position.hpp"

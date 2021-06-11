@@ -1,7 +1,7 @@
 #ifndef EDYN_SYS_INTEGRATE_ANGVEL_HPP
 #define EDYN_SYS_INTEGRATE_ANGVEL_HPP
 
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/tag.hpp"

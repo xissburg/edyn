@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include <limits>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/comp/aabb.hpp"
 
 namespace edyn {

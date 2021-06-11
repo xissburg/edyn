@@ -3,7 +3,7 @@
 
 #include <map>
 #include <utility>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/util/entity_pair.hpp"
 
 namespace edyn {

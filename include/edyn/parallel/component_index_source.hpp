@@ -3,7 +3,7 @@
 
 #include "edyn/comp/shared_comp.hpp"
 #include "edyn/util/tuple_util.hpp"
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include <entt/core/type_info.hpp>
 
 namespace edyn {

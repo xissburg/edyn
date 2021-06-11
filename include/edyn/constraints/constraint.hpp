@@ -2,7 +2,7 @@
 #define EDYN_CONSTRAINTS_CONSTRAINT_HPP
 
 #include <tuple>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/constraints/distance_constraint.hpp"
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/constraints/point_constraint.hpp"

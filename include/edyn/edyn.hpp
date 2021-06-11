@@ -22,7 +22,6 @@
 #include "util/shape_util.hpp"
 #include "util/shape_volume.hpp"
 #include "util/tuple_util.hpp"
-#include "util/entity_set.hpp"
 #include "collision/contact_manifold.hpp"
 #include "collision/contact_point.hpp"
 #include "shapes/create_paged_triangle_mesh.hpp"
@@ -37,7 +36,6 @@
 #include "collision/contact_manifold_map.hpp"
 #include "context/settings.hpp"
 #include "collision/raycast.hpp"
-#include <entt/fwd.hpp>
 #include <entt/entity/registry.hpp>
 
 namespace edyn {

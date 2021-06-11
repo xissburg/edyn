@@ -1,7 +1,7 @@
 #ifndef EDYN_PARALLEL_EXTERNAL_SYSTEM_HPP
 #define EDYN_PARALLEL_EXTERNAL_SYSTEM_HPP
 
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 

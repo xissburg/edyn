@@ -2,12 +2,12 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/rotated_mesh_list.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 #include <variant>
 
 namespace edyn {
 
-static void update_rotated_mesh_vertices(rotated_mesh &rotated, const convex_mesh &mesh, 
+static void update_rotated_mesh_vertices(rotated_mesh &rotated, const convex_mesh &mesh,
                                          const quaternion &orn) {
     EDYN_ASSERT(mesh.vertices.size() == rotated.vertices.size());
 
@@ -17,7 +17,7 @@ static void update_rotated_mesh_vertices(rotated_mesh &rotated, const convex_mes
     }
 }
 
-static void update_rotated_mesh_normals(rotated_mesh &rotated, const convex_mesh &mesh, 
+static void update_rotated_mesh_normals(rotated_mesh &rotated, const convex_mesh &mesh,
                                         const quaternion &orn) {
     EDYN_ASSERT(mesh.normals.size() == rotated.normals.size());
 
@@ -27,7 +27,7 @@ static void update_rotated_mesh_normals(rotated_mesh &rotated, const convex_mesh
     }
 }
 
-void update_rotated_mesh(rotated_mesh &rotated, const convex_mesh &mesh, 
+void update_rotated_mesh(rotated_mesh &rotated, const convex_mesh &mesh,
                          const quaternion &orn) {
     update_rotated_mesh_vertices(rotated, mesh, orn);
     update_rotated_mesh_normals(rotated, mesh, orn);

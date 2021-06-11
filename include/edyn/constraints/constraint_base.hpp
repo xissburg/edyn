@@ -2,7 +2,7 @@
 #define EDYN_CONSTRAINTS_CONSTRAINT_BASE_HPP
 
 #include <array>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 

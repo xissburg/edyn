@@ -10,7 +10,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/parallel/parallel_for.hpp"
 #include "edyn/context/settings.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

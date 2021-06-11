@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstdint>
 #include <limits>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include "edyn/config/config.h"
 #include "edyn/util/entity_pair.hpp"

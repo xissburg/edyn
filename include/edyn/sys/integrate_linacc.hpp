@@ -1,7 +1,7 @@
 #ifndef EDYN_SYS_INTEGRATE_LINACC_HPP
 #define EDYN_SYS_INTEGRATE_LINACC_HPP
 
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/linacc.hpp"
 #include "edyn/comp/tag.hpp"

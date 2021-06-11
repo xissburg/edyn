@@ -13,22 +13,22 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
 template<>
 void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation, 
-                                   linvel, angvel, 
-                                   mass_inv, inertia_world_inv, 
+    auto body_view = registry.view<position, orientation,
+                                   linvel, angvel,
+                                   mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<generic_constraint, constraint_impulse>();
 
     con_view.each([&] (generic_constraint &con, constraint_impulse &imp) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = 
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
         auto rA = rotate(ornA, con.pivot[0]);

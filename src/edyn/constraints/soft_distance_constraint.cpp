@@ -10,7 +10,7 @@
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
@@ -19,20 +19,20 @@ struct row_start_index_soft_distance_constraint {
 };
 
 template<>
-void prepare_constraints<soft_distance_constraint>(entt::registry &registry, 
+void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
                                                    row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation, 
-                                   linvel, angvel, 
-                                   mass_inv, inertia_world_inv, 
-                                   delta_linvel, delta_angvel>();    
+    auto body_view = registry.view<position, orientation,
+                                   linvel, angvel,
+                                   mass_inv, inertia_world_inv,
+                                   delta_linvel, delta_angvel>();
     auto con_view = registry.view<soft_distance_constraint, constraint_impulse>();
     size_t start_idx = cache.rows.size();
     registry.ctx_or_set<row_start_index_soft_distance_constraint>().value = start_idx;
 
     con_view.each([&] (soft_distance_constraint &con, constraint_impulse &imp) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = 
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = 
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
         auto rA = rotate(ornA, con.pivot[0]);
@@ -42,7 +42,7 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
         auto l2 = length_sqr(d);
         auto l = std::sqrt(l2);
         vector3 dn;
-        
+
         if (l2 > EDYN_EPSILON) {
             dn = d / l;
         } else {
@@ -83,7 +83,7 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
             auto &row = cache.rows.emplace_back();
             row.J = {dn, p, -dn, -q};
 
-            auto relspd = dot(row.J[0], linvelA) + 
+            auto relspd = dot(row.J[0], linvelA) +
                           dot(row.J[1], angvelA) +
                           dot(row.J[2], linvelB) +
                           dot(row.J[3], angvelB);
@@ -117,7 +117,7 @@ void iterate_constraints<soft_distance_constraint>(entt::registry &registry, row
     con_view.each([&] (soft_distance_constraint &con) {
         // Adjust damping row limits to account for velocity changes during iterations.
         auto &damping_row = cache.rows[row_idx + 1];
-        auto delta_relspd = dot(damping_row.J[0], *damping_row.dvA) + 
+        auto delta_relspd = dot(damping_row.J[0], *damping_row.dvA) +
                             dot(damping_row.J[1], *damping_row.dwA) +
                             dot(damping_row.J[2], *damping_row.dvB) +
                             dot(damping_row.J[3], *damping_row.dwB);

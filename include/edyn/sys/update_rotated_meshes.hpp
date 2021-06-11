@@ -1,7 +1,7 @@
 #ifndef EDYN_SYS_UPDATE_ROTATED_MESHES_HPP
 #define EDYN_SYS_UPDATE_ROTATED_MESHES_HPP
 
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 
@@ -23,7 +23,7 @@ void update_rotated_meshes(entt::registry &registry);
  * @param mesh The source convex mesh.
  * @param orn Rotation to be applied.
  */
-void update_rotated_mesh(rotated_mesh &rotated, const convex_mesh &mesh, 
+void update_rotated_mesh(rotated_mesh &rotated, const convex_mesh &mesh,
                          const quaternion &orn);
 
 }

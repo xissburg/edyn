@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/math/scalar.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/parallel/island_delta.hpp"

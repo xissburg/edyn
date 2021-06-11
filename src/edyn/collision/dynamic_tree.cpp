@@ -1,6 +1,6 @@
 #include "edyn/collision/dynamic_tree.hpp"
 #include "edyn/collision/tree_view.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

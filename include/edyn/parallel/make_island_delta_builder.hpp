@@ -2,7 +2,7 @@
 #define EDYN_PARALLEL_MAKE_ISLAND_DELTA_BUILDER_HPP
 
 #include <memory>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 

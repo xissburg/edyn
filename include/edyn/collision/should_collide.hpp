@@ -1,7 +1,7 @@
 #ifndef EDYN_COLLIDE_SHOULD_COLLIDE_HPP
 #define EDYN_COLLIDE_SHOULD_COLLIDE_HPP
 
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 

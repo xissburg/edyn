@@ -1,7 +1,7 @@
 #ifndef EDYN_PARALLEL_MERGE_MERGE_COMPONENT_HPP
 #define EDYN_PARALLEL_MERGE_MERGE_COMPONENT_HPP
 
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 

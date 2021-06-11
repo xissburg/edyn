@@ -25,7 +25,7 @@
 #include "edyn/context/settings.hpp"
 #include <memory>
 #include <variant>
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

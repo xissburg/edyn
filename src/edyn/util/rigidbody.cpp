@@ -1,4 +1,4 @@
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"

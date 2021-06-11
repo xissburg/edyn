@@ -2,6 +2,7 @@
 #define EDYN_COMP_ISLAND_HPP
 
 #include "edyn/util/entity_set.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 
 namespace edyn {

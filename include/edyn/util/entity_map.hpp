@@ -2,8 +2,7 @@
 #define EDYN_UTIL_ENTITY_MAP_HPP
 
 #include <unordered_map>
-#include <entt/fwd.hpp>
-#include <entt/entity/entity.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/config/config.h"
 
 namespace edyn {
@@ -30,7 +29,7 @@ public:
         EDYN_ASSERT(has_rem(remote_entity));
         return m_remloc.at(remote_entity);
     }
-    
+
     entt::entity locrem(entt::entity local_entity) const {
         EDYN_ASSERT(has_loc(local_entity));
         return m_locrem.at(local_entity);

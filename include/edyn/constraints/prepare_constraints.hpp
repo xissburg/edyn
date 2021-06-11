@@ -1,7 +1,7 @@
 #ifndef EDYN_CONSTRAINTS_PREPARE_CONSTRAINTS_HPP
 #define EDYN_CONSTRAINTS_PREPARE_CONSTRAINTS_HPP
 
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/math/scalar.hpp"
 
 namespace edyn {

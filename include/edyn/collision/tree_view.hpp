@@ -2,6 +2,7 @@
 #define EDYN_COLLISION_TREE_VIEW_HPP
 
 #include <vector>
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include "edyn/collision/tree_node.hpp"
 #include "edyn/collision/query_tree.hpp"

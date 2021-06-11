@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <cstdint>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/collision/tree_node.hpp"

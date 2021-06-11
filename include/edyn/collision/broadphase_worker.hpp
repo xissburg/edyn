@@ -2,8 +2,7 @@
 #define EDYN_COLLISION_BROADPHASE_WORKER_HPP
 
 #include <vector>
-#include <entt/fwd.hpp>
-#include <entt/entity/registry.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/util/entity_pair.hpp"
 #include "edyn/collision/dynamic_tree.hpp"

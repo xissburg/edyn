@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <cstdint>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/math/scalar.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 

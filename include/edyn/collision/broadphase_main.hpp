@@ -3,7 +3,7 @@
 
 #include <map>
 #include <vector>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/utility.hpp>
 #include "edyn/comp/island.hpp"
 #include "edyn/math/constants.hpp"

@@ -17,10 +17,10 @@ class paged_triangle_mesh_file_input_archive;
 class load_mesh_job;
 class finish_load_mesh_job;
 
-void serialize(paged_triangle_mesh_file_output_archive &archive, 
+void serialize(paged_triangle_mesh_file_output_archive &archive,
                paged_triangle_mesh &paged_tri_mesh);
 
-void serialize(paged_triangle_mesh_file_input_archive &archive, 
+void serialize(paged_triangle_mesh_file_input_archive &archive,
                paged_triangle_mesh &paged_tri_mesh);
 
 /**
@@ -29,14 +29,14 @@ void serialize(paged_triangle_mesh_file_input_archive &archive,
  */
 enum class paged_triangle_mesh_serialization_mode: uint8_t {
     /**
-     * Embeds submeshes inside the same file as the `paged_triangle_mesh` and 
+     * Embeds submeshes inside the same file as the `paged_triangle_mesh` and
      * uses offsets within this file to load submeshes on demand.
      */
     embedded,
 
     /**
      * Writes to/reads from separate individual files for each submesh as needed.
-     */ 
+     */
     external
 };
 
@@ -47,7 +47,7 @@ void serialize(Archive &archive, paged_triangle_mesh_serialization_mode &mode) {
 
 /**
  * Get the filename of a submesh for a `paged_triangle_mesh` created with
- * `external` serialization mode. 
+ * `external` serialization mode.
  * @param paged_triangle_mesh_path Path of the `paged_triangle_mesh`.
  * @param index Index of submesh.
  * @return Path of submesh file which can be loaded into a `triangle_mesh`
@@ -62,7 +62,7 @@ class paged_triangle_mesh_file_output_archive: public file_output_archive {
 public:
     using super = file_output_archive;
 
-    paged_triangle_mesh_file_output_archive(const std::string &path, 
+    paged_triangle_mesh_file_output_archive(const std::string &path,
                                             paged_triangle_mesh_serialization_mode mode)
         : super(path)
         , m_path(path)
@@ -86,7 +86,7 @@ public:
         return m_mode;
     }
 
-    friend void serialize(paged_triangle_mesh_file_output_archive &archive, 
+    friend void serialize(paged_triangle_mesh_file_output_archive &archive,
                           paged_triangle_mesh &paged_tri_mesh);
 
 private:
@@ -121,7 +121,7 @@ public:
         return m_loaded_delegate;
     }
 
-    friend void serialize(paged_triangle_mesh_file_input_archive &archive, 
+    friend void serialize(paged_triangle_mesh_file_input_archive &archive,
                           paged_triangle_mesh &paged_tri_mesh);
     friend void load_mesh_job_func(job::data_type &);
     friend void finish_load_mesh_job_func(job::data_type &);
@@ -141,7 +141,7 @@ struct load_mesh_context {
     // Integral value of a pointer to and instance of
     // `paged_triangle_mesh_file_input_archive`.
     intptr_t m_input;
-    // Index of submesh to be loaded. 
+    // Index of submesh to be loaded.
     size_t m_index;
 };
 

@@ -1,5 +1,5 @@
 #include "edyn/parallel/island_delta.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

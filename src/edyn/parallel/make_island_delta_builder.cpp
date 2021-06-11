@@ -2,7 +2,7 @@
 #include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/config/config.h"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

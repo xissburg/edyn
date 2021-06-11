@@ -1,6 +1,6 @@
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/comp/collision_filter.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

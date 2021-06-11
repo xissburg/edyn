@@ -2,7 +2,6 @@
 #define EDYN_UTIL_ENTT_UTIL_HPP
 
 #include <tuple>
-#include <entt/fwd.hpp>
 #include <entt/entity/utility.hpp>
 #include <entt/entity/registry.hpp>
 

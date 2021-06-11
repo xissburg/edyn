@@ -2,7 +2,7 @@
 #define EDYN_COMP_DIRTY_HPP
 
 #include <vector>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include <entt/core/type_info.hpp>
 
 namespace edyn {
@@ -10,8 +10,8 @@ namespace edyn {
 /**
  * @brief Marks an entity as dirty, consequently scheduling them for a refresh
  *      in the other end, i.e. from island worker to island coordinator and
- *      vice versa. These components are consumed by an island worker or 
- *      coordinator in their update, i.e. they get processed and deleted right 
+ *      vice versa. These components are consumed by an island worker or
+ *      coordinator in their update, i.e. they get processed and deleted right
  *      after.
  */
 struct dirty {

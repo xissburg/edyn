@@ -2,7 +2,8 @@
 #define EDYN_PARALLEL_ISLAND_WORKER_CONTEXT_HPP
 
 #include <memory>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
+#include <entt/signal/fwd.hpp>
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/util/entity_set.hpp"
 #include "edyn/util/entity_map.hpp"

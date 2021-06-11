@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <utility>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/merge/merge_contact_point.hpp"
 #include "edyn/parallel/merge/merge_contact_manifold.hpp"

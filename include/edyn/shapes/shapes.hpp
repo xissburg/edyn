@@ -14,7 +14,7 @@
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/visit_component.hpp"
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 

@@ -1,6 +1,6 @@
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <utility>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 

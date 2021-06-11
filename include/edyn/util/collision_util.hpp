@@ -2,7 +2,8 @@
 #define EDYN_UTIL_COLLISION_UTIL_HPP
 
 #include <algorithm>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
+#include <entt/entity/entity.hpp>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
