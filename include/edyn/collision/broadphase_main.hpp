@@ -21,7 +21,6 @@ class broadphase_main {
     using aabb_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, AABB>;
     using multi_resident_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, multi_island_resident>;
     using tree_view_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, tree_view>;
-    using collision_filter_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, collision_filter>;
 
     // A higher threshold is used in the main broadphase to create contact
     // manifolds between different islands a little earlier and decrease the
@@ -32,19 +31,15 @@ class broadphase_main {
     constexpr static auto m_separation_threshold = m_threshold * scalar(1.3);
 
     entity_pair_vector intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB,
-                                         const aabb_view_t &aabb_view,
-                                         const collision_filter_view_t &filter_view) const;
+                                         const aabb_view_t &aabb_view) const;
     entity_pair_vector intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB,
-                                           const aabb_view_t &aabb_view,
-                                           const collision_filter_view_t &filter_view) const;
+                                           const aabb_view_t &aabb_view) const;
     entity_pair_vector intersect_island_np(const tree_view &island_tree, entt::entity np_entity,
-                                           const aabb_view_t &aabb_view,
-                                           const collision_filter_view_t &filter_view) const;
+                                           const aabb_view_t &aabb_view) const;
     entity_pair_vector find_intersecting_islands(entt::entity island_entityA,
                                                  const aabb_view_t &aabb_view,
                                                  const multi_resident_view_t &resident_view,
-                                                 const tree_view_view_t &tree_view_view,
-                                                 const collision_filter_view_t &filter_view) const;
+                                                 const tree_view_view_t &tree_view_view) const;
 
 public:
     broadphase_main(entt::registry &);
@@ -67,7 +62,7 @@ private:
     dynamic_tree m_np_tree; // Tree for non-procedural entities.
     std::vector<entity_pair_vector> m_pair_results;
 
-    bool should_collide(entt::entity e0, entt::entity e1, const collision_filter_view_t &) const;
+    bool should_collide(entt::entity e0, entt::entity e1) const;
 };
 
 template<typename Func>

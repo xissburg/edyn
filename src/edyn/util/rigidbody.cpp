@@ -18,6 +18,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/util/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/tuple_util.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
 
 namespace edyn {
@@ -70,11 +71,17 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     }
 
     if (auto opt = def.shape) {
-        std::visit([&] (auto &&sh) {
-            using ShapeType = std::decay_t<decltype(sh)>;
-            registry.emplace<ShapeType>(entity, sh);
+        std::visit([&] (auto &&shape) {
+            using ShapeType = std::decay_t<decltype(shape)>;
+
+            // Ensure shape is valid for this type of rigid body.
+            if (def.kind != rigidbody_kind::rb_static) {
+                EDYN_ASSERT((!has_type<ShapeType, std::decay_t<decltype(static_shapes_tuple)>>::value));
+            }
+
+            registry.emplace<ShapeType>(entity, shape);
             registry.emplace<shape_index>(entity, get_shape_index<ShapeType>());
-            auto aabb = shape_aabb(sh, def.position, def.orientation);
+            auto aabb = shape_aabb(shape, def.position, def.orientation);
             registry.emplace<AABB>(entity, aabb);
         }, *def.shape);
 

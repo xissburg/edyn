@@ -3,13 +3,13 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/tree_resident.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
+#include "edyn/context/settings.hpp"
 #include <entt/entt.hpp>
 
 namespace edyn {
@@ -79,14 +79,16 @@ void destroy_separated_manifolds(entt::registry &registry) {
     });
 }
 
-void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity entity, 
+void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity entity,
                                      const AABB &offset_aabb) {
     auto aabb_view = m_registry->view<AABB>();
+    auto &settings = m_registry->ctx<edyn::settings>();
 
     tree.query(offset_aabb, [&] (tree_node_id_t id) {
         auto &node = tree.get_node(id);
+        auto collides = (*settings.should_collide_func)(*m_registry, entity, node.entity);
 
-        if (should_collide(entity, node.entity) && !m_manifold_map.contains(entity, node.entity)) {
+        if (collides && !m_manifold_map.contains(entity, node.entity)) {
             auto &other_aabb = aabb_view.get(node.entity);
 
             if (intersect(offset_aabb, other_aabb)) {
@@ -96,14 +98,15 @@ void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity enti
     });
 }
 
-void broadphase_worker::collide_tree_async(const dynamic_tree &tree, entt::entity entity, 
+void broadphase_worker::collide_tree_async(const dynamic_tree &tree, entt::entity entity,
                                            const AABB &offset_aabb, size_t result_index) {
     auto aabb_view = m_registry->view<AABB>();
+    auto &settings = m_registry->ctx<edyn::settings>();
 
     tree.query(offset_aabb, [&] (tree_node_id_t id) {
         auto &node = tree.get_node(id);
 
-        if (should_collide(entity, node.entity)) {
+        if ((*settings.should_collide_func)(*m_registry, entity, node.entity)) {
             auto &other_aabb = aabb_view.get(node.entity);
 
             if (intersect(offset_aabb, other_aabb)) {
@@ -155,7 +158,7 @@ void broadphase_worker::update_async(job &completion_job) {
     m_pair_results.resize(count);
     auto &dispatcher = job_dispatcher::global();
 
-    parallel_for_each_async(dispatcher, aabb_proc_view.begin(), aabb_proc_view.end(), completion_job, 
+    parallel_for_each_async(dispatcher, aabb_proc_view.begin(), aabb_proc_view.end(), completion_job,
             [this, aabb_proc_view] (entt::entity entity, size_t index) {
         auto &aabb = aabb_proc_view.get<AABB>(entity);
         auto offset_aabb = aabb.inset(m_aabb_offset);
@@ -173,18 +176,6 @@ void broadphase_worker::finish_async_update() {
         }
         pairs.clear();
     }
-}
-
-bool broadphase_worker::should_collide(entt::entity e0, entt::entity e1) const {
-    if (e0 == e1) {
-        return false;
-    }
-
-    auto view = m_registry->view<collision_filter>();
-    auto &filter0 = view.get(e0);
-    auto &filter1 = view.get(e1);
-    return ((filter0.group & filter1.mask) > 0) && 
-           ((filter1.group & filter0.mask) > 0);
 }
 
 tree_view broadphase_worker::view() const {

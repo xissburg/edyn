@@ -53,7 +53,7 @@ struct rigidbody_def {
 
     bool sensor {false};
 
-    uint64_t collision_group {1ULL};
+    uint64_t collision_group {~0ULL};
     uint64_t collision_mask {~0ULL};
 
     // Mark all contacts involving this rigid body as continuous.

@@ -107,6 +107,11 @@ void set_external_system_functions(entt::registry &registry,
     registry.ctx<island_coordinator>().settings_changed();
 }
 
+void set_should_collide(entt::registry &registry, should_collide_func_t func) {
+    registry.ctx<settings>().should_collide_func = func;
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
 bool manifold_exists(entt::registry &registry, entity_pair entities) {
     auto &manifold_map = registry.ctx<contact_manifold_map>();
     return manifold_map.contains(entities);
