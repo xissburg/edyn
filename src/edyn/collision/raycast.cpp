@@ -33,7 +33,7 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
         visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
             auto res = raycast(shape, ctx);
 
-            if (res.proportion < result.proportion) {
+            if (res.fraction < result.fraction) {
                 result = res;
                 hit_entity = entity;
             }
@@ -107,7 +107,7 @@ shape_raycast_result raycast(const box_shape &box, const raycast_context &ctx) {
     }
 
     auto result = shape_raycast_result{};
-    result.proportion = t_min;
+    result.fraction = t_min;
     result.normal = box.get_face_normal(face_idx, ctx.orn);
     result.info_var = box_raycast_info{face_idx};
 
@@ -143,7 +143,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
         }
 
         auto result = shape_raycast_result{};
-        result.proportion = u;
+        result.fraction = u;
         result.normal = face_normal;
         result.info_var = cylinder_raycast_info{cylinder_feature::face, face_idx};
 
@@ -160,7 +160,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     if (projections[0] > 0 && projections[1] < 0) {
         // Intersection lies on the side of cylinder.
         auto result = shape_raycast_result{};
-        result.proportion = u;
+        result.fraction = u;
         result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
         result.info_var = cylinder_raycast_info{cylinder_feature::side_edge};
         return result;
@@ -177,7 +177,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     }
 
     auto result = shape_raycast_result{};
-    result.proportion = t;
+    result.fraction = t;
     result.normal = face_normal;
     result.info_var = cylinder_raycast_info{cylinder_feature::face, face_idx};
 
@@ -194,7 +194,7 @@ shape_raycast_result raycast(const sphere_shape &sphere, const raycast_context &
     auto intersection = lerp(ctx.p0, ctx.p1, t);
 
     shape_raycast_result result;
-    result.proportion = t;
+    result.fraction = t;
     result.normal = normalize(intersection - ctx.pos);
     return result;
 }
@@ -221,7 +221,7 @@ shape_raycast_result raycast(const capsule_shape &capsule, const raycast_context
         auto normal = normalize(intersection - ctx.pos);
 
         auto result = shape_raycast_result{};
-        result.proportion = u;
+        result.fraction = u;
         result.normal = normal;
         result.info_var = capsule_raycast_info{capsule_feature::hemisphere, hemi_idx};
         return result;
@@ -246,7 +246,7 @@ shape_raycast_result raycast(const capsule_shape &capsule, const raycast_context
     if (projections[0] > 0 && projections[1] < 0) {
         // Intersection lies on the side of cylindrical section.
         auto result = shape_raycast_result{};
-        result.proportion = u;
+        result.fraction = u;
         result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
         result.info_var = capsule_raycast_info{capsule_feature::side};
 
@@ -310,7 +310,7 @@ shape_raycast_result raycast(const polyhedron_shape &poly, const raycast_context
     EDYN_ASSERT(intersect_face_idx != SIZE_MAX);
 
     auto result = shape_raycast_result{};
-    result.proportion = t0;
+    result.fraction = t0;
     result.normal = rotate(ctx.orn, poly.mesh->normals[intersect_face_idx]);
     result.info_var = polyhedron_raycast_info{intersect_face_idx};
 
@@ -331,8 +331,8 @@ shape_raycast_result raycast(const compound_shape &compound, const raycast_conte
         child_ctx.orn = node.orientation;
         auto child_result = raycast(shape, child_ctx);
 
-        if (child_result.proportion < result.proportion) {
-            result.proportion = child_result.proportion;
+        if (child_result.fraction < result.fraction) {
+            result.fraction = child_result.fraction;
             result.normal = rotate(ctx.orn, child_result.normal);
             auto info = compound_raycast_info{node_index};
             // Obtain and assign relevant child info.
@@ -359,7 +359,7 @@ shape_raycast_result raycast(const plane_shape &plane, const raycast_context &ct
         // Ray is parallel to plane.
         if (std::abs(e) < EDYN_EPSILON) {
             auto result = shape_raycast_result{};
-            result.proportion = 0;
+            result.fraction = 0;
             result.normal = plane.normal;
             return result;
         } else {
@@ -368,7 +368,7 @@ shape_raycast_result raycast(const plane_shape &plane, const raycast_context &ct
     } else {
         auto t = e / d;
         auto result = shape_raycast_result{};
-        result.proportion = t;
+        result.fraction = t;
         result.normal = plane.normal;
         return result;
     }
@@ -387,8 +387,8 @@ shape_raycast_result raycast(const mesh_shape &mesh, const raycast_context &ctx)
             return;
         }
 
-        if (t < result.proportion) {
-            result.proportion = t;
+        if (t < result.fraction) {
+            result.fraction = t;
             result.normal = normal;
             result.info_var = mesh_raycast_info{tri_idx};
         }
@@ -411,8 +411,8 @@ shape_raycast_result raycast(const paged_mesh_shape &paged_mesh, const raycast_c
         }
 
         // Intersection is inside triangle.
-        if (t < result.proportion) {
-            result.proportion = t;
+        if (t < result.fraction) {
+            result.fraction = t;
             result.normal = normal;
             result.info_var = paged_mesh_raycast_info{submesh_idx, tri_idx};
         }

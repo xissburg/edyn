@@ -92,9 +92,9 @@ struct compound_raycast_info {
  * @brief Information returned from a shape-specific raycast query.
  */
 struct shape_raycast_result {
-    // Proportion for the ray where intersection occurs. The intersection
-    // point is at `lerp(p0, p1, proportion)`.
-    scalar proportion { EDYN_SCALAR_MAX };
+    // Fraction for the ray where intersection occurs. The intersection
+    // point is at `lerp(p0, p1, fraction)`.
+    scalar fraction { EDYN_SCALAR_MAX };
     // Normal vector at intersection.
     vector3 normal;
     // Raycast details which contains a value that depends on the type of shape
