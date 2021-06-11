@@ -124,10 +124,12 @@ When `edyn::update()` is called, it processes any pending changes, creates/destr
 
 Due to its multi-threaded nature, all changes to relevant components in the main `entt::registry` need to be propagated to the worker threads. _Edyn_ doesn't automatically pick up these changes, thus it's necessary to notify it either by calling `edyn::refresh()` or assigning a `edyn::dirty` component to the entity and calling some of its functions such as `edyn::dirty::updated()` (e.g. `registry.emplace<edyn::dirty>(entity).updated<edyn::position, edyn::linvel>()`).
 
-# Design Philosophy
+# Documentation and Support
 
-The code style and architecture is largely inspired by _EnTT_ which seeks to leverage modern C++ features. It steers away from typical object-oriented patterns making minimal use of inheritance and polymorphism, thus maintaining a more flat structure throughout. Data-oriented design principles are applied wherever feasible.
+Check out the [wiki](https://github.com/xissburg/edyn/wiki) where the user manual can be found.
 
-Code readability and maintainability are prioritized over the highest performance possible. This library does not intend to break world records. Some techniques might be superior in terms of performance but they also bring in a lot of pain due to the extra complexity, which also has the potential to result in more bugs which can be even harder to fix. They also make the code less welcoming to potential contributors. No proper benchmark has been done yet, but the basic performance tests already show similar and sometimes better performance than Bullet Physics, and there are still a lot of optimizations queued in the backlog.
+See the [design document](https://github.com/xissburg/edyn/blob/master/docs/Design.md) for information about the internals and planned features.
 
-See [docs/Design.md](https://github.com/xissburg/edyn/blob/master/docs/Design.md) to learn more about the engine's planned architecture.
+Questions can be asked on [discussions](https://github.com/xissburg/edyn/discussions) and the author can also be reached on the [EnTT Discord](https://discord.gg/5BjPWBd) under the same username and avatar.
+
+Follow progress on [Trello](https://trello.com/b/5RQdZ7e1/edyn) where you can see the to-do list and what's being currently worked on.
