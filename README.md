@@ -110,7 +110,7 @@ entt::registry registry;
 edyn::init();
 edyn::attach(registry);
 
-// Create rigid bodies and constraints...
+// Create rigid bodies as shown above...
 
 // Call `edyn::update()` periodically in your main loop somewhere.
 for (;;) {
