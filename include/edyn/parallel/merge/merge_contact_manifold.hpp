@@ -2,7 +2,7 @@
 #define EDYN_PARALLEL_MERGE_MERGE_CONTACT_MANIFOLD_HPP
 
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/parallel/merge/merge_util.hpp"
+#include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/util/entity_map.hpp"
 
 namespace edyn {
@@ -13,7 +13,12 @@ void merge(const contact_manifold *old_comp, contact_manifold &new_comp, merge_c
         entity = ctx.map->remloc(entity);
     }
 
-    merge_entity_array(old_comp, new_comp, &contact_manifold::point, ctx);
+    for (auto &entity : new_comp.point) {
+        if (entity == entt::null) {
+            break;
+        }
+        entity = ctx.map->remloc(entity);
+    }
 }
 
 }

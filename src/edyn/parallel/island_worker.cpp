@@ -306,6 +306,8 @@ void island_worker::sync() {
 
     // Always update applied impulses since they're needed to maintain warm starting
     // functioning correctly when constraints are moved from one island to another.
+    // TODO: synchronized merges would eliminate the need to share these
+    // components continuously.
     m_registry.view<constraint_impulse>().each([&] (entt::entity entity, constraint_impulse &imp) {
         m_delta_builder->updated(entity, imp);
     });
@@ -325,7 +327,15 @@ void island_worker::sync() {
         }
     });
 
-    // Update dirty components.
+    sync_dirty();
+
+    auto delta = m_delta_builder->finish();
+    m_message_queue.send<island_delta>(std::move(delta));
+}
+
+void island_worker::sync_dirty() {
+    // Assign dirty components to the delta builder. This can be called at
+    // any time to move the current dirty entities into the next island delta.
     m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
         if (dirty.is_new_entity) {
             m_delta_builder->created(entity);
@@ -338,9 +348,6 @@ void island_worker::sync() {
         m_delta_builder->destroyed(entity,
             dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
     });
-
-    auto delta = m_delta_builder->finish();
-    m_message_queue.send<island_delta>(std::move(delta));
 
     m_registry.clear<dirty>();
 }
@@ -498,6 +505,12 @@ bool island_worker::run_narrowphase() {
         m_nphase.update_async(m_this_job);
         return false;
     } else {
+        // Separating contact points will be destroyed in the next call. Move
+        // the dirty contact points into the island delta before that happens
+        // because the dirty component is removed as well, which would cause
+        // points that were created in this step and are going to be destroyed
+        // next to be missing in the island delta.
+        sync_dirty();
         m_nphase.update();
         m_state = state::finish_step;
         return true;
@@ -506,6 +519,11 @@ bool island_worker::run_narrowphase() {
 
 void island_worker::finish_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase_async);
+    // In the asynchronous narrow-phase update, separating contact points will
+    // be destroyed in the next call. Following the same logic as above, move
+    // the dirty contact points into the current island delta before that
+    // happens.
+    sync_dirty();
     m_nphase.finish_async_update();
     m_state = state::finish_step;
 }

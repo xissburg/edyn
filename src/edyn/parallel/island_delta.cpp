@@ -50,18 +50,17 @@ void island_delta::import(entt::registry &registry, entity_map &map) const {
             map.insert(remote_entity, local_entity);
         }
     });
-    
-    import_created_entities(registry, map);
-    import_destroyed_entities(registry, map);
 
+    import_created_entities(registry, map);
     import_created_components(registry, map);
     import_updated_components(registry, map);
     import_destroyed_components(registry, map);
+    import_destroyed_entities(registry, map);
 }
 
 bool island_delta::empty() const {
-    if (!m_entity_map.empty() || 
-        !m_created_entities.empty() || 
+    if (!m_entity_map.empty() ||
+        !m_created_entities.empty() ||
         !m_destroyed_entities.empty()) {
         return false;
     }
@@ -77,7 +76,7 @@ bool island_delta::empty() const {
             return false;
         }
     }
-    
+
     for (auto &ptr : m_destroyed_components) {
         if (ptr && !ptr->empty()) {
             return false;

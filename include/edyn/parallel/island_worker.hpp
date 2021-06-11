@@ -63,6 +63,7 @@ class island_worker final {
     void go_to_sleep();
     bool should_split();
     void sync();
+    void sync_dirty();
     void update();
 
 public:
