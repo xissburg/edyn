@@ -2,9 +2,8 @@
 #define EDYN_PARALLEL_MERGE_MERGE_CONSTRAINT_HPP
 
 #include "edyn/constraints/constraint.hpp"
-#include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
+#include "edyn/util/entity_map.hpp"
 
 namespace edyn {
 
