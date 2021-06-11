@@ -51,7 +51,7 @@ registry.emplace<edyn::linvel>(entity, edyn::vector3_zero);
 registry.emplace<edyn::angvel>(entity, 0, 0.314, 0);
 auto mass = edyn::scalar{50};
 registry.emplace<edyn::mass>(entity, mass);
-auto &shape = registry.emplace<edyn::shape>(entity, edyn::box_shape{0.5, 0.2, 0.4});
+auto &shape = registry.emplace<edyn::box_shape>(entity, 0.5, 0.2, 0.4); // Box half-extents.
 registry.emplace<edyn::inertia>(entity, edyn::moment_of_inertia(shape, mass));
 registry.emplace<edyn::material>(entity, 0.2, 0.9); // Restitution and friction.
 registry.emplace<edyn::linacc>(entity, edyn::gravity_earth);
