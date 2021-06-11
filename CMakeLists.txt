@@ -53,6 +53,7 @@ set(Edyn_SOURCES
     src/edyn/collision/collide/collide_compound_compound.cpp
     src/edyn/collision/collide/collide_compound_plane.cpp
     src/edyn/collision/collide/collide_compound_mesh.cpp
+    src/edyn/collision/should_collide.cpp
     src/edyn/collision/collision_result.cpp
     src/edyn/collision/raycast.cpp
     src/edyn/constraints/contact_constraint.cpp

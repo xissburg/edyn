@@ -21,7 +21,6 @@ class broadphase_worker {
     constexpr static auto m_separation_threshold = contact_breaking_threshold * scalar(4 * 1.3);
 
     void init_new_aabb_entities();
-    bool should_collide(entt::entity, entt::entity) const;
 
     void collide_tree(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb);
     void collide_tree_async(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb, size_t result_index);
