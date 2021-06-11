@@ -55,7 +55,7 @@ registry.emplace<edyn::material>(entity, 0.2, 0.9); // Restitution and friction.
 registry.emplace<edyn::linacc>(entity, edyn::gravity_earth);
 ```
 
-There's no explicit mention of a rigid body in the code, but during the physics update all entities that have a combination of the components assigned above will be treated as a rigid body and their state will be updated over time as expected. The update may be carried as follows:
+There's no explicit mention of a rigid body in the code, but during the physics update all entities that have a combination of the components assigned above will be treated as a rigid body and their state will be updated over time as expected. Then, the rigid body motion may be updated as follows:
 
 ```cpp
 // Apply gravity acceleration, increasing linear velocity.
@@ -125,6 +125,8 @@ Due to its multi-threaded nature, all changes to relevant components in the main
 # Documentation and Support
 
 Check out the [wiki](https://github.com/xissburg/edyn/wiki) where the user manual can be found.
+
+Check out [Edyn Testbed](https://github.com/xissburg/edyn-testbed) for concrete examples.
 
 See the [design document](https://github.com/xissburg/edyn/blob/master/docs/Design.md) for information about the internals and planned features.
 
