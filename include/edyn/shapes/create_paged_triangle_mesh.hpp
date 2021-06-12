@@ -163,7 +163,9 @@ struct submesh_builder {
                     break;
                 }
 
+            #if EDYN_DEBUG && !EDYN_DISABLE_ASSERT
                 EDYN_ASSERT(edge_was_found);
+            #endif
             }
 
             // Create node.
