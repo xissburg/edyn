@@ -15,7 +15,7 @@ struct set_fixed_dt {
 };
 
 struct set_settings {
-    settings settings;
+    edyn::settings settings;
 };
 
 struct step_simulation {};

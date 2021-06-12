@@ -77,7 +77,7 @@ struct submesh_builder {
             submesh->m_normals.resize(local_num_triangles);
 
             // Obtain local indices from global indices and add to triangle mesh.
-            for (auto tri_idx = 0; tri_idx < local_num_triangles; ++tri_idx) {
+            for (size_t tri_idx = 0; tri_idx < local_num_triangles; ++tri_idx) {
                 for (size_t i = 0; i < 3; ++i) {
                     auto global_vertex_idx = global_indices[tri_idx * 3 + i];
                     // The local vertex index is the index of the element in
@@ -104,13 +104,13 @@ struct submesh_builder {
             submesh->m_vertex_tangents.reserve_nested(submesh->m_vertices.size());
 
             // Assign vertex tangents.
-            for (auto local_vertex_idx = 0; local_vertex_idx < local_indices.size(); ++local_vertex_idx) {
+            for (size_t local_vertex_idx = 0; local_vertex_idx < local_indices.size(); ++local_vertex_idx) {
                 auto global_vertex_idx = local_indices[local_vertex_idx];
                 auto global_tangents = global_tri_mesh.m_vertex_tangents[global_vertex_idx];
                 // Start new nested array of tangents for current vertex.
                 submesh->m_vertex_tangents.push_array();
 
-                for (auto i = 0; i < global_tangents.size(); ++i) {
+                for (size_t i = 0; i < global_tangents.size(); ++i) {
                     auto tangent = global_tangents[i];
                     submesh->m_vertex_tangents.push_back(tangent);
                 }
@@ -121,7 +121,7 @@ struct submesh_builder {
             submesh->m_is_convex_edge.resize(local_num_edges);
 
             // Assign edge normals.
-            for (auto edge_idx = 0; edge_idx < local_num_edges; ++edge_idx) {
+            for (size_t edge_idx = 0; edge_idx < local_num_edges; ++edge_idx) {
                 // Find corresponding global edge index.
                 // Get indices of vertices of this edge in the submesh.
                 auto local_vertex_index0 = submesh->m_edge_vertex_indices[edge_idx].first;
@@ -133,11 +133,11 @@ struct submesh_builder {
                 // and find the edge that contains both global vertices.
                 auto global_edge_indices = global_tri_mesh.m_vertex_edge_indices[global_vertex_index0];
 
-            #ifndef EDYN_DISABLE_ASSERT
+            #if EDYN_DEBUG && !EDYN_DISABLE_ASSERT
                 auto edge_was_found = false;
             #endif
 
-                for (auto i = 0; i < global_edge_indices.size(); ++i) {
+                for (size_t i = 0; i < global_edge_indices.size(); ++i) {
                     auto global_edge_idx = global_edge_indices[i];
                     auto global_edge_vertex_indices = global_tri_mesh.m_edge_vertex_indices[global_edge_idx];
 
@@ -156,7 +156,7 @@ struct submesh_builder {
                     submesh->m_edge_normals[edge_idx] = edge_normals;
                     submesh->m_is_convex_edge[edge_idx] = is_convex;
 
-                #ifndef EDYN_DISABLE_ASSERT
+                #if EDYN_DEBUG && !EDYN_DISABLE_ASSERT
                     edge_was_found = true;
                 #endif
 

@@ -26,9 +26,7 @@ struct component_index_source {
         }
     }
 
-    virtual size_t index_of_id(entt::id_type id) const {
-        EDYN_ASSERT(false);
-    }
+    virtual size_t index_of_id(entt::id_type id) const = 0;
 };
 
 template<typename... Component>

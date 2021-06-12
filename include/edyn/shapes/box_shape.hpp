@@ -6,6 +6,7 @@
 #include "edyn/math/vector2.hpp"
 #include <tuple>
 #include <array>
+#include <cstdint>
 
 namespace edyn {
 
@@ -250,6 +251,8 @@ constexpr size_t get_box_num_features(box_feature feature) {
     case box_feature::vertex:
         return 8;
     }
+
+    return SIZE_MAX;
 }
 
 constexpr size_t get_box_feature_num_vertices(box_feature feature) {
@@ -261,6 +264,8 @@ constexpr size_t get_box_feature_num_vertices(box_feature feature) {
     case box_feature::vertex:
         return 1;
     }
+
+    return SIZE_MAX;
 }
 
 }

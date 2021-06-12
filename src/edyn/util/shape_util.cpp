@@ -319,7 +319,7 @@ bool closest_point_convex_polygon(const std::vector<vector2> &vertices,
                                   const std::vector<size_t> &indices,
                                   const vector2 &p, vector2 &closest) {
     // Find Voronoi region which contains `p`.
-    for (auto i = 0; i < indices.size(); ++i) {
+    for (size_t i = 0; i < indices.size(); ++i) {
         auto j = (i + 1) % indices.size();
         auto i0 = indices[i];
         auto i1 = indices[j];
@@ -426,12 +426,13 @@ vector3 mesh_centroid(const std::vector<vector3> &vertices,
     for (size_t i = 0; i < faces.size(); i += 2) {
         auto first = faces[i];
         auto count = faces[i + 1];
+        EDYN_ASSERT(count >= 3);
 
         auto i0 = indices[first];
         auto &v0 = vertices[i0];
 
         // Triangulate face with a triangle fan around v0.
-        for (size_t j = 1; j < count - 1; ++j) {
+        for (size_t j = 1; j < size_t(count - 1); ++j) {
             auto i1 = indices[first + j];
             auto i2 = indices[first + j + 1];
             auto &v1 = vertices[i1];

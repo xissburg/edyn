@@ -26,7 +26,6 @@ void collide(const capsule_shape &shA, const box_shape &shB,
     };
 
     scalar distance = -EDYN_SCALAR_MAX;
-    scalar projection_capsule = EDYN_SCALAR_MAX;
     scalar projection_box = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
 
@@ -43,7 +42,6 @@ void collide(const capsule_shape &shA, const box_shape &shB,
 
         if (dist > distance) {
             distance = dist;
-            projection_capsule = projA;
             projection_box = projB;
             sep_axis = dir;
         }
@@ -73,7 +71,6 @@ void collide(const capsule_shape &shA, const box_shape &shB,
 
         if (dist > distance) {
             distance = dist;
-            projection_capsule = projA;
             projection_box = projB;
             sep_axis = dir;
         }

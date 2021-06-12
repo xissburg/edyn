@@ -105,7 +105,10 @@ struct convex_mesh {
     void shift_to_centroid();
     void calculate_normals();
     void calculate_edges();
+
+#ifdef EDYN_DEBUG
     void validate() const;
+#endif
 };
 
 /**

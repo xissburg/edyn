@@ -30,12 +30,13 @@ scalar mesh_volume(const convex_mesh &mesh) {
     for (size_t i = 0; i < num_faces; ++i) {
         auto first = mesh.faces[i * 2];
         auto count = mesh.faces[i * 2 + 1];
+        EDYN_ASSERT(count >= 3);
 
         auto i0 = mesh.indices[first];
         auto &v0 = mesh.vertices[i0];
 
         // Triangulate face with a triangle fan around v0.
-        for (size_t j = 1; j < count - 1; ++j) {
+        for (size_t j = 1; j < size_t(count - 1); ++j) {
             auto i1 = mesh.indices[first + j];
             auto i2 = mesh.indices[first + j + 1];
             auto &v1 = mesh.vertices[i1];

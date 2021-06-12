@@ -614,7 +614,7 @@ entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &
 }
 
 void island_coordinator::create_island(std::vector<entt::entity> nodes, bool sleeping) {
-#ifndef EDYN_DISABLE_ASSERT
+#if EDYN_DEBUG && !EDYN_DISABLE_ASSERT
     for (auto entity : nodes) {
         EDYN_ASSERT(m_registry->has<graph_node>(entity));
     }

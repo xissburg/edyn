@@ -231,7 +231,7 @@ bool triangle_mesh::in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) con
     // the edges sharing this vertex as face normals.
     auto tangents = m_vertex_tangents[vertex_idx];
 
-    for (auto i = 0; i < tangents.size(); ++i) {
+    for (size_t i = 0; i < tangents.size(); ++i) {
         if (dot(dir, tangents[i]) > EDYN_EPSILON) {
             return false;
         }

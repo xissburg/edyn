@@ -41,8 +41,8 @@ void box_shape::support_feature(const vector3 &dir, box_feature &feature,
     // Vertex index on face [0, 4) of vertices within threshold. There's always
     // at least one (i.e. the one furthest along `dir`).
     std::array<size_t, 4> indices;
-    size_t count = 1;
-    size_t max_proj_idx;
+    auto count = size_t{1};
+    auto max_proj_idx = size_t{};
 
     for (size_t i = 0; i < projections.size(); ++i) {
         auto vertex_idx = get_vertex_index_from_face(candidate_face, i);

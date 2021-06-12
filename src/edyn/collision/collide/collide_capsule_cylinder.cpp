@@ -21,7 +21,6 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     auto cyl_axis = normalize(cylinder_vertices[1] - cylinder_vertices[0]);
 
     scalar distance = -EDYN_SCALAR_MAX;
-    scalar projection_cyl = -EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
 
     // Cylinder cap faces.
@@ -38,7 +37,6 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
 
         if (dist > distance) {
             distance = dist;
-            projection_cyl = projB;
             sep_axis = dir;
         }
     }
@@ -58,7 +56,6 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
 
             if (dist > distance) {
                 distance = dist;
-                projection_cyl = projB;
                 sep_axis = dir;
             }
         }
@@ -80,7 +77,6 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
 
         if (dist > distance) {
             distance = dist;
-            projection_cyl = projB;
             sep_axis = dir;
         }
     }
@@ -107,7 +103,6 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
 
         if (dist > distance) {
             distance = dist;
-            projection_cyl = projB;
             sep_axis = dir;
         }
     }
@@ -134,7 +129,6 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
 
             if (dist > distance) {
                 distance = dist;
-                projection_cyl = projB;
                 sep_axis = dir;
             }
         }

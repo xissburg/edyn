@@ -441,7 +441,7 @@ TEST(test_collision, collide_cylinder_box_face_face) {
     edyn::collide(cylinder, box, ctx, result);
     ASSERT_EQ(result.num_points, 3);
 
-    for (auto i = 0; i < result.num_points; ++i) {
+    for (size_t i = 0; i < result.num_points; ++i) {
         ASSERT_TRUE(std::abs(result.point[i].distance) < EDYN_EPSILON);
         ASSERT_TRUE(edyn::distance_sqr(result.point[i].normalB, edyn::vector3_y) < EDYN_EPSILON);
     }
@@ -452,7 +452,7 @@ TEST(test_collision, collide_cylinder_box_face_face) {
         bool containsA = false;
         bool containsB = false;
 
-        for (auto i = 0; i < result.num_points; ++i) {
+        for (size_t i = 0; i < result.num_points; ++i) {
             containsA |= edyn::distance_sqr(result.point[i].pivotA, pivotA) < EDYN_EPSILON;
             containsB |= edyn::distance_sqr(result.point[i].pivotB, pivotB) < EDYN_EPSILON;
         }
@@ -467,7 +467,7 @@ TEST(test_collision, collide_cylinder_box_face_face) {
         bool containsA = false;
         bool containsB = false;
 
-        for (auto i = 0; i < result.num_points; ++i) {
+        for (size_t i = 0; i < result.num_points; ++i) {
             containsA |= edyn::distance_sqr(result.point[i].pivotA, pivotA) < EDYN_EPSILON;
             containsB |= edyn::distance_sqr(result.point[i].pivotB, pivotB) < EDYN_EPSILON;
         }
@@ -482,7 +482,7 @@ TEST(test_collision, collide_cylinder_box_face_face) {
         bool containsA = false;
         bool containsB = false;
 
-        for (auto i = 0; i < result.num_points; ++i) {
+        for (size_t i = 0; i < result.num_points; ++i) {
             containsA |= edyn::distance_sqr(result.point[i].pivotA, pivotA) < EDYN_EPSILON;
             containsB |= edyn::distance_sqr(result.point[i].pivotB, pivotB) < EDYN_EPSILON;
         }

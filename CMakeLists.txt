@@ -6,7 +6,7 @@ project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
 option(EDYN_BUILD_EXAMPLES "Build examples" ON)
 option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
-option(EDYN_DISABLE_ASSERT "Disable assertions in Edyn for better performance." ON)
+option(EDYN_DISABLE_ASSERT "Disable assertions in Edyn for better performance." OFF)
 option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF)
 
 if(NOT CMAKE_DEBUG_POSTFIX)

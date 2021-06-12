@@ -77,11 +77,12 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass,
     for (size_t i = 0; i < num_faces; ++i) {
         auto first = faces[i * 2];
         auto count = faces[i * 2 + 1];
+        EDYN_ASSERT(count >= 3);
 
         auto i0 = indices[first];
         auto &v0 = vertices[i0];
 
-        for (size_t j = 1; j < count - 1; ++j) {
+        for (size_t j = 1; j < size_t(count - 1); ++j) {
             auto i1 = indices[first + j];
             auto i2 = indices[first + j + 1];
             auto &v1 = vertices[i1];

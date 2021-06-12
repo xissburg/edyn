@@ -103,6 +103,7 @@ void convex_mesh::calculate_edges() {
     }
 }
 
+#ifdef EDYN_DEBUG
 void convex_mesh::validate() const {
     // Check if all faces are flat.
     for (size_t i = 0; i < num_faces(); ++i) {
@@ -134,6 +135,7 @@ void convex_mesh::validate() const {
         }
     }
 }
+#endif
 
 rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn) {
     auto rotated = rotated_mesh{};

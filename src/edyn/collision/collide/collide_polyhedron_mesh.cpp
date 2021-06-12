@@ -31,8 +31,8 @@ static void collide_polyhedron_triangle(
 
     auto sep_axis = vector3_zero;
     auto distance = -EDYN_SCALAR_MAX;
-    scalar projection_tri;
-    scalar projection_poly;
+    auto projection_tri = scalar{};
+    auto projection_poly = scalar{};
 
     // Polyhedron face normals.
     for (size_t i = 0; i < poly.mesh->num_faces(); ++i) {
