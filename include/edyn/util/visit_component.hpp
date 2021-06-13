@@ -20,7 +20,7 @@ namespace detail {
     constexpr auto make_visit_function() {
         using ViewType = entt::basic_view<entt::entity, entt::exclude_t<>, T>;
         return [] (entt::entity entity, const ViewsTupleType &views_tuple, VisitorType visitor) {
-            visitor(std::get<ViewType>(views_tuple).template get(entity));
+            visitor(std::get<ViewType>(views_tuple).get(entity));
         };
     }
 
