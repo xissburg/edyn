@@ -2,6 +2,7 @@
 #define EDYN_SHAPES_COMPOUND_SHAPE_HPP
 
 #include <vector>
+#include <string>
 #include <variant>
 #include "edyn/shapes/sphere_shape.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"

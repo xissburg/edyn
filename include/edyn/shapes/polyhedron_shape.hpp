@@ -2,6 +2,7 @@
 #define EDYN_SHAPES_POLYHEDRON_HPP
 
 #include <memory>
+#include <string>
 #include "edyn/shapes/convex_mesh.hpp"
 
 namespace edyn {
