@@ -54,7 +54,21 @@ static void collide_sphere_triangle(
                                  tri_feature, tri_feature_index,
                                  proj_tri, support_feature_tolerance);
 
-    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
+    sep_axis = clip_triangle_separating_axis(sep_axis, mesh, tri_idx, tri_vertices, tri_normal, tri_feature, tri_feature_index);
+
+    if (sep_axis == vector3_zero) {
+        return;
+    }
+
+    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
+                                 tri_feature, tri_feature_index,
+                                 proj_tri, support_feature_tolerance);
+
+    auto proj_sphere = -(dot(sphere_pos, -sep_axis) + sphere.radius);
+
+    distance = proj_sphere - proj_tri;
+
+    if (distance > ctx.threshold) {
         return;
     }
 

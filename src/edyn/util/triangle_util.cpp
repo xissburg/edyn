@@ -1,5 +1,6 @@
 #include "edyn/util/triangle_util.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/shapes/triangle_mesh.hpp"
 
 namespace edyn {
 
@@ -130,6 +131,58 @@ AABB get_triangle_aabb(const triangle_vertices &vertices) {
     auto tri_min = min(min(vertices[0], vertices[1]), vertices[2]);
     auto tri_max = max(max(vertices[0], vertices[1]), vertices[2]);
     return {tri_min, tri_max};
+}
+
+
+vector3 clip_triangle_separating_axis(vector3 sep_axis, const triangle_mesh &mesh,
+                                      size_t tri_idx, const triangle_vertices &tri_vertices,
+                                      const vector3 &tri_normal,triangle_feature tri_feature,
+                                      size_t tri_feature_index) {
+    switch (tri_feature) {
+    case triangle_feature::vertex: {
+        auto edge_idx0 = tri_feature_index;
+        auto edge_idx1 = (tri_feature_index + 2) % 3;
+        auto adj_normal0 = mesh.get_adjacent_face_normal(tri_idx, edge_idx0);
+        auto adj_normal1 = mesh.get_adjacent_face_normal(tri_idx, edge_idx1);
+
+        auto edge_dir0 = tri_vertices[(edge_idx0 + 1) % 3] - tri_vertices[edge_idx0];
+        auto edge_normal0 = cross(edge_dir0, adj_normal0);
+
+        auto edge_dir1 = tri_vertices[(edge_idx1 + 1) % 3] - tri_vertices[edge_idx1];
+        auto edge_normal1 = cross(edge_dir1, adj_normal1);
+
+        if (dot(sep_axis, edge_normal0) > dot(sep_axis, edge_normal1)) {
+            if (dot(sep_axis, edge_normal0) > 0) {
+                //sep_axis = adj_normal0;
+                sep_axis = vector3_zero;
+            }
+        } else {
+            if (dot(sep_axis, edge_normal1) > 0) {
+                // sep_axis = adj_normal1;
+                sep_axis = vector3_zero;
+            }
+        }
+
+        break;
+    } case triangle_feature::edge: {
+        auto adj_normal = mesh.get_adjacent_face_normal(tri_idx, tri_feature_index);
+        auto v0 = tri_vertices[tri_feature_index];
+        auto v1 = tri_vertices[(tri_feature_index + 1) % 3];
+        auto edge_dir = v1 - v0;
+        auto edge_normal = cross(edge_dir, adj_normal);
+
+        if (dot(sep_axis, edge_normal) > 0) {
+            // Separating axis is beyond bounds of voronoi region.
+            // Use the normal of the adjacent face as separating axis.
+            sep_axis = adj_normal;
+        }
+
+        break;
+    } case triangle_feature::face: {
+        sep_axis = tri_normal;
+    }}
+
+    return sep_axis;
 }
 
 }

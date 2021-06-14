@@ -112,7 +112,21 @@ static void collide_polyhedron_triangle(
                                  tri_feature, tri_feature_index,
                                  proj_tri, support_feature_tolerance);
 
-    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
+    sep_axis = clip_triangle_separating_axis(sep_axis, mesh, tri_idx, tri_vertices, tri_normal, tri_feature, tri_feature_index);
+
+    if (sep_axis == vector3_zero) {
+        return;
+    }
+
+    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
+                                 tri_feature, tri_feature_index,
+                                 proj_tri, support_feature_tolerance);
+
+    projection_poly = -point_cloud_support_projection(rmesh.vertices, -sep_axis);
+
+    distance = projection_poly - proj_tri;
+
+    if (distance > ctx.threshold) {
         return;
     }
 
@@ -168,10 +182,6 @@ static void collide_polyhedron_triangle(
     if (polygon.hull.size() > 2) {
         for (size_t i = 0; i < hull_tri_size; ++i) {
             auto idxB = hull_tri[i];
-            auto vertex_idx = mesh.get_face_vertex_index(tri_idx, idxB);
-
-            if (!mesh.in_vertex_voronoi(vertex_idx, sep_axis)) continue;
-
             auto &pointB = tri_vertices[idxB];
 
             if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
@@ -201,10 +211,6 @@ static void collide_polyhedron_triangle(
 
             for (size_t j = 0; j < limit_tri; ++j) {
                 auto idx0B = hull_tri[j];
-                auto edge_idx = mesh.get_face_edge_index(tri_idx, idx0B);
-
-                if (!mesh.in_edge_voronoi(edge_idx, sep_axis)) continue;
-
                 auto idx1B = hull_tri[(j + 1) % hull_tri_size];
                 auto &v0B = plane_vertices_tri[idx0B];
                 auto &v1B = plane_vertices_tri[idx1B];

@@ -21,18 +21,5 @@ TEST(test_trimesh, voronoi_regions) {
     trimesh.insert_indices(indices.begin(), indices.end());
     trimesh.initialize();
 
-    ASSERT_TRUE(trimesh.in_edge_voronoi(trimesh.get_face_edge_index(0, 1), {1, 1, -1}));
-    ASSERT_TRUE(trimesh.in_edge_voronoi(trimesh.get_face_edge_index(0, 2), {1, 1, 1}));
-    ASSERT_TRUE(trimesh.in_edge_voronoi(trimesh.get_face_edge_index(1, 1), {-1, 1, -1}));
-    ASSERT_TRUE(trimesh.in_edge_voronoi(trimesh.get_face_edge_index(1, 2), {1, 1, -1}));
-    ASSERT_TRUE(trimesh.in_edge_voronoi(trimesh.get_face_edge_index(2, 1), {-1, 1, 1}));
-    ASSERT_FALSE(trimesh.in_edge_voronoi(trimesh.get_face_edge_index(2, 1), {1, -1, -1}));
-
-    ASSERT_TRUE(trimesh.in_vertex_voronoi(4, {0, 1, 0}));
-    ASSERT_TRUE(trimesh.in_vertex_voronoi(4, edyn::rotate(edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi / 4 - EDYN_EPSILON), {0, 1, 0})));
-    ASSERT_FALSE(trimesh.in_vertex_voronoi(4, {0, -1, 0}));
-    ASSERT_FALSE(trimesh.in_vertex_voronoi(4, {1, 0, 0.5}));
-    ASSERT_TRUE(trimesh.in_vertex_voronoi(2, {-1, 0.1, -1}));
-
     ASSERT_FALSE(trimesh.is_convex_edge(trimesh.get_face_edge_index(4, 2)));
 }

@@ -26,9 +26,7 @@ public:
     void initialize();
     void calculate_face_normals();
     void init_edge_indices();
-    void calculate_edge_normals();
-    void init_vertex_tangents();
-    void calculate_convex_edges();
+    void calculate_adjacent_normals();
     void build_triangle_tree();
 
 public:
@@ -91,19 +89,6 @@ public:
         return m_edge_face_indices[edge_idx];
     }
 
-    auto get_edge_normals(size_t edge_idx) const {
-        EDYN_ASSERT(edge_idx < m_edge_normals.size());
-        return m_edge_normals[edge_idx];
-    }
-
-    /**
-     * @brief Returns the normals of the faces that share an edge
-     * which is assumed to be convex.
-     * @param edge_idx Convex edge index.
-     * @return Two adjacent face normals.
-     */
-    std::array<vector3, 2> get_convex_edge_face_normals(size_t edge_idx) const ;
-
     template<typename Func>
     void visit_triangles(const AABB &aabb, Func func) const {
         m_triangle_tree.query(aabb, [&] (auto tree_node_idx) {
@@ -133,10 +118,6 @@ public:
         });
     }
 
-    bool in_vertex_voronoi(size_t vertex_idx, const vector3 &dir) const;
-
-    bool in_edge_voronoi(size_t edge_idx, const vector3 &dir) const;
-
     bool is_convex_edge(size_t edge_idx) const {
         EDYN_ASSERT(edge_idx < m_is_convex_edge.size());
         return m_is_convex_edge[edge_idx];
@@ -146,9 +127,6 @@ public:
         EDYN_ASSERT(edge_idx < m_is_boundary_edge.size());
         return m_is_boundary_edge[edge_idx];
     }
-
-    bool ignore_triangle_feature(size_t tri_idx, triangle_feature tri_feature,
-                                 size_t feature_idx, const vector3 &dir) const;
 
     index_type get_face_vertex_index(size_t tri_idx, size_t vertex_idx) const {
         EDYN_ASSERT(tri_idx < m_face_edge_indices.size());
@@ -160,6 +138,10 @@ public:
         EDYN_ASSERT(tri_idx < m_face_edge_indices.size());
         EDYN_ASSERT(edge_idx < 3);
         return m_face_edge_indices[tri_idx][edge_idx];
+    }
+
+    vector3 get_adjacent_face_normal(size_t tri_idx, size_t v_idx) const {
+        return m_adjacent_normals[tri_idx][v_idx];
     }
 
     template<typename Archive>
@@ -178,6 +160,9 @@ private:
     // Face normals.
     std::vector<vector3> m_normals;
 
+    // Normal vector of adjacent faces which share an edge with the i-th face.
+    std::vector<std::array<vector3, 3>> m_adjacent_normals;
+
     // Vertex indices for each unique edge. Each pair of values represent the
     // vertex indices for one edge.
     std::vector<commutative_pair<index_type>> m_edge_vertex_indices;
@@ -185,16 +170,6 @@ private:
     // Indices of edges for each vertex. Each element is a list of indices of
     // edges that share the vertex.
     flat_nested_array<index_type> m_vertex_edge_indices;
-
-    // Vectors that are orthogonal to an edge and parallel to the faces that
-    // share this edge. They're stored in pairs where each value is a vector
-    // that points towards each face. For perimetral edges, both values are the
-    // same and point towards the single face that contains this edge.
-    std::vector<std::array<vector3, 2>> m_edge_normals;
-
-    // Vectors that are tangent to a vertex. More specifically, these are the
-    // directions of the edges that depart from a vertex.
-    flat_nested_array<vector3> m_vertex_tangents;
 
     // Each element represents the indices of the three edges of a face.
     std::vector<std::array<index_type, 3>> m_face_edge_indices;

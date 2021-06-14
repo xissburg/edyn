@@ -75,9 +75,12 @@ struct submesh_builder {
 
             submesh->m_indices.resize(local_num_triangles);
             submesh->m_normals.resize(local_num_triangles);
+            submesh->m_adjacent_normals.resize(local_num_triangles);
 
             // Obtain local indices from global indices and add to triangle mesh.
             for (size_t tri_idx = 0; tri_idx < local_num_triangles; ++tri_idx) {
+                auto global_tri_idx = info.ids[tri_idx];
+
                 for (size_t i = 0; i < 3; ++i) {
                     auto global_vertex_idx = global_indices[tri_idx * 3 + i];
                     // The local vertex index is the index of the element in
@@ -86,10 +89,11 @@ struct submesh_builder {
                     EDYN_ASSERT(it != local_indices.end());
                     auto local_vertex_idx = std::distance(local_indices.begin(), it);
                     submesh->m_indices[tri_idx][i] = local_vertex_idx;
+                    // Assign adjacent normals as well.
+                    submesh->m_adjacent_normals[tri_idx][i] = global_tri_mesh.m_adjacent_normals[global_tri_idx][i];
                 }
 
                 // Assign normals as well.
-                auto global_tri_idx = info.ids[tri_idx];
                 submesh->m_normals[tri_idx] = global_tri_mesh.m_normals[global_tri_idx];
             }
 
@@ -100,24 +104,7 @@ struct submesh_builder {
             submesh->init_edge_indices();
             submesh->build_triangle_tree();
 
-            submesh->m_vertex_tangents.reserve_data(submesh->m_vertices.size() * 2);
-            submesh->m_vertex_tangents.reserve_nested(submesh->m_vertices.size());
-
-            // Assign vertex tangents.
-            for (size_t local_vertex_idx = 0; local_vertex_idx < local_indices.size(); ++local_vertex_idx) {
-                auto global_vertex_idx = local_indices[local_vertex_idx];
-                auto global_tangents = global_tri_mesh.m_vertex_tangents[global_vertex_idx];
-                // Start new nested array of tangents for current vertex.
-                submesh->m_vertex_tangents.push_array();
-
-                for (size_t i = 0; i < global_tangents.size(); ++i) {
-                    auto tangent = global_tangents[i];
-                    submesh->m_vertex_tangents.push_back(tangent);
-                }
-            }
-
             auto local_num_edges = submesh->m_edge_vertex_indices.size();
-            submesh->m_edge_normals.resize(local_num_edges);
             submesh->m_is_convex_edge.resize(local_num_edges);
 
             // Assign edge normals.
@@ -151,9 +138,7 @@ struct submesh_builder {
                     EDYN_ASSERT(global_edge_vertex_indices[0] == global_vertex_index0 ||
                                 global_edge_vertex_indices[1] == global_vertex_index0);
 
-                    auto edge_normals = global_tri_mesh.m_edge_normals[global_edge_idx];
                     auto is_convex = global_tri_mesh.m_is_convex_edge[global_edge_idx];
-                    submesh->m_edge_normals[edge_idx] = edge_normals;
                     submesh->m_is_convex_edge[edge_idx] = is_convex;
 
                 #if EDYN_DEBUG && !EDYN_DISABLE_ASSERT

@@ -20,6 +20,7 @@ enum class triangle_feature {
 
 using triangle_vertices = std::array<vector3, 3>;
 using triangle_edges = std::array<vector3, 3>;
+class triangle_mesh;
 
 /**
  * Checks whether point `p` is contained within the infinite prism with
@@ -50,6 +51,11 @@ size_t get_triangle_feature_num_vertices(triangle_feature feature);
 size_t get_triangle_feature_num_edges(triangle_feature feature);
 
 AABB get_triangle_aabb(const triangle_vertices &vertices);
+
+vector3 clip_triangle_separating_axis(vector3 sep_axis, const triangle_mesh &mesh,
+                                      size_t tri_idx, const std::array<vector3, 3> &tri_vertices,
+                                      const vector3 &tri_normal, triangle_feature tri_feature,
+                                      size_t tri_feature_index);
 
 }
 
