@@ -72,14 +72,14 @@ static void collide_box_triangle(
 
             // Choose the direction that points towards the vector that
             // goes from the center of the triangle to the center of the box,
-            // i.e. has a positive dot product with it.
+            // (i.e. has a positive dot product with it), or...
             if (dot(posA - tri_center, dir) < 0) {
                 dir *= -1;
             }
 
             test_direction(dir);
 
-            // A more accurate though more expensive approach is to try both
+            // ...a more accurate though more expensive approach is to try both
             // directions and pick whichever gives the least amount of penetration.
             //test_direction(dir);
             //test_direction(-dir);
@@ -97,16 +97,28 @@ static void collide_box_triangle(
                                  tri_feature, tri_feature_index,
                                  proj_tri, support_feature_tolerance);
 
-    if (mesh.ignore_triangle_feature(tri_idx, tri_feature, tri_feature_index, sep_axis)) {
+    sep_axis = clip_triangle_separating_axis(sep_axis, mesh, tri_idx, tri_vertices, tri_normal, tri_feature, tri_feature_index);
+
+    if (sep_axis == vector3_zero) {
         return;
     }
 
+    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
+                                 tri_feature, tri_feature_index,
+                                 proj_tri, support_feature_tolerance);
+
     box_feature box_feature;
     size_t feature_indexA;
-    scalar projectionA;
+    scalar proj_box;
     box.support_feature(posA, ornA, vector3_zero, -sep_axis,
-                        box_feature, feature_indexA, projectionA,
+                        box_feature, feature_indexA, proj_box,
                         support_feature_tolerance);
+
+    distance = -proj_box - proj_tri;
+
+    if (distance > ctx.threshold) {
+        return;
+    }
 
     if (box_feature == box_feature::face && tri_feature == triangle_feature::face) {
         auto normalA = box.get_face_normal(feature_indexA, ornA);
@@ -120,11 +132,6 @@ static void collide_box_triangle(
         size_t num_tri_vert_in_box_face = 0;
 
         for (int i = 0; i < 3; ++i) {
-            auto tri_vertex_idx = mesh.get_face_vertex_index(tri_idx, i);
-            if (!mesh.in_vertex_voronoi(tri_vertex_idx, sep_axis)) {
-                continue;
-            }
-
             if (point_in_polygonal_prism(verticesA, normalA, tri_vertices[i])) {
                 // Triangle vertex is inside box face.
                 auto pivot_on_face = project_plane(tri_vertices[i], verticesA[0], normalA);
@@ -163,11 +170,6 @@ static void collide_box_triangle(
 
         // Perform edge intersection tests.
         for (int i = 0; i < 3; ++i) {
-            // Ignore concave edges.
-            if (!mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, i))) {
-                continue;
-            }
-
             auto &b0 = tri_vertices[i];
             auto &b1 = tri_vertices[(i + 1) % 3];
 
@@ -299,11 +301,6 @@ static void collide_box_triangle(
         auto p1 = to_vector2_xz(v1A_in_tri);
 
         for (int i = 0; i < 3; ++i) {
-            // Ignore concave edges.
-            if (!mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, i))) {
-                continue;
-            }
-
             auto &v0 = tri_vertices[i];
             auto &v1 = tri_vertices[(i + 1) % 3];
 
@@ -341,8 +338,8 @@ static void collide_box_triangle(
         vector3 pA[2], pB[2];
         size_t num_points = 0;
         closest_point_segment_segment(edgeA[0], edgeA[1], edgeB[0], edgeB[1],
-                                    s[0], t[0], pA[0], pB[0], &num_points,
-                                    &s[1], &t[1], &pA[1], &pB[1]);
+                                      s[0], t[0], pA[0], pB[0], &num_points,
+                                      &s[1], &t[1], &pA[1], &pB[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
             if (!(s[i] > 0 && s[i] < 1 && t[i] > 0 && t[i] < 1)) continue;
@@ -352,8 +349,6 @@ static void collide_box_triangle(
             result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     } else if (box_feature == box_feature::face && tri_feature == triangle_feature::vertex) {
-        EDYN_ASSERT(mesh.in_vertex_voronoi(mesh.get_face_vertex_index(tri_idx, tri_feature_index), sep_axis));
-
         auto vertex = tri_vertices[tri_feature_index];
         auto face_normal = box.get_face_normal(feature_indexA, ornA);
         auto face_vertices = box.get_face(feature_indexA, posA, ornA);

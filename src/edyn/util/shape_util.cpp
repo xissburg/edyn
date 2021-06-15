@@ -67,9 +67,9 @@ static void read_face(std::istringstream &iss,
 
 bool load_meshes_from_obj(const std::string &path,
                           std::vector<obj_mesh> &meshes,
-                          const vector3 &pos,
-                          const quaternion &orn,
-                          const vector3 &scale) {
+                          vector3 pos,
+                          quaternion orn,
+                          vector3 scale) {
     auto file = std::ifstream(path);
 
     if (!file.is_open()) {
@@ -126,7 +126,10 @@ bool load_meshes_from_obj(const std::string &path,
 
 bool load_tri_mesh_from_obj(const std::string &path,
                         std::vector<vector3> &vertices,
-                        std::vector<uint16_t> &indices) {
+                        std::vector<uint16_t> &indices,
+                        vector3 pos,
+                        quaternion orn,
+                        vector3 scale) {
     auto file = std::ifstream(path);
 
     if (!file.is_open()) {
@@ -146,7 +149,21 @@ bool load_tri_mesh_from_obj(const std::string &path,
 
         if (cmd == "v") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            vertices.push_back(read_vector3(iss));
+            auto v = read_vector3(iss);
+
+            if (scale != vector3_one) {
+                v *= scale;
+            }
+
+            if (orn != quaternion_identity) {
+                v = rotate(orn, v);
+            }
+
+            if (pos != vector3_zero ) {
+                v += pos;
+            }
+
+            vertices.push_back(v);
         } else if (cmd == "f") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
             uint16_t idx[3];

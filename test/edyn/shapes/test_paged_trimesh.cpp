@@ -45,10 +45,7 @@ TEST(test_paged_trimesh, voronoi_regions) {
             if (vertex != vertices[4]) continue;
 
             auto vertex_idx = submesh->get_face_vertex_index(tri_idx, i);
-            ASSERT_TRUE(submesh->in_vertex_voronoi(vertex_idx, {0, 1, 0}));
-            ASSERT_TRUE(submesh->in_vertex_voronoi(vertex_idx, edyn::rotate(edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi / 4 - EDYN_EPSILON), {0, 1, 0})));
-            ASSERT_FALSE(submesh->in_vertex_voronoi(vertex_idx, {0, -1, 0}));
-            ASSERT_FALSE(submesh->in_vertex_voronoi(vertex_idx, {1, 0, 0.5}));
+            /* Not sure what to test lol */
         }
     });
 }

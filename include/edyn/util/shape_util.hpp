@@ -81,9 +81,9 @@ struct obj_mesh {
  */
 bool load_meshes_from_obj(const std::string &path,
                           std::vector<obj_mesh> &meshes,
-                          const vector3 &pos = vector3_zero,
-                          const quaternion &orn = quaternion_identity,
-                          const vector3 &scale = vector3_one);
+                          vector3 pos = vector3_zero,
+                          quaternion orn = quaternion_identity,
+                          vector3 scale = vector3_one);
 
 /**
  * @brief Loads a triangle mesh from a *.obj file which must've been
@@ -91,11 +91,17 @@ bool load_meshes_from_obj(const std::string &path,
  * @param path Path to file.
  * @param vertices Array to be filled with vertices.
  * @param indices Array to be filled with indices for each triangle.
+ * @param pos Position offset to add to vertices.
+ * @param orn Orientation to rotate vertices.
+ * @param scale Scaling to be applied to all vertices.
  * @return Success or failure.
  */
 bool load_tri_mesh_from_obj(const std::string &path,
                             std::vector<vector3> &vertices,
-                            std::vector<uint16_t> &indices);
+                            std::vector<uint16_t> &indices,
+                            vector3 pos = vector3_zero,
+                            quaternion orn = quaternion_identity,
+                            vector3 scale = vector3_one);
 
 /**
  * @brief Calculates a point on a axis-aligned box that's furthest along
@@ -226,7 +232,7 @@ struct support_polygon {
  * @param offset Vector to be added to each point during calculations.
  * @param dir A direction vector (non-zero).
  * @param projection The support projection along the given direction, i.e. the
- * value returned by `point_cloud_support_point(first, last, +/-dir)`.
+ * value returned by `point_cloud_support_projection(first, last, +/-dir)`.
  * @param positive_side Whether the direction points towards or away of the
  * point cloud. Must be true if it points towards.
  * @param tolerance The distance from the projection boundary which decides
