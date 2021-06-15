@@ -1,52 +1,78 @@
 #include "edyn/constraints/spin_angle_constraint.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
+#include "edyn/constraints/constraint_row.hpp"
+#include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/spin.hpp"
-#include "edyn/math/math.hpp"
+#include "edyn/comp/mass.hpp"
+#include "edyn/comp/inertia.hpp"
+#include "edyn/comp/linvel.hpp"
+#include "edyn/comp/angvel.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
-
+/*
 void spin_angle_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
-    auto row_entity = add_constraint_row(entity, con, registry, 400);
-    auto &row = registry.get<constraint_row>(row_entity);
-    row.use_spin[0] = true;
-    row.use_spin[1] = true;
-    
-    m_offset_origin = calculate_offset(con, registry);
+    m_offset_origin = calculate_offset(registry);
+} */
+
+template<>
+void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
+    auto body_view = registry.view<position, orientation,
+                                   linvel, angvel, spin,
+                                   mass_inv, inertia_world_inv,
+                                   delta_linvel, delta_angvel>();
+    auto con_view = registry.view<spin_angle_constraint>();
+    auto imp_view = registry.view<constraint_impulse>();
+
+    con_view.each([&] (entt::entity entity, spin_angle_constraint &con) {
+        auto [posA, ornA, linvelA, angvelA, spinA, inv_mA, inv_IA, dvA, dwA] =
+            body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB] =
+            body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+
+        auto axisA = quaternion_x(ornA);
+        auto axisB = quaternion_x(ornB);
+
+        auto error = con.calculate_offset(registry) - con.m_offset_origin;
+        auto relvel = spinA - spinB * con.m_ratio;
+        auto force = error * con.m_stiffness + relvel * con.m_damping;
+        auto impulse = std::abs(force) * dt;
+
+        auto &row = cache.rows.emplace_back();
+        row.J = {vector3_zero, axisA, vector3_zero, -axisB * con.m_ratio};
+        row.lower_limit = -impulse;
+        row.upper_limit = impulse;
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = imp_view.get(entity).values[0];
+        row.use_spin[0] = true;
+        row.use_spin[1] = true;
+
+        auto options = constraint_row_options{};
+        options.error = error / dt;
+
+        prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+        warm_start(row);
+
+        cache.con_num_rows.push_back(1);
+    });
 }
 
-void spin_angle_constraint::prepare(entt::entity, constraint &con, entt::registry &registry, scalar dt) {
-    auto &ornA = registry.get<orientation>(con.body[0]);
-    auto &ornB = registry.get<orientation>(con.body[1]);
-    auto &spinA = registry.get<spin>(con.body[0]);
-    auto &spinB = registry.get<spin>(con.body[1]);
-
-    auto axisA = quaternion_x(ornA);
-    auto axisB = quaternion_x(ornB);
-
-    auto error = calculate_offset(con, registry) - m_offset_origin;
-    auto relvel = spinA - spinB * m_ratio;
-    auto force = error * m_stiffness + relvel * m_damping;
-    auto impulse = std::abs(force) * dt;
-
-    auto &row = registry.get<constraint_row>(con.row[0]);
-    row.J = {vector3_zero, axisA, vector3_zero, -axisB * m_ratio};
-    row.error = error / dt;
-    row.lower_limit = -impulse;
-    row.upper_limit = impulse;
-}
-
-void spin_angle_constraint::set_ratio(scalar ratio, const constraint &con, const entt::registry &registry) {
+void spin_angle_constraint::set_ratio(scalar ratio, const entt::registry &registry) {
     m_ratio = ratio;
-    m_offset_origin = calculate_offset(con, registry);
+    m_offset_origin = calculate_offset(registry);
 }
 
-scalar spin_angle_constraint::calculate_offset(const constraint &con, const entt::registry &registry) const {
-    auto &sA = registry.get<spin_angle>(con.body[0]);
-    auto &sB = registry.get<spin_angle>(con.body[1]);
+scalar spin_angle_constraint::calculate_offset(const entt::registry &registry) const {
+    auto &sA = registry.get<spin_angle>(body[0]);
+    auto &sB = registry.get<spin_angle>(body[1]);
     return (sA.count - sB.count * m_ratio) * pi2 + (sA.s - sB.s * m_ratio);
 }
 

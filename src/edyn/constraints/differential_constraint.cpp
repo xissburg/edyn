@@ -11,32 +11,42 @@
 
 namespace edyn {
 
-void differential_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
-    EDYN_ASSERT(con.body[2] != entt::null);
+template<>
+void prepare_constraints<differential_constraint>(entt::registry &registry, row_cache &cache, scalar dt);
+    auto body_view = registry.view<position, orientation,
+                                   linvel, angvel,
+                                   mass_inv, inertia_world_inv,
+                                   delta_linvel, delta_angvel>();
+    auto con_view = registry.view<differential_constraint>();
+    auto imp_view = registry.view<constraint_impulse>();
 
-    auto row_entity = add_constraint_row(entity, con, registry, 100);
-    auto &row = registry.get<constraint_row>(row_entity);
+    con_view.each([&] (entt::entity entity, differential_constraint &con) {
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
-    for (size_t i = 0; i < 3; ++i) {
-        row.use_spin[i] = true;
-    }
-}
+        auto axis0 = rotate(ornA, -vector3_x);
+        auto axis1 = rotate(ornB, -vector3_x);
 
-void differential_constraint::prepare(entt::entity, constraint &con, 
-                                      entt::registry &registry, scalar dt) {
-    auto &ornA = registry.get<orientation>(con.body[0]);
-    auto &ornB = registry.get<orientation>(con.body[1]);
+        auto &row = cache.rows.emplace_back();
+        row.J = {vector3_zero, axis0,
+                 vector3_zero, axis1};
+        row.J2 = {vector3_zero, vector3{scalar(2) / con.ratio, 0, 0}};
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
 
-    auto axis0 = rotate(ornA, -vector3_x);
-    auto axis1 = rotate(ornB, -vector3_x);
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = imp_view.get(entity).values[0];
 
-    auto &row = registry.get<constraint_row>(con.row[0]);
-    row.J = {vector3_zero, axis0, 
-             vector3_zero, axis1,
-             vector3_zero, {scalar(2) / ratio, 0, 0}};
-    row.error = 0;
-    row.lower_limit = -large_scalar;
-    row.upper_limit = large_scalar;
+        prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+        warm_start(row);
+
+        cache.con_num_rows.push_back(1);
+    });
 }
 
 }

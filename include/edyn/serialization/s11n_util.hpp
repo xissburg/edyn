@@ -14,6 +14,7 @@ using archive_fundamental_types = std::tuple<
     int,
     unsigned int,
     long,
+    long long,
     unsigned long,
     unsigned long long,
     float,

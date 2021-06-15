@@ -8,7 +8,7 @@
 
 #include "edyn/serialization/s11n_util.hpp"
 #include "edyn/config/config.h"
-#include "edyn/util/tuple.hpp"
+#include "edyn/util/tuple_util.hpp"
 
 namespace edyn {
 
@@ -25,6 +25,10 @@ public:
 
     void open(const std::string &path) {
         m_file.open(path, std::ios::binary | std::ios::in);
+    }
+
+    void close() {
+        m_file.close();
     }
 
     bool is_file_open() const {
@@ -97,10 +101,10 @@ public:
 
 private:
     template<typename T>
-    void write_bytes(T &t) { 
+    void write_bytes(T &t) {
         m_file.write(reinterpret_cast<char *>(&t), sizeof t);
     }
-    
+
     std::ofstream m_file;
 };
 

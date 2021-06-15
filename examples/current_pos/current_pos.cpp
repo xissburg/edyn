@@ -6,13 +6,11 @@
 /**
  * Demonstration of the importance of interpolation for smooth real-time
  * presentation on screen using `edyn::present_position`. Using the raw
- * `edyn::position` will generally cause jitter. The value in 
- * `edyn::present_position` is the `edyn::position` interpolated or 
+ * `edyn::position` will generally cause jitter. The value in
+ * `edyn::present_position` is the `edyn::position` interpolated or
  * extrapolated by an amount of time using the `edyn::linvel` of the entity.
  */
 void print_entities(entt::registry& registry) {
-    auto& world = registry.ctx<edyn::world>();
-
     printf("================================\n");
 
     auto view = registry.view<const edyn::position, const edyn::present_position>();
@@ -27,10 +25,10 @@ void print_entities(entt::registry& registry) {
 }
 
 int main(int argc, char** argv) {
-    edyn::init();
     entt::registry registry;
-    auto& world = registry.set<edyn::world>(registry);
-    world.m_fixed_dt = 0.041;
+    edyn::init();
+    edyn::attach(registry);
+    edyn::set_fixed_dt(registry, 0.041);
 
     auto def = edyn::rigidbody_def();
     def.presentation = true;
@@ -40,10 +38,13 @@ int main(int argc, char** argv) {
     edyn::make_rigidbody(registry, def);
 
     for (;;) {
-        world.update();
+        edyn::update(registry);
         print_entities(registry);
         edyn::delay(100);
     }
+
+    edyn::detach(registry);
+    edyn::deinit();
 
     return 0;
 }

@@ -2,33 +2,36 @@
 
 TEST(triangle_mesh_serialization, test) {
     // Create triangle mesh.
-    auto trimesh = edyn::triangle_mesh();
-
     auto extent_x = 2;
     auto extent_z = 12;
     auto num_vertices_x = 4;
     auto num_vertices_z = 24;
-    edyn::make_plane_mesh(extent_x, extent_z, num_vertices_x, num_vertices_z, 
-                          trimesh.vertices, trimesh.indices);
+    std::vector<edyn::vector3> vertices;
+    std::vector<edyn::triangle_mesh::index_type> indices;
+    edyn::make_plane_mesh(extent_x, extent_z, num_vertices_x, num_vertices_z,
+                          vertices, indices);
 
     for (int z = 0; z < num_vertices_z; ++z) {
         auto t = (edyn::scalar(z) / edyn::scalar(num_vertices_z - 1)) * 2 - 1;
         auto y = (t*t*t*t - t*t) * 1.2;
-        
+
         for (int x = 0; x < num_vertices_x; ++x) {
-            trimesh.vertices[z * num_vertices_x + x].y = y + (x == 0 || x == num_vertices_x - 1 ? 0.1 : 0);
+            vertices[z * num_vertices_x + x].y = y + (x == 0 || x == num_vertices_x - 1 ? 0.1 : 0);
         }
     }
 
+    auto trimesh = edyn::triangle_mesh();
+    trimesh.insert_vertices(vertices.begin(), vertices.end());
+    trimesh.insert_indices(indices.begin(), indices.end());
     trimesh.initialize();
 
     auto filename = "trimesh.bin";
-    
+
     { // Do it in its own scope so the file gets closed on destruction.
         auto output = edyn::file_output_archive(filename);
         edyn::serialize(output, trimesh);
     }
-    
+
     auto input_trimesh = edyn::triangle_mesh();
 
     {
@@ -37,11 +40,9 @@ TEST(triangle_mesh_serialization, test) {
     }
 
     // Check sizes.
-    ASSERT_EQ(trimesh.vertices.size()       , input_trimesh.vertices.size());
-    ASSERT_EQ(trimesh.indices.size()        , input_trimesh.indices.size());
-    ASSERT_EQ(trimesh.cos_angles.size()     , input_trimesh.cos_angles.size());
-    ASSERT_EQ(trimesh.is_concave_edge.size(), input_trimesh.is_concave_edge.size());
-    ASSERT_EQ(trimesh.tree.m_nodes.size()   , input_trimesh.tree.m_nodes.size());
+    ASSERT_EQ(trimesh.num_vertices(), input_trimesh.num_vertices());
+    ASSERT_EQ(trimesh.num_triangles(), input_trimesh.num_triangles());
+    ASSERT_EQ(trimesh.num_edges(), input_trimesh.num_edges());
 
     // Check AABBs.
     ASSERT_SCALAR_EQ(trimesh.get_aabb().min.y, input_trimesh.get_aabb().min.y);
@@ -52,36 +53,19 @@ TEST(triangle_mesh_serialization, test) {
     ASSERT_SCALAR_EQ(trimesh.get_aabb().max.z, input_trimesh.get_aabb().max.z);
 
     // Check vertices, indices, edge angles...
-    for (size_t i = 0; i < trimesh.vertices.size(); ++i) {
-        ASSERT_SCALAR_EQ(trimesh.vertices[i].x, input_trimesh.vertices[i].x);
-        ASSERT_SCALAR_EQ(trimesh.vertices[i].y, input_trimesh.vertices[i].y);
-        ASSERT_SCALAR_EQ(trimesh.vertices[i].z, input_trimesh.vertices[i].z);
+    for (size_t i = 0; i < trimesh.num_vertices(); ++i) {
+        ASSERT_SCALAR_EQ(trimesh.get_vertex_position(i).x, input_trimesh.get_vertex_position(i).x);
+        ASSERT_SCALAR_EQ(trimesh.get_vertex_position(i).y, input_trimesh.get_vertex_position(i).y);
+        ASSERT_SCALAR_EQ(trimesh.get_vertex_position(i).z, input_trimesh.get_vertex_position(i).z);
     }
 
-    for (size_t i = 0; i < trimesh.indices.size(); ++i) {
-        ASSERT_EQ(trimesh.indices[i], input_trimesh.indices[i]);
+    for (size_t i = 0; i < trimesh.num_triangles(); ++i) {
+        for (size_t j = 0; j < 3; ++j) {
+            ASSERT_EQ(trimesh.get_face_vertex_index(i, j), input_trimesh.get_face_vertex_index(i, j));
+        }
     }
 
-    for (size_t i = 0; i < trimesh.cos_angles.size(); ++i) {
-        ASSERT_SCALAR_EQ(trimesh.cos_angles[i], input_trimesh.cos_angles[i]);
-    }
-
-    for (size_t i = 0; i < trimesh.is_concave_edge.size(); ++i) {
-        ASSERT_EQ(trimesh.is_concave_edge[i], input_trimesh.is_concave_edge[i]);
-    }
-
-    // Check trees.
-    for (size_t i = 0; i < trimesh.tree.m_nodes.size(); ++i) {
-        ASSERT_SCALAR_EQ(trimesh.tree.m_nodes[i].aabb.min.x, input_trimesh.tree.m_nodes[i].aabb.min.x);
-        ASSERT_SCALAR_EQ(trimesh.tree.m_nodes[i].aabb.min.y, input_trimesh.tree.m_nodes[i].aabb.min.y);
-        ASSERT_SCALAR_EQ(trimesh.tree.m_nodes[i].aabb.min.z, input_trimesh.tree.m_nodes[i].aabb.min.z);
-
-        ASSERT_SCALAR_EQ(trimesh.tree.m_nodes[i].aabb.max.x, input_trimesh.tree.m_nodes[i].aabb.max.x);
-        ASSERT_SCALAR_EQ(trimesh.tree.m_nodes[i].aabb.max.y, input_trimesh.tree.m_nodes[i].aabb.max.y);
-        ASSERT_SCALAR_EQ(trimesh.tree.m_nodes[i].aabb.max.z, input_trimesh.tree.m_nodes[i].aabb.max.z);
-
-        ASSERT_EQ(trimesh.tree.m_nodes[i].child1, input_trimesh.tree.m_nodes[i].child1);
-        ASSERT_EQ(trimesh.tree.m_nodes[i].child2, input_trimesh.tree.m_nodes[i].child2);
-        ASSERT_EQ(trimesh.tree.m_nodes[i].id, input_trimesh.tree.m_nodes[i].id);
+    for (size_t i = 0; i < trimesh.num_edges(); ++i) {
+        ASSERT_EQ(trimesh.is_convex_edge(i), input_trimesh.is_convex_edge(i));
     }
 }

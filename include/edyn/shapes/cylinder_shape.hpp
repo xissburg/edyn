@@ -1,70 +1,51 @@
 #ifndef EDYN_SHAPES_CYLINDER_SHAPE_HPP
 #define EDYN_SHAPES_CYLINDER_SHAPE_HPP
 
-#include "edyn/comp/aabb.hpp"
+#include <array>
 #include "edyn/math/quaternion.hpp"
 
 namespace edyn {
 
-enum cylinder_feature {
+enum class cylinder_feature {
     // Either of the two cylinder caps.
-    CYLINDER_FEATURE_FACE,
+    face,
     // An edge on the side wall of the cylinder.
-    CYLINDER_FEATURE_SIDE_EDGE,
+    side_edge,
     // The edge/border of a cylinder cap.
-    CYLINDER_FEATURE_FACE_EDGE,
+    cap_edge,
 };
 
 struct cylinder_shape {
     scalar radius;
     scalar half_length;
 
-    AABB aabb(const vector3 &pos, const quaternion &orn) const {
-        auto ptx = support_point(orn, vector3_x);
-        auto pty = support_point(orn, vector3_y);
-        auto ptz = support_point(orn, vector3_z);
-        auto v = vector3 {ptx.x, pty.y, ptz.z};
-
-        return {pos - v, pos + v};
+    /**
+     * @brief Get the world space position of the center of both cylinder
+     * cap faces. The first is the center of the face along the positive axis
+     * direction.
+     * @param pos Position of center.
+     * @param orn Cylinder orientation.
+     * @return An array with two positions.
+     */
+    auto get_vertices(const vector3 &pos, const quaternion &orn) const {
+        const auto axis = quaternion_x(orn);
+        return std::array<vector3, 2>{
+            pos + axis * half_length,
+            pos - axis * half_length
+        };
     }
 
-    vector3 inertia(scalar mass) const {
-        auto len = half_length * 2;
-        scalar xx = scalar(0.5) * mass * radius * radius;
-        scalar yy_zz =  scalar(1) / scalar(12) * mass * (scalar(3) * radius * radius + len * len);
-        return {xx, yy_zz, yy_zz};
-    }
+    scalar support_projection(const vector3 &pos, const quaternion &orn,
+                              const vector3 &dir) const;
 
-    vector3 support_point(const vector3 &dir) const {
-        // Squared length in yz plane.
-        auto lyz2 = dir.y * dir.y + dir.z * dir.z;
+    vector3 support_point(const vector3 &pos, const quaternion &orn,
+                          const vector3 &dir) const;
 
-        if (lyz2 > EDYN_EPSILON) {
-            auto d = radius / std::sqrt(lyz2);
-            return {dir.x < 0 ? -half_length : half_length, dir.y * d, dir.z * d};
-        } 
-        
-        return {dir.x < 0 ? -half_length : half_length, radius, 0};
-    }
+    void support_feature(const vector3 &dir, cylinder_feature &out_feature,
+                         size_t &out_feature_index, scalar threshold) const;
 
-    vector3 support_point(const quaternion &orn, const vector3 &dir) const {
-        auto local_dir = rotate(conjugate(orn), dir);
-        auto pt = support_point(local_dir);
-        return rotate(orn, pt);
-    }
-    
-    vector3 support_point(const vector3 &pos, const quaternion &orn, const vector3 &dir) const {
-        return pos + support_point(orn, dir);
-    }
-
-    void support_feature(const vector3 &dir, cylinder_feature &out_feature, 
-                         size_t &out_feature_index, vector3 &out_support_point, 
-                         scalar &out_projection, scalar threshold) const;
-
-    void support_feature(const vector3 &pos, const quaternion &orn, 
-                         const vector3 &axis_pos, const vector3 &axis_dir,
+    void support_feature(const vector3 &pos, const quaternion &orn, const vector3 &axis_dir,
                          cylinder_feature &out_feature, size_t &out_feature_index,
-                         vector3 &out_support_point, scalar &out_projection,
                          scalar threshold) const;
 };
 

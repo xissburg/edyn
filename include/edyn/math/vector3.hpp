@@ -100,7 +100,7 @@ inline vector3 operator/(scalar s, const vector3 &v) {
 }
 
 // Scale a vector.
-inline vector3& operator*=(vector3 &v, scalar s) {
+inline vector3 & operator*=(vector3 &v, scalar s) {
     v.x *= s;
     v.y *= s;
     v.z *= s;
@@ -108,11 +108,19 @@ inline vector3& operator*=(vector3 &v, scalar s) {
 }
 
 // Inverse-scale a vector.
-inline vector3& operator/=(vector3 &v, scalar s) {
+inline vector3 & operator/=(vector3 &v, scalar s) {
     auto z = scalar(1) / s;
     v.x *= z;
     v.y *= z;
     v.z *= z;
+    return v;
+}
+
+// Multiply vectors component-wise and assign to the first.
+inline vector3 & operator*=(vector3 &v, const vector3 &w) {
+    v.x *= w.x;
+    v.y *= w.y;
+    v.z *= w.z;
     return v;
 }
 
@@ -158,6 +166,14 @@ inline vector3 cross(const vector3 &v, const vector3 &w) {
             v.x * w.y - v.y * w.x};
 }
 
+// Triple product among three vectors, i.e. the dot product of one of
+// them with the cross product of the other two.
+inline scalar triple_product(const vector3 &u,
+                             const vector3 &v,
+                             const vector3 &w) {
+    return dot(u, cross(v, w));
+}
+
 // Square length of a vector.
 inline scalar length_sqr(const vector3 &v) {
     return dot(v, v);
@@ -185,6 +201,19 @@ inline vector3 normalize(const vector3 &v) {
     return v / l;
 }
 
+// Normalizes vector if it's length is greater than a threshold above zero.
+// Returns where the vector was normalized.
+inline bool try_normalize(vector3 &v) {
+    auto lsqr = length_sqr(v);
+
+    if (lsqr > EDYN_EPSILON) {
+        v /= std::sqrt(lsqr);
+        return true;
+    }
+
+    return false;
+}
+
 // Projects direction vector `v` onto plane with normal `n`.
 inline vector3 project_direction(const vector3 &v, const vector3 &n) {
     return v - n * dot(v, n);
@@ -205,6 +234,11 @@ inline vector3 max(const vector3 &v, const vector3 &w) {
     return {std::max(v.x, w.x), std::max(v.y, w.y), std::max(v.z, w.z)};
 }
 
+// Performs element-wise absolute.
+inline vector3 abs(const vector3 &v) {
+    return {std::abs(v.x), std::abs(v.y), std::abs(v.z)};
+}
+
 // Returns the index of the coordinate with greatest value.
 inline size_t max_index(const vector3 &v) {
     auto max_val = v.x;
@@ -221,6 +255,11 @@ inline size_t max_index(const vector3 &v) {
     }
 
     return max_idx;
+}
+
+// Returns the index of the coordinate with greatest absolute value.
+inline size_t max_index_abs(const vector3 &v) {
+    return max_index(abs(v));
 }
 
 }

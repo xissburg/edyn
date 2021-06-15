@@ -2,12 +2,13 @@
 #define EDYN_CONSTRAINTS_DOUBLEWISHBONE_CONSTRAINT
 
 #include <entt/fwd.hpp>
-#include "constraint_base.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
-struct doublewishbone_constraint : public constraint_base<doublewishbone_constraint> {
+struct doublewishbone_constraint : public constraint_base {
     scalar side;
     vector3 upper_pivotA;
     vector3 upper_pivotB;
@@ -16,10 +17,11 @@ struct doublewishbone_constraint : public constraint_base<doublewishbone_constra
     vector3 lower_pivotB;
     scalar lower_length;
     bool steerable;
-
-    void init(entt::entity, constraint &, entt::registry &);
-    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
 };
+
+
+template<>
+void prepare_constraints<doublewishbone_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

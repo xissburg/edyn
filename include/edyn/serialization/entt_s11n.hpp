@@ -1,7 +1,8 @@
 #ifndef EDYN_SERIALIZATION_ENTT_S11N_HPP
 #define EDYN_SERIALIZATION_ENTT_S11N_HPP
 
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
+#include <entt/entity/entity.hpp>
 
 namespace edyn {
 

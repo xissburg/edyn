@@ -1,6 +1,6 @@
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
@@ -9,12 +9,21 @@ contact_manifold_map::contact_manifold_map(entt::registry &registry) {
     registry.on_destroy<contact_manifold>().connect<&contact_manifold_map::on_destroy_contact_manifold>(*this);
 }
 
-bool contact_manifold_map::contains(const entity_pair &pair) const {
+bool contact_manifold_map::contains(entity_pair pair) const {
     return m_pair_map.count(pair) > 0;
 }
 
 bool contact_manifold_map::contains(entt::entity first, entt::entity second) const {
     return contains(std::make_pair(first, second));
+}
+
+entt::entity contact_manifold_map::get(entity_pair pair) const {
+    EDYN_ASSERT(contains(pair));
+    return m_pair_map.at(pair);
+}
+
+entt::entity contact_manifold_map::get(entt::entity first, entt::entity second) const {
+    return get(std::make_pair(first, second));
 }
 
 void contact_manifold_map::on_construct_contact_manifold(entt::registry &registry, entt::entity entity) {

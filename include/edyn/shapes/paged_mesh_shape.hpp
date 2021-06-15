@@ -2,25 +2,19 @@
 #define EDYN_SHAPES_PAGED_MESH_SHAPE_HPP
 
 #include <memory>
-
-#include "edyn/comp/aabb.hpp"
-#include "edyn/math/quaternion.hpp"
-#include "edyn/serialization/file_archive.hpp"
-#include "edyn/serialization/memory_archive.hpp"
 #include "paged_triangle_mesh.hpp"
 
 namespace edyn {
 
+/**
+ * @brief A concave triangle mesh shape with paging support.
+ * @remarks Paged triangle meshes can only be assigned to static rigid bodies.
+ * The `collide` functions involving this shape ignore position and
+ * orientation. If the mesh needs to be transformed, do so while constructing
+ * or loading it.
+ */
 struct paged_mesh_shape {
     std::shared_ptr<paged_triangle_mesh> trimesh;
-
-    AABB aabb(const vector3 &pos, const quaternion &orn) const {
-        return {trimesh->get_aabb().min + pos, trimesh->get_aabb().max + pos};
-    }
-
-    vector3 inertia(scalar mass) const {
-        return vector3_max;
-    }
 };
 
 }

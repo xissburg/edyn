@@ -1,7 +1,6 @@
 #ifndef EDYN_SHARED_COMP_HPP
 #define EDYN_SHARED_COMP_HPP
 
-#include <tuple>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/linacc.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -10,19 +9,18 @@
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/present_position.hpp"
-#include "edyn/comp/present_orientation.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/gravity.hpp"
+#include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/comp/shape.hpp"
+#include "edyn/comp/shape_index.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/tire_state.hpp"
+#include "edyn/shapes/shapes.hpp"
+#include "edyn/collision/tree_view.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 
@@ -32,43 +30,40 @@ namespace edyn {
  * Tuple of components that are exchanged between island coordinator and
  * island workers.
  */
-using shared_components = std::tuple<
-    island, 
-    island_node, 
-    island_container,
-    island_node_parent,
-    island_node_child,
+static const auto shared_components = std::tuple_cat(std::tuple<
     island_timestamp,
-    AABB, 
-    angvel, 
-    collision_filter, 
-    constraint, 
-    constraint_row, 
-    gravity, 
-    inertia, 
-    inertia_inv, 
-    inertia_world_inv, 
+    AABB,
+    collision_filter,
+    constraint_impulse,
+    inertia,
+    inertia_inv,
+    inertia_world_inv,
     linacc,
-    linvel, 
-    mass, 
-    mass_inv, 
-    material, 
+    angvel,
+    linvel,
+    mass,
+    mass_inv,
+    material,
     tire_material,
     tire_state,
-    orientation, 
     position,
-    shape, 
-    contact_manifold, 
-    contact_point, 
+    orientation,
+    contact_manifold,
+    contact_point,
     continuous,
-    dynamic_tag, 
-    kinematic_tag, 
-    static_tag, 
+    dynamic_tag,
+    kinematic_tag,
+    static_tag,
     procedural_tag,
     sleeping_tag,
-    sleeping_disabled_tag, 
-    disabled_tag
->;
+    sleeping_disabled_tag,
+    disabled_tag,
+    continuous_contacts_tag,
+    shape_index,
+    tree_view
+>{}, constraints_tuple, shapes_tuple); // Concatenate with all shapes and constraints at the end.
+
+using shared_components_t = std::decay_t<decltype(shared_components)>;
 
 }
 

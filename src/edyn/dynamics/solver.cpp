@@ -1,30 +1,32 @@
 #include "edyn/dynamics/solver.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_angvel.hpp"
+<<<<<<< HEAD
 #include "edyn/sys/integrate_spin.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_tire_state.hpp"
+=======
+>>>>>>> master
 #include "edyn/sys/update_aabbs.hpp"
-#include "edyn/comp/orientation.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
+#include "edyn/sys/update_rotated_meshes.hpp"
+#include "edyn/sys/update_inertias.hpp"
+#include "edyn/constraints/constraint_row.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/comp/island.hpp"
-#include "edyn/dynamics/solver_stage.hpp"
-#include "edyn/util/array.hpp"
-#include "edyn/util/rigidbody.hpp"
-#include <entt/entt.hpp>
+#include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
+#include "edyn/util/constraint_util.hpp"
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
 static
+<<<<<<< HEAD
 scalar restitution_curve(scalar restitution, scalar relvel) {
     // TODO: figure out how to adjust the restitution when resting.
     scalar decay = 1;//std::clamp(-relvel * 1.52 - scalar(0.12), scalar(0), scalar(1));
@@ -179,6 +181,13 @@ scalar solve(constraint_row &row,
                         dot(row.J[1], dwA) +
                         dot(row.J[2], dvB) +
                         dot(row.J[3], dwB);
+=======
+scalar solve(constraint_row &row) {
+    auto delta_relvel = dot(row.J[0], *row.dvA) +
+                        dot(row.J[1], *row.dwA) +
+                        dot(row.J[2], *row.dvB) +
+                        dot(row.J[3], *row.dwB);
+>>>>>>> master
     auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
     auto impulse = row.impulse + delta_impulse;
 
@@ -195,6 +204,7 @@ scalar solve(constraint_row &row,
     return delta_impulse;
 }
 
+<<<<<<< HEAD
 static
 scalar solve3(constraint_row &row,
               const vector3 &dvA, const vector3 &dvB, const vector3 &dvC,
@@ -227,9 +237,41 @@ void update_inertia(entt::registry &registry) {
         auto basis = to_matrix3x3(orn);
         inv_IW = scale(basis, inv_I) * transpose(basis);
     });
+=======
+template<typename C>
+void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
+    auto con_view = registry.view<C>();
+    auto imp_view = registry.view<constraint_impulse>();
+
+    for (auto entity : con_view) {
+        auto &imp = imp_view.get(entity);
+        auto num_rows = cache.con_num_rows[con_idx];
+        for (size_t i = 0; i < num_rows; ++i) {
+            imp.values[i] = cache.rows[row_idx + i].impulse;
+        }
+
+        row_idx += num_rows;
+        ++con_idx;
+    }
+>>>>>>> master
 }
 
-solver::solver(entt::registry &registry) 
+void update_impulses(entt::registry &registry, row_cache &cache) {
+    // Assign impulses from constraint rows back into the `constraint_impulse`
+    // components. The rows are inserted into the cache for each constraint type
+    // in the order they're found in `constraints_tuple` and in the same order
+    // they're in their EnTT pools, which means the rows in the cache can be
+    // matched by visiting each constraint type in the order they appear in the
+    // tuple.
+    size_t con_idx = 0;
+    size_t row_idx = 0;
+
+    std::apply([&] (auto ... c) {
+        (update_impulse<decltype(c)>(registry, cache, con_idx, row_idx), ...);
+    }, constraints_tuple);
+}
+
+solver::solver(entt::registry &registry)
     : m_registry(&registry)
 {
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
@@ -237,11 +279,12 @@ solver::solver(entt::registry &registry)
     registry.on_construct<spin>().connect<&entt::registry::emplace<delta_spin>>();
 }
 
-void solver::update(scalar dt) {
-    // Apply forces and acceleration.
-    integrate_linacc(*m_registry, dt);
-    apply_gravity(*m_registry, dt);
+solver::~solver() = default;
 
+void solver::update(scalar dt) {
+    auto &registry = *m_registry;
+
+<<<<<<< HEAD
     auto exclude_disabled = entt::exclude<disabled_tag>;
 
     // Setup constraints.
@@ -255,11 +298,14 @@ void solver::update(scalar dt) {
             c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *m_registry, dt);
         }, con.var);
     });
+=======
+    m_row_cache.clear();
+>>>>>>> master
 
-    m_registry->sort<constraint_row>([] (const auto &lhs, const auto &rhs) {
-        return lhs.priority > rhs.priority;
-    });
+    // Apply forces and acceleration.
+    integrate_linacc(registry, dt);
 
+<<<<<<< HEAD
     con_view.each([&] (entt::entity entity, constraint &con) {
         auto [inv_mA, inv_IA, dvA, dwA] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
         auto [linvelA, angvelA] = vel_group.get<linvel, angvel>(con.body[0]);
@@ -336,17 +382,18 @@ void solver::update(scalar dt) {
             }
         }
     });
+=======
+    // Setup constraints.
+    prepare_constraints(registry, m_row_cache, dt);
+>>>>>>> master
 
     // Solve constraints.
     for (uint32_t i = 0; i < iterations; ++i) {
         // Prepare constraints for iteration.
-        con_view.each([&] (entt::entity entity, constraint &con) {
-            std::visit([&] (auto &&c) {
-                c.update(solver_stage_value_t<solver_stage::iteration>{}, entity, con, *m_registry, dt);
-            }, con.var);
-        });
+        iterate_constraints(registry, m_row_cache, dt);
 
         // Solve rows.
+<<<<<<< HEAD
         row_view.each([&] (entt::entity entity, constraint_row &row) {
             auto [inv_mA, inv_IA, dvA, dwA] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(row.entity[0]);
             auto [inv_mB, inv_IB, dvB, dwB] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(row.entity[1]);
@@ -413,6 +460,25 @@ void solver::update(scalar dt) {
         vel += delta;
         delta = vector3_zero;
     });
+=======
+        for (auto &row : m_row_cache.rows) {
+            auto delta_impulse = solve(row);
+            apply_impulse(delta_impulse, row);
+        }
+    }
+
+    // Apply constraint velocity correction.
+    auto vel_view = registry.view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>();
+    vel_view.each([] (linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
+        v += dv;
+        w += dw;
+        dv = vector3_zero;
+        dw = vector3_zero;
+    });
+
+    // Assign applied impulses.
+    update_impulses(registry, m_row_cache);
+>>>>>>> master
 
     auto spin_view = m_registry->view<spin, delta_spin, dynamic_tag>(exclude_disabled);
     spin_view.each([] (spin &s, delta_spin &delta) {
@@ -421,6 +487,7 @@ void solver::update(scalar dt) {
     });
 
     // Integrate velocities to obtain new transforms.
+<<<<<<< HEAD
     integrate_linvel(*m_registry, dt);
     integrate_angvel(*m_registry, dt);
     integrate_spin(*m_registry, dt);
@@ -429,8 +496,21 @@ void solver::update(scalar dt) {
 
     update_aabbs(*m_registry);
     
+=======
+    integrate_linvel(registry, dt);
+    integrate_angvel(registry, dt);
+
+    // Update rotated vertices of convex meshes after rotations change. It is
+    // important to do this before `update_aabbs` because the rotated meshes
+    // will be used to calculate AABBs of polyhedrons.
+    update_rotated_meshes(registry);
+
+    // Update AABBs after transforms change.
+    update_aabbs(registry);
+
+>>>>>>> master
     // Update world-space moment of inertia.
-    update_inertia(*m_registry);
+    update_inertias(registry);
 }
 
 }
