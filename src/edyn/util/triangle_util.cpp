@@ -133,15 +133,19 @@ AABB get_triangle_aabb(const triangle_vertices &vertices) {
     return {tri_min, tri_max};
 }
 
-
 vector3 clip_triangle_separating_axis(vector3 sep_axis, const triangle_mesh &mesh,
                                       size_t tri_idx, const triangle_vertices &tri_vertices,
                                       const vector3 &tri_normal,triangle_feature tri_feature,
                                       size_t tri_feature_index) {
+    // Project separating axis into voronoi region of triangle feature.
+    // Return zero if the axis should be ignored, which happens in case the
+    // feature is a vertex and the axis does not lie in the voronoi region.
     switch (tri_feature) {
     case triangle_feature::vertex: {
+        // Get the normals of faces adjacent to the edges that share this vertex.
         auto edge_idx0 = tri_feature_index;
         auto edge_idx1 = (tri_feature_index + 2) % 3;
+
         auto adj_normal0 = mesh.get_adjacent_face_normal(tri_idx, edge_idx0);
         auto adj_normal1 = mesh.get_adjacent_face_normal(tri_idx, edge_idx1);
 
@@ -151,14 +155,22 @@ vector3 clip_triangle_separating_axis(vector3 sep_axis, const triangle_mesh &mes
         auto edge_dir1 = tri_vertices[(edge_idx1 + 1) % 3] - tri_vertices[edge_idx1];
         auto edge_normal1 = cross(edge_dir1, adj_normal1);
 
+        // Test against the edge that is closer to the separating axis and if
+        // it is a concave edge or the axis does not lie in the voronoi region,
+        // return zero. For edges, as can be seen below, the normal of the
+        // adjacent face is chosen instead, but it has shown to be problematic
+        // for vertices. In very rare and specific configurations this will lead
+        // to no contact points being generated.
         if (dot(sep_axis, edge_normal0) > dot(sep_axis, edge_normal1)) {
-            if (dot(sep_axis, edge_normal0) > 0) {
-                //sep_axis = adj_normal0;
+            auto is_convex0 = dot(tri_normal, edge_normal0) < 0;
+
+            if (!is_convex0 || dot(sep_axis, edge_normal0) > 0) {
                 sep_axis = vector3_zero;
             }
         } else {
-            if (dot(sep_axis, edge_normal1) > 0) {
-                // sep_axis = adj_normal1;
+            auto is_convex1 = dot(tri_normal, edge_normal1) < 0;
+
+            if (!is_convex1 || dot(sep_axis, edge_normal1) > 0) {
                 sep_axis = vector3_zero;
             }
         }
@@ -169,11 +181,15 @@ vector3 clip_triangle_separating_axis(vector3 sep_axis, const triangle_mesh &mes
         auto v0 = tri_vertices[tri_feature_index];
         auto v1 = tri_vertices[(tri_feature_index + 1) % 3];
         auto edge_dir = v1 - v0;
-        auto edge_normal = cross(edge_dir, adj_normal);
+        auto edge_normal = cross(edge_dir, adj_normal); // Points outside.
+        auto is_convex = dot(tri_normal, edge_normal) < 0;
 
-        if (dot(sep_axis, edge_normal) > 0) {
-            // Separating axis is beyond bounds of voronoi region.
-            // Use the normal of the adjacent face as separating axis.
+        // If this is a concave edge, use the triangle normal. If the axis is
+        // outside the voronoi region, use the adjacent normal, which equates
+        // to rotating the axis towards the region.
+        if (!is_convex) {
+            sep_axis = tri_normal;
+        } else if (dot(sep_axis, edge_normal) > 0) {
             sep_axis = adj_normal;
         }
 
