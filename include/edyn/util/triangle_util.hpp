@@ -52,6 +52,9 @@ size_t get_triangle_feature_num_edges(triangle_feature feature);
 
 AABB get_triangle_aabb(const triangle_vertices &vertices);
 
+// This is used in triangle mesh collision detection to project a separating
+// axis into the voronoi region of the support feature of a triangle, thus
+// preventing contacts from pointing towards an invalid direction.
 vector3 clip_triangle_separating_axis(vector3 sep_axis, const triangle_mesh &mesh,
                                       size_t tri_idx, const std::array<vector3, 3> &tri_vertices,
                                       const vector3 &tri_normal, triangle_feature tri_feature,
