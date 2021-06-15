@@ -145,7 +145,7 @@ The polyhedron keeps a weak reference to the `edyn::rotated_mesh` thus the `edyn
 
 The `edyn::triangle_mesh` represents a (usually large) concave mesh of triangles. It contains a static bounding volume tree which provides a quicker way to find all triangles that intersect a given AABB.
 
-The concept of Voronoi regions is used to prevent internal edge collisions. The normal vector of all three adjacent triangles is stored for each triangle. Using the adjacent normal, it is possible to tell whether a direction (separating axis or minunimum translation vector) lies in a valid region. If the axis is not in the voronoi region of the closest triangle feature, it is projected onto it so a valid direction is used.
+The concept of Voronoi regions is used to prevent internal edge collisions. The normal vector of all three adjacent triangles is stored for each triangle. Using the adjacent normal, it is possible to tell whether a direction (separating axis or minimum translation vector) lies in a valid region. If the axis is not in the voronoi region of the closest triangle feature, it is projected onto it so a valid direction is used.
 
 Triangle meshes can be set up with a list of vertices and indices and then it calculates everything that's need with an invocation of `edyn::triangle_mesh::initialize()`. The list of vertices and indices can be loaded from an `*.obj` file using `edyn::load_tri_mesh_from_obj`. Loading from an `*.obj` can be slow because of parsing and recalculation of all internal properties of a triangle mesh, such as triangle normals, edge normals and vertex tangents. To speed things up, the triangle mesh can be written into a binary file using an output archive:
 
