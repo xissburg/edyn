@@ -4,16 +4,15 @@
 #include <map>
 #include <array>
 #include <utility>
-#include <entt/fwd.hpp>
-#include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/comp/spin.hpp"
-#include "constraint_base.hpp"
+#include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
-struct contact_patch_constraint : public constraint_base<contact_patch_constraint> {
+struct contact_patch_constraint : public constraint_base {
     struct brush_bristle {
         vector3 pivotA;
         vector3 pivotB;
@@ -61,12 +60,14 @@ struct contact_patch_constraint : public constraint_base<contact_patch_constrain
     static constexpr size_t num_tread_rows = 3;
     std::array<tread_row, num_tread_rows> m_tread_rows{};
 
-    void clear(constraint &, entt::registry &);
-
-    void init(entt::entity, constraint &, entt::registry &);
-    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
-    void iteration(entt::entity, constraint &, entt::registry &, scalar dt);
+    void clear();
 };
+
+template<>
+void prepare_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);
+
+template<>
+void iterate_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

@@ -49,19 +49,6 @@ inline AABB enclosing_aabb(const AABB &b0, const AABB &b1) {
     };
 }
 
-template<typename VectorIterator>
-AABB calculate_aabb(VectorIterator vector_begin, VectorIterator vector_end) {
-    // TODO: implement and use `parallel_reduce`.
-    auto aabb = AABB{vector3_max, -vector3_max};
-
-    for (auto it = vector_begin; it != vector_end; ++it) {
-        aabb.min = min(aabb.min, *it);
-        aabb.max = max(aabb.max, *it);
-    }
-
-    return aabb;
-}
-
 }
 
 #endif // EDYN_COMP_AABB_HPP

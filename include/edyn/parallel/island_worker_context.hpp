@@ -2,15 +2,19 @@
 #define EDYN_PARALLEL_ISLAND_WORKER_CONTEXT_HPP
 
 #include <memory>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
+#include <entt/signal/fwd.hpp>
+#include "edyn/parallel/island_delta.hpp"
 #include "edyn/util/entity_set.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/parallel/registry_delta_builder.hpp"
+#include "edyn/parallel/message.hpp"
+#include "edyn/parallel/island_worker.hpp"
 
 namespace edyn {
 
-class island_worker;
+class island_delta_builder;
+
 /**
  * Context of an island worker in the main thread in an island coordinator.
  */
@@ -22,15 +26,20 @@ class island_worker_context {
     bool m_pending_flush;
 
 public:
-    entity_set m_entities;
+    entity_set m_nodes;
+    entity_set m_edges;
     entity_map m_entity_map;
-    std::unique_ptr<registry_delta_builder> m_delta_builder;
+    std::unique_ptr<island_delta_builder> m_delta_builder;
 
-    using registry_delta_func_t = void(entt::entity, const registry_delta &);
-    entt::sigh<registry_delta_func_t> m_registry_delta_signal;
+    using island_delta_func_t = void(entt::entity, const island_delta &);
+    entt::sigh<island_delta_func_t> m_island_delta_signal;
+
+    using split_island_func_t = void(entt::entity, const msg::split_island &);
+    entt::sigh<split_island_func_t> m_split_island_signal;
 
     island_worker_context(entt::entity island_entity,
                 island_worker *worker,
+                std::unique_ptr<island_delta_builder> delta_builder,
                 message_queue_in_out message_queue);
     ~island_worker_context();
 
@@ -38,6 +47,12 @@ public:
      * Returns whether the current delta doesn't contain any changes.
      */
     bool delta_empty() const;
+
+    /**
+     * Returns whether the island needs to be waken up after sending the
+     * current delta to it.
+     */
+    bool delta_needs_wakeup() const;
 
     /**
      * Reads messages sent by worker.
@@ -56,16 +71,26 @@ public:
      */
     void flush();
 
+    auto split() {
+        return m_worker->split();
+    }
+
     template<typename Message, typename... Args>
     void send(Args &&... args) {
         m_message_queue.send<Message>(std::forward<Args>(args)...);
         m_pending_flush = true;
     }
-    
-    void on_registry_delta(const registry_delta &);
 
-    auto registry_delta_sink() {
-        return entt::sink {m_registry_delta_signal};
+    void on_island_delta(const island_delta &);
+
+    auto island_delta_sink() {
+        return entt::sink {m_island_delta_signal};
+    }
+
+    void on_split_island(const msg::split_island &);
+
+    auto split_island_sink() {
+        return entt::sink {m_split_island_signal};
     }
 
     /**

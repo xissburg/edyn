@@ -1,9 +1,11 @@
 # IDEs
-.vscode/*
-!.vscode/tasks.json
+.vscode
+.cache
+.vs
 
 # build
 build
+out
 
 # macOS
 .DS_Store

@@ -1,11 +1,13 @@
 #ifndef EDYN_UTIL_RIGIDBODY_HPP
 #define EDYN_UTIL_RIGIDBODY_HPP
 
+#include <vector>
 #include <optional>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/quaternion.hpp"
-#include "edyn/comp/shape.hpp"
+#include "edyn/math/matrix3x3.hpp"
+#include "edyn/shapes/shapes.hpp"
 
 namespace edyn {
 
@@ -33,7 +35,7 @@ struct rigidbody_def {
 
     // Mass properties for dynamic entities.
     scalar mass {1};
-    vector3 inertia {1, 1, 1};
+    matrix3x3 inertia {matrix3x3_identity};
 
     // Initial linear and angular velocity.
     vector3 linvel {vector3_zero};
@@ -44,7 +46,7 @@ struct rigidbody_def {
     vector3 gravity {gravity_earth};
 
     // Optional shape for collidable entities.
-    std::optional<decltype(shape::var)> shape_opt; 
+    std::optional<shapes_variant_t> shape;
 
     scalar restitution {0};
     scalar friction {0.5};
@@ -61,22 +63,50 @@ struct rigidbody_def {
     scalar speed_sensitivity {0.03};
     scalar load_sensitivity {0.05};
 
-    uint64_t collision_group {1ULL};
+    uint64_t collision_group {~0ULL};
     uint64_t collision_mask {~0ULL};
 
-    // Whether this entity will be used for presentation and needs 
-    // position/orientation interpolation.
-    bool presentation {false};
+    // Mark all contacts involving this rigid body as continuous.
+    bool continuous_contacts {false};
 
+    // Whether this entity will be used for presentation and needs
+    // position/orientation interpolation.
+    bool presentation {true};
+
+    /**
+     * @brief Assigns the default moment of inertia of the current shape
+     * using the current mass.
+     * Assumes `shape` to contain a value.
+     */
     void update_inertia();
 };
 
 /**
- * Assigns to `entity` all necessary components to build a rigid body according
- * to the given definition.
+ * @brief Assigns to `entity` all necessary components to build a rigid body
+ * according to the given definition.
+ * @param entity Target rigid body entity.
+ * @param registry Data source and destination.
+ * @param def Rigid body definition.
  */
 void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
+
+/**
+ * @brief Creates an entity and assigns all necessary components to build a
+ * rigid body according to the given definition.
+ * @param registry Data source and destination.
+ * @param def Rigid body definition.
+ * @return Rigid body entity.
+ */
 entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
+
+/**
+ * @brief Creates many rigid bodies at once.
+ * A new island is created and all bodies are inserted into it.
+ * @param registry Data source.
+ * @param defs Rigid body definitions.
+ * @return Entities corresponding to each rigid body definition.
+ */
+std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std::vector<rigidbody_def> &defs);
 
 /**
  * Sets the mass of a rigid body and recalculates its inertia. It assumes the
@@ -93,13 +123,16 @@ void rigidbody_set_mass(entt::registry &, entt::entity, scalar mass);
 void rigidbody_update_inertia(entt::registry &, entt::entity);
 
 /**
- * Applies `impulse` to entity.
+ * @brief Applies `impulse` to entity.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param impulse Impulse vector.
  * @param rel_location Location where the impulse should be applied relative to
  * the entity's center/position, in world space, i.e.
  * `actual_world_space_location - position`.
  */
-void rigidbody_apply_impulse(entt::registry &, entt::entity, 
-                             const vector3 &impulse, 
+void rigidbody_apply_impulse(entt::registry &, entt::entity,
+                             const vector3 &impulse,
                              const vector3 &rel_location);
 
 void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);
@@ -107,6 +140,7 @@ void update_kinematic_orientation(entt::registry &, entt::entity, const quaterni
 void clear_kinematic_velocities(entt::registry &);
 
 bool validate_rigidbody(entt::entity &, entt::registry &);
+
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP

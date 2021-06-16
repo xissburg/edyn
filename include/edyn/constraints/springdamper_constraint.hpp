@@ -1,13 +1,14 @@
 #ifndef EDYN_CONSTRAINTS_SPRINGDAMPER_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_SPRINGDAMPER_CONSTRAINT_HPP
 
-#include "constraint_base.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/spring_util.hpp"
+#include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
-struct springdamper_constraint : public constraint_base<springdamper_constraint> {
+struct springdamper_constraint : public constraint_base {
     // Which side the coilover is located: 1 left, -1 right.
     scalar m_side;
 
@@ -50,9 +51,6 @@ struct springdamper_constraint : public constraint_base<springdamper_constraint>
     vector3 m_spring_damper_dir;
     scalar m_inclination_factor;
 
-    void init(entt::entity, constraint &, entt::registry &);
-    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
-
     void set_constant_spring_stiffness();
     void set_constant_spring_stiffness(scalar stiffness, scalar max_defl);
 
@@ -60,12 +58,15 @@ struct springdamper_constraint : public constraint_base<springdamper_constraint>
     void set_dual_spring_stiffness(scalar primary_stiffness, scalar primary_max_defl,
                                    scalar secondary_stiffness, scalar secondary_max_defl);
 
-    scalar get_spring_deflection(const constraint &, entt::registry &) const;
+    scalar get_spring_deflection(entt::registry &) const;
     scalar get_preload() const;
     scalar get_combined_spring_stiffness() const;
-    vector3 get_world_ctrl_arm_pivot(const constraint &, entt::registry &) const;
+    vector3 get_world_ctrl_arm_pivot(entt::registry &) const;
     scalar get_damping_force(scalar speed) const;
 };
+
+template<>
+void prepare_constraints<springdamper_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

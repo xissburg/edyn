@@ -2,59 +2,20 @@ cmake_minimum_required(VERSION 3.12.4)
 
 project(Edyn VERSION 0.0.0 LANGUAGES CXX)
 
-#
-# Explicit debug build by default
-#
-
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
-endif()
+# Options
+option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
+option(EDYN_BUILD_EXAMPLES "Build examples" ON)
+option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
+option(EDYN_DISABLE_ASSERT "Disable assertions in Edyn for better performance." OFF)
+option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF)
 
 if(NOT CMAKE_DEBUG_POSTFIX)
   set(CMAKE_DEBUG_POSTFIX "_d")
 endif()
 
-#
-# Warnings
-#
+include(${CMAKE_BINARY_DIR}/conan_paths.cmake OPTIONAL)
 
-if(MSVC)
-  add_compile_options(/W4 /WX)
-else()
-  add_compile_options(-Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
-endif()
-
-#
-# Options
-#
-
-option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats." OFF)
-
-set(EDYN_SET_DOUBLE 0)
-if(EDYN_CONFIG_DOUBLE)
-    set(EDYN_SET_DOUBLE 1)
-endif()
-
-option(EDYN_BUILD_EXAMPLES "Build examples." OFF)
-
-option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
-
-option(ENTT_DISABLE_ASSERT "Disable EnTT assertions for better performance." ON)
-
-if(ENTT_DISABLE_ASSERT)
-    add_compile_definitions(ENTT_DISABLE_ASSERT)
-endif()
-
-#
-# Conan dependencies
-#
-
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
-
-#
-# Library
-#
+find_package(EnTT REQUIRED)
 
 set(Edyn_SOURCES
     src/edyn/math/geom.cpp
@@ -65,32 +26,37 @@ set(Edyn_SOURCES
     src/edyn/collision/narrowphase.cpp
     src/edyn/collision/contact_manifold_map.cpp
     src/edyn/collision/dynamic_tree.cpp
-    src/edyn/collision/collide_sphere_sphere.cpp
-    src/edyn/collision/collide_sphere_plane.cpp
-    src/edyn/collision/collide_cylinder_cylinder.cpp
-    src/edyn/collision/collide_cylinder_plane.cpp
-    src/edyn/collision/collide_cylinder_sphere.cpp
-    src/edyn/collision/collide_capsule_capsule.cpp
-    src/edyn/collision/collide_capsule_cylinder.cpp
-    src/edyn/collision/collide_capsule_plane.cpp
-    src/edyn/collision/collide_capsule_sphere.cpp
-    src/edyn/collision/collide_sphere_mesh.cpp
-    src/edyn/collision/collide_capsule_mesh.cpp
-    src/edyn/collision/collide_cylinder_mesh.cpp
-    src/edyn/collision/collide_sphere_paged_mesh.cpp
-    src/edyn/collision/collide_capsule_paged_mesh.cpp
-    src/edyn/collision/collide_cylinder_paged_mesh.cpp
-    src/edyn/collision/collide_box_box.cpp
-    src/edyn/collision/collide_box_mesh.cpp
-    src/edyn/collision/collide_box_paged_mesh.cpp
-    src/edyn/collision/collide_box_plane.cpp
-    src/edyn/collision/collide_capsule_box.cpp
-    src/edyn/collision/collide_cylinder_box.cpp
-    src/edyn/collision/collide_sphere_box.cpp
-    src/edyn/collision/collide_cylinder_triangle.cpp
-    src/edyn/collision/collide_sphere_triangle.cpp
-    src/edyn/collision/collide_box_triangle.cpp
+    src/edyn/collision/collide/collide_sphere_sphere.cpp
+    src/edyn/collision/collide/collide_sphere_plane.cpp
+    src/edyn/collision/collide/collide_cylinder_cylinder.cpp
+    src/edyn/collision/collide/collide_cylinder_plane.cpp
+    src/edyn/collision/collide/collide_cylinder_sphere.cpp
+    src/edyn/collision/collide/collide_capsule_capsule.cpp
+    src/edyn/collision/collide/collide_capsule_cylinder.cpp
+    src/edyn/collision/collide/collide_capsule_plane.cpp
+    src/edyn/collision/collide/collide_capsule_sphere.cpp
+    src/edyn/collision/collide/collide_capsule_mesh.cpp
+    src/edyn/collision/collide/collide_box_box.cpp
+    src/edyn/collision/collide/collide_box_plane.cpp
+    src/edyn/collision/collide/collide_capsule_box.cpp
+    src/edyn/collision/collide/collide_cylinder_box.cpp
+    src/edyn/collision/collide/collide_sphere_box.cpp
+    src/edyn/collision/collide/collide_cylinder_mesh.cpp
+    src/edyn/collision/collide/collide_sphere_mesh.cpp
+    src/edyn/collision/collide/collide_box_mesh.cpp
+    src/edyn/collision/collide/collide_polyhedron_capsule.cpp
+    src/edyn/collision/collide/collide_polyhedron_cylinder.cpp
+    src/edyn/collision/collide/collide_polyhedron_box.cpp
+    src/edyn/collision/collide/collide_polyhedron_plane.cpp
+    src/edyn/collision/collide/collide_polyhedron_polyhedron.cpp
+    src/edyn/collision/collide/collide_polyhedron_sphere.cpp
+    src/edyn/collision/collide/collide_polyhedron_mesh.cpp
+    src/edyn/collision/collide/collide_compound_compound.cpp
+    src/edyn/collision/collide/collide_compound_plane.cpp
+    src/edyn/collision/collide/collide_compound_mesh.cpp
+    src/edyn/collision/should_collide.cpp
     src/edyn/collision/collision_result.cpp
+    src/edyn/collision/raycast.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/contact_patch_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
@@ -106,34 +72,43 @@ set(Edyn_SOURCES
     src/edyn/constraints/spin_angle_constraint.cpp
     src/edyn/constraints/spin_constraint.cpp
     src/edyn/constraints/tirecarcass_constraint.cpp
-    src/edyn/util/island_util.cpp
+    src/edyn/constraints/null_constraint.cpp
+    src/edyn/constraints/gravity_constraint.cpp
     src/edyn/dynamics/solver.cpp
-    src/edyn/dynamics/world.cpp
-    src/edyn/sys/apply_gravity.cpp
     src/edyn/sys/update_aabbs.cpp
+    src/edyn/sys/update_rotated_meshes.cpp
+    src/edyn/sys/update_inertias.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/util/spring_util.cpp
     src/edyn/util/tire_util.cpp
     src/edyn/util/constraint_util.cpp
     src/edyn/util/shape_util.cpp
+    src/edyn/util/aabb_util.cpp
+    src/edyn/util/moment_of_inertia.cpp
+    src/edyn/util/shape_volume.cpp
+    src/edyn/util/collision_util.cpp
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
-    src/edyn/shapes/triangle_shape.cpp
+    src/edyn/util/triangle_util.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
+    src/edyn/shapes/polyhedron_shape.cpp
+    src/edyn/shapes/convex_mesh.cpp
+    src/edyn/shapes/compound_shape.cpp
+    src/edyn/parallel/entity_graph.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
     src/edyn/parallel/job_scheduler.cpp
     src/edyn/parallel/job_queue_scheduler.cpp
     src/edyn/parallel/island_worker.cpp
     src/edyn/parallel/island_coordinator.cpp
-    src/edyn/parallel/registry_delta.cpp
-    src/edyn/parallel/registry_delta_builder.cpp
+    src/edyn/parallel/island_delta.cpp
+    src/edyn/parallel/island_delta_builder.cpp
     src/edyn/parallel/island_worker_context.cpp
-    src/edyn/parallel/external_system.cpp
+    src/edyn/parallel/make_island_delta_builder.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
+    src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
-    src/edyn/init.cpp
 )
 
 if(UNIX)
@@ -143,48 +118,47 @@ if(UNIX)
     )
 endif()
 
-add_library(Edyn STATIC ${Edyn_SOURCES})
+if(WIN32)
+    set(Edyn_SOURCES
+        ${Edyn_SOURCES}
+	src/edyn/time/windows/time.cpp
+    )
+endif()
+
+add_library(Edyn)
+target_sources(Edyn PRIVATE ${Edyn_SOURCES})
 
 configure_file(${Edyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${Edyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
 install(FILES ${Edyn_BINARY_DIR}/include/build_settings.h DESTINATION include/edyn)
 
-target_include_directories(Edyn 
+target_include_directories(Edyn
     PUBLIC ${Edyn_SOURCE_DIR}/include
     PUBLIC ${Edyn_BINARY_DIR}/include
 )
 
-target_include_directories(Edyn SYSTEM 
-    PUBLIC ${CONAN_INCLUDE_DIRS_ENTT}
-)
+set_target_properties(Edyn PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 target_compile_features(Edyn PUBLIC cxx_std_17)
+target_compile_definitions(Edyn PUBLIC  $<$<CONFIG:Debug>:EDYN_DEBUG>)
+target_compile_definitions(Edyn PUBLIC  $<$<BOOL:${EDYN_DISABLE_ASSERT}>:EDYN_DISABLE_ASSERT>)
+target_compile_definitions(Edyn PRIVATE $<$<BOOL:${EDYN_DISABLE_ASSERT}>:ENTT_DISABLE_ASSERT>)
 
-#
-# Sanitize
-#
+target_compile_options(Edyn PUBLIC
+    $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
 
-if(CMAKE_BUILD_TYPE EQUAL "Debug")
-    #add_compile_options(-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
-    #target_link_libraries(Edyn -fsanitize=address -fsanitize=undefined)
+target_link_libraries(Edyn PUBLIC
+    EnTT::EnTT
+    $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined>)
+
+if(MSVC)
+    target_compile_options(Edyn PRIVATE /W4)
+else()
+    target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()
-
-#
-# Examples
-#
 
 if(EDYN_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
-
-#
-# Command-line tool
-#
-
-
-
-#
-# Tests
-#
 
 if(EDYN_BUILD_TESTS)
     find_package(GTest REQUIRED)

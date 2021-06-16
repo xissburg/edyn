@@ -1,13 +1,9 @@
 #ifndef EDYN_PARALLEL_PARALLEL_FOR_HPP
 #define EDYN_PARALLEL_PARALLEL_FOR_HPP
 
-#include <mutex>
 #include <atomic>
-#include <numeric>
-#include <iterator>
-#include <forward_list>
+#include <condition_variable>
 #include "edyn/config/config.h"
-#include "edyn/parallel/mutex_counter.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/memory_archive.hpp"
@@ -16,247 +12,198 @@ namespace edyn {
 
 namespace detail {
 
-/**
- * A for-loop with an atomic editable range.
- */
 template<typename IndexType, typename Function>
-struct for_loop_range {
-    using atomic_index_type = std::atomic<IndexType>;
+struct parallel_for_context {
+    std::atomic<IndexType> current;
+    const IndexType last;
+    const IndexType step;
+    const IndexType chunk_size;
+    size_t count;
+    bool done;
+    std::mutex mutex;
+    std::condition_variable cv;
+    Function func;
 
-    for_loop_range(IndexType first, IndexType last, 
-                   IndexType step, const Function *func,
-                   mutex_counter &counter)
-        : m_first(first)
-        , m_last(last)
-        , m_step(step)
-        , m_current(first)
-        , m_func(func)
-        , m_counter(&counter)
+    parallel_for_context(IndexType first, IndexType last, IndexType step, 
+                         IndexType chunk_size, size_t num_jobs, Function func) 
+        : current(first)
+        , last(last)
+        , step(step)
+        , chunk_size(chunk_size)
+        , count(num_jobs)
+        , done(false)
+        , func(func)
     {}
 
-    /**
-     * Executes the for-loop. Increments the atomic `m_current` on each iteration.
-     * Decrements the counter given in the constructor once finished.
-     */
-    void run() {
-        auto i = m_current.load(std::memory_order_relaxed);
-        while (i < m_last.load(std::memory_order_acquire)) {
-            (*m_func)(i);
-            i = m_current.fetch_add(m_step, std::memory_order_release) + m_step;
-        }
-        m_counter->decrement();
+    ~parallel_for_context() {
+        EDYN_ASSERT(count == 0);
     }
 
-    atomic_index_type m_first;
-    atomic_index_type m_last;
-    atomic_index_type m_step;
-    atomic_index_type m_current;
-    const Function *m_func;
-    mutex_counter *m_counter;
-};
+    void decrement() {
+        std::lock_guard lock(mutex);
+        EDYN_ASSERT(count > 0);
+        --count;
+        done = count == 0;
 
-/**
- * A pool of for-loops where new loops can be created by stealing a
- * range from another loop in the pool.
- */
-template<typename IndexType, typename Function>
-class for_loop_range_pool {
-public:
-    using for_loop_range_type = for_loop_range<IndexType, Function>;
-
-    for_loop_range_pool(IndexType first, IndexType last, 
-                        IndexType step, const Function *func)
-        : m_first(first)
-        , m_last(last)
-        , m_step(step)
-        , m_func(func)
-    {}
-
-    for_loop_range_type *steal() {
-        // Key observation: this function is never called in parallel because
-        // each parallel-for job spawns another parallel-for job and this 
-        // function is called before a new job of that kind is scheduled.
-        if (m_loops.empty()) {
-            // Create the first loop with the entire range.
-            m_counter.increment();
-            auto &loop = m_loops.emplace_front(m_first, m_last, m_step, m_func, m_counter);
-            return &loop;
+        // Normally, `notify_one` would be called without the lock being held.
+        // However, according to 
+        // https://en.cppreference.com/w/cpp/thread/condition_variable/notify_one:
+        // "Notifying while under the lock may nevertheless be necessary when precise
+        // scheduling of events is required, e.g. if the waiting thread would exit
+        // the program if the condition is satisfied, causing destruction of the
+        // notifying thread's condition_variable."
+        // If the lock would be released right here, there is a very slim chance
+        // that `wait()` would be called in the other thread right after, before 
+        // `notify_one()` below, where the lock would be acquired and the predicate
+        // would test true, causing `parallel_for` to return, thus destroying this
+        // object (since it is in the stack) and then everything down from here is
+        // undefined behavior.
+        if (done) {
+            cv.notify_one();
         }
-
-        IndexType candidate_remaining = 0;
-        for_loop_range_type *candidate_loop = nullptr;
-
-        // Find loop with the largest number of remaining work.
-        for (auto &curr_loop : m_loops) {
-            auto last = curr_loop.m_last.load(std::memory_order_acquire);
-            auto current = curr_loop.m_current.load(std::memory_order_acquire);
-            
-            if (current > last) continue;
-
-            auto remaining = last - current;
-
-            if (remaining >= candidate_remaining) {
-                candidate_loop = &curr_loop;
-                candidate_remaining = remaining;
-            }
-        }
-
-        auto last = candidate_loop->m_last.load(std::memory_order_acquire);
-        auto current = candidate_loop->m_current.load(std::memory_order_acquire);
-
-        // No work left to be stolen.
-        if (!(current + 1 < last)) { 
-            return nullptr;
-        }
-
-        auto remaining = last - current;
-        auto first = candidate_loop->m_first.load(std::memory_order_relaxed);
-        auto total = last - first;
-
-        // Return null if the loop with the biggest amount of remaining work is
-        // nearly done (i.e. the remaining work is under a percentage of the total)
-        if (remaining * 100 < total * 10) {
-            return nullptr;
-        }
-
-        // Increment loop counter. Will be decremented by the new loop when
-        // it finishes running. It is important to increment it before range
-        // stealing below, since it might terminate the `candidate_loop` right
-        // after and cause `m_counter` to be decremented to zero thus causing
-        // a wait on the counter to return prematurely resulting in an incomplete
-        // run of the entire for-loop range.
-        m_counter.increment();
-
-        // Effectively steal a range of work from candidate by moving its last
-        // index to the halfway point between current and last.
-        auto middle = current + remaining / 2;
-        candidate_loop->m_last.store(middle, std::memory_order_release);
-
-        // It is possible that by the time `middle` is stored in `candidate_loop->m_last`,
-        // `candidate_loop->m_current` is greater than `middle` since the for-loop
-        // is running while this range stealing is taking place. To prevent calling
-        // `m_func` more than once for the elements between `middle` and 
-        // `candidate_loop->m_current`, load `candidate_loop->m_current` and check
-        // if it's greater than or equals to `middle` and if so, start from there instead.
-        current = candidate_loop->m_current.load(std::memory_order_acquire);
-        auto new_first = current >= middle ? current : middle;
-
-        auto &loop = m_loops.emplace_front(new_first, last, m_step, m_func, m_counter);
-        return &loop;
     }
 
     void wait() {
-        m_counter.wait();
+        std::unique_lock lock(mutex);
+        cv.wait(lock, [&] { return done; });
     }
-
-private:
-    const IndexType m_first;
-    const IndexType m_last;
-    const IndexType m_step;
-    const Function *m_func;
-    std::forward_list<for_loop_range_type> m_loops;
-    mutex_counter m_counter;
 };
 
 template<typename IndexType, typename Function>
-struct parallel_for_context {
-    using for_loop_range_pool_type = for_loop_range_pool<IndexType, Function>;
-    job_dispatcher *m_dispatcher;
-    for_loop_range_pool_type m_loop_pool;
-    std::atomic<int> m_num_jobs;
+void run_parallel_for(parallel_for_context<IndexType, Function> &ctx) {
+    while (true) {
+        auto begin = ctx.current.fetch_add(ctx.chunk_size, std::memory_order_relaxed);
 
-    parallel_for_context(IndexType first, IndexType last, 
-                         IndexType step, const Function *func,
-                         job_dispatcher &dispatcher)
-        : m_loop_pool(first, last, step, func)
-        , m_dispatcher(&dispatcher)
-        , m_num_jobs(0)
-    {}
-};
+        if (begin >= ctx.last) {
+            break;
+        }
+
+        auto end = std::min(begin + ctx.chunk_size, ctx.last);
+
+        for (auto i = begin; i < end; i += ctx.step) {
+            ctx.func(i);
+        }
+    }
+}
 
 template<typename IndexType, typename Function>
 void parallel_for_job_func(job::data_type &data) {
     auto archive = memory_input_archive(data.data(), data.size());
-    intptr_t ctx_intptr;
-    archive(ctx_intptr);
-    auto *ctx = reinterpret_cast<parallel_for_context<IndexType, Function> *>(ctx_intptr);
+    intptr_t ctx_ptr;
+    archive(ctx_ptr);
+    auto *ctx = reinterpret_cast<parallel_for_context<IndexType, Function> *>(ctx_ptr);
 
-    // Decrement job count and if zero delete `ctx` on exit.
-    auto defer = std::shared_ptr<void>(nullptr, [ctx] (void *) { 
-        auto num_jobs = ctx->m_num_jobs.fetch_sub(1, std::memory_order_relaxed) - 1;
-        if (num_jobs == 0) delete ctx;
-    });
-    
-    auto *loop = ctx->m_loop_pool.steal();
-    if (!loop) {
-        return;
-    }
+    run_parallel_for(*ctx);
 
-    // Dispatch child job.
-    {
-        ctx->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
-
-        auto child_job = job();
-        child_job.data = data;
-        child_job.func = &parallel_for_job_func<IndexType, Function>;
-        ctx->m_dispatcher->async(child_job);
-    }
-
-    loop->run();
+    ctx->decrement();
 }
 
 } // namespace detail
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element starting at `first` and incrementing by `step` until `last`.
+ * 
+ * @tparam IndexType Type of the index values.
+ * @tparam Function Type of function to be invoked.
+ * @param dispatcher The `edyn::job_dispatcher` where the parallel jobs will be run.
+ * @param first Index of the first element in the range.
+ * @param last Index past the last element in the range.
+ * @param step The size of each increment from `first` to `last`.
+ * @param func Function that will be called for each increment of index from `first`
+ * to `last` incrementing by `step`. Expected signature `void(IndexType)`.
+ */
 template<typename IndexType, typename Function>
-void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, IndexType step, const Function &func) {
+void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, IndexType step, Function func) {
+    EDYN_ASSERT(first < last);
     EDYN_ASSERT(step > IndexType{0});
 
-    // The last job to run will delete `ctx`.
-    auto *ctx = new detail::parallel_for_context<IndexType, Function>(first, last, step, &func, dispatcher);
-    
-    // Get the first loop subrange which will run in this thread.
-    auto *loop = ctx->m_loop_pool.steal();
+    // Number of available workers.
+    auto num_workers = dispatcher.num_workers();
 
-    // Increment job count so the this execution unit is accounted for.
-    ctx->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
+    // Number of elements to be processed.
+    auto count = last - first;
+    EDYN_ASSERT(count > 1);
 
-    // On exit decrement job count and if zero delete `ctx`.
-    auto defer = std::shared_ptr<void>(nullptr, [ctx] (void *) { 
-        auto num_jobs = ctx->m_num_jobs.fetch_sub(1, std::memory_order_relaxed) - 1;
-        if (num_jobs == 0) delete ctx;
-    });
+    // Size of chunk that will be processed per job iteration. The calling thread
+    // also does work thus 1 is added to the number of workers.
+    auto chunk_size = std::max(count / (num_workers + 1), IndexType{1});
 
-    // Create child job which will steal a range of the for-loop if it gets a
-    // chance to be executed.
-    {
-        ctx->m_num_jobs.fetch_add(1, std::memory_order_relaxed);
+    // Number of jobs that will be dispatched. Must not be greater than number
+    // of workers (including this thread).
+    auto num_jobs = std::min(num_workers, count - 1);
 
-        auto child_job = job();
-        child_job.func = &detail::parallel_for_job_func<IndexType, Function>;
-        auto archive = fixed_memory_output_archive(child_job.data.data(), child_job.data.size());
-        auto ctx_intptr = reinterpret_cast<intptr_t>(ctx);
-        archive(ctx_intptr);
+    // Context that's shared among all jobs.
+    auto context = detail::parallel_for_context<IndexType, Function>(first, last, step, chunk_size, num_jobs, func);
+
+    // Job that'll process chunks of data in worker threads.
+    auto child_job = job();
+    child_job.func = &detail::parallel_for_job_func<IndexType, Function>;
+    auto archive = fixed_memory_output_archive(child_job.data.data(), child_job.data.size());
+    auto ctx_ptr = reinterpret_cast<intptr_t>(&context);
+    archive(ctx_ptr);
+
+    // Dispatch background jobs.
+    for (size_t i = 0; i < num_jobs; ++i) {
         dispatcher.async(child_job);
     }
 
-    loop->run();
+    // Process chunks of the for loop in the current thread as well.
+    detail::run_parallel_for(context);
 
-    // Wait for all for-loops to complete.
-    ctx->m_loop_pool.wait();
+    // Wait all background jobs to finish.
+    context.wait();
 }
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element starting at `first` and incrementing by `step` until `last`.
+ * Tasks are run in the default global `edyn::job_dispatcher`.
+ * 
+ * @tparam IndexType Type of the index values.
+ * @tparam Function Type of function to be invoked.
+ * @param first Index of the first element in the range.
+ * @param last Index past the last element in the range.
+ * @param step The size of each increment from `first` to `last`.
+ * @param func Function that will be called for each increment of index from `first`
+ * to `last` incrementing by `step`. Expected signature `void(IndexType)`.
+ */
 template<typename IndexType, typename Function>
-void parallel_for(IndexType first, IndexType last, IndexType step, const Function &func) {
+void parallel_for(IndexType first, IndexType last, IndexType step, Function func) {
     parallel_for(job_dispatcher::global(), first, last, step, func);
 }
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element` in the range. Tasks are run in the default global 
+ * `edyn::job_dispatcher`.
+ * 
+ * @tparam IndexType Type of the index values.
+ * @tparam Function Type of function to be invoked.
+ * @param first Index of the first element in the range.
+ * @param last Index past the last element in the range.
+ * @param func Function that will be called for each index in `[first, last)`. 
+ * Expected signature `void(IndexType)`.
+ */
 template<typename IndexType, typename Function>
-void parallel_for(IndexType first, IndexType last, const Function &func) {
+void parallel_for(IndexType first, IndexType last, Function func) {
     parallel_for(first, last, IndexType {1}, func);
 }
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element` in the range.
+ * 
+ * @tparam Type of input iterator.
+ * @tparam Function Type of function to be invoked.
+ * @param dispatcher The `edyn::job_dispatcher` where the parallel jobs will be run.
+ * @param first An iterator to the first element.
+ * @param last An iterator past the last element.
+ * @param func Function that will be called for each element `[first, last)`. 
+ * Expected signature `void(Iterator)`.
+ */
 template<typename Iterator, typename Function>
-void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last, const Function &func) {
+void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last, Function func) {
     auto count = std::distance(first, last);
 
     parallel_for(dispatcher, size_t{0}, static_cast<size_t>(count), size_t{1}, [&] (size_t index) {
@@ -264,8 +211,20 @@ void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last
     });
 }
 
+/**
+ * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
+ * once for each element` in the range. Tasks are run in the default global 
+ * `edyn::job_dispatcher`.
+ * 
+ * @tparam Type of input iterator.
+ * @tparam Function Type of function to be invoked.
+ * @param first An iterator to the first element.
+ * @param last An iterator past the last element.
+ * @param func Function that will be called for each element `[first, last)`. 
+ * Expected signature `void(Iterator)`.
+ */
 template<typename Iterator, typename Function>
-void parallel_for_each(Iterator first, Iterator last, const Function &func) {
+void parallel_for_each(Iterator first, Iterator last, Function func) {
     parallel_for_each(job_dispatcher::global(), first, last, func);
 }
 

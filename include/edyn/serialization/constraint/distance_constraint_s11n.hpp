@@ -7,6 +7,7 @@ namespace edyn {
 
 template<typename Archive>
 void serialize(Archive &archive, distance_constraint &c) {
+    archive(c.body);
     archive(c.pivot);
     archive(c.distance);
 }

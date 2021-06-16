@@ -3,47 +3,50 @@
 
 #include <entt/entt.hpp>
 #include "edyn/comp/tire_state.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
-#include "edyn/comp/island.hpp"
+#include "edyn/comp/graph_node.hpp"
+#include "edyn/parallel/entity_graph.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 
 namespace edyn {
 
 inline
 void update_tire_state(entt::registry &registry, scalar dt) {
-    auto ts_view = registry.view<island_node, tire_state>();
+    auto ts_view = registry.view<graph_node, tire_state>();
     auto orn_view = registry.view<orientation>();
     auto vel_view = registry.view<linvel, angvel>();
-    auto con_row_view = registry.view<constraint_row>();
+    auto &graph = registry.ctx<entity_graph>();
 
-    ts_view.each([&] (auto entity, island_node &node, tire_state &ts) {
+    ts_view.each([&] (auto entity, graph_node &node, tire_state &ts) {
         ts.other_entity = entt::null;
 
         auto &ornA = orn_view.get(entity);
         auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(entity);
-        
+
         const auto &spinA = registry.get<spin>(entity);
         const auto spin_angvelA = angvelA + quaternion_x(ornA) * spinA;
 
-        for (auto rel_ent : node.entities) {
-            auto *manifold = registry.try_get<contact_manifold>(rel_ent);
+        graph.visit_edges(node.node_index, [&] (auto edge_entity) {
+            auto *manifold = registry.try_get<contact_manifold>(edge_entity);
+
             if (!manifold) {
-                continue;
+                return;
             }
 
             ts.other_entity = manifold->body[1];
             ts.num_contacts = manifold->num_points();
-            
-            if (ts.num_contacts == 0) continue;
+
+            if (ts.num_contacts == 0) {
+                return;
+            }
 
             auto ornB = orn_view.get(manifold->body[1]);
             auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(manifold->body[1]);
 
             for (size_t i = 0; i < manifold->num_points(); ++i) {
-                auto [con, cp] = registry.get<constraint, contact_point>(manifold->point[i]);
-                auto &contact_patch = std::get<contact_patch_constraint>(con.var);
+                auto &cp = registry.get<contact_point>(manifold->point[i]);
+                auto &contact_patch = registry.get<contact_patch_constraint>(manifold->point[i]);
 
                 auto velA = linvelA + cross(spin_angvelA, rotate(ornA, cp.pivotA));
                 auto velB = linvelB + cross(angvelB, rotate(ornB, cp.pivotB));
@@ -75,15 +78,12 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.position = contact_patch.m_center;
                 tire_cs.lin_vel = linvel_rel;
 
-                auto &normal_row = con_row_view.get(con.row[0]);
-                auto &lon_row = con_row_view.get(con.row[1]);
-                auto &lat_row = con_row_view.get(con.row[2]);
-                auto &align_row = con_row_view.get(con.row[3]);
-
-                tire_cs.Fz = normal_row.impulse / dt;
-                tire_cs.Fx = lon_row.impulse / dt;
-                tire_cs.Fy = lat_row.impulse / dt;
-                tire_cs.Mz = align_row.impulse / dt;
+                auto &imp = registry.get<constraint_impulse>(manifold->point[i]);
+                // Add spring and damper impulses.
+                tire_cs.Fz = (imp.values[0] + imp.values[1]) / dt;
+                tire_cs.Fx = (imp.values[2] + imp.values[3]) / dt;
+                tire_cs.Fy = (imp.values[4] + imp.values[5]) / dt;
+                tire_cs.Mz = (imp.values[6] + imp.values[7]) / dt;
 
                 for (size_t i = 0; i < contact_patch.m_tread_rows.size(); ++i) {
                     tire_cs.tread_states[i].clear();
@@ -91,16 +91,12 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                     for (auto &pair : contact_patch.m_tread_rows[i].bristles) {
                         auto &bristle = pair.second;
                         tire_cs.tread_states[i].emplace_back(tire_tread_state{
-                            bristle.root, bristle.tip, 
+                            bristle.root, bristle.tip,
                             bristle.friction, bristle.sliding_spd});
                     }
                 }
             }
-
-            // Only process one manifold. The tire state is a component of the
-            // tire, not the relation.
-            break;
-        }
+        });
     });
 }
 

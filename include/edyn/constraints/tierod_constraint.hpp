@@ -4,10 +4,11 @@
 #include <entt/fwd.hpp>
 #include "constraint_base.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
-struct tierod_constraint : public constraint_base<tierod_constraint> {
+struct tierod_constraint : public constraint_base {
     scalar side;
 
     vector3 pivotA;
@@ -15,7 +16,7 @@ struct tierod_constraint : public constraint_base<tierod_constraint> {
     vector3 pivotA_offset {vector3_zero};
     scalar rod_length;
 
-    // upper control arm pivots 
+    // upper control arm pivots
     vector3 upper_pivotA;
     vector3 upper_pivotB;
 
@@ -26,7 +27,7 @@ struct tierod_constraint : public constraint_base<tierod_constraint> {
     // length of control arms
     scalar upper_length;
     scalar lower_length;
-    
+
     // Steering axis in wheel object space.
     vector3 steering_axis;
 
@@ -35,12 +36,12 @@ struct tierod_constraint : public constraint_base<tierod_constraint> {
     scalar steering_arm_length;
     scalar steering_arm_angle;
 
-    void init(entt::entity, constraint &, entt::registry &);
-    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
-
     void update_steering_axis();
     void update_steering_arm();
 };
+
+template<>
+void prepare_constraints<tierod_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

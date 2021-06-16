@@ -9,29 +9,32 @@ namespace edyn {
 
 class atomic_counter {
 public:
+    atomic_counter(const job &j, size_t count = 0, job_dispatcher &dispatcher = job_dispatcher::global())
+        : m_job(j)
+        , m_dispatcher(&dispatcher)
+        , m_count(static_cast<int>(count))
+    {}
+
     void increment(unsigned int count = 1) {
         m_count.fetch_add(static_cast<int>(count), std::memory_order_relaxed);
     }
 
-    void decrement(unsigned int count = 1) {
-        auto valid = m_valid.load(std::memory_order_relaxed);
-        EDYN_ASSERT(valid);
-        if (!valid) return;
-
+    bool decrement(unsigned int count = 1) {
         auto curr_count = m_count.fetch_sub(count, std::memory_order_relaxed) - static_cast<int>(count);
+        EDYN_ASSERT(curr_count >= 0);
 
-        if (curr_count <= 0) {
-            m_valid.store(false, std::memory_order_relaxed);
+        if (curr_count == 0) {
             m_dispatcher->async(m_job);
+            return false;
+        } else {
+            return true;
         }
     }
 
-    job m_job;
-    job_dispatcher *m_dispatcher {&job_dispatcher::global()};
-
 private:
-    std::atomic_int m_count {0};
-    std::atomic_bool m_valid {true};
+    job m_job;
+    job_dispatcher *m_dispatcher;
+    std::atomic_int m_count;
 };
 
 }

@@ -1,135 +1,135 @@
 #include "edyn/shapes/triangle_mesh.hpp"
+#include <limits>
+#include <set>
 
 namespace edyn {
 
 void triangle_mesh::initialize() {
-    build_tree();
-    initialize_edge_angles();
-    calculate_edge_angles();
+    // Order is important.
+    calculate_face_normals();
+    init_edge_indices();
+    calculate_adjacent_normals();
+    build_triangle_tree();
 }
 
-void triangle_mesh::initialize_edge_angles() {
-    cos_angles.resize(indices.size());
-    is_concave_edge.resize(indices.size());
+void triangle_mesh::calculate_face_normals() {
+    m_normals.reserve(m_indices.size());
 
-    std::fill(cos_angles.begin(), cos_angles.end(), scalar(-1));
-    std::fill(is_concave_edge.begin(), is_concave_edge.end(), false);
-}
-
-void triangle_mesh::calculate_edge_angles() {
-    for (size_t i = 0; i < num_triangles(); ++i) {
-        // Pointer to first element of the i-th triangle's 3 indices.
-        auto i_idx = &indices[i * 3];
-        // Triangle vertices.
-        auto i_vertex = triangle_vertices{
-            vertices[i_idx[0]],
-            vertices[i_idx[1]],
-            vertices[i_idx[2]]
-        };
-        // Normal vector of i-th triangle.
-        auto i_edge0 = i_vertex[1] - i_vertex[0];
-        auto i_edge1 = i_vertex[2] - i_vertex[1];
-        auto i_normal = cross(i_edge0, i_edge1);
-        auto i_normal_len_sqr = length_sqr(i_normal);
-
-        if (i_normal_len_sqr > EDYN_EPSILON) {
-            i_normal /= std::sqrt(i_normal_len_sqr);
-        }
-
-        // Find shared pairs of vertices with other triangles.        
-        auto tri_aabb = get_triangle_aabb(i_vertex);
-        auto inset = vector3 {-EDYN_EPSILON, -EDYN_EPSILON, -EDYN_EPSILON};
-        tree.visit(tri_aabb.inset(inset), [&] (auto k) {
-            if (k == i) {
-                return;
-            }
-
-            // Pointer to first element of the k-th triangle's 3 indices.
-            auto k_idx = &indices[k * 3];
-            
-            // Check which vertices are shared.
-            bool shared_idx[] = {false, false, false};
-            auto has_shared_vertex = false;
-
-            for (size_t m = 0; m < 3; ++m) {
-                for (size_t n = 0; n < 3; ++n) {
-                    if (i_idx[m] == k_idx[n]) {
-                        shared_idx[m] = true;
-                        has_shared_vertex = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!has_shared_vertex) {
-                return;
-            }
-
-            // Look for pairs of shared indices which translates to a shared edge.
-            for (size_t m = 0; m < 3; ++m) {
-                auto next_m = (m + 1) % 3;
-                if (shared_idx[m] && shared_idx[next_m]) {
-                    // Find index of the vertex in triangle k not in edge m.
-                    uint16_t other_idx;
-
-                    for (size_t j = 0; j < 3; ++j) {
-                        if (k_idx[j] != i_idx[m] && k_idx[j] != i_idx[next_m]) {
-                            other_idx = k_idx[j];
-                            break;
-                        }
-                    }
-
-                    // Check if the vertex in triangle k which is not in the shared 
-                    // edge is in front of or behind the plane of triangle i.
-                    auto concave = dot(i_normal, vertices[other_idx] - vertices[i_idx[m]]) > -EDYN_EPSILON;
-                    is_concave_edge[i * 3 + m] = concave;
-
-                    // Normal vector of k-th triangle.
-                    auto k_edge0 = vertices[k_idx[1]] - vertices[k_idx[0]];
-                    auto k_edge1 = vertices[k_idx[2]] - vertices[k_idx[1]];
-                    auto k_normal = cross(k_edge0, k_edge1);
-                    auto k_normal_len_sqr = length_sqr(k_normal);
-
-                    if (k_normal_len_sqr > EDYN_EPSILON) {
-                        k_normal /= std::sqrt(k_normal_len_sqr);
-                    }
-
-                    // Get edge angle from the cross product of normals and use 
-                    // the sign to classify it as a convex or concave edge.
-                    auto cos_angle = dot(i_normal, k_normal);
-                    cos_angles[i * 3 + m] = cos_angle;
-
-                    // Find shared edge index in triangle k.
-                    size_t n;
-                    for (size_t j = 0; j < 3; ++j) {
-                        if (k_idx[j] != other_idx && k_idx[(j + 1) % 3] != other_idx) {
-                            n = j;
-                            break;
-                        }
-                    }
-
-                    cos_angles[k * 3 + n] = cos_angle;
-                    is_concave_edge[k * 3 + n] = concave;
-
-                    // There can be only one shared edge.
-                    break;
-                }
-            }
-        });
+    for (auto indices : m_indices) {
+        auto e0 = m_vertices[indices[1]] - m_vertices[indices[0]];
+        auto e1 = m_vertices[indices[2]] - m_vertices[indices[1]];
+        auto normal = normalize(cross(e0, e1));
+        m_normals.push_back(normal);
     }
 }
 
-void triangle_mesh::build_tree() {
+void triangle_mesh::init_edge_indices() {
+    constexpr auto idx_max = std::numeric_limits<index_type>::max();
+    m_face_edge_indices.resize(m_indices.size());
+    auto vertex_edge_indices = std::vector<std::set<index_type>>(m_vertices.size());
+
+    for (size_t face_idx = 0; face_idx < m_indices.size(); ++face_idx) {
+        auto indices = m_indices[face_idx];
+
+        for (size_t i = 0; i < 3; ++i) {
+            auto j = (i + 1) % 3;
+            auto i0 = indices[i];
+            auto i1 = indices[j];
+            auto pair = commutative_pair(i0, i1);
+            auto edge_idx = SIZE_MAX;
+
+            for (size_t k = 0; k < m_edge_vertex_indices.size(); ++k) {
+                if (m_edge_vertex_indices[k] == pair) {
+                    edge_idx = k;
+                    break;
+                }
+            }
+
+            if (edge_idx == SIZE_MAX) {
+                edge_idx = m_edge_vertex_indices.size();
+                m_edge_vertex_indices.push_back(pair);
+                m_edge_face_indices.push_back({idx_max, idx_max});
+            }
+
+            vertex_edge_indices[i0].insert(edge_idx);
+            vertex_edge_indices[i1].insert(edge_idx);
+
+            m_face_edge_indices[face_idx][i] = edge_idx;
+
+            auto &edge_face_indices = m_edge_face_indices[edge_idx];
+
+            if (edge_face_indices[0] == idx_max) {
+                edge_face_indices[0] = face_idx;
+            } else if (face_idx != edge_face_indices[0]){
+                edge_face_indices[1] = face_idx;
+            }
+        }
+    }
+
+    for (auto edge_indices : vertex_edge_indices) {
+        m_vertex_edge_indices.push_array();
+
+        for (auto edge_idx : edge_indices) {
+            m_vertex_edge_indices.push_back(edge_idx);
+        }
+    }
+
+    m_is_boundary_edge.resize(m_edge_vertex_indices.size());
+
+    // Edges with a single valid _edge face index_ are at the boundary.
+    for (index_type edge_idx = 0; edge_idx < m_edge_face_indices.size(); ++edge_idx) {
+        auto &edge_face_indices = m_edge_face_indices[edge_idx];
+        EDYN_ASSERT(edge_face_indices[0] != idx_max);
+
+        auto is_boundary_edge = edge_face_indices[1] == idx_max;
+        m_is_boundary_edge[edge_idx] = is_boundary_edge;
+
+        if (is_boundary_edge) {
+            // Assign the same value for the second entry for boundary edges,
+            // thus defining a 180 degree convex edge.
+            edge_face_indices[1] = edge_face_indices[0];
+        }
+    }
+}
+
+void triangle_mesh::calculate_adjacent_normals() {
+    m_adjacent_normals.resize(m_indices.size());
+    m_is_convex_edge.resize(m_edge_vertex_indices.size());
+
+    for (size_t face_idx = 0; face_idx < m_indices.size(); ++face_idx) {
+        for (size_t i = 0; i < 3; ++i) {
+            auto edge_idx = m_face_edge_indices[face_idx][i];
+            auto &edge_face_indices = m_edge_face_indices[edge_idx];
+            auto other_face_idx = edge_face_indices[0] == face_idx ? edge_face_indices[1] : edge_face_indices[0];
+
+            if (other_face_idx == face_idx) {
+                // This is a boundary edge.
+                m_adjacent_normals[face_idx][i] = -m_normals[face_idx];
+                // Boundary edges are always convex.
+                m_is_convex_edge[edge_idx] = true;
+            } else {
+                auto other_normal = m_normals[other_face_idx];
+                m_adjacent_normals[face_idx][i] = other_normal;
+
+                // Calculate edge convexity.
+                auto vertex_idx0 = m_indices[face_idx][i];
+                auto vertex_idx1 = m_indices[face_idx][(i + 1) % 3];
+                auto edge_dir = m_vertices[vertex_idx1] - m_vertices[vertex_idx0];
+                auto edge_normal = cross(m_normals[face_idx], edge_dir);
+
+                auto is_convex = dot(other_normal, edge_normal) < -EDYN_EPSILON;
+                m_is_convex_edge[edge_idx] = is_convex;
+            }
+        }
+    }
+}
+
+void triangle_mesh::build_triangle_tree() {
     std::vector<AABB> aabbs;
     aabbs.reserve(num_triangles());
 
     for (size_t i = 0; i < num_triangles(); ++i) {
-        auto verts = triangle_vertices{
-            vertices[indices[i * 3 + 0]],
-            vertices[indices[i * 3 + 1]],
-            vertices[indices[i * 3 + 2]]
-        };
-
+        auto verts = get_triangle_vertices(i);
         auto tri_aabb = get_triangle_aabb(verts);
         aabbs.push_back(tri_aabb);
     }
@@ -137,7 +137,17 @@ void triangle_mesh::build_tree() {
     auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
         node.id = *ids_begin;
     };
-    tree.build(aabbs.begin(), aabbs.end(), report_leaf);
+    m_triangle_tree.build(aabbs.begin(), aabbs.end(), report_leaf);
+}
+
+triangle_vertices triangle_mesh::get_triangle_vertices(size_t tri_idx) const {
+    EDYN_ASSERT(tri_idx < m_indices.size());
+    auto indices = m_indices[tri_idx];
+    return {
+        m_vertices[indices[0]],
+        m_vertices[indices[1]],
+        m_vertices[indices[2]]
+    };
 }
 
 }

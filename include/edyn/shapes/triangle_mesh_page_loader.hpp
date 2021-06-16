@@ -6,13 +6,16 @@
 
 namespace edyn {
 
-struct triangle_mesh;
+class triangle_mesh;
 
 class triangle_mesh_page_loader_base {
 public:
-    using loaded_mesh_func_t = void(size_t, std::unique_ptr<triangle_mesh> &);
+    virtual ~triangle_mesh_page_loader_base() {}
+
     virtual void load(size_t index) = 0;
-    virtual entt::sink<loaded_mesh_func_t> loaded_mesh_sink() = 0;
+
+    using loaded_mesh_func_t = void(size_t, std::unique_ptr<triangle_mesh>);
+    virtual entt::delegate<loaded_mesh_func_t> & on_load_delegate() = 0;
 };
 
 

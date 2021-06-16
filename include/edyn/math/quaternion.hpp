@@ -77,6 +77,16 @@ inline quaternion operator*(const vector3 &v, const quaternion &q) {
     };
 }
 
+// Check if two quaternions are equal.
+inline bool operator==(const quaternion &q, const quaternion &v) {
+    return q.x == v.x && q.y == v.y && q.z == v.z && q.w == v.w;
+}
+
+// Check if two quaternions are different.
+inline bool operator!=(const quaternion &q, const quaternion &v) {
+    return q.x != v.x || q.y != v.y || q.z != v.z || q.w != v.w;
+}
+
 // Squared length of a quaternion.
 inline scalar length_sqr(const quaternion &q) {
     return q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
@@ -188,6 +198,11 @@ scalar angle_between(const quaternion &q0, const quaternion &q1);
 inline
 vector3 to_object_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
     return rotate(conjugate(orn), p - pos);
+}
+
+inline
+vector3 to_world_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
+    return pos + rotate(orn, p);
 }
 
 }

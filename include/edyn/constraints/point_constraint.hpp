@@ -2,18 +2,19 @@
 #define EDYN_CONSTRAINTS_POINT_CONSTRAINT_HPP
 
 #include <array>
-#include <entt/fwd.hpp>
-#include "constraint_base.hpp"
+#include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
+#include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
-struct point_constraint : public constraint_base<point_constraint> {
+struct point_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
-
-    void init(entt::entity, constraint &, entt::registry &);
-    void prepare(entt::entity, constraint &, entt::registry &, scalar dt);
 };
+
+template<>
+void prepare_constraints<point_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

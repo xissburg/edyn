@@ -6,8 +6,8 @@ namespace edyn {
 // "Practical Parameterization of Rotations Using the Exponential Map", F. Sebastian Grassia
 quaternion integrate(const quaternion &q, const vector3 &w, scalar dt) {
     const auto ws = length(w);
-    const auto min_ws = scalar {0.001};
-    constexpr scalar half = 0.5;
+    const auto min_ws = scalar(0.001);
+    constexpr auto half = scalar(0.5);
     scalar t;
 
     if (ws < min_ws) {

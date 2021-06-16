@@ -3,6 +3,8 @@
 
 #include "constants.hpp"
 #include <algorithm>
+#include <cmath>
+#include <array>
 
 namespace edyn {
 
@@ -48,6 +50,35 @@ inline scalar normalize_angle(scalar s) {
 template<typename T, typename Scalar>
 inline auto lerp(T a, T b, Scalar s) {
     return a * (Scalar(1) - s) + b * s;
+}
+
+/**
+ * @return The square of a number.
+ */
+template<typename T>
+inline auto square(T a) {
+    return a * a;
+}
+
+/**
+ * @return 1 if `b` is true, -1 if `b is false.
+ */
+inline auto to_sign(bool b) {
+    return b ? scalar(1) : scalar(-1);
+}
+
+/**
+ * @brief Calculate average of N values, i.e. their sum divided by N.
+ * @param array Array of values.
+ * @return Average value.
+ */
+template<typename T, size_t N>
+inline auto average(const std::array<T, N> &array) {
+    auto sum = array[0];
+    for (size_t i = 1; i < N; ++i) {
+        sum += array[i];
+    }
+    return sum / N;
 }
 
 }

@@ -4,48 +4,57 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
-#include <entt/fwd.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/math/scalar.hpp"
+#include "edyn/comp/island.hpp"
+#include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
+#include "edyn/parallel/island_delta_builder.hpp"
+#include "edyn/parallel/message.hpp"
 
 namespace edyn {
 
 class island_worker;
-class registry_delta;
+class island_delta;
 
 /**
  * Manages all simulation islands. Creates and destroys island workers as necessary
- * and synchonizes the workers and the main registry.
+ * and synchronizes the workers and the main registry.
  */
 class island_coordinator final {
 
-    void init_new_island_nodes();
-    void init_new_non_procedural_island_node(entt::entity);
-    entt::entity create_island(double timestamp);
-    entt::entity merge_islands(const entity_set &island_entities,
-                               const entity_set &new_entities);
+    void init_new_nodes_and_edges();
+    void init_new_non_procedural_node(entt::entity);
+    entt::entity create_island(double timestamp, bool sleeping);
+    void insert_to_island(entt::entity island_entity,
+                          const std::vector<entt::entity> &nodes,
+                          const std::vector<entt::entity> &edges);
+    entt::entity merge_islands(const std::vector<entt::entity> &island_entities,
+                               const std::vector<entt::entity> &new_nodes,
+                               const std::vector<entt::entity> &new_edges);
     void split_islands();
     void split_island(entt::entity);
     void wake_up_island(entt::entity);
     void refresh_dirty_entities();
-    bool should_split_island(const island_topology &);
+    bool should_split_island(entt::entity source_island_entity);
     void sync();
-
-    void validate();
 
 public:
     island_coordinator(entt::registry &);
     ~island_coordinator();
 
-    void on_destroy_island_node_parent(entt::registry &, entt::entity);
+    void on_construct_graph_node(entt::registry &, entt::entity);
+    void on_construct_graph_edge(entt::registry &, entt::entity);
 
-    void on_construct_island_node(entt::registry &, entt::entity);
-    void on_destroy_island_node(entt::registry &, entt::entity);
-    void on_construct_island_container(entt::registry &, entt::entity);
-    void on_destroy_island_container(entt::registry &, entt::entity);
-    void on_registry_delta(entt::entity, const registry_delta &);
-    
-    void on_construct_constraint(entt::registry &, entt::entity);
+    void on_destroy_graph_node(entt::registry &, entt::entity);
+    void on_destroy_graph_edge(entt::registry &, entt::entity);
+
+    void on_destroy_island_resident(entt::registry &, entt::entity);
+    void on_destroy_multi_island_resident(entt::registry &, entt::entity);
+    void on_island_delta(entt::entity, const island_delta &);
+    void on_split_island(entt::entity, const msg::split_island &);
+
+    void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
     void update();
 
@@ -53,26 +62,44 @@ public:
     void step_simulation();
 
     template<typename... Component>
-    void refresh(entt::entity entity) {
-        static_assert(sizeof...(Component) > 0);
-        auto &container = m_registry->get<island_container>(entity);
-        for (auto island_entity : container.entities) {
-            auto &ctx = m_island_ctx_map.at(island_entity);
-            ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
-        }
-    }
+    void refresh(entt::entity entity);
 
-    scalar m_fixed_dt {1.0/60};
+    void set_fixed_dt(scalar dt);
+
+    // Call when settings have changed in the registry's context. It will
+    // propagate changes to island workers.
+    void settings_changed();
+
+    void create_island(std::vector<entt::entity> nodes, bool sleeping = false);
 
 private:
     entt::registry *m_registry;
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;
 
-    std::vector<entt::entity> m_new_island_nodes;
-    entity_set m_islands_to_split;
+    std::vector<entt::entity> m_new_graph_nodes;
+    std::vector<entt::entity> m_new_graph_edges;
+    std::vector<entt::entity> m_islands_to_split;
+
     bool m_importing_delta {false};
-    bool m_paused {false};
+    double m_timestamp;
 };
+
+template<typename... Component>
+void island_coordinator::refresh(entt::entity entity) {
+    static_assert(sizeof...(Component) > 0);
+
+    if (m_registry->has<island_resident>(entity)) {
+        auto &resident = m_registry->get<island_resident>(entity);
+        auto &ctx = m_island_ctx_map.at(resident.island_entity);
+        ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
+    } else {
+        auto &resident = m_registry->get<multi_island_resident>(entity);
+        for (auto island_entity : resident.island_entities) {
+            auto &ctx = m_island_ctx_map.at(island_entity);
+            ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
+        }
+    }
+}
 
 }
 

@@ -14,7 +14,7 @@ job_dispatcher &job_dispatcher::global() {
     return instance;
 }
 
-job_dispatcher::job_dispatcher() 
+job_dispatcher::job_dispatcher()
     : m_scheduler(*this)
 {}
 
@@ -62,13 +62,29 @@ void job_dispatcher::stop() {
     m_threads.clear();
 }
 
+bool job_dispatcher::running() const {
+    return !m_threads.empty();
+}
+
 void job_dispatcher::async(const job &j) {
     EDYN_ASSERT(!m_workers.empty());
 
     auto best_id = std::thread::id();
     auto min_num_jobs = SIZE_MAX;
-    for (auto &pair : m_workers) {
+    auto start = m_start.fetch_add(std::memory_order_relaxed) % m_workers.size();
+    auto end = start + m_workers.size();
+
+    for (size_t i = start; i < end; ++i) {
+        auto k = i % m_workers.size();
+        auto first = m_workers.begin();
+        std::advance(first, k);
+        auto &pair = *first;
+
         auto s = pair.second->size();
+        if (s == 0) {
+            pair.second->push_job(j);
+            return;
+        }
         if (s < min_num_jobs) {
             min_num_jobs = s;
             best_id = pair.first;
