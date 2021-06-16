@@ -27,7 +27,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
     auto body_view = registry.view<position, orientation, spin_angle,
                                    linvel, angvel, spin,
                                    mass_inv, inertia_world_inv,
-                                   delta_linvel, delta_angvel>();
+                                   delta_linvel, delta_angvel, delta_spin>();
     auto con_view = registry.view<tirecarcass_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
 
@@ -35,10 +35,10 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
     registry.ctx_or_set<row_start_index_tirecarcass_constraint>().value = start_idx;
 
     con_view.each([&] (entt::entity entity, tirecarcass_constraint &con) {
-        auto [posA, ornA, angleA, linvelA, angvelA, spinA, inv_mA, inv_IA, dvA, dwA] =
-            body_view.get<position, orientation, spin_angle, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [posB, ornB, angleB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB] =
-            body_view.get<position, orientation, spin_angle, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+        auto [posA, ornA, angleA, linvelA, angvelA, spinA, inv_mA, inv_IA, dvA, dwA, dsA] =
+            body_view.get<position, orientation, spin_angle, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[0]);
+        auto [posB, ornB, angleB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB, dsB] =
+            body_view.get<position, orientation, spin_angle, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[1]);
         auto &imp = imp_view.get(entity);
 
         const auto axisA_x = quaternion_x(ornA);
@@ -48,6 +48,9 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
         const auto axisB_x = quaternion_x(ornB);
         const auto axisB_y = quaternion_y(ornB);
         const auto axisB_z = quaternion_z(ornB);
+
+        auto spinvelA = axisA_x * spinA;
+        auto spinvelB = axisB_x * spinB;
 
         auto row_idx = size_t(0);
 
@@ -237,17 +240,18 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.upper_limit = std::max(scalar(0), spring_impulse);
             row.use_spin[0] = true;
             row.use_spin[1] = true;
+            row.spin_axis[0] = axisA_x;
+            row.spin_axis[1] = axisB_x;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
+            row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
+            row.impulse = imp.values[row_idx++];
 
             auto options = constraint_row_options{};
             options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
 
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
-
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
             warm_start(row);
         }
 
@@ -265,14 +269,15 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.upper_limit =  impulse;
             row.use_spin[0] = true;
             row.use_spin[1] = true;
-
+            row.spin_axis[0] = axisA_x;
+            row.spin_axis[1] = axisB_x;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
+            row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
+            row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
             warm_start(row);
         }
 

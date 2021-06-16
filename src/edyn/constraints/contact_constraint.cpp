@@ -47,14 +47,12 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
         if (spin_view.contains(con.body[0])) {
             auto &s = spin_view.get(con.body[0]);
-            auto axis = rotate(ornA, vector3_x);
-            spinvelA = axis * scalar(s);
+            spinvelA = quaternion_x(ornA) * scalar(s);
         }
 
         if (spin_view.contains(con.body[1])) {
             auto &s = spin_view.get(con.body[1]);
-            auto axis = rotate(ornB, vector3_x);
-            spinvelB = axis * scalar(s);
+            spinvelB = quaternion_x(ornB) * scalar(s);
         }
 
         auto normal = rotate(ornB, cp.normalB);
@@ -115,16 +113,18 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         friction_row.J = {tangent, cross(rA, tangent), -tangent, -cross(rB, tangent)};
         friction_row.inv_mA = inv_mA; friction_row.inv_IA = inv_IA;
         friction_row.inv_mB = inv_mB; friction_row.inv_IB = inv_IB;
-        friction_row.dvA = &dvA; friction_row.dwA = &dwA;
-        friction_row.dvB = &dvB; friction_row.dwB = &dwB;
+        friction_row.dvA = &dvA; friction_row.dwA = &dwA; friction_row.dsA = registry.try_get<delta_spin>(con.body[0]);
+        friction_row.dvB = &dvB; friction_row.dwB = &dwB; friction_row.dsB = registry.try_get<delta_spin>(con.body[1]);
         friction_row.impulse = imp.values[1];
         // friction_row limits are calculated in `iterate_contact_constraints`
         // using the normal impulse.
         friction_row.lower_limit = friction_row.upper_limit = 0;
         friction_row.use_spin[0] = true;
         friction_row.use_spin[1] = true;
+        friction_row.spin_axis[0] = quaternion_x(ornA);
+        friction_row.spin_axis[1] = quaternion_x(ornB);
 
-        prepare_row(friction_row, {}, linvelA, linvelB, angvelA, angvelB);
+        prepare_row(friction_row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
         warm_start(friction_row);
 
         con.m_friction = cp.friction;

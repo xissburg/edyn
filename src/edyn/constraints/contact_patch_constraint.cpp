@@ -42,6 +42,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
     auto con_view = registry.view<contact_patch_constraint>();
     auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
+    auto spin_view = registry.view<spin>();
 
     size_t start_idx = cache.rows.size();
     registry.ctx_or_set<row_start_index_contact_patch_constraint>().value = start_idx;
@@ -60,6 +61,19 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto &imp = imp_view.get(entity);
 
+        auto spinvelA = vector3_zero;
+        auto spinvelB = vector3_zero;
+
+        if (spin_view.contains(con.body[0])) {
+            auto &s = spin_view.get(con.body[0]);
+            spinvelA = quaternion_x(ornA) * scalar(s);
+        }
+
+        if (spin_view.contains(con.body[1])) {
+            auto &s = spin_view.get(con.body[1]);
+            spinvelB = quaternion_x(ornB) * scalar(s);
+        }
+
         // Wheel spin axis in world space.
         const auto axis = quaternion_x(ornA);
 
@@ -67,8 +81,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         const auto spin_ornA = ornA * quaternion_axis_angle(vector3_x, spin_angleA);
         const auto &spinA = registry.get<spin>(con.body[0]);
         const auto spin_angvelA = angvelA + axis * spinA;
-
-        const auto ornB_conj = conjugate(ornB);
+        const auto delta_spinA = registry.try_get<delta_spin>(con.body[0]);
+        const auto delta_spinB = registry.try_get<delta_spin>(con.body[1]);
 
         const auto &cyl = registry.get<cylinder_shape>(con.body[0]);
 
@@ -394,7 +408,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                         bristle_tip = bristle_root - bristle_defl;
 
                         // Move pivot in B to match new tip location.
-                        bristle->pivotB = rotate(ornB_conj, bristle_tip - posB);
+                        bristle->pivotB = rotate(conjugate(ornB), bristle_tip - posB);
                     }
                 }
 
@@ -471,16 +485,18 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             row.upper_limit = std::max(scalar(0), spring_impulse);
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
+            row.dvA = &dvA; row.dwA = &dwA; row.dsA = delta_spinA;
+            row.dvB = &dvB; row.dwB = &dwB; row.dsB = delta_spinB;
             row.impulse = imp_view.get(entity).values[0];
             row.use_spin[0] = true;
             row.use_spin[1] = true;
+            row.spin_axis[0] = axis;
+            row.spin_axis[1] = quaternion_x(ornB);
 
             auto options = constraint_row_options{};
             options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
             warm_start(row);
         }
 
@@ -497,13 +513,15 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             row.upper_limit =  impulse;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
+            row.dvA = &dvA; row.dwA = &dwA; row.dsA = delta_spinA;
+            row.dvB = &dvB; row.dwB = &dwB; row.dsB = delta_spinB;
             row.impulse = imp_view.get(entity).values[0];
             row.use_spin[0] = true;
             row.use_spin[1] = true;
+            row.spin_axis[0] = axis;
+            row.spin_axis[1] = quaternion_x(ornB);
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
             warm_start(row);
 
             con.m_lon_damping = lon_damping;

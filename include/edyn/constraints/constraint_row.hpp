@@ -10,6 +10,7 @@ namespace edyn {
 
 struct delta_linvel;
 struct delta_angvel;
+struct delta_spin;
 
 /**
  * `constraint_row` contains all and only the information that's required
@@ -35,15 +36,19 @@ struct constraint_row {
     scalar impulse;
 
     // Inverse masses and inertias used during the solver iterations.
-    scalar inv_mA, inv_mB;
-    matrix3x3 inv_IA, inv_IB;
+    scalar inv_mA, inv_mB, inv_mC;
+    matrix3x3 inv_IA, inv_IB, inv_IC;
 
     // Reference to delta velocities used during solver iterations. It is not
     // safe to dereference these outside of the solver update context.
-    delta_linvel *dvA, *dvB;
-    delta_angvel *dwA, *dwB;
+    delta_linvel *dvA, *dvB, *dvC;
+    delta_angvel *dwA, *dwB, *dwC;
+    delta_spin *dsA, *dsB, *dsC;
 
     std::array<bool, 3> use_spin {false, false, false};
+    vector3 spin_axis[3];
+
+    unsigned num_entities {2};
 };
 
 /**

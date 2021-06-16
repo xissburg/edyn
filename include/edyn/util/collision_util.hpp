@@ -99,12 +99,6 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
     auto *tire0 = registry.try_get<tire_material>(manifold.body[0]);
     auto *tire1 = registry.try_get<tire_material>(manifold.body[1]);
     auto *tire = tire0 ? tire0 : tire1;
-    scalar tire_radius;
-
-    if (tire) {
-        auto &tire_cyl = registry.get<cylinder_shape>(manifold.body[0]);
-        tire_radius = tire_cyl.radius;
-    }
 
     // Merge new with existing contact points.
     auto merged_indices = std::array<bool, max_contacts>{};
