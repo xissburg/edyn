@@ -1,8 +1,15 @@
 #include "edyn/constraints/antiroll_constraint.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
+#include "edyn/constraints/constraint_row.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/mass.hpp"
+#include "edyn/comp/inertia.hpp"
+#include "edyn/comp/linvel.hpp"
+#include "edyn/comp/angvel.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -26,44 +33,44 @@ void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cach
         auto [pB, qB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
-        auto rA = rotate(qA, pivotA);
+        auto rA = rotate(qA, con.pivotA);
         auto posA = pA + rA;
-        auto rB = rotate(qB, ctrl_arm_pivotB);
+        auto rB = rotate(qB, con.ctrl_arm_pivotB);
         auto posB = pB + rB;
 
-        auto &pC = registry.get<position>(third_entity);
-        auto &qC = registry.get<orientation>(third_entity);
-        auto rC = rotate(qC, other_ctrl_arm_pivotC);
+        auto &pC = registry.get<position>(con.third_entity);
+        auto &qC = registry.get<orientation>(con.third_entity);
+        auto rC = rotate(qC, con.other_ctrl_arm_pivotC);
         auto posC = pC + rC;
 
         // Z axis points forward.
         auto chassis_z = rotate(qA, vector3_z);
 
         // Calculate control arm direction vector to build basis.
-        auto ctrl_armA = pA + rotate(qA, ctrl_arm_pivotA);
+        auto ctrl_armA = pA + rotate(qA, con.ctrl_arm_pivotA);
         auto ctrl_armB = posB;
         auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
         auto ctrl_arm_len = length(ctrl_arm_dir);
         ctrl_arm_dir /= ctrl_arm_len;
 
         // Calculate pivot point on control arm using basis.
-        auto ctrl_arm_x = ctrl_arm_dir * side;
+        auto ctrl_arm_x = ctrl_arm_dir * con.side;
         auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
         auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
-        auto ctrl_arm_pivot_rel = ctrl_arm_basis * ctrl_arm_pivot;
+        auto ctrl_arm_pivot_rel = ctrl_arm_basis * con.ctrl_arm_pivot;
         auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
 
         // Do the same for the control arm on the other side.
-        auto other_ctrl_armA = pA + rotate(qA, other_ctrl_arm_pivotA);
+        auto other_ctrl_armA = pA + rotate(qA, con.other_ctrl_arm_pivotA);
         auto other_ctrl_armC = posC;
         auto other_ctrl_arm_dir = other_ctrl_armA - other_ctrl_armC;
         auto other_ctrl_arm_len = length(other_ctrl_arm_dir);
         other_ctrl_arm_dir /= other_ctrl_arm_len;
 
-        auto other_ctrl_arm_x = other_ctrl_arm_dir * side;
+        auto other_ctrl_arm_x = other_ctrl_arm_dir * con.side;
         auto other_ctrl_arm_y = cross(chassis_z, other_ctrl_arm_x);
         auto other_ctrl_arm_basis = matrix3x3_columns(other_ctrl_arm_x, other_ctrl_arm_y, chassis_z);
-        auto other_ctrl_arm_pivot_rel = other_ctrl_arm_basis * other_ctrl_arm_pivot;
+        auto other_ctrl_arm_pivot_rel = other_ctrl_arm_basis * con.other_ctrl_arm_pivot;
         auto other_ctrl_arm_pivot = other_ctrl_armA + other_ctrl_arm_pivot_rel;
 
         auto dB = ctrl_arm_pivot - posA;
@@ -90,7 +97,7 @@ void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cach
         auto q = cross(rB, n);
         auto d = std::clamp(dot(d_projB, d_projC), scalar(-1), scalar(1));
         auto angle = to_degrees(std::acos(d));
-        auto impulse = std::abs(stiffness * angle / lever) * dt;
+        auto impulse = std::abs(con.stiffness * angle / lever) * dt;
 
         auto &row = cache.rows.emplace_back();
         row.J = {n, p, -n, -q};

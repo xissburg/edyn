@@ -58,10 +58,10 @@ struct springdamper_constraint : public constraint_base {
     void set_dual_spring_stiffness(scalar primary_stiffness, scalar primary_max_defl,
                                    scalar secondary_stiffness, scalar secondary_max_defl);
 
-    scalar get_spring_deflection(const constraint &, entt::registry &) const;
+    scalar get_spring_deflection(entt::registry &) const;
     scalar get_preload() const;
     scalar get_combined_spring_stiffness() const;
-    vector3 get_world_ctrl_arm_pivot(const constraint &, entt::registry &) const;
+    vector3 get_world_ctrl_arm_pivot(entt::registry &) const;
     scalar get_damping_force(scalar speed) const;
 };
 

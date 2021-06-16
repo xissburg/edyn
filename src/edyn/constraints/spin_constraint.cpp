@@ -35,7 +35,7 @@ void prepare_constraints<spin_constraint>(entt::registry &registry, row_cache &c
         auto axisB = rotate(ornB, vector3_x);
         auto impulse = con.m_max_torque * dt;
 
-        const &row = cache.rows.emplace_back();
+        auto &row = cache.rows.emplace_back();
         row.J = {vector3_zero, -axisA, vector3_zero, axisB};
         row.lower_limit = -impulse;
         row.upper_limit = impulse;

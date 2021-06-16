@@ -48,13 +48,13 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         if (spin_view.contains(con.body[0])) {
             auto &s = spin_view.get(con.body[0]);
             auto axis = rotate(ornA, vector3_x);
-            spinvelA = axis * *s;
+            spinvelA = axis * scalar(s);
         }
 
         if (spin_view.contains(con.body[1])) {
             auto &s = spin_view.get(con.body[1]);
             auto axis = rotate(ornB, vector3_x);
-            spinvelB = axis * *s;
+            spinvelB = axis * scalar(s);
         }
 
         auto normal = rotate(ornB, cp.normalB);

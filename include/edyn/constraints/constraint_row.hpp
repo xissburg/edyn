@@ -18,7 +18,7 @@ struct delta_angvel;
  */
 struct constraint_row {
     // Jacobian diagonals.
-    std::array<vector3, 2 * max_constrained_entities> J;
+    std::array<vector3, 2 * 3> J;
 
     // Effective mass (J M^-1 J^T)^-1.
     scalar eff_mass;
@@ -42,6 +42,8 @@ struct constraint_row {
     // safe to dereference these outside of the solver update context.
     delta_linvel *dvA, *dvB;
     delta_angvel *dwA, *dwB;
+
+    std::array<bool, 3> use_spin {false, false, false};
 };
 
 /**
@@ -54,11 +56,6 @@ struct constraint_row_options {
     scalar erp {scalar(0.2)};
 
     scalar restitution {scalar(0)};
-};
-
-struct constraint_row_ex : public constraint_row {
-    std::array<vector3, 2> J2;
-    std::array<bool, 3> use_spin = make_array<3>(false);
 };
 
 }

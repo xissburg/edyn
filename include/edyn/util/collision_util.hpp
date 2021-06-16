@@ -7,6 +7,7 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/tire_material.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -40,32 +41,8 @@ void create_contact_constraint(entt::registry &registry,
 size_t find_nearest_contact(const contact_point &cp,
                             const collision_result &result);
 
-template<typename ContactPointViewType>
-static
-size_t find_nearest_contact_tire(const contact_manifold &manifold,
-                                 const collision_result::collision_point &coll_pt,
-                                 const ContactPointViewType &cp_view,
-                                 scalar tire_radius) {
-    // Find point closest to the same angle along the plane orthogonal to
-    // the cylinder axis.
-    const auto coll_pt_angle = std::atan2(coll_pt.pivotA.y, coll_pt.pivotA.z);
-
-    auto shortest_dist = contact_caching_threshold;
-    auto nearest_idx = manifold.num_points();
-
-    for (size_t i = 0; i < manifold.num_points(); ++i) {
-        auto &cp = cp_view.get(manifold.point[i]);
-        auto cp_angle = std::atan2(cp.pivotA.y, cp.pivotA.z);
-        auto dist = std::abs(cp_angle - coll_pt_angle) * tire_radius;
-
-        if (dist < shortest_dist) {
-            shortest_dist = dist;
-            nearest_idx = i;
-        }
-    }
-
-    return nearest_idx;
-}
+size_t find_nearest_contact_tire(const contact_point &cp,
+                                 const collision_result &result);
 
 /**
  * Creates a contact point from a result point and inserts it into a
@@ -109,7 +86,7 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &,
  */
 template<typename ContactPointView, typename ImpulseView, typename TransformView,
          typename NewPointFunc, typename DestroyPointFunc>
-void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
+void process_collision(const entt::registry &registry, entt::entity manifold_entity, contact_manifold &manifold,
                        const collision_result &result,
                        ContactPointView &cp_view,
                        ImpulseView &imp_view,
@@ -125,8 +102,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
     scalar tire_radius;
 
     if (tire) {
-        auto &tire_shape = registry.get<shape>(manifold.body[0]);
-        auto &tire_cyl = std::get<cylinder_shape>(tire_shape.var);
+        auto &tire_cyl = registry.get<cylinder_shape>(manifold.body[0]);
         tire_radius = tire_cyl.radius;
     }
 
@@ -147,7 +123,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         auto nearest_idx =  SIZE_MAX;
 
         if (tire) {
-            nearest_idx = find_nearest_contact_tire(manifold, rp, cp_view, tire_radius);
+            nearest_idx = find_nearest_contact_tire(cp, result);
         } else {
             nearest_idx = find_nearest_contact(cp, result);
         }

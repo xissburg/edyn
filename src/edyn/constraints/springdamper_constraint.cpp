@@ -1,10 +1,15 @@
 #include "edyn/constraints/springdamper_constraint.hpp"
-#include "edyn/comp/constraint.hpp"
-#include "edyn/comp/constraint_row.hpp"
+#include "edyn/constraints/constraint_row.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/mass.hpp"
+#include "edyn/comp/inertia.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
 #include "edyn/util/spring_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 
@@ -90,7 +95,7 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
             auto velB = vel_ctrl_armA * (1 - ratio) + vel_ctrl_armB * ratio;
             auto v_rel = velA - velB;
             auto speed = dot(coilover_dir, v_rel);
-            auto damping_force = get_damping_force(speed) * inclination;
+            auto damping_force = con.get_damping_force(speed) * inclination;
             auto impulse = std::abs(damping_force) * dt;
 
             auto &row = cache.rows.emplace_back();
@@ -159,14 +164,14 @@ void springdamper_constraint::set_dual_spring_stiffness(scalar primary_stiffness
                                              secondary_stiffness, secondary_max_defl);
 }
 
-scalar springdamper_constraint::get_spring_deflection(const constraint &con, entt::registry &registry) const {
-    auto &posA = registry.get<position>(con.body[0]);
-    auto &ornA = registry.get<orientation>(con.body[0]);
+scalar springdamper_constraint::get_spring_deflection(entt::registry &registry) const {
+    auto &posA = registry.get<position>(body[0]);
+    auto &ornA = registry.get<orientation>(body[0]);
     auto rA = rotate(ornA, m_pivotA);
     auto pA = posA + rA;
 
-    auto &posB = registry.get<position>(con.body[1]);
-    auto &ornB = registry.get<orientation>(con.body[1]);
+    auto &posB = registry.get<position>(body[1]);
+    auto &ornB = registry.get<orientation>(body[1]);
     auto rB = rotate(ornB, m_ctrl_arm_pivotB);
     auto pB = posB + rB;
 
@@ -209,12 +214,12 @@ scalar springdamper_constraint::get_combined_spring_stiffness() const {
     return m_spring_stiffness;
 }
 
-vector3 springdamper_constraint::get_world_ctrl_arm_pivot(const constraint &con, entt::registry &registry) const {
-    auto &posA = registry.get<position>(con.body[0]);
-    auto &ornA = registry.get<orientation>(con.body[0]);
+vector3 springdamper_constraint::get_world_ctrl_arm_pivot(entt::registry &registry) const {
+    auto &posA = registry.get<position>(body[0]);
+    auto &ornA = registry.get<orientation>(body[0]);
 
-    auto &posB = registry.get<position>(con.body[1]);
-    auto &ornB = registry.get<orientation>(con.body[1]);
+    auto &posB = registry.get<position>(body[1]);
+    auto &ornB = registry.get<orientation>(body[1]);
     auto rB = rotate(ornB, m_ctrl_arm_pivotB);
     auto pB = posB + rB;
 

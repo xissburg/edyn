@@ -85,7 +85,6 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
 
             auto &row = cache.rows.emplace_back();
             row.J = {axisB_x, vector3_zero, -axisB_x, vector3_zero};
-            row.error = 0;
             row.lower_limit = -impulse;
             row.upper_limit =  impulse;
 

@@ -46,7 +46,7 @@ void narrowphase::update_async(job &completion_job) {
         auto &destruction_info = m_cp_destruction_infos[index];
 
         detect_collision(manifold.body, result, body_view, shapes_views_tuple);
-        process_collision(entity, manifold, result, cp_view, imp_view, tr_view,
+        process_collision(*this->m_registry, entity, manifold, result, cp_view, imp_view, tr_view,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
         }, [&destruction_info] (entt::entity contact_entity) {

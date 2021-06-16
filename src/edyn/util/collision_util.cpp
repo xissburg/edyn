@@ -1,10 +1,14 @@
 #include "edyn/util/collision_util.hpp"
 #include "edyn/comp/material.hpp"
+#include "edyn/comp/tire_material.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/collision/collide.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/math.hpp"
 
 namespace edyn {
 
@@ -46,8 +50,8 @@ void create_contact_constraint(entt::registry &registry,
         damping = 1 / (1 / materialA.damping + 1 / materialB.damping);
     }
 
-    auto *tire0 = registry.try_get<tire_material>(manifold.body[0]);
-    auto *tire1 = registry.try_get<tire_material>(manifold.body[1]);
+    auto *tire0 = registry.try_get<tire_material>(cp.body[0]);
+    auto *tire1 = registry.try_get<tire_material>(cp.body[1]);
     auto *tire = tire0 ? tire0 : tire1;
 
     // Contact constraints are never graph edges since they're effectively
@@ -60,12 +64,8 @@ void create_contact_constraint(entt::registry &registry,
         EDYN_ASSERT(stiffness < large_scalar);
 
         // Swap entities to ensure the tire/cylinder is in the first entity.
-        auto &shapeA = registry.get<shape>(cp.body[0]);
         auto body0 = entt::entity{};
         auto body1 = entt::entity{};
-
-        auto body0 = registry.has<cylinder_shape>(cp.body[0]) ? cp.body[0]: cp.body[1];
-        auto body1 = registry.has<cylinder_shape>(cp.body[1]) ? cp.body[1]: cp.body[0];
 
         if (registry.has<cylinder_shape>(cp.body[0])) {
             body0 = cp.body[0];
@@ -92,7 +92,7 @@ void create_contact_constraint(entt::registry &registry,
 
 size_t find_nearest_contact(const contact_point &cp,
                             const collision_result &result) {
-    auto shortest_dist = contact_caching_threshold * contact_caching_threshold;
+    auto shortest_dist = square(contact_caching_threshold);
     auto nearest_idx = result.num_points;
 
     for (size_t i = 0; i < result.num_points; ++i) {
@@ -107,6 +107,27 @@ size_t find_nearest_contact(const contact_point &cp,
 
         if (dB < shortest_dist) {
             shortest_dist = dB;
+            nearest_idx = i;
+        }
+    }
+
+    return nearest_idx;
+}
+
+size_t find_nearest_contact_tire(const contact_point &cp,
+                                 const collision_result &result) {
+    // Assuming A is the tire, calculate distance in the yz-plane, thus ignoring
+    // the axial component, which means that points that are aligned along the
+    // cylinder axis always get merged together.
+    auto shortest_dist = square(contact_caching_threshold);
+    auto nearest_idx = result.num_points;
+
+    for (size_t i = 0; i < result.num_points; ++i) {
+        auto &coll_pt = result.point[i];
+        auto dist = length_sqr(to_vector2_zy(coll_pt.pivotA) - to_vector2_zy(cp.pivotA));
+
+        if (dist < shortest_dist) {
+            shortest_dist = dist;
             nearest_idx = i;
         }
     }

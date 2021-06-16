@@ -3,12 +3,8 @@
 #include "edyn/sys/integrate_linacc.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_angvel.hpp"
-<<<<<<< HEAD
 #include "edyn/sys/integrate_spin.hpp"
-#include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_tire_state.hpp"
-=======
->>>>>>> master
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/sys/update_inertias.hpp"
@@ -34,8 +30,8 @@ scalar restitution_curve(scalar restitution, scalar relvel) {
 }
 
 static
-void prepare(constraint_row &row, 
-             scalar inv_mA, scalar inv_mB, 
+void prepare(constraint_row &row,
+             scalar inv_mA, scalar inv_mB,
              const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
              const vector3 &linvelA, const vector3 &linvelB,
              const vector3 &angvelA, const vector3 &angvelB) {
@@ -45,19 +41,19 @@ void prepare(constraint_row &row,
                      dot(inv_IB * row.J[3], row.J[3]);
     row.eff_mass = 1 / J_invM_JT;
 
-    auto relvel = dot(row.J[0], linvelA) + 
+    auto relvel = dot(row.J[0], linvelA) +
                   dot(row.J[1], angvelA) +
                   dot(row.J[2], linvelB) +
                   dot(row.J[3], angvelB);
     row.relvel = relvel;
-    
+
     auto restitution = restitution_curve(row.restitution, row.relvel);
     row.rhs = -(row.error * row.erp + relvel * (1 + restitution));
 }
 
 static
-void prepare3(constraint_row &row, 
-              scalar inv_mA, scalar inv_mB, scalar inv_mC, 
+void prepare3(constraint_row &row,
+              scalar inv_mA, scalar inv_mB, scalar inv_mC,
               const matrix3x3 &inv_IA, const matrix3x3 &inv_IB, const matrix3x3 &inv_IC,
               const vector3 &linvelA, const vector3 &linvelB, const vector3 &linvelC,
               const vector3 &angvelA, const vector3 &angvelB, const vector3 &angvelC) {
@@ -69,14 +65,14 @@ void prepare3(constraint_row &row,
                      dot(inv_IC * row.J[5], row.J[5]);
     row.eff_mass = 1 / J_invM_JT;
 
-    auto relvel = dot(row.J[0], linvelA) + 
+    auto relvel = dot(row.J[0], linvelA) +
                   dot(row.J[1], angvelA) +
                   dot(row.J[2], linvelB) +
                   dot(row.J[3], angvelB) +
                   dot(row.J[4], linvelC) +
                   dot(row.J[5], angvelC);
     row.relvel = relvel;
-    
+
     auto restitution = restitution_curve(row.restitution, row.relvel);
     row.rhs = -(row.error * row.erp + relvel * (1 + restitution));
 }
@@ -96,7 +92,7 @@ void apply_angular_impulse(scalar impulse,
         auto imp = inv_I * row.J[idx_J] * impulse;
         auto orn = registry.get<orientation>(row.entity[ent_idx]);
         auto axis = rotate(orn, vector3_x);
-        auto spin_imp = dot(axis, imp); 
+        auto spin_imp = dot(axis, imp);
         *ds += spin_imp;
         // Subtract spin impulse to obtain angular impulse.
         dw += imp - axis * spin_imp;
@@ -144,32 +140,32 @@ void apply_impulse3(scalar impulse,
 }
 
 static
-void warm_start(entt::registry &registry, constraint_row &row, 
+void warm_start(entt::registry &registry, constraint_row &row,
                 scalar inv_mA, scalar inv_mB,
                 const matrix3x3 &inv_IA, const matrix3x3 &inv_IB,
                 delta_linvel &dvA, delta_linvel &dvB,
                 delta_angvel &dwA, delta_angvel &dwB,
-                delta_spin *dsA, delta_spin *dsB) {    
-    apply_impulse(row.impulse, registry, row, 
-                  inv_mA, inv_mB, 
-                  inv_IA, inv_IB, 
-                  dvA, dvB, 
-                  dwA, dwB, 
+                delta_spin *dsA, delta_spin *dsB) {
+    apply_impulse(row.impulse, registry, row,
+                  inv_mA, inv_mB,
+                  inv_IA, inv_IB,
+                  dvA, dvB,
+                  dwA, dwB,
                   dsA, dsB);
 }
 
 static
-void warm_start3(entt::registry &registry, constraint_row &row, 
+void warm_start3(entt::registry &registry, constraint_row &row,
                  scalar inv_mA, scalar inv_mB, scalar inv_mC,
                  const matrix3x3 &inv_IA, const matrix3x3 &inv_IB, const matrix3x3 &inv_IC,
                  delta_linvel &dvA, delta_linvel &dvB, delta_linvel &dvC,
                  delta_angvel &dwA, delta_angvel &dwB, delta_angvel &dwC,
                  delta_spin *dsA, delta_spin *dsB, delta_spin *dsC) {
-    apply_impulse3(row.impulse, registry, row, 
-                   inv_mA, inv_mB, inv_mC, 
-                   inv_IA, inv_IB, inv_IC, 
-                   dvA, dvB, dvC, 
-                   dwA, dwB, dwC, 
+    apply_impulse3(row.impulse, registry, row,
+                   inv_mA, inv_mB, inv_mC,
+                   inv_IA, inv_IB, inv_IC,
+                   dvA, dvB, dvC,
+                   dwA, dwB, dwC,
                    dsA, dsB, dsC);
 }
 
@@ -177,7 +173,7 @@ static
 scalar solve(constraint_row &row,
              const vector3 &dvA, const vector3 &dvB,
              const vector3 &dwA, const vector3 &dwB) {
-    auto delta_relvel = dot(row.J[0], dvA) + 
+    auto delta_relvel = dot(row.J[0], dvA) +
                         dot(row.J[1], dwA) +
                         dot(row.J[2], dvB) +
                         dot(row.J[3], dwB);
@@ -204,12 +200,11 @@ scalar solve(constraint_row &row) {
     return delta_impulse;
 }
 
-<<<<<<< HEAD
 static
 scalar solve3(constraint_row &row,
               const vector3 &dvA, const vector3 &dvB, const vector3 &dvC,
               const vector3 &dwA, const vector3 &dwB, const vector3 &dwC) {
-    auto delta_relvel = dot(row.J[0], dvA) + 
+    auto delta_relvel = dot(row.J[0], dvA) +
                         dot(row.J[1], dwA) +
                         dot(row.J[2], dvB) +
                         dot(row.J[3], dwB) +
@@ -231,13 +226,6 @@ scalar solve3(constraint_row &row,
     return delta_impulse;
 }
 
-void update_inertia(entt::registry &registry) {
-    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(entt::exclude<disabled_tag>);
-    view.each([] (auto, orientation& orn, inertia_inv &inv_I, inertia_world_inv &inv_IW) {
-        auto basis = to_matrix3x3(orn);
-        inv_IW = scale(basis, inv_I) * transpose(basis);
-    });
-=======
 template<typename C>
 void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
     auto con_view = registry.view<C>();
@@ -253,7 +241,6 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
         row_idx += num_rows;
         ++con_idx;
     }
->>>>>>> master
 }
 
 void update_impulses(entt::registry &registry, row_cache &cache) {
@@ -284,23 +271,7 @@ solver::~solver() = default;
 void solver::update(scalar dt) {
     auto &registry = *m_registry;
 
-<<<<<<< HEAD
-    auto exclude_disabled = entt::exclude<disabled_tag>;
-
-    // Setup constraints.
-    auto mass_delta_group = m_registry->group<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
-    auto vel_group = m_registry->group<linvel, angvel>();
-    auto con_view = m_registry->view<constraint>(exclude_disabled);
-    auto row_view = m_registry->view<constraint_row>(exclude_disabled);
-
-    con_view.each([&] (entt::entity entity, constraint &con) {
-        std::visit([&] (auto &&c) {
-            c.update(solver_stage_value_t<solver_stage::prepare>{}, entity, con, *m_registry, dt);
-        }, con.var);
-    });
-=======
     m_row_cache.clear();
->>>>>>> master
 
     // Apply forces and acceleration.
     integrate_linacc(registry, dt);
@@ -335,17 +306,17 @@ void solver::update(scalar dt) {
             for (size_t i = 0; i < con.num_rows(); ++i) {
                 auto &row = m_registry->get<constraint_row>(con.row[i]);
                 EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
-                prepare(row, 
-                        inv_mA, inv_mB, 
-                        inv_IA, inv_IB, 
-                        linvelA, linvelB, 
-                        row.use_spin[0] ? angvelA + spinvelA : static_cast<vector3>(angvelA), 
+                prepare(row,
+                        inv_mA, inv_mB,
+                        inv_IA, inv_IB,
+                        linvelA, linvelB,
+                        row.use_spin[0] ? angvelA + spinvelA : static_cast<vector3>(angvelA),
                         row.use_spin[1] ? angvelB + spinvelB : static_cast<vector3>(angvelB));
-                warm_start(*m_registry, row, 
-                           inv_mA, inv_mB, 
-                           inv_IA, inv_IB, 
-                           dvA, dvB, dwA, dwB, 
-                           row.use_spin[0] ? dsA : nullptr, 
+                warm_start(*m_registry, row,
+                           inv_mA, inv_mB,
+                           inv_IA, inv_IB,
+                           dvA, dvB, dwA, dwB,
+                           row.use_spin[0] ? dsA : nullptr,
                            row.use_spin[1] ? dsB : nullptr);
             }
         } else {
@@ -364,20 +335,20 @@ void solver::update(scalar dt) {
             for (size_t i = 0; i < con.num_rows(); ++i) {
                 auto &row = m_registry->get<constraint_row>(con.row[i]);
                 EDYN_ASSERT(row.entity[0] != entt::null && row.entity[1] != entt::null);
-                prepare3(row, 
-                         inv_mA, inv_mB, inv_mC, 
-                         inv_IA, inv_IB, inv_IC, 
-                         linvelA, linvelB, linvelC, 
-                         row.use_spin[0] ? angvelA + spinvelA : static_cast<vector3>(angvelA), 
+                prepare3(row,
+                         inv_mA, inv_mB, inv_mC,
+                         inv_IA, inv_IB, inv_IC,
+                         linvelA, linvelB, linvelC,
+                         row.use_spin[0] ? angvelA + spinvelA : static_cast<vector3>(angvelA),
                          row.use_spin[1] ? angvelB + spinvelB : static_cast<vector3>(angvelB),
                          row.use_spin[2] ? angvelC + spinvelC : static_cast<vector3>(angvelC));
-                warm_start3(*m_registry, row, 
+                warm_start3(*m_registry, row,
                             inv_mA, inv_mB, inv_mC,
                             inv_IA, inv_IB, inv_IC,
                             dvA, dvB, dvC,
-                            dwA, dwB, dwC, 
-                            row.use_spin[0] ? dsA : nullptr, 
-                            row.use_spin[1] ? dsB : nullptr, 
+                            dwA, dwB, dwC,
+                            row.use_spin[0] ? dsA : nullptr,
+                            row.use_spin[1] ? dsB : nullptr,
                             row.use_spin[2] ? dsC : nullptr);
             }
         }
@@ -417,10 +388,10 @@ void solver::update(scalar dt) {
 
             if (row.entity[2] == entt::null) {
                 auto delta_impulse = solve(row, dvA, dvB, dwA + vdsA, dwB + vdsB);
-                apply_impulse(delta_impulse, *m_registry, row, 
-                              inv_mA, inv_mB, inv_IA, inv_IB, 
-                              dvA, dvB, dwA, dwB, 
-                              row.use_spin[0] ? dsA : nullptr, 
+                apply_impulse(delta_impulse, *m_registry, row,
+                              inv_mA, inv_mB, inv_IA, inv_IB,
+                              dvA, dvB, dwA, dwB,
+                              row.use_spin[0] ? dsA : nullptr,
                               row.use_spin[1] ? dsB : nullptr);
             } else {
                 auto [inv_mC, inv_IC, dvC, dwC] = mass_delta_group.get<mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(row.entity[2]);
@@ -433,15 +404,15 @@ void solver::update(scalar dt) {
                     vdsC = rotate(orn, vector3_x) * *dsC;
                 }
 
-                auto delta_impulse = solve3(row, 
+                auto delta_impulse = solve3(row,
                                             dvA, dvB, dvC,
                                             dwA + vdsA, dwB + vdsB, dwC + vdsC);
-                apply_impulse3(delta_impulse, *m_registry, row, 
+                apply_impulse3(delta_impulse, *m_registry, row,
                                inv_mA, inv_mB, inv_mC,
                                inv_IA, inv_IB, inv_IC,
                                dvA, dvB, dvC,
-                               dwA, dwB, dwC, 
-                               row.use_spin[0] ? dsA : nullptr, 
+                               dwA, dwB, dwC,
+                               row.use_spin[0] ? dsA : nullptr,
                                row.use_spin[1] ? dsB : nullptr,
                                row.use_spin[2] ? dsC : nullptr);
             }
@@ -487,18 +458,11 @@ void solver::update(scalar dt) {
     });
 
     // Integrate velocities to obtain new transforms.
-<<<<<<< HEAD
-    integrate_linvel(*m_registry, dt);
-    integrate_angvel(*m_registry, dt);
-    integrate_spin(*m_registry, dt);
-    
-    update_tire_state(*m_registry, dt);
-
-    update_aabbs(*m_registry);
-    
-=======
     integrate_linvel(registry, dt);
     integrate_angvel(registry, dt);
+    integrate_spin(registry, dt);
+
+    update_tire_state(registry, dt);
 
     // Update rotated vertices of convex meshes after rotations change. It is
     // important to do this before `update_aabbs` because the rotated meshes
@@ -508,7 +472,6 @@ void solver::update(scalar dt) {
     // Update AABBs after transforms change.
     update_aabbs(registry);
 
->>>>>>> master
     // Update world-space moment of inertia.
     update_inertias(registry);
 }
