@@ -19,6 +19,7 @@
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/tire_state.hpp"
+#include "edyn/comp/spin.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -48,6 +49,8 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     tire_state,
     position,
     orientation,
+    spin_angle,
+    spin,
     contact_manifold,
     contact_point,
     continuous,
