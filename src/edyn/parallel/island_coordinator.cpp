@@ -369,6 +369,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     // created_all/updated_all but this is more efficient.
     auto tr_view = m_registry->view<position, orientation>();
     auto vel_view = m_registry->view<linvel, angvel>();
+    auto spin_view = m_registry->view<spin, spin_angle>();
     auto mass_view = m_registry->view<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>();
     auto acc_view = m_registry->view<linacc>();
     auto material_view = m_registry->view<material>();
@@ -399,6 +400,11 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
             if (acc_view.contains(entity)) {
                 ctx->m_delta_builder->created(entity, acc_view.get(entity));
+            }
+
+            if (spin_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, spin_view.get<spin>(entity));
+                ctx->m_delta_builder->created(entity, spin_view.get<spin_angle>(entity));
             }
 
             if (material_view.contains(entity)) {
