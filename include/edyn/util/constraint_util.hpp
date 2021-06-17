@@ -33,7 +33,7 @@ T & make_constraint(entt::entity entity, entt::registry &registry,
                     bool is_graph_edge = true) {
 
     internal::pre_make_constraint(entity, registry, body0, body1, is_graph_edge);
-    auto &con = registry.emplace<T>(entity, std::array<entt::entity, 2>{body0, body1});
+    auto &con = registry.emplace<T>(entity, body0, body1);
     auto &con_dirty = registry.get_or_emplace<dirty>(entity);
     con_dirty.set_new().created<T>();
     return con;
