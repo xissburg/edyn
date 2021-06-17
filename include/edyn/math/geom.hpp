@@ -196,8 +196,8 @@ size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
                                const vector2 &posB, scalar radiusB,
                                vector2 &res0, vector2 &res1);
 
-vector3 support_point_circle(scalar radius, const vector3 &pos,
-                             const quaternion &orn, const vector3 &dir);
+vector3 support_point_circle(const vector3 &pos, const quaternion &orn,
+                             scalar radius, const vector3 &dir);
 
 template<size_t N>
 void support_point_vertices(const std::array<vector3, N> &vertices,
