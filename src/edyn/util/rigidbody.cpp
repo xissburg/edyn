@@ -130,6 +130,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     if (def.spin_enabled && def.kind == rigidbody_kind::rb_dynamic) {
         registry.emplace<spin_angle>(entity, def.spin_angle);
         registry.emplace<spin>(entity, def.spin);
+        registry.get_or_emplace<continuous>(entity).insert<spin_angle, spin>();
     }
 
     auto non_connecting = def.kind != rigidbody_kind::rb_dynamic;
