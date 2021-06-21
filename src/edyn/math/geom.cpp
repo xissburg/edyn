@@ -644,29 +644,32 @@ bool intersect_aabb(const vector3 &min0, const vector3 &max0,
 		   (max0.z >= min1.z);
 }
 
-vector3 support_point_circle(const vector3 &pos, const quaternion &orn, 
+vector3 support_point_circle(const vector3 &pos, const quaternion &orn,
                              scalar radius, const vector3 &dir) {
-    auto normal = rotate(orn, vector3_x);
-    auto proj = dir - normal * dot(dir, normal);
-    auto l2 = length_sqr(proj);
+    auto local_dir = rotate(conjugate(orn), dir);
+    // Squared length in yz plane.
+    auto len_yz_sqr = local_dir.y * local_dir.y + local_dir.z * local_dir.z;
+    vector3 sup;
 
-    if (l2 > EDYN_EPSILON) {
-        auto s = radius / std::sqrt(l2);
-        return pos + proj * s;
+    if (len_yz_sqr > EDYN_EPSILON) {
+        auto d = radius / std::sqrt(len_yz_sqr);
+        sup = {0, local_dir.y * d, local_dir.z * d};
+    } else {
+        sup = {0, radius, 0};
     }
 
-    return pos + rotate(orn, vector3_y * radius);
+    return pos + rotate(orn, sup);
 }
 
 scalar signed_triangle_area(const vector2 &a, const vector2 &b, const vector2 &c) {
     return (a.x - c.x) * (b.y - c.y) - (a.y - c.y) * (b.x - c.x);
 }
 
-vector3 intersect_line_plane(const vector3 &p0, const vector3 &dir, 
+vector3 intersect_line_plane(const vector3 &p0, const vector3 &dir,
                              const vector3 &q0, const vector3 &normal) {
     auto d = q0 - p0;
     auto denom = dot(dir, normal);
-    
+
     if (std::abs(denom) > EDYN_EPSILON) {
         auto t = dot(d, normal) / denom;
         return p0 + t * dir;

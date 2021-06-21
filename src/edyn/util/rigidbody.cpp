@@ -43,7 +43,6 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         auto I_inv = inverse_matrix_symmetric(def.inertia);
         registry.emplace<inertia_inv>(entity, I_inv);
         registry.emplace<inertia_world_inv>(entity, I_inv);
-
     } else {
         registry.emplace<mass>(entity, EDYN_SCALAR_MAX);
         registry.emplace<mass_inv>(entity, scalar(0));
