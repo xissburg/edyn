@@ -64,7 +64,7 @@ public:
     index_type insert_edge(entt::entity entity, index_type node_index0, index_type node_index1);
     void remove_edge(index_type edge_index);
     entt::entity edge_entity(index_type edge_index) const;
-    bool has_edge(index_type node_index0, index_type node_index1) const;
+    bool has_adjacency(index_type node_index0, index_type node_index1) const;
     entity_pair edge_node_entities(index_type edge_index) const;
 
     /**
