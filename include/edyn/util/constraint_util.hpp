@@ -11,7 +11,7 @@ struct constraint_row;
 struct constraint_row_options;
 
 namespace internal {
-    void pre_make_constraint(entt::entity entity, entt::registry &registry,
+    bool pre_make_constraint(entt::entity entity, entt::registry &registry,
                              entt::entity body0, entt::entity body1, bool is_graph_edge);
 }
 
@@ -32,10 +32,15 @@ T & make_constraint(entt::entity entity, entt::registry &registry,
                     entt::entity body0, entt::entity body1,
                     bool is_graph_edge = true) {
 
-    internal::pre_make_constraint(entity, registry, body0, body1, is_graph_edge);
+    auto is_new = internal::pre_make_constraint(entity, registry, body0, body1, is_graph_edge);
     auto &con = registry.emplace<T>(entity, body0, body1);
     auto &con_dirty = registry.get_or_emplace<dirty>(entity);
-    con_dirty.set_new().created<T>();
+    con_dirty.created<T>();
+
+    if (is_new) {
+        con_dirty.set_new();
+    }
+
     return con;
 }
 

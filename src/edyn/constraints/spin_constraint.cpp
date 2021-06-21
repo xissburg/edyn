@@ -49,8 +49,8 @@ void prepare_constraints<spin_constraint>(entt::registry &registry, row_cache &c
         row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
         row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
         row.impulse = imp_view.get(entity).values[0];
-        row.use_spin[0] = true;
-        row.use_spin[1] = true;
+        row.use_spin[0] = con.m_use_spinA;
+        row.use_spin[1] = con.m_use_spinB;
         row.spin_axis[0] = axisA;
         row.spin_axis[1] = axisB;
 

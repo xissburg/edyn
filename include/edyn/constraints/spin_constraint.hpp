@@ -8,11 +8,13 @@ namespace edyn {
 
 /**
  * Constrains the `spin` of two entities to keep them spinning at the same
- * speed. The `m_max_impulse` can be set to a lower value to allow them to
+ * speed. The `m_max_torque` can be set to a lower value to allow them to
  * _slide_ if the torque gets above a threshold.
  */
 struct spin_constraint : public constraint_base {
-    scalar m_max_torque;
+    scalar m_max_torque {scalar(0)};
+    bool m_use_spinA {true};
+    bool m_use_spinB {true};
 };
 
 template<>

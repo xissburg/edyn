@@ -92,7 +92,7 @@ entity_graph::index_type entity_graph::insert_edge(entt::entity entity, index_ty
     if (adj_index != null_index) {
         edge.adj_index0 = adj_index;
 
-        // Get edge from adjacency and add this new edge to the beginning of 
+        // Get edge from adjacency and add this new edge to the beginning of
         // the edge list.
         auto adj_edge_index = m_adjacencies[adj_index].edge_index;
         EDYN_ASSERT(adj_edge_index != null_index);
@@ -174,7 +174,7 @@ entt::entity entity_graph::edge_entity(index_type edge_index) const {
     return m_edges[edge_index].entity;
 }
 
-bool entity_graph::has_edge(index_type node_index0, index_type node_index1) const {
+bool entity_graph::has_adjacency(index_type node_index0, index_type node_index1) const {
     auto adj_index = m_nodes[node_index0].adjacency_index;
 
     while (adj_index != null_index) {
@@ -196,12 +196,15 @@ entity_pair entity_graph::edge_node_entities(index_type edge_index) const {
 
 void entity_graph::insert_adjacency(index_type node_index0, index_type node_index1, index_type edge_index) {
     m_edges[edge_index].adj_index0 = insert_adjacency_one_way(node_index0, node_index1, edge_index);
-    m_edges[edge_index].adj_index1 = insert_adjacency_one_way(node_index1, node_index0, edge_index);
+
+    if (node_index0 != node_index1) {
+        m_edges[edge_index].adj_index1 = insert_adjacency_one_way(node_index1, node_index0, edge_index);
+    }
 }
 
 entity_graph::index_type entity_graph::insert_adjacency_one_way(index_type node_index0, index_type node_index1, index_type edge_index) {
     // Should not have duplicate adjacencies.
-    EDYN_ASSERT(!has_edge(node_index0, node_index1));
+    EDYN_ASSERT(!has_adjacency(node_index0, node_index1));
 
     auto adj_index = create_adjacency(node_index1, edge_index);
     m_adjacencies[adj_index].next = m_nodes[node_index0].adjacency_index;
@@ -284,7 +287,7 @@ bool entity_graph::is_single_connected_component() {
     std::vector<index_type> to_visit;
 
     for (index_type i = 0; i < m_nodes.size(); ++i) {
-        if (m_nodes[i].entity != entt::null && 
+        if (m_nodes[i].entity != entt::null &&
             !m_nodes[i].non_connecting) {
             to_visit.push_back(i);
             break;
@@ -318,8 +321,8 @@ bool entity_graph::is_single_connected_component() {
 
     // Check if there's any one connecting node that has not been visited.
     for (size_t i = 0; i < m_visited.size(); ++i) {
-        if (!m_visited[i] && 
-            m_nodes[i].entity != entt::null && 
+        if (!m_visited[i] &&
+            m_nodes[i].entity != entt::null &&
             !m_nodes[i].non_connecting) {
             return false;
         }
@@ -403,7 +406,7 @@ entity_graph::connected_components_t entity_graph::connected_components() {
 
         // Look for a connecting node that has not yet been visited.
         for (size_t node_index = 0; node_index < m_nodes.size(); ++node_index) {
-            if (!m_visited[node_index] && 
+            if (!m_visited[node_index] &&
                 m_nodes[node_index].entity != entt::null &&
                 !m_nodes[node_index].non_connecting) {
                 to_visit.push_back(node_index);

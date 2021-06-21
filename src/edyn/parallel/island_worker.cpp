@@ -228,7 +228,6 @@ void island_worker::on_island_delta(const island_delta &delta) {
     delta.created_for_each<static_tag>(index_source, insert_node);
     delta.created_for_each<kinematic_tag>(index_source, insert_node);
 
-
     // Insert edges in the graph for contact manifolds.
     delta.created_for_each<contact_manifold>(index_source, [&] (entt::entity remote_entity, const contact_manifold &manifold) {
         if (!m_entity_map.has_rem(remote_entity)) return;
@@ -250,6 +249,9 @@ void island_worker::on_island_delta(const island_delta &delta) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
+
+        if (m_registry.has<graph_edge>(local_entity)) return;
+
         auto &node0 = node_view.get(con.body[0]);
         auto &node1 = node_view.get(con.body[1]);
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);

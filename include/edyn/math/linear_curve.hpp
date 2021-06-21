@@ -6,6 +6,9 @@
 
 namespace edyn {
 
+/**
+ * @brief A piece-wise linear curve,
+ */
 class linear_curve {
 public:
     void add(scalar x, scalar y);
