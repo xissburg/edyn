@@ -85,20 +85,25 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &,
  * when appropriate for each point that is removed).
  */
 template<typename ContactPointView, typename ImpulseView, typename TransformView,
-         typename NewPointFunc, typename DestroyPointFunc>
+         typename TireView, typename NewPointFunc, typename DestroyPointFunc>
 void process_collision(const entt::registry &registry, entt::entity manifold_entity, contact_manifold &manifold,
                        const collision_result &result,
                        ContactPointView &cp_view,
                        ImpulseView &imp_view,
                        TransformView &tr_view,
+                       TireView &tire_view,
                        NewPointFunc new_point_func,
                        DestroyPointFunc destroy_point_func) {
     auto [posA, ornA] = tr_view.template get<position, orientation>(manifold.body[0]);
     auto [posB, ornB] = tr_view.template get<position, orientation>(manifold.body[1]);
 
-    auto *tire0 = registry.try_get<tire_material>(manifold.body[0]);
-    auto *tire1 = registry.try_get<tire_material>(manifold.body[1]);
-    auto *tire = tire0 ? tire0 : tire1;
+    tire_material *tire = nullptr;
+
+    if (tire_view.contains(manifold.body[0])) {
+        tire = &tire_view.get(manifold.body[0]);
+    } else if (tire_view.contains(manifold.body[1])) {
+        tire = &tire_view.get(manifold.body[1]);
+    }
 
     // Merge new with existing contact points.
     auto merged_indices = std::array<bool, max_contacts>{};
