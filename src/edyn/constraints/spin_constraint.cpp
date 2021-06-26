@@ -19,23 +19,34 @@ namespace edyn {
 template<>
 void prepare_constraints<spin_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation,
-                                   linvel, angvel, spin,
+                                   linvel, angvel,
                                    mass_inv, inertia_world_inv,
-                                   delta_linvel, delta_angvel, delta_spin>();
+                                   delta_linvel, delta_angvel>();
+    auto spin_view = registry.view<spin, delta_spin>();
     auto con_view = registry.view<spin_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
 
     con_view.each([&] (entt::entity entity, spin_constraint &con) {
-        auto [posA, ornA, linvelA, angvelA, spinA, inv_mA, inv_IA, dvA, dwA, dsA] =
-            body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB, dsB] =
-            body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[1]);
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
         auto axisA = rotate(ornA, vector3_x);
         auto axisB = rotate(ornB, vector3_x);
 
-        auto spinvelA = axisA * spinA;
-        auto spinvelB = axisB * spinB;
+        auto spinvelA = vector3_zero;
+        auto spinvelB = vector3_zero;
+
+        if (con.m_use_spinA) {
+            auto spinA = spin_view.get<spin>(con.body[0]);
+            spinvelA = axisA * spinA;
+        }
+
+        if (con.m_use_spinB) {
+            auto spinB = spin_view.get<spin>(con.body[1]);
+            spinvelB = axisB * spinB;
+        }
 
         auto impulse = con.m_max_torque * dt;
 
@@ -46,13 +57,27 @@ void prepare_constraints<spin_constraint>(entt::registry &registry, row_cache &c
 
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
-        row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = imp_view.get(entity).values[0];
         row.use_spin[0] = con.m_use_spinA;
         row.use_spin[1] = con.m_use_spinB;
         row.spin_axis[0] = axisA;
         row.spin_axis[1] = axisB;
+
+        if (con.m_use_spinA) {
+            auto &dsA = spin_view.get<delta_spin>(con.body[0]);
+            row.dsA = &dsA;
+        } else {
+            row.dsA = nullptr;
+        }
+
+        if (con.m_use_spinB) {
+            auto &dsB = spin_view.get<delta_spin>(con.body[1]);
+            row.dsB = &dsB;
+        } else {
+            row.dsB = nullptr;
+        }
 
         prepare_row(row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
         warm_start(row);
