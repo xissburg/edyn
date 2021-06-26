@@ -70,10 +70,6 @@ void paged_triangle_mesh::unload_least_recently_visited_node() {
     }
 }
 
-std::shared_ptr<triangle_mesh> paged_triangle_mesh::get_submesh(size_t idx) {
-    return m_cache[idx].trimesh;
-}
-
 triangle_vertices paged_triangle_mesh::get_triangle_vertices(size_t mesh_idx, size_t tri_idx) {
     EDYN_ASSERT(mesh_idx < m_cache.size());
     EDYN_ASSERT(m_cache[mesh_idx].trimesh);

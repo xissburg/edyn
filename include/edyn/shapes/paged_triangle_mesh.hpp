@@ -208,7 +208,13 @@ public:
      */
     size_t cache_num_vertices() const;
 
-    std::shared_ptr<triangle_mesh> get_submesh(size_t idx);
+    size_t num_submeshes() const {
+        return m_cache.size();
+    }
+
+    std::shared_ptr<triangle_mesh> get_submesh(size_t idx) {
+        return m_cache[idx].trimesh;
+    }
 
     triangle_vertices get_triangle_vertices(size_t mesh_idx, size_t tri_idx);
 
