@@ -84,6 +84,14 @@ public:
         };
     }
 
+    std::array<index_type, 2> get_edge_vertex_indices(size_t edge_idx) const {
+        EDYN_ASSERT(edge_idx < m_edge_vertex_indices.size());
+        return {
+            m_edge_vertex_indices[edge_idx][0],
+            m_edge_vertex_indices[edge_idx][1]
+        };
+    }
+
     auto get_edge_face_indices(size_t edge_idx) const {
         EDYN_ASSERT(edge_idx < m_edge_face_indices.size());
         return m_edge_face_indices[edge_idx];
