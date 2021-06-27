@@ -227,6 +227,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
     delta.created_for_each<dynamic_tag>(index_source, insert_node);
     delta.created_for_each<static_tag>(index_source, insert_node);
     delta.created_for_each<kinematic_tag>(index_source, insert_node);
+    delta.created_for_each<external_tag>(index_source, insert_node);
 
     // Insert edges in the graph for contact manifolds.
     delta.created_for_each<contact_manifold>(index_source, [&] (entt::entity remote_entity, const contact_manifold &manifold) {

@@ -375,12 +375,33 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto material_view = m_registry->view<material>();
     auto continuous_view = m_registry->view<continuous>();
     auto procedural_view = m_registry->view<procedural_tag>();
+    auto external_view = m_registry->view<external_tag>();
     auto static_view = m_registry->view<static_tag>();
     auto continuous_contacts_view = m_registry->view<continuous_contacts_tag>();
     auto collision_view = m_registry->view<shape_index, AABB, collision_filter>();
     auto shape_views_tuple = get_tuple_of_shape_views(*m_registry);
 
     for (auto entity : nodes) {
+        if (external_view.contains(entity)) {
+            if (procedural_view.contains(entity)) {
+                auto &resident = resident_view.get(entity);
+                resident.island_entity = island_entity;
+                ctx->m_delta_builder->created(entity);
+                ctx->m_delta_builder->created_all(entity, *m_registry);
+            } else {
+                auto &resident = multi_resident_view.get(entity);
+
+                if (resident.island_entities.count(island_entity) == 0) {
+                    // Non-procedural entity is not yet in this island, thus create it.
+                    resident.island_entities.insert(island_entity);
+                    ctx->m_delta_builder->created(entity);
+                    ctx->m_delta_builder->created_all(entity, *m_registry);
+                }
+            }
+
+            continue;
+        }
+
         if (procedural_view.contains(entity)) {
             auto &resident = resident_view.get(entity);
             resident.island_entity = island_entity;
@@ -705,6 +726,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     delta.created_for_each<dynamic_tag>(index_source, insert_node);
     delta.created_for_each<static_tag>(index_source, insert_node);
     delta.created_for_each<kinematic_tag>(index_source, insert_node);
+    delta.created_for_each<external_tag>(index_source, insert_node);
 
     auto assign_island_to_contact_points = [&] (const contact_manifold &manifold) {
         auto num_points = manifold.num_points();

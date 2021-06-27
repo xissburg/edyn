@@ -122,6 +122,11 @@ void register_external_components(entt::registry &registry) {
     registry.ctx<island_coordinator>().settings_changed();
 }
 
+template<typename... Component>
+void register_external_components(entt::registry &registry, [[maybe_unused]] std::tuple<Component...>) {
+    register_external_components<Component...>(registry);
+}
+
 /**
  * @brief Removes registered external components and resets to defaults.
  */
@@ -163,6 +168,18 @@ void set_external_system_functions(entt::registry &registry,
                                    external_system_func_t init_func,
                                    external_system_func_t pre_step_func,
                                    external_system_func_t post_step_func);
+
+/**
+ * @brief Assigns an `external_tag` to this entity and inserts it as a node
+ * into the entity graph.
+ * This makes it possible to tie this entity and its components to another
+ * node such as a rigid body, which means that it will be moved into the
+ * island where the rigid body resides.
+ * @param registry Data source.
+ * @param entity The entity to be tagged.
+ * @param procedural If true, the entity will reside exclusively in one island.
+ */
+void tag_external_entity(entt::registry &registry, entt::entity entity, bool procedural = true);
 
 /**
  * @brief Overrides the default collision filtering function, which checks

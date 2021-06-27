@@ -107,6 +107,17 @@ void set_external_system_functions(entt::registry &registry,
     registry.ctx<island_coordinator>().settings_changed();
 }
 
+void tag_external_entity(entt::registry &registry, entt::entity entity, bool procedural) {
+    if (procedural) {
+        registry.emplace<edyn::procedural_tag>(entity);
+    }
+
+    registry.emplace<edyn::external_tag>(entity);
+    auto non_connecting = !procedural;
+    auto node_index = registry.ctx<edyn::entity_graph>().insert_node(entity, non_connecting);
+    registry.emplace<edyn::graph_node>(entity, node_index);
+}
+
 void set_should_collide(entt::registry &registry, should_collide_func_t func) {
     registry.ctx<settings>().should_collide_func = func;
     registry.ctx<island_coordinator>().settings_changed();
