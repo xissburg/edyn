@@ -11,6 +11,7 @@ struct sleeping_tag {};
 struct sleeping_disabled_tag {};
 struct disabled_tag {};
 struct continuous_contacts_tag {};
+struct external_tag {};
 
 }
 
