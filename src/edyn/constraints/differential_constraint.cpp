@@ -35,8 +35,8 @@ void prepare_constraints<differential_constraint>(entt::registry &registry, row_
         auto [posC, ornC, linvelC, angvelC, spinC, inv_mC, inv_IC, dvC, dwC, dsC] =
             body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[2]);
 
-        auto axis0 = rotate(ornA, -vector3_x);
-        auto axis1 = rotate(ornB, -vector3_x);
+        auto axis0 = rotate(ornA, vector3_x);
+        auto axis1 = rotate(ornB, vector3_x);
 
         auto &row = cache.rows.emplace_back();
         row.J = {vector3_zero, axis0,
