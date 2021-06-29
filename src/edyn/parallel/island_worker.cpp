@@ -776,11 +776,20 @@ bool island_worker::could_go_to_sleep() {
 
     // Check if there are any entities moving faster than the sleep threshold.
     auto vel_view = m_registry.view<linvel, angvel, procedural_tag>();
+
     for (auto entity : vel_view) {
         auto [v, w] = vel_view.get<linvel, angvel>(entity);
 
         if ((length_sqr(v) > island_linear_sleep_threshold * island_linear_sleep_threshold) ||
             (length_sqr(w) > island_angular_sleep_threshold * island_angular_sleep_threshold)) {
+            return false;
+        }
+    }
+
+    auto spin_view = m_registry.view<spin>();
+
+    for (auto entity : spin_view) {
+        if (std::abs(spin_view.get(entity).s) > island_angular_sleep_threshold) {
             return false;
         }
     }
