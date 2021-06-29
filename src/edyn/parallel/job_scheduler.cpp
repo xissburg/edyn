@@ -32,7 +32,7 @@ void job_scheduler::schedule_after(const job &j, double delta_time) {
     EDYN_ASSERT(delta_time > 0);
 
     auto lock = std::unique_lock(m_mutex);
-    auto current_time = (double)performance_counter() / (double)performance_frequency();
+    auto current_time = performance_time();
     auto job_timestamp = current_time + delta_time;
 
     auto found_it = std::find_if(m_jobs.begin(), m_jobs.end(), [job_timestamp] (const timed_job &j) {
@@ -44,7 +44,7 @@ void job_scheduler::schedule_after(const job &j, double delta_time) {
     lock.unlock();
 
     if (did_replace_first) {
-        // If this new job is going to be inserted at the beginning, it is 
+        // If this new job is going to be inserted at the beginning, it is
         // necessary to wake up the timer thread so the condition variable
         // can be readjusted to unblock at the earliest time again.
         m_cv.notify_one();
@@ -54,22 +54,22 @@ void job_scheduler::schedule_after(const job &j, double delta_time) {
 void job_scheduler::update() {
     while (m_running.load(std::memory_order_acquire)) {
         auto lock = std::unique_lock(m_mutex);
-        
+
         if (m_jobs.empty()) {
             // Wait until there's a job available.
             m_cv.wait(lock, [&] () { return !m_jobs.empty() || !m_running.load(std::memory_order_acquire); });
         } else {
             // Wait until the next job is ready.
-            auto current_time = (double)performance_counter() / (double)performance_frequency();
+            auto current_time = performance_time();
             double time_until_next_job = m_jobs.front().m_timestamp - current_time;
-            
+
             if (time_until_next_job > 0) {
                 auto duration = std::chrono::duration<double>(time_until_next_job);
                 m_cv.wait_for(lock, duration, [&] () { return !m_running.load(std::memory_order_acquire); });
             }
         }
 
-        auto current_time = (double)performance_counter() / (double)performance_frequency();
+        auto current_time = performance_time();
 
         // Dispatch all jobs with a timestamp before the current time.
         auto it = m_jobs.begin();

@@ -289,7 +289,7 @@ void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     auto builder = make_island_delta_builder(m_registry);
 
     auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
-    isle_timestamp.value = (double)performance_counter() / (double)performance_frequency();
+    isle_timestamp.value = performance_time();
     builder->updated(m_island_entity, isle_timestamp);
 
     m_registry.view<sleeping_tag>().each([&] (entt::entity entity) {
@@ -421,7 +421,7 @@ void island_worker::process_messages() {
 }
 
 bool island_worker::should_step() {
-    auto time = (double)performance_counter() / (double)performance_frequency();
+    auto time = performance_time();
 
     if (m_state == state::begin_step) {
         m_step_start_time = time;
@@ -587,7 +587,7 @@ void island_worker::finish_step() {
 bool island_worker::should_split() {
     if (!m_topology_changed) return false;
 
-    auto time = (double)performance_counter() / (double)performance_frequency();
+    auto time = performance_time();
 
     if (m_pending_split_calculation) {
         if (time - m_calculate_split_timestamp > m_calculate_split_delay) {
@@ -642,7 +642,7 @@ void island_worker::reschedule_later() {
 
     // If the timestamp of the current registry state is more that `m_fixed_dt`
     // before the current time, schedule it to run at a later time.
-    auto time = (double)performance_counter() / (double)performance_frequency();
+    auto time = performance_time();
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto fixed_dt = m_registry.ctx<edyn::settings>().fixed_dt;
     auto delta_time = isle_time.value + fixed_dt - time;
@@ -821,7 +821,7 @@ void island_worker::go_to_sleep() {
 void island_worker::on_set_paused(const msg::set_paused &msg) {
     m_registry.ctx<edyn::settings>().paused = msg.paused;
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
-    auto timestamp = (double)performance_counter() / (double)performance_frequency();
+    auto timestamp = performance_time();
     isle_time.value = timestamp;
 }
 

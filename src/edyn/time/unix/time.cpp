@@ -145,8 +145,8 @@ uint64_t performance_frequency()
         freq /= mach_base_info.numer;
         return freq;
 #endif
-    } 
-        
+    }
+
     return 1e6;
 }
 
@@ -189,6 +189,12 @@ void delay(uint32_t ms) {
         was_error = select(0, NULL, NULL, NULL, &tv);
 #endif /* HAVE_NANOSLEEP */
     } while (was_error && (errno == EINTR));
+}
+
+double performance_time()
+{
+    return static_cast<double>(performance_counter()) /
+           static_cast<double>(performance_frequency());
 }
 
 }
