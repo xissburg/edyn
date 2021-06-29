@@ -62,7 +62,7 @@ private:
     dynamic_tree m_np_tree; // Tree for non-procedural entities.
     std::vector<entity_pair_vector> m_pair_results;
 
-    bool should_collide(entt::entity e0, entt::entity e1) const;
+    bool should_collide(entt::entity, entt::entity) const;
 };
 
 template<typename Func>
