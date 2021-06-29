@@ -65,7 +65,7 @@ void update(entt::registry &registry) {
     if (is_paused(registry)) {
         snap_presentation(registry);
     } else {
-        auto time = (double)performance_counter() / (double)performance_frequency();
+        auto time = performance_time();
         update_presentation(registry, time);
     }
 }

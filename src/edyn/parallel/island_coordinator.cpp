@@ -641,7 +641,7 @@ void island_coordinator::create_island(std::vector<entt::entity> nodes, bool sle
     }
 #endif
 
-    auto timestamp = (double)performance_counter() / (double)performance_frequency();
+    auto timestamp = performance_time();
     auto island_entity = create_island(timestamp, sleeping);
     insert_to_island(island_entity, nodes, {});
 }
@@ -878,7 +878,7 @@ void island_coordinator::sync() {
 }
 
 void island_coordinator::update() {
-    m_timestamp = (double)performance_counter() / (double)performance_frequency();
+    m_timestamp = performance_time();
 
     for (auto &pair : m_island_ctx_map) {
         pair.second->read_messages();
