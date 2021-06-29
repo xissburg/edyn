@@ -16,6 +16,7 @@
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
+#include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/tree_view.hpp"
@@ -32,6 +33,7 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     island_timestamp,
     AABB,
     collision_filter,
+    collision_exclusion,
     constraint_impulse,
     inertia,
     inertia_inv,

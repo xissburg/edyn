@@ -205,18 +205,39 @@ void refresh(entt::registry &registry, entt::entity entity) {
 /**
  * @brief Checks whether there is a contact manifold connecting the two entities.
  * @param registry Data source.
- * @param entities Pair of entities.
+ * @param first One entity.
+ * @param second Another entity.
  * @return Whether a contact manifold exists between the two entities.
  */
+bool manifold_exists(entt::registry &registry, entt::entity first, entt::entity second);
+
+/*! @copydoc manifold_exists */
 bool manifold_exists(entt::registry &registry, entity_pair entities);
 
 /**
  * @brief Get contact manifold entity for a pair of entities.
+ * Asserts if the manifold does not exist.
  * @param registry Data source.
- * @param entities Pair of entities.
+ * @param first One entity.
+ * @param second Another entity.
  * @return Contact manifold entity.
  */
+entt::entity get_manifold_entity(entt::registry &registry, entt::entity first, entt::entity second);
+
+/*! @copydoc get_manifold_entity */
 entt::entity get_manifold_entity(entt::registry &registry, entity_pair entities);
+
+/**
+ * @brief Excludes collisions between a pair of entities.
+ * Use this when collision filters are not enough.
+ * @param registry Data source.
+ * @param first The entity that should not collide with `second`.
+ * @param second The entity that should not collide with `first`.
+ */
+void exclude_collision(entt::registry &registry, entt::entity first, entt::entity second);
+
+/*! @copydoc exclude_collision */
+void exclude_collision(entt::registry &registry, entity_pair entities);
 
 }
 

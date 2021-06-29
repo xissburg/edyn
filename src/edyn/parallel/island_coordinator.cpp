@@ -378,6 +378,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto static_view = m_registry->view<static_tag>();
     auto continuous_contacts_view = m_registry->view<continuous_contacts_tag>();
     auto collision_view = m_registry->view<shape_index, AABB, collision_filter>();
+    auto exclusion_view = m_registry->view<collision_exclusion>();
     auto shape_views_tuple = get_tuple_of_shape_views(*m_registry);
 
     for (auto entity : nodes) {
@@ -438,6 +439,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                 ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));
             }
 
+            if (exclusion_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, exclusion_view.get(entity));
+            }
+
             ctx->m_delta_builder->created(entity, dynamic_tag{});
             ctx->m_delta_builder->created(entity, procedural_tag{});
             ctx->m_delta_builder->created(entity, continuous_view.get(entity));
@@ -477,6 +482,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
                     ctx->m_delta_builder->created(entity, collision_view.get<AABB>(entity));
                     ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));
+                }
+
+                if (exclusion_view.contains(entity)) {
+                    ctx->m_delta_builder->created(entity, exclusion_view.get(entity));
                 }
 
                 if (static_view.contains(entity)) {

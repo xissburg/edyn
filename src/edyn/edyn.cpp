@@ -123,14 +123,38 @@ void set_should_collide(entt::registry &registry, should_collide_func_t func) {
     registry.ctx<island_coordinator>().settings_changed();
 }
 
+bool manifold_exists(entt::registry &registry, entt::entity first, entt::entity second) {
+    return manifold_exists(registry, entity_pair{first, second});
+}
+
 bool manifold_exists(entt::registry &registry, entity_pair entities) {
     auto &manifold_map = registry.ctx<contact_manifold_map>();
     return manifold_map.contains(entities);
 }
 
+entt::entity get_manifold_entity(entt::registry &registry, entt::entity first, entt::entity second) {
+    return get_manifold_entity(registry, entity_pair{first, second});
+}
+
 entt::entity get_manifold_entity(entt::registry &registry, entity_pair entities) {
     auto &manifold_map = registry.ctx<contact_manifold_map>();
     return manifold_map.get(entities);
+}
+
+static
+void exclude_collision_one_way(entt::registry &registry, entt::entity first, entt::entity second) {
+    auto &exclusion = registry.get_or_emplace<collision_exclusion>(first);
+    EDYN_ASSERT(exclusion.num_entities + 1 < collision_exclusion::max_exclusions);
+    exclusion.entity[exclusion.num_entities++] = second;
+}
+
+void exclude_collision(entt::registry &registry, entt::entity first, entt::entity second) {
+    exclude_collision_one_way(registry, first, second);
+    exclude_collision_one_way(registry, second, first);
+}
+
+void exclude_collision(entt::registry &registry, entity_pair entities) {
+    exclude_collision(registry, entities.first, entities.second);
 }
 
 }

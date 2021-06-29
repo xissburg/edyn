@@ -218,12 +218,12 @@ entity_pair_vector broadphase_main::intersect_island_np(const tree_view &island_
     return results;
 }
 
-bool broadphase_main::should_collide(entt::entity e0, entt::entity e1) const {
+bool broadphase_main::should_collide(entt::entity first, entt::entity second) const {
     // Entities should never be equal because they should come from
     // different islands at this point.
-    EDYN_ASSERT(e0 != e1);
+    EDYN_ASSERT(first != second);
     auto &settings = m_registry->ctx<edyn::settings>();
-    return (*settings.should_collide_func)(*m_registry, e0, e1);
+    return (*settings.should_collide_func)(*m_registry, first, second);
 }
 
 }

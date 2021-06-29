@@ -1,3 +1,4 @@
+
 #ifndef EDYN_PARALLEL_ENTITY_COMPONENT_CONTAINER_HPP
 #define EDYN_PARALLEL_ENTITY_COMPONENT_CONTAINER_HPP
 
@@ -9,6 +10,7 @@
 #include "edyn/parallel/merge/merge_contact_manifold.hpp"
 #include "edyn/parallel/merge/merge_constraint.hpp"
 #include "edyn/parallel/merge/merge_tree_view.hpp"
+#include "edyn/parallel/merge/merge_collision_exclusion.hpp"
 
 namespace edyn {
 
