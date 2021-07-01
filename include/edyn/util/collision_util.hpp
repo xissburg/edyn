@@ -119,7 +119,7 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
         auto &cp = cp_view.template get<contact_point>(point_entity);
         ++cp.lifetime;
 
-        auto nearest_idx =  SIZE_MAX;
+        auto nearest_idx = SIZE_MAX;
 
         if (tire) {
             nearest_idx = find_nearest_contact_tire(cp, result);
@@ -180,7 +180,8 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
                 distances[i] = local_points[i].point.distance;
             }
 
-            insert_idx = insert_index(pivots, distances, num_points, rp.pivotA, rp.distance);
+            insert_idx = insert_index(pivots, distances, num_points, rp.pivotA,
+                                      rp.distance, tire_view.contains(manifold.body[0]));
 
             // No closest point found for pivotA, try pivotB.
             if (insert_idx >= num_points) {
@@ -188,7 +189,8 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
                     pivots[i] = local_points[i].point.pivotB;
                 }
 
-                insert_idx = insert_index(pivots, distances, num_points, rp.pivotB, rp.distance);
+                insert_idx = insert_index(pivots, distances, num_points, rp.pivotB,
+                                          rp.distance, tire_view.contains(manifold.body[1]));
             }
         }
 

@@ -6,7 +6,7 @@
 #include "edyn/config/constants.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/quaternion.hpp"
-#include "edyn/math/vector2.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/array.hpp"
 
@@ -224,14 +224,23 @@ size_t insert_index(const std::array<vector3, N> &points,
                     const std::array<scalar, N> &depths,
                     size_t num_points,
                     const vector3 &new_point,
-                    scalar new_point_depth) {
+                    scalar new_point_depth,
+                    bool use_yz) {
     EDYN_ASSERT(num_points <= N);
     const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
 
     // Look for a similar point.
-    for (size_t i = 0; i < num_points; ++i) {
-        if (distance_sqr(points[i], new_point) < max_dist_similar_sqr) {
-            return i;
+    if (use_yz) {
+        for (size_t i = 0; i < num_points; ++i) {
+            if (distance_sqr(to_vector2_zy(points[i]), to_vector2_zy(new_point)) < max_dist_similar_sqr) {
+                return i;
+            }
+        }
+    } else {
+        for (size_t i = 0; i < num_points; ++i) {
+            if (distance_sqr(points[i], new_point) < max_dist_similar_sqr) {
+                return i;
+            }
         }
     }
 

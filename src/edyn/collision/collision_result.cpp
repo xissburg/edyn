@@ -17,7 +17,7 @@ void collision_result::maybe_add_point(const collision_result::collision_point &
         distances[i] = point[i].distance;
     }
 
-    auto idx = insert_index(pivots, distances, num_points, new_point.pivotA, new_point.distance);
+    auto idx = insert_index(pivots, distances, num_points, new_point.pivotA, new_point.distance, false);
 
     // No closest point found for pivotA, try pivotB.
     if (idx >= num_points) {
@@ -25,7 +25,7 @@ void collision_result::maybe_add_point(const collision_result::collision_point &
             pivots[i] = point[i].pivotB;
         }
 
-        idx = insert_index(pivots, distances, num_points, new_point.pivotB, new_point.distance);
+        idx = insert_index(pivots, distances, num_points, new_point.pivotB, new_point.distance, false);
     }
 
     if (idx < max_contacts) {

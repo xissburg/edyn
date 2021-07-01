@@ -4,7 +4,7 @@
 
 namespace edyn {
 
-void collide(const cylinder_shape &shA, const sphere_shape &shB, 
+void collide(const cylinder_shape &shA, const sphere_shape &shB,
              const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
@@ -28,7 +28,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
         const auto d = p - posB;
         const auto l2 = length_sqr(d);
         const auto min_dist = shA.radius + shB.radius + threshold;
-    
+
         if (l2 > min_dist * min_dist) {
             return;
         }
@@ -41,6 +41,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
         auto normalB = rotate(conjugate(ornB), normal);
         auto distance = l - shA.radius - shB.radius;
         result.add_point({pivotA, pivotB, normalB, distance});
+        return;
     }
 
     const auto dpos = t < 0.5 ? p0 : p1;
