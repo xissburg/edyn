@@ -12,6 +12,7 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
@@ -341,6 +342,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto manifold_view = m_registry->view<contact_manifold>();
     auto cp_view = m_registry->view<contact_point>();
     auto contact_view = m_registry->view<contact_constraint>();
+    auto patch_view = m_registry->view<contact_patch_constraint>();
     auto impulse_view = m_registry->view<constraint_impulse>();
 
     // Calculate total number of certain kinds of entities to later reserve
@@ -373,6 +375,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto mass_view = m_registry->view<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>();
     auto acc_view = m_registry->view<linacc>();
     auto material_view = m_registry->view<material>();
+    auto tire_view = m_registry->view<tire_material>();
     auto continuous_view = m_registry->view<continuous>();
     auto procedural_view = m_registry->view<procedural_tag>();
     auto external_view = m_registry->view<external_tag>();
@@ -431,6 +434,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
             if (material_view.contains(entity)) {
                 ctx->m_delta_builder->created(entity, material_view.get(entity));
+            }
+
+            if (tire_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, tire_view.get(entity));
             }
 
             if (collision_view.contains(entity)) {
@@ -546,6 +553,9 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
                 if (contact_view.contains(point_entity)) {
                     ctx->m_delta_builder->created(point_entity, contact_view.get(point_entity));
+                    ctx->m_delta_builder->created(point_entity, impulse_view.get(point_entity));
+                } else if (patch_view.contains(point_entity)) {
+                    ctx->m_delta_builder->created(point_entity, patch_view.get(point_entity));
                     ctx->m_delta_builder->created(point_entity, impulse_view.get(point_entity));
                 }
 
@@ -769,6 +779,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
+        if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_patch_constraint>) return;
 
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 

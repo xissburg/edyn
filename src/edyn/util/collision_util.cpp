@@ -82,7 +82,6 @@ void create_contact_constraint(entt::registry &registry,
         contact.m_load_sensitivity = tire->load_sensitivity;
         contact.m_lat_tread_stiffness = tire->lat_tread_stiffness;
         contact.m_lon_tread_stiffness = tire->lon_tread_stiffness;
-
     } else {
         auto &contact = make_constraint<contact_constraint>(contact_entity, registry, cp.body[0], cp.body[1], is_graph_edge);
         contact.stiffness = stiffness;

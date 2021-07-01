@@ -52,6 +52,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
         if (cp.distance > 0) {
             con.clear();
+            cache.con_num_rows.push_back(0);
             return;
         }
 

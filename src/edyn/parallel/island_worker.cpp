@@ -246,6 +246,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
+        if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_patch_constraint>) return;
 
         if (!m_entity_map.has_rem(remote_entity)) return;
 
@@ -264,7 +265,8 @@ void island_worker::on_island_delta(const island_delta &delta) {
     // them if they were just created in the last step of the island where it's
     // coming from.
     auto cp_view = m_registry.view<contact_point>();
-    auto cc_view = m_registry.view<contact_constraint>();
+    auto contact_view = m_registry.view<contact_constraint>();
+    auto patch_view = m_registry.view<contact_patch_constraint>();
     delta.created_for_each<contact_point>(index_source, [&] (entt::entity remote_entity, const contact_point &) {
         if (!m_entity_map.has_rem(remote_entity)) {
             return;
@@ -272,7 +274,8 @@ void island_worker::on_island_delta(const island_delta &delta) {
 
         auto local_entity = m_entity_map.remloc(remote_entity);
 
-        if (cc_view.contains(local_entity)) {
+        if (contact_view.contains(local_entity) ||
+            patch_view.contains(local_entity)) {
             return;
         }
 
