@@ -3,8 +3,6 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
-#include "edyn/comp/present_orientation.hpp"
-#include "edyn/comp/present_position.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/parallel/message.hpp"

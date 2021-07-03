@@ -11,6 +11,8 @@ struct spin_angle : public scalar_comp {
     long count {0}; // Number of complete spins (2π rad).
 };
 
+struct present_spin_angle : public scalar_comp {};
+
 struct delta_spin : public scalar_comp {};
 
 }

@@ -78,6 +78,7 @@ set(Edyn_SOURCES
     src/edyn/sys/update_aabbs.cpp
     src/edyn/sys/update_rotated_meshes.cpp
     src/edyn/sys/update_inertias.cpp
+    src/edyn/sys/update_presentation.cpp
     src/edyn/util/rigidbody.cpp
     src/edyn/util/spring_util.cpp
     src/edyn/util/tire_util.cpp

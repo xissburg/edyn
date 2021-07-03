@@ -287,7 +287,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
 
 template<>
 void iterate_constraints<tirecarcass_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto con_view = registry.view<tirecarcass_constraint>();
+    /* auto con_view = registry.view<tirecarcass_constraint>();
     auto row_idx = registry.ctx<row_start_index_tirecarcass_constraint>().value;
 
     con_view.each([&] (tirecarcass_constraint &con) {
@@ -343,7 +343,7 @@ void iterate_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
         }
 
         row_idx += 10;
-    });
+    }); */
 }
 
 }

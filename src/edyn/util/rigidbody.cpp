@@ -78,6 +78,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     if (def.presentation && def.kind == rigidbody_kind::rb_dynamic) {
         registry.emplace<present_position>(entity, def.position);
         registry.emplace<present_orientation>(entity, def.orientation);
+
+        if (def.spin_enabled) {
+            registry.emplace<present_spin_angle>(entity, def.spin_angle);
+        }
     }
 
     if (auto opt = def.shape) {
