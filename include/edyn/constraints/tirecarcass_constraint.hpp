@@ -22,9 +22,6 @@ struct tirecarcass_constraint : public constraint_base {
 template<>
 void prepare_constraints<tirecarcass_constraint>(entt::registry &, row_cache &, scalar dt);
 
-template<>
-void iterate_constraints<tirecarcass_constraint>(entt::registry &, row_cache &, scalar dt);
-
 }
 
 #endif // EDYN_CONSTRAINTS_TIRECARCASS_CONSTRAINT_HPP

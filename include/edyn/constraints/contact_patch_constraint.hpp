@@ -66,9 +66,6 @@ struct contact_patch_constraint : public constraint_base {
 template<>
 void prepare_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);
 
-template<>
-void iterate_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);
-
 }
 
 #endif // EDYN_CONSTRAINTS_CONTACT_PATCH_CONSTRAINT
