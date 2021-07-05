@@ -41,12 +41,10 @@ void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_ca
         auto spinvelA = axisA * spinA;
         auto spinvelB = axisB * spinB;
 
-        EDYN_ASSERT(!(con.m_ratio < 0));
-
         auto error = con.calculate_offset(registry) - con.m_offset_origin;
         auto relvel = spinA - spinB * con.m_ratio;
         auto force = error * con.m_stiffness + relvel * con.m_damping;
-        auto impulse = con.m_ratio < EDYN_EPSILON ? edyn::scalar(0) : std::abs(force) * dt;
+        auto impulse = std::abs(con.m_ratio) < EDYN_EPSILON ? edyn::scalar(0) : std::abs(force) * dt;
 
         auto &row = cache.rows.emplace_back();
         row.J = {vector3_zero, axisA, vector3_zero, -axisB * con.m_ratio};
