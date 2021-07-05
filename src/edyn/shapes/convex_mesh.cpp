@@ -118,7 +118,7 @@ void convex_mesh::validate() const {
             auto ij = indices[first + j];
             auto &vj = vertices[ij];
 
-            EDYN_ASSERT(std::abs(dot(vj - v0, normal)) < EDYN_EPSILON);
+            EDYN_ASSERT(std::abs(dot(vj - v0, normal)) < edyn::scalar(0.001));
         }
     }
 
@@ -131,7 +131,7 @@ void convex_mesh::validate() const {
 
         // All vertices must lie behind the plane parallel to the face.
         for (auto &vj : vertices) {
-            EDYN_ASSERT(dot(vj - v0, normal) < EDYN_EPSILON);
+            EDYN_ASSERT(dot(vj - v0, normal) < edyn::scalar(0.001));
         }
     }
 }

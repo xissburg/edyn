@@ -1,5 +1,4 @@
 #include "edyn/sys/update_presentation.hpp"
-#include <entt/entity/registry.hpp>
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -9,6 +8,7 @@
 #include "edyn/comp/spin.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
