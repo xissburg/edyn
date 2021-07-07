@@ -522,6 +522,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
         if (continuous_contacts_view.contains(entity)) {
             ctx->m_delta_builder->created(entity, continuous_contacts_tag{});
         }
+
+        ctx->m_delta_builder->created(entity, rigidbody_tag{});
     }
 
     for (auto entity : edges) {
@@ -536,7 +538,6 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
         if (manifold_view.contains(entity)) {
             auto &manifold = manifold_view.get(entity);
             ctx->m_delta_builder->created(entity, manifold);
-            ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
 
             auto num_points = manifold.num_points();
 
@@ -568,9 +569,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
                     void(0)), ...);
             }, constraints_tuple);
 
-            ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
             ctx->m_delta_builder->created(entity, impulse_view.get(entity));
         }
+
+        ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
 
         ctx->m_delta_builder->created_external(entity, *m_registry);
     }
