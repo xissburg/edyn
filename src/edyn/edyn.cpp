@@ -157,4 +157,27 @@ void exclude_collision(entt::registry &registry, entity_pair entities) {
     exclude_collision(registry, entities.first, entities.second);
 }
 
+vector3 get_gravity(entt::registry &registry) {
+    return registry.ctx<settings>().gravity;
+}
+
+void set_gravity(entt::registry &registry, vector3 gravity) {
+    registry.ctx<settings>().gravity = gravity;
+
+    auto view = registry.view<linacc, procedural_tag, rigidbody_tag>();
+    view.each([&] (entt::entity entity, linacc &acc) {
+        acc = gravity;
+        refresh<linacc>(registry, entity);
+    });
+}
+
+unsigned get_solver_iterations(entt::registry &registry) {
+    return registry.ctx<settings>().num_solver_iterations;
+}
+
+void set_solver_iterations(entt::registry &registry, unsigned iterations) {
+    registry.ctx<settings>().num_solver_iterations = iterations;
+    registry.ctx<island_coordinator>().set_solver_iterations(iterations);
+}
+
 }

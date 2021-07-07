@@ -6,7 +6,10 @@
 namespace edyn {
 
 struct linacc : public vector3 {
-    
+    linacc & operator=(const vector3 &v) {
+        vector3::operator=(v);
+        return *this;
+    }
 };
 
 }

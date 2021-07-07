@@ -20,6 +20,7 @@
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/context/settings.hpp"
 
 namespace edyn {
 
@@ -56,8 +57,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<angvel>(entity, def.angvel);
     }
 
-    if (def.gravity != vector3_zero && def.kind == rigidbody_kind::rb_dynamic) {
-        registry.emplace<linacc>(entity, def.gravity);
+    auto gravity = def.gravity ? *def.gravity : registry.ctx<settings>().gravity;
+
+    if (gravity != vector3_zero && def.kind == rigidbody_kind::rb_dynamic) {
+        registry.emplace<linacc>(entity, gravity);
     }
 
     if (!def.sensor) {

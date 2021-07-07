@@ -14,6 +14,10 @@ struct set_fixed_dt {
     scalar dt;
 };
 
+struct set_solver_iterations {
+    unsigned iterations;
+};
+
 struct set_settings {
     edyn::settings settings;
 };

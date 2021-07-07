@@ -256,6 +256,36 @@ void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
     graph.visit_edges(node.node_index, func);
 }
 
+/**
+ * @brief Get default gravity.
+ * This value is assigned as the gravitational acceleration for all new rigid bodies.
+ * @param registry Data source.
+ * @return Gravity acceleration vector.
+ */
+vector3 get_gravity(entt::registry &registry);
+
+/**
+ * @brief Changes the default gravity acceleration.
+ * This value is assigned as the gravitational acceleration for all new rigid bodies.
+ * @param registry Data source.
+ * @param gravity The new default gravity acceleration.
+ */
+void set_gravity(entt::registry &registry, vector3 gravity);
+
+/**
+ * @brief Get the number of constraint solver iterations.
+ * @param registry Data source.
+ * @return Number of solver iterations.
+ */
+unsigned get_solver_iterations(entt::registry &registry);
+
+/**
+ * @brief Set the number of constraint solver iterations.
+ * @param registry Data source.
+ * @param iterations Number of solver iterations.
+ */
+void set_solver_iterations(entt::registry &registry, unsigned iterations);
+
 }
 
 #endif // EDYN_EDYN_HPP

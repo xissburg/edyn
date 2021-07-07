@@ -66,6 +66,8 @@ public:
 
     void set_fixed_dt(scalar dt);
 
+    void set_solver_iterations(unsigned iterations);
+
     // Call when settings have changed in the registry's context. It will
     // propagate changes to island workers.
     void settings_changed();
