@@ -1,10 +1,10 @@
 #include "../common/common.hpp"
-#include <edyn/sys/integrate_linacc.hpp>
+#include <edyn/sys/apply_gravity.hpp>
 
-TEST(integrate_linacc, test) {
+TEST(apply_gravity, test) {
     entt::registry registry;
     auto ent = registry.create();
-    registry.emplace<edyn::linacc>(ent, edyn::gravity_earth);
+    registry.emplace<edyn::gravity>(ent, edyn::gravity_earth);
     registry.emplace<edyn::linvel>(ent, edyn::vector3_zero);
 
     // Only dynamic entities have their velocity updated.
@@ -14,7 +14,7 @@ TEST(integrate_linacc, test) {
     const size_t n = 10;
 
     for (size_t i = 0; i < n; ++i) {
-        edyn::integrate_linacc(registry, dt);
+        edyn::apply_gravity(registry, dt);
     }
 
     auto& linvel = registry.get<edyn::linvel>(ent);

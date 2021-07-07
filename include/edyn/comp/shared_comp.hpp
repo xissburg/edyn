@@ -2,7 +2,7 @@
 #define EDYN_SHARED_COMP_HPP
 
 #include "edyn/comp/aabb.hpp"
-#include "edyn/comp/linacc.hpp"
+#include "edyn/comp/gravity.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/mass.hpp"
@@ -38,7 +38,7 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     inertia,
     inertia_inv,
     inertia_world_inv,
-    linacc,
+    gravity,
     angvel,
     linvel,
     mass,

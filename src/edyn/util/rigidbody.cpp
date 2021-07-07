@@ -7,7 +7,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
-#include "edyn/comp/linacc.hpp"
+#include "edyn/comp/gravity.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/material.hpp"
@@ -60,7 +60,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     auto gravity = def.gravity ? *def.gravity : registry.ctx<settings>().gravity;
 
     if (gravity != vector3_zero && def.kind == rigidbody_kind::rb_dynamic) {
-        registry.emplace<linacc>(entity, gravity);
+        registry.emplace<edyn::gravity>(entity, gravity);
     }
 
     if (!def.sensor) {

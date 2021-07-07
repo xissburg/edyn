@@ -164,11 +164,12 @@ vector3 get_gravity(entt::registry &registry) {
 void set_gravity(entt::registry &registry, vector3 gravity) {
     registry.ctx<settings>().gravity = gravity;
 
-    auto view = registry.view<linacc, procedural_tag, rigidbody_tag>();
-    view.each([&] (entt::entity entity, linacc &acc) {
-        acc = gravity;
-        refresh<linacc>(registry, entity);
-    });
+    auto view = registry.view<edyn::gravity, procedural_tag, rigidbody_tag>();
+
+    for (auto entity : view) {
+        view.get<edyn::gravity>(entity) = gravity;
+        refresh<edyn::gravity>(registry, entity);
+    }
 }
 
 unsigned get_solver_iterations(entt::registry &registry) {

@@ -370,7 +370,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto tr_view = m_registry->view<position, orientation>();
     auto vel_view = m_registry->view<linvel, angvel>();
     auto mass_view = m_registry->view<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>();
-    auto acc_view = m_registry->view<linacc>();
+    auto gravity_view = m_registry->view<gravity>();
     auto material_view = m_registry->view<material>();
     auto continuous_view = m_registry->view<continuous>();
     auto procedural_view = m_registry->view<procedural_tag>();
@@ -419,8 +419,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
             ctx->m_delta_builder->created(entity, mass_view.get<inertia_inv>(entity));
             ctx->m_delta_builder->created(entity, mass_view.get<inertia_world_inv>(entity));
 
-            if (acc_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, acc_view.get(entity));
+            if (gravity_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, gravity_view.get(entity));
             }
 
             if (material_view.contains(entity)) {
