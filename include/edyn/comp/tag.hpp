@@ -3,6 +3,7 @@
 
 namespace edyn {
 
+struct rigidbody_tag {};
 struct dynamic_tag {};
 struct kinematic_tag {};
 struct static_tag {};
