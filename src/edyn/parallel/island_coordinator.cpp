@@ -373,7 +373,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto mass_view = m_registry->view<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>();
     auto gravity_view = m_registry->view<gravity>();
     auto material_view = m_registry->view<material>();
-    auto tire_view = m_registry->view<tire_material>();
+    auto tire_view = m_registry->view<tire_material, tire_state>();
     auto continuous_view = m_registry->view<continuous>();
     auto procedural_view = m_registry->view<procedural_tag>();
     auto external_view = m_registry->view<external_tag>();
@@ -435,7 +435,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
             }
 
             if (tire_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, tire_view.get(entity));
+                ctx->m_delta_builder->created(entity, tire_view.get<tire_material>(entity));
+                ctx->m_delta_builder->created(entity, tire_view.get<tire_state>(entity));
             }
 
             if (collision_view.contains(entity)) {
