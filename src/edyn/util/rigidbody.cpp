@@ -8,7 +8,7 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/spin.hpp"
-#include "edyn/comp/linacc.hpp"
+#include "edyn/comp/gravity.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/material.hpp"
@@ -23,6 +23,7 @@
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/edyn.hpp"
 
 namespace edyn {
 
@@ -59,8 +60,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<angvel>(entity, def.angvel);
     }
 
-    if (def.gravity != vector3_zero && def.kind == rigidbody_kind::rb_dynamic) {
-        registry.emplace<linacc>(entity, def.gravity);
+    auto gravity = def.gravity ? *def.gravity : get_gravity(registry);
+
+    if (gravity != vector3_zero && def.kind == rigidbody_kind::rb_dynamic) {
+        registry.emplace<edyn::gravity>(entity, gravity);
     }
 
     if (!def.sensor) {

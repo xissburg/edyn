@@ -371,7 +371,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto vel_view = m_registry->view<linvel, angvel>();
     auto spin_view = m_registry->view<spin, spin_angle>();
     auto mass_view = m_registry->view<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>();
-    auto acc_view = m_registry->view<linacc>();
+    auto gravity_view = m_registry->view<gravity>();
     auto material_view = m_registry->view<material>();
     auto tire_view = m_registry->view<tire_material>();
     auto continuous_view = m_registry->view<continuous>();
@@ -421,8 +421,8 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
             ctx->m_delta_builder->created(entity, mass_view.get<inertia_inv>(entity));
             ctx->m_delta_builder->created(entity, mass_view.get<inertia_world_inv>(entity));
 
-            if (acc_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, acc_view.get(entity));
+            if (gravity_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, gravity_view.get(entity));
             }
 
             if (spin_view.contains(entity)) {
@@ -937,6 +937,13 @@ void island_coordinator::set_fixed_dt(scalar dt) {
     for (auto &pair : m_island_ctx_map) {
         auto &ctx = pair.second;
         ctx->send<msg::set_fixed_dt>(dt);
+    }
+}
+
+void island_coordinator::set_solver_iterations(unsigned iterations) {
+    for (auto &pair : m_island_ctx_map) {
+        auto &ctx = pair.second;
+        ctx->send<msg::set_solver_iterations>(iterations);
     }
 }
 

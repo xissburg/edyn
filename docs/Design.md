@@ -23,16 +23,16 @@ registry.emplace<edyn::mass>(entity, mass);
 auto &box = registry.emplace<edyn::box_shape>(entity, edyn::vector3{0.5, 0.2, 0.4});
 registry.emplace<edyn::inertia>(entity, edyn::moment_of_inertia(box, mass));
 registry.emplace<edyn::material>(entity, 0.2, 0.9); // Restitution and friction.
-registry.emplace<edyn::linacc>(entity, edyn::gravity_earth);
+registry.emplace<edyn::gravity>(entity, edyn::gravity_earth);
 ```
 
 There's no explicit mention of a rigid body in the code, but during the physics update all entities that have a combination of the components assigned above will be treated as a rigid body and their state will be update over time as expected. The update may be carried as follows:
 
 ```cpp
 // Apply gravity acceleration, increasing linear velocity
-auto view = registry.view<edyn::linvel, const edyn::linacc, const edyn::dynamic_tag>();
-view.each([&dt] (auto entity, edyn::linvel &vel, const edyn::linacc &acc, [[maybe_unused]] auto) {
-  vel += acc * dt;
+auto view = registry.view<edyn::linvel, const edyn::gravity, const edyn::dynamic_tag>();
+view.each([&dt] (auto entity, edyn::linvel &vel, const edyn::gravity &g, [[maybe_unused]] auto) {
+  vel += g * dt;
 });
 // ...
 // Move entity with its linear velocity

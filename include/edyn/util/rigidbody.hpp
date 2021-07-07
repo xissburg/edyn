@@ -42,8 +42,9 @@ struct rigidbody_def {
     vector3 angvel {vector3_zero};
     scalar spin {0};
 
-    // Gravity acceleration.
-    vector3 gravity {gravity_earth};
+    // Gravity acceleration. If not set, the default value from
+    // `edyn::get_gravity` will be assigned.
+    std::optional<vector3> gravity;
 
     // Optional shape for collidable entities.
     std::optional<shapes_variant_t> shape;
