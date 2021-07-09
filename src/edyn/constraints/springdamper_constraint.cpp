@@ -43,33 +43,35 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
         ctrl_arm_dir /= ctrl_arm_len;
 
         auto chassis_z = rotate(ornA, vector3_z);
-        auto n = cross(chassis_z, ctrl_arm_dir) * con.m_side;
-
-        auto p = cross(rA, n);
-        auto q = cross(rB, n);
-
         auto ctrl_arm_x = ctrl_arm_dir * con.m_side;
         auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
         auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
         auto ctrl_arm_pivot_rel = ctrl_arm_basis * con.m_ctrl_arm_pivot;
-        auto coilover_dir = pA - (ctrl_armA + ctrl_arm_pivot_rel);
+        auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
+        auto coilover_dir = pA - ctrl_arm_pivot;
         auto distance = length(coilover_dir);
         coilover_dir /= distance;
         auto spring_len = distance - con.m_spring_offset - con.m_spring_perch_offset - con.m_damper_body_offset - con.m_spring_divider_length;
-        auto error = spring_len - (con.m_spring_rest_length + con.m_second_spring_rest_length);
+        auto rest_len = con.m_spring_rest_length + con.m_second_spring_rest_length;
+        auto error = rest_len - spring_len;
 
-        auto inclination = std::abs(dot(n, coilover_dir));
+        auto d = pA - pB;
+        auto p = cross(rA, d);
+        auto q = cross(rB, d);
+
+        auto inclination = std::abs(dot(cross(chassis_z, ctrl_arm_dir) * con.m_side, coilover_dir));
 
         // Spring.
         {
-            auto spring_impulse = con.m_stiffness_curve.get(-error) * inclination * dt;
+            auto spring_force = con.m_stiffness_curve.get(error) * inclination;
+            auto spring_impulse = spring_force * dt;
             auto &row = cache.rows.emplace_back();
-            row.J = {n, p, -n, -q};
-            row.lower_limit = 0;
+            row.J = {d, p, -d, -q};
+            row.lower_limit = 0; // Spring doesn't pull. Spring only pushes.
             row.upper_limit = std::max(scalar(0), spring_impulse);
 
             auto options = constraint_row_options{};
-            options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
+            options.error = scalar(0.5) * (spring_len * spring_len - rest_len * rest_len) / dt;
 
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -99,7 +101,7 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
             auto impulse = std::abs(damping_force) * dt;
 
             auto &row = cache.rows.emplace_back();
-            row.J = {n, p, -n, -q};
+            row.J = {d, p, -d, -q};
             row.lower_limit = -impulse;
             row.upper_limit =  impulse;
 
@@ -111,15 +113,13 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
 
             prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
             warm_start(row);
-
-            // con.m_relspd = relspd;
         }
 
         // Damper piston limit when it fully extends.
         {
             auto error = distance - (con.m_piston_rod_length + con.m_damper_body_length + con.m_damper_body_offset);
             auto &row = cache.rows.emplace_back();
-            row.J = {n, p, -n, -q};
+            row.J = {d, p, -d, -q};
             row.lower_limit = -large_scalar;
             row.upper_limit = 0;
 

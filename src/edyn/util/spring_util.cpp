@@ -32,7 +32,7 @@ linear_curve spring_stiffness_curve(scalar primary_stiffness, scalar primary_max
     return curve;
 }
 
-scalar spring_preload(const linear_curve& curve, 
+scalar spring_preload(const linear_curve& curve,
                       scalar piston_rod_length,
                       scalar damper_body_length,
                       scalar damper_body_offset,
