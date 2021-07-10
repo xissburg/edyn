@@ -21,12 +21,8 @@ linear_curve spring_stiffness_curve(scalar primary_stiffness, scalar primary_max
 
         auto max_defl = primary_max_defl + secondary_max_defl;
         curve.add(max_defl, primary_max_defl * primary_stiffness);
-        curve.add(max_defl + 0.01, 1e6);
-        curve.add(max_defl + 1, 1e6);
     } else {
         curve.add(primary_max_defl, primary_max_defl * primary_stiffness);
-        curve.add(primary_max_defl + 0.01, 1e6);
-        curve.add(primary_max_defl + 1, 1e6);
     }
 
     return curve;

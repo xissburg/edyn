@@ -9,9 +9,6 @@
 namespace edyn {
 
 struct springdamper_constraint : public constraint_base {
-    // Which side the coilover is located: 1 left, -1 right.
-    scalar m_side;
-
     linear_curve m_stiffness_curve;
 
     vector3 m_pivotA;
