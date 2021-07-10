@@ -84,7 +84,7 @@ inline matrix3x3 operator*(scalar s, const matrix3x3& m) {
 // Add one matrix to another.
 inline matrix3x3 & operator+=(matrix3x3 &m, const matrix3x3 &n) {
     m.row[0] += n.row[0];
-    m.row[1] += n.row[1]; 
+    m.row[1] += n.row[1];
     m.row[2] += n.row[2];
     return m;
 }
@@ -98,8 +98,8 @@ inline matrix3x3 operator-=(matrix3x3 &m, const matrix3x3 &n) {
 }
 
 // Create a matrix with the given column vectors.
-inline matrix3x3 matrix3x3_columns(const vector3 &v0, 
-                                   const vector3 &v1, 
+inline matrix3x3 matrix3x3_columns(const vector3 &v0,
+                                   const vector3 &v1,
                                    const vector3 &v2) {
     return {
         vector3{v0.x, v1.x, v2.x},
@@ -175,7 +175,11 @@ inline matrix3x3 diagonal_matrix(const vector3 &v) {
         vector3 {v.x, 0, 0},
         vector3 {0, v.y, 0},
         vector3 {0, 0, v.z}
-    }; 
+    };
+}
+
+inline vector3 get_diagonal(const matrix3x3 &m) {
+    return {m[0][0], m[1][1], m[2][2]};
 }
 
 // Equivalent to m * diagonal_matrix(v).
@@ -235,7 +239,7 @@ inline quaternion to_quaternion(const matrix3x3 &m) {
     temp[j] = t * (m[j][i] - m[i][j]);
     temp[k] = t * (m[k][i] - m[i][k]);
     temp[3] = t * (m[k][j] - m[j][k]);
-    
+
     return {temp[0], temp[1], temp[2], temp[3]};
 }
 
