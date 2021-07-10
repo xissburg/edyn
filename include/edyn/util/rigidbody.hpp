@@ -132,6 +132,24 @@ void clear_kinematic_velocities(entt::registry &);
 
 bool validate_rigidbody(entt::entity &, entt::registry &);
 
+/**
+ * @brief Set the mass of a rigid body.
+ * Propagates changes across island workers.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param mass The new rigid body mass.
+ */
+void set_rigidbody_mass(entt::registry &, entt::entity, scalar mass);
+
+/**
+ * @brief Set the moment of inertia of a rigid body.
+ * Propagates changes across island workers.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param inertia The new moment of inertia.
+ */
+void set_rigidbody_inertia(entt::registry &, entt::entity, const matrix3x3 &inertia);
+
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP

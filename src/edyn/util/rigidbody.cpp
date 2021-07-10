@@ -21,6 +21,7 @@
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/edyn.hpp"
 
 namespace edyn {
 
@@ -33,9 +34,9 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     registry.emplace<orientation>(entity, def.orientation);
 
     if (def.kind == rigidbody_kind::rb_dynamic) {
-        EDYN_ASSERT(def.mass > 0);
+        EDYN_ASSERT(def.mass > EDYN_EPSILON && def.mass < large_scalar);
         registry.emplace<mass>(entity, def.mass);
-        registry.emplace<mass_inv>(entity, def.mass < EDYN_SCALAR_MAX ? scalar(1.0 / def.mass) : scalar(0));
+        registry.emplace<mass_inv>(entity, scalar(1) / def.mass);
         registry.emplace<inertia>(entity, def.inertia);
 
         auto I_inv = inverse_matrix_symmetric(def.inertia);
@@ -206,6 +207,24 @@ void clear_kinematic_velocities(entt::registry &registry) {
 
 bool validate_rigidbody(entt::entity entity, entt::registry &registry) {
     return registry.has<position, orientation, linvel, angvel>(entity);
+}
+
+void set_rigidbody_mass(entt::registry &registry, entt::entity entity, scalar mass) {
+    EDYN_ASSERT(mass > EDYN_EPSILON && mass < large_scalar);
+    EDYN_ASSERT(registry.has<dynamic_tag>(entity));
+    EDYN_ASSERT(registry.has<rigidbody_tag>(entity));
+    registry.replace<edyn::mass>(entity, mass);
+    registry.replace<edyn::mass_inv>(entity, scalar(1.0) / mass);
+    refresh<edyn::mass, edyn::mass_inv>(registry, entity);
+}
+
+void set_rigidbody_inertia(entt::registry &registry, entt::entity entity, const matrix3x3 &inertia) {
+    EDYN_ASSERT(registry.has<dynamic_tag>(entity));
+    EDYN_ASSERT(registry.has<rigidbody_tag>(entity));
+    auto I_inv = inverse_matrix_symmetric(inertia);
+    registry.replace<edyn::inertia>(entity, inertia);
+    registry.replace<edyn::inertia_inv>(entity, I_inv);
+    refresh<edyn::inertia, edyn::inertia_inv>(registry, entity);
 }
 
 }
