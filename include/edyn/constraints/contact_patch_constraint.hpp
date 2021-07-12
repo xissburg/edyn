@@ -13,6 +13,9 @@
 namespace edyn {
 
 struct contact_patch_constraint : public constraint_base {
+    static constexpr size_t bristles_per_row = 10;
+    static constexpr size_t num_tread_rows = 3;
+
     struct brush_bristle {
         vector3 pivotA;
         vector3 pivotB;
@@ -24,13 +27,11 @@ struct contact_patch_constraint : public constraint_base {
     };
 
     struct tread_row {
-        scalar prev_contact_angle {0};
         scalar prev_row_half_angle {0};
-        long prev_spin_count {0};
         scalar tread_width;
         scalar tread_area;
         scalar patch_half_length;
-        std::map<size_t, brush_bristle> bristles;
+        std::array<brush_bristle, bristles_per_row> bristles;
     };
 
     scalar m_normal_stiffness {100000};
@@ -51,13 +52,14 @@ struct contact_patch_constraint : public constraint_base {
     scalar m_sliding_spd_avg;
     scalar m_contact_len_avg;
     scalar m_contact_width;
+    scalar m_contact_angle;
+    long m_spin_count {0};
 
     scalar m_normal_relspd;
     scalar m_lon_damping;
     scalar m_lat_damping;
     scalar m_aligning_damping;
 
-    static constexpr size_t num_tread_rows = 3;
     std::array<tread_row, num_tread_rows> m_tread_rows{};
 
     void clear();
@@ -65,6 +67,9 @@ struct contact_patch_constraint : public constraint_base {
 
 template<>
 void prepare_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);
+
+template<>
+void iterate_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

@@ -54,9 +54,6 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
         auto coilover_dir = coiloverA - ctrl_arm_pivot;
         auto coilover_len = length(coilover_dir);
         coilover_dir /= coilover_len;
-        auto spring_len = coilover_len - con.m_spring_offset - con.m_spring_perch_offset - con.m_damper_body_offset - con.m_spring_divider_length;
-        auto rest_len = con.m_spring_rest_length + con.m_second_spring_rest_length;
-        auto error = rest_len - spring_len;
 
         // Apply corrective impulse at the wheel pivot along the direction
         // normal to the control arm.
@@ -78,6 +75,9 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
 
         // Spring.
         {
+            auto spring_len = coilover_len - con.m_spring_offset - con.m_spring_perch_offset - con.m_damper_body_offset - con.m_spring_divider_length;
+            auto rest_len = con.m_spring_rest_length + con.m_second_spring_rest_length;
+            auto error = rest_len - spring_len;
             auto spring_force = con.m_stiffness_curve.get(error) * lever_term;
             auto spring_impulse = spring_force * dt;
             auto &row = cache.rows.emplace_back();
