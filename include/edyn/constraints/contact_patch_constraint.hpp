@@ -17,8 +17,6 @@ struct contact_patch_constraint : public constraint_base {
     static constexpr size_t num_tread_rows = 3;
 
     struct brush_bristle {
-        vector3 pivotA;
-        vector3 pivotB;
         vector3 root;
         vector3 tip;
         vector3 deflection;
@@ -28,7 +26,6 @@ struct contact_patch_constraint : public constraint_base {
 
     struct tread_row {
         scalar prev_row_half_angle {0};
-        scalar tread_width;
         scalar tread_area;
         scalar patch_half_length;
         std::array<brush_bristle, bristles_per_row> bristles;
@@ -61,8 +58,6 @@ struct contact_patch_constraint : public constraint_base {
     scalar m_aligning_damping;
 
     std::array<tread_row, num_tread_rows> m_tread_rows{};
-
-    void clear();
 };
 
 template<>

@@ -86,13 +86,12 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.Mz = (imp.values[6] + imp.values[7]) / dt;
 
                 for (size_t i = 0; i < contact_patch.m_tread_rows.size(); ++i) {
-                    tire_cs.tread_states[i].clear();
-
-                    for (auto &pair : contact_patch.m_tread_rows[i].bristles) {
-                        auto &bristle = pair.second;
-                        tire_cs.tread_states[i].emplace_back(tire_tread_state{
+                    for (size_t j = 0; j < contact_patch.m_tread_rows[i].bristles.size(); ++j) {
+                        auto &bristle = contact_patch.m_tread_rows[i].bristles[j];
+                        tire_cs.tread_states[i][j] = tire_tread_state{
                             bristle.root, bristle.tip,
-                            bristle.friction, bristle.sliding_spd});
+                            bristle.friction, bristle.sliding_spd
+                        };
                     }
                 }
             }

@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/constraints/contact_patch_constraint.hpp"
 
 namespace edyn {
@@ -37,8 +38,13 @@ struct tire_contact_state {
     vector3 position;
     vector3 lin_vel;
 
-    std::array<std::vector<tire_tread_state>, 
-        contact_patch_constraint::num_tread_rows> tread_states;
+    std::array<
+        std::array<
+            tire_tread_state,
+            contact_patch_constraint::bristles_per_row
+        >,
+        contact_patch_constraint::num_tread_rows
+    > tread_states;
 };
 
 struct tire_state {
