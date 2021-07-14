@@ -28,7 +28,6 @@ struct contact_patch_constraint : public constraint_base {
 
     struct tread_row {
         scalar prev_row_half_angle {0};
-        scalar tread_area {0};
         scalar patch_half_length {0};
         vector3 start_posB;
         vector3 end_posB;
@@ -68,9 +67,6 @@ void initialize_contact_patch_constraint(entt::registry &, entt::entity);
 
 template<>
 void prepare_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);
-
-template<>
-void iterate_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 
