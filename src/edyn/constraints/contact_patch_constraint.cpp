@@ -391,23 +391,57 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 auto tread_length = (bristle_idx == 0 ? scalar(0.5) : scalar(1)) * scalar(2) * row_half_length / scalar(bristles_per_row);
                 auto tread_area = tread_width * tread_length;
 
-
                 // TODO: handle anysotropic stiffness.
                 // The force is calculated as an integral from the previous deflection until the
                 // current along the row.
                 auto bristle_defl = bristle_root - bristle_tip;
-                auto spring_force = con.m_lon_tread_stiffness * tread_area *
-                                    (prev_bristle_defl + bristle_defl) * scalar(0.5);
-                auto max_friction_force = bristle.friction * normal_pressure * tread_area;
+                auto bristle_pressure = con.m_lon_tread_stiffness * length(bristle_defl);
+                auto max_friction_pressure = bristle.friction * normal_pressure;
+                auto spring_force = vector3_zero;
+
+                if (!(bristle_pressure > max_friction_pressure)) {
+                    spring_force = con.m_lon_tread_stiffness * tread_area * (prev_bristle_defl + bristle_defl) * scalar(0.5);
+                } else {
+                    auto max_defl = max_friction_pressure / con.m_lon_tread_stiffness;
+                    auto v0 = prev_bristle_defl;
+                    auto v1 = bristle_defl;
+                    auto s = scalar(0);
+                    auto a = scalar(-2) * dot(v0, v1);
+
+                    if (std::abs(a) > EDYN_EPSILON) {
+                        auto b = dot(v1, v1) + scalar(2) * dot(v0, v1) - dot(v0, v0);
+                        auto c = dot(v0, v0) - max_defl * max_defl;
+                        auto d = b * b - scalar(4) * a * c;
+                        s = (-b + std::sqrt(d)) / (scalar(2) * a);
+                    } else {
+                        s = max_defl * max_defl / dot(v1, v1);
+                    }
+
+                    auto midpoint_defl = lerp(prev_bristle_defl, bristle_defl, s);
+                    auto bristle_dir = normalize(bristle_defl);
+                    bristle_defl = bristle_dir * max_defl;
+
+                    auto area0 = tread_area * s;
+                    auto area1 = tread_area * (1 - s);
+                    auto f0 = con.m_lon_tread_stiffness * area0 * (prev_bristle_defl + midpoint_defl) * scalar(0.5);
+                    auto f1 = con.m_lon_tread_stiffness * area1 * (midpoint_defl + bristle_defl) * scalar(0.5);
+                    spring_force = f0 + f1;
+
+                    bristle_tip = bristle_root - bristle_defl;
+
+                    // Move pivot in B to match new tip location.
+                    bristle.pivotB = to_object_space(bristle_tip, posB, ornB);
+                }
 
                 // Bristle deflection force is greater than maximum friction force
                 // for the current normal load, which means the bristle must slide.
                 // Thus, move the bristle tip closer to its root so that the
                 // tangential deflection force is equals to the friction force.
-                if (length_sqr(spring_force) > max_friction_force * max_friction_force) {
+                /* if (length_sqr(spring_force) > max_friction_force * max_friction_force) {
                     auto error = length(bristle_defl); EDYN_ASSERT(error > 0);
                     auto dir = bristle_defl / error;
-                    auto max_tread_defl = bristle.friction * normal_pressure / con.m_lon_tread_stiffness;
+                    auto max_tread_defl = (scalar(2) * max_friction_force - con.m_lon_tread_stiffness * tread_area * length(prev_bristle_defl)) /
+                                          (con.m_lon_tread_stiffness * tread_area);
                     bristle_defl = dir * max_tread_defl;
                     spring_force = con.m_lon_tread_stiffness * tread_area *
                                     (prev_bristle_defl + bristle_defl) * scalar(0.5);
@@ -415,7 +449,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
                     // Move pivot in B to match new tip location.
                     bristle.pivotB = to_object_space(bristle_tip, posB, ornB);
-                }
+                } */
 
                 // Calculate bristle tip velocity by subtracting current from previous
                 // position and dividing by the elapsed time.

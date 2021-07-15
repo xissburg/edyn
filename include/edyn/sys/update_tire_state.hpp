@@ -14,14 +14,14 @@ namespace edyn {
 inline
 void update_tire_state(entt::registry &registry, scalar dt) {
     auto ts_view = registry.view<graph_node, tire_state>();
-    auto orn_view = registry.view<orientation>();
+    auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<linvel, angvel>();
     auto &graph = registry.ctx<entity_graph>();
 
     ts_view.each([&] (auto entity, graph_node &node, tire_state &ts) {
         ts.other_entity = entt::null;
 
-        auto &ornA = orn_view.get(entity);
+        auto &ornA = tr_view.get<orientation>(entity);
         auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(entity);
 
         const auto &spinA = registry.get<spin>(entity);
@@ -41,7 +41,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 return;
             }
 
-            auto ornB = orn_view.get(manifold->body[1]);
+            auto [posB, ornB] = tr_view.get<position, orientation>(manifold->body[1]);
             auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(manifold->body[1]);
 
             for (size_t i = 0; i < manifold->num_points(); ++i) {
@@ -86,9 +86,12 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.Mz = (imp.values[6] + imp.values[7]) / dt;
 
                 for (size_t i = 0; i < contact_patch.m_tread_rows.size(); ++i) {
+                    tire_cs.tread_rows[i].start_pos = to_world_space(contact_patch.m_tread_rows[i].start_posB, posB, ornB);
+                    tire_cs.tread_rows[i].end_pos = to_world_space(contact_patch.m_tread_rows[i].end_posB, posB, ornB);
+
                     for (size_t j = 0; j < contact_patch.m_tread_rows[i].bristles.size(); ++j) {
                         auto &bristle = contact_patch.m_tread_rows[i].bristles[j];
-                        tire_cs.tread_states[i][j] = tire_tread_state{
+                        tire_cs.tread_rows[i].bristles[j] = tire_bristle_state{
                             bristle.root, bristle.tip,
                             bristle.friction, bristle.sliding_spd
                         };

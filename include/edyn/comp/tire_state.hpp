@@ -11,11 +11,17 @@
 
 namespace edyn {
 
-struct tire_tread_state {
+struct tire_bristle_state {
     vector3 root;
     vector3 tip;
     scalar friction;
     scalar sliding_spd;
+};
+
+struct tire_tread_row_state {
+    vector3 start_pos;
+    vector3 end_pos;
+    std::array<tire_bristle_state, contact_patch_constraint::bristles_per_row> bristles;
 };
 
 struct tire_contact_state {
@@ -38,13 +44,7 @@ struct tire_contact_state {
     vector3 position;
     vector3 lin_vel;
 
-    std::array<
-        std::array<
-            tire_tread_state,
-            contact_patch_constraint::bristles_per_row
-        >,
-        contact_patch_constraint::num_tread_rows
-    > tread_states;
+    std::array<tire_tread_row_state, contact_patch_constraint::num_tread_rows> tread_rows;
 };
 
 struct tire_state {
