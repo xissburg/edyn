@@ -237,13 +237,6 @@ insertion_point_result insertion_point_index(const std::array<vector3, N> &point
     EDYN_ASSERT(num_points <= N);
     const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
 
-    // Look for a similar point.
-    for (size_t i = 0; i < num_points; ++i) {
-        if (distance_sqr(points[i], new_point) < max_dist_similar_sqr) {
-            return {point_insertion_type::similar, i};
-        }
-    }
-
     // Return the index after last to signal the insertion of a new point.
     if (num_points < N) {
         return {point_insertion_type::append, num_points++};
@@ -289,7 +282,9 @@ insertion_point_result insertion_point_index(const std::array<vector3, N> &point
     }
 
     if (max_area_idx < max_contacts) {
-        return {point_insertion_type::replace, max_area_idx};
+        auto type = distance_sqr(points[max_area_idx], new_point) < max_dist_similar_sqr ?
+                    point_insertion_type::similar : point_insertion_type::replace;
+        return {type, max_area_idx};
     }
 
     // Ignore new point because the current contact set is better as it is.
