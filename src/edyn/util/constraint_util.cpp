@@ -7,6 +7,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/spin.hpp"
+#include "edyn/comp/tire_material.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
@@ -55,7 +56,15 @@ entt::entity make_contact_manifold(entt::registry &registry, entt::entity body0,
 }
 
 void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
-    EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
+    EDYN_ASSERT(registry.has<rigidbody_tag>(body0) && registry.has<rigidbody_tag>(body1));
+    // One of the bodies must be dynamic.
+    EDYN_ASSERT(registry.has<dynamic_tag>(body0) || registry.has<dynamic_tag>(body1));
+
+    // Tire must be in the first entry. This is an assumption made by the `contact_patch_constraint`.
+    if (registry.has<tire_material>(body1)) {
+        std::swap(body0, body1);
+    }
+
     registry.emplace<procedural_tag>(manifold_entity);
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
 

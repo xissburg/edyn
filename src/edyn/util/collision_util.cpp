@@ -63,19 +63,7 @@ void create_contact_constraint(entt::registry &registry,
         // to generate friction forces.
         EDYN_ASSERT(stiffness < large_scalar);
 
-        // Swap entities to ensure the tire/cylinder is in the first entity.
-        auto body0 = entt::entity{};
-        auto body1 = entt::entity{};
-
-        if (registry.has<cylinder_shape>(cp.body[0])) {
-            body0 = cp.body[0];
-            body1 = cp.body[1];
-        } else {
-            body0 = cp.body[1];
-            body1 = cp.body[0];
-        }
-
-        auto &contact = make_constraint<contact_patch_constraint>(contact_entity, registry, body0, body1, is_graph_edge);
+        auto &contact = make_constraint<contact_patch_constraint>(contact_entity, registry, cp.body[0], cp.body[1], is_graph_edge);
         contact.m_normal_stiffness = stiffness;
         contact.m_normal_damping = damping;
         contact.m_speed_sensitivity = tire->speed_sensitivity;
