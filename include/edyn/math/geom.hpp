@@ -217,36 +217,41 @@ void support_point_vertices(const std::array<vector3, N> &vertices,
     }
 }
 
-scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, const vector3& p3);
+scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3);
+
+enum class point_insertion_type {
+    none,
+    similar,
+    append,
+    replace
+};
+
+struct insertion_point_result {
+    point_insertion_type type;
+    size_t index;
+};
 
 template<size_t N> inline
-size_t insert_index(const std::array<vector3, N> &points,
-                    const std::array<scalar, N> &depths,
-                    size_t num_points,
-                    const vector3 &new_point,
-                    scalar new_point_depth,
-                    bool use_yz) {
+insertion_point_result insertion_point_index(const std::array<vector3, N> &points,
+                                             const std::array<scalar, N> &depths,
+                                             size_t &num_points,
+                                             const vector3 &new_point,
+                                             scalar new_point_depth,
+                                             bool use_yz) {
     EDYN_ASSERT(num_points <= N);
     const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
 
-    // Look for a similar point.
     if (use_yz) {
         for (size_t i = 0; i < num_points; ++i) {
             if (distance_sqr(to_vector2_zy(points[i]), to_vector2_zy(new_point)) < max_dist_similar_sqr) {
-                return i;
-            }
-        }
-    } else {
-        for (size_t i = 0; i < num_points; ++i) {
-            if (distance_sqr(points[i], new_point) < max_dist_similar_sqr) {
-                return i;
+                return {point_insertion_type::similar, i};
             }
         }
     }
 
     // Return the index after last to signal the insertion of a new point.
     if (num_points < N) {
-        return num_points;
+        return {point_insertion_type::append, num_points++};
     }
 
     // Find deepest point and don't replace it.
@@ -289,11 +294,14 @@ size_t insert_index(const std::array<vector3, N> &points,
     }
 
     if (max_area_idx < max_contacts) {
-        return max_area_idx;
+        auto replace_pt = points[max_area_idx];
+        auto dist_sqr = use_yz ? distance_sqr(to_vector2_zy(replace_pt), to_vector2_zy(new_point)) : distance_sqr(replace_pt, new_point);
+        auto type = dist_sqr < max_dist_similar_sqr ? point_insertion_type::similar : point_insertion_type::replace;
+        return {type, max_area_idx};
     }
 
     // Ignore new point because the current contact set is better as it is.
-    return N;
+    return {point_insertion_type::none, N};
 }
 
 /**

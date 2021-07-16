@@ -720,7 +720,7 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
     return 0;
 }
 
-scalar area_4_points(const vector3& p0, const vector3& p1, const vector3& p2, const vector3& p3) {
+scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3) {
 	vector3 a[3], b[3];
 	a[0] = p0 - p1;
 	a[1] = p0 - p2;

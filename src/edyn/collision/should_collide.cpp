@@ -6,7 +6,7 @@
 namespace edyn {
 
 static
-bool should_exclude(entt::registry &registry, entt::entity first, entt::entity second) {
+bool should_exclude(const entt::registry &registry, entt::entity first, entt::entity second) {
     if (auto *exclusion = registry.try_get<collision_exclusion>(first)) {
         for (unsigned i = 0; i < exclusion->num_entities; ++i) {
             if (exclusion->entity[i] == second) {
@@ -18,14 +18,13 @@ bool should_exclude(entt::registry &registry, entt::entity first, entt::entity s
     return false;
 }
 
-bool should_collide_default(entt::registry &registry, entt::entity first, entt::entity second) {
+bool should_collide_default(const entt::registry &registry, entt::entity first, entt::entity second) {
     if (first == second) {
         return false;
     }
 
-    auto view = registry.view<collision_filter>();
-    auto &filter0 = view.get(first);
-    auto &filter1 = view.get(second);
+    auto &filter0 = registry.get<collision_filter>(first);
+    auto &filter1 = registry.get<collision_filter>(second);
 
     if ((filter0.group & filter1.mask) == 0 ||
         (filter1.group & filter0.mask) == 0) {

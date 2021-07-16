@@ -17,23 +17,19 @@ void collision_result::maybe_add_point(const collision_result::collision_point &
         distances[i] = point[i].distance;
     }
 
-    auto idx = insert_index(pivots, distances, num_points, new_point.pivotA, new_point.distance, false);
+    auto res = insertion_point_index(pivots, distances, num_points, new_point.pivotA, new_point.distance, false);
 
     // No closest point found for pivotA, try pivotB.
-    if (idx >= num_points) {
+    if (res.type == point_insertion_type::none) {
         for (size_t i = 0; i < num_points; ++i) {
             pivots[i] = point[i].pivotB;
         }
 
-        idx = insert_index(pivots, distances, num_points, new_point.pivotB, new_point.distance, false);
+        res = insertion_point_index(pivots, distances, num_points, new_point.pivotB, new_point.distance, false);
     }
 
-    if (idx < max_contacts) {
-        if (idx == num_points) {
-            EDYN_ASSERT(num_points < max_contacts);
-            ++num_points;
-        }
-        point[idx] = new_point;
+    if (res.type != point_insertion_type::none) {
+        point[res.index] = new_point;
     }
 }
 

@@ -98,11 +98,17 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
     auto [posB, ornB] = tr_view.template get<position, orientation>(manifold.body[1]);
 
     tire_material *tire = nullptr;
+    auto is_tireA = false;
+    auto is_tireB = false;
 
     if (tire_view.contains(manifold.body[0])) {
         tire = &tire_view.get(manifold.body[0]);
-    } else if (tire_view.contains(manifold.body[1])) {
+        is_tireA = true;
+    }
+
+    if (tire_view.contains(manifold.body[1])) {
         tire = &tire_view.get(manifold.body[1]);
+        is_tireB = true;
     }
 
     // Merge new with existing contact points.
@@ -147,18 +153,24 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
     struct local_contact_point {
         collision_result::collision_point point;
         entt::entity entity {entt::null};
-        bool replaced {false};
-        bool inserted {false};
+        point_insertion_type type {point_insertion_type::none};
     };
 
     // Start with current manifold points.
     auto local_points = std::array<local_contact_point, max_contacts>{};
     auto num_points = manifold.num_points();
 
-    for (size_t i = 0; i < num_points; ++i) {
-        auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
-        local_points[i].point = {cp.pivotA, cp.pivotB, cp.normalB, cp.distance};
-        local_points[i].entity = manifold.point[i];
+    if (num_points > 0) {
+        for (size_t i = 0; i < num_points; ++i) {
+            auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
+            local_points[i].point = {cp.pivotA, cp.pivotB, cp.normalB, cp.distance};
+            local_points[i].entity = manifold.point[i];
+        }
+    } else {
+        ++num_points;
+        local_points[0].point = result.point[0];
+        local_points[0].type = point_insertion_type::append;
+        merged_indices[0] = true;
     }
 
     // Insert the remaining result points seeking to maximize the contact area.
@@ -168,72 +180,82 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
         }
 
         auto &rp = result.point[pt_idx];
-        auto insert_idx = num_points;
 
-        if (insert_idx == max_contacts) {
-            // Look for a point to be replaced. Try pivotA first.
-            std::array<vector3, max_contacts> pivots;
-            std::array<scalar, max_contacts> distances;
+        // Look for a point to be replaced. Try pivotA first.
+        // Note that `insertion_point_index` will increment `num_points`
+        // for the caller if it determines this is a new point that must be
+        // appended, i.e. `res.type` will be `point_insertion_type::append`.
+        std::array<vector3, max_contacts> pivots;
+        std::array<scalar, max_contacts> distances;
 
-            for (size_t i = 0; i < num_points; ++i) {
-                pivots[i] = local_points[i].point.pivotA;
-                distances[i] = local_points[i].point.distance;
-            }
-
-            insert_idx = insert_index(pivots, distances, num_points, rp.pivotA,
-                                      rp.distance, tire_view.contains(manifold.body[0]));
-
-            // No closest point found for pivotA, try pivotB.
-            if (insert_idx >= num_points) {
-                for (size_t i = 0; i < num_points; ++i) {
-                    pivots[i] = local_points[i].point.pivotB;
-                }
-
-                insert_idx = insert_index(pivots, distances, num_points, rp.pivotB,
-                                          rp.distance, tire_view.contains(manifold.body[1]));
-            }
+        for (size_t i = 0; i < num_points; ++i) {
+            pivots[i] = local_points[i].point.pivotA;
+            distances[i] = local_points[i].point.distance;
         }
 
-        if (insert_idx < max_contacts) {
-            auto is_new_contact = insert_idx == num_points;
+        auto res = insertion_point_index(pivots, distances, num_points, rp.pivotA, rp.distance, is_tireA);
 
-            if (is_new_contact) {
-                auto idx = num_points++;
-                local_points[idx].point = rp;
-                local_points[idx].inserted = true;
-            } else {
-                local_points[insert_idx].point = rp;
-                local_points[insert_idx].replaced = true;
+        // No closest point found for pivotA, try pivotB.
+        if (res.type == point_insertion_type::none) {
+            for (size_t i = 0; i < num_points; ++i) {
+                pivots[i] = local_points[i].point.pivotB;
             }
+
+            res = insertion_point_index(pivots, distances, num_points, rp.pivotB, rp.distance, is_tireB);
+        }
+
+        if (res.type != point_insertion_type::none) {
+            local_points[res.index].point = rp;
+            local_points[res.index].type = res.type;
         }
     }
 
     // Assign some points to manifold and replace others.
     for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
-        if (local_points[pt_idx].inserted) {
+        auto &local_pt = local_points[pt_idx];
+        switch (local_pt.type) {
+        case point_insertion_type::append:
             // Notify creation of a new point if it was inserted. It could have
             // been replaced after being inserted in the steps above, but in
             // either case, it's still a new point.
-            new_point_func(local_points[pt_idx].point);
-        } else if (local_points[pt_idx].replaced) {
+            new_point_func(local_pt.point);
+            break;
+        case point_insertion_type::similar:
+            // It was replaced by a similar point, thus merge.
+            // There is the possibility that this point actually replaced a similar
+            // point which is new and is not in the manifold yet, i.e. the collision
+            // result has two or more points that are very close to one another.
+            // Create a new point in that case.
+            if (local_pt.entity == entt::null) {
+                new_point_func(local_pt.point);
+            } else {
+                merge_point(local_pt.point, cp_view.get(local_pt.entity));
+            }
+            break;
+        case point_insertion_type::replace:
             // If it was replaced, the old point must be destroyed and a new
             // point must be created.
-            auto point_entity = local_points[pt_idx].entity;
-            EDYN_ASSERT(point_entity != entt::null);
-            auto num_manifold_points = manifold.num_points();
+            // There is a chance the replaced point is actually one of the new
+            // and thus there's no real point to be destroyed.
+            if (local_pt.entity != entt::null) {
+                auto num_manifold_points = manifold.num_points();
 
-            for (size_t i = 0; i < num_manifold_points; ++i) {
-                if (manifold.point[i] == point_entity) {
-                    // Assign last to i-th and set last to null.
-                    size_t last_idx = num_manifold_points - 1;
-                    manifold.point[i] = manifold.point[last_idx];
-                    manifold.point[last_idx] = entt::null;
-                    break;
+                for (size_t i = 0; i < num_manifold_points; ++i) {
+                    if (manifold.point[i] == local_pt.entity) {
+                        // Assign last to i-th and set last to null.
+                        size_t last_idx = num_manifold_points - 1;
+                        manifold.point[i] = manifold.point[last_idx];
+                        manifold.point[last_idx] = entt::null;
+                        break;
+                    }
                 }
-            }
 
-            destroy_point_func(point_entity);
-            new_point_func(local_points[pt_idx].point);
+                destroy_point_func(local_pt.entity);
+            }
+            new_point_func(local_pt.point);
+            break;
+        default:
+            break;
         }
     }
 }

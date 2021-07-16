@@ -97,15 +97,22 @@ static void collide_box_triangle(
                                  tri_feature, tri_feature_index,
                                  proj_tri, support_feature_tolerance);
 
-    sep_axis = clip_triangle_separating_axis(sep_axis, mesh, tri_idx, tri_vertices, tri_normal, tri_feature, tri_feature_index);
+    // Adjust separating axis to keep in the closest feature's Voronoi region.
+    auto new_sep_axis = clip_triangle_separating_axis(sep_axis, mesh, tri_idx,
+                                                      tri_vertices, tri_normal,
+                                                      tri_feature, tri_feature_index);
 
-    if (sep_axis == vector3_zero) {
+    if (new_sep_axis == vector3_zero) {
+        // Closest feature must be ignored.
         return;
     }
 
-    get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
-                                 tri_feature, tri_feature_index,
-                                 proj_tri, support_feature_tolerance);
+    if (new_sep_axis != sep_axis) {
+        sep_axis = new_sep_axis;
+        get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
+                                     tri_feature, tri_feature_index,
+                                     proj_tri, support_feature_tolerance);
+    }
 
     box_feature box_feature;
     size_t feature_indexA;
