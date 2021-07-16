@@ -5,7 +5,7 @@
 
 namespace edyn {
 
-bool should_collide_default(entt::registry &, entt::entity, entt::entity);
+bool should_collide_default(const entt::registry &, entt::entity, entt::entity);
 
 }
 

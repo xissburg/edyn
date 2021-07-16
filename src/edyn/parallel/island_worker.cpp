@@ -62,6 +62,11 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     m_registry.set<entity_graph>();
     m_registry.set<edyn::settings>(settings);
 
+    // Avoid multi-threading issues in the `should_collide` function by
+    // pre-allocating the pools required in there.
+    m_registry.prepare<collision_filter>();
+    m_registry.prepare<collision_exclusion>();
+
     m_solver.iterations = settings.num_solver_iterations;
 
     m_island_entity = m_registry.create();
