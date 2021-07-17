@@ -376,6 +376,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto procedural_view = m_registry->view<procedural_tag>();
     auto external_view = m_registry->view<external_tag>();
     auto static_view = m_registry->view<static_tag>();
+    auto sleeping_disabled_view = m_registry->view<sleeping_disabled_tag>();
     auto continuous_contacts_view = m_registry->view<continuous_contacts_tag>();
     auto collision_view = m_registry->view<shape_index, AABB, collision_filter>();
     auto exclusion_view = m_registry->view<collision_exclusion>();
@@ -437,6 +438,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
                 ctx->m_delta_builder->created(entity, collision_view.get<AABB>(entity));
                 ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));
+            }
+
+            if (sleeping_disabled_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, sleeping_disabled_tag{});
             }
 
             if (exclusion_view.contains(entity)) {
