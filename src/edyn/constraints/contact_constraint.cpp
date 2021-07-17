@@ -40,7 +40,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto &imp = imp_view.get(entity);
 
-        auto normal = rotate(ornB, cp.normalB);
+        auto normal = cp.normal;
         auto rA = rotate(ornA, cp.pivotA);
         auto rB = rotate(ornB, cp.pivotB);
         auto vA = linvelA + cross(angvelA, rA);

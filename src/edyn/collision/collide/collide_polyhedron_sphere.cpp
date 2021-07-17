@@ -52,16 +52,16 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
     bool inside_face = !closest_point_polygon(polygon, posB_plane, closest);
 
     if (inside_face) {
-        auto normalB = rotate(conjugate(ornB), sep_axis);
         auto pivotA = project_plane(posB, polygon.origin, sep_axis);
+        auto normalB = rotate(conjugate(ornB), sep_axis);
         auto pivotB = normalB * shB.radius;
-        result.add_point({pivotA, pivotB, normalB, distance});
+        result.add_point({pivotA, pivotB, sep_axis, distance});
         return;
     }
 
     // Sphere is closer to an edge or vertex. Calculate new separating axis
     // and recalculate distance.
-    auto pivotA = to_world_space(to_vector3_xz(closest), 
+    auto pivotA = to_world_space(to_vector3_xz(closest),
                                  polygon.origin, polygon.basis);
     auto new_sep_axis = pivotA - posB;
     auto new_sep_axis_len_sqr = length_sqr(new_sep_axis);
@@ -82,10 +82,10 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
     auto normalB = rotate(conjugate(ornB), new_sep_axis);
     auto pivotB = normalB * shB.radius;
 
-    result.add_point({pivotA, pivotB, normalB, distance});
+    result.add_point({pivotA, pivotB, new_sep_axis, distance});
 }
 
-void collide(const sphere_shape &shA, const polyhedron_shape &shB, 
+void collide(const sphere_shape &shA, const polyhedron_shape &shB,
              const collision_context &ctx, collision_result &result) {
     swap_collide(shA, shB, ctx, result);
 }

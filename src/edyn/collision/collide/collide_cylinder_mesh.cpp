@@ -135,8 +135,6 @@ void collide_cylinder_triangle(
     cylinder.support_feature(posA, ornA, -sep_axis, cyl_feature, cyl_feature_index,
                              support_feature_tolerance);
 
-    auto normalB = rotate(conjugate(ctx.ornB), sep_axis);
-
     if (cyl_feature == cylinder_feature::face && tri_feature == triangle_feature::face) {
         size_t num_vertices_in_face = 0;
         auto sign_faceA = to_sign(cyl_feature_index == 0);
@@ -152,7 +150,7 @@ void collide_cylinder_triangle(
             auto pivotA = to_object_space(vertex, posA, ornA);
             pivotA.x = cylinder.half_length * sign_faceA;
             auto pivotB = vertex;
-            result.maybe_add_point({pivotA, pivotB, normalB, distance});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
 
             ++num_vertices_in_face;
         }
@@ -179,7 +177,7 @@ void collide_cylinder_triangle(
 
             auto local_distance = dot(pivotA_world - tri_vertices[0], tri_normal);
             auto pivotB = pivotA_world - tri_normal * local_distance;
-            result.maybe_add_point({pivotA, pivotB, normalB, local_distance});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
         }
 
         // Check if circle and triangle edges intersect.
@@ -239,7 +237,7 @@ void collide_cylinder_triangle(
             auto local_distance = (pivotA.x - pivotA_x) * sign_faceA;
             pivotA.x = pivotA_x;
             auto pivotB = lerp(edge_vertices[0], edge_vertices[1], t);
-            result.maybe_add_point({pivotA, pivotB, normalB, local_distance});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
         }
     } else if (cyl_feature == cylinder_feature::face && tri_feature == triangle_feature::vertex) {
         auto vertex = tri_vertices[tri_feature_index];
@@ -250,7 +248,7 @@ void collide_cylinder_triangle(
             auto pivotA = to_object_space(vertex, posA, ornA);
             pivotA.x = cylinder.half_length * to_sign(cyl_feature_index == 0);
             auto pivotB = vertex;
-            result.maybe_add_point({pivotA, pivotB, normalB, distance});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     } else if (cyl_feature == cylinder_feature::side_edge && tri_feature == triangle_feature::face) {
         // Check if edge vertices are inside triangle face.
@@ -364,7 +362,7 @@ void collide_cylinder_triangle(
         if (!(length_sqr(cross(dir, sep_axis)) > EDYN_EPSILON)) {
             auto pivotA = to_object_space(supportA, posA, ornA);
             auto pivotB = supportA - sep_axis * distance;
-            result.maybe_add_point({pivotA, pivotB, normalB, distance});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
         }
     }
 }

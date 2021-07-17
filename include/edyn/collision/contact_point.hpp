@@ -11,9 +11,9 @@ namespace edyn {
 
 struct contact_point {
     std::array<entt::entity, 2> body {entt::null, entt::null};
-    vector3 pivotA;
-    vector3 pivotB;
-    vector3 normalB;
+    vector3 pivotA; // A's pivot in object space.
+    vector3 pivotB; // B's pivot in object space.
+    vector3 normal; // Normal in world space.
     scalar friction;
     scalar restitution;
     uint32_t lifetime {0};

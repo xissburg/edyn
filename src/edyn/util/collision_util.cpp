@@ -17,15 +17,14 @@ void update_contact_distances(entt::registry &registry) {
         auto [posB, ornB] = tr_view.get<position, orientation>(cp.body[1]);
         auto pivotA_world = posA + rotate(ornA, cp.pivotA);
         auto pivotB_world = posB + rotate(ornB, cp.pivotB);
-        auto normal_world = rotate(ornB, cp.normalB);
-        cp.distance = dot(normal_world, pivotA_world - pivotB_world);
+        cp.distance = dot(cp.normal, pivotA_world - pivotB_world);
     });
 }
 
 void merge_point(const collision_result::collision_point &rp, contact_point &cp) {
     cp.pivotA = rp.pivotA;
     cp.pivotB = rp.pivotB;
-    cp.normalB = rp.normalB;
+    cp.normal = rp.normal;
     cp.distance = rp.distance;
 }
 
@@ -94,7 +93,7 @@ entt::entity create_contact_point(entt::registry& registry,
         manifold.body,
         rp.pivotA, // pivotA
         rp.pivotB, // pivotB
-        rp.normalB, // normalB
+        rp.normal, // normal
         scalar{}, // friction
         scalar{}, // restitution
         uint32_t{0}, // lifetime
@@ -125,7 +124,7 @@ bool maybe_remove_point(contact_manifold &manifold, const contact_point &cp, siz
     // Remove separating contact points.
     auto pA = posA + rotate(ornA, cp.pivotA);
     auto pB = posB + rotate(ornB, cp.pivotB);
-    auto n = rotate(ornB, cp.normalB);
+    auto n = cp.normal;
     auto d = pA - pB;
     auto normal_dist = dot(d, n);
     auto tangential_dir = d - normal_dist * n; // tangential separation on contact plane

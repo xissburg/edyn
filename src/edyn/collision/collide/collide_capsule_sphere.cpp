@@ -7,7 +7,7 @@
 
 namespace edyn {
 
-void collide(const capsule_shape &shA, const sphere_shape &shB, 
+void collide(const capsule_shape &shA, const sphere_shape &shB,
              const collision_context &ctx, collision_result &result) {
     auto capsule_vertices = shA.get_vertices(ctx.posA, ctx.ornA);
     vector3 closest; scalar t;
@@ -37,7 +37,7 @@ void collide(const capsule_shape &shA, const sphere_shape &shB,
     auto pivotA_world = closest - normal * shA.radius;
     auto pivotA = to_object_space(pivotA_world, ctx.posA, ctx.ornA);
 
-    result.add_point({pivotA, pivotB, normalB, distance});
+    result.add_point({pivotA, pivotB, normal, distance});
 }
 
 void collide(const sphere_shape &shA, const capsule_shape &shB,

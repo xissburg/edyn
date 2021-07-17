@@ -2,7 +2,7 @@
 
 namespace edyn {
 
-void collide(const sphere_shape &shA, const sphere_shape &shB, 
+void collide(const sphere_shape &shA, const sphere_shape &shB,
              const collision_context &ctx, collision_result &result) {
     auto d = ctx.posA - ctx.posB;
     auto l2 = length_sqr(d);
@@ -21,9 +21,9 @@ void collide(const sphere_shape &shA, const sphere_shape &shB,
 
     auto pivotA = rA;
     auto pivotB = rB;
-    auto normalB = rotate(conjugate(ctx.ornB), dn);
+    auto normal = dn;
     auto distance = l - shA.radius - shB.radius;
-    result.add_point({pivotA, pivotB, normalB, distance});
+    result.add_point({pivotA, pivotB, normal, distance});
 }
 
 }

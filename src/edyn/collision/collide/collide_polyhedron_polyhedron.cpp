@@ -127,8 +127,6 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
         return;
     }
 
-    auto normalB = rotate(conjugate(ornB), sep_axis);
-
     auto polygonA = point_cloud_support_polygon(
         rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
         sep_axis, projectionA, true, support_feature_tolerance);
@@ -148,7 +146,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                 auto pivotA = to_object_space(pointA, posA, ornA);
                 auto pivotB_world = project_plane(pointA, polygonB.origin, sep_axis);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, normalB, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
             }
         }
     }
@@ -161,7 +159,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                 auto pivotB = to_object_space(pointB, posB, ornB);
                 auto pivotA_world = project_plane(pointB, polygonA.origin, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                result.maybe_add_point({pivotA, pivotB, normalB, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
             }
         }
     }
@@ -196,7 +194,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                     auto pivotB_world = lerp(polygonB.vertices[idx0B], polygonB.vertices[idx1B], t[k]);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, normalB, distance});
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
                 }
             }
         }

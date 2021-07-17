@@ -9,7 +9,7 @@
 
 namespace edyn {
 
-void collide(const box_shape &shA, const box_shape &shB, 
+void collide(const box_shape &shA, const box_shape &shB,
              const collision_context &ctx, collision_result &result) {
     // Box-Box SAT. Normal of 3 faces of A, normal of 3 faces of B, 3 * 3 edge
     // cross-products. Find axis with greatest projection.
@@ -84,7 +84,7 @@ void collide(const box_shape &shA, const box_shape &shB,
                 // Make it point towards A.
                 dir *= -1;
             }
-            
+
             auto projA = -shA.support_projection(posA, ornA, -dir);
             auto projB = shB.support_projection(posB, ornB, dir);
             auto dist = projA - projB;
@@ -111,8 +111,6 @@ void collide(const box_shape &shA, const box_shape &shB,
                         featureB, feature_indexB, projectionB,
                         support_feature_tolerance);
 
-    auto normalB = rotate(conjugate(ornB), sep_axis);
-
     if (featureA == box_feature::face && featureB == box_feature::face) {
         // Face-Face.
         auto face_verticesA = shA.get_face(feature_indexA, posA, ornA);
@@ -127,7 +125,7 @@ void collide(const box_shape &shA, const box_shape &shB,
                 auto pivot_face = project_plane(face_verticesB[i], face_verticesA[0], face_normalA);
                 auto pivotA = to_object_space(pivot_face, posA, ornA);
                 auto pivotB = to_object_space(face_verticesB[i], posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, normalB, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
             }
         }
 
@@ -138,7 +136,7 @@ void collide(const box_shape &shA, const box_shape &shB,
                 auto pivot_face = project_plane(face_verticesA[i], face_verticesB[0], face_normalB);
                 auto pivotA = to_object_space(face_verticesA[i], posA, ornA);
                 auto pivotB = to_object_space(pivot_face, posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, normalB, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
             }
         }
 
@@ -165,7 +163,7 @@ void collide(const box_shape &shA, const box_shape &shB,
                     auto q0 = project_plane(q1, face_center, face_normalA);
                     auto pivotA = to_object_space(q0, posA, ornA);
                     auto pivotB = to_object_space(q1, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, normalB, distance});
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
                 }
             }
         }
@@ -178,7 +176,7 @@ void collide(const box_shape &shA, const box_shape &shB,
                                       shB.get_face_normal(feature_indexB, ornB);
         auto face_vertices = is_faceA ? shA.get_face(feature_indexA, posA, ornA) :
                                         shB.get_face(feature_indexB, posB, ornB);
-        auto edge_vertices = is_faceA ? shB.get_edge(feature_indexB, posB, ornB) : 
+        auto edge_vertices = is_faceA ? shB.get_edge(feature_indexB, posB, ornB) :
                                         shA.get_edge(feature_indexA, posA, ornA);
 
         // Check if edge vertices are inside face.
@@ -190,7 +188,7 @@ void collide(const box_shape &shA, const box_shape &shB,
                                          to_object_space(edge_vertices[i], posA, ornA);
                 auto pivotB = is_faceA ? to_object_space(edge_vertices[i], posB, ornB) :
                                          to_object_space(pivot_face, posB, ornB);
-                result.add_point({pivotA, pivotB, normalB, distance});
+                result.add_point({pivotA, pivotB, sep_axis, distance});
             }
         }
 
@@ -218,7 +216,7 @@ void collide(const box_shape &shA, const box_shape &shB,
                 auto face_pivot = project_plane(edge_pivot, face_center, sep_axis);
                 auto pivotA = to_object_space(is_faceA ? face_pivot : edge_pivot, posA, ornA);
                 auto pivotB = to_object_space(is_faceA ? edge_pivot : face_pivot, posB, ornB);
-                result.add_point({pivotA, pivotB, normalB, distance});
+                result.add_point({pivotA, pivotB, sep_axis, distance});
             }
         }
     } else if (featureA == box_feature::edge && featureB == box_feature::edge) {
@@ -228,27 +226,27 @@ void collide(const box_shape &shA, const box_shape &shB,
         size_t num_points = 0;
         auto edgeA = shA.get_edge(feature_indexA, posA, ornA);
         auto edgeB = shB.get_edge(feature_indexB, posB, ornB);
-        closest_point_segment_segment(edgeA[0], edgeA[1], edgeB[0], edgeB[1], 
-                                      s[0], t[0], p0[0], p1[0], &num_points, 
+        closest_point_segment_segment(edgeA[0], edgeA[1], edgeB[0], edgeB[1],
+                                      s[0], t[0], p0[0], p1[0], &num_points,
                                       &s[1], &t[1], &p0[1], &p1[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
             auto pivotA = to_object_space(p0[i], posA, ornA);
             auto pivotB = to_object_space(p1[i], posB, ornB);
-            result.add_point({pivotA, pivotB, normalB, distance});
+            result.add_point({pivotA, pivotB, sep_axis, distance});
         }
     } else if (featureA == box_feature::face && featureB == box_feature::vertex) {
         // Face A, Vertex B.
         auto pivotB = shB.get_vertex(feature_indexB);
         auto pivotA = (posB + rotate(ornB, pivotB)) + sep_axis * distance;
         pivotA = to_object_space(pivotA, posA, ornA);
-        result.add_point({pivotA, pivotB, normalB, distance});
+        result.add_point({pivotA, pivotB, sep_axis, distance});
     } else if (featureB == box_feature::face && featureA == box_feature::vertex) {
         // Face B, Vertex A.
         auto pivotA = shA.get_vertex(feature_indexA);
         auto pivotB = (posA + rotate(ornA, pivotA)) - sep_axis * distance;
         pivotB = to_object_space(pivotB, posB, ornB);
-        result.add_point({pivotA, pivotB, normalB, distance});
+        result.add_point({pivotA, pivotB, sep_axis, distance});
     }
 }
 
