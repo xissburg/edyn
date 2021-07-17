@@ -51,8 +51,8 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 auto velA = linvelA + cross(spin_angvelA, rotate(ornA, cp.pivotA));
                 auto velB = linvelB + cross(angvelB, rotate(ornB, cp.pivotB));
                 auto relvel = velA - velB;
-                auto tan_relvel = project_direction(relvel, contact_patch.m_normal);
-                auto linvel_rel = project_direction(linvelA - linvelB, contact_patch.m_normal);
+                auto tan_relvel = project_direction(relvel, cp.normal);
+                auto linvel_rel = project_direction(linvelA - linvelB, cp.normal);
                 auto linspd_rel = length(linvel_rel);
                 auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : contact_patch.m_lon_dir;
 
@@ -66,14 +66,14 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 auto vx = dot(linvel_rel, contact_patch.m_lon_dir);
                 auto vsx = dot(tan_relvel, contact_patch.m_lon_dir);
                 tire_cs.slip_ratio = std::abs(vx) > 0.001 ? -vsx/vx : -vsx;
-                tire_cs.yaw_rate = dot(angvelA, contact_patch.m_normal);
+                tire_cs.yaw_rate = dot(angvelA, cp.normal);
                 tire_cs.slide_factor = contact_patch.m_sliding_spd_avg;
                 tire_cs.contact_patch_length = contact_patch.m_contact_len_avg;
                 tire_cs.contact_patch_width = contact_patch.m_contact_width;
                 tire_cs.contact_lifetime = cp.lifetime;
                 tire_cs.lat_dir = contact_patch.m_lat_dir;
                 tire_cs.lon_dir = contact_patch.m_lon_dir;
-                tire_cs.normal = contact_patch.m_normal;
+                tire_cs.normal = cp.normal;
                 tire_cs.pivot = contact_patch.m_pivot;
                 tire_cs.position = contact_patch.m_center;
                 tire_cs.lin_vel = linvel_rel;

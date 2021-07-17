@@ -27,7 +27,6 @@ void initialize_contact_patch_constraint(entt::registry &registry, entt::entity 
     auto &con = registry.get<contact_patch_constraint>(entity);
     auto &cp = registry.get<contact_point>(entity);
     auto [posA, ornA, spin_angleA] = registry.get<position, orientation, spin_angle>(con.body[0]);
-    auto &ornB = registry.get<orientation>(con.body[1]);
 
     const auto axis = quaternion_x(ornA);
     const auto normal = cp.normal;
@@ -67,7 +66,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto &imp = imp_view.get(entity);
 
-        // `A` is assume to be the tire, thus it must have spin.
+        // `A` is assumed to be the tire, thus it must have spin.
         auto spinvelA = quaternion_x(ornA) * spin_view.get(con.body[0]).s;
         auto spinvelB = vector3_zero;
 
@@ -79,8 +78,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         auto &cp = cp_view.get(entity);
 
         // Wheel spin axis in world space.
-        auto axis = quaternion_x(ornA);
-        auto normal = cp.normal;
+        const auto axis = quaternion_x(ornA);
+        const auto normal = cp.normal;
         auto &cyl = registry.get<cylinder_shape>(con.body[0]);
 
         // Calculate contact patch width.
@@ -714,7 +713,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         con.m_contact_len_avg = contact_len_avg;
         con.m_center = geometric_center;
         con.m_pivot = contact_center;
-        con.m_normal = normal;
         con.m_lat_dir = lat_dir;
         con.m_lon_dir = lon_dir;
         con.m_deflection = deflection;

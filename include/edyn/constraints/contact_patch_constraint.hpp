@@ -46,7 +46,6 @@ struct contact_patch_constraint : public constraint_base {
     vector3 m_lat_dir;
     vector3 m_pivot;
     vector3 m_center;
-    vector3 m_normal;
     scalar m_deflection {0};
     scalar m_sin_camber;
     scalar m_sliding_spd_avg;
