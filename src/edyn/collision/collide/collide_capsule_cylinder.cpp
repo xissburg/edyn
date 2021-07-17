@@ -138,8 +138,6 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         return;
     }
 
-    auto normalB = rotate(conjugate(ornB), sep_axis);
-
     scalar proj_capsule_vertices[] = {
         dot(capsule_vertices[0], sep_axis),
         dot(capsule_vertices[1], sep_axis)
@@ -171,7 +169,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
                 auto local_distance = dot(pivotA_world - pivotB_world, sep_axis);
-                result.add_point({pivotA, pivotB, normalB, local_distance});
+                result.add_point({pivotA, pivotB, sep_axis, local_distance});
             }
         } else {
             // Cylinder cap face against capsule vertex.
@@ -181,7 +179,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
             auto pivotB_world = project_plane(closest_capsule_vertex, cylinder_vertices[feature_indexB], sep_axis);
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
             auto pivotB = to_object_space(pivotB_world, posB, ornB);
-            result.add_point({pivotA, pivotB, normalB, distance});
+            result.add_point({pivotA, pivotB, sep_axis, distance});
         }
         break;
     }
@@ -199,7 +197,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         for (size_t i = 0; i < num_points; ++i) {
             auto pivotA = to_object_space(closest_capsule[i] - sep_axis * shA.radius, posA, ornA);
             auto pivotB = to_object_space(closest_cylinder[i] + sep_axis * shB.radius, posB, ornB);
-            result.add_point({pivotA, pivotB, normalB, distance});
+            result.add_point({pivotA, pivotB, sep_axis, distance});
         }
 
         break;
@@ -208,7 +206,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         auto supportB = shB.support_point(posB, ornB, sep_axis);
         auto pivotB = to_object_space(supportB, posB, ornB);
         auto pivotA = to_object_space(supportB + sep_axis * distance, posA, ornA);
-        result.add_point({pivotA, pivotB, normalB, distance});
+        result.add_point({pivotA, pivotB, sep_axis, distance});
         break;
     }
     }

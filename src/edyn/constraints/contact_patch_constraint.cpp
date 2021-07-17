@@ -30,7 +30,7 @@ void initialize_contact_patch_constraint(entt::registry &registry, entt::entity 
     auto &ornB = registry.get<orientation>(con.body[1]);
 
     const auto axis = quaternion_x(ornA);
-    const auto normal = rotate(ornB, cp.normalB);
+    const auto normal = cp.normal;
     const auto &cyl = registry.get<cylinder_shape>(con.body[0]);
     auto axis_hl = axis * cyl.half_length;
     auto sup0 = support_point_circle(posA - axis_hl, ornA, cyl.radius, -normal);
@@ -80,7 +80,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
         // Wheel spin axis in world space.
         auto axis = quaternion_x(ornA);
-        auto normal = rotate(ornB, cp.normalB);
+        auto normal = cp.normal;
         auto &cyl = registry.get<cylinder_shape>(con.body[0]);
 
         // Calculate contact patch width.

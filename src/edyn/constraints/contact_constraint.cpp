@@ -55,7 +55,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             spinvelB = quaternion_x(ornB) * scalar(s);
         }
 
-        auto normal = rotate(ornB, cp.normalB);
+        auto normal = cp.normal;
         auto rA = rotate(ornA, cp.pivotA);
         auto rB = rotate(ornB, cp.pivotB);
         auto vA = linvelA + cross(angvelA + spinvelA, rA);

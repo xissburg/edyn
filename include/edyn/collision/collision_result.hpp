@@ -13,7 +13,7 @@ struct collision_result {
     struct collision_point {
         vector3 pivotA;
         vector3 pivotB;
-        vector3 normalB;
+        vector3 normal;
         scalar distance;
     };
 
@@ -24,7 +24,7 @@ struct collision_result {
         for (size_t i = 0; i < num_points; ++i) {
             auto &cp = point[i];
             std::swap(cp.pivotA, cp.pivotB);
-            cp.normalB = rotate(conjugate(ornA), -rotate(ornB, cp.normalB));
+            cp.normal *= -1; // Point towards new A.
         }
         return *this;
     }

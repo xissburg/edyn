@@ -163,7 +163,7 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
     if (num_points > 0) {
         for (size_t i = 0; i < num_points; ++i) {
             auto &cp = cp_view.template get<contact_point>(manifold.point[i]);
-            local_points[i].point = {cp.pivotA, cp.pivotB, cp.normalB, cp.distance};
+            local_points[i].point = {cp.pivotA, cp.pivotB, cp.normal, cp.distance};
             local_points[i].entity = manifold.point[i];
         }
     } else {

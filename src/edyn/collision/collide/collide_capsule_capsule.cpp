@@ -3,7 +3,7 @@
 
 namespace edyn {
 
-void collide(const capsule_shape &shA, const capsule_shape &shB, 
+void collide(const capsule_shape &shA, const capsule_shape &shB,
              const collision_context &ctx, collision_result &result) {
     const auto &posA = ctx.posA;
     const auto &ornA = ctx.ornA;
@@ -17,12 +17,12 @@ void collide(const capsule_shape &shA, const capsule_shape &shB,
     vector3 closestA[2], closestB[2];
     size_t num_points;
 
-    auto dist_sqr = closest_point_segment_segment(verticesA[0], verticesA[1], 
-                                                  verticesB[0], verticesB[1], 
-                                                  s[0], t[0], closestA[0], closestB[0], &num_points, 
+    auto dist_sqr = closest_point_segment_segment(verticesA[0], verticesA[1],
+                                                  verticesB[0], verticesB[1],
+                                                  s[0], t[0], closestA[0], closestB[0], &num_points,
                                                   &s[1], &t[1], &closestA[1], &closestB[1]);
     auto min_dist = shA.radius + shB.radius + ctx.threshold;
-    
+
     if (dist_sqr > min_dist * min_dist) {
         return;
     }
@@ -43,7 +43,7 @@ void collide(const capsule_shape &shA, const capsule_shape &shB,
         if (dot(posA - posB, normal) < 0) {
             normal *= -1; // Make it point towards A.
         }
-        
+
         if (!try_normalize(normal)) {
             normal = vector3_y;
         }
@@ -51,14 +51,12 @@ void collide(const capsule_shape &shA, const capsule_shape &shB,
         distance = -(shA.radius + shB.radius);
     }
 
-    auto normalB = rotate(conjugate(ornB), normal);
-
     for (size_t i = 0; i < num_points; ++i) {
         auto pivotA_world = closestA[i] - normal * shA.radius;
         auto pivotB_world = closestB[i] + normal * shB.radius;
         auto pivotA = to_object_space(pivotA_world, posA, ornA);
         auto pivotB = to_object_space(pivotB_world, posB, ornB);
-        result.add_point({pivotA, pivotB, normalB, distance});
+        result.add_point({pivotA, pivotB, normal, distance});
     }
 }
 

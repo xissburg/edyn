@@ -38,9 +38,8 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
 
         auto pivotA = rotate(conjugate(ornA), p - normal * shA.radius - posA);
         auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
-        auto normalB = rotate(conjugate(ornB), normal);
         auto distance = l - shA.radius - shB.radius;
-        result.add_point({pivotA, pivotB, normalB, distance});
+        result.add_point({pivotA, pivotB, normal, distance});
         return;
     }
 
@@ -60,9 +59,8 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
 
     auto pivotA = rotate(conjugate(ornA), q - posA);
     auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
-    auto normalB = rotate(conjugate(ornB), normal);
     auto distance = nl - shB.radius;
-    result.add_point({pivotA, pivotB, normalB, distance});
+    result.add_point({pivotA, pivotB, normal, distance});
 }
 
 void collide(const sphere_shape &shA, const cylinder_shape &shB,

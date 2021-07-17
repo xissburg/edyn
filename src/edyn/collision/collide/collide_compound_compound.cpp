@@ -28,7 +28,6 @@ void collide(const compound_shape &shA, const compound_shape &shB,
         for (size_t i = 0; i < child_result.num_points; ++i) {
             auto &child_point = child_result.point[i];
             child_point.pivotB = to_world_space(child_point.pivotB, nodeB.position, nodeB.orientation);
-            child_point.normalB = rotate(nodeB.orientation, child_point.normalB);
             result.maybe_add_point(child_point);
         }
     }

@@ -3,7 +3,7 @@
 
 namespace edyn {
 
-void collide(const sphere_shape &shA, const box_shape &shB, 
+void collide(const sphere_shape &shA, const box_shape &shB,
              const collision_context &ctx, collision_result &result) {
     // Sphere position and orientation in box space.
     const auto ornB_conj = conjugate(ctx.ornB);
@@ -36,8 +36,9 @@ void collide(const sphere_shape &shA, const box_shape &shB,
 
     auto pivotA = to_object_space(pivotA_in_B, posA_in_B, ornA_in_B);
     auto pivotB = closest;
+    auto normal = rotate(ctx.ornB, normalB);
     auto distance = center_distance - shA.radius;
-    result.add_point({pivotA, pivotB, normalB, distance});
+    result.add_point({pivotA, pivotB, normal, distance});
 }
 
 void collide(const box_shape &shA, const sphere_shape &shB,
