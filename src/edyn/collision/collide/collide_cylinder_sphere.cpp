@@ -40,6 +40,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
         auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
         auto distance = l - shA.radius - shB.radius;
         result.add_point({pivotA, pivotB, normal, distance});
+        return;
     }
 
     const auto dpos = t < 0.5 ? p0 : p1;
