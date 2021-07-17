@@ -5,8 +5,17 @@
 
 namespace edyn {
 
+/**
+ * @brief The spin is a 7th degree of freedom which represents an additional
+ * angular velocity along the x-axis.
+ */
 struct spin : public scalar_comp {};
 
+/**
+ * @brief The spin angle is a 7th degree of freedom which represents an additional
+ * turn around the x-axis. It splits the angle into a [0, 2π) value and an integral
+ * value containing the number of complete turns.
+ */
 struct spin_angle : public scalar_comp {
     long count {0}; // Number of complete spins (2π rad).
 };
