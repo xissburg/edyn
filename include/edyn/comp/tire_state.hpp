@@ -34,7 +34,6 @@ struct tire_contact_state {
     scalar yaw_rate {0};
     scalar Fx {0}, Fy {0}, Fz {0}, Mz {0}, Mx {0};
     scalar slide_factor {0};
-    scalar contact_patch_length {0};
     scalar contact_patch_width {0};
     uint32_t contact_lifetime {0};
     vector3 lon_dir;

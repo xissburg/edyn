@@ -68,7 +68,6 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.slip_ratio = std::abs(vx) > 0.001 ? -vsx/vx : -vsx;
                 tire_cs.yaw_rate = dot(angvelA, cp.normal);
                 tire_cs.slide_factor = contact_patch.m_sliding_spd_avg;
-                tire_cs.contact_patch_length = contact_patch.m_contact_len_avg;
                 tire_cs.contact_patch_width = contact_patch.m_contact_width;
                 tire_cs.contact_lifetime = cp.lifetime;
                 tire_cs.lat_dir = contact_patch.m_lat_dir;
@@ -86,8 +85,8 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.Mz = (imp.values[6] + imp.values[7]) / dt;
 
                 for (size_t i = 0; i < contact_patch.m_tread_rows.size(); ++i) {
-                    tire_cs.tread_rows[i].start_pos = to_world_space(contact_patch.m_tread_rows[i].start_posB, posB, ornB);
-                    tire_cs.tread_rows[i].end_pos = to_world_space(contact_patch.m_tread_rows[i].end_posB, posB, ornB);
+                    tire_cs.tread_rows[i].start_pos = contact_patch.m_tread_rows[i].start_pos;
+                    tire_cs.tread_rows[i].end_pos = contact_patch.m_tread_rows[i].end_pos;
 
                     for (size_t j = 0; j < contact_patch.m_tread_rows[i].bristles.size(); ++j) {
                         auto &bristle = contact_patch.m_tread_rows[i].bristles[j];

@@ -17,23 +17,25 @@ struct contact_patch_constraint : public constraint_base {
     static constexpr size_t num_tread_rows = 3;
 
     struct brush_bristle {
-        vector3 pivotA;
-        vector3 pivotB;
-        vector3 root;
-        vector3 tip;
-        vector3 deflection;
+        vector3 pivotA; // Root in A's object space.
+        vector3 pivotB; // Tip in B's object space.
+        vector3 root; // Root in world space.
+        vector3 tip; // Tip in world space.
         scalar friction;
         scalar sliding_spd {0};
     };
 
     struct tread_row {
-        scalar prev_row_half_angle {0};
-        scalar patch_half_length {0};
-        vector3 start_posB;
-        vector3 end_posB;
+        scalar half_angle {0};
+        scalar half_length {0};
+        vector3 start_pos; // Position where it starts in world space.
+        vector3 end_pos; // Position where it ends in world space.
+        vector3 start_posB; // Position where it starts in B's object space.
+        vector3 end_posB; // Position where it ends in B's object space.
         std::array<brush_bristle, bristles_per_row> bristles;
     };
 
+    // Tire material properties.
     scalar m_normal_stiffness {100000};
     scalar m_normal_damping {400};
     scalar m_speed_sensitivity {0.05};
@@ -42,22 +44,19 @@ struct contact_patch_constraint : public constraint_base {
     scalar m_lat_tread_stiffness {1800000};
     scalar m_tread_damping {2000};
 
-    vector3 m_lon_dir;
-    vector3 m_lat_dir;
-    vector3 m_pivot;
-    vector3 m_center;
-    scalar m_deflection {0};
-    scalar m_sin_camber;
-    scalar m_sliding_spd_avg;
-    scalar m_contact_len_avg;
-    scalar m_contact_width;
+    // Spin angle at contact point.
     scalar m_contact_angle;
     long m_spin_count {0};
 
-    scalar m_normal_relspd;
-    scalar m_lon_damping;
-    scalar m_lat_damping;
-    scalar m_aligning_damping;
+    // Read-only stats.
+    vector3 m_lon_dir; // Longitudinal tire direction.
+    vector3 m_lat_dir; // Lateral tire direction.
+    vector3 m_pivot; // Center of pressure where forces are applied.
+    vector3 m_center; // Geometric center of contact patch.
+    scalar m_deflection {0}; // Vertical tire deflection.
+    scalar m_sin_camber; // Sine of camber angle.
+    scalar m_sliding_spd_avg; // Average of slidign speed of all bristles.
+    scalar m_contact_width; // Width of contact patch.
 
     std::array<tread_row, num_tread_rows> m_tread_rows{};
 };

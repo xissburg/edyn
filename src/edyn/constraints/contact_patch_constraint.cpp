@@ -159,7 +159,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                                  dot(row.J[3], angvelB);
             auto normal_damper_force = con.m_normal_damping * normal_relspd;
             auto normal_damper_impulse = std::abs(normal_damper_force * dt);
-            con.m_normal_relspd = normal_relspd;
 
             row.lower_limit = 0;
             row.upper_limit = normal_damper_impulse;
@@ -234,7 +233,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         auto lon_damping = scalar(0);
         auto lat_damping = scalar(0);
         auto aligning_damping = scalar(0);
-        auto contact_len_avg = scalar(0);
         auto tread_width = contact_width / con.num_tread_rows;
         auto r0_inv = scalar(1) / cyl.radius;
 
@@ -259,8 +257,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
             if (defl < EDYN_EPSILON) {
                 // Reset tread and bristles.
-                tread_row.patch_half_length = 0;
-                tread_row.prev_row_half_angle = 0;
+                tread_row.half_length = 0;
+                tread_row.half_angle = 0;
 
                 // Set bristle properties according to the contact angle. This is
                 // an empty range of the patch thus put all bristles at the same
@@ -293,18 +291,16 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto row_angle = scalar(2) * row_half_angle;
 
             auto bristle_angle_delta = row_angle / scalar(bristles_per_row);
-            auto prev_bristle_angle_delta = (tread_row.prev_row_half_angle * scalar(2)) / scalar(bristles_per_row);
+            auto prev_bristle_angle_delta = (tread_row.half_angle * scalar(2)) / scalar(bristles_per_row);
 
             auto bristle_length_delta = row_length / scalar(bristles_per_row);
-
-            contact_len_avg += row_length;
 
             // Contact patch extents in radians for this row.
             auto patch_start_angle = contact_angle - row_half_angle;
             auto patch_end_angle   = contact_angle + row_half_angle;
 
-            auto prev_patch_start_angle = prev_contact_angle - tread_row.prev_row_half_angle;
-            auto prev_patch_end_angle   = prev_contact_angle + tread_row.prev_row_half_angle;
+            auto prev_patch_start_angle = prev_contact_angle - tread_row.half_angle;
+            auto prev_patch_end_angle   = prev_contact_angle + tread_row.half_angle;
 
             // Calculate intersection between previous and current contact patch
             // range. Bristles that lie in the intersection will be matched to a
@@ -520,7 +516,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 lat_force += dot(lat_dir, -spring_force);
                 aligning_torque += dot(cross(midpoint - contact_center, -spring_force), normal);
 
-                bristle.deflection = bristle_defl;
                 bristle.tip = bristle_tip;
                 bristle.root = bristle_root;
 
@@ -539,13 +534,13 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 aligning_torque += dot(cross(midpoint - contact_center, -spring_force), normal);
             }
 
-            tread_row.prev_row_half_angle = row_half_angle;
-            tread_row.patch_half_length = row_half_length;
+            tread_row.half_angle = row_half_angle;
+            tread_row.half_length = row_half_length;
             tread_row.start_posB = to_object_space(row_start_pos, posB, ornB);
             tread_row.end_posB = to_object_space(row_end_pos, posB, ornB);
+            tread_row.start_pos = row_start_pos;
+            tread_row.end_pos = row_end_pos;
         }
-
-        contact_len_avg /= con.num_tread_rows;
 
         size_t total_bristles = 0;
         con.m_sliding_spd_avg = scalar {0};
@@ -710,7 +705,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
         con.m_sin_camber = sin_camber;
         con.m_contact_width = contact_width;
-        con.m_contact_len_avg = contact_len_avg;
         con.m_center = geometric_center;
         con.m_pivot = contact_center;
         con.m_lat_dir = lat_dir;
