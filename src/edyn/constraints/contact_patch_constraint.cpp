@@ -319,15 +319,15 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto intersects = intersection_start_angle < intersection_end_angle;
 
             // Midpoint of the tread row in spin space.
-            auto row_mid_pos = vector3{row_x,
-                                       sin_contact_angle * (cyl.radius - defl),
-                                       cos_contact_angle * (cyl.radius - defl)};
+            auto row_mid_pos_local = vector3{row_x,
+                                             sin_contact_angle * (cyl.radius - defl),
+                                             cos_contact_angle * (cyl.radius - defl)};
             // Direction vector of tread row in spin space. It is the radial direction
             // rotated 90 degrees clockwise.
             auto row_dir_local = vector3{0, cos_contact_angle, -sin_contact_angle};
 
-            auto row_start_pos_local = row_mid_pos - row_dir_local * row_half_length;
-            auto row_end_pos_local = row_mid_pos + row_dir_local * row_half_length;
+            auto row_start_pos_local = row_mid_pos_local - row_dir_local * row_half_length;
+            auto row_end_pos_local = row_mid_pos_local + row_dir_local * row_half_length;
             auto row_start_pos = project_plane(to_world_space(row_start_pos_local, posA, spin_ornA), pivotB, normal);
             auto row_end_pos   = project_plane(to_world_space(row_end_pos_local, posA, spin_ornA), pivotB, normal);
 
