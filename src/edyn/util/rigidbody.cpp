@@ -72,7 +72,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
         if (def.is_tire) {
             registry.emplace<tire_material>(entity, def.lon_tread_stiffness,
-                                            def.lat_tread_stiffness,
+                                            def.lat_tread_stiffness, def.tread_damping,
                                             def.speed_sensitivity, def.load_sensitivity);
             registry.emplace<tire_state>(entity);
         }
