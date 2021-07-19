@@ -42,7 +42,6 @@ struct contact_patch_constraint : public constraint_base {
     scalar m_load_sensitivity {0.03};
     scalar m_lon_tread_stiffness {3000000};
     scalar m_lat_tread_stiffness {1800000};
-    scalar m_tread_damping {2000};
 
     // Spin angle at contact point.
     scalar m_contact_angle;

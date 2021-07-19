@@ -234,9 +234,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         auto lon_force = scalar(0);
         auto lat_force = scalar(0);
         auto aligning_torque = scalar(0);
-        auto lon_damping = scalar(0);
-        auto lat_damping = scalar(0);
-        auto aligning_damping = scalar(0);
         auto tread_width = contact_width / con.num_tread_rows;
         auto r0_inv = scalar(1) / cyl.radius;
 
@@ -337,8 +334,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto prev_bristle_pivotB = std::array<vector3, con.bristles_per_row>{};
             auto prev_bristle_tips = std::array<vector3, con.bristles_per_row>{};
 
-            auto prev_bristle_relvel = vector3_zero;
-
             // Values of `pivotB` (i.e. the object space position of the bristle tip)
             // and `bristle.tip` will change during bristle updates. Store their
             // previous values here so they can be referenced when interpolating
@@ -375,7 +370,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 // of the rectangular tread area.
                 auto bristle_angle = patch_start_angle + bristle_angle_delta * scalar(bristle_idx + 0.5);
                 auto bristle_tip = vector3_zero;
-                auto bristle_relvel = vector3_zero;
 
                 if (intersects && bristle_angle >= intersection_start_angle && bristle_angle <= intersection_end_angle) {
                     // Bristle lies in the intersection.
@@ -386,7 +380,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                     EDYN_ASSERT(after_idx <= bristles_per_row);
                     scalar before_angle, after_angle;
                     vector3 before_pivotB, after_pivotB;
-                    vector3 before_tip, after_tip;
 
                     if (after_idx == 0) {
                         // This bristle is located before the first bristle in the previous
@@ -396,8 +389,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                         after_angle = before_angle + prev_bristle_angle_delta * scalar(0.5);
                         before_pivotB = tread_row.start_posB; // This still holds the previous value.
                         after_pivotB = prev_bristle_pivotB[after_idx];
-                        before_tip = tread_row.start_pos;
-                        after_tip = prev_bristle_tips[after_idx];
                     } else if (after_idx == bristles_per_row) {
                         // This bristle is located after the last bristle in the previous
                         // contact patch. Use the last bristle as the location before it and
@@ -407,8 +398,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                         before_angle = after_angle - prev_bristle_angle_delta * scalar(0.5);
                         before_pivotB = prev_bristle_pivotB[before_idx];
                         after_pivotB = tread_row.end_posB; // This still holds the previous value.
-                        before_tip = prev_bristle_tips[before_idx];
-                        after_tip = tread_row.end_pos;
                     } else {
                         // This bristle lies between two of the bristles in the previous
                         // contact patch.
@@ -417,24 +406,12 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                         after_angle = prev_patch_start_angle + prev_bristle_angle_delta * scalar(after_idx + 0.5);
                         before_pivotB = prev_bristle_pivotB[before_idx];
                         after_pivotB = prev_bristle_pivotB[after_idx];
-                        before_tip = prev_bristle_tips[before_idx];
-                        after_tip = prev_bristle_tips[after_idx];
                     }
 
                     // Linearly interpolate the bristle tips.
                     auto inbetween_fraction = (bristle_angle - before_angle) / (after_angle - before_angle);
                     bristle.pivotB = lerp(before_pivotB, after_pivotB, inbetween_fraction);
                     bristle_tip = to_world_space(bristle.pivotB, posB, ornB);
-
-                    // Calculate bristle tip velocity by subtracting current from previous
-                    // position and dividing by the elapsed time.
-                    auto prev_bristle_tip = lerp(before_tip, after_tip, inbetween_fraction);
-                    auto tip_vel = project_direction((bristle_tip - prev_bristle_tip) / dt, normal);
-
-                    // Calculate bristle deflection rate of change, i.e. the relative speed
-                    // between root and tip on the contact plane.
-                    auto root_vel = project_direction(linvelA + cross(spin_angvelA, bristle_root - posA), normal);
-                    bristle_relvel = tip_vel - root_vel;
                 } else if (bristle_angle >= prev_patch_end_angle) {
                     // Bristle is located after the end of the previous contact patch.
                     // Place it along the line connecting the end position of the previous
@@ -443,16 +420,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                                     (patch_end_angle - prev_patch_end_angle);
                     bristle_tip = lerp(prev_row_end_pos, row_end_pos, fraction);
                     bristle.pivotB = to_object_space(bristle_tip, posB, ornB);
-
-                    // Time elapsed since this bristle rolled into the contact patch.
-                    auto elapsed_dt = dt * (scalar(1) - fraction);
-                    // The bristle deflection at entrance is zero, making the relative
-                    // velocity between root and tip also zero. Thus, the relative velocity
-                    // here is proportional to how much it has deflected since it entered
-                    // the patch.
-                    if (elapsed_dt > EDYN_EPSILON) {
-                        bristle_relvel = (bristle_tip - bristle_root) / elapsed_dt;
-                    }
                 } else if (bristle_angle <= prev_patch_start_angle) {
                     // Bristle is located before the start of the previous contact patch.
                     // Place it along the line connecting the start position of the previous
@@ -461,12 +428,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                                     (patch_start_angle - prev_patch_start_angle);
                     bristle_tip = lerp(prev_row_start_pos, row_start_pos, fraction);
                     bristle.pivotB = to_object_space(bristle_tip, posB, ornB);
-
-                    auto elapsed_dt = dt * (scalar(1) - fraction);
-
-                    if (elapsed_dt > EDYN_EPSILON) {
-                        bristle_relvel = (bristle_tip - bristle_root) / elapsed_dt;
-                    }
                 } else {
                     EDYN_ASSERT(false);
                 }
@@ -541,8 +502,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                     auto vel_tipB = project_direction(linvelB + cross(angvelB + spinvelB, bristle_tip - posB), normal);
                     bristle.sliding_spd = length(vel_tipA - vel_tipB);
 
-                    //bristle_relvel -= tip_sliding_vel;
-
                     // Move pivot in B to match new tip location.
                     bristle.pivotB = to_object_space(bristle_tip, posB, ornB);
                 }
@@ -557,19 +516,11 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 lat_force += dot(lat_dir, spring_force);
                 aligning_torque += dot(cross(midpoint - contact_center, spring_force), normal);
 
-                // Calculate damping force similarly, i.e. integral of the linear interpolation
-                // of the damping force from the previous bristle until the current.
-                auto damping_force = con.m_tread_damping * tread_area * (prev_bristle_relvel + bristle_relvel) * scalar(0.5);
-                lon_damping += dot(lon_dir, damping_force);
-                lat_damping += dot(lat_dir, damping_force);
-                aligning_damping += dot(cross(midpoint - contact_center, damping_force), normal);
-
                 // Assign new root and tip.
                 bristle.tip = bristle_tip;
                 bristle.root = bristle_root;
 
                 prev_bristle_defl = bristle_defl;
-                prev_bristle_relvel = bristle_relvel;
             }
 
             // Add force from last bristle until end of patch.
@@ -583,11 +534,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 lon_force += dot(lon_dir, spring_force);
                 lat_force += dot(lat_dir, spring_force);
                 aligning_torque += dot(cross(midpoint - contact_center, spring_force), normal);
-
-                auto damping_force = con.m_tread_damping * tread_area * prev_bristle_relvel * scalar(0.5);
-                lon_damping += dot(lon_dir, damping_force);
-                lat_damping += dot(lat_dir, damping_force);
-                aligning_damping += dot(cross(midpoint - contact_center, damping_force), normal);
             }
 
             tread_row.half_angle = row_half_angle;
@@ -636,31 +582,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             warm_start(row);
         }
 
-        // Longitudinal damping.
-        /* {
-            auto p = cross(rA, lon_dir);
-            auto q = cross(rB, lon_dir);
-            auto damping_impulse = lon_damping * dt;
-            auto impulse = std::abs(damping_impulse);
-
-            auto &row = cache.rows.emplace_back();
-            row.J = {lon_dir, p, -lon_dir, -q};
-            row.lower_limit = -impulse;
-            row.upper_limit =  impulse;
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA; row.dsA = delta_spinA;
-            row.dvB = &dvB; row.dwB = &dwB; row.dsB = delta_spinB;
-            row.impulse = imp.values[con_row_idx++];
-            row.use_spin[0] = true;
-            row.use_spin[1] = true;
-            row.spin_axis[0] = axis;
-            row.spin_axis[1] = quaternion_x(ornB);
-
-            prepare_row(row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
-            warm_start(row);
-        } */
-
         // Lateral stiffness.
         {
             auto p = cross(rA, lat_dir);
@@ -684,27 +605,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             warm_start(row);
         }
 
-        // Lateral damping.
-        /* {
-            auto p = cross(rA, lat_dir);
-            auto q = cross(rB, lat_dir);
-            auto damping_impulse = lat_damping * dt;
-            auto impulse = std::abs(damping_impulse);
-
-            auto &row = cache.rows.emplace_back();
-            row.J = {lat_dir, p, -lat_dir, -q};
-            row.lower_limit = -impulse;
-            row.upper_limit =  impulse;
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[con_row_idx++];
-
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
-            warm_start(row);
-        } */
-
         // Aligning moment.
         {
             // TODO: Also apply force on center of mass due to torque not necessarily
@@ -727,28 +627,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
             warm_start(row);
         }
-
-        // Aligning damping.
-        /* {
-            auto damping_impulse = aligning_damping * dt;
-            auto impulse = std::abs(damping_impulse);
-            // TODO: account for off-center torque application. It induces a
-            // force on the center of mass as well, though only significant
-            // in the presence of substantial camber.
-
-            auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, normal, vector3_zero, -normal};
-            row.lower_limit = -impulse;
-            row.upper_limit =  impulse;
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[con_row_idx++];
-
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
-            warm_start(row);
-        } */
 
         con.m_sin_camber = sin_camber;
         con.m_contact_width = contact_width;
