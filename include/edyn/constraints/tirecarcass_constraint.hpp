@@ -11,12 +11,6 @@ struct tirecarcass_constraint : public constraint_base {
     scalar m_lateral_damping {40};
     scalar m_longitudinal_stiffness {2000};
     scalar m_longitudinal_damping {30};
-    scalar m_torsional_stiffness {1000};
-    scalar m_torsional_damping {20};
-
-    scalar m_lateral_relspd;
-    scalar m_longitudinal_relspd;
-    scalar m_torsional_relspd;
 };
 
 template<>
