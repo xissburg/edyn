@@ -3,7 +3,6 @@
 
 #include <entt/fwd.hpp>
 #include "edyn/math/vector3.hpp"
-#include "edyn/util/spring_util.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
 
@@ -28,8 +27,6 @@ struct antiroll_constraint : public constraint_base {
     vector3 other_ctrl_arm_pivot;
 
     scalar angle;
-
-    control_arm_location ctrl_arm_loc;
 };
 
 template<>

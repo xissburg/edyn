@@ -5,15 +5,10 @@
 
 namespace edyn {
 
-enum control_arm_location {
-    control_arm_upper = 0,
-    control_arm_lower
-};
-
 linear_curve spring_stiffness_curve(scalar primary_stiffness, scalar primary_max_defl,
                                     scalar secondary_stiffness, scalar secondary_max_defl);
 
-scalar spring_preload(const linear_curve& curve, 
+scalar spring_preload(const linear_curve& curve,
                       scalar piston_rod_length,
                       scalar damper_body_length,
                       scalar damper_body_offset,

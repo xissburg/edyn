@@ -2,7 +2,7 @@
 #define EDYN_CONSTRAINTS_SPRINGDAMPER_CONSTRAINT_HPP
 
 #include "edyn/math/vector3.hpp"
-#include "edyn/util/spring_util.hpp"
+#include "edyn/math/linear_curve.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
 
@@ -15,7 +15,6 @@ struct springdamper_constraint : public constraint_base {
     vector3 m_ctrl_arm_pivotA;
     vector3 m_ctrl_arm_pivotB;
     vector3 m_ctrl_arm_pivot;
-    control_arm_location m_ctrl_arm_loc;
 
     scalar m_spring_stiffness;
     scalar m_spring_rest_length;
