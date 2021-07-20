@@ -99,7 +99,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
         // Calculate contact patch width.
         auto deflection = std::max(-cp.distance, scalar(0));
-        auto sin_camber = dot(axis, normal);
+        auto sin_camber = std::clamp(dot(axis, normal), scalar(-1), scalar(1));
         auto camber_angle = std::asin(sin_camber);
         auto normalized_contact_width = std::cos(std::atan(std::pow(std::abs(camber_angle), std::log(deflection * 300 + 1))));
         auto contact_width = cyl.half_length * 2 * normalized_contact_width;
@@ -483,7 +483,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                         s = -c / b;
                     }
 
-                    EDYN_ASSERT(s > -0.1 && s < 1.1);
+                    //EDYN_ASSERT(s > -0.1 && s < 1.1);
 
                     // Deflection vector at the point where it starts to slide.
                     auto midpoint_defl = lerp(prev_bristle_defl, bristle_defl, s);
