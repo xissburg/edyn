@@ -148,30 +148,6 @@ std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std:
     return entities;
 }
 
-void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar mass) {
-    registry.replace<edyn::mass>(entity, mass);
-    rigidbody_update_inertia(registry, entity);
-}
-
-void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
-    auto mass = registry.get<edyn::mass>(entity);
-    auto sh_idx = registry.get<shape_index>(entity);
-    matrix3x3 I;
-
-    visit_shape(sh_idx, entity, registry, [&] (auto &&shape) {
-        I = moment_of_inertia(shape, mass);
-    });
-
-    registry.replace<edyn::inertia>(entity, I);
-    auto inv_I = inverse_matrix_symmetric(I);
-    registry.replace<edyn::inertia_inv>(entity, inv_I);
-
-    auto &orn = registry.get<orientation>(entity);
-    auto basis = to_matrix3x3(orn);
-    auto inv_IW = basis * inv_I * transpose(basis);
-    registry.replace<edyn::inertia_world_inv>(entity, inv_IW);
-}
-
 void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
                              const vector3 &impulse, const vector3 &rel_location) {
     auto &m_inv = registry.get<mass_inv>(entity);
