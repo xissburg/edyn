@@ -45,8 +45,14 @@ void update_tire_state(entt::registry &registry, scalar dt) {
             auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(manifold->body[1]);
 
             for (size_t i = 0; i < manifold->num_points(); ++i) {
-                auto &cp = registry.get<contact_point>(manifold->point[i]);
-                auto &contact_patch = registry.get<contact_patch_constraint>(manifold->point[i]);
+                auto point_entity = manifold->point[i];
+
+                if (!registry.has<contact_patch_constraint>(point_entity)) {
+                    continue;
+                }
+
+                auto &contact_patch = registry.get<contact_patch_constraint>(point_entity);
+                auto &cp = registry.get<contact_point>(point_entity);
 
                 auto velA = linvelA + cross(spin_angvelA, rotate(ornA, cp.pivotA));
                 auto velB = linvelB + cross(angvelB, rotate(ornB, cp.pivotB));
@@ -77,7 +83,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.position = contact_patch.m_center;
                 tire_cs.lin_vel = linvel_rel;
 
-                auto &imp = registry.get<constraint_impulse>(manifold->point[i]);
+                auto &imp = registry.get<constraint_impulse>(point_entity);
                 // Add spring and damper impulses.
                 tire_cs.Fz = (imp.values[0] + imp.values[1]) / dt;
                 tire_cs.Fx = (imp.values[2] + imp.values[3]) / dt;
