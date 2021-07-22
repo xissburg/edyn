@@ -110,20 +110,6 @@ entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
 std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std::vector<rigidbody_def> &defs);
 
 /**
- * Sets the mass of a rigid body and recalculates its inertia. It assumes the
- * entity has a shape associated to it, thus it must not be used with implicit
- * rigid bodies.
- */
-void rigidbody_set_mass(entt::registry &, entt::entity, scalar mass);
-
-/**
- * Recalculates the inertia of a rigid body. Must be called after the shape of
- * a body changes. It assumes the entity has a shape associated to it, thus it
- * must not be used with implicit rigid bodies.
- */
-void rigidbody_update_inertia(entt::registry &, entt::entity);
-
-/**
  * @brief Applies `impulse` to entity.
  * @param registry Data source.
  * @param entity Rigid body entity.
@@ -159,6 +145,16 @@ void set_rigidbody_mass(entt::registry &, entt::entity, scalar mass);
  * @param inertia The new moment of inertia.
  */
 void set_rigidbody_inertia(entt::registry &, entt::entity, const matrix3x3 &inertia);
+
+/**
+ * @brief Besides assigning the new friction coefficient to the rigid body's
+ * material, it also updates the friction of the contact points of all
+ * manifolds involving this rigid body.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param friction The new friction coefficient.
+ */
+void set_rigidbody_friction(entt::registry &, entt::entity, scalar);
 
 }
 

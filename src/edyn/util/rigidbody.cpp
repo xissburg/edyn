@@ -166,30 +166,6 @@ std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std:
     return entities;
 }
 
-void rigidbody_set_mass(entt::registry &registry, entt::entity entity, scalar mass) {
-    registry.replace<edyn::mass>(entity, mass);
-    rigidbody_update_inertia(registry, entity);
-}
-
-void rigidbody_update_inertia(entt::registry &registry, entt::entity entity) {
-    auto mass = registry.get<edyn::mass>(entity);
-    auto sh_idx = registry.get<shape_index>(entity);
-    matrix3x3 I;
-
-    visit_shape(sh_idx, entity, registry, [&] (auto &&shape) {
-        I = moment_of_inertia(shape, mass);
-    });
-
-    registry.replace<edyn::inertia>(entity, I);
-    auto inv_I = inverse_matrix_symmetric(I);
-    registry.replace<edyn::inertia_inv>(entity, inv_I);
-
-    auto &orn = registry.get<orientation>(entity);
-    auto basis = to_matrix3x3(orn);
-    auto inv_IW = basis * inv_I * transpose(basis);
-    registry.replace<edyn::inertia_world_inv>(entity, inv_IW);
-}
-
 void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
                              const vector3 &impulse, const vector3 &rel_location) {
     auto &m_inv = registry.get<mass_inv>(entity);
@@ -247,6 +223,38 @@ void set_rigidbody_inertia(entt::registry &registry, entt::entity entity, const 
     registry.replace<edyn::inertia>(entity, inertia);
     registry.replace<edyn::inertia_inv>(entity, I_inv);
     refresh<edyn::inertia, edyn::inertia_inv>(registry, entity);
+}
+
+void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scalar friction) {
+    EDYN_ASSERT(registry.has<rigidbody_tag>(entity));
+
+    auto material_view = registry.view<material>();
+    auto manifold_view = registry.view<contact_manifold>();
+    auto cp_view = registry.view<contact_point>();
+
+    material_view.get(entity).friction = friction;
+    refresh<material>(registry, entity);
+
+    auto &graph = registry.ctx<entity_graph>();
+    auto &node = registry.get<graph_node>(entity);
+
+    graph.visit_edges(node.node_index, [&] (auto edge_entity) {
+        if (!manifold_view.contains(edge_entity)) {
+            return;
+        }
+
+        auto &manifold = manifold_view.get(edge_entity);
+
+        auto other_entity = manifold.body[0] == entity ? manifold.body[1] : manifold.body[0];
+        auto &other_material = material_view.get(other_entity);
+        auto num_points = manifold.num_points();
+
+        for (size_t i = 0; i < num_points; ++i) {
+            auto &cp = cp_view.get(manifold.point[i]);
+            cp.friction = friction * other_material.friction;
+            refresh<contact_point>(registry, manifold.point[i]);
+        }
+    });
 }
 
 }
