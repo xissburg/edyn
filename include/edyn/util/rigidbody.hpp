@@ -136,6 +136,16 @@ void set_rigidbody_mass(entt::registry &, entt::entity, scalar mass);
  */
 void set_rigidbody_inertia(entt::registry &, entt::entity, const matrix3x3 &inertia);
 
+/**
+ * @brief Besides assigning the new friction coefficient to the rigid body's
+ * material, it also updates the friction of the contact points of all
+ * manifolds involving this rigid body.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param friction The new friction coefficient.
+ */
+void set_rigidbody_friction(entt::registry &, entt::entity, scalar);
+
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP
