@@ -1,6 +1,7 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/present_orientation.hpp"
@@ -371,6 +372,7 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
     auto vel_view = m_registry->view<linvel, angvel>();
     auto mass_view = m_registry->view<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>();
     auto gravity_view = m_registry->view<gravity>();
+    auto com_view = m_registry->view<center_of_mass>();
     auto material_view = m_registry->view<material>();
     auto continuous_view = m_registry->view<continuous>();
     auto procedural_view = m_registry->view<procedural_tag>();
@@ -422,6 +424,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
             if (gravity_view.contains(entity)) {
                 ctx->m_delta_builder->created(entity, gravity_view.get(entity));
+            }
+
+            if (com_view.contains(entity)) {
+                ctx->m_delta_builder->created(entity, com_view.get(entity));
             }
 
             if (material_view.contains(entity)) {
@@ -944,6 +950,12 @@ void island_coordinator::settings_changed() {
         auto &ctx = pair.second;
         ctx->send<msg::set_settings>(settings);
     }
+}
+
+void island_coordinator::set_center_of_mass(entt::entity entity, const vector3 &com) {
+    auto &resident = m_registry->get<island_resident>(entity);
+    auto &ctx = m_island_ctx_map.at(resident.island_entity);
+    ctx->send<msg::set_com>(entity, com);
 }
 
 }

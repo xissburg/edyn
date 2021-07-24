@@ -20,6 +20,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/rigidbody.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/util/collision_util.hpp"
 #include "edyn/context/settings.hpp"
@@ -95,6 +96,7 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_fixed_dt>().connect<&island_worker::on_set_fixed_dt>(*this);
     m_message_queue.sink<msg::set_solver_iterations>().connect<&island_worker::on_set_solver_iterations>(*this);
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
+    m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
 
     process_messages();
 
@@ -838,6 +840,11 @@ void island_worker::on_set_solver_iterations(const msg::set_solver_iterations &m
 
 void island_worker::on_set_settings(const msg::set_settings &msg) {
     m_registry.ctx<settings>() = msg.settings;
+}
+
+void island_worker::on_set_com(const msg::set_com &msg) {
+    auto entity = m_entity_map.remloc(msg.entity);
+    apply_center_of_mass(m_registry, entity, msg.com);
 }
 
 entity_graph::connected_components_t island_worker::split() {

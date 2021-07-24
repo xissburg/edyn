@@ -7,6 +7,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -26,6 +27,8 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<soft_distance_constraint, constraint_impulse>();
+    auto com_view = registry.view<center_of_mass>();
+
     size_t start_idx = cache.rows.size();
     registry.ctx_or_set<row_start_index_soft_distance_constraint>().value = start_idx;
 
@@ -35,16 +38,30 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
-        auto rA = rotate(ornA, con.pivot[0]);
-        auto rB = rotate(ornB, con.pivot[1]);
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
 
-        auto d = posA + rA - posB - rB;
-        auto l2 = length_sqr(d);
-        auto l = std::sqrt(l2);
+        if (com_view.contains(con.body[0])) {
+            auto &com = com_view.get(con.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(con.body[1])) {
+            auto &com = com_view.get(con.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
+        auto pivotA = to_world_space(con.pivot[0], originA, ornA);
+        auto pivotB = to_world_space(con.pivot[1], originB, ornB);
+        auto rA = pivotA - posA;
+        auto rB = pivotB - posB;
+        auto d = pivotA - pivotB;
+        auto dist_sqr = length_sqr(d);
+        auto dist = std::sqrt(dist_sqr);
         vector3 dn;
 
-        if (l2 > EDYN_EPSILON) {
-            dn = d / l;
+        if (dist_sqr > EDYN_EPSILON) {
+            dn = d / dist;
         } else {
             d = dn = vector3_x;
         }
@@ -55,7 +72,7 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
         {
             // Spring row. By setting the error to +/- `large_scalar`, it will
             // always apply the impulse set in the limits.
-            auto error = con.distance - l;
+            auto error = con.distance - dist;
             auto spring_force = con.stiffness * error;
             auto spring_impulse = spring_force * dt;
 

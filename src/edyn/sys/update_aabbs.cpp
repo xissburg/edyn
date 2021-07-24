@@ -1,4 +1,5 @@
 #include "edyn/sys/update_aabbs.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -27,9 +28,17 @@ AABB updated_aabb(const polyhedron_shape &polyhedron,
 
 template<typename ShapeType>
 void update_aabbs(entt::registry &registry) {
+    auto com_view = registry.view<center_of_mass>();
     auto view = registry.view<position, orientation, ShapeType, AABB>();
-    view.each([] (position &pos, orientation &orn, ShapeType &shape, AABB &aabb) {
-        aabb = updated_aabb(shape, pos, orn);
+    view.each([com_view] (entt::entity entity, position &pos, orientation &orn, ShapeType &shape, AABB &aabb) {
+        auto origin = static_cast<vector3>(pos);
+
+        if (com_view.contains(entity)) {
+            auto &com = com_view.get(entity);
+            origin = to_world_space(-com, pos, orn);
+        }
+
+        aabb = updated_aabb(shape, origin, orn);
     });
 }
 

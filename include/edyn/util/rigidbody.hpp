@@ -40,6 +40,8 @@ struct rigidbody_def {
     vector3 linvel {vector3_zero};
     vector3 angvel {vector3_zero};
 
+    std::optional<vector3> center_of_mass;
+
     // Gravity acceleration. If not set, the default value from
     // `edyn::get_gravity` will be assigned.
     std::optional<vector3> gravity;
@@ -145,6 +147,13 @@ void set_rigidbody_inertia(entt::registry &, entt::entity, const matrix3x3 &iner
  * @param friction The new friction coefficient.
  */
 void set_rigidbody_friction(entt::registry &, entt::entity, scalar);
+
+void set_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
+
+void apply_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
+
+vector3 get_rigidbody_origin(const entt::registry &, entt::entity);
+vector3 get_rigidbody_present_origin(const entt::registry &, entt::entity);
 
 }
 

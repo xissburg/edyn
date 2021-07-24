@@ -28,6 +28,11 @@ struct wake_up_island {};
 
 struct split_island {};
 
+struct set_com {
+    entt::entity entity;
+    vector3 com;
+};
+
 }
 
 #endif // EDYN_PARALLEL_MESSAGE_HPP

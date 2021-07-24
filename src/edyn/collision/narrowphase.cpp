@@ -27,6 +27,7 @@ void narrowphase::update_async(job &completion_job) {
     auto manifold_view = m_registry->view<contact_manifold>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();
+    auto com_view = m_registry->view<center_of_mass>();
     auto cp_view = m_registry->view<contact_point>();
     auto imp_view = m_registry->view<constraint_impulse>();
     auto shapes_views_tuple = get_tuple_of_shape_views(*m_registry);
@@ -38,15 +39,15 @@ void narrowphase::update_async(job &completion_job) {
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job,
-            [this, body_view, tr_view, manifold_view, cp_view, imp_view, shapes_views_tuple] (size_t index) {
+            [this, body_view, tr_view, com_view, manifold_view, cp_view, imp_view, shapes_views_tuple] (size_t index) {
         auto entity = manifold_view[index];
         auto &manifold = manifold_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
         auto &destruction_info = m_cp_destruction_infos[index];
 
-        detect_collision(manifold.body, result, body_view, shapes_views_tuple);
-        process_collision(entity, manifold, result, cp_view, imp_view, tr_view,
+        detect_collision(manifold.body, result, body_view, com_view, shapes_views_tuple);
+        process_collision(entity, manifold, result, cp_view, imp_view, tr_view, com_view,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
         }, [&destruction_info] (entt::entity contact_entity) {

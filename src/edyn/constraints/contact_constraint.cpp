@@ -9,6 +9,7 @@
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -26,6 +27,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
     auto con_view = registry.view<contact_constraint, contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
+    auto com_view = registry.view<center_of_mass>();
 
     size_t start_idx = cache.rows.size();
     registry.ctx_or_set<row_start_index_contact_constraint>().value = start_idx;
@@ -40,9 +42,27 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto &imp = imp_view.get(entity);
 
+        EDYN_ASSERT(con.body[0] == cp.body[0]);
+        EDYN_ASSERT(con.body[1] == cp.body[1]);
+
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(con.body[0])) {
+            auto &com = com_view.get(con.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(con.body[1])) {
+            auto &com = com_view.get(con.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
         auto normal = cp.normal;
-        auto rA = rotate(ornA, cp.pivotA);
-        auto rB = rotate(ornB, cp.pivotB);
+        auto pA = to_world_space(cp.pivotA, originA, ornA);
+        auto pB = to_world_space(cp.pivotB, originB, ornB);
+        auto rA = pA - posA;
+        auto rB = pB - posB;
         auto vA = linvelA + cross(angvelA, rA);
         auto vB = linvelB + cross(angvelB, rB);
         auto relvel = vA - vB;
@@ -66,7 +86,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             normal_row.upper_limit = large_scalar;
         }
 
-        auto penetration = dot(posA + rA - posB - rB, normal);
+        auto penetration = dot(pA - pB, normal);
         auto pvel = penetration / dt;
 
         auto normal_options = constraint_row_options{};

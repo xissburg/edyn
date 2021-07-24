@@ -93,6 +93,7 @@ public:
     void on_set_solver_iterations(const msg::set_solver_iterations &msg);
     void on_set_settings(const msg::set_settings &msg);
     void on_wake_up_island(const msg::wake_up_island &);
+    void on_set_com(const msg::set_com &);
 
     entity_graph::connected_components_t split();
 
