@@ -32,6 +32,8 @@ void rigidbody_def::update_inertia() {
     inertia = moment_of_inertia(*shape, mass);
 
     if (center_of_mass) {
+        // Use parallel-axis theorem to calculate moment of inertia along
+        // axes away from the center of mass.
         auto d = skew_matrix(*center_of_mass);
         inertia += transpose(d) * d * mass;
     }
@@ -264,6 +266,8 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
         com_old = com_view.get(entity);
     }
 
+    // Position and linear velocity must change when center of mass shifts,
+    // since they're stored with respect to the center of mass.
     auto origin = to_world_space(-com_old, pos, orn);
     auto com_world = to_world_space(com, origin, orn);
     linvel += cross(angvel, com_world - pos);

@@ -40,6 +40,7 @@ struct rigidbody_def {
     vector3 linvel {vector3_zero};
     vector3 angvel {vector3_zero};
 
+    // Center of mass offset from origin in object space.
     std::optional<vector3> center_of_mass;
 
     // Gravity acceleration. If not set, the default value from

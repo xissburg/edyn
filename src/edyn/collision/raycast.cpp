@@ -32,6 +32,7 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
         auto orn = tr_view.get<orientation>(entity);
 
         if (com_view.contains(entity)) {
+            // Calculate origin using object space center of mass.
             auto &com = com_view.get(entity);
             pos = to_world_space(-com, pos, orn);
         }
