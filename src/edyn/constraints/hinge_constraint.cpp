@@ -9,6 +9,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/math/geom.hpp"
@@ -23,6 +24,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<hinge_constraint, constraint_impulse>();
+    auto com_view = registry.view<center_of_mass>();
 
     con_view.each([&] (hinge_constraint &con, constraint_impulse &imp) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
@@ -30,8 +32,23 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
-        const auto rA = rotate(ornA, con.pivot[0]);
-        const auto rB = rotate(ornB, con.pivot[1]);
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(con.body[0])) {
+            auto &com = com_view.get(con.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(con.body[1])) {
+            auto &com = com_view.get(con.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
+        auto pivotA = to_world_space(con.pivot[0], originA, ornA);
+        auto pivotB = to_world_space(con.pivot[1], originB, ornB);
+        auto rA = pivotA - posA;
+        auto rB = pivotB - posB;
 
         const auto rA_skew = skew_matrix(rA);
         const auto rB_skew = skew_matrix(rB);
@@ -52,7 +69,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.impulse = imp.values[row_idx];
 
             auto options = constraint_row_options{};
-            options.error = (posA[row_idx] + rA[row_idx] - posB[row_idx] - rB[row_idx]) / dt;
+            options.error = (pivotA[row_idx] - pivotB[row_idx]) / dt;
 
             prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
             warm_start(row);

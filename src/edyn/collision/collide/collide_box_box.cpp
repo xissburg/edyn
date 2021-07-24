@@ -1,6 +1,7 @@
 #include "edyn/collision/collide.hpp"
 #include <algorithm>
 #include <numeric>
+#include "edyn/math/quaternion.hpp"
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/util/array.hpp"
 #include "edyn/math/matrix3x3.hpp"
@@ -238,13 +239,13 @@ void collide(const box_shape &shA, const box_shape &shB,
     } else if (featureA == box_feature::face && featureB == box_feature::vertex) {
         // Face A, Vertex B.
         auto pivotB = shB.get_vertex(feature_indexB);
-        auto pivotA = (posB + rotate(ornB, pivotB)) + sep_axis * distance;
+        auto pivotA = to_world_space(pivotB, posB, ornB) + sep_axis * distance;
         pivotA = to_object_space(pivotA, posA, ornA);
         result.add_point({pivotA, pivotB, sep_axis, distance});
     } else if (featureB == box_feature::face && featureA == box_feature::vertex) {
         // Face B, Vertex A.
         auto pivotA = shA.get_vertex(feature_indexA);
-        auto pivotB = (posA + rotate(ornA, pivotA)) - sep_axis * distance;
+        auto pivotB = to_world_space(pivotA, posA, ornA) - sep_axis * distance;
         pivotB = to_object_space(pivotB, posB, ornB);
         result.add_point({pivotA, pivotB, sep_axis, distance});
     }

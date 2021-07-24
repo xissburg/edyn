@@ -2,6 +2,7 @@
 #include "edyn/collision/tree_node.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/collision/broadphase_main.hpp"
@@ -18,6 +19,7 @@ namespace edyn {
 raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
     auto index_view = registry.view<shape_index>();
     auto tr_view = registry.view<position, orientation>();
+    auto com_view = registry.view<center_of_mass>();
     auto tree_view_view = registry.view<tree_view>();
     auto shape_views_tuple = get_tuple_of_shape_views(registry);
 
@@ -28,6 +30,13 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
         auto sh_idx = index_view.get(entity);
         auto pos = tr_view.get<position>(entity);
         auto orn = tr_view.get<orientation>(entity);
+
+        if (com_view.contains(entity)) {
+            // Calculate origin using object space center of mass.
+            auto &com = com_view.get(entity);
+            pos = to_world_space(-com, pos, orn);
+        }
+
         auto ctx = raycast_context{pos, orn, p0, p1};
 
         visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
