@@ -9,6 +9,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/comp/material.hpp"
+#include "edyn/comp/tire_material.hpp"
 
 namespace edyn {
 
@@ -56,14 +57,9 @@ struct rigidbody_def {
     // Optional material. If not set, the rigid body will not respond to
     // collisions, i.e. it becomes a _sensor_.
     std::optional<edyn::material> material {edyn::material{}};
+    std::optional<edyn::tire_material> tire;
 
     bool spin_enabled {false};
-
-    bool is_tire {false};
-    scalar lon_tread_stiffness {3000000};
-    scalar lat_tread_stiffness {1800000};
-    scalar speed_sensitivity {0.03};
-    scalar load_sensitivity {0.05};
 
     uint64_t collision_group {~0ULL};
     uint64_t collision_mask {~0ULL};

@@ -14,8 +14,6 @@
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
-#include "edyn/comp/material.hpp"
-#include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
@@ -81,6 +79,11 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (def.material) {
         registry.emplace<material>(entity, *def.material);
+    }
+
+    if (def.tire) {
+        registry.emplace<tire_material>(entity, *def.tire);
+        registry.emplace<tire_state>(entity);
     }
 
     if (def.presentation && def.kind == rigidbody_kind::rb_dynamic) {
