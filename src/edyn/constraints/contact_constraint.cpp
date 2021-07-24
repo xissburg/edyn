@@ -59,10 +59,10 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         }
 
         auto normal = cp.normal;
-        auto pA = to_world_space(cp.pivotA, originA, ornA);
-        auto pB = to_world_space(cp.pivotB, originB, ornB);
-        auto rA = pA - posA;
-        auto rB = pB - posB;
+        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+        auto rA = pivotA - posA;
+        auto rB = pivotB - posB;
         auto vA = linvelA + cross(angvelA, rA);
         auto vB = linvelB + cross(angvelB, rB);
         auto relvel = vA - vB;
@@ -86,7 +86,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             normal_row.upper_limit = large_scalar;
         }
 
-        auto penetration = dot(pA - pB, normal);
+        auto penetration = dot(pivotA - pivotB, normal);
         auto pvel = penetration / dt;
 
         auto normal_options = constraint_row_options{};
