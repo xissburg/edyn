@@ -277,6 +277,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
     auto cp_view = m_registry.view<contact_point>();
     auto contact_view = m_registry.view<contact_constraint>();
     auto patch_view = m_registry.view<contact_patch_constraint>();
+    auto mat_view = m_registry.view<material>();
     delta.created_for_each<contact_point>(index_source, [&] (entt::entity remote_entity, const contact_point &) {
         if (!m_entity_map.has_rem(remote_entity)) {
             return;
@@ -290,7 +291,10 @@ void island_worker::on_island_delta(const island_delta &delta) {
         }
 
         auto &cp = cp_view.get(local_entity);
-        create_contact_constraint(m_registry, local_entity, cp);
+
+        if (mat_view.contains(cp.body[0]) && mat_view.contains(cp.body[1])) {
+            create_contact_constraint(m_registry, local_entity, cp);
+        }
     });
 
     m_importing_delta = false;

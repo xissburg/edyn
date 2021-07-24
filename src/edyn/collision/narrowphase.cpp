@@ -97,13 +97,18 @@ void narrowphase::add_new_contact_point(entt::entity contact_entity,
 
 void narrowphase::create_contact_constraints() {
     auto cp_view = m_registry->view<contact_point>();
+    auto mat_view = m_registry->view<material>();
 
     for (auto contact_entity : m_new_contact_points) {
         if (!m_registry->valid(contact_entity)) {
             continue; // Might've been destroyed.
         }
+
         auto &cp = cp_view.get(contact_entity);
-        create_contact_constraint(*m_registry, contact_entity, cp);
+
+        if (mat_view.contains(cp.body[0]) && mat_view.contains(cp.body[1])) {
+            create_contact_constraint(*m_registry, contact_entity, cp);
+        }
     }
 
     m_new_contact_points.clear();

@@ -79,15 +79,8 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<edyn::gravity>(entity, gravity);
     }
 
-    if (!def.sensor) {
-        registry.emplace<material>(entity, def.restitution, def.friction,
-                                  def.stiffness, def.damping);
-
-        if (def.is_tire) {
-            registry.emplace<tire_material>(entity, def.lon_tread_stiffness, def.lat_tread_stiffness,
-                                            def.speed_sensitivity, def.load_sensitivity);
-            registry.emplace<tire_state>(entity);
-        }
+    if (def.material) {
+        registry.emplace<material>(entity, *def.material);
     }
 
     if (def.presentation && def.kind == rigidbody_kind::rb_dynamic) {

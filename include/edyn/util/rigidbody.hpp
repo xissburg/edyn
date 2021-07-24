@@ -8,6 +8,7 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/shapes/shapes.hpp"
+#include "edyn/comp/material.hpp"
 
 namespace edyn {
 
@@ -52,12 +53,9 @@ struct rigidbody_def {
     // Optional shape for collidable entities.
     std::optional<shapes_variant_t> shape;
 
-    scalar restitution {0};
-    scalar friction {0.5};
-    scalar stiffness {large_scalar};
-    scalar damping {large_scalar};
-
-    bool sensor {false};
+    // Optional material. If not set, the rigid body will not respond to
+    // collisions, i.e. it becomes a _sensor_.
+    std::optional<edyn::material> material {edyn::material{}};
 
     bool spin_enabled {false};
 
