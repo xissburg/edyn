@@ -34,11 +34,11 @@ vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius)
  * the cylinder.
  * @return Diagonal of inertia tensor.
  */
-vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len, 
+vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
                                           scalar inner_radius, scalar outer_radius);
 
-matrix3x3 moment_of_inertia_polyhedron(scalar mass, 
-                                       const std::vector<vector3> &vertices, 
+matrix3x3 moment_of_inertia_polyhedron(scalar mass,
+                                       const std::vector<vector3> &vertices,
                                        const std::vector<uint16_t> &indices,
                                        const std::vector<uint16_t> &faces);
 
@@ -61,6 +61,15 @@ matrix3x3 moment_of_inertia(const paged_mesh_shape &sh, scalar mass);
  * @return Inertia tensor.
  */
 matrix3x3 moment_of_inertia(const shapes_variant_t &var, scalar mass);
+
+/**
+ * @brief Calculate the moment of inertia about a different location.
+ * @param inertia Moment of inertia about centroid.
+ * @param mass Rigid body mass.
+ * @param offset Offset from centroid.
+ * @return Moment of inertia at the requested offset from centroid.
+ */
+matrix3x3 shift_moment_of_inertia(const matrix3x3 &inertia, scalar mass, const vector3 &offset);
 
 }
 

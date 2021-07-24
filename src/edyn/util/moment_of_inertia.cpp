@@ -162,8 +162,7 @@ matrix3x3 moment_of_inertia(const compound_shape &sh, scalar mass) {
             auto m = mass * (vol / total_volume);
             auto orn = to_matrix3x3(node.orientation);
             auto i = orn * moment_of_inertia(s, m) * transpose(orn);
-            auto d = skew_matrix(node.position);
-            inertia += i + transpose(d) * d * m;
+            inertia += shift_moment_of_inertia(i, m, node.position);
         }, node.shape_var);
     }
 
@@ -180,6 +179,11 @@ matrix3x3 moment_of_inertia(const shapes_variant_t &var, scalar mass) {
         inertia = moment_of_inertia(shape, mass);
     }, var);
     return inertia;
+}
+
+matrix3x3 shift_moment_of_inertia(const matrix3x3 &inertia, scalar mass, const vector3 &offset) {
+    auto d = skew_matrix(offset);
+    return inertia + transpose(d) * d * mass;
 }
 
 }

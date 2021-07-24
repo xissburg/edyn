@@ -202,7 +202,6 @@ bool maybe_remove_point(contact_manifold &manifold, const contact_point &cp, siz
     return true;
 }
 
-
 void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity, entt::entity contact_entity) {
     registry.destroy(contact_entity);
     registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold>();
