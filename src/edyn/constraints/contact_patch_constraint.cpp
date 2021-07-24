@@ -490,7 +490,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                         if (!(d < 0)) {
                             s = (-b + std::sqrt(d)) / (scalar(2) * a);
                         }
-                    } else if (std::abs(b > EDYN_EPSILON)) {
+                    } else if (std::abs(b) > EDYN_EPSILON) {
                         // It is a linear equation `bs + c = 0`.
                         s = -c / b;
                     }
