@@ -20,9 +20,9 @@ int main(int argc, char** argv) {
 
     auto def = edyn::rigidbody_def();
     def.presentation = true;
-    def.friction = 0.8;
     def.mass = 10;
-    def.restitution = 0;
+    def.material->friction = 0.8;
+    def.material->restitution = 0;
     def.position = {0, 3, 0};
     def.orientation = edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi * 0.7);
     def.shape = edyn::cylinder_shape{0.2, 0.5};
