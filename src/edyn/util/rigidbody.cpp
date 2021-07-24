@@ -72,7 +72,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         apply_center_of_mass(registry, entity, *def.center_of_mass);
     }
 
-    auto gravity = def.gravity ? *def.gravity : registry.ctx<settings>().gravity;
+    auto gravity = def.gravity ? *def.gravity : get_gravity(registry);
 
     if (gravity != vector3_zero && def.kind == rigidbody_kind::rb_dynamic) {
         registry.emplace<edyn::gravity>(entity, gravity);
