@@ -7,6 +7,8 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/tire_material.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
