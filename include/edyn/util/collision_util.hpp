@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
-#include <entt/entity/utility.hpp>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
