@@ -68,6 +68,8 @@ public:
 
     void set_solver_iterations(unsigned iterations);
 
+    void set_center_of_mass(entt::entity entity, const vector3 &com);
+
     // Call when settings have changed in the registry's context. It will
     // propagate changes to island workers.
     void settings_changed();

@@ -12,6 +12,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/util/tire_util.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -72,6 +73,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
     auto con_view = registry.view<contact_patch_constraint>();
     auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
+    auto com_view = registry.view<center_of_mass>();
     auto spin_view = registry.view<spin>();
 
     con_view.each([&] (entt::entity entity, contact_patch_constraint &con) {
@@ -80,6 +82,14 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto &imp = imp_view.get(entity);
+
+        auto &cp = cp_view.get(entity);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(con.body[1])) {
+            auto &com = com_view.get(con.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
 
         // Wheel spin axis in world space.
         const auto axis = quaternion_x(ornA);
@@ -93,7 +103,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             spinvelB = quaternion_x(ornB) * spinB.s;
         }
 
-        auto &cp = cp_view.get(entity);
         const auto normal = cp.normal;
         auto &cyl = registry.get<cylinder_shape>(con.body[0]);
 
@@ -112,7 +121,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         auto row_start = sin_camber < 0 ? -cyl.half_length : cyl.half_length - contact_width;
 
         // A point on the contact plane.
-        auto pivotB = posB + rotate(ornB, cp.pivotB);
+        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
 
         // Intersect lines going from the circle center to the support point with the
         // contact plane to find the initial contact extent.

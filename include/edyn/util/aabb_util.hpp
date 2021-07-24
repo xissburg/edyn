@@ -44,7 +44,7 @@ AABB point_cloud_aabb(const std::vector<vector3> &points);
  * @param orn Orientation of point cloud.
  * @return AABB of point set.
  */
-AABB point_cloud_aabb(const std::vector<vector3> &points, 
+AABB point_cloud_aabb(const std::vector<vector3> &points,
                       const vector3 &pos, const quaternion &orn);
 
 // Calculate AABB for all types of shapes.
@@ -61,7 +61,7 @@ AABB shape_aabb(const compound_shape &sh, const vector3 &pos, const quaternion &
 /**
  * @brief Visits the shape variant and calculates the the AABB.
  * @param var The shape variant.
- * @param pos Shape's position.
+ * @param pos Shape's origin.
  * @param orn Shape's orientation.
  * @return The AABB.
  */

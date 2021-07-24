@@ -42,6 +42,9 @@ struct rigidbody_def {
     vector3 angvel {vector3_zero};
     scalar spin {0};
 
+    // Center of mass offset from origin in object space.
+    std::optional<vector3> center_of_mass;
+
     // Gravity acceleration. If not set, the default value from
     // `edyn::get_gravity` will be assigned.
     std::optional<vector3> gravity;
@@ -155,6 +158,40 @@ void set_rigidbody_inertia(entt::registry &, entt::entity, const matrix3x3 &iner
  * @param friction The new friction coefficient.
  */
 void set_rigidbody_friction(entt::registry &, entt::entity, scalar);
+
+/**
+ * @brief Offset the rigid body center of mass. The value represents an offset
+ * from the rigid body's origin in object space.
+ * @remark When the center of mass offset changes, the position and linear
+ * velocity change as well to reflect the value in the new location. This
+ * dependency makes it necessary to do these updates in the island worker or
+ * else the simulation will be slightly disturbed. For this reason, this call
+ * does not immediately update the center of mass.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param com Center of mass offset.
+ */
+void set_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
+
+void apply_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
+
+/**
+ * @brief Get location of rigid body's origin in world space. The position and
+ * origin will match if the center of mass offset is zero.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @return Origin location in the world.
+ */
+vector3 get_rigidbody_origin(const entt::registry &, entt::entity);
+
+/**
+ * @brief Get interpolated location of rigid body's origin in world space for
+ * presentation.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @return Origin location in the world for presentation.
+ */
+vector3 get_rigidbody_present_origin(const entt::registry &, entt::entity);
 
 }
 

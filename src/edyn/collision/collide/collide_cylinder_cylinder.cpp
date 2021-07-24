@@ -322,7 +322,7 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
                     auto pivotB = vector3{pivotB_x,
                                         shB.radius * multipliers[i],
                                         shB.radius * multipliers[(i + 1) % 4]};
-                    auto pivotA = posB_in_A + rotate(ornB_in_A, pivotB);
+                    auto pivotA = to_world_space(pivotB, posB_in_A, ornB_in_A);
                     pivotA.x = shA.half_length * to_sign(feature_indexA == 0);
                     auto local_distance = get_local_distance(pivotA, pivotB);
                     result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
@@ -333,7 +333,7 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
                     auto pivotA = vector3{pivotA_x,
                                         shA.radius * multipliers[i],
                                         shA.radius * multipliers[(i + 1) % 4]};
-                    auto pivotB = posA_in_B + rotate(ornA_in_B, pivotA);
+                    auto pivotB = to_world_space(pivotA, posA_in_B, ornA_in_B);
                     pivotB.x = shB.half_length * to_sign(feature_indexB == 0);
                     auto local_distance = get_local_distance(pivotA, pivotB);
                     result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});

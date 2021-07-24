@@ -1,5 +1,8 @@
 #include <entt/entity/registry.hpp>
+#include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/dirty.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -29,6 +32,13 @@ namespace edyn {
 
 void rigidbody_def::update_inertia() {
     inertia = moment_of_inertia(*shape, mass);
+
+    if (center_of_mass) {
+        // Use parallel-axis theorem to calculate moment of inertia along
+        // axes away from the center of mass.
+        auto d = skew_matrix(*center_of_mass);
+        inertia += transpose(d) * d * mass;
+    }
 }
 
 void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {
@@ -60,7 +70,11 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<angvel>(entity, def.angvel);
     }
 
-    auto gravity = def.gravity ? *def.gravity : get_gravity(registry);
+    if (def.center_of_mass) {
+        apply_center_of_mass(registry, entity, *def.center_of_mass);
+    }
+
+    auto gravity = def.gravity ? *def.gravity : registry.ctx<settings>().gravity;
 
     if (gravity != vector3_zero && def.kind == rigidbody_kind::rb_dynamic) {
         registry.emplace<edyn::gravity>(entity, gravity);
@@ -255,6 +269,66 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
             refresh<contact_point>(registry, manifold.point[i]);
         }
     });
+}
+
+void set_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {
+    auto &coordinator = registry.ctx<island_coordinator>();
+    coordinator.set_center_of_mass(entity, com);
+}
+
+void apply_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {
+    auto body_view = registry.view<position, orientation, linvel, angvel>();
+    auto com_view = registry.view<center_of_mass>();
+
+    auto [pos, orn, linvel, angvel] = body_view.get<position, orientation, edyn::linvel, edyn::angvel>(entity);
+    auto com_old = vector3_zero;
+    auto has_com = com_view.contains(entity);
+
+    if (has_com) {
+        com_old = com_view.get(entity);
+    }
+
+    // Position and linear velocity must change when center of mass shifts,
+    // since they're stored with respect to the center of mass.
+    auto origin = to_world_space(-com_old, pos, orn);
+    auto com_world = to_world_space(com, origin, orn);
+    linvel += cross(angvel, com_world - pos);
+    pos = com_world;
+
+    auto &dirty = registry.get_or_emplace<edyn::dirty>(entity);
+
+    if (com != vector3_zero) {
+        if (has_com) {
+            registry.replace<center_of_mass>(entity, com);
+            dirty.updated<center_of_mass>();
+        } else {
+            registry.emplace<center_of_mass>(entity, com);
+            dirty.created<center_of_mass>();
+        }
+    } else if (has_com) {
+        registry.remove<center_of_mass>(entity);
+        dirty.destroyed<center_of_mass>();
+    }
+}
+
+vector3 get_rigidbody_origin(const entt::registry &registry, entt::entity entity) {
+    if (!registry.has<center_of_mass>(entity)) {
+        return registry.get<position>(entity);
+    }
+
+    auto [com, pos, orn] = registry.get<center_of_mass, position, orientation>(entity);
+    auto origin = to_world_space(-com, pos, orn);
+    return origin;
+}
+
+vector3 get_rigidbody_present_origin(const entt::registry &registry, entt::entity entity) {
+    if (!registry.has<center_of_mass>(entity)) {
+        return registry.get<present_position>(entity);
+    }
+
+    auto [com, pos, orn] = registry.get<center_of_mass, present_position, present_orientation>(entity);
+    auto origin = to_world_space(-com, pos, orn);
+    return origin;
 }
 
 }

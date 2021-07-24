@@ -7,7 +7,6 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/tire_material.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -70,12 +69,15 @@ void destroy_contact_point(entt::registry &registry, entt::entity manifold_entit
 using detect_collision_body_view_t = entt::basic_view<entt::entity, entt::exclude_t<>,
                                      AABB, shape_index, position, orientation>;
 
+using com_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, center_of_mass>;
+
 /**
  * Detects collision between two bodies and adds closest points to the given
  * collision result
  */
 void detect_collision(std::array<entt::entity, 2> body, collision_result &,
-                      const detect_collision_body_view_t &, const tuple_of_shape_views_t &);
+                      const detect_collision_body_view_t &, const com_view_t &,
+                      const tuple_of_shape_views_t &);
 
 /**
  * Processes a collision result and inserts/replaces points into the manifold.
@@ -86,11 +88,12 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &,
  */
 template<typename ContactPointView, typename ImpulseView, typename TransformView,
          typename TireView, typename NewPointFunc, typename DestroyPointFunc>
-void process_collision(const entt::registry &registry, entt::entity manifold_entity, contact_manifold &manifold,
+void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                        const collision_result &result,
                        ContactPointView &cp_view,
                        ImpulseView &imp_view,
                        TransformView &tr_view,
+                       const com_view_t &com_view,
                        TireView &tire_view,
                        NewPointFunc new_point_func,
                        DestroyPointFunc destroy_point_func) {
@@ -109,6 +112,19 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
     if (tire_view.contains(manifold.body[1])) {
         tire = &tire_view.get(manifold.body[1]);
         is_tireB = true;
+    }
+
+    auto originA = static_cast<vector3>(posA);
+    auto originB = static_cast<vector3>(posB);
+
+    if (com_view.contains(manifold.body[0])) {
+        auto &com = com_view.get(manifold.body[0]);
+        originA = to_world_space(-com, posA, ornA);
+    }
+
+    if (com_view.contains(manifold.body[1])) {
+        auto &com = com_view.get(manifold.body[1]);
+        originB = to_world_space(-com, posB, ornB);
     }
 
     // Merge new with existing contact points.
@@ -136,7 +152,7 @@ void process_collision(const entt::registry &registry, entt::entity manifold_ent
         if (nearest_idx < result.num_points && !merged_indices[nearest_idx]) {
             merge_point(result.point[nearest_idx], cp);
             merged_indices[nearest_idx] = true;
-        } else if (maybe_remove_point(manifold, cp, pt_idx, posA, ornA, posB, ornB)) {
+        } else if (maybe_remove_point(manifold, cp, pt_idx, originA, ornA, originB, ornB)) {
             destroy_point_func(point_entity);
         }
     }

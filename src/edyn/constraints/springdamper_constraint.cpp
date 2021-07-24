@@ -24,6 +24,7 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<springdamper_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
+    auto com_view = registry.view<center_of_mass>();
 
     con_view.each([&] (entt::entity entity, springdamper_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
@@ -34,8 +35,21 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
 
         scalar side = con.m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
 
-        auto ctrl_armA = to_world_space(con.m_ctrl_arm_pivotA, posA, ornA);
-        auto ctrl_armB = to_world_space(con.m_ctrl_arm_pivotB, posB, ornB);
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(con.body[0])) {
+            auto &com = com_view.get(con.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(con.body[1])) {
+            auto &com = com_view.get(con.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
+        auto ctrl_armA = to_world_space(con.m_ctrl_arm_pivotA, originA, ornA);
+        auto ctrl_armB = to_world_space(con.m_ctrl_arm_pivotB, originB, ornB);
 
         auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
         auto ctrl_arm_len = length(ctrl_arm_dir);
@@ -50,7 +64,7 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
         auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
         auto ctrl_arm_pivot_rel = ctrl_arm_basis * con.m_ctrl_arm_pivot;
         auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
-        auto coiloverA = to_world_space(con.m_pivotA, posA, ornA);
+        auto coiloverA = to_world_space(con.m_pivotA, originA, ornA);
         auto coilover_dir = coiloverA - ctrl_arm_pivot;
         auto coilover_len = length(coilover_dir);
         coilover_dir /= coilover_len;
@@ -181,18 +195,15 @@ void springdamper_constraint::set_dual_spring_stiffness(scalar primary_stiffness
 }
 
 scalar springdamper_constraint::get_spring_deflection(entt::registry &registry) const {
-    auto &posA = registry.get<position>(body[0]);
-    auto &ornA = registry.get<orientation>(body[0]);
-    auto rA = rotate(ornA, m_pivotA);
-    auto pA = posA + rA;
+    auto posA = edyn::get_rigidbody_origin(registry, body[0]);
+    auto ornA = registry.get<orientation>(body[0]);
 
-    auto &posB = registry.get<position>(body[1]);
-    auto &ornB = registry.get<orientation>(body[1]);
-    auto rB = rotate(ornB, m_ctrl_arm_pivotB);
-    auto pB = posB + rB;
+    auto posB = edyn::get_rigidbody_origin(registry, body[1]);
+    auto ornB = registry.get<orientation>(body[1]);
 
-    auto ctrl_armA = posA + rotate(ornA, m_ctrl_arm_pivotA);
-    auto ctrl_armB = pB;
+    auto pivotA = edyn::to_world_space(m_pivotA, posA, ornA);
+    auto ctrl_armA = edyn::to_world_space(m_ctrl_arm_pivotA, posA, ornA);
+    auto ctrl_armB = edyn::to_world_space(m_ctrl_arm_pivotB, posB, ornB);
     auto ctrl_arm_dir = ctrl_armA - ctrl_armB;
     auto ctrl_arm_len = length(ctrl_arm_dir);
     ctrl_arm_dir /= ctrl_arm_len;
@@ -203,7 +214,7 @@ scalar springdamper_constraint::get_spring_deflection(entt::registry &registry) 
     auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
     auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
     auto ctrl_arm_pivot_rel = ctrl_arm_basis * m_ctrl_arm_pivot;
-    auto coilover_dir = pA - (ctrl_armA + ctrl_arm_pivot_rel);
+    auto coilover_dir = pivotA - (ctrl_armA + ctrl_arm_pivot_rel);
     auto distance = length(coilover_dir);
     auto spring_len = distance - m_spring_offset - m_spring_perch_offset - m_damper_body_offset - m_spring_divider_length;
     auto error = spring_len - (m_spring_rest_length + m_second_spring_rest_length);
@@ -232,16 +243,14 @@ scalar springdamper_constraint::get_combined_spring_stiffness() const {
 }
 
 vector3 springdamper_constraint::get_world_ctrl_arm_pivot(entt::registry &registry) const {
-    auto &posA = registry.get<position>(body[0]);
-    auto &ornA = registry.get<orientation>(body[0]);
+    auto posA = edyn::get_rigidbody_origin(registry, body[0]);
+    auto ornA = registry.get<orientation>(body[0]);
 
-    auto &posB = registry.get<position>(body[1]);
-    auto &ornB = registry.get<orientation>(body[1]);
-    auto rB = rotate(ornB, m_ctrl_arm_pivotB);
-    auto pB = posB + rB;
+    auto posB = edyn::get_rigidbody_origin(registry, body[1]);
+    auto ornB = registry.get<orientation>(body[1]);
 
-    auto ctrl_armA = posA + rotate(ornA, m_ctrl_arm_pivotA);
-    auto ctrl_armB = pB;
+    auto ctrl_armA = edyn::to_world_space(m_ctrl_arm_pivotA, posA, ornA);
+    auto ctrl_armB = edyn::to_world_space(m_ctrl_arm_pivotB, posB, ornB);
     auto ctrl_arm_dir = ctrl_armA - ctrl_armB;
     auto ctrl_arm_len = length(ctrl_arm_dir);
     ctrl_arm_dir /= ctrl_arm_len;

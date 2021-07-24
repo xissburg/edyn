@@ -1,5 +1,6 @@
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include <cstdint>
@@ -127,7 +128,7 @@ vector3 box_shape::get_vertex(size_t vertex_idx) const {
 }
 
 vector3 box_shape::get_vertex(size_t vertex_idx, const vector3 &pos, const quaternion &orn) const {
-    return pos + rotate(orn, get_vertex(vertex_idx));
+    return to_world_space(get_vertex(vertex_idx), pos, orn);
 }
 
 std::array<vector3, 2> box_shape::get_edge(size_t edge_idx) const {
@@ -141,8 +142,8 @@ std::array<vector3, 2> box_shape::get_edge(size_t edge_idx) const {
 std::array<vector3, 2> box_shape::get_edge(size_t edge_idx, const vector3 &pos, const quaternion &orn) const {
     auto edge_vertices = get_edge(edge_idx);
     return {
-        pos + rotate(orn, edge_vertices[0]),
-        pos + rotate(orn, edge_vertices[1])
+        to_world_space(edge_vertices[0], pos, orn),
+        to_world_space(edge_vertices[1], pos, orn)
     };
 }
 
@@ -159,10 +160,10 @@ std::array<vector3, 4> box_shape::get_face(size_t face_idx) const {
 std::array<vector3, 4> box_shape::get_face(size_t face_idx, const vector3 &pos, const quaternion &orn) const {
     auto face_vertices = get_face(face_idx);
     return {
-        pos + rotate(orn, face_vertices[0]),
-        pos + rotate(orn, face_vertices[1]),
-        pos + rotate(orn, face_vertices[2]),
-        pos + rotate(orn, face_vertices[3])
+        to_world_space(face_vertices[0], pos, orn),
+        to_world_space(face_vertices[1], pos, orn),
+        to_world_space(face_vertices[2], pos, orn),
+        to_world_space(face_vertices[3], pos, orn)
     };
 }
 

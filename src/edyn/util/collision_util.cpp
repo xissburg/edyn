@@ -15,12 +15,26 @@ namespace edyn {
 void update_contact_distances(entt::registry &registry) {
     auto cp_view = registry.view<contact_point>();
     auto tr_view = registry.view<position, orientation>();
+    auto com_view = registry.view<center_of_mass>();
 
     cp_view.each([&] (contact_point &cp) {
         auto [posA, ornA] = tr_view.get<position, orientation>(cp.body[0]);
         auto [posB, ornB] = tr_view.get<position, orientation>(cp.body[1]);
-        auto pivotA_world = posA + rotate(ornA, cp.pivotA);
-        auto pivotB_world = posB + rotate(ornB, cp.pivotB);
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(cp.body[0])) {
+            auto &com = com_view.get(cp.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(cp.body[1])) {
+            auto &com = com_view.get(cp.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
+        auto pivotA_world = to_world_space(cp.pivotA, originA, ornA);
+        auto pivotB_world = to_world_space(cp.pivotB, originB, ornB);
         cp.distance = dot(cp.normal, pivotA_world - pivotB_world);
     });
 }
@@ -167,8 +181,8 @@ bool maybe_remove_point(contact_manifold &manifold, const contact_point &cp, siz
     constexpr auto threshold_sqr = threshold * threshold;
 
     // Remove separating contact points.
-    auto pA = posA + rotate(ornA, cp.pivotA);
-    auto pB = posB + rotate(ornB, cp.pivotB);
+    auto pA = to_world_space(cp.pivotA, posA, ornA);
+    auto pB = to_world_space(cp.pivotB, posB, ornB);
     auto n = cp.normal;
     auto d = pA - pB;
     auto normal_dist = dot(d, n);
@@ -195,7 +209,8 @@ void destroy_contact_point(entt::registry &registry, entt::entity manifold_entit
 }
 
 void detect_collision(std::array<entt::entity, 2> body, collision_result &result,
-                      const detect_collision_body_view_t &body_view, const tuple_of_shape_views_t &views_tuple) {
+                      const detect_collision_body_view_t &body_view, const com_view_t &com_view,
+                      const tuple_of_shape_views_t &views_tuple) {
     auto [aabbA, posA, ornA] = body_view.get<AABB, position, orientation>(body[0]);
     auto [aabbB, posB, ornB] = body_view.get<AABB, position, orientation>(body[1]);
     const auto offset = vector3_one * -contact_breaking_threshold;
@@ -205,9 +220,22 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &result
     // than `manifold.separation_threshold` which is greater than the
     // contact breaking threshold.
     if (intersect(aabbA.inset(offset), aabbB)) {
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(body[0])) {
+            auto &com = com_view.get(body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(body[1])) {
+            auto &com = com_view.get(body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
         auto shape_indexA = body_view.get<shape_index>(body[0]);
         auto shape_indexB = body_view.get<shape_index>(body[1]);
-        auto ctx = collision_context{posA, ornA, aabbA, posB, ornB, aabbB, contact_breaking_threshold};
+        auto ctx = collision_context{originA, ornA, aabbA, originB, ornB, aabbB, contact_breaking_threshold};
 
         visit_shape(shape_indexA, body[0], views_tuple, [&] (auto &&shA) {
             visit_shape(shape_indexB, body[1], views_tuple, [&] (auto &&shB) {

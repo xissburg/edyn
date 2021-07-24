@@ -10,6 +10,7 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -25,33 +26,47 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<tierod_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
+    auto com_view = registry.view<center_of_mass>();
 
     con_view.each([&] (entt::entity entity, tierod_constraint &con) {
-        auto [pA, qA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [pB, qB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
         con.update_steering_axis();
         con.update_steering_arm();
 
-        // Given the tie rod joint position on the steering rack (posA), the position
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(con.body[0])) {
+            auto &com = com_view.get(con.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(con.body[1])) {
+            auto &com = com_view.get(con.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
+        // Given the tie rod joint position on the steering rack (pivotA), the position
         // of the upper and lower control arm joints on the upright, the position of
         // the tie rod joint on the upright in object space, and the tie rod length,
         // determine the world space position of the tie rod joint on the upright.
         // It's a circle-circle intersection problem thus we make a projection on the
-        // plane of the circle where posA lies on the x axis. We want one point on
-        // the steering arm circle which has `rod_length` distance to posA.
+        // plane of the circle where pivotA lies on the x axis. We want one point on
+        // the steering arm circle which has `rod_length` distance to pivotA.
         // Then rotate a steering arm vector according to this joint position which
         // must be orthogonal to the wheel spin axis and use this vector in a constraint
         // row which forces the wheel spin axis to be orthogonal to this vector.
-        const auto posA = pA + rotate(qA, con.pivotA + con.pivotA_offset);
+        auto pivotA = to_world_space(con.pivotA + con.pivotA_offset, originA, ornA);
 
         // Calculate origin of the steering arm circle in world space. It's a point
         // in the steering axis. Originally, this origin would be calculated as an
         // offset from the lower control arm pivot point on the wheel, that is:
         // axis_z = normalize(steering_axis);
-        // vector3 lower_pivot = pB + rotate(qB, lower_pivotB);
+        // vector3 lower_pivot = originB + rotate(ornB, lower_pivotB);
         // vector3 origin = dot(pivotB - lower_pivotB, axis_z) * axis_z + lower_pivot;
         // Due to the wheel not always exactly matching the control arm pivot points
         // due to non zero constraint error, this calculation would place the origin
@@ -64,17 +79,17 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
         // constraint error (from the double wishbone constraint) should have minimal
         // effect in this calculation.
 
-        const auto chassis_z = rotate(qA, vector3_z);
+        auto chassis_z = quaternion_z(ornA);
 
-        auto upA = pA + rotate(qA, con.upper_pivotA);
-        auto upB = pB + rotate(qB, con.upper_pivotB);
+        auto upA = to_world_space(con.upper_pivotA, originA, ornA);
+        auto upB = to_world_space(con.upper_pivotB, originB, ornB);
         auto upper_dir = upB - upA;
         upper_dir -= chassis_z * dot(upper_dir, chassis_z);
         upper_dir = normalize(upper_dir);
         auto upper_pivot = upA + upper_dir * con.upper_length;
 
-        auto lpA = pA + rotate(qA, con.lower_pivotA);
-        auto lpB = pB + rotate(qB, con.lower_pivotB);
+        auto lpA = to_world_space(con.lower_pivotA, originA, ornA);
+        auto lpB = to_world_space(con.lower_pivotB, originB, ornB);
         auto lower_dir = lpB - lpA;
         lower_dir -= chassis_z * dot(lower_dir, chassis_z);
         lower_dir = normalize(lower_dir);
@@ -84,11 +99,11 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
         auto origin = lower_pivot + axis_z * dot(con.pivotB - con.lower_pivotB, con.steering_axis);
 
         // Distance to the plane that contains the steering arm circle.
-        auto dist_plane = dot(posA - origin, axis_z);
-        auto posA_proj = posA - axis_z * dist_plane;
+        auto dist_plane = dot(pivotA - origin, axis_z);
+        auto pivotA_proj = pivotA - axis_z * dist_plane;
 
         // x-axis for the steering basis.
-        auto axis_x = posA_proj - origin;
+        auto axis_x = pivotA_proj - origin;
         auto dist_origin = length(axis_x);
         axis_x /= dist_origin;
 
@@ -98,12 +113,12 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
         auto proj_len = std::sqrt(proj_len_sq);
 
         // Find solution to the circle-circle intersection on the 2D plane. Our
-        // projection puts `posA` on the x-axis which simplifies the formulas.
+        // projection puts `pivotA` on the x-axis which simplifies the formulas.
         // There are two solutions to this problem on y but we only care about
         // the positive y.
         scalar x = 1, y = 0;
 
-        // If `posA` is too close or too far from the steering axis a solution
+        // If `pivotA` is too close or too far from the steering axis a solution
         // does not exist. Thus use the closest point on the circle.
         if (dist_origin >= proj_len + con.steering_arm_length) {
             x = con.steering_arm_length;
@@ -129,7 +144,7 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
         auto basis = matrix3x3_columns(axis_x, axis_y, axis_z);
         n = normalize(basis * n);
 
-        auto wheel_x = rotate(qB, vector3_x);
+        auto wheel_x = quaternion_x(ornB);
         auto q = cross(n, wheel_x);
 
         auto &row = cache.rows.emplace_back();

@@ -1,8 +1,6 @@
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/tree_node.hpp"
 #include "edyn/comp/aabb.hpp"
-#include "edyn/comp/position.hpp"
-#include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tree_resident.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/tree_view.hpp"

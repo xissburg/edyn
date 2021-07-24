@@ -10,8 +10,10 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 
@@ -25,6 +27,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<doublewishbone_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
+    auto com_view = registry.view<center_of_mass>();
 
     con_view.each([&] (entt::entity entity, doublewishbone_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
@@ -33,24 +36,37 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto &imp = imp_view.get(entity);
 
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(con.body[0])) {
+            auto &com = com_view.get(con.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(con.body[1])) {
+            auto &com = com_view.get(con.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
         // Upper control arm locations.
-        auto urA = rotate(ornA, con.upper_pivotA);
-        auto uposA = posA + urA;
+        auto upivotA = to_world_space(con.upper_pivotA, originA, ornA);
+        auto urA = upivotA - posA;
 
-        auto urB = rotate(ornB, con.upper_pivotB);
-        auto uposB = posB + urB;
+        auto upivotB = to_world_space(con.upper_pivotB, originB, ornB);
+        auto urB = upivotB - posB;
 
-        auto ud = uposA - uposB;
+        auto ud = upivotA - upivotB;
         auto ul2 = length_sqr(ud);
 
         // Lower control arm locations.
-        auto lrA = rotate(ornA, con.lower_pivotA);
-        auto lposA = posA + lrA;
+        auto lpivotA = to_world_space(con.lower_pivotA, originA, ornA);
+        auto lrA = lpivotA - posA;
 
-        auto lrB = rotate(ornB, con.lower_pivotB);
-        auto lposB = posB + lrB;
+        auto lpivotB = to_world_space(con.lower_pivotB, originB, ornB);
+        auto lrB = lpivotB - posB;
 
-        auto ld = lposA - lposB;
+        auto ld = lpivotA - lpivotB;
         auto ll2 = length_sqr(ld);
 
         // Z axis points forward.
@@ -151,8 +167,8 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
 
         auto mrA = (urA + lrA) / 2;
         auto mrB = (urB + lrB) / 2;
-        auto mposA = (uposA + lposA) / 2;
-        auto mposB = (uposB + lposB) / 2;
+        auto mposA = (upivotA + lpivotA) / 2;
+        auto mposB = (upivotB + lpivotB) / 2;
         auto md = mposA - mposB;
 
         // Constrain the middle of the axis on the wheel to always stay in front of

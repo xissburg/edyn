@@ -27,8 +27,8 @@ vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius) 
     auto sph_inertia = moment_of_inertia_solid_sphere(sph_mass, radius);
 
     auto xx = sph_inertia + cyl_inertia.x;
-    auto yy_zz = sph_mass * (scalar(0.4) * radius * radius + 
-                             scalar(0.375) * radius * len + 
+    auto yy_zz = sph_mass * (scalar(0.4) * radius * radius +
+                             scalar(0.375) * radius * len +
                              scalar(0.25 * len * len)) + cyl_inertia.y;
     return {xx, yy_zz, yy_zz};
 }
@@ -49,7 +49,7 @@ vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius)
     return {xx, yy_zz, yy_zz};
 }
 
-vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len, 
+vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
                                           scalar inner_radius, scalar outer_radius) {
     auto rr = inner_radius * inner_radius + outer_radius * outer_radius;
     auto xx = scalar(0.5) * mass * rr;
@@ -58,10 +58,10 @@ vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
 }
 
 matrix3x3 moment_of_inertia_polyhedron(scalar mass,
-                                       const std::vector<vector3> &vertices, 
+                                       const std::vector<vector3> &vertices,
                                        const std::vector<uint16_t> &indices,
                                        const std::vector<uint16_t> &faces) {
-    // Reference: 
+    // Reference:
     // https://github.com/erich666/jgt-code/blob/master/Volume_11/Number_2/Kallay2006/Moment_of_Inertia.cpp
     scalar volume = 0;
     scalar xx = 0;

@@ -42,8 +42,7 @@ struct convex_mesh {
      * is important because the moment of inertia of all shapes that can go
      * into a compound shape is calculated with respect to the center of mass
      * which is necessary for the parallel axis theorem to be applied when
-     * calculating the moment of inertia of a compound shape. Use a compound
-     * shape to shift the center of mass.
+     * calculating the moment of inertia of a compound shape.
      */
     void initialize();
 
