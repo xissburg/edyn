@@ -33,9 +33,8 @@ void rigidbody_def::update_inertia() {
 
     if (center_of_mass) {
         // Use parallel-axis theorem to calculate moment of inertia along
-        // axes away from the center of mass.
-        auto d = skew_matrix(*center_of_mass);
-        inertia += transpose(d) * d * mass;
+        // axes away from the origin.
+        inertia = shift_moment_of_inertia(inertia, mass, *center_of_mass);
     }
 }
 
