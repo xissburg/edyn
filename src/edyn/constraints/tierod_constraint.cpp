@@ -140,7 +140,8 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
         auto n = vector3 {x, y, 0};
         n = rotate(quaternion_axis_angle(vector3_z, con.steering_arm_angle), n);
 
-        auto axis_y = cross(axis_x, axis_z) * con.side;
+        scalar side = con.pivotA.x > 0 ? 1 : -1;
+        auto axis_y = cross(axis_x, axis_z) * side;
         auto basis = matrix3x3_columns(axis_x, axis_y, axis_z);
         n = normalize(basis * n);
 

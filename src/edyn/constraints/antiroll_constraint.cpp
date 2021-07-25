@@ -54,7 +54,8 @@ void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cach
         ctrl_arm_dir /= ctrl_arm_len;
 
         // Calculate pivot point on control arm using basis.
-        auto ctrl_arm_x = ctrl_arm_dir * con.side;
+        scalar side = con.ctrl_arm_pivotA.x > 0 ? 1 : -1;
+        auto ctrl_arm_x = ctrl_arm_dir * side;
         auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
         auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
         auto ctrl_arm_pivot_rel = ctrl_arm_basis * con.ctrl_arm_pivot;
@@ -67,7 +68,7 @@ void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cach
         auto other_ctrl_arm_len = length(other_ctrl_arm_dir);
         other_ctrl_arm_dir /= other_ctrl_arm_len;
 
-        auto other_ctrl_arm_x = other_ctrl_arm_dir * con.side;
+        auto other_ctrl_arm_x = other_ctrl_arm_dir * side;
         auto other_ctrl_arm_y = cross(chassis_z, other_ctrl_arm_x);
         auto other_ctrl_arm_basis = matrix3x3_columns(other_ctrl_arm_x, other_ctrl_arm_y, chassis_z);
         auto other_ctrl_arm_pivot_rel = other_ctrl_arm_basis * con.other_ctrl_arm_pivot;

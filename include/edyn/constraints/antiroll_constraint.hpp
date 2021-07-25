@@ -11,9 +11,6 @@ namespace edyn {
 struct antiroll_constraint : public constraint_base {
     entt::entity third_entity;
 
-    // Which side this antiroll constraint connects to: 1 left, -1 right.
-    scalar side;
-
     scalar stiffness; // torsional stiffness in N/m/deg (netwon-meters per degrees)
     vector3 pivotA; // point where it attaches to the chassis
 

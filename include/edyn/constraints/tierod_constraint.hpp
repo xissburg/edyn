@@ -9,8 +9,6 @@
 namespace edyn {
 
 struct tierod_constraint : public constraint_base {
-    scalar side;
-
     vector3 pivotA;
     vector3 pivotB;
     vector3 pivotA_offset {vector3_zero};

@@ -9,7 +9,6 @@
 namespace edyn {
 
 struct doublewishbone_constraint : public constraint_base {
-    scalar side;
     vector3 upper_pivotA;
     vector3 upper_pivotB;
     scalar upper_length;

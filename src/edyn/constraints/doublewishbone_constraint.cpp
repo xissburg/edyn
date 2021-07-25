@@ -73,7 +73,8 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
         auto chassis_z = rotate(ornA, vector3_z);
 
         // Wheel rotation axis.
-        auto wheel_x = rotate(ornB, vector3_x * con.side);
+        scalar side = con.lower_pivotA.x > 0 ? 1 : -1;
+        auto wheel_x = rotate(ornB, vector3_x * side);
 
         auto row_idx = size_t(0);
 
@@ -175,7 +176,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
         // a plane passing through the middle of the axis on the chassis with normal
         // pointing outside the vehicle.
         {
-            auto chassis_x = rotate(ornA, vector3_x * con.side);
+            auto chassis_x = rotate(ornA, vector3_x * side);
             auto p = cross(mrA, chassis_x) + cross(chassis_x, md);
             auto q = cross(mrB, chassis_x);
 
