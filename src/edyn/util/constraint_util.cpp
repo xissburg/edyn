@@ -136,15 +136,16 @@ void apply_angular_impulse(scalar impulse,
         ds = row.dsC;
     }
 
+    auto delta = inv_I * row.J[idx_J] * impulse;
+
     if (ds) {
-        // Split impulse in a spin component and an angular component.
-        auto imp = inv_I * row.J[idx_J] * impulse;
-        auto spin_imp = dot(row.spin_axis[ent_idx], imp);
-        *ds += spin_imp;
-        // Subtract spin impulse to obtain angular impulse.
-        *dw += imp - row.spin_axis[ent_idx] * spin_imp;
+        // Split delta in a spin component and an angular component.
+        auto spin = dot(row.spin_axis[ent_idx], delta);
+        *ds += spin;
+        // Subtract spin to obtain only angular component.
+        *dw += delta - row.spin_axis[ent_idx] * spin;
     } else {
-        *dw += inv_I * row.J[idx_J] * impulse;
+        *dw += delta;
     }
 }
 

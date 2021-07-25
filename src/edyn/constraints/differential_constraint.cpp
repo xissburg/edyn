@@ -41,7 +41,7 @@ void prepare_constraints<differential_constraint>(entt::registry &registry, row_
         auto &row = cache.rows.emplace_back();
         row.J = {vector3_zero, axis0,
                  vector3_zero, axis1,
-                 vector3_zero, vector3{scalar(2) / con.ratio, 0, 0}};
+                 vector3_zero, -vector3{scalar(2) / con.ratio, 0, 0}};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
 
