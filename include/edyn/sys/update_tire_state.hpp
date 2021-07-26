@@ -2,6 +2,12 @@
 #define EDYN_SYS_UPDATE_TIRE_STATE_HPP
 
 #include <entt/entt.hpp>
+#include "edyn/comp/position.hpp"
+#include "edyn/comp/orientation.hpp"
+#include "edyn/comp/linvel.hpp"
+#include "edyn/comp/angvel.hpp"
+#include "edyn/comp/spin.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/tire_state.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/parallel/entity_graph.hpp"
@@ -16,16 +22,25 @@ void update_tire_state(entt::registry &registry, scalar dt) {
     auto ts_view = registry.view<graph_node, tire_state>();
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<linvel, angvel>();
+    auto spin_view = registry.view<spin>();
+    auto com_view = registry.view<center_of_mass>();
     auto &graph = registry.ctx<entity_graph>();
 
     ts_view.each([&] (auto entity, graph_node &node, tire_state &ts) {
         ts.other_entity = entt::null;
 
+        auto &posA = tr_view.get<position>(entity);
         auto &ornA = tr_view.get<orientation>(entity);
-        auto [linvelA, angvelA] = vel_view.get<linvel, angvel>(entity);
+        auto &linvelA = vel_view.get<linvel>(entity);
+        auto &angvelA = vel_view.get<angvel>(entity);
+        auto spinvelA = quaternion_x(ornA) * spin_view.get(entity).s;
 
-        const auto &spinA = registry.get<spin>(entity);
-        const auto spin_angvelA = angvelA + quaternion_x(ornA) * spinA;
+        auto originA = static_cast<vector3>(posA);
+
+        if (com_view.contains(entity)) {
+            auto &com = com_view.get(entity);
+            originA = to_world_space(-com, posA, ornA);
+        }
 
         graph.visit_edges(node.node_index, [&] (auto edge_entity) {
             auto *manifold = registry.try_get<contact_manifold>(edge_entity);
@@ -34,6 +49,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 return;
             }
 
+            EDYN_ASSERT(manifold->body[0] == entity);
             ts.other_entity = manifold->body[1];
             ts.num_contacts = manifold->num_points();
 
@@ -41,8 +57,20 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 return;
             }
 
-            auto [posB, ornB] = tr_view.get<position, orientation>(manifold->body[1]);
-            auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(manifold->body[1]);
+            auto [posB, ornB] = tr_view.get<position, orientation>(ts.other_entity);
+            auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(ts.other_entity);
+            auto spinvelB = vector3_zero;
+
+            if (spin_view.contains(ts.other_entity)) {
+                spinvelB = quaternion_x(ornB) * spin_view.get(ts.other_entity).s;
+            }
+
+            auto originB = static_cast<vector3>(posB);
+
+            if (com_view.contains(ts.other_entity)) {
+                auto &com = com_view.get(ts.other_entity);
+                originB = to_world_space(-com, posB, ornB);
+            }
 
             for (size_t i = 0; i < manifold->num_points(); ++i) {
                 auto point_entity = manifold->point[i];
@@ -54,11 +82,14 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 auto &contact_patch = registry.get<contact_patch_constraint>(point_entity);
                 auto &cp = registry.get<contact_point>(point_entity);
 
-                auto velA = linvelA + cross(spin_angvelA, rotate(ornA, cp.pivotA));
-                auto velB = linvelB + cross(angvelB, rotate(ornB, cp.pivotB));
+                auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+                auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+
+                auto velA = linvelA + cross(angvelA + spinvelA, pivotA - posA);
+                auto velB = linvelB + cross(angvelB + spinvelB, pivotB - posB);
                 auto relvel = velA - velB;
                 auto tan_relvel = project_direction(relvel, cp.normal);
-                auto linvel_rel = project_direction(linvelA - linvelB, cp.normal);
+                auto linvel_rel = project_direction(linvelA - velB, cp.normal);
                 auto linspd_rel = length(linvel_rel);
                 auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : contact_patch.m_lon_dir;
 
