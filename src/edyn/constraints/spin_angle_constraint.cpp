@@ -15,10 +15,6 @@
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
-/*
-void spin_angle_constraint::init(entt::entity entity, constraint &con, entt::registry &registry) {
-    m_offset_origin = calculate_offset(registry);
-} */
 
 template<>
 void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
@@ -30,6 +26,11 @@ void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_ca
     auto imp_view = registry.view<constraint_impulse>();
 
     con_view.each([&] (entt::entity entity, spin_angle_constraint &con) {
+        if (std::abs(con.m_ratio) < EDYN_EPSILON) {
+            cache.con_num_rows.push_back(0);
+            return;
+        }
+
         auto [posA, ornA, linvelA, angvelA, spinA, inv_mA, inv_IA, dvA, dwA, dsA] =
             body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB, dsB] =
@@ -41,36 +42,64 @@ void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_ca
         auto spinvelA = axisA * spinA;
         auto spinvelB = axisB * spinB;
 
-        auto error = con.calculate_offset(registry) - con.m_offset_origin;
-        auto relvel = spinA - spinB * con.m_ratio;
-        auto force = error * con.m_stiffness + relvel * con.m_damping;
-        auto impulse = std::abs(con.m_ratio) < EDYN_EPSILON ? edyn::scalar(0) : std::abs(force) * dt;
+        {
+            auto error = con.calculate_offset(registry) - con.m_offset_origin;
+            auto force = error * con.m_stiffness;
+            auto impulse = std::abs(force) * dt;
 
-        auto &row = cache.rows.emplace_back();
-        row.J = {vector3_zero, axisA, vector3_zero, -axisB * con.m_ratio};
-        row.lower_limit = -impulse;
-        row.upper_limit = impulse;
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
-        row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
-        row.impulse = imp_view.get(entity).values[0];
-        row.use_spin[0] = true;
-        row.use_spin[1] = true;
-        row.spin_axis[0] = axisA;
-        row.spin_axis[1] = axisB;
+            auto &row = cache.rows.emplace_back();
+            row.J = {vector3_zero, axisA, vector3_zero, -axisB * con.m_ratio};
+            row.lower_limit = -impulse;
+            row.upper_limit = impulse;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
+            row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
+            row.impulse = imp_view.get(entity).values[0];
+            row.use_spin[0] = true;
+            row.use_spin[1] = true;
+            row.spin_axis[0] = axisA;
+            row.spin_axis[1] = axisB;
 
-        auto options = constraint_row_options{};
-        options.error = error / dt;
+            auto options = constraint_row_options{};
+            options.error = error / dt;
 
-        prepare_row(row, options, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
-        warm_start(row);
+            prepare_row(row, options, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
+            warm_start(row);
+        }
 
-        cache.con_num_rows.push_back(1);
+        {
+            auto relvel = spinA - spinB * con.m_ratio;
+            auto force = relvel * con.m_damping;
+            auto impulse = std::abs(force) * dt;
+
+            auto &row = cache.rows.emplace_back();
+            row.J = {vector3_zero, axisA, vector3_zero, -axisB * con.m_ratio};
+            row.lower_limit = -impulse;
+            row.upper_limit = impulse;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
+            row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
+            row.impulse = imp_view.get(entity).values[1];
+            row.use_spin[0] = true;
+            row.use_spin[1] = true;
+            row.spin_axis[0] = axisA;
+            row.spin_axis[1] = axisB;
+
+            prepare_row(row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
+            warm_start(row);
+        }
+
+        cache.con_num_rows.push_back(2);
     });
 }
 
 void spin_angle_constraint::set_ratio(scalar ratio, const entt::registry &registry) {
+    if (ratio == m_ratio) {
+        return;
+    }
+
     m_ratio = ratio;
     m_offset_origin = calculate_offset(registry);
 }
