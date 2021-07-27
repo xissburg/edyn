@@ -252,6 +252,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         // ranges and angles are all laid out in a segment without wrapping around.
         auto prev_contact_angle = con.m_contact_angle - spin_count_delta * pi2;
         auto bristles_per_row = con.bristles_per_row;
+        auto num_sliding_bristles = 0;
 
         for (size_t row_idx = 0; row_idx < con.num_tread_rows; ++row_idx) {
             auto &tread_row = con.m_tread_rows[row_idx];
@@ -516,6 +517,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
                     // Move pivot in B to match new tip location.
                     bristle.pivotB = to_object_space(bristle_tip, posB, ornB);
+
+                    ++num_sliding_bristles;
                 }
 
                 // Point of force application.
@@ -566,6 +569,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         }
 
         con.m_sliding_spd_avg /= con.num_tread_rows * con.bristles_per_row;
+
+        con.m_sliding_ratio = scalar(num_sliding_bristles) / scalar(con.num_tread_rows * con.bristles_per_row);
 
         // Longitudinal stiffness.
         {

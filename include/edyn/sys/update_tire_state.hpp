@@ -95,16 +95,16 @@ void update_tire_state(entt::registry &registry, scalar dt) {
 
                 auto &tire_cs = ts.contact_state[i];
                 tire_cs.vertical_deflection = contact_patch.m_deflection;
-                tire_cs.speed = linspd_rel;
                 tire_cs.friction_coefficient = cp.friction;
                 tire_cs.sin_camber = contact_patch.m_sin_camber;
                 auto sin_slip_angle = std::clamp(dot(contact_patch.m_lat_dir, direction), scalar(-1), scalar(1));
                 tire_cs.slip_angle = std::asin(sin_slip_angle);
                 auto vx = dot(linvel_rel, contact_patch.m_lon_dir);
                 auto vsx = dot(tan_relvel, contact_patch.m_lon_dir);
-                tire_cs.slip_ratio = std::abs(vx) > 0.001 ? -vsx/vx : -vsx;
+                tire_cs.slip_ratio = -vsx / (to_sign(vx > 0) * std::max(std::abs(vx), scalar(0.001)));
                 tire_cs.yaw_rate = dot(angvelA, cp.normal);
                 tire_cs.slide_factor = contact_patch.m_sliding_spd_avg;
+                tire_cs.slide_ratio = contact_patch.m_sliding_ratio;
                 tire_cs.contact_patch_width = contact_patch.m_contact_width;
                 tire_cs.contact_lifetime = cp.lifetime;
                 tire_cs.lat_dir = contact_patch.m_lat_dir;
@@ -116,10 +116,10 @@ void update_tire_state(entt::registry &registry, scalar dt) {
 
                 auto &imp = registry.get<constraint_impulse>(point_entity);
                 // Add spring and damper impulses.
-                tire_cs.Fz = (imp.values[0] + imp.values[1]) / dt;
-                tire_cs.Fx = (imp.values[2] + imp.values[3]) / dt;
-                tire_cs.Fy = (imp.values[4] + imp.values[5]) / dt;
-                tire_cs.Mz = (imp.values[6] + imp.values[7]) / dt;
+                tire_cs.Fz = (imp.values[0] + imp.values[1]) / dt; // Normal spring and damper.
+                tire_cs.Fx = imp.values[2] / dt; // Longitudinal spring.
+                tire_cs.Fy = imp.values[3] / dt; // Lateral spring.
+                tire_cs.Mz = imp.values[4] / dt; // Self-aliging spring.
 
                 for (size_t i = 0; i < contact_patch.m_tread_rows.size(); ++i) {
                     tire_cs.tread_rows[i].start_pos = contact_patch.m_tread_rows[i].start_pos;
