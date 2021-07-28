@@ -56,10 +56,6 @@ static void collide_sphere_triangle(
 
     sep_axis = clip_triangle_separating_axis(sep_axis, mesh, tri_idx, tri_vertices, tri_normal, tri_feature, tri_feature_index);
 
-    if (sep_axis == vector3_zero) {
-        return;
-    }
-
     get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
                                  tri_feature, tri_feature_index,
                                  proj_tri, support_feature_tolerance);
