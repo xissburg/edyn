@@ -7,7 +7,6 @@
 #include "edyn/serialization/file_archive.hpp"
 #include "edyn/parallel/job_queue_scheduler.hpp"
 #include "edyn/parallel/job.hpp"
-
 #include <entt/signal/sigh.hpp>
 
 namespace edyn {
@@ -117,8 +116,8 @@ public:
 
     void load(size_t index) override;
 
-    virtual entt::delegate<loaded_mesh_func_t> & on_load_delegate() override {
-        return m_loaded_delegate;
+    virtual entt::sink<loaded_mesh_func_t> on_load_sink() override {
+        return entt::sink {m_loaded_signal};
     }
 
     friend void serialize(paged_triangle_mesh_file_input_archive &archive,
@@ -131,7 +130,7 @@ private:
     size_t m_base_offset;
     std::vector<size_t> m_offsets;
     paged_triangle_mesh_serialization_mode m_mode;
-    entt::delegate<loaded_mesh_func_t> m_loaded_delegate;
+    entt::sigh<loaded_mesh_func_t> m_loaded_signal;
 };
 
 /**

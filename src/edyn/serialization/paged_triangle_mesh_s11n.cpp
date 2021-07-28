@@ -39,7 +39,7 @@ void paged_triangle_mesh_file_output_archive::operator()(triangle_mesh &tri_mesh
     ++m_triangle_mesh_index;
 }
 
-void serialize(paged_triangle_mesh_file_output_archive &archive, 
+void serialize(paged_triangle_mesh_file_output_archive &archive,
                paged_triangle_mesh &paged_tri_mesh) {
 
     archive.m_triangle_mesh_index = 0;
@@ -69,7 +69,7 @@ void serialize(paged_triangle_mesh_file_output_archive &archive,
     }
 }
 
-void serialize(paged_triangle_mesh_file_input_archive &archive, 
+void serialize(paged_triangle_mesh_file_input_archive &archive,
                paged_triangle_mesh &paged_tri_mesh) {
     archive(paged_tri_mesh.m_tree);
 
@@ -97,7 +97,7 @@ void serialize(paged_triangle_mesh_file_input_archive &archive,
 
     // Resize LRU queue to have the number of submeshes.
     paged_tri_mesh.m_lru_indices.resize(num_submeshes);
-    std::iota(paged_tri_mesh.m_lru_indices.begin(), 
+    std::iota(paged_tri_mesh.m_lru_indices.begin(),
               paged_tri_mesh.m_lru_indices.end(), 0);
 
     paged_tri_mesh.m_is_loading_submesh = std::make_unique<std::atomic<bool>[]>(num_submeshes);
@@ -127,7 +127,7 @@ void load_mesh_job_func(job::data_type &data) {
     serialize(archive, ctx);
 
     auto *input = reinterpret_cast<paged_triangle_mesh_file_input_archive *>(ctx.m_input);
-    auto mesh = std::make_unique<triangle_mesh>();
+    auto mesh = std::make_shared<triangle_mesh>();
 
     switch(input->m_mode) {
     case paged_triangle_mesh_serialization_mode::embedded:
@@ -142,7 +142,7 @@ void load_mesh_job_func(job::data_type &data) {
     }
     }
 
-    input->m_loaded_delegate(ctx.m_index, std::move(mesh));
+    input->m_loaded_signal.publish(ctx.m_index, mesh);
 }
 
 }
