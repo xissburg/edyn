@@ -102,9 +102,15 @@ void triangle_mesh::calculate_adjacent_normals() {
             auto &edge_face_indices = m_edge_face_indices[edge_idx];
             auto other_face_idx = edge_face_indices[0] == face_idx ? edge_face_indices[1] : edge_face_indices[0];
 
+            auto vertex_idx0 = m_indices[face_idx][i];
+            auto vertex_idx1 = m_indices[face_idx][(i + 1) % 3];
+            auto edge_dir = m_vertices[vertex_idx1] - m_vertices[vertex_idx0];
+            auto edge_normal = cross(m_normals[face_idx], edge_dir);
+
             if (other_face_idx == face_idx) {
-                // This is a boundary edge.
-                m_adjacent_normals[face_idx][i] = -m_normals[face_idx];
+                // This is a boundary edge. Make adjacent normal point slightly
+                // away in the edge direction to form a near 180 degree angle.
+                m_adjacent_normals[face_idx][i] = -normalize(m_normals[face_idx] + edge_normal * 0.1);
                 // Boundary edges are always convex.
                 m_is_convex_edge[edge_idx] = true;
             } else {
@@ -112,11 +118,6 @@ void triangle_mesh::calculate_adjacent_normals() {
                 m_adjacent_normals[face_idx][i] = other_normal;
 
                 // Calculate edge convexity.
-                auto vertex_idx0 = m_indices[face_idx][i];
-                auto vertex_idx1 = m_indices[face_idx][(i + 1) % 3];
-                auto edge_dir = m_vertices[vertex_idx1] - m_vertices[vertex_idx0];
-                auto edge_normal = cross(m_normals[face_idx], edge_dir);
-
                 auto is_convex = dot(other_normal, edge_normal) < -EDYN_EPSILON;
                 m_is_convex_edge[edge_idx] = is_convex;
             }

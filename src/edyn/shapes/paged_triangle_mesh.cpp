@@ -10,7 +10,7 @@ namespace edyn {
 paged_triangle_mesh::paged_triangle_mesh(std::shared_ptr<triangle_mesh_page_loader_base> loader)
     : m_page_loader(loader)
 {
-    m_page_loader->on_load_delegate().connect<&paged_triangle_mesh::assign_mesh>(*this);
+    m_page_loader->on_load_sink().connect<&paged_triangle_mesh::assign_mesh>(*this);
 }
 
 size_t paged_triangle_mesh::cache_num_vertices() const {
@@ -82,11 +82,11 @@ void paged_triangle_mesh::clear_cache() {
     }
 }
 
-void paged_triangle_mesh::assign_mesh(size_t index, std::unique_ptr<triangle_mesh> mesh) {
+void paged_triangle_mesh::assign_mesh(size_t index, std::shared_ptr<triangle_mesh> mesh) {
     // Use lock to prevent assigning to the same trimesh shared_ptr concurrently
     // if `unload_least_recently_visited_node` is executing in another thread.
     auto lock = std::lock_guard(m_lru_mutex);
-    m_cache[index].trimesh = std::move(mesh);
+    m_cache[index].trimesh = mesh;
     m_is_loading_submesh[index].store(false, std::memory_order_release);
 }
 

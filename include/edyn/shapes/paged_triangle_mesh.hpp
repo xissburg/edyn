@@ -220,7 +220,11 @@ public:
 
     void clear_cache();
 
-    void assign_mesh(size_t index, std::unique_ptr<triangle_mesh>);
+    void assign_mesh(size_t index, std::shared_ptr<triangle_mesh>);
+
+    auto & get_page_loader() {
+        return *m_page_loader;
+    }
 
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh

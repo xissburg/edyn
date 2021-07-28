@@ -44,8 +44,13 @@ void collide_cylinder_triangle(
     }
 
     // Cylinder cap normals.
-    for (auto i = 0; i < 2; ++i) {
-        auto dir = cylinder_axis * to_sign(i);
+    {
+        auto dir = cylinder_axis;
+
+        if (dot(posA - tri_center, dir) < 0) {
+            dir *= -1; // Make it point towards cylinder.
+        }
+
         auto projA = -(dot(posA, -dir) + cylinder.half_length);
         auto projB = get_triangle_support_projection(tri_vertices, dir);
         auto dist = projA - projB;
@@ -113,10 +118,6 @@ void collide_cylinder_triangle(
                                  proj_tri, support_feature_tolerance);
 
     sep_axis = clip_triangle_separating_axis(sep_axis, mesh, tri_idx, tri_vertices, tri_normal, tri_feature, tri_feature_index);
-
-    if (sep_axis == vector3_zero) {
-        return;
-    }
 
     get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
                                  tri_feature, tri_feature_index,

@@ -155,23 +155,25 @@ vector3 clip_triangle_separating_axis(vector3 sep_axis, const triangle_mesh &mes
         auto edge_dir1 = tri_vertices[(edge_idx1 + 1) % 3] - tri_vertices[edge_idx1];
         auto edge_normal1 = cross(edge_dir1, adj_normal1);
 
-        // Test against the edge that is closer to the separating axis and if
-        // it is a concave edge or the axis does not lie in the voronoi region,
-        // return zero. For edges, as can be seen below, the normal of the
-        // adjacent face is chosen instead, but it has shown to be problematic
-        // for vertices. In very rare and specific configurations this will lead
-        // to no contact points being generated.
+        // Test against the edge that is closer to the separating axis. Use the
+        // same logic as its done for edges: select the triangle normal if it is
+        // concave, or else select the adjacent triangle normal if the separating
+        // axis is beyond the voronoi region.
         if (dot(sep_axis, edge_normal0) > dot(sep_axis, edge_normal1)) {
             auto is_convex0 = dot(tri_normal, edge_normal0) < 0;
 
-            if (!is_convex0 || dot(sep_axis, edge_normal0) > 0) {
-                sep_axis = vector3_zero;
+            if (!is_convex0) {
+                sep_axis = tri_normal;
+            } else if (dot(sep_axis, edge_normal0) > 0) {
+                sep_axis = adj_normal0;
             }
         } else {
             auto is_convex1 = dot(tri_normal, edge_normal1) < 0;
 
-            if (!is_convex1 || dot(sep_axis, edge_normal1) > 0) {
-                sep_axis = vector3_zero;
+            if (!is_convex1) {
+                sep_axis = tri_normal;
+            } else if (dot(sep_axis, edge_normal1) > 0) {
+                sep_axis = adj_normal1;
             }
         }
 

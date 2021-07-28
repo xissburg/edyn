@@ -37,12 +37,25 @@ public:
      */
     void async(const job &);
 
+    /**
+     * Schedules a job to run asynchronously in a worker thread after a delay.
+     */
     void async_after(double delta_time, const job &);
 
     /**
      * Schedules a job to run in a specific thread.
      */
     void async(std::thread::id, const job &);
+
+    /**
+     * Schedules a job to run in a specific queue.
+     */
+    void async(size_t queue_index, const job &);
+
+    /**
+     * Get the index of the queue for the current thread.
+     */
+    size_t current_queue_index() const;
 
     /**
      * Instantiates a `job_queue` for the current thread internally if it hasn't
@@ -71,8 +84,9 @@ private:
     std::map<std::thread::id, std::unique_ptr<worker>> m_workers;
 
     // Job queue for regular threads.
-    std::map<std::thread::id, job_queue *> m_queues_map;
-    std::shared_mutex m_queues_mutex;
+    std::vector<job_queue *> m_queues;
+    std::map<std::thread::id, size_t> m_queues_map;
+    mutable std::shared_mutex m_queues_mutex;
 
     // Job queue for this thread.
     static thread_local job_queue m_queue;

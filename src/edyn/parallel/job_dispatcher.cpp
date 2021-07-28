@@ -103,14 +103,22 @@ void job_dispatcher::async_after(double delta_time, const job &j) {
 void job_dispatcher::async(std::thread::id id, const job &j) {
     auto lock = std::shared_lock(m_queues_mutex);
     EDYN_ASSERT(m_queues_map.count(id));
-    m_queues_map[id]->push(j);
+    auto index = m_queues_map.at(id);
+    m_queues[index]->push(j);
+}
+
+void job_dispatcher::async(size_t queue_index, const job &j) {
+    auto lock = std::shared_lock(m_queues_mutex);
+    EDYN_ASSERT(queue_index < m_queues.size());
+    m_queues[queue_index]->push(j);
 }
 
 job_queue_scheduler job_dispatcher::get_current_scheduler() {
     auto id = std::this_thread::get_id();
     auto lock = std::shared_lock(m_queues_mutex);
     EDYN_ASSERT(m_queues_map.count(id));
-    return job_queue_scheduler(m_queues_map[id]);
+    auto index = m_queues_map.at(id);
+    return job_queue_scheduler(m_queues[index]);
 }
 
 void job_dispatcher::assure_current_queue() {
@@ -119,7 +127,18 @@ void job_dispatcher::assure_current_queue() {
     EDYN_ASSERT(!m_workers.count(id));
 
     auto lock = std::lock_guard(m_queues_mutex);
-    m_queues_map[id] = &m_queue;
+    if (!m_queues_map.count(id)) {
+        m_queues_map[id] = m_queues.size();
+        m_queues.push_back(&m_queue);
+    }
+}
+
+size_t job_dispatcher::current_queue_index() const {
+    auto id = std::this_thread::get_id();
+    auto lock = std::shared_lock(m_queues_mutex);
+    EDYN_ASSERT(m_queues_map.count(id));
+    auto index = m_queues_map.at(id);
+    return index;
 }
 
 void job_dispatcher::once_current_queue() {

@@ -586,6 +586,10 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
 
         ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
 
+        if (continuous_view.contains(entity)) {
+            ctx->m_delta_builder->created(entity, continuous_view.get(entity));
+        }
+
         ctx->m_delta_builder->created_external(entity, *m_registry);
     }
 }

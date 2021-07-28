@@ -102,11 +102,6 @@ static void collide_box_triangle(
                                                       tri_vertices, tri_normal,
                                                       tri_feature, tri_feature_index);
 
-    if (new_sep_axis == vector3_zero) {
-        // Closest feature must be ignored.
-        return;
-    }
-
     if (new_sep_axis != sep_axis) {
         sep_axis = new_sep_axis;
         get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
