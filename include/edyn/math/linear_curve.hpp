@@ -18,6 +18,7 @@ public:
     std::size_t size() const { return points.size(); }
     void resize(size_t new_size) { points.resize(new_size); }
     std::pair<scalar, scalar>& operator[](size_t i) { return points[i]; }
+    const std::pair<scalar, scalar>& operator[](size_t i) const { return points[i]; }
 
 protected:
     std::vector<std::pair<scalar, scalar>> points;
