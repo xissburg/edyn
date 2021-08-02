@@ -86,15 +86,14 @@ void visit_shape(const shape_index &index, entt::entity entity,
  * it to `visitor`. There must be a shape of the correct type associated to
  * the given entity in the registry.
  * @tparam VisitorType Visitor function type.
- * @param index Shape index, usually obtained from a `shape_index` component.
- * @param entity The entity holding the shape.
  * @param registry Source of shapes.
+ * @param entity The entity holding the shape.
  * @param visitor Function to be called once with the shape corresponding to
  * the shape `index`.
  */
 template<typename VisitorType>
-void visit_shape(const shape_index &index, entt::entity entity,
-                 entt::registry &registry, VisitorType visitor) {
+void visit_shape(entt::registry &registry, entt::entity entity, VisitorType visitor) {
+    auto &index = registry.get<shape_index>(entity);
     visit_component(shapes_tuple, index.value, entity, registry, visitor);
 }
 
