@@ -68,7 +68,7 @@ void detach(entt::registry &registry);
  * @param registry Data source.
  * @return Fixed delta time in seconds.
  */
-scalar get_fixed_dt(entt::registry &registry);
+scalar get_fixed_dt(const entt::registry &registry);
 
 /**
  * @brief Set the fixed simulation delta time for each step.
@@ -82,7 +82,7 @@ void set_fixed_dt(entt::registry &registry, scalar dt);
  * @param registry Data source.
  * @return Whether simulation is paused.
  */
-bool is_paused(entt::registry &registry);
+bool is_paused(const entt::registry &registry);
 
 /**
  * @brief Pauses simulation.
@@ -222,10 +222,10 @@ bool manifold_exists(entt::registry &registry, entity_pair entities);
  * @param second Another entity.
  * @return Contact manifold entity.
  */
-entt::entity get_manifold_entity(entt::registry &registry, entt::entity first, entt::entity second);
+entt::entity get_manifold_entity(const entt::registry &registry, entt::entity first, entt::entity second);
 
 /*! @copydoc get_manifold_entity */
-entt::entity get_manifold_entity(entt::registry &registry, entity_pair entities);
+entt::entity get_manifold_entity(const entt::registry &registry, entity_pair entities);
 
 /**
  * @brief Excludes collisions between a pair of entities.
@@ -262,7 +262,7 @@ void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
  * @param registry Data source.
  * @return Gravity acceleration vector.
  */
-vector3 get_gravity(entt::registry &registry);
+vector3 get_gravity(const entt::registry &registry);
 
 /**
  * @brief Changes the default gravity acceleration.
@@ -277,7 +277,7 @@ void set_gravity(entt::registry &registry, vector3 gravity);
  * @param registry Data source.
  * @return Number of solver iterations.
  */
-unsigned get_solver_iterations(entt::registry &registry);
+unsigned get_solver_iterations(const entt::registry &registry);
 
 /**
  * @brief Set the number of constraint solver iterations.

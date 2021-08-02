@@ -33,7 +33,7 @@ void detach(entt::registry &registry) {
     registry.unset<broadphase_main>();
 }
 
-scalar get_fixed_dt(entt::registry &registry) {
+scalar get_fixed_dt(const entt::registry &registry) {
     return registry.ctx<settings>().fixed_dt;
 }
 
@@ -42,7 +42,7 @@ void set_fixed_dt(entt::registry &registry, scalar dt) {
     registry.ctx<island_coordinator>().set_fixed_dt(dt);
 }
 
-bool is_paused(entt::registry &registry) {
+bool is_paused(const entt::registry &registry) {
     return registry.ctx<settings>().paused;
 }
 
@@ -132,11 +132,11 @@ bool manifold_exists(entt::registry &registry, entity_pair entities) {
     return manifold_map.contains(entities);
 }
 
-entt::entity get_manifold_entity(entt::registry &registry, entt::entity first, entt::entity second) {
+entt::entity get_manifold_entity(const entt::registry &registry, entt::entity first, entt::entity second) {
     return get_manifold_entity(registry, entity_pair{first, second});
 }
 
-entt::entity get_manifold_entity(entt::registry &registry, entity_pair entities) {
+entt::entity get_manifold_entity(const entt::registry &registry, entity_pair entities) {
     auto &manifold_map = registry.ctx<contact_manifold_map>();
     return manifold_map.get(entities);
 }
@@ -157,7 +157,7 @@ void exclude_collision(entt::registry &registry, entity_pair entities) {
     exclude_collision(registry, entities.first, entities.second);
 }
 
-vector3 get_gravity(entt::registry &registry) {
+vector3 get_gravity(const entt::registry &registry) {
     return registry.ctx<settings>().gravity;
 }
 
@@ -172,7 +172,7 @@ void set_gravity(entt::registry &registry, vector3 gravity) {
     }
 }
 
-unsigned get_solver_iterations(entt::registry &registry) {
+unsigned get_solver_iterations(const entt::registry &registry) {
     return registry.ctx<settings>().num_solver_iterations;
 }
 
