@@ -73,7 +73,7 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
 
         // Apply corrective impulse at the wheel pivot along the direction
         // normal to the control arm.
-        auto d = normalize(cross(chassis_z, ctrl_arm_dir)) * side;
+        auto d = ctrl_arm_y;
         auto p = cross(rA, d);
         auto q = cross(rB, d);
 

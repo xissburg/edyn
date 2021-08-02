@@ -9,21 +9,27 @@
 namespace edyn {
 
 struct antiroll_constraint : public constraint_base {
-    entt::entity third_entity;
+    entt::entity m_third_entity;
 
-    scalar stiffness; // torsional stiffness in N/m/deg (netwon-meters per degrees)
-    vector3 pivotA; // point where it attaches to the chassis
+    // Torsional stiffness in Nm/deg (netwon-meters per degrees)
+    scalar m_stiffness;
 
-    vector3 ctrl_arm_pivotA; // pivot on the chassis of the control arm to which the antiroll bar is connected
-    vector3 ctrl_arm_pivotB; // pivot on the wheel of the control arm to which the antiroll bar is connected
-    vector3 ctrl_arm_pivot; // point where it attaches to the control arm, in control arm space
+    // Point where it attaches to the chassis.
+    vector3 m_pivotA;
+
+    // Control arm pivot on chassis.
+    vector3 m_ctrl_arm_pivotA;
+
+    // Control arm pivot on wheel.
+    vector3 m_ctrl_arm_pivotB;
+
+    // Point where it attaches to the control arm, in control arm space
+    vector3 m_ctrl_arm_pivot;
 
     // Same as above for the control arm on the other side
-    vector3 other_ctrl_arm_pivotA;
-    vector3 other_ctrl_arm_pivotC;
-    vector3 other_ctrl_arm_pivot;
-
-    scalar angle;
+    vector3 m_other_ctrl_arm_pivotA;
+    vector3 m_other_ctrl_arm_pivotC;
+    vector3 m_other_ctrl_arm_pivot;
 };
 
 template<>

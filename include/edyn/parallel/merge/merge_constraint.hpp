@@ -62,7 +62,7 @@ void merge(const contact_patch_constraint *old_comp, contact_patch_constraint &n
 template<> inline
 void merge(const antiroll_constraint *old_comp, antiroll_constraint &new_comp, merge_context &ctx) {
     merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
-    new_comp.third_entity = ctx.map->remloc(new_comp.third_entity);
+    new_comp.m_third_entity = ctx.map->remloc(new_comp.m_third_entity);
 }
 
 template<> inline

@@ -10,10 +10,11 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include <entt/entt.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
@@ -26,44 +27,61 @@ void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cach
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<antiroll_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
+    auto com_view = registry.view<center_of_mass>();
 
     con_view.each([&] (entt::entity entity, antiroll_constraint &con) {
-        auto [pA, qA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [pB, qB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+        auto [posC, ornC] = body_view.get<position, orientation>(con.m_third_entity);
 
-        auto rA = rotate(qA, con.pivotA);
-        auto posA = pA + rA;
-        auto rB = rotate(qB, con.ctrl_arm_pivotB);
-        auto posB = pB + rB;
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+        auto originC = static_cast<vector3>(posC);
 
-        auto &pC = registry.get<position>(con.third_entity);
-        auto &qC = registry.get<orientation>(con.third_entity);
-        auto rC = rotate(qC, con.other_ctrl_arm_pivotC);
-        auto posC = pC + rC;
+        if (com_view.contains(con.body[0])) {
+            auto &com = com_view.get(con.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
 
-        // Z axis points forward.
-        auto chassis_z = rotate(qA, vector3_z);
+        if (com_view.contains(con.body[1])) {
+            auto &com = com_view.get(con.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
+        if (com_view.contains(con.m_third_entity)) {
+            auto &com = com_view.get(con.m_third_entity);
+            originC = to_world_space(-com, posC, ornC);
+        }
+
+        auto ctrl_armA = to_world_space(con.m_ctrl_arm_pivotA, originA, ornA);
+        auto ctrl_armB = to_world_space(con.m_ctrl_arm_pivotB, originB, ornB);
 
         // Calculate control arm direction vector to build basis.
-        auto ctrl_armA = pA + rotate(qA, con.ctrl_arm_pivotA);
-        auto ctrl_armB = posB;
         auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
         auto ctrl_arm_len = length(ctrl_arm_dir);
         ctrl_arm_dir /= ctrl_arm_len;
 
+        auto rA = ctrl_armB - posA;
+        auto rB = ctrl_armB - posB;
+
+        // Z axis points forward.
+        auto chassis_z = quaternion_z(ornA);
+        // X axis points to the left.
+        auto chassis_x = quaternion_x(ornA);
+
         // Calculate pivot point on control arm using basis.
-        scalar side = con.ctrl_arm_pivotA.x > 0 ? 1 : -1;
+        scalar side = con.m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
         auto ctrl_arm_x = ctrl_arm_dir * side;
         auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
         auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
-        auto ctrl_arm_pivot_rel = ctrl_arm_basis * con.ctrl_arm_pivot;
+        auto ctrl_arm_pivot_rel = ctrl_arm_basis * con.m_ctrl_arm_pivot;
         auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
 
         // Do the same for the control arm on the other side.
-        auto other_ctrl_armA = pA + rotate(qA, con.other_ctrl_arm_pivotA);
-        auto other_ctrl_armC = posC;
+        auto other_ctrl_armA = to_world_space(con.m_other_ctrl_arm_pivotA, originA, ornA);
+        auto other_ctrl_armC = to_world_space(con.m_other_ctrl_arm_pivotC, originC, ornC);
         auto other_ctrl_arm_dir = other_ctrl_armA - other_ctrl_armC;
         auto other_ctrl_arm_len = length(other_ctrl_arm_dir);
         other_ctrl_arm_dir /= other_ctrl_arm_len;
@@ -71,42 +89,58 @@ void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cach
         auto other_ctrl_arm_x = other_ctrl_arm_dir * side;
         auto other_ctrl_arm_y = cross(chassis_z, other_ctrl_arm_x);
         auto other_ctrl_arm_basis = matrix3x3_columns(other_ctrl_arm_x, other_ctrl_arm_y, chassis_z);
-        auto other_ctrl_arm_pivot_rel = other_ctrl_arm_basis * con.other_ctrl_arm_pivot;
+        auto other_ctrl_arm_pivot_rel = other_ctrl_arm_basis * con.m_other_ctrl_arm_pivot;
         auto other_ctrl_arm_pivot = other_ctrl_armA + other_ctrl_arm_pivot_rel;
 
-        auto dB = ctrl_arm_pivot - posA;
-        auto dC = other_ctrl_arm_pivot - posA;
-        auto chassis_x = rotate(qA, vector3_x);
-        auto d_projB = dB - chassis_x * dot(dB, chassis_x);
-        auto d_projC = dC - chassis_x * dot(dC, chassis_x);
+        auto pivotA = to_world_space(con.m_pivotA, originA, ornA);
+        auto leverB = project_direction(ctrl_arm_pivot - pivotA, chassis_x);
+        auto leverC = project_direction(other_ctrl_arm_pivot - pivotA, chassis_x);
 
-        auto lever = std::max(length(d_projB), EDYN_EPSILON);
-        d_projB /= lever;
+        auto lever_lenB = length(leverB);
+        auto lever_lenC = length(leverC);
 
-        d_projC = normalize(d_projC);
+        EDYN_ASSERT(lever_lenB > EDYN_EPSILON);
+        EDYN_ASSERT(lever_lenC > EDYN_EPSILON);
 
-        // Apply impulses in the direction of deformation.
-        auto n = d_projC - d_projB;
+        leverB /= lever_lenB;
+        leverC /= lever_lenC;
 
-        if (length_sqr(n) <= EDYN_EPSILON) {
-            n = cross(d_projC, chassis_x);
+        // Force is generated in the direction of lever arm deflection, which
+        // attempts to make the angle betweem them go to zero.
+        auto force_dir = leverC - leverB;
+        auto force_dir_len_sqr = length_sqr(force_dir);
+
+        if (force_dir_len_sqr > EDYN_EPSILON) {
+            force_dir /= std::sqrt(force_dir_len_sqr);
+        } else {
+            force_dir = cross(leverC, chassis_x);
         }
 
-        n = normalize(n);
+        auto angle = to_degrees(std::acos(std::clamp(dot(leverB, leverC), scalar(-1), scalar(1))));
+        auto torque = con.m_stiffness * angle;
+        auto force = torque / lever_lenB;
 
-        auto p = cross(rA, n);
-        auto q = cross(rB, n);
-        auto d = std::clamp(dot(d_projB, d_projC), scalar(-1), scalar(1));
-        auto angle = to_degrees(std::acos(d));
-        auto impulse = std::abs(con.stiffness * angle / lever) * dt;
+        // Apply corrective impulse at the wheel pivot along the direction
+        // normal to the control arm, similar to springdamper_constraint.
+        auto cos_theta = dot(ctrl_arm_y, force_dir);
+        auto ctrl_arm_pivot_horizontal_dist = con.m_ctrl_arm_pivot.x * side;
+        auto ctrl_arm_pivot_ratio = ctrl_arm_pivot_horizontal_dist / ctrl_arm_len;
+        auto ctrl_arm_pivot_ratio_inv = scalar(1) / ctrl_arm_pivot_ratio;
+        auto lever_term = ctrl_arm_pivot_ratio * cos_theta;
+        auto impulse = std::abs(force * lever_term) * dt;
+
+        auto d = ctrl_arm_y;
+        auto p = cross(rA, d);
+        auto q = cross(rB, d);
 
         auto &row = cache.rows.emplace_back();
-        row.J = {n, p, -n, -q};
+        row.J = {d, p, -d, -q};
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
 
         auto options = constraint_row_options{};
-        options.error = angle / dt;
+        // Make error inversely proportional to distance from control arm pivot.
+        options.error = angle * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
 
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
