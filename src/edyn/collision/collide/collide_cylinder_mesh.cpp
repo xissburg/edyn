@@ -320,29 +320,21 @@ void collide_cylinder_triangle(
                                         &s[1], &t[1], &closestA[1], &closestB[1]);
 
         if (num_points > 0) {
-            auto dir = closestA[0] - closestB[0];
-            // dir and sep_axis have to be parallel.
-            if (!(length_sqr(cross(dir, sep_axis)) > EDYN_EPSILON)) {
-                for (size_t i = 0; i < num_points; ++i) {
-                    auto pivotA_world = closestA[i] - sep_axis * cylinder.radius;
-                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                    auto pivotB = closestB[i];
-                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
-                }
+            for (size_t i = 0; i < num_points; ++i) {
+                auto pivotA_world = closestA[i] - sep_axis * cylinder.radius;
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                auto pivotB = closestB[i];
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
             }
         }
     } else if (cyl_feature == cylinder_feature::side_edge && tri_feature == triangle_feature::vertex) {
         auto vertex = tri_vertices[tri_feature_index];
         vector3 closest; scalar t;
         closest_point_line(cylinder_vertices[0], cylinder_axis, vertex, t, closest);
-        auto dir = closest - vertex;
-        // dir and sep_axis have to be parallel.
-        if (!(length_sqr(cross(dir, sep_axis)) > EDYN_EPSILON)) {
-            auto pivotA_world = closest - sep_axis * cylinder.radius;
-            auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            auto pivotB = vertex;
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
-        }
+        auto pivotA_world = closest - sep_axis * cylinder.radius;
+        auto pivotA = to_object_space(pivotA_world, posA, ornA);
+        auto pivotB = vertex;
+        result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::face) {
         auto supportA = cylinder.support_point(posA, ornA, -sep_axis);
 
@@ -353,18 +345,9 @@ void collide_cylinder_triangle(
         }
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::edge) {
         auto supportA = cylinder.support_point(posA, ornA, -sep_axis);
-        // Check if support point matches.
-        auto v0 = tri_vertices[tri_feature_index];
-        auto v1 = tri_vertices[(tri_feature_index + 1) % 3];
-        vector3 closest; scalar t;
-        closest_point_line(v0, v1 - v0, supportA, t, closest);
-        auto dir = supportA - closest;
-        // dir and sep_axis have to be parallel.
-        if (!(length_sqr(cross(dir, sep_axis)) > EDYN_EPSILON)) {
-            auto pivotA = to_object_space(supportA, posA, ornA);
-            auto pivotB = supportA - sep_axis * distance;
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
-        }
+        auto pivotA = to_object_space(supportA, posA, ornA);
+        auto pivotB = supportA - sep_axis * distance;
+        result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
     }
 }
 
