@@ -890,21 +890,30 @@ entity_graph::connected_components_t island_worker::split() {
         }
     }
 
+    // Process connected components that are moving out of this island.
+    // Update all components of all entities that are moving out in the current
+    // island delta to ensure they're fully up to date in the coordinator and so
+    // no data will be lost when firing up new island workers which will operate
+    // on these entities.
     // Remove entities in the smaller connected components from this worker.
-    // Non-procedural entities can be present in more that one connected component.
+    // Non-procedural entities can be present in more than one connected component.
     // Do not remove entities that are still present in the biggest connected
-    // component.
+    // component, thus skip the first.
     for (size_t i = 1; i < connected_components.size(); ++i) {
         auto &connected_component = connected_components[i];
 
         for (auto entity : connected_component.nodes) {
             if (!vector_contains(remaining_non_procedural_entities, entity) &&
                 m_registry.valid(entity)) {
+                m_delta_builder->updated_all(entity, m_registry);
                 m_registry.destroy(entity);
             }
         }
 
-        m_registry.destroy(connected_component.edges.begin(), connected_component.edges.end());
+        for (auto entity : connected_component.edges) {
+            m_delta_builder->updated_all(entity, m_registry);
+            m_registry.destroy(entity);
+        }
     }
 
     // Refresh island tree view after nodes are removed and send it back to
