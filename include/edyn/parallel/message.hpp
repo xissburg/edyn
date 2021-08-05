@@ -15,7 +15,8 @@ struct set_fixed_dt {
 };
 
 struct set_solver_iterations {
-    unsigned iterations;
+    unsigned velocity_iterations;
+    unsigned position_iterations;
 };
 
 struct set_settings {

@@ -21,6 +21,9 @@ void prepare_constraints<contact_constraint>(entt::registry &, row_cache &, scal
 template<>
 void iterate_constraints<contact_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<>
+bool solve_position_constraints<contact_constraint>(entt::registry &registry);
+
 }
 
 #endif // EDYN_CONSTRAINTS_CONTACT_CONSTRAINT_HPP

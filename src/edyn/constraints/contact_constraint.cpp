@@ -1,4 +1,5 @@
 #include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/collision/collision_result.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -13,6 +14,8 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/math/quaternion.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -86,24 +89,8 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             normal_row.upper_limit = large_scalar;
         }
 
-        auto penetration = dot(pivotA - pivotB, normal);
-        auto pvel = penetration / dt;
-
         auto normal_options = constraint_row_options{};
         normal_options.restitution = cp.restitution;
-        normal_options.error = 0;
-
-        // If not penetrating and the velocity necessary to touch in `dt` seconds
-        // is smaller than the bounce velocity, it should apply an impulse that
-        // will prevent penetration after the following physics update.
-        if (penetration > 0 && pvel > -cp.restitution * normal_relvel) {
-            normal_options.error = std::max(pvel, scalar(0));
-        } else {
-            // If this is a resting contact and it is penetrating, apply impulse to push it out.
-            //if (cp.lifetime > 0) {
-                normal_options.error = std::min(pvel, scalar(0));
-            //}
-        }
 
         prepare_row(normal_row, normal_options, linvelA, linvelB, angvelA, angvelB);
         warm_start(normal_row);
@@ -146,6 +133,86 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
         friction_row.lower_limit = -friction_impulse;
         friction_row.upper_limit = friction_impulse;
     });
+}
+
+template<>
+bool solve_position_constraints<contact_constraint>(entt::registry &registry) {
+    auto con_view = registry.view<contact_constraint, contact_point>();
+    auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
+    auto com_view = registry.view<center_of_mass>();
+    auto min_dist = scalar(0);
+
+    con_view.each([&] (entt::entity entity, contact_constraint &con, contact_point &cp) {
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+
+        EDYN_ASSERT(con.body[0] == cp.body[0]);
+        EDYN_ASSERT(con.body[1] == cp.body[1]);
+
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(con.body[0])) {
+            auto &com = com_view.get(con.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(con.body[1])) {
+            auto &com = com_view.get(con.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
+        switch (cp.normal_attachment) {
+        case contact_normal_attachment::normal_on_A:
+            cp.normal = rotate(ornA, cp.local_normal);
+            break;
+        case contact_normal_attachment::normal_on_B:
+            cp.normal = rotate(ornB, cp.local_normal);
+            break;
+        }
+
+        auto normal = cp.normal;
+        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+        cp.distance = dot(pivotA - pivotB, normal);
+        min_dist = std::min(cp.distance, min_dist);
+
+        auto rA = pivotA - posA;
+        auto rB = pivotB - posB;
+        auto J = std::array<vector3, 4>{normal, cross(rA, normal), -normal, -cross(rB, normal)};
+        auto J_invM_JT = dot(J[0], J[0]) * inv_mA +
+                         dot(inv_IA * J[1], J[1]) +
+                         dot(J[2], J[2]) * inv_mB +
+                         dot(inv_IB * J[3], J[3]);
+        auto eff_mass = scalar(1) / J_invM_JT;
+        auto error = std::clamp((cp.distance + 0.005f) * 0.2f, -0.2f, 0.f);
+        auto correction = error * eff_mass;
+
+        posA += inv_mA * J[0] * correction;
+        posB += inv_mB * J[2] * correction;
+
+        auto angular_correctionA = inv_IA * J[1] * correction;
+        auto angular_correctionA_len_sqr = length_sqr(angular_correctionA);
+
+        if (angular_correctionA_len_sqr > EDYN_EPSILON) {
+            auto angular_correctionA_len = std::sqrt(angular_correctionA_len_sqr);
+            auto angular_correctionA_dir = angular_correctionA / angular_correctionA_len;
+            ornA *= quaternion_axis_angle(angular_correctionA_dir, angular_correctionA_len);
+        }
+
+        auto angular_correctionB = inv_IB * J[3] * correction;
+        auto angular_correctionB_len_sqr = length_sqr(angular_correctionB);
+
+        if (angular_correctionB_len_sqr > EDYN_EPSILON) {
+            auto angular_correctionB_len = std::sqrt(angular_correctionB_len_sqr);
+            auto angular_correctionB_dir = angular_correctionB / angular_correctionB_len;
+            ornB *= quaternion_axis_angle(angular_correctionB_dir, angular_correctionB_len);
+        }
+    });
+
+    return min_dist > -0.015f;
 }
 
 }

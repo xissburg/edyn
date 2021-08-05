@@ -172,13 +172,28 @@ void set_gravity(entt::registry &registry, vector3 gravity) {
     }
 }
 
-unsigned get_solver_iterations(const entt::registry &registry) {
-    return registry.ctx<settings>().num_solver_iterations;
+unsigned get_solver_velocity_iterations(const entt::registry &registry) {
+    return registry.ctx<settings>().num_solver_velocity_iterations;
 }
 
-void set_solver_iterations(entt::registry &registry, unsigned iterations) {
-    registry.ctx<settings>().num_solver_iterations = iterations;
-    registry.ctx<island_coordinator>().set_solver_iterations(iterations);
+void set_solver_velocity_iterations(entt::registry &registry, unsigned iterations) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.num_solver_velocity_iterations = iterations;
+    registry.ctx<island_coordinator>().set_solver_iterations(
+        settings.num_solver_velocity_iterations,
+        settings.num_solver_position_iterations);
+}
+
+unsigned get_solver_position_iterations(const entt::registry &registry) {
+    return registry.ctx<settings>().num_solver_position_iterations;
+}
+
+void set_solver_position_iterations(entt::registry &registry, unsigned iterations) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.num_solver_position_iterations = iterations;
+    registry.ctx<island_coordinator>().set_solver_iterations(
+        settings.num_solver_velocity_iterations,
+        settings.num_solver_position_iterations);
 }
 
 }

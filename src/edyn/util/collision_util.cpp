@@ -108,7 +108,9 @@ entt::entity create_contact_point(entt::registry& registry,
         manifold.body,
         rp.pivotA, // pivotA
         rp.pivotB, // pivotB
-        rp.normal, // normal
+        rp.normal, // world space normal
+        rp.local_normal, // object space normal
+        rp.normal_attachment, // to which rigid body the local normal is attached
         scalar{}, // friction
         scalar{}, // restitution
         uint32_t{0}, // lifetime

@@ -92,7 +92,7 @@ void solver::update(scalar dt) {
     prepare_constraints(registry, m_row_cache, dt);
 
     // Solve constraints.
-    for (uint32_t i = 0; i < iterations; ++i) {
+    for (unsigned i = 0; i < velocity_iterations; ++i) {
         // Prepare constraints for iteration.
         iterate_constraints(registry, m_row_cache, dt);
 
@@ -118,6 +118,12 @@ void solver::update(scalar dt) {
     // Integrate velocities to obtain new transforms.
     integrate_linvel(registry, dt);
     integrate_angvel(registry, dt);
+
+    for (unsigned i = 0; i < position_iterations; ++i) {
+        if (solve_position_constraints(registry)) {
+            break;
+        }
+    }
 
     // Update rotated vertices of convex meshes after rotations change. It is
     // important to do this before `update_aabbs` because the rotated meshes

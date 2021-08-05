@@ -770,10 +770,10 @@ void island_coordinator::set_fixed_dt(scalar dt) {
     }
 }
 
-void island_coordinator::set_solver_iterations(unsigned iterations) {
+void island_coordinator::set_solver_iterations(unsigned velocity_iterations, unsigned position_iterations) {
     for (auto &pair : m_island_ctx_map) {
         auto &ctx = pair.second;
-        ctx->send<msg::set_solver_iterations>(iterations);
+        ctx->send<msg::set_solver_iterations>(velocity_iterations, position_iterations);
     }
 }
 
