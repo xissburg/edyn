@@ -9,6 +9,11 @@ template<typename Archive>
 void serialize(Archive &archive, island &isle) {
 }
 
+template<typename Archive>
+void serialize(Archive &archive, island_timestamp &timestamp) {
+    archive(timestamp.value);
+}
+
 }
 
 #endif // EDYN_SERIALIZATION_COMP_ISLAND_S11N_HPP

@@ -4,3 +4,5 @@
 #include "edyn/serialization/constraint/hinge_constraint_s11n.hpp"
 #include "edyn/serialization/constraint/point_constraint_s11n.hpp"
 #include "edyn/serialization/constraint/soft_distance_constraint_s11n.hpp"
+#include "edyn/serialization/constraint/gravity_constraint_s11n.hpp"
+#include "edyn/serialization/constraint/null_constraint_s11n.hpp"

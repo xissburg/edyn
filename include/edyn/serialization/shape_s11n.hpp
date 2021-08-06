@@ -5,3 +5,5 @@
 #include "edyn/serialization/shape/sphere_shape_s11n.hpp"
 #include "edyn/serialization/shape/mesh_shape_s11n.hpp"
 #include "edyn/serialization/shape/paged_mesh_shape_s11n.hpp"
+#include "edyn/serialization/shape/compound_shape_s11n.hpp"
+#include "edyn/serialization/shape/polyhedron_shape_s11n.hpp"

@@ -6,6 +6,9 @@
 namespace edyn {
 
 template<typename Archive>
+void serialize(Archive &, rigidbody_tag &) {}
+
+template<typename Archive>
 void serialize(Archive &, dynamic_tag &) {}
 
 template<typename Archive>
@@ -15,6 +18,9 @@ template<typename Archive>
 void serialize(Archive &, static_tag &) {}
 
 template<typename Archive>
+void serialize(Archive &, procedural_tag &) {}
+
+template<typename Archive>
 void serialize(Archive &, sleeping_tag &) {}
 
 template<typename Archive>
@@ -22,6 +28,12 @@ void serialize(Archive &, sleeping_disabled_tag &) {}
 
 template<typename Archive>
 void serialize(Archive &, disabled_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, continuous_contacts_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, external_tag &) {}
 
 }
 
