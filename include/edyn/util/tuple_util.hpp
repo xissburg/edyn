@@ -62,7 +62,7 @@ struct map_tuple<T, std::tuple<Us...>> {
  * Convert a tuple to a variant with the same types.
  */
 template<typename... Ts>
-auto tuple_to_variant(std::tuple<Ts...>) {
+constexpr auto tuple_to_variant(std::tuple<Ts...>) {
     return std::variant<Ts...>{};
 }
 
