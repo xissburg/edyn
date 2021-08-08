@@ -98,6 +98,7 @@ set(Edyn_SOURCES
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/networking/server_side.cpp
     src/edyn/networking/client_side.cpp
+    src/edyn/networking/networking.cpp
     src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
 )

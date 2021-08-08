@@ -10,6 +10,9 @@ void server_process_packet(entt::registry &, entt::entity client_entity, const e
 
 transient_snapshot server_get_transient_snapshot(entt::registry &);
 
+void server_make_client(entt::registry &, entt::entity);
+entt::entity server_make_client(entt::registry &);
+
 }
 
 #endif // EDYN_NETWORKING_SERVER_SIDE_HPP

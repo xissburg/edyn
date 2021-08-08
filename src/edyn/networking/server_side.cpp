@@ -88,4 +88,14 @@ transient_snapshot server_get_transient_snapshot(entt::registry &registry) {
     return snapshot;
 }
 
+void server_make_client(entt::registry &registry, entt::entity entity) {
+    registry.emplace<remote_client>(entity);
+}
+
+entt::entity server_make_client(entt::registry &registry) {
+    auto entity = registry.create();
+    server_make_client(registry, entity);
+    return entity;
+}
+
 }
