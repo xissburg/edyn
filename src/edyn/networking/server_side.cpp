@@ -4,6 +4,7 @@
 #include "edyn/comp/transient_comp.hpp"
 #include <entt/core/type_traits.hpp>
 #include <entt/entity/registry.hpp>
+#include <set>
 
 namespace edyn {
 
@@ -27,8 +28,9 @@ void insert_component_in_entity_response_element(entt::registry &registry, entt:
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const entity_request &req) {
     auto res = entity_response{};
+    auto entities = std::set<entt::entity>(req.entities.begin(), req.entities.end());
 
-    for (auto entity : req.entities) {
+    for (auto entity : entities) {
         if (!registry.valid(entity)) {
             continue;
         }
@@ -63,8 +65,14 @@ void server_process_packet(entt::registry &registry, entt::entity client_entity,
 
 template<typename Component>
 void insert_pool_in_snapshot(entt::registry &registry, transient_snapshot &snapshot) {
-    auto pool = std::make_unique<pool_snapshot<Component>>();
     auto view = registry.view<Component>();
+
+    if (view.empty()) {
+        return;
+    }
+
+    auto pool = std::make_unique<pool_snapshot<Component>>();
+    pool->component_index = tuple_index_of<Component>(networked_components);;
 
     for (auto entity : view) {
         if constexpr(entt::is_eto_eligible_v<Component>) {

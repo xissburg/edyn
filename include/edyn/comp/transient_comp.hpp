@@ -8,7 +8,6 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
-#include "edyn/comp/island.hpp"
 #include "edyn/collision/contact_point.hpp"
 
 namespace edyn {
@@ -18,7 +17,6 @@ namespace edyn {
  * simulation.
  */
 static const auto transient_components = std::tuple<
-    island_timestamp,
     AABB,
     constraint_impulse,
     inertia_world_inv,

@@ -65,6 +65,8 @@ struct rigidbody_def {
     // position/orientation interpolation.
     bool presentation {true};
 
+    bool sleeping_disabled {false};
+
     /**
      * @brief Assigns the default moment of inertia of the current shape
      * using the current mass.

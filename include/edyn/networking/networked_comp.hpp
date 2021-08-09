@@ -10,6 +10,8 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/present_orientation.hpp"
+#include "edyn/comp/present_position.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/tag.hpp"
@@ -41,8 +43,11 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     material,
     position,
     orientation,
+    present_position,
+    present_orientation,
     contact_manifold,
     contact_point,
+    continuous,
     center_of_mass,
     dynamic_tag,
     kinematic_tag,
