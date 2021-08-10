@@ -65,6 +65,7 @@ struct rigidbody_def {
     // position/orientation interpolation.
     bool presentation {true};
 
+    // Prevent this rigid body from sleeping while it barely moves.
     bool sleeping_disabled {false};
 
     bool networked {false};
