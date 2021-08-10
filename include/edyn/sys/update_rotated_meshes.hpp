@@ -17,6 +17,14 @@ struct quaternion;
 void update_rotated_meshes(entt::registry &registry);
 
 /**
+ * @brief Updates the rotated mesh of a single entity, which is assumed to have
+ * either a polyhedron or a compound shape.
+ * @param registry Data source.
+ * @param entity Entity to be updated.
+ */
+void update_rotated_mesh(entt::registry &registry, entt::entity entity);
+
+/**
  * @brief Updates rotated mesh by appliying a rotation to the vertex positions
  * and face normals of a mesh.
  * @param rotated The rotated mesh to be updated.

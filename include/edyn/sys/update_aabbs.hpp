@@ -14,6 +14,13 @@ namespace edyn {
  */
 void update_aabbs(entt::registry &registry);
 
+/**
+ * @brief Update AABB of a single entity.
+ * @param registry The registry to be updated.
+ * @param entity Entity to be updated.
+ */
+void update_aabb(entt::registry &registry, entt::entity entity);
+
 }
 
 #endif // EDYN_SYS_UPDATE_AABBS_HPP
