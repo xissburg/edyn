@@ -2,9 +2,9 @@
 #define EDYN_NETWORKING_PACKET_TRANSIENT_SNAPSHOT_HPP
 
 #include <memory>
-#include <edyn/networking/packet/pool_snapshot.hpp>
+#include <edyn/networking/packet/util/pool_snapshot.hpp>
 
-namespace edyn {
+namespace edyn::packet {
 
 struct transient_snapshot {
     std::vector<std::unique_ptr<pool_snapshot_base>> pools;

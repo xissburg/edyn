@@ -8,10 +8,12 @@
 
 namespace edyn {
 
-struct edyn_packet;
+namespace packet {
+    struct edyn_packet;
+}
 
 struct remote_client {
-    using packet_observer_func_t = void(const edyn_packet &);
+    using packet_observer_func_t = void(const packet::edyn_packet &);
     entt::sigh<packet_observer_func_t> packet_signal;
 
     auto packet_sink() {

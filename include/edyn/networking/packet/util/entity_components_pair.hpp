@@ -5,7 +5,7 @@
 #include <memory>
 #include <entt/entity/registry.hpp>
 #include "edyn/util/tuple_util.hpp"
-#include "edyn/networking/packet/component_wrapper.hpp"
+#include "edyn/networking/packet/util/component_wrapper.hpp"
 
 namespace edyn {
 

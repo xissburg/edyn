@@ -2,9 +2,9 @@
 #define EDYN_NETWORKING_PACKET_ENTITY_RESPONSE_HPP
 
 #include <vector>
-#include "edyn/networking/packet/entity_components_pair.hpp"
+#include "edyn/networking/packet/util/entity_components_pair.hpp"
 
-namespace edyn {
+namespace edyn::packet {
 
 struct entity_response {
     std::vector<entity_components_pair> pairs;

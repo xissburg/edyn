@@ -3,6 +3,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/networking/packet/entity_request.hpp"
+#include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/networking/client_networking_context.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/parallel/entity_graph.hpp"
@@ -29,19 +30,19 @@ void update_networking_client(entt::registry &registry) {
     auto &ctx = registry.ctx<client_networking_context>();
 
     if (!ctx.created_entities.empty()) {
-        create_entity packet;
+        packet::create_entity packet;
 
         for (auto entity : ctx.created_entities) {
             auto pair = make_entity_components_pair(registry, entity);
             packet.pairs.push_back(std::move(pair));
         }
 
-        ctx.packet_signal.publish(edyn_packet{std::move(packet)});
+        ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
         ctx.created_entities.clear();
     }
 }
 
-static void process_packet(entt::registry &registry, const update_entity_map &emap) {
+static void process_packet(entt::registry &registry, const packet::update_entity_map &emap) {
     auto &ctx = registry.ctx<client_networking_context>();
 
     for (auto &pair : emap.pairs) {
@@ -51,15 +52,15 @@ static void process_packet(entt::registry &registry, const update_entity_map &em
     }
 }
 
-static void process_packet(entt::registry &registry, const entity_request &req) {
+static void process_packet(entt::registry &registry, const packet::entity_request &req) {
 
 }
 
-static void process_packet(entt::registry &registry, const entity_response &res) {
+static void process_packet(entt::registry &registry, const packet::entity_response &res) {
     auto &ctx = registry.ctx<client_networking_context>();
     ctx.importing_entities = true;
 
-    auto emap_packet = update_entity_map{};
+    auto emap_packet = packet::update_entity_map{};
 
     for (auto &pair : res.pairs) {
         auto remote_entity = pair.entity;
@@ -80,15 +81,15 @@ static void process_packet(entt::registry &registry, const entity_response &res)
     ctx.importing_entities = false;
 
     if (!emap_packet.pairs.empty()) {
-        ctx.packet_signal.publish(edyn_packet{std::move(emap_packet)});
+        ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
 }
 
-static void process_packet(entt::registry &registry, const create_entity &packet) {
+static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
     auto &ctx = registry.ctx<client_networking_context>();
     ctx.importing_entities = true;
 
-    auto emap_packet = update_entity_map{};
+    auto emap_packet = packet::update_entity_map{};
 
     for (auto &pair : packet.pairs) {
         auto remote_entity = pair.entity;
@@ -104,7 +105,7 @@ static void process_packet(entt::registry &registry, const create_entity &packet
     ctx.importing_entities = false;
 
     if (!emap_packet.pairs.empty()) {
-        ctx.packet_signal.publish(edyn_packet{std::move(emap_packet)});
+        ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
 }
 
@@ -150,13 +151,13 @@ void process_pool(entt::registry &registry, const pool_snapshot_base &pool) {
     }, networked_components);
 }
 
-static void process_packet(entt::registry &registry, const transient_snapshot &snapshot) {
+static void process_packet(entt::registry &registry, const packet::transient_snapshot &snapshot) {
     for (auto &pool_ptr : snapshot.pools) {
         process_pool(registry, *pool_ptr);
     }
 }
 
-void client_process_packet(entt::registry &registry, const edyn_packet &packet) {
+void client_process_packet(entt::registry &registry, const packet::edyn_packet &packet) {
     std::visit([&] (auto &&inner_packet) {
         process_packet(registry, inner_packet);
     }, packet.var);

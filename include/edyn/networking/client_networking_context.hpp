@@ -6,7 +6,9 @@
 
 namespace edyn {
 
-struct edyn_packet;
+namespace packet {
+    struct edyn_packet;
+}
 
 struct client_networking_context {
     edyn::entity_map entity_map;
@@ -20,7 +22,7 @@ struct client_networking_context {
         return entt::sink{request_entity_signal};
     }
 
-    using packet_observer_func_t = void(const edyn_packet &);
+    using packet_observer_func_t = void(const packet::edyn_packet &);
     entt::sigh<packet_observer_func_t> packet_signal;
 
     auto packet_sink() {

@@ -4,7 +4,7 @@
 #include <vector>
 #include <entt/entity/fwd.hpp>
 
-namespace edyn {
+namespace edyn::packet {
 
 struct entity_request {
     std::vector<entt::entity> entities;

@@ -1,6 +1,7 @@
 #include "edyn/networking/server_side.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
+#include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/networking/remote_client.hpp"
 #include "edyn/networking/entity_owner.hpp"
 #include "edyn/comp/transient_comp.hpp"
@@ -16,8 +17,8 @@ void init_networking_server(entt::registry &) {
 
 }
 
-static void process_packet(entt::registry &registry, entt::entity client_entity, const entity_request &req) {
-    auto res = entity_response{};
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
+    auto res = packet::entity_response{};
     auto entities = std::set<entt::entity>(req.entities.begin(), req.entities.end());
 
     for (auto entity : entities) {
@@ -31,11 +32,11 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
     if (!res.pairs.empty()) {
         auto &client = registry.get<remote_client>(client_entity);
-        client.packet_signal.publish(edyn_packet{std::move(res)});
+        client.packet_signal.publish(packet::edyn_packet{std::move(res)});
     }
 }
 
-static void process_packet(entt::registry &registry, entt::entity client_entity, const entity_response &res) {
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_response &res) {
 
 }
 
@@ -75,15 +76,15 @@ void process_pool(entt::registry &registry, entt::entity client_entity, const po
     }, networked_components);
 }
 
-static void process_packet(entt::registry &registry, entt::entity client_entity, const transient_snapshot &snapshot) {
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
     for (auto &pool_ptr : snapshot.pools) {
         process_pool(registry, client_entity, *pool_ptr);
     }
 }
 
-static void process_packet(entt::registry &registry, entt::entity client_entity, const create_entity &packet) {
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::create_entity &packet) {
     auto &client = registry.get<remote_client>(client_entity);
-    auto emap_packet = update_entity_map{};
+    auto emap_packet = packet::update_entity_map{};
 
     for (auto &pair : packet.pairs) {
         auto local_entity = registry.create();
@@ -95,7 +96,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         client.owned_entities.push_back(local_entity);
     }
 
-    client.packet_signal.publish(edyn_packet{std::move(emap_packet)});
+    client.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
 
     for (auto &pair : packet.pairs) {
         auto remote_entity = pair.entity;
@@ -107,7 +108,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     }
 }
 
-static void process_packet(entt::registry &registry, entt::entity client_entity, const update_entity_map &packet) {
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::update_entity_map &packet) {
     auto &client = registry.get<remote_client>(client_entity);
 
     for (auto &pair : packet.pairs) {
@@ -117,14 +118,14 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     }
 }
 
-void server_process_packet(entt::registry &registry, entt::entity client_entity, const edyn_packet &packet) {
+void server_process_packet(entt::registry &registry, entt::entity client_entity, const packet::edyn_packet &packet) {
     std::visit([&] (auto &&decoded_packet) {
         process_packet(registry, client_entity, decoded_packet);
     }, packet.var);
 }
 
 template<typename Component>
-void insert_pool_in_snapshot(entt::registry &registry, transient_snapshot &snapshot) {
+void insert_pool_in_snapshot(entt::registry &registry, packet::transient_snapshot &snapshot) {
     auto view = registry.view<Component>();
 
     if (view.empty()) {
@@ -146,8 +147,8 @@ void insert_pool_in_snapshot(entt::registry &registry, transient_snapshot &snaps
     snapshot.pools.push_back(std::move(pool));
 }
 
-transient_snapshot server_get_transient_snapshot(entt::registry &registry) {
-    auto snapshot = transient_snapshot{};
+packet::transient_snapshot server_get_transient_snapshot(entt::registry &registry) {
+    auto snapshot = packet::transient_snapshot{};
 
     std::apply([&] (auto ... comp) {
         ((insert_pool_in_snapshot<decltype(comp)>(registry, snapshot)), ...);

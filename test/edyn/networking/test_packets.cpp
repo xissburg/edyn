@@ -10,10 +10,10 @@ TEST(network_packets_test, test_entity_req_res) {
     auto entity = registry.create();
     registry.emplace<edyn::position>(entity, .1f, .3f, -.9f);
 
-    auto entity_req_out = edyn::entity_request{};
+    auto entity_req_out = edyn::packet::entity_request{};
     entity_req_out.entities.push_back(entity);
 
-    auto entity_res_out = edyn::entity_response{};
+    auto entity_res_out = edyn::packet::entity_response{};
     auto &pair = entity_res_out.pairs.emplace_back();
     pair.entity = entity;
     auto comp_ptr = std::make_unique<edyn::component_wrapper<edyn::position>>();
@@ -26,8 +26,8 @@ TEST(network_packets_test, test_entity_req_res) {
     archive_out(entity_req_out);
     archive_out(entity_res_out);
 
-    auto entity_req_in = edyn::entity_request{};
-    auto entity_res_in = edyn::entity_response{};
+    auto entity_req_in = edyn::packet::entity_request{};
+    auto entity_res_in = edyn::packet::entity_response{};
 
     auto archive_in = edyn::memory_input_archive(buffer.data(), buffer.size());
     archive_in(entity_req_in);

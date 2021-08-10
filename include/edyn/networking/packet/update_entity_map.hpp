@@ -3,7 +3,7 @@
 
 #include "edyn/util/entity_pair.hpp"
 
-namespace edyn {
+namespace edyn::packet {
 
 struct update_entity_map {
     entity_pair_vector pairs; // [local -> remote]
