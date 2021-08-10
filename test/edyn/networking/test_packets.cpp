@@ -14,12 +14,12 @@ TEST(network_packets_test, test_entity_req_res) {
     entity_req_out.entities.push_back(entity);
 
     auto entity_res_out = edyn::entity_response{};
-    auto &element = entity_res_out.elements.emplace_back();
-    element.entity = entity;
-    auto comp_ptr = std::make_unique<edyn::entity_response_component<edyn::position>>();
-    comp_ptr->component_index = edyn::tuple_index_of<edyn::position>(edyn::networked_components);
+    auto &pair = entity_res_out.pairs.emplace_back();
+    pair.entity = entity;
+    auto comp_ptr = std::make_unique<edyn::component_wrapper<edyn::position>>();
+    comp_ptr->component_index = edyn::tuple_index_of<edyn::position, unsigned>(edyn::networked_components);
     comp_ptr->value = registry.get<edyn::position>(entity);
-    element.components.push_back(std::move(comp_ptr));
+    pair.components.push_back(std::move(comp_ptr));
 
     auto buffer = std::vector<uint8_t>{};
     auto archive_out = edyn::memory_output_archive(buffer);
@@ -35,16 +35,16 @@ TEST(network_packets_test, test_entity_req_res) {
 
     ASSERT_EQ(entity_req_out.entities.front(), entity_req_in.entities.front());
 
-    ASSERT_EQ(entity_res_out.elements.size(), entity_res_in.elements.size());
-    ASSERT_EQ(entity_res_out.elements[0].entity, entity_res_in.elements[0].entity);
-    ASSERT_EQ(entity_res_out.elements[0].components.size(), entity_res_in.elements[0].components.size());
-    ASSERT_EQ(entity_res_out.elements[0].components[0]->component_index, entity_res_in.elements[0].components[0]->component_index);
+    ASSERT_EQ(entity_res_out.pairs.size(), entity_res_in.pairs.size());
+    ASSERT_EQ(entity_res_out.pairs[0].entity, entity_res_in.pairs[0].entity);
+    ASSERT_EQ(entity_res_out.pairs[0].components.size(), entity_res_in.pairs[0].components.size());
+    ASSERT_EQ(entity_res_out.pairs[0].components[0]->component_index, entity_res_in.pairs[0].components[0]->component_index);
 
-    edyn::visit_entity_response_component(*entity_res_in.elements[0].components[0], [] (auto &&comp) {
+    edyn::visit_component_wrapper(*entity_res_in.pairs[0].components[0], [] (auto &&comp) {
         if constexpr(std::is_same_v<std::decay_t<decltype(comp)>, edyn::position>) {
             ASSERT_SCALAR_EQ(comp.x, .1f);
             ASSERT_SCALAR_EQ(comp.y, .3f);
-            ASSERT_SCALAR_EQ(comp.z, .9f);
+            ASSERT_SCALAR_EQ(comp.z, -.9f);
         }
     });
 }

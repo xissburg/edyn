@@ -4,12 +4,4 @@
 
 namespace edyn {
 
-void init_networking_server(entt::registry &) {
-
-}
-
-void init_networking_client(entt::registry &registry) {
-    registry.set<client_networking_context>();
-}
-
 }

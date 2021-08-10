@@ -6,14 +6,25 @@
 
 namespace edyn {
 
+struct edyn_packet;
+
 struct client_networking_context {
     edyn::entity_map entity_map;
+    std::vector<entt::entity> created_entities;
+    bool importing_entities {false};
 
     using request_entity_func_t = void(entt::entity);
     entt::sigh<request_entity_func_t> request_entity_signal;
 
     auto request_entity_sink() {
         return entt::sink{request_entity_signal};
+    }
+
+    using packet_observer_func_t = void(const edyn_packet &);
+    entt::sigh<packet_observer_func_t> packet_signal;
+
+    auto packet_sink() {
+        return entt::sink{packet_signal};
     }
 };
 

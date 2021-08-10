@@ -42,7 +42,7 @@ struct index_of<IndexType, T, std::tuple<Ts...>> : index_of<IndexType, T, Ts...>
 /**
  * Find index of a type in a tuple.
  */
-template<typename T, typename... Ts, typename IndexType = size_t>
+template<typename T, typename IndexType = size_t, typename... Ts>
 constexpr IndexType tuple_index_of(std::tuple<Ts...>) {
     return index_of_v<IndexType, T, Ts...>;
 }

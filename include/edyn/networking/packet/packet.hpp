@@ -5,6 +5,8 @@
 #include "edyn/networking/packet/entity_response.hpp"
 #include "edyn/networking/packet/pool_snapshot.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
+#include "edyn/networking/packet/create_entity.hpp"
+#include "edyn/networking/packet/update_entity_map.hpp"
 #include <variant>
 
 namespace edyn {
@@ -13,7 +15,9 @@ struct edyn_packet {
     std::variant<
         entity_request,
         entity_response,
-        transient_snapshot
+        transient_snapshot,
+        create_entity,
+        update_entity_map
     > var;
 };
 

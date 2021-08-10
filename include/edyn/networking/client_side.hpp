@@ -6,6 +6,8 @@
 
 namespace edyn {
 
+void init_networking_client(entt::registry &);
+void update_networking_client(entt::registry &);
 void client_process_packet(entt::registry &, const edyn_packet &);
 
 }
