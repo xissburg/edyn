@@ -5,6 +5,7 @@
 #include "edyn/networking/packet/entity_response.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/packet/create_entity.hpp"
+#include "edyn/networking/packet/destroy_entity.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
 #include <variant>
 
@@ -16,6 +17,7 @@ struct edyn_packet {
         entity_response,
         transient_snapshot,
         create_entity,
+        destroy_entity,
         update_entity_map
     > var;
 };

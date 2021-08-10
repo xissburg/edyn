@@ -4,7 +4,6 @@
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/networking/remote_client.hpp"
 #include "edyn/networking/entity_owner.hpp"
-#include "edyn/comp/transient_comp.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/edyn.hpp"
 #include <entt/core/type_traits.hpp>
@@ -41,14 +40,15 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 }
 
 template<typename Component>
-void import_pool(entt::registry &registry, entt::entity client_entity, const pool_snapshot<Component> &pool) {
+void import_pool(entt::registry &registry, entt::entity client_entity,
+                 const std::vector<std::pair<entt::entity, Component>> &pool) {
     if constexpr(entt::is_eto_eligible_v<Component>) {
         return;
     }
 
     auto &client = registry.get<remote_client>(client_entity);
 
-    for (auto &pair : pool.pairs) {
+    for (auto &pair : pool) {
         auto remote_entity = pair.first;
 
         if (client.entity_map.has_rem(pair.first)) {
@@ -69,17 +69,11 @@ void import_pool(entt::registry &registry, entt::entity client_entity, const poo
     }
 }
 
-void process_pool(entt::registry &registry, entt::entity client_entity, const pool_snapshot_base &pool) {
-    std::apply([&] (auto ... comp) {
-        size_t i = 0;
-        ((i++ == pool.component_index ? import_pool(registry, client_entity, static_cast<const pool_snapshot<decltype(comp)> &>(pool)) : void(0)), ...);
-    }, networked_components);
-}
-
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
-    for (auto &pool_ptr : snapshot.pools) {
-        process_pool(registry, client_entity, *pool_ptr);
-    }
+    import_pool(registry, client_entity, snapshot.positions);
+    import_pool(registry, client_entity, snapshot.orientations);
+    import_pool(registry, client_entity, snapshot.linvels);
+    import_pool(registry, client_entity, snapshot.angvels);
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::create_entity &packet) {
@@ -105,6 +99,22 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         for (auto &comp_ptr : pair.components) {
             assign_component_wrapper(registry, local_entity, *comp_ptr, client.entity_map);
         }
+
+        registry.emplace<networked_tag>(local_entity);
+    }
+}
+
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::destroy_entity &packet) {
+    auto &client = registry.get<remote_client>(client_entity);
+
+    for (auto remote_entity : packet.entities) {
+        if (client.entity_map.has_rem(remote_entity)) {
+            auto local_entity = client.entity_map.remloc(remote_entity);
+
+            if (auto *owner = registry.try_get<entity_owner>(local_entity); owner && owner->client_entity == client_entity) {
+                registry.destroy(local_entity);
+            }
+        }
     }
 }
 
@@ -125,35 +135,29 @@ void server_process_packet(entt::registry &registry, entt::entity client_entity,
 }
 
 template<typename Component>
-void insert_pool_in_snapshot(entt::registry &registry, packet::transient_snapshot &snapshot) {
-    auto view = registry.view<Component>();
+void insert_all_into_pool(entt::registry &registry, std::vector<std::pair<entt::entity, Component>> &pool) {
+    auto view = registry.view<Component, procedural_tag, networked_tag>();
 
     if (view.empty()) {
         return;
     }
 
-    auto pool = std::make_unique<pool_snapshot<Component>>();
-    pool->component_index = tuple_index_of<Component, unsigned>(networked_components);
-
     for (auto entity : view) {
         if constexpr(entt::is_eto_eligible_v<Component>) {
-            pool->pairs.emplace_back(entity);
+            pool.emplace_back(entity);
         } else {
-            auto &comp = view.get(entity);
-            pool->pairs.emplace_back(entity, comp);
+            auto &comp = view.template get<Component>(entity);
+            pool.emplace_back(entity, comp);
         }
     }
-
-    snapshot.pools.push_back(std::move(pool));
 }
 
 packet::transient_snapshot server_get_transient_snapshot(entt::registry &registry) {
     auto snapshot = packet::transient_snapshot{};
-
-    std::apply([&] (auto ... comp) {
-        ((insert_pool_in_snapshot<decltype(comp)>(registry, snapshot)), ...);
-    }, transient_components);
-
+    insert_all_into_pool(registry, snapshot.positions);
+    insert_all_into_pool(registry, snapshot.orientations);
+    insert_all_into_pool(registry, snapshot.linvels);
+    insert_all_into_pool(registry, snapshot.angvels);
     return snapshot;
 }
 

@@ -135,6 +135,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<sleeping_disabled_tag>(entity);
     }
 
+    if (def.networked) {
+        registry.emplace<networked_tag>(entity);
+    }
+
     auto non_connecting = def.kind != rigidbody_kind::rb_dynamic;
     auto node_index = registry.ctx<entity_graph>().insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);

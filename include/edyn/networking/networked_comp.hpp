@@ -22,8 +22,6 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/shapes/shapes.hpp"
-#include "edyn/collision/contact_manifold.hpp"
-#include "edyn/collision/contact_point.hpp"
 
 namespace edyn {
 
@@ -45,8 +43,6 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     orientation,
     present_position,
     present_orientation,
-    contact_manifold,
-    contact_point,
     continuous,
     center_of_mass,
     dynamic_tag,
@@ -59,8 +55,15 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     continuous_contacts_tag,
     external_tag,
     shape_index,
-    rigidbody_tag
->{}, constraints_tuple, shapes_tuple);
+    rigidbody_tag,
+    null_constraint,
+    gravity_constraint,
+    point_constraint,
+    distance_constraint,
+    soft_distance_constraint,
+    hinge_constraint,
+    generic_constraint
+>{}, shapes_tuple);
 
 }
 

@@ -4,6 +4,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/shapes/shapes.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -24,6 +25,23 @@ AABB updated_aabb(const polyhedron_shape &polyhedron,
     aabb.min += pos;
     aabb.max += pos;
     return aabb;
+}
+
+void update_aabb(entt::registry &registry, entt::entity entity) {
+    visit_shape(registry, entity, [&] (auto &&shape) {
+        auto view = registry.view<position, orientation, AABB>();
+        auto [pos, orn, aabb] = view.get<position, orientation, AABB>(entity);
+
+        auto com_view = registry.view<center_of_mass>();
+        auto origin = static_cast<vector3>(pos);
+
+        if (com_view.contains(entity)) {
+            auto &com = com_view.get(entity);
+            origin = to_world_space(-com, pos, orn);
+        }
+
+        aabb = updated_aabb(shape, origin, orn);
+    });
 }
 
 template<typename ShapeType>

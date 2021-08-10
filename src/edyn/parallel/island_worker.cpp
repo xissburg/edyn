@@ -1,12 +1,16 @@
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
+#include "edyn/sys/update_aabbs.hpp"
+#include "edyn/sys/update_inertias.hpp"
+#include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/island_delta_builder.hpp"
@@ -290,6 +294,36 @@ void island_worker::on_island_delta(const island_delta &delta) {
             create_contact_constraint(m_registry, local_entity, cp);
         }
     });
+
+    // When orientation is set manually, a few dependent components must be
+    // updated, e.g. AABB, inertia_world_inv, rotated meshes...
+    delta.updated_for_each<orientation>(index_source, [&] (entt::entity remote_entity, const orientation &) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+
+        auto local_entity = m_entity_map.remloc(remote_entity);
+
+        update_aabb(m_registry, local_entity);
+
+        if (m_registry.has<dynamic_tag>(local_entity)) {
+            update_inertia(m_registry, local_entity);
+        }
+
+        if (m_registry.has<rotated_mesh_list>(local_entity)) {
+            update_rotated_mesh(m_registry, local_entity);
+        }
+    });
+
+    // When position is set manually, the AABB must be updated.
+    delta.updated_for_each<position>(index_source, [&] (entt::entity remote_entity, const position &) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+
+        auto local_entity = m_entity_map.remloc(remote_entity);
+
+        if (m_registry.has<AABB>(local_entity)) {
+            update_aabb(m_registry, local_entity);
+        }
+    });
+
 
     m_importing_delta = false;
 }

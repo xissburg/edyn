@@ -67,6 +67,8 @@ struct rigidbody_def {
 
     bool sleeping_disabled {false};
 
+    bool networked {false};
+
     /**
      * @brief Assigns the default moment of inertia of the current shape
      * using the current mass.

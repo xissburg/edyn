@@ -38,7 +38,7 @@ void insert_component_in_entity_components_pair(entt::registry &registry, entt::
     }
 }
 
-static auto make_entity_components_pair(entt::registry &registry, entt::entity entity) {
+inline auto make_entity_components_pair(entt::registry &registry, entt::entity entity) {
     auto pair = entity_components_pair{};
     pair.entity = entity;
 

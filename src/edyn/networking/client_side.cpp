@@ -20,10 +20,19 @@ void on_construct_networked_entity(entt::registry &registry, entt::entity entity
     }
 }
 
+void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) {
+    auto &ctx = registry.ctx<client_networking_context>();
+
+    if (!ctx.importing_entities) {
+        ctx.destroyed_entities.push_back(entity);
+    }
+}
+
 void init_networking_client(entt::registry &registry) {
     registry.set<client_networking_context>();
-    registry.on_construct<rigidbody_tag>().connect<&on_construct_networked_entity>();
-    registry.on_construct<soft_distance_constraint>().connect<&on_construct_networked_entity>();
+
+    registry.on_construct<networked_tag>().connect<&on_construct_networked_entity>();
+    registry.on_destroy<networked_tag>().connect<&on_destroy_networked_entity>();
 }
 
 void update_networking_client(entt::registry &registry) {
@@ -39,6 +48,12 @@ void update_networking_client(entt::registry &registry) {
 
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
         ctx.created_entities.clear();
+    }
+
+    if (!ctx.destroyed_entities.empty()) {
+        packet::destroy_entity packet;
+        packet.entities = std::move(ctx.destroyed_entities);
+        ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
     }
 }
 
@@ -76,6 +91,8 @@ static void process_packet(entt::registry &registry, const packet::entity_respon
         for (auto &comp_ptr : pair.components) {
             assign_component_wrapper(registry, local_entity, *comp_ptr, ctx.entity_map);
         }
+
+        registry.emplace<networked_tag>(local_entity);
     }
 
     ctx.importing_entities = false;
@@ -100,6 +117,8 @@ static void process_packet(entt::registry &registry, const packet::create_entity
         for (auto &comp_ptr : pair.components) {
             assign_component_wrapper(registry, local_entity, *comp_ptr, ctx.entity_map);
         }
+
+        registry.emplace<networked_tag>(local_entity);
     }
 
     ctx.importing_entities = false;
@@ -109,8 +128,22 @@ static void process_packet(entt::registry &registry, const packet::create_entity
     }
 }
 
+static void process_packet(entt::registry &registry, const packet::destroy_entity &packet) {
+    auto &ctx = registry.ctx<client_networking_context>();
+    ctx.importing_entities = true;
+
+    for (auto remote_entity : packet.entities) {
+        if (ctx.entity_map.has_rem(remote_entity)) {
+            auto local_entity = ctx.entity_map.remloc(remote_entity);
+            registry.destroy(local_entity);
+        }
+    }
+
+    ctx.importing_entities = false;
+}
+
 template<typename Component>
-void import_pool(entt::registry &registry, const pool_snapshot<Component> &pool) {
+void import_pool(entt::registry &registry, const std::vector<std::pair<entt::entity, Component>> &pool) {
     if constexpr(entt::is_eto_eligible_v<Component>) {
         return;
     }
@@ -118,7 +151,7 @@ void import_pool(entt::registry &registry, const pool_snapshot<Component> &pool)
     auto &ctx = registry.ctx<client_networking_context>();
     ctx.importing_entities = true;
 
-    for (auto &pair : pool.pairs) {
+    for (auto &pair : pool) {
         auto remote_entity = pair.first;
 
         if (ctx.entity_map.has_rem(pair.first)) {
@@ -132,9 +165,6 @@ void import_pool(entt::registry &registry, const pool_snapshot<Component> &pool)
                     registry.emplace<Component>(local_entity, pair.second);
                     registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
                 }
-            } else {
-                ctx.entity_map.erase_loc(local_entity);
-                ctx.request_entity_signal.publish(remote_entity);
             }
         } else {
             ctx.request_entity_signal.publish(remote_entity);
@@ -144,17 +174,11 @@ void import_pool(entt::registry &registry, const pool_snapshot<Component> &pool)
     ctx.importing_entities = false;
 }
 
-void process_pool(entt::registry &registry, const pool_snapshot_base &pool) {
-    std::apply([&] (auto ... comp) {
-        size_t i = 0;
-        ((i++ == pool.component_index ? import_pool(registry, static_cast<const pool_snapshot<decltype(comp)> &>(pool)) : void(0)), ...);
-    }, networked_components);
-}
-
 static void process_packet(entt::registry &registry, const packet::transient_snapshot &snapshot) {
-    for (auto &pool_ptr : snapshot.pools) {
-        process_pool(registry, *pool_ptr);
-    }
+    import_pool(registry, snapshot.positions);
+    import_pool(registry, snapshot.orientations);
+    import_pool(registry, snapshot.linvels);
+    import_pool(registry, snapshot.angvels);
 }
 
 void client_process_packet(entt::registry &registry, const packet::edyn_packet &packet) {

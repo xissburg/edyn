@@ -13,6 +13,7 @@ namespace packet {
 struct client_networking_context {
     edyn::entity_map entity_map;
     std::vector<entt::entity> created_entities;
+    std::vector<entt::entity> destroyed_entities;
     bool importing_entities {false};
 
     using request_entity_func_t = void(entt::entity);

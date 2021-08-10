@@ -33,24 +33,39 @@ void update_rotated_mesh(rotated_mesh &rotated, const convex_mesh &mesh,
     update_rotated_mesh_normals(rotated, mesh, orn);
 }
 
+template<typename RotatedView, typename OrientationView>
+void update_rotated_mesh(entt::entity entity, RotatedView &rotated_view, OrientationView &orn_view) {
+    auto &orn = orn_view.template get<orientation>(entity);
+    auto &rotated_list = rotated_view.template get<rotated_mesh_list>(entity);
+
+    auto *rot_list_ptr = &rotated_list;
+
+    while(true) {
+        // TODO: `rot_list_ptr->orientation` is often `quaternion_identity`.
+        // What could be done to avoid this often unnecessary multiplication?
+        update_rotated_mesh(*rot_list_ptr->rotated, *rot_list_ptr->mesh, orn * rot_list_ptr->orientation);
+
+        if (rot_list_ptr->next == entt::null) {
+            break;
+        }
+
+        rot_list_ptr = &rotated_view.get(rot_list_ptr->next);
+    }
+}
+
+void update_rotated_mesh(entt::registry &registry, entt::entity entity) {
+    auto rotated_view = registry.view<rotated_mesh_list>();
+    auto orn_view = registry.view<orientation>();
+    update_rotated_mesh(entity, rotated_view, orn_view);
+}
+
 void update_rotated_meshes(entt::registry &registry) {
     auto rotated_view = registry.view<rotated_mesh_list>();
     auto view = registry.view<orientation, rotated_mesh_list>();
-    view.each([&rotated_view] (orientation &orn, rotated_mesh_list &rotated_list) {
-        auto *rot_list_ptr = &rotated_list;
 
-        while(true) {
-            // TODO: `rot_list_ptr->orientation` is often `quaternion_identity`.
-            // What could be done to avoid this often unnecessary multiplication?
-            update_rotated_mesh(*rot_list_ptr->rotated, *rot_list_ptr->mesh, orn * rot_list_ptr->orientation);
-
-            if (rot_list_ptr->next == entt::null) {
-                break;
-            }
-
-            rot_list_ptr = &rotated_view.get(rot_list_ptr->next);
-        }
-    });
+    for (auto entity : view) {
+        update_rotated_mesh(entity, rotated_view, view);
+    }
 }
 
 }

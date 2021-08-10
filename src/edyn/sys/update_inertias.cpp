@@ -14,4 +14,11 @@ void update_inertias(entt::registry &registry) {
     });
 }
 
+void update_inertia(entt::registry &registry, entt::entity entity) {
+    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
+    auto [orn, inv_I, inv_IW] = view.get<orientation, inertia_inv, inertia_world_inv>(entity);
+    auto basis = to_matrix3x3(orn);
+    inv_IW = basis * inv_I * transpose(basis);
+}
+
 }
