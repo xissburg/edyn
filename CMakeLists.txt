@@ -99,6 +99,7 @@ set(Edyn_SOURCES
     src/edyn/networking/server_side.cpp
     src/edyn/networking/client_side.cpp
     src/edyn/networking/networking.cpp
+    src/edyn/networking/update_aabbs_of_interest.cpp
     src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
 )

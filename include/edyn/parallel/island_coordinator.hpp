@@ -76,6 +76,10 @@ public:
 
     void create_island(std::vector<entt::entity> nodes, bool sleeping = false);
 
+    const entity_set & get_island_nodes(entt::entity island_entity) const {
+        return m_island_ctx_map.at(island_entity)->m_nodes;
+    }
+
 private:
     entt::registry *m_registry;
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;

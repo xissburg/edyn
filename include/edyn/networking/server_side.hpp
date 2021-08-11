@@ -7,6 +7,7 @@
 namespace edyn {
 
 void init_networking_server(entt::registry &);
+void update_networking_server(entt::registry &);
 
 void server_process_packet(entt::registry &, entt::entity client_entity, const packet::edyn_packet &);
 

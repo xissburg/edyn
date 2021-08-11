@@ -3,7 +3,9 @@
 #include "edyn/networking/packet/update_entity_map.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/networking/remote_client.hpp"
+#include "edyn/networking/aabb_of_interest.hpp"
 #include "edyn/networking/entity_owner.hpp"
+#include "edyn/networking/update_aabbs_of_interest.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/edyn.hpp"
 #include <entt/core/type_traits.hpp>
@@ -14,6 +16,31 @@ namespace edyn {
 
 void init_networking_server(entt::registry &) {
 
+}
+
+void update_networking_server(entt::registry &registry) {
+    update_aabbs_of_interest(registry);
+
+    auto view = registry.view<remote_client, aabb_of_interest>();
+    view.each([&] (remote_client &client, aabb_of_interest &aabboi) {
+        if (!aabboi.destroy_entities.empty()) {
+            auto packet = packet::destroy_entity{};
+            packet.entities = std::move(aabboi.destroy_entities);
+            client.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+        }
+
+        if (!aabboi.create_entities.empty()) {
+            auto packet = packet::create_entity{};
+
+            for (auto entity : aabboi.create_entities) {
+                auto pair = make_entity_components_pair(registry, entity);
+                packet.pairs.push_back(std::move(pair));
+            }
+
+            client.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+            aabboi.create_entities.clear();
+        }
+    });
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
@@ -163,6 +190,7 @@ packet::transient_snapshot server_get_transient_snapshot(entt::registry &registr
 
 void server_make_client(entt::registry &registry, entt::entity entity) {
     registry.emplace<remote_client>(entity);
+    registry.emplace<aabb_of_interest>(entity);
 }
 
 entt::entity server_make_client(entt::registry &registry) {
