@@ -43,6 +43,10 @@ public:
                 message_queue_in_out message_queue);
     ~island_worker_context();
 
+    void init() {
+        m_worker->init();
+    }
+
     /**
      * Returns whether the current delta doesn't contain any changes.
      */
@@ -91,6 +95,10 @@ public:
 
     auto split_island_sink() {
         return entt::sink {m_split_island_signal};
+    }
+
+    auto island_entity() const {
+        return m_island_entity;
     }
 
     /**

@@ -41,7 +41,6 @@ class island_worker final {
         finish_step
     };
 
-    void init();
     void process_messages();
     bool should_step();
     void begin_step();
@@ -70,6 +69,8 @@ public:
     island_worker(entt::entity island_entity, const settings &, message_queue_in_out message_queue);
 
     ~island_worker();
+
+    void init();
 
     entt::entity island_entity() const {
         return m_island_entity;
@@ -121,6 +122,7 @@ private:
 
     std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_importing_delta;
+    bool m_destroying_node;
     bool m_topology_changed;
     bool m_pending_split_calculation;
     double m_calculate_split_delay;

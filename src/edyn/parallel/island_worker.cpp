@@ -59,6 +59,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     , m_solver(m_registry)
     , m_delta_builder((*settings.make_island_delta_builder)())
     , m_importing_delta(false)
+    , m_destroying_node(false)
     , m_topology_changed(false)
     , m_pending_split_calculation(false)
     , m_calculate_split_delay(0.6)
@@ -176,7 +177,18 @@ void island_worker::on_destroy_contact_point(entt::registry &registry, entt::ent
 
 void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
-    registry.ctx<entity_graph>().remove_node(node.node_index);
+    auto &graph = registry.ctx<entity_graph>();
+
+    m_destroying_node = true;
+
+    graph.visit_edges(node.node_index, [&] (entt::entity edge_entity) {
+        registry.destroy(edge_entity);
+    });
+
+    m_destroying_node = false;
+
+    graph.remove_all_edges(node.node_index);
+    graph.remove_node(node.node_index);
 
     if (!m_importing_delta && !m_splitting.load(std::memory_order_relaxed)) {
         m_delta_builder->destroyed(entity);
@@ -188,8 +200,10 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
 }
 
 void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
-    auto &edge = registry.get<graph_edge>(entity);
-    registry.ctx<entity_graph>().remove_edge(edge.edge_index);
+    if (!m_destroying_node) {
+        auto &edge = registry.get<graph_edge>(entity);
+        registry.ctx<entity_graph>().remove_edge(edge.edge_index);
+    }
 
     if (!m_importing_delta && !m_splitting.load(std::memory_order_relaxed)) {
         m_delta_builder->destroyed(entity);
@@ -944,10 +958,8 @@ entity_graph::connected_components_t island_worker::split() {
             }
         }
 
-        for (auto entity : connected_component.edges) {
-            m_delta_builder->updated_all(entity, m_registry);
-            m_registry.destroy(entity);
-        }
+        // All edges connecting to the destroyed nodes will be destroyed as well
+        // in `on_destroy_graph_node()`.
     }
 
     // Refresh island tree view after nodes are removed and send it back to
