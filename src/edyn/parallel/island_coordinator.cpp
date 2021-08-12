@@ -74,6 +74,8 @@ void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::e
     auto &node = registry.get<graph_node>(entity);
     auto &graph = registry.ctx<entity_graph>();
 
+    // Prevent edges from being removed in `on_destroy_graph_edge`. The more
+    // direct `entity_graph::remove_all_edges` will be used instead.
     registry.on_destroy<graph_edge>().disconnect<&island_coordinator::on_destroy_graph_edge>(*this);
 
     graph.visit_edges(node.node_index, [&] (entt::entity edge_entity) {
@@ -340,8 +342,20 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping,
 
     ctx->send<island_delta>(ctx->m_delta_builder->finish());
 
-    ctx->init();
-    ctx->read_messages();
+    // Create tree_view for this island using the procedural node AABBs. This
+    // ensures expectations will be met after this function call, or else this
+    // island would not have a tree_view until the worker sends an update.
+    dynamic_tree tree;
+    auto aabb_view = m_registry->view<AABB, procedural_tag>();
+
+    for (auto entity : nodes) {
+        if (aabb_view.contains(entity)) {
+            auto &aabb = aabb_view.get<AABB>(entity);
+            tree.create(aabb, entity);
+        }
+    }
+
+    m_registry->emplace<tree_view>(island_entity, tree.view());
 
     return island_entity;
 }

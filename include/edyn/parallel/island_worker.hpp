@@ -41,6 +41,7 @@ class island_worker final {
         finish_step
     };
 
+    void init();
     void process_messages();
     bool should_step();
     void begin_step();
@@ -69,8 +70,6 @@ public:
     island_worker(entt::entity island_entity, const settings &, message_queue_in_out message_queue);
 
     ~island_worker();
-
-    void init();
 
     entt::entity island_entity() const {
         return m_island_entity;

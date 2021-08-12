@@ -103,6 +103,9 @@ void island_worker::init() {
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
 
+    // Process messages enqueued before the worker was started. This includes
+    // the island deltas containing the initial entities that were added to
+    // this island.
     process_messages();
 
     auto &settings = m_registry.ctx<edyn::settings>();
@@ -110,15 +113,13 @@ void island_worker::init() {
         (*settings.external_system_init)(m_registry);
     }
 
-    // Assign tree view containing the updated broad-phase tree.
+    // Run broadphase to initialize the internal dynamic trees with the
+    // imported AABBs.
     m_bphase.update();
+
+    // Assign tree view containing the updated broad-phase tree.
     auto tview = m_bphase.view();
     m_registry.emplace<tree_view>(m_island_entity, tview);
-    m_delta_builder->created(m_island_entity, tview);
-
-    // Sync components that were created/updated during initialization
-    // including the updated `tree_view` from above.
-    sync();
 
     m_state = state::step;
 }
