@@ -36,6 +36,9 @@ void entity_graph::remove_node(index_type node_index) {
     EDYN_ASSERT(node_index < m_nodes.size());
     EDYN_ASSERT(m_nodes[node_index].entity != entt::null);
 
+    // Node must not have any edges.
+    EDYN_ASSERT(m_nodes[node_index].adjacency_index == null_index);
+
     m_nodes[node_index].entity = entt::null;
     m_nodes[node_index].next = m_nodes_free_list;
     m_nodes_free_list = node_index;
@@ -168,6 +171,53 @@ void entity_graph::remove_edge(index_type edge_index) {
     --m_edge_count;
 }
 
+void entity_graph::remove_all_edges(index_type node_index) {
+    auto &node = m_nodes[node_index];
+    auto adj_index = node.adjacency_index;
+    node.adjacency_index = null_index;
+
+    while (adj_index != null_index) {
+        auto &adj = m_adjacencies[adj_index];
+        auto edge_index = adj.edge_index;
+
+        // Remove all edges.
+        while (edge_index != null_index) {
+            auto &edge = m_edges[edge_index];
+            auto next = edge.next;
+            edge.entity = entt::null;
+            edge.next = m_edges_free_list;
+            m_edges_free_list = edge_index;
+            --m_edge_count;
+
+            edge_index = next;
+        }
+
+        // Remove adjacency from neighbor.
+        auto neighbor_node_index = adj.node_index;
+        auto &neighbor = m_nodes[neighbor_node_index];
+        auto neighbor_adj_index = neighbor.adjacency_index;
+
+        while (neighbor_adj_index != null_index) {
+            auto &neighbor_adj = m_adjacencies[neighbor_adj_index];
+            if (neighbor_adj.node_index == node_index) {
+                // All edges have been removed.
+                neighbor_adj.edge_index = null_index;
+                remove_adjacency(neighbor_node_index, neighbor_adj_index);
+                break;
+            }
+            neighbor_adj_index = neighbor_adj.next;
+        }
+
+        adj_index = adj.next;
+
+        // Remove adjacency.
+        adj.node_index = null_index;
+        adj.edge_index = null_index;
+        adj.next = m_adjacencies_free_list;
+        m_adjacencies_free_list = adj_index;
+    }
+}
+
 entt::entity entity_graph::edge_entity(index_type edge_index) const {
     EDYN_ASSERT(edge_index < m_edges.size());
     EDYN_ASSERT(m_edges[edge_index].entity != entt::null);
@@ -245,6 +295,7 @@ void entity_graph::remove_adjacency_edge(index_type source_node_index, index_typ
         adj.edge_index = edge.next;
     }
 
+    // Remove adjacency if it doesn't have any edges.
     if (adj.edge_index == null_index) {
         remove_adjacency(source_node_index, adj_index);
     }
