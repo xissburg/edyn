@@ -93,6 +93,10 @@ public:
         return entt::sink {m_split_island_signal};
     }
 
+    auto island_entity() const {
+        return m_island_entity;
+    }
+
     /**
      * Schedules worker to be terminated.
      */

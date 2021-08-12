@@ -25,7 +25,12 @@ class island_coordinator final {
 
     void init_new_nodes_and_edges();
     void init_new_non_procedural_node(entt::entity);
-    entt::entity create_island(double timestamp, bool sleeping);
+    entt::entity create_island(double timestamp, bool sleeping,
+                               const std::vector<entt::entity> &nodes,
+                               const std::vector<entt::entity> &edges);
+    void insert_to_island(island_worker_context &ctx,
+                          const std::vector<entt::entity> &nodes,
+                          const std::vector<entt::entity> &edges);
     void insert_to_island(entt::entity island_entity,
                           const std::vector<entt::entity> &nodes,
                           const std::vector<entt::entity> &edges);

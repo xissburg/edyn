@@ -4,7 +4,7 @@
 
 #include <vector>
 #include <utility>
-#include <entt/entity/fwd.hpp>
+#include <entt/entity/registry.hpp>
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/merge/merge_contact_point.hpp"
 #include "edyn/parallel/merge/merge_contact_manifold.hpp"

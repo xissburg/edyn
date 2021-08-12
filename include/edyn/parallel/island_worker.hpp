@@ -121,6 +121,7 @@ private:
 
     std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_importing_delta;
+    bool m_destroying_node;
     bool m_topology_changed;
     bool m_pending_split_calculation;
     double m_calculate_split_delay;
