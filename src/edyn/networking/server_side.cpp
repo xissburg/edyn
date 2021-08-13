@@ -6,42 +6,15 @@
 #include "edyn/networking/aabb_of_interest.hpp"
 #include "edyn/networking/entity_owner.hpp"
 #include "edyn/networking/update_aabbs_of_interest.hpp"
+#include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/edyn.hpp"
 #include <entt/core/type_traits.hpp>
 #include <entt/entity/registry.hpp>
+#include <algorithm>
 #include <set>
 
 namespace edyn {
-
-void init_networking_server(entt::registry &) {
-
-}
-
-void update_networking_server(entt::registry &registry) {
-    update_aabbs_of_interest(registry);
-
-    auto view = registry.view<remote_client, aabb_of_interest>();
-    view.each([&] (remote_client &client, aabb_of_interest &aabboi) {
-        if (!aabboi.destroy_entities.empty()) {
-            auto packet = packet::destroy_entity{};
-            packet.entities = std::move(aabboi.destroy_entities);
-            client.packet_signal.publish(packet::edyn_packet{std::move(packet)});
-        }
-
-        if (!aabboi.create_entities.empty()) {
-            auto packet = packet::create_entity{};
-
-            for (auto entity : aabboi.create_entities) {
-                auto pair = make_entity_components_pair(registry, entity);
-                packet.pairs.push_back(std::move(pair));
-            }
-
-            client.packet_signal.publish(packet::edyn_packet{std::move(packet)});
-            aabboi.create_entities.clear();
-        }
-    });
-}
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
     auto res = packet::entity_response{};
@@ -53,12 +26,12 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         }
 
         auto pair = make_entity_components_pair(registry, entity);
-        res.pairs.push_back(std::move(pair));
+        res.pairs.push_back(pair);
     }
 
     if (!res.pairs.empty()) {
         auto &client = registry.get<remote_client>(client_entity);
-        client.packet_signal.publish(packet::edyn_packet{std::move(res)});
+        client.packet_signal.publish(packet::edyn_packet{res});
     }
 }
 
@@ -117,7 +90,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         client.owned_entities.push_back(local_entity);
     }
 
-    client.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
+    client.packet_signal.publish(packet::edyn_packet{emap_packet});
 
     for (auto &pair : packet.pairs) {
         auto remote_entity = pair.entity;
@@ -155,9 +128,88 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     }
 }
 
+static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
+    process_packet(registry, client_entity, req);
+}
+
+static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_response &res) {
+    process_packet(registry, client_entity, res);
+}
+
+static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
+    auto &client = registry.get<remote_client>(client_entity);
+    auto packet = packet::edyn_packet{snapshot};
+    packet.timestamp = performance_time() - client.latency;
+    client.packet_queue.push_back(packet);
+}
+
+static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::create_entity &create) {
+    auto &client = registry.get<remote_client>(client_entity);
+    auto packet = packet::edyn_packet{create};
+    packet.timestamp = performance_time() - client.latency;
+    client.packet_queue.push_back(packet);
+}
+
+static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::destroy_entity &destroy) {
+    auto &client = registry.get<remote_client>(client_entity);
+    auto packet = packet::edyn_packet{destroy};
+    packet.timestamp = performance_time() - client.latency;
+    client.packet_queue.push_back(packet);
+}
+
+static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::update_entity_map &packet) {
+    process_packet(registry, client_entity, packet);
+}
+
+void init_networking_server(entt::registry &) {
+
+}
+
+void update_networking_server(entt::registry &registry) {
+    update_aabbs_of_interest(registry);
+
+    auto timestamp = performance_time();
+
+    registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
+        auto first = client.packet_queue.begin();
+        auto last = std::find_if(first, client.packet_queue.end(), [&] (auto &&packet) {
+            return packet.timestamp > timestamp - client.playout_delay;
+        });
+
+        for (auto it = first; it != last; ++it) {
+            std::visit([&] (auto &&decoded_packet) {
+                process_packet(registry, client_entity, decoded_packet);
+            }, it->var);
+        }
+
+        client.packet_queue.erase(first, last);
+    });
+
+    auto view = registry.view<remote_client, aabb_of_interest>();
+    view.each([&] (remote_client &client, aabb_of_interest &aabboi) {
+        if (!aabboi.destroy_entities.empty()) {
+            auto packet = packet::destroy_entity{};
+            packet.entities = std::move(aabboi.destroy_entities);
+            client.packet_signal.publish(packet::edyn_packet{packet});
+        }
+
+        if (!aabboi.create_entities.empty()) {
+            auto packet = packet::create_entity{};
+
+            for (auto entity : aabboi.create_entities) {
+                auto pair = make_entity_components_pair(registry, entity);
+                packet.pairs.push_back(pair);
+            }
+
+            client.packet_signal.publish(packet::edyn_packet{packet});
+            aabboi.create_entities.clear();
+        }
+    });
+}
+
 void server_process_packet(entt::registry &registry, entt::entity client_entity, const packet::edyn_packet &packet) {
     std::visit([&] (auto &&decoded_packet) {
-        process_packet(registry, client_entity, decoded_packet);
+        handle_packet(registry, client_entity, decoded_packet);
     }, packet.var);
 }
 
@@ -197,6 +249,12 @@ entt::entity server_make_client(entt::registry &registry) {
     auto entity = registry.create();
     server_make_client(registry, entity);
     return entity;
+}
+
+void server_set_client_latency(entt::registry &registry, entt::entity client_entity, double latency) {
+    auto &client = registry.get<remote_client>(client_entity);
+    client.latency = latency;
+    client.playout_delay = latency * 1.2;
 }
 
 }

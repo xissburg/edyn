@@ -20,11 +20,14 @@ struct edyn_packet {
         destroy_entity,
         update_entity_map
     > var;
+
+    double timestamp;
 };
 
 template<typename Archive>
 void serialize(Archive &archive, edyn_packet &packet) {
     archive(packet.var);
+    archive(packet.timestamp);
 }
 
 }

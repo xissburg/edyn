@@ -1,0 +1,12 @@
+#ifndef EDYN_NETWORKING_SERVER_NETWORKING_CONTEXT_HPP
+#define EDYN_NETWORKING_SERVER_NETWORKING_CONTEXT_HPP
+
+namespace edyn {
+
+struct server_networking_context {
+
+};
+
+}
+
+#endif // EDYN_NETWORKING_SERVER_NETWORKING_CONTEXT_HPP

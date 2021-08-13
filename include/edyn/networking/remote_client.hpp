@@ -5,12 +5,9 @@
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
 #include "edyn/util/entity_map.hpp"
+#include "edyn/networking/packet/edyn_packet.hpp"
 
 namespace edyn {
-
-namespace packet {
-    struct edyn_packet;
-}
 
 struct remote_client {
     using packet_observer_func_t = void(const packet::edyn_packet &);
@@ -22,6 +19,9 @@ struct remote_client {
 
     std::vector<entt::entity> owned_entities;
     edyn::entity_map entity_map;
+    double latency {0};
+    double playout_delay {0};
+    std::vector<edyn::packet::edyn_packet> packet_queue;
 };
 
 }
