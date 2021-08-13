@@ -22,7 +22,7 @@ template<>
 void iterate_constraints<contact_constraint>(entt::registry &, row_cache &, scalar dt);
 
 template<>
-bool solve_position_constraints<contact_constraint>(entt::registry &registry);
+bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt);
 
 }
 

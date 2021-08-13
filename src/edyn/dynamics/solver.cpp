@@ -120,7 +120,7 @@ void solver::update(scalar dt) {
     integrate_angvel(registry, dt);
 
     for (unsigned i = 0; i < position_iterations; ++i) {
-        if (solve_position_constraints(registry)) {
+        if (solve_position_constraints(registry, dt)) {
             break;
         }
     }

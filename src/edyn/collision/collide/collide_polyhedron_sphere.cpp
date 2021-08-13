@@ -57,7 +57,7 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
         auto normalB = rotate(conjugate(ornB), sep_axis);
         auto pivotB = normalB * shB.radius;
         auto normal = rotate(ctx.ornA, sep_axis);
-        result.add_point({pivotA, pivotB, normal, distance});
+        result.add_point({pivotA, pivotB, normal, distance, contact_normal_attachment::normal_on_A});
         return;
     }
 
@@ -85,7 +85,7 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
     auto pivotB = normalB * shB.radius;
     auto normal = rotate(ctx.ornA, new_sep_axis);
 
-    result.add_point({pivotA, pivotB, normal, distance});
+    result.add_point({pivotA, pivotB, normal, distance, contact_normal_attachment::none});
 }
 
 void collide(const sphere_shape &shA, const polyhedron_shape &shB,

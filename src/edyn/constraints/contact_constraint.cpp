@@ -16,6 +16,7 @@
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/scalar.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -92,6 +93,11 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         auto normal_options = constraint_row_options{};
         normal_options.restitution = cp.restitution;
 
+        if (cp.distance > 0) {
+            auto penetration_vel = cp.distance / dt;
+            normal_options.error = penetration_vel;
+        }
+
         prepare_row(normal_row, normal_options, linvelA, linvelB, angvelA, angvelB);
         warm_start(normal_row);
 
@@ -136,17 +142,17 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
 }
 
 template<>
-bool solve_position_constraints<contact_constraint>(entt::registry &registry) {
+bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt) {
     auto con_view = registry.view<contact_constraint, contact_point>();
-    auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
+    auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
     auto com_view = registry.view<center_of_mass>();
     auto min_dist = scalar(0);
 
     con_view.each([&] (entt::entity entity, contact_constraint &con, contact_point &cp) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+        auto [posA, ornA, inv_mA, inv_IA] =
+            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[0]);
+        auto [posB, ornB, inv_mB, inv_IB] =
+            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[1]);
 
         EDYN_ASSERT(con.body[0] == cp.body[0]);
         EDYN_ASSERT(con.body[1] == cp.body[1]);
@@ -164,6 +170,9 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry) {
             originB = to_world_space(-com, posB, ornB);
         }
 
+        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+
         switch (cp.normal_attachment) {
         case contact_normal_attachment::normal_on_A:
             cp.normal = rotate(ornA, cp.local_normal);
@@ -171,11 +180,11 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry) {
         case contact_normal_attachment::normal_on_B:
             cp.normal = rotate(ornB, cp.local_normal);
             break;
+        case contact_normal_attachment::none:
+            break;
         }
 
         auto normal = cp.normal;
-        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
-        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
         cp.distance = dot(pivotA - pivotB, normal);
         min_dist = std::min(cp.distance, min_dist);
 
@@ -187,32 +196,20 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry) {
                          dot(J[2], J[2]) * inv_mB +
                          dot(inv_IB * J[3], J[3]);
         auto eff_mass = scalar(1) / J_invM_JT;
-        auto error = std::clamp((cp.distance + 0.005f) * 0.2f, -0.2f, 0.f);
-        auto correction = error * eff_mass;
+        auto error = std::min(cp.distance, scalar(0));
+        auto correction = -error * scalar(0.2) * eff_mass;
 
         posA += inv_mA * J[0] * correction;
         posB += inv_mB * J[2] * correction;
 
-        auto angular_correctionA = inv_IA * J[1] * correction;
-        auto angular_correctionA_len_sqr = length_sqr(angular_correctionA);
+        auto angular_correctionA = inv_IA * J[1] * correction / dt;
+        ornA = integrate(ornA, angular_correctionA, dt);
 
-        if (angular_correctionA_len_sqr > EDYN_EPSILON) {
-            auto angular_correctionA_len = std::sqrt(angular_correctionA_len_sqr);
-            auto angular_correctionA_dir = angular_correctionA / angular_correctionA_len;
-            ornA *= quaternion_axis_angle(angular_correctionA_dir, angular_correctionA_len);
-        }
-
-        auto angular_correctionB = inv_IB * J[3] * correction;
-        auto angular_correctionB_len_sqr = length_sqr(angular_correctionB);
-
-        if (angular_correctionB_len_sqr > EDYN_EPSILON) {
-            auto angular_correctionB_len = std::sqrt(angular_correctionB_len_sqr);
-            auto angular_correctionB_dir = angular_correctionB / angular_correctionB_len;
-            ornB *= quaternion_axis_angle(angular_correctionB_dir, angular_correctionB_len);
-        }
+        auto angular_correctionB = inv_IB * J[3] * correction / dt;
+        ornB = integrate(ornB, angular_correctionB, dt);
     });
 
-    return min_dist > -0.015f;
+    return min_dist > -0.005f;
 }
 
 }

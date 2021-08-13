@@ -4,15 +4,15 @@
 
 namespace edyn {
 
-void collide(const box_shape &shA, const plane_shape &shB, 
+void collide(const box_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result) {
     auto center = shB.normal * shB.constant;
 
     box_feature featureA;
     size_t feature_indexA;
     scalar projectionA;
-    shA.support_feature(ctx.posA, ctx.ornA, center, -shB.normal, 
-                        featureA, feature_indexA, projectionA, 
+    shA.support_feature(ctx.posA, ctx.ornA, center, -shB.normal,
+                        featureA, feature_indexA, projectionA,
                         support_feature_tolerance);
     auto distance = -projectionA;
 
@@ -45,7 +45,7 @@ void collide(const box_shape &shA, const plane_shape &shB,
         auto pivotB_world = project_plane(pivotA_world, center, shB.normal);
         auto pivotB = to_object_space(pivotB_world, ctx.posB, ctx.ornB);
         auto local_distance = dot(pivotA_world - pivotB_world, shB.normal);
-        result.add_point({pivotA, pivotB, shB.normal, local_distance});
+        result.add_point({pivotA, pivotB, shB.normal, local_distance, contact_normal_attachment::normal_on_B});
     }
 }
 

@@ -46,11 +46,11 @@ void iterate_constraints(entt::registry &registry, row_cache &cache, scalar dt) 
 }
 
 inline
-bool solve_position_constraints(entt::registry &registry) {
+bool solve_position_constraints(entt::registry &registry, scalar dt) {
     auto solved = false;
 
     std::apply([&] (auto ... c) {
-        solved = (solve_position_constraints<decltype(c)>(registry) && ...);
+        solved = (solve_position_constraints<decltype(c)>(registry, dt) && ...);
     }, constraints_tuple);
 
     return solved;

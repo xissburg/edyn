@@ -83,18 +83,22 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
     auto is_capsule_edge = std::abs(proj_capsule_vertices[0] -
                                     proj_capsule_vertices[1]) < support_feature_tolerance;
 
-    if (is_capsule_edge) {
-        auto polygon = point_cloud_support_polygon(
-            meshA.vertices.begin(), meshA.vertices.end(), vector3_zero,
-            sep_axis, projection_poly, true, support_feature_tolerance);
+    auto polygon = point_cloud_support_polygon(
+        meshA.vertices.begin(), meshA.vertices.end(), vector3_zero,
+        sep_axis, projection_poly, true, support_feature_tolerance);
 
+    auto normal_attachment = polygon.hull.size() > 2 ?
+            contact_normal_attachment::normal_on_A:
+            contact_normal_attachment::none;
+
+    if (is_capsule_edge) {
         // Check if the vertices of the capsule are inside the polygon.
         if (polygon.hull.size() > 2) {
             for (auto &pointB : capsule_vertices) {
                 if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
                     auto pivotA = project_plane(pointB, polygon.origin, sep_axis);
                     auto pivotB = to_object_space(pointB + sep_axis * shB.radius, posB, ornB);
-                    result.add_point({pivotA, pivotB, normal, distance});
+                    result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
                 }
             }
         }
@@ -132,7 +136,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
                     auto pivotA = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
                     auto pivotB_world = lerp(capsule_vertices[0], capsule_vertices[1], t[k]) + sep_axis * shB.radius;
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, normal, distance});
+                    result.maybe_add_point({pivotA, pivotB, normal, distance, normal_attachment});
                 }
             }
         } else {
@@ -144,7 +148,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
             closest_point_line(capsule_vertices[0], edge_dir, pivotA, t, pivotB_world);
             auto normalB = rotate(conjugate(ornB), sep_axis);
             auto pivotB = to_object_space(pivotB_world, posB, ornB) + normalB * shB.radius;
-            result.add_point({pivotA, pivotB, normal, distance});
+            result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
         }
     } else {
         auto &closest_capsule_vertex = proj_capsule_vertices[0] > proj_capsule_vertices[1] ?
@@ -152,7 +156,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
         auto pivotB_world = closest_capsule_vertex + sep_axis * shB.radius;
         auto pivotB = to_object_space(pivotB_world, posB, ornB);
         auto pivotA = pivotB_world + sep_axis * distance;
-        result.add_point({pivotA, pivotB, normal, distance});
+        result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
     }
 }
 

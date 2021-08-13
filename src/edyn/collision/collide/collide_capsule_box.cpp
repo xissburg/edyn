@@ -108,7 +108,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
                     auto pivotA = to_object_space(pointA - sep_axis * shA.radius, posA, ornA);
                     auto pivotB_world = project_plane(pointA, contact_origin_box, sep_axis);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.add_point({pivotA, pivotB, sep_axis, distance});
+                    result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B});
                 }
             }
 
@@ -136,7 +136,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
                 auto face_pivot = project_plane(edge_pivot, face_center, sep_axis);
                 auto pivotA = to_object_space(edge_pivot - sep_axis * shA.radius, posA, ornA);
                 auto pivotB = to_object_space(face_pivot, posB, ornB);
-                result.add_point({pivotA, pivotB, sep_axis, distance});
+                result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B});
             }
         } else {
             // Capsule edge vs box face.
@@ -146,7 +146,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
             auto pivotB_world = project_plane(pivotA_world, contact_origin_box, sep_axis);
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
             auto pivotB = to_object_space(pivotB_world, posB, ornB);
-            result.add_point({pivotA, pivotB, sep_axis, distance});
+            result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B});
         }
         break;
     }
@@ -167,7 +167,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
                 auto pivotB_world = closestB[i];
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                result.add_point({pivotA, pivotB, sep_axis, distance});
+                result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none});
             }
         } else {
             // Capsule vertex against box edge.
@@ -178,7 +178,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
             closest_point_line(edge_vertices[0], edge_dir, closest_capsule_vertex, t, pivotB_world);
             auto pivotB = to_object_space(pivotB_world, posB, ornB);
             auto pivotA = to_object_space(closest_capsule_vertex - sep_axis * shA.radius, posA, ornA);
-            result.add_point({pivotA, pivotB, sep_axis, distance});
+            result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none});
         }
         break;
     }
@@ -187,7 +187,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
         auto pivotB_world = to_world_space(pivotB, posB, ornB);
         auto pivotA_world = pivotB_world + sep_axis * distance;
         auto pivotA = to_object_space(pivotA_world, posA, ornA);
-        result.add_point({pivotA, pivotB, sep_axis, distance});
+        result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none});
     }
     }
 }

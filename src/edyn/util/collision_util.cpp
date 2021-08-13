@@ -1,5 +1,6 @@
 #include "edyn/util/collision_util.hpp"
 #include "edyn/comp/material.hpp"
+#include "edyn/comp/orientation.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
@@ -103,13 +104,21 @@ entt::entity create_contact_point(entt::registry& registry,
     auto contact_entity = registry.create();
     manifold.point[idx] = contact_entity;
 
+    auto local_normal = vector3{};
+
+    if (rp.normal_attachment != contact_normal_attachment::none) {
+        auto idx = rp.normal_attachment == contact_normal_attachment::normal_on_A ? 0 : 1;
+        auto &orn = registry.get<orientation>(manifold.body[idx]);
+        local_normal = rotate(conjugate(orn), rp.normal);
+    }
+
     registry.emplace<contact_point>(
         contact_entity,
         manifold.body,
         rp.pivotA, // pivotA
         rp.pivotB, // pivotB
         rp.normal, // world space normal
-        rp.local_normal, // object space normal
+        local_normal, // object space normal
         rp.normal_attachment, // to which rigid body the local normal is attached
         scalar{}, // friction
         scalar{}, // restitution

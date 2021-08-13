@@ -15,7 +15,7 @@ template<typename C>
 void iterate_constraints(entt::registry &, row_cache &, scalar dt) {}
 
 template<typename C>
-bool solve_position_constraints(entt::registry &) { return true; }
+bool solve_position_constraints(entt::registry &, scalar dt) { return true; }
 
 }
 
