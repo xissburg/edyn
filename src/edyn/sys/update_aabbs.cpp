@@ -26,20 +26,37 @@ AABB updated_aabb(const polyhedron_shape &polyhedron,
     return aabb;
 }
 
+template<typename ShapeType, typename TransformView, typename CoMView>
+void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view, CoMView &com_view) {
+    auto [pos, orn, aabb] = tr_view.template get<position, orientation, AABB>(entity);
+    auto origin = static_cast<vector3>(pos);
+
+    if (com_view.contains(entity)) {
+        auto &com = com_view.get(entity);
+        origin = to_world_space(-com, pos, orn);
+    }
+
+    aabb = updated_aabb(shape, origin, orn);
+}
+
+void update_aabb(entt::registry &registry, entt::entity entity) {
+    auto tr_view = registry.view<position, orientation, AABB>();
+    auto com_view = registry.view<center_of_mass>();
+
+    visit_shape(registry, entity, [&] (auto &&shape) {
+        update_aabb(entity, shape, tr_view, com_view);
+    });
+}
+
 template<typename ShapeType>
 void update_aabbs(entt::registry &registry) {
     auto com_view = registry.view<center_of_mass>();
-    auto view = registry.view<position, orientation, ShapeType, AABB>();
-    view.each([com_view] (entt::entity entity, position &pos, orientation &orn, ShapeType &shape, AABB &aabb) {
-        auto origin = static_cast<vector3>(pos);
+    auto tr_view = registry.view<position, orientation, ShapeType, AABB>();
 
-        if (com_view.contains(entity)) {
-            auto &com = com_view.get(entity);
-            origin = to_world_space(-com, pos, orn);
-        }
-
-        aabb = updated_aabb(shape, origin, orn);
-    });
+    for (auto entity : tr_view) {
+        auto &shape = tr_view.template get<ShapeType>(entity);
+        update_aabb(entity, shape, tr_view, com_view);
+    }
 }
 
 template<typename... Ts>

@@ -1,12 +1,16 @@
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
+#include "edyn/sys/update_aabbs.hpp"
+#include "edyn/sys/update_inertias.hpp"
+#include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/island_delta_builder.hpp"
@@ -55,6 +59,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     , m_solver(m_registry)
     , m_delta_builder((*settings.make_island_delta_builder)())
     , m_importing_delta(false)
+    , m_destroying_node(false)
     , m_topology_changed(false)
     , m_pending_split_calculation(false)
     , m_calculate_split_delay(0.6)
@@ -99,6 +104,9 @@ void island_worker::init() {
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
 
+    // Process messages enqueued before the worker was started. This includes
+    // the island deltas containing the initial entities that were added to
+    // this island.
     process_messages();
 
     auto &settings = m_registry.ctx<edyn::settings>();
@@ -106,15 +114,13 @@ void island_worker::init() {
         (*settings.external_system_init)(m_registry);
     }
 
-    // Assign tree view containing the updated broad-phase tree.
+    // Run broadphase to initialize the internal dynamic trees with the
+    // imported AABBs.
     m_bphase.update();
+
+    // Assign tree view containing the updated broad-phase tree.
     auto tview = m_bphase.view();
     m_registry.emplace<tree_view>(m_island_entity, tview);
-    m_delta_builder->created(m_island_entity, tview);
-
-    // Sync components that were created/updated during initialization
-    // including the updated `tree_view` from above.
-    sync();
 
     m_state = state::step;
 }
@@ -173,7 +179,18 @@ void island_worker::on_destroy_contact_point(entt::registry &registry, entt::ent
 
 void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
-    registry.ctx<entity_graph>().remove_node(node.node_index);
+    auto &graph = registry.ctx<entity_graph>();
+
+    m_destroying_node = true;
+
+    graph.visit_edges(node.node_index, [&] (entt::entity edge_entity) {
+        registry.destroy(edge_entity);
+    });
+
+    m_destroying_node = false;
+
+    graph.remove_all_edges(node.node_index);
+    graph.remove_node(node.node_index);
 
     if (!m_importing_delta && !m_splitting.load(std::memory_order_relaxed)) {
         m_delta_builder->destroyed(entity);
@@ -185,8 +202,10 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
 }
 
 void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
-    auto &edge = registry.get<graph_edge>(entity);
-    registry.ctx<entity_graph>().remove_edge(edge.edge_index);
+    if (!m_destroying_node) {
+        auto &edge = registry.get<graph_edge>(entity);
+        registry.ctx<entity_graph>().remove_edge(edge.edge_index);
+    }
 
     if (!m_importing_delta && !m_splitting.load(std::memory_order_relaxed)) {
         m_delta_builder->destroyed(entity);
@@ -291,6 +310,36 @@ void island_worker::on_island_delta(const island_delta &delta) {
             create_contact_constraint(m_registry, local_entity, cp);
         }
     });
+
+    // When orientation is set manually, a few dependent components must be
+    // updated, e.g. AABB, inertia_world_inv, rotated meshes...
+    delta.updated_for_each<orientation>(index_source, [&] (entt::entity remote_entity, const orientation &) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+
+        auto local_entity = m_entity_map.remloc(remote_entity);
+
+        update_aabb(m_registry, local_entity);
+
+        if (m_registry.has<dynamic_tag>(local_entity)) {
+            update_inertia(m_registry, local_entity);
+        }
+
+        if (m_registry.has<rotated_mesh_list>(local_entity)) {
+            update_rotated_mesh(m_registry, local_entity);
+        }
+    });
+
+    // When position is set manually, the AABB must be updated.
+    delta.updated_for_each<position>(index_source, [&] (entt::entity remote_entity, const position &) {
+        if (!m_entity_map.has_rem(remote_entity)) return;
+
+        auto local_entity = m_entity_map.remloc(remote_entity);
+
+        if (m_registry.has<AABB>(local_entity)) {
+            update_aabb(m_registry, local_entity);
+        }
+    });
+
 
     m_importing_delta = false;
 }
@@ -914,10 +963,8 @@ entity_graph::connected_components_t island_worker::split() {
             }
         }
 
-        for (auto entity : connected_component.edges) {
-            m_delta_builder->updated_all(entity, m_registry);
-            m_registry.destroy(entity);
-        }
+        // All edges connecting to the destroyed nodes will be destroyed as well
+        // in `on_destroy_graph_node()`.
     }
 
     // Refresh island tree view after nodes are removed and send it back to
