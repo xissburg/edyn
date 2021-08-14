@@ -22,6 +22,34 @@ struct quaternion {
 
 inline constexpr quaternion quaternion_identity {0, 0, 0, 1};
 
+// Add two quaternions.
+inline quaternion operator+(const quaternion& q0, const quaternion &q1) {
+    return {q0.x + q1.x, q0.y + q1.y, q0.z + q1.z, q0.w + q1.w};
+}
+
+// Add a quaternion into another quaternion.
+inline quaternion& operator+=(quaternion &q0, const quaternion &q1) {
+    q0.x += q1.x;
+    q0.y += q1.y;
+    q0.z += q1.z;
+    q0.w += q1.w;
+    return q0;
+}
+
+// Subtract two quaternions.
+inline quaternion operator-(const quaternion &q0, const quaternion &q1) {
+    return {q0.x - q1.x, q0.y - q1.y, q0.z - q1.z, q0.w - q1.w};
+}
+
+// Subtract a quaternion from another quaternion.
+inline quaternion& operator-=(quaternion &q0, const quaternion &q1) {
+    q0.x -= q1.x;
+    q0.y -= q1.y;
+    q0.z -= q1.z;
+    q0.w -= q1.w;
+    return q0;
+}
+
 // Multiply quaternion by scalar.
 inline quaternion operator*(const quaternion& q, scalar s) {
     return {q.x * s, q.y * s, q.z * s, q.w * s};

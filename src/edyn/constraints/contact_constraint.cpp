@@ -16,6 +16,7 @@
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -248,19 +249,30 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
                          dot(inv_IB * J[3], J[3]);
         auto eff_mass = scalar(1) / J_invM_JT;
         auto error = std::min(cp.distance, scalar(0));
-        auto correction = -error * scalar(0.2) * eff_mass;
+        auto correction = -error * contact_position_correction_rate * eff_mass;
 
         posA += inv_mA * J[0] * correction;
         posB += inv_mB * J[2] * correction;
 
-        auto angular_correctionA = inv_IA * J[1] * correction / dt;
-        ornA = integrate(ornA, angular_correctionA, dt);
+        // Use quaternion derivative to apply angular correction which should
+        // be good enough for small angles.
+        // Reference: https://fgiesen.wordpress.com/2012/08/24/quaternion-differentiation/
+        auto angular_correctionA = inv_IA * J[1] * correction;
+        ornA += scalar(0.5) * edyn::quaternion{angular_correctionA.x, angular_correctionA.y, angular_correctionA.z, 0} * ornA;
+        ornA = normalize(ornA);
 
-        auto angular_correctionB = inv_IB * J[3] * correction / dt;
-        ornB = integrate(ornB, angular_correctionB, dt);
+        auto angular_correctionB = inv_IB * J[3] * correction;
+        ornB += scalar(0.5) * edyn::quaternion{angular_correctionB.x, angular_correctionB.y, angular_correctionB.z, 0} * ornB;
+        ornB = normalize(ornB);
+
+        auto basisA = to_matrix3x3(ornA);
+        inv_IA = basisA * inv_IA * transpose(basisA);
+
+        auto basisB = to_matrix3x3(ornB);
+        inv_IB = basisB * inv_IB * transpose(basisB);
     });
 
-    return min_dist > -0.005f;
+    return min_dist > contact_position_solver_min_error;
 }
 
 }
