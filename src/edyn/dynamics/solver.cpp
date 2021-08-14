@@ -57,6 +57,31 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
     }
 }
 
+// Specialization to assign the impulses of friction constraints which are not
+// stored in traditional constraint rows.
+template<>
+void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
+    auto con_view = registry.view<contact_constraint>();
+    auto imp_view = registry.view<constraint_impulse>();
+    auto &ctx = registry.ctx<internal::contact_constraint_context>();
+    auto local_idx = size_t{0};
+
+    for (auto entity : con_view) {
+        auto &imp = imp_view.get(entity);
+        imp.values[0] = cache.rows[row_idx].impulse;
+
+        auto &friction_rows = ctx.friction_rows[local_idx];
+
+        for (auto i = 0; i < 2; ++i) {
+            imp.values[1 + i] = friction_rows.row[i].impulse;
+        }
+
+        ++row_idx;
+        ++con_idx;
+        ++local_idx;
+    }
+}
+
 void update_impulses(entt::registry &registry, row_cache &cache) {
     // Assign impulses from constraint rows back into the `constraint_impulse`
     // components. The rows are inserted into the cache for each constraint type
@@ -77,6 +102,8 @@ solver::solver(entt::registry &registry)
 {
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
+
+    registry.set<internal::contact_constraint_context>();
 }
 
 solver::~solver() = default;
@@ -92,7 +119,7 @@ void solver::update(scalar dt) {
     prepare_constraints(registry, m_row_cache, dt);
 
     // Solve constraints.
-    for (uint32_t i = 0; i < iterations; ++i) {
+    for (unsigned i = 0; i < velocity_iterations; ++i) {
         // Prepare constraints for iteration.
         iterate_constraints(registry, m_row_cache, dt);
 
@@ -118,6 +145,12 @@ void solver::update(scalar dt) {
     // Integrate velocities to obtain new transforms.
     integrate_linvel(registry, dt);
     integrate_angvel(registry, dt);
+
+    for (unsigned i = 0; i < position_iterations; ++i) {
+        if (solve_position_constraints(registry, dt)) {
+            break;
+        }
+    }
 
     // Update rotated vertices of convex meshes after rotations change. It is
     // important to do this before `update_aabbs` because the rotated meshes

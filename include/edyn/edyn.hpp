@@ -273,18 +273,38 @@ vector3 get_gravity(const entt::registry &registry);
 void set_gravity(entt::registry &registry, vector3 gravity);
 
 /**
- * @brief Get the number of constraint solver iterations.
+ * @brief Get the number of constraint solver velocity iterations.
  * @param registry Data source.
- * @return Number of solver iterations.
+ * @return Number of solver velocity iterations.
  */
-unsigned get_solver_iterations(const entt::registry &registry);
+unsigned get_solver_velocity_iterations(const entt::registry &registry);
 
 /**
- * @brief Set the number of constraint solver iterations.
+ * @brief Set the number of constraint solver velocity iterations.
  * @param registry Data source.
- * @param iterations Number of solver iterations.
+ * @param iterations Number of solver velocity iterations.
  */
-void set_solver_iterations(entt::registry &registry, unsigned iterations);
+
+/**
+ * @brief Set the number of constraint solver velocity iterations.
+ * @param registry Data source.
+ * @param iterations Number of solver velocity iterations.
+ */
+void set_solver_velocity_iterations(entt::registry &registry, unsigned iterations);
+
+/**
+ * @brief Get the number of constraint solver position iterations.
+ * @param registry Data source.
+ * @return Number of solver position iterations.
+ */
+unsigned get_solver_position_iterations(const entt::registry &registry);
+
+/**
+ * @brief Set the number of constraint solver position iterations.
+ * @param registry Data source.
+ * @param iterations Number of solver position iterations.
+ */
+void set_solver_position_iterations(entt::registry &registry, unsigned iterations);
 
 }
 

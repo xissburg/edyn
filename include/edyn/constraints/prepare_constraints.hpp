@@ -14,6 +14,9 @@ void prepare_constraints(entt::registry &, row_cache &, scalar dt) {}
 template<typename C>
 void iterate_constraints(entt::registry &, row_cache &, scalar dt) {}
 
+template<typename C>
+bool solve_position_constraints(entt::registry &, scalar dt) { return true; }
+
 }
 
 #endif // EDYN_CONSTRAINTS_PREPARE_CONSTRAINTS_HPP

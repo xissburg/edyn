@@ -12,7 +12,8 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
     const auto &ornB = ctx.ornB;
     const auto threshold = ctx.threshold;
 
-    const auto hl = rotate(ornA, vector3_x * shA.half_length);
+    const auto cyl_axis = quaternion_x(ornA);
+    const auto hl = cyl_axis * shA.half_length;
     const auto p0 = posA - hl;
     const auto p1 = posA + hl;
 
@@ -39,7 +40,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
         auto pivotA = rotate(conjugate(ornA), p - normal * shA.radius - posA);
         auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
         auto distance = l - shA.radius - shB.radius;
-        result.add_point({pivotA, pivotB, normal, distance});
+        result.add_point({pivotA, pivotB, normal, distance, contact_normal_attachment::none});
         return;
     }
 
@@ -60,7 +61,17 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
     auto pivotA = rotate(conjugate(ornA), q - posA);
     auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
     auto distance = nl - shB.radius;
-    result.add_point({pivotA, pivotB, normal, distance});
+
+    // If the closest feature is the cylinder face, attach normal to A.
+    // I.e. if the projection of the sphere center is inside the cap face.
+    auto normal_attachment = contact_normal_attachment::none;
+    auto sphere_proj = project_plane(posB, posA, cyl_axis);
+
+    if (distance_sqr(sphere_proj, posA) < shA.radius * shA.radius) {
+        normal_attachment = contact_normal_attachment::normal_on_A;
+    }
+
+    result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
 }
 
 void collide(const sphere_shape &shA, const cylinder_shape &shB,

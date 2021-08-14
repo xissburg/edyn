@@ -51,6 +51,16 @@ inline constexpr auto island_time_to_sleep = scalar(2);
  */
 inline constexpr auto support_feature_tolerance = scalar(0.004);
 
+/**
+ * Error correction rate when solving contact position constraints.
+ */
+inline constexpr auto contact_position_correction_rate = scalar(0.2);
+
+/**
+ * Minimum acceptable error in the contact position solver.
+ */
+inline constexpr auto contact_position_solver_min_error = scalar(-0.005);
+
 }
 
 #endif // EDYN_CONFIG_CONSTANTS_HPP

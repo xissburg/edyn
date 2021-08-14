@@ -108,6 +108,8 @@ static void collide_capsule_triangle(
 
     switch (tri_feature) {
     case triangle_feature::face: {
+        auto normal_attachment = contact_normal_attachment::normal_on_B;
+
         if (is_capsule_edge) {
             // Check if capsule vertex is inside triangle face.
             for (auto &vertex : capsule_vertices) {
@@ -116,7 +118,7 @@ static void collide_capsule_triangle(
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = project_plane(vertex, tri_vertices[0], sep_axis);
                     auto local_distance = dot(pivotA_world - tri_vertices[0], sep_axis);
-                    result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
                 }
             }
 
@@ -153,7 +155,7 @@ static void collide_capsule_triangle(
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = lerp(v0, v1, t[k]);
                     auto local_distance = dot(pivotA_world - tri_vertices[0], sep_axis);
-                    result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance});
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
                 }
             }
         } else {
@@ -164,7 +166,7 @@ static void collide_capsule_triangle(
                 auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = project_plane(closest_capsule_vertex, tri_vertices[0], sep_axis);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
             }
         }
         break;
@@ -172,6 +174,7 @@ static void collide_capsule_triangle(
     case triangle_feature::edge: {
         auto &v0 = tri_vertices[tri_feature_index];
         auto &v1 = tri_vertices[(tri_feature_index + 1) % 3];
+        auto normal_attachment = contact_normal_attachment::none;
 
         if (is_capsule_edge) {
             scalar s[2], t[2];
@@ -185,7 +188,7 @@ static void collide_capsule_triangle(
                 auto pivotA_world = closest_cap[i] - sep_axis * capsule.radius;
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto pivotB = closest_tri[i];
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
             }
         } else {
             auto &closest_capsule_vertex = capsule_vertices[capsule_vertex_index];
@@ -196,13 +199,14 @@ static void collide_capsule_triangle(
             if (!(length_sqr(cross(dir, sep_axis)) > EDYN_EPSILON)) {
                 auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
             }
         }
         break;
     }
     case triangle_feature::vertex: {
         auto &pivotB = tri_vertices[tri_feature_index];
+        auto normal_attachment = contact_normal_attachment::none;
 
         if (is_capsule_edge) {
             auto edge = capsule_vertices[1] - capsule_vertices[0];
@@ -213,13 +217,13 @@ static void collide_capsule_triangle(
             if (!(length_sqr(cross(dir, sep_axis)) > EDYN_EPSILON)) {
                 auto pivotA_world = closest - sep_axis * capsule.radius;
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
             }
         } else {
             auto &closest_capsule_vertex = capsule_vertices[capsule_vertex_index];
             auto pivotA_world = closest_capsule_vertex - sep_axis * capsule.radius;
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
         }
     }
     }

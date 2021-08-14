@@ -15,7 +15,8 @@ public:
 
     void update(scalar dt);
 
-    unsigned iterations {10};
+    unsigned velocity_iterations {8};
+    unsigned position_iterations {3};
 
 private:
     entt::registry *m_registry;
