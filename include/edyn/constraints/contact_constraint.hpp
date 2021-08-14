@@ -13,16 +13,18 @@ struct contact_constraint : public constraint_base {
     scalar damping {large_scalar};
 };
 
-struct contact_friction_row {
-    std::array<vector3, 4> J;
-    scalar eff_mass;
-    scalar rhs;
-    scalar impulse;
-};
+namespace internal {
+    struct contact_friction_row {
+        std::array<vector3, 4> J;
+        scalar eff_mass;
+        scalar rhs;
+        scalar impulse;
+    };
 
-struct contact_constraint_context {
-    std::vector<contact_friction_row> friction_rows;
-};
+    struct contact_constraint_context {
+        std::vector<contact_friction_row> friction_rows;
+    };
+}
 
 template<>
 void prepare_constraints<contact_constraint>(entt::registry &, row_cache &, scalar dt);

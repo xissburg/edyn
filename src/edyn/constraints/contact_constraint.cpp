@@ -38,7 +38,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
     cache.rows.reserve(cache.rows.size() + con_view.size());
 
-    auto &ctx = registry.ctx<contact_constraint_context>();
+    auto &ctx = registry.ctx<internal::contact_constraint_context>();
     ctx.friction_rows.clear();
     ctx.friction_rows.reserve(con_view.size() * 2);
 
@@ -142,7 +142,7 @@ template<>
 void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto con_view = registry.view<contact_point>();
     auto row_idx = registry.ctx<row_start_index_contact_constraint>().value;
-    auto &ctx = registry.ctx<contact_constraint_context>();
+    auto &ctx = registry.ctx<internal::contact_constraint_context>();
     auto friction_idx = size_t{0};
 
     // Solve friction rows locally using a non-standard method where the impulse
