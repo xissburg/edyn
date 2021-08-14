@@ -40,7 +40,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
     ctx.friction_rows.clear();
-    ctx.friction_rows.reserve(con_view.size() * 2);
+    ctx.friction_rows.reserve(con_view.size());
 
     con_view.each([&] (entt::entity entity, contact_constraint &con, contact_point &cp) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
