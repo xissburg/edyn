@@ -107,11 +107,14 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         warm_start(normal_row);
 
         // Create special friction rows.
+        auto &friction_rows = ctx.friction_rows.emplace_back();
+        friction_rows.friction_coefficient = cp.friction;
+
         vector3 tangents[2];
         plane_space(normal, tangents[0], tangents[1]);
 
         for (auto i = 0; i < 2; ++i) {
-            auto &friction_row = ctx.friction_rows.emplace_back();
+            auto &friction_row = friction_rows.row[i];
             friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
             friction_row.impulse = imp.values[1 + i];
 
@@ -126,7 +129,6 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                           dot(friction_row.J[2], linvelB) +
                           dot(friction_row.J[3], angvelB);
             friction_row.rhs = -relvel;
-            friction_row.friction_coefficient = cp.friction;
 
             // Warm-starting.
             dvA += inv_mA * friction_row.J[0] * friction_row.impulse;
@@ -143,7 +145,7 @@ template<>
 void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto start_row_idx = registry.ctx<row_start_index_contact_constraint>().value;
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
-    auto num_rows = ctx.friction_rows.size() / 2;
+    auto num_rows = ctx.friction_rows.size();
 
     // Solve friction rows locally using a non-standard method where the impulse
     // is limited by the length of a 2D vector to assure a friction circle.
@@ -151,7 +153,9 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     // to couple the two friction constraints together.
     for (size_t row_idx = 0; row_idx < num_rows; ++row_idx) {
         auto &normal_row = cache.rows[start_row_idx + row_idx];
-        auto *friction_rows = &ctx.friction_rows[row_idx * 2];
+        auto &friction_row_pair = ctx.friction_rows[row_idx];
+        auto &friction_rows = friction_row_pair.row;
+
         vector2 delta_impulse;
         vector2 impulse;
 
@@ -166,7 +170,7 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
         }
 
         auto impulse_len_sqr = length_sqr(impulse);
-        auto max_impulse_len = friction_rows[0].friction_coefficient * normal_row.impulse;
+        auto max_impulse_len = friction_row_pair.friction_coefficient * normal_row.impulse;
 
         // Limit impulse by normal load.
         if (impulse_len_sqr > square(max_impulse_len) && impulse_len_sqr > EDYN_EPSILON) {

@@ -19,11 +19,15 @@ namespace internal {
         scalar eff_mass;
         scalar rhs;
         scalar impulse;
+    };
+
+    struct contact_friction_row_pair {
+        contact_friction_row row[2];
         scalar friction_coefficient;
     };
 
     struct contact_constraint_context {
-        std::vector<contact_friction_row> friction_rows;
+        std::vector<contact_friction_row_pair> friction_rows;
     };
 }
 

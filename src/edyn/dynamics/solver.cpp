@@ -64,21 +64,21 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
     auto con_view = registry.view<contact_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
-    auto friction_idx = size_t{0};
+    auto local_idx = size_t{0};
 
     for (auto entity : con_view) {
         auto &imp = imp_view.get(entity);
         imp.values[0] = cache.rows[row_idx].impulse;
 
-        auto *friction_rows = &ctx.friction_rows[friction_idx];
+        auto &friction_rows = ctx.friction_rows[local_idx];
 
         for (auto i = 0; i < 2; ++i) {
-            imp.values[1 + i] = friction_rows[i].impulse;
+            imp.values[1 + i] = friction_rows.row[i].impulse;
         }
 
         ++row_idx;
         ++con_idx;
-        friction_idx += 2;
+        ++local_idx;
     }
 }
 
