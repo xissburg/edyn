@@ -284,10 +284,26 @@ unsigned get_solver_velocity_iterations(const entt::registry &registry);
  * @param registry Data source.
  * @param iterations Number of solver velocity iterations.
  */
+
+/**
+ * @brief Set the number of constraint solver velocity iterations.
+ * @param registry Data source.
+ * @param iterations Number of solver velocity iterations.
+ */
 void set_solver_velocity_iterations(entt::registry &registry, unsigned iterations);
 
+/**
+ * @brief Get the number of constraint solver position iterations.
+ * @param registry Data source.
+ * @return Number of solver position iterations.
+ */
 unsigned get_solver_position_iterations(const entt::registry &registry);
 
+/**
+ * @brief Set the number of constraint solver position iterations.
+ * @param registry Data source.
+ * @param iterations Number of solver position iterations.
+ */
 void set_solver_position_iterations(entt::registry &registry, unsigned iterations);
 
 }

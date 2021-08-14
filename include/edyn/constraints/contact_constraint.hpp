@@ -19,6 +19,7 @@ namespace internal {
         scalar eff_mass;
         scalar rhs;
         scalar impulse;
+        scalar friction_coefficient;
     };
 
     struct contact_constraint_context {

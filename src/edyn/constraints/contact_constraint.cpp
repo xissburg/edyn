@@ -126,6 +126,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                           dot(friction_row.J[2], linvelB) +
                           dot(friction_row.J[3], angvelB);
             friction_row.rhs = -relvel;
+            friction_row.friction_coefficient = cp.friction;
 
             // Warm-starting.
             dvA += inv_mA * friction_row.J[0] * friction_row.impulse;
@@ -140,18 +141,17 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
 template<>
 void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto con_view = registry.view<contact_point>();
-    auto row_idx = registry.ctx<row_start_index_contact_constraint>().value;
+    auto start_row_idx = registry.ctx<row_start_index_contact_constraint>().value;
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
-    auto friction_idx = size_t{0};
+    auto num_rows = ctx.friction_rows.size() / 2;
 
     // Solve friction rows locally using a non-standard method where the impulse
     // is limited by the length of a 2D vector to assure a friction circle.
-    // This is essentially the same fundamental operations found in `edyn::solver`
-    // adapted to couple the two friction constraints together.
-    con_view.each([&] (contact_point &cp) {
-        auto &normal_row = cache.rows[row_idx++];
-        auto *friction_rows = &ctx.friction_rows[friction_idx];
+    // These are the same fundamental operations found in `edyn::solver` adapted
+    // to couple the two friction constraints together.
+    for (size_t row_idx = 0; row_idx < num_rows; ++row_idx) {
+        auto &normal_row = cache.rows[start_row_idx + row_idx];
+        auto *friction_rows = &ctx.friction_rows[row_idx * 2];
         vector2 delta_impulse;
         vector2 impulse;
 
@@ -166,7 +166,7 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
         }
 
         auto impulse_len_sqr = length_sqr(impulse);
-        auto max_impulse_len = cp.friction * normal_row.impulse;
+        auto max_impulse_len = friction_rows[0].friction_coefficient * normal_row.impulse;
 
         // Limit impulse by normal load.
         if (impulse_len_sqr > square(max_impulse_len) && impulse_len_sqr > EDYN_EPSILON) {
@@ -188,37 +188,34 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
             *normal_row.dvB += normal_row.inv_mB * friction_row.J[2] * delta_impulse[i];
             *normal_row.dwB += normal_row.inv_IB * friction_row.J[3] * delta_impulse[i];
         }
-
-        friction_idx += 2;
-    });
+    }
 }
 
 template<>
 bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt) {
-    auto con_view = registry.view<contact_constraint, contact_point>();
+    // Solve position constraints by applying linear and angular corrections
+    // iteratively. Based on Box2D's solver.
+    auto con_view = registry.view<contact_point>();
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
     auto com_view = registry.view<center_of_mass>();
     auto min_dist = scalar(0);
 
-    con_view.each([&] (entt::entity entity, contact_constraint &con, contact_point &cp) {
+    con_view.each([&] (contact_point &cp) {
         auto [posA, ornA, inv_mA, inv_IA] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[0]);
+            body_view.get<position, orientation, mass_inv, inertia_world_inv>(cp.body[0]);
         auto [posB, ornB, inv_mB, inv_IB] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[1]);
-
-        EDYN_ASSERT(con.body[0] == cp.body[0]);
-        EDYN_ASSERT(con.body[1] == cp.body[1]);
+            body_view.get<position, orientation, mass_inv, inertia_world_inv>(cp.body[1]);
 
         auto originA = static_cast<vector3>(posA);
         auto originB = static_cast<vector3>(posB);
 
-        if (com_view.contains(con.body[0])) {
-            auto &com = com_view.get(con.body[0]);
+        if (com_view.contains(cp.body[0])) {
+            auto &com = com_view.get(cp.body[0]);
             originA = to_world_space(-com, posA, ornA);
         }
 
-        if (com_view.contains(con.body[1])) {
-            auto &com = com_view.get(con.body[1]);
+        if (com_view.contains(cp.body[1])) {
+            auto &com = com_view.get(cp.body[1]);
             originB = to_world_space(-com, posB, ornB);
         }
 
