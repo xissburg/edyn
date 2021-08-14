@@ -57,6 +57,31 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
     }
 }
 
+// Specialization to assign the impulses of friction constraints which are not
+// stored in traditional constraint rows.
+template<>
+void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
+    auto con_view = registry.view<contact_constraint>();
+    auto imp_view = registry.view<constraint_impulse>();
+    auto &ctx = registry.ctx<contact_constraint_context>();
+    auto friction_idx = size_t{0};
+
+    for (auto entity : con_view) {
+        auto &imp = imp_view.get(entity);
+        imp.values[0] = cache.rows[row_idx].impulse;
+
+        auto *friction_rows = &ctx.friction_rows[friction_idx];
+
+        for (auto i = 0; i < 2; ++i) {
+            imp.values[1 + i] = friction_rows[i].impulse;
+        }
+
+        ++row_idx;
+        ++con_idx;
+        friction_idx += 2;
+    }
+}
+
 void update_impulses(entt::registry &registry, row_cache &cache) {
     // Assign impulses from constraint rows back into the `constraint_impulse`
     // components. The rows are inserted into the cache for each constraint type
@@ -77,6 +102,8 @@ solver::solver(entt::registry &registry)
 {
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
+
+    registry.set<contact_constraint_context>();
 }
 
 solver::~solver() = default;
