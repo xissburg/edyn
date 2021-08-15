@@ -71,7 +71,7 @@ public:
 
     void set_fixed_dt(scalar dt);
 
-    void set_solver_iterations(unsigned iterations);
+    void set_solver_iterations(unsigned velocity_iterations, unsigned position_iterations);
 
     void set_center_of_mass(entt::entity entity, const vector3 &com);
 

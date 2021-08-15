@@ -73,7 +73,8 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     m_registry.prepare<collision_filter>();
     m_registry.prepare<collision_exclusion>();
 
-    m_solver.iterations = settings.num_solver_iterations;
+    m_solver.velocity_iterations = settings.num_solver_velocity_iterations;
+    m_solver.position_iterations = settings.num_solver_position_iterations;
 
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
@@ -87,6 +88,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
 island_worker::~island_worker() = default;
 
 void island_worker::init() {
+    m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_graph_node>(*this);
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
     m_registry.on_destroy<contact_manifold>().connect<&island_worker::on_destroy_contact_manifold>(*this);
@@ -174,6 +176,12 @@ void island_worker::on_destroy_contact_point(entt::registry &registry, entt::ent
     if (m_entity_map.has_loc(entity)) {
         m_entity_map.erase_loc(entity);
     }
+}
+
+void island_worker::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
+    // It is possible that a new connected component appears in the graph when
+    // a new node is created.
+    m_topology_changed = true;
 }
 
 void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -887,8 +895,11 @@ void island_worker::on_set_fixed_dt(const msg::set_fixed_dt &msg) {
 }
 
 void island_worker::on_set_solver_iterations(const msg::set_solver_iterations &msg) {
-    m_registry.ctx<edyn::settings>().num_solver_iterations = msg.iterations;
-    m_solver.iterations = msg.iterations;
+    auto &settings = m_registry.ctx<edyn::settings>();
+    settings.num_solver_velocity_iterations = msg.velocity_iterations;
+    settings.num_solver_position_iterations = msg.position_iterations;
+    m_solver.velocity_iterations = msg.velocity_iterations;
+    m_solver.position_iterations = msg.position_iterations;
 }
 
 void island_worker::on_set_settings(const msg::set_settings &msg) {

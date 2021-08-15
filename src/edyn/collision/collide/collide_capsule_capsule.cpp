@@ -56,7 +56,7 @@ void collide(const capsule_shape &shA, const capsule_shape &shB,
         auto pivotB_world = closestB[i] + normal * shB.radius;
         auto pivotA = to_object_space(pivotA_world, posA, ornA);
         auto pivotB = to_object_space(pivotB_world, posB, ornB);
-        result.add_point({pivotA, pivotB, normal, distance});
+        result.add_point({pivotA, pivotB, normal, distance, contact_normal_attachment::none});
     }
 }
 
