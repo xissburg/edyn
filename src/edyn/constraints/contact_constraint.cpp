@@ -75,7 +75,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         auto relvel = vA - vB;
         auto normal_relvel = dot(relvel, normal);
 
-        // Create normal row.
+        // Create normal row, i.e. non-penetration constraint.
         auto &normal_row = cache.rows.emplace_back();
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
         normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
@@ -151,6 +151,11 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     // is limited by the length of a 2D vector to assure a friction circle.
     // These are the same fundamental operations found in `edyn::solver` adapted
     // to couple the two friction constraints together.
+    // It is interesting to note that all friction constraints will be solved
+    // before the non-penetration constraints, i.e. they're not interleaved.
+    // Solving the non-penetration constraints last helps minimize penetration
+    // errors because there won't be additional errors introduced by other
+    // constraints.
     for (size_t row_idx = 0; row_idx < num_rows; ++row_idx) {
         auto &normal_row = cache.rows[start_row_idx + row_idx];
         auto &friction_row_pair = ctx.friction_rows[row_idx];
@@ -198,7 +203,8 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
 template<>
 bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt) {
     // Solve position constraints by applying linear and angular corrections
-    // iteratively. Based on Box2D's solver.
+    // iteratively. Based on Box2D's solver:
+    // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
     auto con_view = registry.view<contact_point>();
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
     auto com_view = registry.view<center_of_mass>();
@@ -257,13 +263,12 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
 
         // Use quaternion derivative to apply angular correction which should
         // be good enough for small angles.
-        // Reference: https://fgiesen.wordpress.com/2012/08/24/quaternion-differentiation/
         auto angular_correctionA = inv_IA * J[1] * correction;
-        ornA += scalar(0.5) * edyn::quaternion{angular_correctionA.x, angular_correctionA.y, angular_correctionA.z, 0} * ornA;
+        ornA += quaternion_derivative(ornA, angular_correctionA);
         ornA = normalize(ornA);
 
         auto angular_correctionB = inv_IB * J[3] * correction;
-        ornB += scalar(0.5) * edyn::quaternion{angular_correctionB.x, angular_correctionB.y, angular_correctionB.z, 0} * ornB;
+        ornB += quaternion_derivative(ornB, angular_correctionB);
         ornB = normalize(ornB);
 
         auto basisA = to_matrix3x3(ornA);

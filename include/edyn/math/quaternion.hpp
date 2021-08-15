@@ -223,6 +223,12 @@ quaternion shortest_arc(const vector3 &v0, const vector3 &v1);
 // Returns the angle between two quaternions along the shortest path.
 scalar angle_between(const quaternion &q0, const quaternion &q1);
 
+// Derivative of a quaternion along an axis-angle.
+// Reference: https://fgiesen.wordpress.com/2012/08/24/quaternion-differentiation/
+inline quaternion quaternion_derivative(const quaternion &q, const vector3 &w) {
+    return quaternion{w.x, w.y, w.z, 0} * q * scalar(0.5);
+}
+
 inline
 vector3 to_object_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
     return rotate(conjugate(orn), p - pos);
