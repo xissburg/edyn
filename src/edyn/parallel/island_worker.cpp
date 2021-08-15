@@ -88,6 +88,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
 island_worker::~island_worker() = default;
 
 void island_worker::init() {
+    m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_graph_node>(*this);
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
     m_registry.on_destroy<contact_manifold>().connect<&island_worker::on_destroy_contact_manifold>(*this);
@@ -175,6 +176,12 @@ void island_worker::on_destroy_contact_point(entt::registry &registry, entt::ent
     if (m_entity_map.has_loc(entity)) {
         m_entity_map.erase_loc(entity);
     }
+}
+
+void island_worker::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
+    // It is possible that a new connected component appears in the graph when
+    // a new node is created.
+    m_topology_changed = true;
 }
 
 void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
