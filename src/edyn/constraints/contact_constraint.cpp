@@ -1,5 +1,6 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/collision/collision_result.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -18,6 +19,7 @@
 #include "edyn/math/math.hpp"
 #include "edyn/config/constants.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/dynamics/solver.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -205,12 +207,12 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
     // Solve position constraints by applying linear and angular corrections
     // iteratively. Based on Box2D's solver:
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
-    auto con_view = registry.view<contact_point>();
+    auto cp_view = registry.view<contact_point>();
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
     auto com_view = registry.view<center_of_mass>();
     auto min_dist = scalar(0);
 
-    con_view.each([&] (contact_point &cp) {
+    cp_view.each([&] (contact_point &cp) {
         auto [posA, ornA, inv_mA, inv_IA] =
             body_view.get<position, orientation, mass_inv, inertia_world_inv>(cp.body[0]);
         auto [posB, ornB, inv_mB, inv_IB] =
@@ -279,6 +281,149 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
     });
 
     return min_dist > contact_position_solver_min_error;
+}
+
+void solve_restitution(entt::registry &registry, scalar dt) {
+    auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
+    auto cp_view = registry.view<contact_point>();
+    auto con_view = registry.view<contact_constraint>();
+    auto imp_view = registry.view<constraint_impulse>();
+    auto com_view = registry.view<center_of_mass>();
+    auto manifold_view = registry.view<contact_manifold>();
+
+    for (size_t i = 0; i < manifold_view.size(); ++i) {
+        // Find manifold with highest penetration velocity.
+        auto min_relvel = EDYN_SCALAR_MAX;
+        auto manifold_entity = entt::entity{entt::null};
+
+        manifold_view.each([&] (entt::entity entity, contact_manifold &manifold) {
+            auto num_points = manifold.num_points();
+
+            if (num_points == 0) {
+                return;
+            }
+
+            if (cp_view.get(manifold.point[0]).restitution < EDYN_EPSILON) {
+                return;
+            }
+
+            auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
+                body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[0]);
+            auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
+                body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[1]);
+
+            auto originA = static_cast<vector3>(posA);
+            auto originB = static_cast<vector3>(posB);
+
+            if (com_view.contains(manifold.body[0])) {
+                auto &com = com_view.get(manifold.body[0]);
+                originA = to_world_space(-com, posA, ornA);
+            }
+
+            if (com_view.contains(manifold.body[1])) {
+                auto &com = com_view.get(manifold.body[1]);
+                originB = to_world_space(-com, posB, ornB);
+            }
+
+            auto local_min_relvel = EDYN_SCALAR_MAX;
+
+            for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+                auto &cp = cp_view.get(manifold.point[pt_idx]);
+                auto normal = cp.normal;
+                auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+                auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+                auto rA = pivotA - posA;
+                auto rB = pivotB - posB;
+                auto vA = linvelA + cross(angvelA, rA);
+                auto vB = linvelB + cross(angvelB, rB);
+                auto relvel = vA - vB;
+                auto normal_relvel = dot(relvel, normal);
+                local_min_relvel = std::min(normal_relvel, local_min_relvel);
+            }
+
+            if (local_min_relvel < min_relvel) {
+                min_relvel = local_min_relvel;
+                manifold_entity = entity;
+            }
+        });
+
+        if (manifold_entity == entt::null) {
+            continue;
+        }
+
+        auto &manifold = manifold_view.get(manifold_entity);
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
+            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[1]);
+
+        auto originA = static_cast<vector3>(posA);
+        auto originB = static_cast<vector3>(posB);
+
+        if (com_view.contains(manifold.body[0])) {
+            auto &com = com_view.get(manifold.body[0]);
+            originA = to_world_space(-com, posA, ornA);
+        }
+
+        if (com_view.contains(manifold.body[1])) {
+            auto &com = com_view.get(manifold.body[1]);
+            originB = to_world_space(-com, posB, ornB);
+        }
+
+        auto rows = std::array<constraint_row, max_contacts>{};
+        auto num_points = manifold.num_points();
+
+        for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+            auto point_entity = manifold.point[pt_idx];
+            auto &cp = cp_view.get(point_entity);
+            auto &imp = imp_view.get(point_entity);
+
+            auto normal = cp.normal;
+            auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+            auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+            auto rA = pivotA - posA;
+            auto rB = pivotB - posB;
+
+            auto &normal_row = rows[pt_idx];
+            normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
+            normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
+            normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
+            normal_row.dvA = &dvA; normal_row.dwA = &dwA;
+            normal_row.dvB = &dvB; normal_row.dwB = &dwB;
+            normal_row.impulse = imp.values[0];
+            normal_row.lower_limit = 0;
+            normal_row.upper_limit = large_scalar;
+
+            auto normal_options = constraint_row_options{};
+            normal_options.restitution = cp.restitution;
+
+            prepare_row(normal_row, normal_options, linvelA, linvelB, angvelA, angvelB);
+            warm_start(normal_row);
+        }
+
+        for (unsigned iter = 0; iter < 3; ++iter) {
+            for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+                auto &row = rows[pt_idx];
+                auto delta_impulse = solve(row);
+                apply_impulse(delta_impulse, row);
+            }
+        }
+
+        for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+            auto &row = rows[pt_idx];
+            imp_view.get(manifold.point[pt_idx]).values[0] = row.impulse;
+        }
+
+        linvelA += dvA;
+        angvelA += dwA;
+        dvA = vector3_zero;
+        dwA = vector3_zero;
+
+        linvelB += dvB;
+        angvelB += dwB;
+        dvB = vector3_zero;
+        dwB = vector3_zero;
+    }
 }
 
 }

@@ -8,6 +8,8 @@
 
 namespace edyn {
 
+scalar solve(constraint_row &row);
+
 class solver {
 public:
     solver(entt::registry &);
