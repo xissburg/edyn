@@ -103,10 +103,14 @@ void island_coordinator::refresh(entt::entity entity) {
 
     if (m_registry->has<island_resident>(entity)) {
         auto &resident = m_registry->get<island_resident>(entity);
-        auto &ctx = m_island_ctx_map.at(resident.island_entity);
-        ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
+
+        if (resident.island_entity != entt::null) {
+            auto &ctx = m_island_ctx_map.at(resident.island_entity);
+            ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
+        }
     } else if (m_registry->has<multi_island_resident>(entity)) {
         auto &resident = m_registry->get<multi_island_resident>(entity);
+
         for (auto island_entity : resident.island_entities) {
             auto &ctx = m_island_ctx_map.at(island_entity);
             ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
