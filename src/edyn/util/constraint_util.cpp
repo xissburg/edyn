@@ -1,5 +1,6 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
@@ -7,6 +8,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 
@@ -58,6 +60,18 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     registry.emplace<procedural_tag>(manifold_entity);
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
 
+    auto material_view = registry.view<material>();
+
+    if (material_view.contains(body0) && material_view.contains(body1)) {
+        auto &material0 = material_view.get(body0);
+        auto &material1 = material_view.get(body1);
+        auto restitution = std::min(material0.restitution, material1.restitution);
+
+        if (restitution > EDYN_EPSILON) {
+            registry.emplace<contact_manifold_restitution>(manifold_entity, restitution);
+        }
+    }
+
     auto node_index0 = registry.get<graph_node>(body0).node_index;
     auto node_index1 = registry.get<graph_node>(body1).node_index;
     auto edge_index = registry.ctx<entity_graph>().insert_edge(manifold_entity, node_index0, node_index1);
@@ -78,13 +92,6 @@ scalar get_effective_mass(const constraint_row &row) {
     return eff_mass;
 }
 
-static
-scalar restitution_curve(scalar restitution, scalar relvel) {
-    // TODO: figure out how to adjust the restitution when resting.
-    scalar decay = 1;//std::clamp(-relvel * 1.52 - scalar(0.12), scalar(0), scalar(1));
-    return restitution * decay;
-}
-
 void prepare_row(constraint_row &row,
                  const constraint_row_options &options,
                  const vector3 &linvelA, const vector3 &linvelB,
@@ -100,8 +107,7 @@ void prepare_row(constraint_row &row,
                   dot(row.J[2], linvelB) +
                   dot(row.J[3], angvelB);
 
-    auto restitution = restitution_curve(options.restitution, relvel);
-    row.rhs = -(options.error * options.erp + relvel * (1 + restitution));
+    row.rhs = -(options.error * options.erp + relvel * (1 + options.restitution));
 }
 
 void apply_impulse(scalar impulse, constraint_row &row) {

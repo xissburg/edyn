@@ -26,6 +26,10 @@ struct contact_manifold {
     }
 };
 
+struct contact_manifold_restitution {
+    scalar value;
+};
+
 }
 
 

@@ -1,5 +1,4 @@
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
@@ -114,8 +113,6 @@ void solver::update(scalar dt) {
     m_row_cache.clear();
 
     apply_gravity(registry, dt);
-
-    solve_restitution(*m_registry, dt);
 
     // Setup constraints.
     prepare_constraints(registry, m_row_cache, dt);

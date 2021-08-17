@@ -50,7 +50,7 @@ void create_contact_constraint(entt::registry &registry,
     auto &materialA = registry.get<material>(cp.body[0]);
     auto &materialB = registry.get<material>(cp.body[1]);
 
-    cp.restitution = materialA.restitution * materialB.restitution;
+    cp.restitution = std::min(materialA.restitution, materialB.restitution);
     cp.friction = materialA.friction * materialB.friction;
 
     auto stiffness = large_scalar;

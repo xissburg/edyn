@@ -40,8 +40,6 @@ void iterate_constraints<contact_constraint>(entt::registry &, row_cache &, scal
 template<>
 bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt);
 
-void solve_restitution(entt::registry &registry, scalar dt);
-
 }
 
 #endif // EDYN_CONSTRAINTS_CONTACT_CONSTRAINT_HPP
