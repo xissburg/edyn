@@ -8,6 +8,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
@@ -68,7 +69,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
         auto restitution = std::min(material0.restitution, material1.restitution);
 
         if (restitution > EDYN_EPSILON) {
-            registry.emplace<contact_manifold_restitution>(manifold_entity, restitution);
+            registry.emplace<contact_manifold_with_restitution>(manifold_entity);
         }
     }
 
@@ -84,12 +85,30 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 }
 
 scalar get_effective_mass(const constraint_row &row) {
-    auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
-                     dot(row.inv_IA * row.J[1], row.J[1]) +
-                     dot(row.J[2], row.J[2]) * row.inv_mB +
-                     dot(row.inv_IB * row.J[3], row.J[3]);
+    return get_effective_mass(row.J, row.inv_mA, row.inv_IA, row.inv_mB, row.inv_IB);
+}
+
+scalar get_effective_mass(const std::array<vector3, 4> &J,
+                          scalar inv_mA, const matrix3x3 &inv_IA,
+                          scalar inv_mB, const matrix3x3 &inv_IB) {
+    auto J_invM_JT = dot(J[0], J[0]) * inv_mA +
+                     dot(inv_IA * J[1], J[1]) +
+                     dot(J[2], J[2]) * inv_mB +
+                     dot(inv_IB * J[3], J[3]);
     auto eff_mass = scalar(1) / J_invM_JT;
     return eff_mass;
+}
+
+scalar get_relative_speed(const std::array<vector3, 4> &J,
+                          const vector3 &linvelA,
+                          const vector3 &angvelA,
+                          const vector3 &linvelB,
+                          const vector3 &angvelB) {
+    auto relspd = dot(J[0], linvelA) +
+                  dot(J[1], angvelA) +
+                  dot(J[2], linvelB) +
+                  dot(J[3], angvelB);
+    return relspd;
 }
 
 void prepare_row(constraint_row &row,

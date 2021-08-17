@@ -28,16 +28,61 @@ struct row_start_index_contact_constraint {
     size_t value;
 };
 
+void solve_friction_row_pair(internal::contact_friction_row_pair &friction_row_pair, constraint_row &normal_row) {
+    vector2 delta_impulse;
+    vector2 impulse;
+    auto &friction_rows = friction_row_pair.row;
+
+    for (auto i = 0; i < 2; ++i) {
+        auto &friction_row = friction_rows[i];
+        auto delta_relspd = get_relative_speed(friction_row.J,
+                                               *normal_row.dvA, *normal_row.dwA,
+                                               *normal_row.dvB, *normal_row.dwB);
+        delta_impulse[i] = (friction_row.rhs - delta_relspd) * friction_row.eff_mass;
+        impulse[i] = friction_row.impulse + delta_impulse[i];
+    }
+
+    auto impulse_len_sqr = length_sqr(impulse);
+    auto max_impulse_len = friction_row_pair.friction_coefficient * normal_row.impulse;
+
+    // Limit impulse by normal load.
+    if (impulse_len_sqr > square(max_impulse_len) && impulse_len_sqr > EDYN_EPSILON) {
+        auto impulse_len = std::sqrt(impulse_len_sqr);
+        impulse = impulse / impulse_len * max_impulse_len;
+
+        for (auto i = 0; i < 2; ++i) {
+            delta_impulse[i] = impulse[i] - friction_rows[i].impulse;
+        }
+    }
+
+    // Apply delta impulse.
+    for (auto i = 0; i < 2; ++i) {
+        auto &friction_row = friction_rows[i];
+        friction_row.impulse = impulse[i];
+
+        *normal_row.dvA += normal_row.inv_mA * friction_row.J[0] * delta_impulse[i];
+        *normal_row.dwA += normal_row.inv_IA * friction_row.J[1] * delta_impulse[i];
+        *normal_row.dvB += normal_row.inv_mB * friction_row.J[2] * delta_impulse[i];
+        *normal_row.dwB += normal_row.inv_IB * friction_row.J[3] * delta_impulse[i];
+    }
+}
+
 bool solve_restitution_iteration(entt::registry &registry) {
     auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
     auto cp_view = registry.view<contact_point>();
+    auto imp_view = registry.view<constraint_impulse>();
     auto com_view = registry.view<center_of_mass>();
-    auto restitution_view = registry.view<contact_manifold_restitution>();
+    auto restitution_view = registry.view<contact_manifold_with_restitution>();
     auto manifold_view = registry.view<contact_manifold>();
 
     auto processed = std::vector<bool>{};
     processed.assign(restitution_view.size(), false);
 
+    const unsigned num_individual_restitution_iterations = 2;
+
+    // Solve each manifold in isolation, prioritizing the ones with higher
+    // relative velocity, since they're more likely to propagate velocity
+    // to their neighbors.
     size_t num_processed = 0;
     size_t num_solved = 0;
 
@@ -48,12 +93,10 @@ bool solve_restitution_iteration(entt::registry &registry) {
         size_t manifold_index = 0;
         size_t selected_manifold_index = SIZE_MAX;
 
-        restitution_view.each([&] (entt::entity entity, contact_manifold_restitution &manifold_restitution) {
-            EDYN_ASSERT(manifold_restitution.value > EDYN_EPSILON);
-
+        for (auto entity : restitution_view) {
             if (processed[manifold_index]) {
                 ++manifold_index;
-                return;
+                continue;
             }
 
             auto &manifold = manifold_view.get(entity);
@@ -62,7 +105,7 @@ bool solve_restitution_iteration(entt::registry &registry) {
             if (num_points == 0) {
                 processed[manifold_index++] = true;
                 ++num_processed;
-                return;
+                continue;
             }
 
             auto [posA, ornA, linvelA, angvelA] =
@@ -106,7 +149,7 @@ bool solve_restitution_iteration(entt::registry &registry) {
             }
 
             ++manifold_index;
-        });
+        }
 
         if (manifold_entity == entt::null) {
             return true;
@@ -141,7 +184,8 @@ bool solve_restitution_iteration(entt::registry &registry) {
 
         // Create constraint rows for non-penetration constraints for each
         // contact point.
-        auto rows = std::array<constraint_row, max_contacts>{};
+        auto normal_rows = std::array<constraint_row, max_contacts>{};
+        auto friction_row_pairs = std::array<internal::contact_friction_row_pair, max_contacts>{};
         auto num_points = manifold.num_points();
 
         for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
@@ -154,7 +198,7 @@ bool solve_restitution_iteration(entt::registry &registry) {
             auto rA = pivotA - posA;
             auto rB = pivotB - posB;
 
-            auto &normal_row = rows[pt_idx];
+            auto &normal_row = normal_rows[pt_idx];
             normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
             normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
             normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
@@ -167,14 +211,46 @@ bool solve_restitution_iteration(entt::registry &registry) {
             normal_options.restitution = cp.restitution;
 
             prepare_row(normal_row, normal_options, linvelA, linvelB, angvelA, angvelB);
+
+            auto &friction_row_pair = friction_row_pairs[pt_idx];
+            friction_row_pair.friction_coefficient = cp.friction;
+
+            vector3 tangents[2];
+            plane_space(normal, tangents[0], tangents[1]);
+
+            for (auto i = 0; i < 2; ++i) {
+                auto &friction_row = friction_row_pair.row[i];
+                friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
+                friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
+                friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA, linvelB, angvelB);
+            }
         }
 
         // Solve rows.
-        for (unsigned iter = 0; iter < 3; ++iter) {
+        for (unsigned iter = 0; iter < num_individual_restitution_iterations; ++iter) {
             for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
-                auto &row = rows[pt_idx];
-                auto delta_impulse = solve(row);
-                apply_impulse(delta_impulse, row);
+                auto &normal_row = normal_rows[pt_idx];
+                auto delta_impulse = solve(normal_row);
+                apply_impulse(delta_impulse, normal_row);
+
+                auto &friction_row_pair = friction_row_pairs[pt_idx];
+                solve_friction_row_pair(friction_row_pair, normal_row);
+            }
+        }
+
+        // Persist applied impulses in a separate index because this cannot be
+        // mixed with the regular constraint. It would apply these as the warm
+        // starting impulse which will cause it to apply corrective impulses to
+        // decelerate the rigid bodies which are separating.
+        for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+            auto &imp = imp_view.get(manifold.point[pt_idx]);
+            auto &normal_row = normal_rows[pt_idx];
+            imp.values[3] = normal_row.impulse;
+
+            auto &friction_row_pair = friction_row_pairs[pt_idx];
+
+            for (auto i = 0; i < 2; ++i) {
+                imp.values[4 + i] = friction_row_pair.row[i].impulse;
             }
         }
 
@@ -265,7 +341,12 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         normal_row.lower_limit = 0;
 
         auto normal_options = constraint_row_options{};
-        normal_options.restitution = cp.restitution;
+
+        // Do not use the traditional restitution path if the restitution solver
+        // is being used.
+        if (num_restitution_iterations == 0) {
+            normal_options.restitution = cp.restitution;
+        }
 
         if (cp.distance < 0) {
             if (con.stiffness < large_scalar) {
@@ -300,18 +381,8 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             auto &friction_row = friction_rows.row[i];
             friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
             friction_row.impulse = imp.values[1 + i];
-
-            auto J_invM_JT = dot(friction_row.J[0], friction_row.J[0]) * inv_mA +
-                             dot(inv_IA * friction_row.J[1], friction_row.J[1]) +
-                             dot(friction_row.J[2], friction_row.J[2]) * inv_mB +
-                             dot(inv_IB * friction_row.J[3], friction_row.J[3]);
-            friction_row.eff_mass = 1 / J_invM_JT;
-
-            auto relvel = dot(friction_row.J[0], linvelA) +
-                          dot(friction_row.J[1], angvelA) +
-                          dot(friction_row.J[2], linvelB) +
-                          dot(friction_row.J[3], angvelB);
-            friction_row.rhs = -relvel;
+            friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
+            friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA, linvelB, angvelB);
 
             // Warm-starting.
             dvA += inv_mA * friction_row.J[0] * friction_row.impulse;
@@ -342,44 +413,7 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     for (size_t row_idx = 0; row_idx < num_rows; ++row_idx) {
         auto &normal_row = cache.rows[start_row_idx + row_idx];
         auto &friction_row_pair = ctx.friction_rows[row_idx];
-        auto &friction_rows = friction_row_pair.row;
-
-        vector2 delta_impulse;
-        vector2 impulse;
-
-        for (auto i = 0; i < 2; ++i) {
-            auto &friction_row = friction_rows[i];
-            auto delta_relvel = dot(friction_row.J[0], *normal_row.dvA) +
-                                dot(friction_row.J[1], *normal_row.dwA) +
-                                dot(friction_row.J[2], *normal_row.dvB) +
-                                dot(friction_row.J[3], *normal_row.dwB);
-            delta_impulse[i] = (friction_row.rhs - delta_relvel) * friction_row.eff_mass;
-            impulse[i] = friction_row.impulse + delta_impulse[i];
-        }
-
-        auto impulse_len_sqr = length_sqr(impulse);
-        auto max_impulse_len = friction_row_pair.friction_coefficient * normal_row.impulse;
-
-        // Limit impulse by normal load.
-        if (impulse_len_sqr > square(max_impulse_len) && impulse_len_sqr > EDYN_EPSILON) {
-            auto impulse_len = std::sqrt(impulse_len_sqr);
-            impulse = impulse / impulse_len * max_impulse_len;
-
-            for (auto i = 0; i < 2; ++i) {
-                delta_impulse[i] = impulse[i] - friction_rows[i].impulse;
-            }
-        }
-
-        // Apply delta impulse.
-        for (auto i = 0; i < 2; ++i) {
-            auto &friction_row = friction_rows[i];
-            friction_row.impulse = impulse[i];
-
-            *normal_row.dvA += normal_row.inv_mA * friction_row.J[0] * delta_impulse[i];
-            *normal_row.dwA += normal_row.inv_IA * friction_row.J[1] * delta_impulse[i];
-            *normal_row.dvB += normal_row.inv_mB * friction_row.J[2] * delta_impulse[i];
-            *normal_row.dwB += normal_row.inv_IB * friction_row.J[3] * delta_impulse[i];
-        }
+        solve_friction_row_pair(friction_row_pair, normal_row);
     }
 }
 
@@ -433,11 +467,7 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
         auto rA = pivotA - posA;
         auto rB = pivotB - posB;
         auto J = std::array<vector3, 4>{normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        auto J_invM_JT = dot(J[0], J[0]) * inv_mA +
-                         dot(inv_IA * J[1], J[1]) +
-                         dot(J[2], J[2]) * inv_mB +
-                         dot(inv_IB * J[3], J[3]);
-        auto eff_mass = scalar(1) / J_invM_JT;
+        auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
         auto error = std::min(cp.distance, scalar(0));
         auto correction = -error * contact_position_correction_rate * eff_mass;
 

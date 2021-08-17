@@ -9,6 +9,7 @@ namespace edyn {
 
 struct constraint_row;
 struct constraint_row_options;
+struct matrix3x3;
 
 namespace internal {
     bool pre_make_constraint(entt::entity entity, entt::registry &registry,
@@ -63,6 +64,16 @@ void make_contact_manifold(entt::entity contact_entity, entt::registry &,
                            scalar separation_threshold);
 
 scalar get_effective_mass(const constraint_row &);
+
+scalar get_effective_mass(const std::array<vector3, 4> &J,
+                          scalar inv_mA, const matrix3x3 &inv_IA,
+                          scalar inv_mB, const matrix3x3 &inv_IB);
+
+scalar get_relative_speed(const std::array<vector3, 4> &J,
+                          const vector3 &linvelA,
+                          const vector3 &angvelA,
+                          const vector3 &linvelB,
+                          const vector3 &angvelB);
 
 void prepare_row(constraint_row &row,
                  const constraint_row_options &options,
