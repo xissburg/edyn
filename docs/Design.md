@@ -127,6 +127,16 @@ Contact points are not updated in the main registry continuously since that woul
 
 Due to the order of the internal updates (see [The Physics Step](#the-physics-step) for details), the contact constraint is not created immediately after a new contact point, which means that when an `on_construct<entt::contact_point>` is triggered, the collision impulse will not be available. If that information is required, listen to construction of `edyn::constraint_impulse` instead. These are created at the beginning of the next step and the solver will assign the applied impulse to it. It contains an array of impulses for each constraint row. In case of a `edyn::contact_constraint`, the first element is the normal impulse and the second is the friction impulse.
 
+## Restitution
+
+A non-zero coefficient of restitution allows rigid bodies to bounce off one another after a collision. In other words, it establishes the ratio between the relative velocity after and before a collision. A value of zero will make the relative velocity go to zero. A value of one will cause a perfectly elastic collision and the new relative velocity will be equal and opposite to the initial relative velocity.
+
+In impulse based dynamics, restitution can be obtained using a velocity bias in the right-hand side (RHS) of the constraint equation. That will cause the solver to apply impulses to make the relative velocity attain that value. The only issue is that when there are more than a pair of bodies touching each other in an island, only the bodies that are already moving will have the restitution correctly applied, since others will initially have a zero relative velocity at the contact points and thus will not have a velocity bias on the RHS. That will lead to inelastic collisions despite the non-zero coefficient of restitution.
+
+Given that the sequential impulses constraint solves produces correct results for a single pair of colliding bodies with non-zero restitution, one solution is to first solve these contact constraints one by one in isolation. The velocity deltas must be applied to the velocity of the rigid bodies before moving onto the next constraint so the relative velocity will be correctly assigned to the RHS of the constraint equation. One iteration is often enough for a sequence of connected rigid bodies. More complex configurations might require more iterations to ensure a complete shock propagation. This step is _solved_ when the relative velocity at the contact points of all contact manifolds with non-zero restitution is above zero.
+
+The contact constraints can be solved normally after the special restitution step. This will produce correct results for chains of rigid bodies in scenarios such as the Newton's Cradle and billiards.
+
 # Shapes
 
 The physical shape of a rigid body can be any of the `edyn::*_shape` components, which are assigned directly to the rigid body entity. Along with the shape of specific type, a `edyn::shape_index` is assigned which can be used to read the shape an entity contains using the `edyn::visit_shape` function.
