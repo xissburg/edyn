@@ -142,11 +142,8 @@ inline matrix3x3 inverse_matrix_symmetric(const matrix3x3 &m) {
     EDYN_ASSERT(m[1][2] == m[2][1]);
 
     auto det = m.determinant();
-    scalar det_inv = 0;
-
-    if (std::abs(det) > EDYN_EPSILON) {
-        det_inv = scalar(1) / det;
-    }
+    EDYN_ASSERT(det != 0);
+    auto det_inv = scalar(1) / det;
 
     auto a11 = m[0][0], a12 = m[0][1], a13 = m[0][2];
     auto a22 = m[1][1], a23 = m[1][2];
