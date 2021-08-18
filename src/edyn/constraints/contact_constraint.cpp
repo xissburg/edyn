@@ -12,6 +12,7 @@
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/gravity.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -67,7 +68,7 @@ void solve_friction_row_pair(internal::contact_friction_row_pair &friction_row_p
     }
 }
 
-bool solve_restitution_iteration(entt::registry &registry) {
+bool solve_restitution_iteration(entt::registry &registry, scalar dt) {
     auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
     auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
@@ -155,7 +156,22 @@ bool solve_restitution_iteration(entt::registry &registry) {
             return true;
         }
 
-        if (min_relvel > -0.01) {
+        // In order to prevent bodies from bouncing forever, calculate a minimum
+        // penetration velocity that must be met for the restitution impulse to
+        // be applied.
+        auto &manifold = manifold_view.get(manifold_entity);
+        auto relvel_threshold = scalar(-0.2);
+
+        // Make the threshold proportional to the velocity attained after gravity
+        // is applied. This ensures bodies won't start bouncing while resting on
+        // a surface due to gravity acceleration.
+        if (auto *g = registry.try_get<gravity>(manifold.body[0])) {
+            relvel_threshold = length(*g) * dt * scalar(-1.5);
+        } else if (auto *g = registry.try_get<gravity>(manifold.body[1])) {
+            relvel_threshold = length(*g) * dt * scalar(-1.5);
+        }
+
+        if (min_relvel > relvel_threshold) {
             processed[selected_manifold_index] = true;
             ++num_processed;
             ++num_solved;
@@ -163,7 +179,6 @@ bool solve_restitution_iteration(entt::registry &registry) {
         }
 
         // Solve non-penetration constraints for this manifold in isolation.
-        auto &manifold = manifold_view.get(manifold_entity);
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
@@ -282,7 +297,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     const unsigned num_restitution_iterations = 1;
 
     for (unsigned i = 0; i < num_restitution_iterations; ++i) {
-        if (solve_restitution_iteration(registry)) {
+        if (solve_restitution_iteration(registry, dt)) {
             break;
         }
     }
