@@ -69,7 +69,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -89,7 +89,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -105,7 +105,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 

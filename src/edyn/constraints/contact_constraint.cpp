@@ -210,7 +210,7 @@ bool solve_restitution_iteration(entt::registry &registry) {
             auto normal_options = constraint_row_options{};
             normal_options.restitution = cp.restitution;
 
-            prepare_row(normal_row, normal_options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(normal_row, normal_options, linvelA, angvelA, linvelB, angvelB);
 
             auto &friction_row_pair = friction_row_pairs[pt_idx];
             friction_row_pair.friction_coefficient = cp.friction;
@@ -279,7 +279,7 @@ bool solve_restitution_iteration(entt::registry &registry) {
 
 template<>
 void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    const unsigned num_restitution_iterations = 10;
+    const unsigned num_restitution_iterations = 1;
 
     for (unsigned i = 0; i < num_restitution_iterations; ++i) {
         if (solve_restitution_iteration(registry)) {
@@ -367,7 +367,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             normal_row.upper_limit = large_scalar;
         }
 
-        prepare_row(normal_row, normal_options, linvelA, linvelB, angvelA, angvelB);
+        prepare_row(normal_row, normal_options, linvelA, angvelA, linvelB, angvelB);
         warm_start(normal_row);
 
         // Create special friction rows.

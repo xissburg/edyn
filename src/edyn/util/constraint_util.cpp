@@ -113,8 +113,8 @@ scalar get_relative_speed(const std::array<vector3, 4> &J,
 
 void prepare_row(constraint_row &row,
                  const constraint_row_options &options,
-                 const vector3 &linvelA, const vector3 &linvelB,
-                 const vector3 &angvelA, const vector3 &angvelB) {
+                 const vector3 &linvelA, const vector3 &angvelA,
+                 const vector3 &linvelB, const vector3 &angvelB) {
     auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
                      dot(row.inv_IA * row.J[1], row.J[1]) +
                      dot(row.J[2], row.J[2]) * row.inv_mB +

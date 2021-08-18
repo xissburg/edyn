@@ -77,8 +77,8 @@ scalar get_relative_speed(const std::array<vector3, 4> &J,
 
 void prepare_row(constraint_row &row,
                  const constraint_row_options &options,
-                 const vector3 &linvelA, const vector3 &linvelB,
-                 const vector3 &angvelA, const vector3 &angvelB);
+                 const vector3 &linvelA, const vector3 &angvelA,
+                 const vector3 &linvelB, const vector3 &angvelB);
 
 void apply_impulse(scalar impulse, constraint_row &row);
 

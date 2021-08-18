@@ -73,7 +73,7 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
             auto options = constraint_row_options{};
             options.error = dot(p, d) / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -98,7 +98,7 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
             auto options = constraint_row_options{};
             options.error = error / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 

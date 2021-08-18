@@ -90,7 +90,7 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
             auto options = constraint_row_options{};
             options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -117,7 +117,7 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
             row.dwA = &dwA; row.dwB = &dwB;
             row.impulse = imp.values[1];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
