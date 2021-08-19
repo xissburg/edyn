@@ -201,7 +201,7 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &result
 
         auto shape_indexA = body_view.get<shape_index>(body[0]);
         auto shape_indexB = body_view.get<shape_index>(body[1]);
-        auto ctx = collision_context{originA, ornA, aabbA, originB, ornB, aabbB, contact_breaking_threshold};
+        auto ctx = collision_context{originA, ornA, aabbA, originB, ornB, aabbB, collision_threshold};
 
         visit_shape(shape_indexA, body[0], views_tuple, [&] (auto &&shA) {
             visit_shape(shape_indexB, body[1], views_tuple, [&] (auto &&shB) {

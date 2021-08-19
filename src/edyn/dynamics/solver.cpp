@@ -112,6 +112,8 @@ void solver::update(scalar dt) {
 
     m_row_cache.clear();
 
+    solve_restitution(registry, dt);
+
     apply_gravity(registry, dt);
 
     // Setup constraints.

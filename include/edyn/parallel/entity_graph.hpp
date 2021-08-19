@@ -136,6 +136,46 @@ public:
      */
     connected_components_t connected_components();
 
+    template<typename Func>
+    void traverse_connecting_nodes(index_type start_node_index, Func func) {
+        m_visited.assign(m_nodes.size(), false);
+
+        std::vector<index_type> to_visit;
+        to_visit.push_back(start_node_index);
+
+        while (!to_visit.empty()) {
+            auto node_index = to_visit.back();
+            to_visit.pop_back();
+
+            m_visited[node_index] = true;
+            const auto &node = m_nodes[node_index];
+            EDYN_ASSERT(node.entity != entt::null);
+
+            // Ignore non-connecting nodes.
+            if (node.non_connecting) {
+                continue;
+            }
+
+            func(node_index);
+
+            // Add neighbors to be visited.
+            auto adj_index = node.adjacency_index;
+
+            while (adj_index != null_index) {
+                auto &adj = m_adjacencies[adj_index];
+                auto neighbor_index = adj.node_index;
+
+                if (!m_visited[neighbor_index]) {
+                    to_visit.insert(to_visit.begin(), neighbor_index);
+                    // Set as visited to avoid adding it to `to_visit` more than once.
+                    m_visited[neighbor_index] = true;
+                }
+
+                adj_index = adj.next;
+            }
+        }
+    }
+
     void optimize_if_needed();
 
 private:
