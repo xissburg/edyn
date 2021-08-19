@@ -61,6 +61,9 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     registry.emplace<procedural_tag>(manifold_entity);
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
 
+    auto &dirty = registry.get_or_emplace<edyn::dirty>(manifold_entity);
+    dirty.set_new().created<procedural_tag, contact_manifold>();
+
     auto material_view = registry.view<material>();
 
     if (material_view.contains(body0) && material_view.contains(body1)) {
@@ -70,6 +73,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 
         if (restitution > EDYN_EPSILON) {
             registry.emplace<contact_manifold_with_restitution>(manifold_entity);
+            dirty.created<contact_manifold_with_restitution>();
         }
     }
 
@@ -77,11 +81,6 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     auto node_index1 = registry.get<graph_node>(body1).node_index;
     auto edge_index = registry.ctx<entity_graph>().insert_edge(manifold_entity, node_index0, node_index1);
     registry.emplace<graph_edge>(manifold_entity, edge_index);
-
-    registry.get_or_emplace<dirty>(manifold_entity)
-        .set_new()
-        .created<procedural_tag,
-                 contact_manifold>();
 }
 
 scalar get_effective_mass(const constraint_row &row) {
