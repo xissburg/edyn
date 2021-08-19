@@ -23,6 +23,52 @@
 
 namespace edyn {
 
+template<typename BodyView, typename CpView, typename ComView>
+scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView &body_view,
+                               const CpView &cp_view, const ComView &com_view) {
+    auto num_points = manifold.num_points();
+
+    if (num_points == 0) {
+        return EDYN_SCALAR_MAX;
+    }
+
+    auto [posA, ornA, linvelA, angvelA] =
+        body_view.template get<position, orientation, linvel, angvel>(manifold.body[0]);
+    auto [posB, ornB, linvelB, angvelB] =
+        body_view.template get<position, orientation, linvel, angvel>(manifold.body[1]);
+
+    auto originA = static_cast<vector3>(posA);
+    auto originB = static_cast<vector3>(posB);
+
+    if (com_view.contains(manifold.body[0])) {
+        auto &com = com_view.get(manifold.body[0]);
+        originA = to_world_space(-com, posA, ornA);
+    }
+
+    if (com_view.contains(manifold.body[1])) {
+        auto &com = com_view.get(manifold.body[1]);
+        originB = to_world_space(-com, posB, ornB);
+    }
+
+    auto min_relvel = EDYN_SCALAR_MAX;
+
+    for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
+        auto &cp = cp_view.get(manifold.point[pt_idx]);
+        auto normal = cp.normal;
+        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+        auto rA = pivotA - posA;
+        auto rB = pivotB - posB;
+        auto vA = linvelA + cross(angvelA, rA);
+        auto vB = linvelB + cross(angvelB, rB);
+        auto relvel = vA - vB;
+        auto normal_relvel = dot(relvel, normal);
+        min_relvel = std::min(normal_relvel, min_relvel);
+    }
+
+    return min_relvel;
+}
+
 bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned individual_iterations) {
     auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
     auto cp_view = registry.view<contact_point>();
@@ -31,9 +77,14 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     auto restitution_view = registry.view<contact_manifold_with_restitution>();
     auto manifold_view = registry.view<contact_manifold>();
 
-    // Solve each manifold in isolation, prioritizing the ones with higher
-    // relative velocity, since they're more likely to propagate velocity
-    // to their neighbors.
+    // Solve manifolds in small groups, these groups being all manifolds connected
+    // to one rigid body, usually a fast moving one. Ignore manifolds which are
+    // separating, i.e. positive normal relative velocity. Intially, pick the
+    // manifold with the highest penetration velocity (i.e. lowest normal relative
+    // velocity) and select the fastest rigid body to start graph traversal. Traverse
+    // the entity graph starting at that rigid body's node and visit the edges of
+    // that node to collect the manifolds to be solved. Repeat to the other nodes
+    // during traversal.
 
     // Find manifold with highest penetration velocity.
     auto min_relvel = EDYN_SCALAR_MAX;
@@ -41,45 +92,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     for (auto entity : restitution_view) {
         auto &manifold = manifold_view.get(entity);
-        auto num_points = manifold.num_points();
-
-        if (num_points == 0) {
-            continue;
-        }
-
-        auto [posA, ornA, linvelA, angvelA] =
-            body_view.get<position, orientation, linvel, angvel>(manifold.body[0]);
-        auto [posB, ornB, linvelB, angvelB] =
-            body_view.get<position, orientation, linvel, angvel>(manifold.body[1]);
-
-        auto originA = static_cast<vector3>(posA);
-        auto originB = static_cast<vector3>(posB);
-
-        if (com_view.contains(manifold.body[0])) {
-            auto &com = com_view.get(manifold.body[0]);
-            originA = to_world_space(-com, posA, ornA);
-        }
-
-        if (com_view.contains(manifold.body[1])) {
-            auto &com = com_view.get(manifold.body[1]);
-            originB = to_world_space(-com, posB, ornB);
-        }
-
-        auto local_min_relvel = EDYN_SCALAR_MAX;
-
-        for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
-            auto &cp = cp_view.get(manifold.point[pt_idx]);
-            auto normal = cp.normal;
-            auto pivotA = to_world_space(cp.pivotA, originA, ornA);
-            auto pivotB = to_world_space(cp.pivotB, originB, ornB);
-            auto rA = pivotA - posA;
-            auto rB = pivotB - posB;
-            auto vA = linvelA + cross(angvelA, rA);
-            auto vB = linvelB + cross(angvelB, rB);
-            auto relvel = vA - vB;
-            auto normal_relvel = dot(relvel, normal);
-            local_min_relvel = std::min(normal_relvel, local_min_relvel);
-        }
+        auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, cp_view, com_view);
 
         if (local_min_relvel < min_relvel) {
             min_relvel = local_min_relvel;
@@ -103,8 +116,12 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
         return true;
     }
 
+    // Reuse collections of rows to prevent a high number of allocations.
     auto normal_rows = std::vector<constraint_row>{};
     auto friction_row_pairs = std::vector<internal::contact_friction_row_pair>{};
+
+    normal_rows.reserve(10);
+    friction_row_pairs.reserve(10);
 
     auto solveManifolds = [&] (const std::vector<entt::entity> &manifold_entities) {
         normal_rows.clear();
@@ -228,58 +245,46 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
         }
     };
 
+    // Among the two rigid bodies in the manifold that is penetrating faster,
+    // select the one that has the highest velocity.
+    // Traversal is done over connecting nodes, thus ignore non-connecting nodes
+    // (i.e. static and kinematic rigid bodies).
     auto &graph = registry.ctx<entity_graph>();
+    entity_graph::index_type start_node_index;
+
+    if (length_sqr(body_view.get<linvel>(fastest_manifold.body[0])) >
+        length_sqr(body_view.get<linvel>(fastest_manifold.body[1]))) {
+        auto &node0 = registry.get<graph_node>(fastest_manifold.body[0]);
+
+        if (graph.is_connecting_node(node0.node_index)) {
+            start_node_index = node0.node_index;
+        } else {
+            auto &node1 = registry.get<graph_node>(fastest_manifold.body[1]);
+            EDYN_ASSERT(graph.is_connecting_node(node1.node_index));
+            start_node_index = node1.node_index;
+        }
+    } else {
+        auto &node1 = registry.get<graph_node>(fastest_manifold.body[1]);
+
+        if (graph.is_connecting_node(node1.node_index)) {
+            start_node_index = node1.node_index;
+        } else {
+            auto &node0 = registry.get<graph_node>(fastest_manifold.body[0]);
+            EDYN_ASSERT(graph.is_connecting_node(node0.node_index));
+            start_node_index = node0.node_index;
+        }
+    }
+
     std::vector<entt::entity> manifold_entities;
 
-    // Among the two rigid bodies in the manifold that is penetrating faster,
-    // select the one that has the lowest combined penetration velocity (signed).
-    auto &start_node = registry.get<graph_node>(fastest_manifold.body[0]);
-
-    graph.traverse_connecting_nodes(start_node.node_index, [&] (auto node_index) {
+    graph.traverse_connecting_nodes(start_node_index, [&] (auto node_index) {
         graph.visit_edges(node_index, [&] (entt::entity edge_entity) {
             if (!manifold_view.contains(edge_entity)) return;
 
             auto &manifold = manifold_view.get(edge_entity);
-            auto num_points = manifold.num_points();
-
-            if (num_points == 0) {
-                return;
-            }
-
-            auto [posA, ornA, linvelA, angvelA] =
-                body_view.get<position, orientation, linvel, angvel>(manifold.body[0]);
-            auto [posB, ornB, linvelB, angvelB] =
-                body_view.get<position, orientation, linvel, angvel>(manifold.body[1]);
-
-            auto originA = static_cast<vector3>(posA);
-            auto originB = static_cast<vector3>(posB);
-
-            if (com_view.contains(manifold.body[0])) {
-                auto &com = com_view.get(manifold.body[0]);
-                originA = to_world_space(-com, posA, ornA);
-            }
-
-            if (com_view.contains(manifold.body[1])) {
-                auto &com = com_view.get(manifold.body[1]);
-                originB = to_world_space(-com, posB, ornB);
-            }
 
             // Ignore manifolds which are not penetrating fast enough.
-            auto local_min_relvel = EDYN_SCALAR_MAX;
-
-            for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
-                auto &cp = cp_view.get(manifold.point[pt_idx]);
-                auto normal = cp.normal;
-                auto pivotA = to_world_space(cp.pivotA, originA, ornA);
-                auto pivotB = to_world_space(cp.pivotB, originB, ornB);
-                auto rA = pivotA - posA;
-                auto rB = pivotB - posB;
-                auto vA = linvelA + cross(angvelA, rA);
-                auto vB = linvelB + cross(angvelB, rB);
-                auto relvel = vA - vB;
-                auto normal_relvel = dot(relvel, normal);
-                local_min_relvel = std::min(normal_relvel, local_min_relvel);
-            }
+            auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, cp_view, com_view);
 
             if (local_min_relvel < relvel_threshold) {
                 manifold_entities.push_back(edge_entity);

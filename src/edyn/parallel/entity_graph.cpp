@@ -244,6 +244,11 @@ entity_pair entity_graph::edge_node_entities(index_type edge_index) const {
     return {m_nodes[edge.node_index0].entity, m_nodes[edge.node_index1].entity};
 }
 
+bool entity_graph::is_connecting_node(index_type node_index) const {
+    EDYN_ASSERT(node_index < m_nodes.size());
+    return !m_nodes[node_index].non_connecting;
+}
+
 void entity_graph::insert_adjacency(index_type node_index0, index_type node_index1, index_type edge_index) {
     m_edges[edge_index].adj_index0 = insert_adjacency_one_way(node_index0, node_index1, edge_index);
 

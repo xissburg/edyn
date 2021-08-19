@@ -68,6 +68,8 @@ public:
     bool has_adjacency(index_type node_index0, index_type node_index1) const;
     entity_pair edge_node_entities(index_type edge_index) const;
 
+    bool is_connecting_node(index_type node_index) const;
+
     /**
      * @brief Calculate whether this graph contains a single connected component.
      * @return Whether this graph is a single connected component.
