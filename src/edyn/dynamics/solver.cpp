@@ -115,6 +115,8 @@ void solver::update(scalar dt) {
 
     m_row_cache.clear();
 
+    // Apply restitution impulses before gravity to prevent resting objects to
+    // start bouncing due to the initial gravity acceleration.
     solve_restitution(registry, dt);
 
     apply_gravity(registry, dt);
@@ -150,6 +152,7 @@ void solver::update(scalar dt) {
     integrate_linvel(registry, dt);
     integrate_angvel(registry, dt);
 
+    // Now that rigid bodies have moved, perform positional correction.
     for (unsigned i = 0; i < settings.num_solver_position_iterations; ++i) {
         if (solve_position_constraints(registry, dt)) {
             break;
