@@ -65,6 +65,7 @@ set(Edyn_SOURCES
     src/edyn/constraints/null_constraint.cpp
     src/edyn/constraints/gravity_constraint.cpp
     src/edyn/dynamics/solver.cpp
+    src/edyn/dynamics/restitution_solver.cpp
     src/edyn/sys/update_aabbs.cpp
     src/edyn/sys/update_rotated_meshes.cpp
     src/edyn/sys/update_inertias.cpp

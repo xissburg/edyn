@@ -13,6 +13,8 @@ struct contact_constraint : public constraint_base {
     scalar damping {large_scalar};
 };
 
+struct constraint_row;
+
 namespace internal {
     struct contact_friction_row {
         std::array<vector3, 4> J;
@@ -29,6 +31,8 @@ namespace internal {
     struct contact_constraint_context {
         std::vector<contact_friction_row_pair> friction_rows;
     };
+
+    void solve_friction_row_pair(internal::contact_friction_row_pair &friction_row_pair, constraint_row &normal_row);
 }
 
 template<>
@@ -39,8 +43,6 @@ void iterate_constraints<contact_constraint>(entt::registry &, row_cache &, scal
 
 template<>
 bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt);
-
-void solve_restitution(entt::registry &registry, scalar dt);
 
 }
 

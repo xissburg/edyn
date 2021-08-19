@@ -14,6 +14,7 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/dynamics/restitution_solver.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
