@@ -73,9 +73,6 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     m_registry.prepare<collision_filter>();
     m_registry.prepare<collision_exclusion>();
 
-    m_solver.velocity_iterations = settings.num_solver_velocity_iterations;
-    m_solver.position_iterations = settings.num_solver_position_iterations;
-
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
 
@@ -898,8 +895,6 @@ void island_worker::on_set_solver_iterations(const msg::set_solver_iterations &m
     auto &settings = m_registry.ctx<edyn::settings>();
     settings.num_solver_velocity_iterations = msg.velocity_iterations;
     settings.num_solver_position_iterations = msg.position_iterations;
-    m_solver.velocity_iterations = msg.velocity_iterations;
-    m_solver.position_iterations = msg.position_iterations;
 }
 
 void island_worker::on_set_settings(const msg::set_settings &msg) {

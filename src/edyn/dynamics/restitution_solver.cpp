@@ -18,19 +18,18 @@
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
 
-bool solve_restitution_iteration(entt::registry &registry, scalar dt) {
+bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned individual_iterations) {
     auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
     auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
     auto com_view = registry.view<center_of_mass>();
     auto restitution_view = registry.view<contact_manifold_with_restitution>();
     auto manifold_view = registry.view<contact_manifold>();
-
-    const unsigned num_individual_restitution_iterations = 3;
 
     // Solve each manifold in isolation, prioritizing the ones with higher
     // relative velocity, since they're more likely to propagate velocity
@@ -176,13 +175,13 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt) {
         }
 
         // Solve rows.
-        for (unsigned iter = 0; iter < num_individual_restitution_iterations; ++iter) {
-            for (size_t pt_idx = 0; pt_idx < normal_rows.size(); ++pt_idx) {
-                auto &normal_row = normal_rows[pt_idx];
+        for (unsigned iter = 0; iter < individual_iterations; ++iter) {
+            for (size_t row_idx = 0; row_idx < normal_rows.size(); ++row_idx) {
+                auto &normal_row = normal_rows[row_idx];
                 auto delta_impulse = solve(normal_row);
                 apply_impulse(delta_impulse, normal_row);
 
-                auto &friction_row_pair = friction_row_pairs[pt_idx];
+                auto &friction_row_pair = friction_row_pairs[row_idx];
                 internal::solve_friction_row_pair(friction_row_pair, normal_row);
             }
         }
@@ -216,11 +215,11 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt) {
         for (auto manifold_entity : manifold_entities) {
             auto &manifold = manifold_view.get(manifold_entity);
 
-            for (auto entity : manifold.body) {
+            for (auto body_entity : manifold.body) {
                 // There are duplicates among all manifold bodies but this
                 // operation is idempotent since the delta velocity is set
                 // to zero.
-                auto [lv, av, dv, dw] = body_view.get<linvel, angvel, delta_linvel, delta_angvel>(entity);
+                auto [lv, av, dv, dw] = body_view.get<linvel, angvel, delta_linvel, delta_angvel>(body_entity);
                 lv += dv;
                 dv = vector3_zero;
                 av += dw;
@@ -231,6 +230,9 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt) {
 
     auto &graph = registry.ctx<entity_graph>();
     std::vector<entt::entity> manifold_entities;
+
+    // Among the two rigid bodies in the manifold that is penetrating faster,
+    // select the one that has the lowest combined penetration velocity (signed).
     auto &start_node = registry.get<graph_node>(fastest_manifold.body[0]);
 
     graph.traverse_connecting_nodes(start_node.node_index, [&] (auto node_index) {
@@ -295,10 +297,10 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt) {
 }
 
 void solve_restitution(entt::registry &registry, scalar dt) {
-    const unsigned num_restitution_iterations = 10;
+    auto &settings = registry.ctx<edyn::settings>();
 
-    for (unsigned i = 0; i < num_restitution_iterations; ++i) {
-        if (solve_restitution_iteration(registry, dt)) {
+    for (unsigned i = 0; i < settings.num_restitution_iterations; ++i) {
+        if (solve_restitution_iteration(registry, dt, settings.num_individual_restitution_iterations)) {
             break;
         }
     }
