@@ -338,7 +338,16 @@ unsigned get_solver_individual_restitution_iterations(const entt::registry &regi
  */
 void set_solver_individual_restitution_iterations(entt::registry &registry, unsigned iterations);
 
-void insert_material_mixing(entt::registry &, unsigned material_id0, unsigned material_id1, const material_base &);
+/**
+ * @brief Use the provided material when two rigid bodies with the given
+ * material ids collide.
+ * @param registry Data source.
+ * @param material_id0 ID of a material.
+ * @param material_id1 ID of another material (could be equal to material_id0).
+ * @param material Material info.
+ */
+void insert_material_mixing(entt::registry &registry, unsigned material_id0,
+                            unsigned material_id1, const material_base &material);
 
 }
 

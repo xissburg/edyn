@@ -7,6 +7,10 @@
 
 namespace edyn {
 
+/**
+ * @brief Base material info which can be set into the material mixing table
+ * for a pair of material ids.
+ */
 struct material_base {
     scalar restitution {0};
     scalar friction {0.5};
@@ -14,6 +18,9 @@ struct material_base {
     scalar damping {large_scalar};
 };
 
+/**
+ * @brief Rigid body material component with optional identifier for material mixing.
+ */
 struct material : public material_base {
     using id_type = unsigned;
     id_type id {std::numeric_limits<id_type>::max()};
