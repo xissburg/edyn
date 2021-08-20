@@ -1,5 +1,5 @@
-#ifndef EDYN_UTIL_COMMUTATIVE_PAIR_HPP
-#define EDYN_UTIL_COMMUTATIVE_PAIR_HPP
+#ifndef EDYN_UTIL_UNORDERED_PAIR_HPP
+#define EDYN_UTIL_UNORDERED_PAIR_HPP
 
 #include "edyn/config/config.h"
 
@@ -9,12 +9,12 @@ namespace edyn {
  * A pair of values of the same type which tests equals independent of order.
  */
 template<typename T>
-struct commutative_pair {
+struct unordered_pair {
     T first;
     T second;
 
-    commutative_pair() = default;
-    commutative_pair(T first, T second)
+    unordered_pair() = default;
+    unordered_pair(T first, T second)
         : first(first)
         , second(second)
     {}
@@ -24,12 +24,12 @@ struct commutative_pair {
         return idx == 0 ? first : second;
     }
 
-    bool operator==(const commutative_pair &other) const {
+    bool operator==(const unordered_pair &other) const {
         return (first == other.first && second == other.second) ||
                (first == other.second && second == other.first);
     }
 
-    bool operator<(const commutative_pair &other) const {
+    bool operator<(const unordered_pair &other) const {
         if (first == other.second && second == other.first) {
             return false;
         }
@@ -42,4 +42,4 @@ struct commutative_pair {
 
 }
 
-#endif // EDYN_UTIL_COMMUTATIVE_PAIR_HPP
+#endif // EDYN_UTIL_UNORDERED_PAIR_HPP

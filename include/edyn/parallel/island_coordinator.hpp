@@ -75,6 +75,8 @@ public:
     // propagate changes to island workers.
     void settings_changed();
 
+    void material_table_changed();
+
     void create_island(std::vector<entt::entity> nodes, bool sleeping = false);
 
 private:
