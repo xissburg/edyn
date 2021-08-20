@@ -334,7 +334,7 @@ unsigned get_solver_individual_restitution_iterations(const entt::registry &regi
  * of iterations used while solving each subset of contact constraints in each
  * iteration of the restitution solver.
  * @param registry Data source.
- * @param iterations Number of restitution iterations.
+ * @param iterations Number of individual restitution iterations.
  */
 void set_solver_individual_restitution_iterations(entt::registry &registry, unsigned iterations);
 
