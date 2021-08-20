@@ -99,6 +99,7 @@ void island_worker::init() {
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
+    m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
 
     // Process messages enqueued before the worker was started. This includes
     // the island deltas containing the initial entities that were added to
