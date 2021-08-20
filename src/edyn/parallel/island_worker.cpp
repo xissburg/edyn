@@ -50,7 +50,9 @@ void island_worker_func(job::data_type &data) {
     }
 }
 
-island_worker::island_worker(entt::entity island_entity, const settings &settings, message_queue_in_out message_queue)
+island_worker::island_worker(entt::entity island_entity, const settings &settings,
+                             const material_mix_table &material_table,
+                             message_queue_in_out message_queue)
     : m_message_queue(message_queue)
     , m_splitting(false)
     , m_state(state::init)
@@ -67,6 +69,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
 {
     m_registry.set<entity_graph>();
     m_registry.set<edyn::settings>(settings);
+    m_registry.set<material_mix_table>(material_table);
 
     // Avoid multi-threading issues in the `should_collide` function by
     // pre-allocating the pools required in there.
@@ -100,6 +103,7 @@ void island_worker::init() {
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
     m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
+    m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
 
     // Process messages enqueued before the worker was started. This includes
     // the island deltas containing the initial entities that were added to
@@ -888,6 +892,10 @@ void island_worker::on_step_simulation(const msg::step_simulation &) {
 
 void island_worker::on_set_settings(const msg::set_settings &msg) {
     m_registry.ctx<settings>() = msg.settings;
+}
+
+void island_worker::on_set_material_table(const msg::set_material_table &msg) {
+    m_registry.ctx<material_mix_table>() = msg.table;
 }
 
 void island_worker::on_set_com(const msg::set_com &msg) {

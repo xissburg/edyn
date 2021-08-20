@@ -35,7 +35,7 @@ void triangle_mesh::init_edge_indices() {
             auto j = (i + 1) % 3;
             auto i0 = indices[i];
             auto i1 = indices[j];
-            auto pair = commutative_pair(i0, i1);
+            auto pair = unordered_pair(i0, i1);
             auto edge_idx = SIZE_MAX;
 
             for (size_t k = 0; k < m_edge_vertex_indices.size(); ++k) {

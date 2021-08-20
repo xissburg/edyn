@@ -7,6 +7,7 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/dynamics/material_mixing.hpp"
 
 namespace edyn {
 
@@ -50,15 +51,23 @@ void create_contact_constraint(entt::registry &registry,
     auto &materialA = registry.get<material>(cp.body[0]);
     auto &materialB = registry.get<material>(cp.body[1]);
 
-    cp.restitution = std::min(materialA.restitution, materialB.restitution);
-    cp.friction = materialA.friction * materialB.friction;
-
+    auto &material_table = registry.ctx<material_mix_table>();
     auto stiffness = large_scalar;
     auto damping = large_scalar;
 
-    if (materialA.stiffness < large_scalar || materialB.stiffness < large_scalar) {
-        stiffness = 1 / (1 / materialA.stiffness + 1 / materialB.stiffness);
-        damping = 1 / (1 / materialA.damping + 1 / materialB.damping);
+    if (auto *material = material_table.try_get({materialA.id, materialB.id})) {
+        cp.restitution = material->restitution;
+        cp.friction = material->friction;
+        stiffness = material->stiffness;
+        damping = material->damping;
+    } else {
+        cp.restitution = material_mix_restitution(materialA.restitution, materialB.restitution);
+        cp.friction = material_mix_friction(materialA.friction, materialB.friction);
+
+        if (materialA.stiffness < large_scalar || materialB.stiffness < large_scalar) {
+            stiffness = material_mix_stiffness(materialA.stiffness, materialB.stiffness);
+            damping = material_mix_damping(materialA.damping, materialB.damping);
+        }
     }
 
     // Contact constraints are never graph edges since they're effectively

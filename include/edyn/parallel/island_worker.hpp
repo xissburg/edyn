@@ -67,7 +67,9 @@ class island_worker final {
     void update();
 
 public:
-    island_worker(entt::entity island_entity, const settings &, message_queue_in_out message_queue);
+    island_worker(entt::entity island_entity, const settings &settings,
+                  const material_mix_table &material_table,
+                  message_queue_in_out message_queue);
 
     ~island_worker();
 
@@ -91,6 +93,7 @@ public:
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);
     void on_set_settings(const msg::set_settings &msg);
+    void on_set_material_table(const msg::set_material_table &msg);
     void on_wake_up_island(const msg::wake_up_island &);
     void on_set_com(const msg::set_com &);
 

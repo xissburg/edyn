@@ -9,6 +9,7 @@
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
+#include "edyn/dynamics/material_mixing.hpp"
 
 namespace edyn {
 
@@ -66,7 +67,15 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     if (material_view.contains(body0) && material_view.contains(body1)) {
         auto &material0 = material_view.get(body0);
         auto &material1 = material_view.get(body1);
-        auto restitution = std::min(material0.restitution, material1.restitution);
+
+        auto &material_table = registry.ctx<material_mix_table>();
+        auto restitution = scalar(0);
+
+        if (auto *material = material_table.try_get({material0.id, material1.id})) {
+            restitution = material->restitution;
+        } else {
+            restitution = material_mix_restitution(material0.restitution, material1.restitution);
+        }
 
         if (restitution > EDYN_EPSILON) {
             registry.emplace<contact_manifold_with_restitution>(manifold_entity);

@@ -23,6 +23,7 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/dynamics/material_mixing.hpp"
 #include <entt/entity/registry.hpp>
 #include <set>
 
@@ -312,7 +313,8 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping,
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
     auto &settings = m_registry->ctx<edyn::settings>();
-    auto *worker = new island_worker(island_entity, settings,
+    auto &material_table = m_registry->ctx<edyn::material_mix_table>();
+    auto *worker = new island_worker(island_entity, settings, material_table,
                                      message_queue_in_out(main_queue_input, isle_queue_output));
 
     m_island_ctx_map[island_entity] = std::make_unique<island_worker_context>(
@@ -805,6 +807,15 @@ void island_coordinator::settings_changed() {
     for (auto &pair : m_island_ctx_map) {
         auto &ctx = pair.second;
         ctx->send<msg::set_settings>(settings);
+    }
+}
+
+void island_coordinator::material_table_changed() {
+    auto &material_table = m_registry->ctx<material_mix_table>();
+
+    for (auto &pair : m_island_ctx_map) {
+        auto &ctx = pair.second;
+        ctx->send<msg::set_material_table>(material_table);
     }
 }
 

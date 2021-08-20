@@ -338,6 +338,8 @@ unsigned get_solver_individual_restitution_iterations(const entt::registry &regi
  */
 void set_solver_individual_restitution_iterations(entt::registry &registry, unsigned iterations);
 
+void insert_material_mixing(entt::registry &, unsigned material_id0, unsigned material_id1, const material_base &);
+
 }
 
 #endif // EDYN_EDYN_HPP

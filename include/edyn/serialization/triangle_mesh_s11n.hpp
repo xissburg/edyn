@@ -8,13 +8,13 @@
 namespace edyn {
 
 template<typename Archive, typename T>
-void serialize(Archive &archive, commutative_pair<T> &pair) {
+void serialize(Archive &archive, unordered_pair<T> &pair) {
     archive(pair.first);
     archive(pair.second);
 }
 
 template<typename T>
-constexpr size_t serialization_sizeof(const commutative_pair<T> &pair) {
+constexpr size_t serialization_sizeof(const unordered_pair<T> &pair) {
     return 2 * sizeof(T);
 }
 
