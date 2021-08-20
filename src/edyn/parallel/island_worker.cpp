@@ -97,8 +97,6 @@ void island_worker::init() {
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
-    m_message_queue.sink<msg::set_fixed_dt>().connect<&island_worker::on_set_fixed_dt>(*this);
-    m_message_queue.sink<msg::set_solver_iterations>().connect<&island_worker::on_set_solver_iterations>(*this);
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
 
@@ -885,16 +883,6 @@ void island_worker::on_step_simulation(const msg::step_simulation &) {
     if (!m_registry.has<sleeping_tag>(m_island_entity)) {
         m_state = state::begin_step;
     }
-}
-
-void island_worker::on_set_fixed_dt(const msg::set_fixed_dt &msg) {
-    m_registry.ctx<edyn::settings>().fixed_dt = msg.dt;
-}
-
-void island_worker::on_set_solver_iterations(const msg::set_solver_iterations &msg) {
-    auto &settings = m_registry.ctx<edyn::settings>();
-    settings.num_solver_velocity_iterations = msg.velocity_iterations;
-    settings.num_solver_position_iterations = msg.position_iterations;
 }
 
 void island_worker::on_set_settings(const msg::set_settings &msg) {
