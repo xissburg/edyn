@@ -1,6 +1,7 @@
 #include "edyn/edyn.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/collision/broadphase_main.hpp"
+#include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/sys/update_presentation.hpp"
 
 namespace edyn {
@@ -39,7 +40,7 @@ scalar get_fixed_dt(const entt::registry &registry) {
 
 void set_fixed_dt(entt::registry &registry, scalar dt) {
     registry.ctx<settings>().fixed_dt = dt;
-    registry.ctx<island_coordinator>().set_fixed_dt(dt);
+    registry.ctx<island_coordinator>().settings_changed();
 }
 
 bool is_paused(const entt::registry &registry) {
@@ -179,9 +180,7 @@ unsigned get_solver_velocity_iterations(const entt::registry &registry) {
 void set_solver_velocity_iterations(entt::registry &registry, unsigned iterations) {
     auto &settings = registry.ctx<edyn::settings>();
     settings.num_solver_velocity_iterations = iterations;
-    registry.ctx<island_coordinator>().set_solver_iterations(
-        settings.num_solver_velocity_iterations,
-        settings.num_solver_position_iterations);
+    registry.ctx<island_coordinator>().settings_changed();
 }
 
 unsigned get_solver_position_iterations(const entt::registry &registry) {
@@ -191,9 +190,27 @@ unsigned get_solver_position_iterations(const entt::registry &registry) {
 void set_solver_position_iterations(entt::registry &registry, unsigned iterations) {
     auto &settings = registry.ctx<edyn::settings>();
     settings.num_solver_position_iterations = iterations;
-    registry.ctx<island_coordinator>().set_solver_iterations(
-        settings.num_solver_velocity_iterations,
-        settings.num_solver_position_iterations);
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
+unsigned get_solver_restitution_iterations(const entt::registry &registry) {
+    return registry.ctx<settings>().num_restitution_iterations;
+}
+
+void set_solver_restitution_iterations(entt::registry &registry, unsigned iterations) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.num_restitution_iterations = iterations;
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
+unsigned get_solver_individual_restitution_iterations(const entt::registry &registry) {
+    return registry.ctx<settings>().num_individual_restitution_iterations;
+}
+
+void set_solver_individual_restitution_iterations(entt::registry &registry, unsigned iterations) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.num_individual_restitution_iterations = iterations;
+    registry.ctx<island_coordinator>().settings_changed();
 }
 
 }

@@ -69,7 +69,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -89,7 +89,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -105,7 +105,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -180,11 +180,7 @@ bool solve_position_constraints<hinge_constraint>(entt::registry &registry, scal
             auto rA = pivotA - posA;
             auto rB = pivotB - posB;
             auto J = std::array<vector3, 4>{dir, cross(rA, dir), -dir, -cross(rB, dir)};
-            auto J_invM_JT = dot(J[0], J[0]) * inv_mA +
-                             dot(inv_IA * J[1], J[1]) +
-                             dot(J[2], J[2]) * inv_mB +
-                             dot(inv_IB * J[3], J[3]);
-            auto eff_mass = scalar(1) / J_invM_JT;
+            auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
             auto correction = -error * eff_mass;
 
             posA += inv_mA * J[0] * correction;

@@ -14,11 +14,12 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/dynamics/restitution_solver.hpp"
+#include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
 
-static
 scalar solve(constraint_row &row) {
     auto delta_relvel = dot(row.J[0], *row.dvA) +
                         dot(row.J[1], *row.dwA) +
@@ -110,8 +111,13 @@ solver::~solver() = default;
 
 void solver::update(scalar dt) {
     auto &registry = *m_registry;
+    auto &settings = registry.ctx<edyn::settings>();
 
     m_row_cache.clear();
+
+    // Apply restitution impulses before gravity to prevent resting objects to
+    // start bouncing due to the initial gravity acceleration.
+    solve_restitution(registry, dt);
 
     apply_gravity(registry, dt);
 
@@ -119,7 +125,7 @@ void solver::update(scalar dt) {
     prepare_constraints(registry, m_row_cache, dt);
 
     // Solve constraints.
-    for (unsigned i = 0; i < velocity_iterations; ++i) {
+    for (unsigned i = 0; i < settings.num_solver_velocity_iterations; ++i) {
         // Prepare constraints for iteration.
         iterate_constraints(registry, m_row_cache, dt);
 
@@ -146,7 +152,8 @@ void solver::update(scalar dt) {
     integrate_linvel(registry, dt);
     integrate_angvel(registry, dt);
 
-    for (unsigned i = 0; i < position_iterations; ++i) {
+    // Now that rigid bodies have moved, perform positional correction.
+    for (unsigned i = 0; i < settings.num_solver_position_iterations; ++i) {
         if (solve_position_constraints(registry, dt)) {
             break;
         }

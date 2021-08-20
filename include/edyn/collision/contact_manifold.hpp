@@ -26,6 +26,11 @@ struct contact_manifold {
     }
 };
 
+/**
+ * Tag assigned to contact manifolds with non-zero restitution.
+ */
+struct contact_manifold_with_restitution {};
+
 }
 
 
