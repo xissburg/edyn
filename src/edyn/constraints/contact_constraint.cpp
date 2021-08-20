@@ -15,6 +15,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -70,6 +71,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     auto con_view = registry.view<contact_constraint, contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
     auto com_view = registry.view<center_of_mass>();
+    auto &settings = registry.ctx<edyn::settings>();
 
     size_t start_idx = cache.rows.size();
     registry.ctx_or_set<row_start_index_contact_constraint>().value = start_idx;
@@ -123,9 +125,9 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
         // Do not use the traditional restitution path if the restitution solver
         // is being used.
-        /* if (num_restitution_iterations == 0) {
+        if (settings.num_restitution_iterations == 0) {
             normal_options.restitution = cp.restitution;
-        } */
+        }
 
         if (cp.distance < 0) {
             if (con.stiffness < large_scalar) {
