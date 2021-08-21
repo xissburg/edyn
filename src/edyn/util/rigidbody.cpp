@@ -1,5 +1,4 @@
 #include <entt/entity/registry.hpp>
-#include <variant>
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/math/matrix3x3.hpp"

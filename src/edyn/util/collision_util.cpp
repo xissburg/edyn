@@ -7,6 +7,7 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/math/math.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 
 namespace edyn {
@@ -80,7 +81,7 @@ void create_contact_constraint(entt::registry &registry,
 
 size_t find_nearest_contact(const contact_point &cp,
                             const collision_result &result) {
-    auto shortest_dist = contact_caching_threshold * contact_caching_threshold;
+    auto shortest_dist_sqr = square(contact_caching_threshold);
     auto nearest_idx = result.num_points;
 
     for (size_t i = 0; i < result.num_points; ++i) {
@@ -88,13 +89,13 @@ size_t find_nearest_contact(const contact_point &cp,
         auto dA = length_sqr(coll_pt.pivotA - cp.pivotA);
         auto dB = length_sqr(coll_pt.pivotB - cp.pivotB);
 
-        if (dA < shortest_dist) {
-            shortest_dist = dA;
+        if (dA < shortest_dist_sqr) {
+            shortest_dist_sqr = dA;
             nearest_idx = i;
         }
 
-        if (dB < shortest_dist) {
-            shortest_dist = dB;
+        if (dB < shortest_dist_sqr) {
+            shortest_dist_sqr = dB;
             nearest_idx = i;
         }
     }
