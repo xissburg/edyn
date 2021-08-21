@@ -10,6 +10,7 @@
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/roll_direction.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/geom.hpp"
@@ -73,6 +74,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
     auto com_view = registry.view<center_of_mass>();
+    auto roll_dir_view = registry.view<roll_direction>();
     auto &settings = registry.ctx<edyn::settings>();
 
     cache.rows.reserve(cache.rows.size() + con_view.size());
@@ -180,10 +182,30 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             roll_rows.friction_coefficient = cp.roll_friction;
 
             for (auto i = 0; i < 2; ++i) {
+                auto axis = tangents[i];
+
+                // If any of the bodies has a rolling direction, scale down the
+                // axis by the projection of the roll direction onto the axis,
+                // thus preventing impulses in the undesired directions.
+                for (auto j = 0; j < 2; ++j) {
+                    if (roll_dir_view.contains(cp.body[j])) {
+                        auto roll_dir = rotate(ornA, roll_dir_view.get(cp.body[j]));
+                        axis *= dot(roll_dir, axis);
+                    }
+                }
+
                 auto &roll_row = roll_rows.row[i];
-                roll_row.J = {vector3_zero, tangents[i], vector3_zero, -tangents[i]};
+                roll_row.J = {vector3_zero, axis, vector3_zero, -axis};
                 roll_row.impulse = imp.values[4 + i];
-                roll_row.eff_mass = get_effective_mass(roll_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
+                auto J_invM_JT = dot(inv_IA * roll_row.J[1], roll_row.J[1]) +
+                                 dot(inv_IB * roll_row.J[3], roll_row.J[3]);
+
+                if (J_invM_JT > EDYN_EPSILON) {
+                    roll_row.eff_mass = scalar(1) / J_invM_JT;
+                } else {
+                    roll_row.eff_mass = 0;
+                }
+
                 roll_row.rhs = -get_relative_speed(roll_row.J, linvelA, angvelA, linvelB, angvelB);
 
                 // Warm-starting.

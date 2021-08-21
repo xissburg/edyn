@@ -160,6 +160,8 @@ entt::entity create_contact_point(entt::registry& registry,
         local_normal, // object space normal
         rp.normal_attachment, // to which rigid body the local normal is attached
         scalar{}, // friction
+        scalar{}, // spin friction
+        scalar{}, // roll friction
         scalar{}, // restitution
         uint32_t{0}, // lifetime
         rp.distance // distance
