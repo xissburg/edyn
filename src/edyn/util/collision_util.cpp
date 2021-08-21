@@ -114,14 +114,14 @@ size_t find_nearest_contact_rolling(const collision_result &result, const vector
     auto prev_pivot = to_world_space(cp_pivot, origin, prev_orn);
     auto shortest_dist_sqr = square(contact_caching_threshold);
 
-    for (size_t j = 0; j < result.num_points; ++j) {
-        auto &coll_pt = result.point[j];
+    for (size_t i = 0; i < result.num_points; ++i) {
+        auto &coll_pt = result.point[i];
         auto pivotA = to_world_space(coll_pt.pivotA, origin, orn);
         auto dist_sqr = distance_sqr(pivotA, prev_pivot);
 
         if (dist_sqr < shortest_dist_sqr) {
             shortest_dist_sqr = dist_sqr;
-            nearest_idx = j;
+            nearest_idx = i;
         }
     }
 

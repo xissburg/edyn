@@ -39,7 +39,7 @@ struct sleeping_tag {};
 struct sleeping_disabled_tag {};
 
 /**
- * Disable entity.
+ * Disabled entity.
  */
 struct disabled_tag {};
 
@@ -57,10 +57,11 @@ struct continuous_contacts_tag {};
 struct rolling_tag {};
 
 /**
- * An entity that was created externally (i.e. it doesn't represent any of the
- * internal Edyn entity types such as rigid bodies and constraints) and is
- * part of the entity graph and can be attached to an internal Edyn entity by
- * means of a `edyn::null_constraint`.
+ * An entity that was created externally and tagged via
+ * `edyn::tag_external_entity` (i.e. it doesn't represent any of the internal
+ * Edyn entity types such as rigid bodies and constraints) and is part of the
+ * entity graph and can be attached to an internal Edyn entity by means of a
+ * `edyn::null_constraint`.
  */
 struct external_tag {};
 

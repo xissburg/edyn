@@ -122,6 +122,9 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         originB = to_world_space(-com, posB, ornB);
     }
 
+    auto rollingA = rolling_view.contains(manifold.body[0]);
+    auto rollingB = rolling_view.contains(manifold.body[1]);
+
     // Merge new with existing contact points.
     auto merged_indices = std::array<bool, max_contacts>{};
     std::fill(merged_indices.begin(), merged_indices.end(), false);
@@ -139,12 +142,12 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         auto nearest_idx = find_nearest_contact(cp, result);
 
         // Try finding a nearby point for rolling objects.
-        if (nearest_idx == result.num_points && rolling_view.template contains(manifold.body[0])) {
+        if (nearest_idx == result.num_points && rollingA) {
             auto &angvelA = vel_view.template get<angvel>(manifold.body[0]);
             nearest_idx = find_nearest_contact_rolling(result, cp.pivotA, originA, ornA, angvelA, dt);
         }
 
-        if (nearest_idx == result.num_points && rolling_view.template contains(manifold.body[1])) {
+        if (nearest_idx == result.num_points && rollingB) {
             auto &angvelB = vel_view.template get<angvel>(manifold.body[1]);
             nearest_idx = find_nearest_contact_rolling(result, cp.pivotB, originB, ornB, angvelB, dt);
         }
