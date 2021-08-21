@@ -39,9 +39,14 @@ namespace internal {
         auto max_impulse_len = friction_row_pair.friction_coefficient * normal_row.impulse;
 
         // Limit impulse by normal load.
-        if (impulse_len_sqr > square(max_impulse_len) && impulse_len_sqr > EDYN_EPSILON) {
+        if (impulse_len_sqr > square(max_impulse_len)) {
             auto impulse_len = std::sqrt(impulse_len_sqr);
-            impulse = impulse / impulse_len * max_impulse_len;
+
+            if (impulse_len > EDYN_EPSILON) {
+                impulse = impulse / impulse_len * max_impulse_len;
+            } else {
+                impulse = {0, 0};
+            }
 
             for (auto i = 0; i < 2; ++i) {
                 delta_impulse[i] = impulse[i] - friction_rows[i].impulse;
@@ -64,7 +69,8 @@ namespace internal {
 template<>
 void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
-    auto con_view = registry.view<contact_constraint, contact_point>();
+    auto con_view = registry.view<contact_constraint>();
+    auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
     auto com_view = registry.view<center_of_mass>();
     auto &settings = registry.ctx<edyn::settings>();
@@ -76,13 +82,15 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     ctx.row_count_start_index = cache.con_num_rows.size();
     ctx.friction_rows.clear();
     ctx.friction_rows.reserve(con_view.size());
+    ctx.roll_friction_rows.clear();
 
-    con_view.each([&] (entt::entity entity, contact_constraint &con, contact_point &cp) {
+    con_view.each([&] (entt::entity entity, contact_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto &imp = imp_view.get(entity);
+        auto &cp = cp_view.get(entity);
 
         EDYN_ASSERT(con.body[0] == cp.body[0]);
         EDYN_ASSERT(con.body[1] == cp.body[1]);
@@ -167,6 +175,23 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             dwB += inv_IB * friction_row.J[3] * friction_row.impulse;
         }
 
+        if (cp.roll_friction > 0) {
+            auto &roll_rows = ctx.roll_friction_rows.emplace_back();
+            roll_rows.friction_coefficient = cp.roll_friction;
+
+            for (auto i = 0; i < 2; ++i) {
+                auto &roll_row = roll_rows.row[i];
+                roll_row.J = {vector3_zero, tangents[i], vector3_zero, -tangents[i]};
+                roll_row.impulse = imp.values[4 + i];
+                roll_row.eff_mass = get_effective_mass(roll_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
+                roll_row.rhs = -get_relative_speed(roll_row.J, linvelA, angvelA, linvelB, angvelB);
+
+                // Warm-starting.
+                dwA += inv_IA * roll_row.J[1] * roll_row.impulse;
+                dwB += inv_IB * roll_row.J[3] * roll_row.impulse;
+            }
+        }
+
         auto num_rows = size_t{1};
 
         if (cp.spin_friction > 0) {
@@ -192,6 +217,8 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
     auto row_idx = ctx.row_start_index;
     auto con_idx = size_t(0);
+    auto roll_idx = size_t(0);
+    auto con_view = registry.view<contact_constraint>();
     auto cp_view = registry.view<contact_point>();
 
     // Solve friction rows locally using a non-standard method where the impulse
@@ -203,13 +230,20 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     // Solving the non-penetration constraints last helps minimize penetration
     // errors because there won't be additional errors introduced by other
     // constraints.
-    cp_view.each([&] (contact_point &cp) {
+    for (auto entity : con_view) {
         auto &normal_row = cache.rows[row_idx];
 
         auto &friction_row_pair = ctx.friction_rows[con_idx];
         internal::solve_friction_row_pair(friction_row_pair, normal_row);
 
         auto num_rows = cache.con_num_rows[ctx.row_count_start_index + con_idx];
+        auto &cp = cp_view.get(entity);
+
+        if (cp.roll_friction > 0) {
+            auto &roll_row_pair = ctx.roll_friction_rows[roll_idx];
+            internal::solve_friction_row_pair(roll_row_pair, normal_row);
+            ++roll_idx;
+        }
 
         if (cp.spin_friction > 0) {
             EDYN_ASSERT(num_rows > 1);
@@ -221,7 +255,7 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
 
         row_idx += num_rows;
         ++con_idx;
-    });
+    }
 }
 
 template<>
