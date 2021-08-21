@@ -63,6 +63,7 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     external_tag,
     shape_index,
     rigidbody_tag,
+    rolling_tag,
     tree_view
 >{}, constraints_tuple, shapes_tuple); // Concatenate with all shapes and constraints at the end.
 

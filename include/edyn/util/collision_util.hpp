@@ -8,6 +8,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/angvel.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -40,6 +41,14 @@ void create_contact_constraint(entt::registry &registry,
  */
 size_t find_nearest_contact(const contact_point &cp,
                             const collision_result &result);
+
+/**
+ * Special version of `find_nearest_contact` to find similar points for rolling
+ * objects.
+ */
+size_t find_nearest_contact_rolling(const collision_result &result, const vector3 &cp_pivot,
+                                    const vector3 &origin, const quaternion &orn,
+                                    const vector3 &angvel, scalar dt);
 
 /**
  * Creates a contact point from a result point and inserts it into a
@@ -85,13 +94,16 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &,
  * when appropriate for each point that is removed).
  */
 template<typename ContactPointView, typename ImpulseView, typename TransformView,
-         typename NewPointFunc, typename DestroyPointFunc>
+         typename VelView, typename RollingView, typename NewPointFunc, typename DestroyPointFunc>
 void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                        const collision_result &result,
                        ContactPointView &cp_view,
                        ImpulseView &imp_view,
                        TransformView &tr_view,
+                       VelView &vel_view,
+                       RollingView &rolling_view,
                        const com_view_t &com_view,
+                       scalar dt,
                        NewPointFunc new_point_func,
                        DestroyPointFunc destroy_point_func) {
     auto [posA, ornA] = tr_view.template get<position, orientation>(manifold.body[0]);
@@ -125,6 +137,17 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         ++cp.lifetime;
 
         auto nearest_idx = find_nearest_contact(cp, result);
+
+        // Try finding a nearby point for rolling objects.
+        if (nearest_idx == result.num_points && rolling_view.template contains(manifold.body[0])) {
+            auto &angvelA = vel_view.template get<angvel>(manifold.body[0]);
+            nearest_idx = find_nearest_contact_rolling(result, cp.pivotA, originA, ornA, angvelA, dt);
+        }
+
+        if (nearest_idx == result.num_points && rolling_view.template contains(manifold.body[1])) {
+            auto &angvelB = vel_view.template get<angvel>(manifold.body[1]);
+            nearest_idx = find_nearest_contact_rolling(result, cp.pivotB, originB, ornB, angvelB, dt);
+        }
 
         if (nearest_idx < result.num_points && !merged_indices[nearest_idx]) {
             merge_point(result.point[nearest_idx], cp);

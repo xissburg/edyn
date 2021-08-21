@@ -102,6 +102,31 @@ size_t find_nearest_contact(const contact_point &cp,
     return nearest_idx;
 }
 
+size_t find_nearest_contact_rolling(const collision_result &result, const vector3 &cp_pivot,
+                                    const vector3 &origin, const quaternion &orn,
+                                    const vector3 &angvel, scalar dt) {
+    // Calculate previous orientation by integrating the angular velocity
+    // backwards and check if the contact point pivot lies near the same
+    // location as the result point in world space.
+    auto nearest_idx = result.num_points;
+    auto prev_orn = integrate(orn, angvel, -dt);
+    auto prev_pivot = to_world_space(cp_pivot, origin, prev_orn);
+    auto shortest_dist_sqr = square(contact_caching_threshold);
+
+    for (size_t j = 0; j < result.num_points; ++j) {
+        auto &coll_pt = result.point[j];
+        auto pivotA = to_world_space(coll_pt.pivotA, origin, orn);
+        auto dist_sqr = distance_sqr(pivotA, prev_pivot);
+
+        if (dist_sqr < shortest_dist_sqr) {
+            shortest_dist_sqr = dist_sqr;
+            nearest_idx = j;
+        }
+    }
+
+    return nearest_idx;
+}
+
 entt::entity create_contact_point(entt::registry& registry,
                                 entt::entity manifold_entity,
                                 contact_manifold& manifold,
