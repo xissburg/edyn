@@ -69,15 +69,23 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
 
     for (auto entity : con_view) {
         auto &imp = imp_view.get(entity);
+        auto num_rows = cache.con_num_rows[con_idx];
+        // Normal impulse.
         imp.values[0] = cache.rows[row_idx].impulse;
 
+        // Friction impulse.
         auto &friction_rows = ctx.friction_rows[local_idx];
 
         for (auto i = 0; i < 2; ++i) {
             imp.values[1 + i] = friction_rows.row[i].impulse;
         }
 
-        ++row_idx;
+        // Spinning friction impulse.
+        if (num_rows > 1) {
+            imp.values[3] = cache.rows[row_idx + 1].impulse;
+        }
+
+        row_idx += num_rows;
         ++con_idx;
         ++local_idx;
     }

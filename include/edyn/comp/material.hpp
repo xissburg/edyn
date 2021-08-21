@@ -14,6 +14,8 @@ namespace edyn {
 struct material_base {
     scalar restitution {0};
     scalar friction {0.5};
+    scalar spin_friction {0};
+    scalar roll_friction {0};
     scalar stiffness {large_scalar};
     scalar damping {large_scalar};
 };

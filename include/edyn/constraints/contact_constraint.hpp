@@ -30,6 +30,8 @@ namespace internal {
 
     struct contact_constraint_context {
         std::vector<contact_friction_row_pair> friction_rows;
+        size_t row_start_index;
+        size_t row_count_start_index;
     };
 
     void solve_friction_row_pair(internal::contact_friction_row_pair &friction_row_pair, constraint_row &normal_row);

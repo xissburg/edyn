@@ -17,6 +17,14 @@ inline scalar material_mix_friction(scalar a, scalar b) {
     return std::sqrt(a * b);
 }
 
+inline scalar material_mix_spin_friction(scalar a, scalar b) {
+    return std::max(a, b);
+}
+
+inline scalar material_mix_roll_friction(scalar a, scalar b) {
+    return std::max(a, b);
+}
+
 inline scalar material_mix_stiffness(scalar a, scalar b) {
     return 1 / (1 / a + 1 / b);
 }
