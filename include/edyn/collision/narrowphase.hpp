@@ -8,11 +8,13 @@
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/util/collision_util.hpp"
+#include "edyn/context/settings.hpp"
 
 namespace edyn {
 
@@ -79,8 +81,11 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
     auto tr_view = m_registry->view<position, orientation>();
     auto com_view = m_registry->view<center_of_mass>();
     auto cp_view = m_registry->view<contact_point>();
+    auto vel_view = m_registry->view<angvel>();
+    auto rolling_view = m_registry->view<rolling_tag>();
     auto imp_view = m_registry->view<constraint_impulse>();
     auto views_tuple = get_tuple_of_shape_views(*m_registry);
+    auto dt = m_registry->ctx<settings>().fixed_dt;
 
     for (auto it = begin; it != end; ++it) {
         entt::entity manifold_entity = *it;
@@ -88,7 +93,7 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
         collision_result result;
         detect_collision(manifold.body, result, body_view, com_view, views_tuple);
 
-        process_collision(manifold_entity, manifold, result, cp_view, imp_view, tr_view, com_view,
+        process_collision(manifold_entity, manifold, result, cp_view, imp_view, tr_view, vel_view, rolling_view, com_view, dt,
                           [&] (const collision_result::collision_point &rp) {
             auto contact_entity = create_contact_point(*m_registry, manifold_entity, manifold, rp);
             add_new_contact_point(contact_entity, manifold.body);

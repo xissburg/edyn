@@ -35,6 +35,13 @@ static const auto static_shapes_tuple = std::tuple<
     paged_mesh_shape
 >{};
 
+// Shapes that can roll.
+static const auto rolling_shapes_tuple = std::tuple<
+    sphere_shape,
+    cylinder_shape,
+    capsule_shape
+>{};
+
 // Tuple containing all shape types.
 static const auto shapes_tuple = std::tuple_cat(dynamic_shapes_tuple, static_shapes_tuple);
 

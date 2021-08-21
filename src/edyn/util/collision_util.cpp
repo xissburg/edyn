@@ -7,6 +7,7 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/math/math.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 
 namespace edyn {
@@ -80,7 +81,7 @@ void create_contact_constraint(entt::registry &registry,
 
 size_t find_nearest_contact(const contact_point &cp,
                             const collision_result &result) {
-    auto shortest_dist = contact_caching_threshold * contact_caching_threshold;
+    auto shortest_dist_sqr = square(contact_caching_threshold);
     auto nearest_idx = result.num_points;
 
     for (size_t i = 0; i < result.num_points; ++i) {
@@ -88,13 +89,38 @@ size_t find_nearest_contact(const contact_point &cp,
         auto dA = length_sqr(coll_pt.pivotA - cp.pivotA);
         auto dB = length_sqr(coll_pt.pivotB - cp.pivotB);
 
-        if (dA < shortest_dist) {
-            shortest_dist = dA;
+        if (dA < shortest_dist_sqr) {
+            shortest_dist_sqr = dA;
             nearest_idx = i;
         }
 
-        if (dB < shortest_dist) {
-            shortest_dist = dB;
+        if (dB < shortest_dist_sqr) {
+            shortest_dist_sqr = dB;
+            nearest_idx = i;
+        }
+    }
+
+    return nearest_idx;
+}
+
+size_t find_nearest_contact_rolling(const collision_result &result, const vector3 &cp_pivot,
+                                    const vector3 &origin, const quaternion &orn,
+                                    const vector3 &angvel, scalar dt) {
+    // Calculate previous orientation by integrating the angular velocity
+    // backwards and check if the contact point pivot lies near the same
+    // location as the result point in world space.
+    auto nearest_idx = result.num_points;
+    auto prev_orn = integrate(orn, angvel, -dt);
+    auto prev_pivot = to_world_space(cp_pivot, origin, prev_orn);
+    auto shortest_dist_sqr = square(contact_caching_threshold);
+
+    for (size_t i = 0; i < result.num_points; ++i) {
+        auto &coll_pt = result.point[i];
+        auto pivotA = to_world_space(coll_pt.pivotA, origin, orn);
+        auto dist_sqr = distance_sqr(pivotA, prev_pivot);
+
+        if (dist_sqr < shortest_dist_sqr) {
+            shortest_dist_sqr = dist_sqr;
             nearest_idx = i;
         }
     }

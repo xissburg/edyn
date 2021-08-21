@@ -27,10 +27,13 @@ void narrowphase::update_async(job &completion_job) {
     auto manifold_view = m_registry->view<contact_manifold>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();
+    auto vel_view = m_registry->view<angvel>();
+    auto rolling_view = m_registry->view<rolling_tag>();
     auto com_view = m_registry->view<center_of_mass>();
     auto cp_view = m_registry->view<contact_point>();
     auto imp_view = m_registry->view<constraint_impulse>();
     auto shapes_views_tuple = get_tuple_of_shape_views(*m_registry);
+    auto dt = m_registry->ctx<settings>().fixed_dt;
 
     // Resize result collection vectors to allocate one slot for each iteration
     // of the parallel_for.
@@ -39,7 +42,8 @@ void narrowphase::update_async(job &completion_job) {
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job,
-            [this, body_view, tr_view, com_view, manifold_view, cp_view, imp_view, shapes_views_tuple] (size_t index) {
+            [this, body_view, tr_view, vel_view, rolling_view, com_view,
+             manifold_view, cp_view, imp_view, shapes_views_tuple, dt] (size_t index) {
         auto entity = manifold_view[index];
         auto &manifold = manifold_view.get(entity);
         collision_result result;
@@ -47,7 +51,7 @@ void narrowphase::update_async(job &completion_job) {
         auto &destruction_info = m_cp_destruction_infos[index];
 
         detect_collision(manifold.body, result, body_view, com_view, shapes_views_tuple);
-        process_collision(entity, manifold, result, cp_view, imp_view, tr_view, com_view,
+        process_collision(entity, manifold, result, cp_view, imp_view, tr_view, vel_view, rolling_view, com_view, dt,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
         }, [&destruction_info] (entt::entity contact_entity) {
