@@ -761,6 +761,8 @@ void island_worker::init_new_shapes() {
     auto compound_view = m_registry.view<compound_shape>();
 
     for (auto entity : m_new_polyhedron_shapes) {
+        if (!polyhedron_view.contains(entity)) continue;
+
         auto &polyhedron = polyhedron_view.get(entity);
         // A new `rotated_mesh` is assigned to it, replacing another reference
         // that could be already in there, thus preventing concurrent access.
@@ -771,6 +773,8 @@ void island_worker::init_new_shapes() {
     }
 
     for (auto entity : m_new_compound_shapes) {
+        if (!compound_view.contains(entity)) continue;
+
         auto &compound = compound_view.get(entity);
         auto &orn = orn_view.get(entity);
         auto prev_rotated_entity = entt::entity{entt::null};
