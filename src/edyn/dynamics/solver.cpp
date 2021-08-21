@@ -63,7 +63,8 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
 // stored in traditional constraint rows.
 template<>
 void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<contact_constraint, contact_point>();
+    auto con_view = registry.view<contact_constraint>();
+    auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
     auto local_idx = size_t(0);
@@ -83,7 +84,7 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
         }
 
         // Rolling friction impulse.
-        if (con_view.get<contact_point>(entity).roll_friction > 0) {
+        if (cp_view.get<contact_point>(entity).roll_friction > 0) {
             auto &roll_rows = ctx.roll_friction_rows[roll_idx];
             for (auto i = 0; i < 2; ++i) {
                 imp.values[4 + i] = roll_rows.row[i].impulse;
