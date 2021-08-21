@@ -216,12 +216,12 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
                 auto &imp = imp_view.get(manifold.point[pt_idx]);
                 auto &normal_row = normal_rows[row_idx];
-                imp.values[3] = normal_row.impulse;
+                imp.values[6] = normal_row.impulse;
 
                 auto &friction_row_pair = friction_row_pairs[row_idx];
 
                 for (auto i = 0; i < 2; ++i) {
-                    imp.values[4 + i] = friction_row_pair.row[i].impulse;
+                    imp.values[7 + i] = friction_row_pair.row[i].impulse;
                 }
 
                 ++row_idx;
