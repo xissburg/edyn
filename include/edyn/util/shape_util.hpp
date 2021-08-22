@@ -181,7 +181,7 @@ scalar point_cloud_support_projection(const std::vector<vector3> &points, const 
 /**
  * @brief Calculates a convex hull of a set of points.
  * @param points A point cloud.
- * @param tolerance Controls how points are ignored based on colinearity.
+ * @param tolerance Controls how points are ignored based on collinearity.
  * @return An array of indices of the convex hull vertices oriented
  * counter-clockwise. It can be modified as a result of this call.
  */
