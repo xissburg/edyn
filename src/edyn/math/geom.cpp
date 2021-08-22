@@ -738,7 +738,7 @@ insertion_point_result insertion_point_index(const vector3 *points,
     }
 
     if (num_points == 2) {
-        // Check if colinear.
+        // Check if collinear.
         if (length_sqr(cross(new_point - points[0], new_point - points[1])) > EDYN_EPSILON) {
             return {point_insertion_type::append, num_points++};
         } else {
@@ -774,7 +774,7 @@ insertion_point_result insertion_point_index(const vector3 *points,
                 return {point_insertion_type::append, num_points++};
             }
         } else {
-            // Points are colinear. Replace point in the middle.
+            // Points are collinear. Replace point in the middle.
             auto d0 = dot(points[1] - points[0], points[2] - points[0]);
 
             if (d0 > 0 && d0 < 1) {
