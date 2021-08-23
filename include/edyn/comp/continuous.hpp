@@ -21,6 +21,16 @@ struct continuous {
         ((types[size++] = entt::type_index<Component>::value()), ...);
         EDYN_ASSERT(size <= max_size);
     }
+
+    template<typename Component>
+    void remove() {
+        for (size_t i = 0; i < size; ++i) {
+            if (types[i] == entt::type_index<Component>::value()) {
+                types[i] = types[--size];
+                break;
+            }
+        }
+    }
 };
 
 }

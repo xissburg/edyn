@@ -7,7 +7,7 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_point.hpp"
@@ -76,14 +76,14 @@ void destroy_contact_point(entt::registry &registry, entt::entity manifold_entit
 using detect_collision_body_view_t = entt::basic_view<entt::entity, entt::exclude_t<>,
                                      AABB, shape_index, position, orientation>;
 
-using com_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, center_of_mass>;
+using origin_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, origin>;
 
 /**
  * Detects collision between two bodies and adds closest points to the given
  * collision result
  */
 void detect_collision(std::array<entt::entity, 2> body, collision_result &,
-                      const detect_collision_body_view_t &, const com_view_t &,
+                      const detect_collision_body_view_t &, const origin_view_t &,
                       const tuple_of_shape_views_t &);
 
 /**
@@ -102,25 +102,15 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                        TransformView &tr_view,
                        VelView &vel_view,
                        RollingView &rolling_view,
-                       const com_view_t &com_view,
+                       const origin_view_t &origin_view,
                        scalar dt,
                        NewPointFunc new_point_func,
                        DestroyPointFunc destroy_point_func) {
     auto [posA, ornA] = tr_view.template get<position, orientation>(manifold.body[0]);
     auto [posB, ornB] = tr_view.template get<position, orientation>(manifold.body[1]);
 
-    auto originA = static_cast<vector3>(posA);
-    auto originB = static_cast<vector3>(posB);
-
-    if (com_view.contains(manifold.body[0])) {
-        auto &com = com_view.get(manifold.body[0]);
-        originA = to_world_space(-com, posA, ornA);
-    }
-
-    if (com_view.contains(manifold.body[1])) {
-        auto &com = com_view.get(manifold.body[1]);
-        originB = to_world_space(-com, posB, ornB);
-    }
+    auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get(manifold.body[0]) : static_cast<vector3>(posA);
+    auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get(manifold.body[1]) : static_cast<vector3>(posB);
 
     auto rollingA = rolling_view.contains(manifold.body[0]);
     auto rollingB = rolling_view.contains(manifold.body[1]);

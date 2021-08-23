@@ -11,7 +11,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/math/geom.hpp"
@@ -23,9 +23,9 @@
 
 namespace edyn {
 
-template<typename BodyView, typename CpView, typename ComView>
+template<typename BodyView, typename CpView, typename OriginView>
 scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView &body_view,
-                               const CpView &cp_view, const ComView &com_view) {
+                               const CpView &cp_view, const OriginView &origin_view) {
     auto num_points = manifold.num_points();
 
     if (num_points == 0) {
@@ -37,18 +37,8 @@ scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView 
     auto [posB, ornB, linvelB, angvelB] =
         body_view.template get<position, orientation, linvel, angvel>(manifold.body[1]);
 
-    auto originA = static_cast<vector3>(posA);
-    auto originB = static_cast<vector3>(posB);
-
-    if (com_view.contains(manifold.body[0])) {
-        auto &com = com_view.get(manifold.body[0]);
-        originA = to_world_space(-com, posA, ornA);
-    }
-
-    if (com_view.contains(manifold.body[1])) {
-        auto &com = com_view.get(manifold.body[1]);
-        originB = to_world_space(-com, posB, ornB);
-    }
+    auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get(manifold.body[0]) : static_cast<vector3>(posA);
+    auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get(manifold.body[1]) : static_cast<vector3>(posB);
 
     auto min_relvel = EDYN_SCALAR_MAX;
 
@@ -73,7 +63,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
     auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
     auto restitution_view = registry.view<contact_manifold_with_restitution>();
     auto manifold_view = registry.view<contact_manifold>();
 
@@ -92,7 +82,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     for (auto entity : restitution_view) {
         auto &manifold = manifold_view.get(entity);
-        auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, cp_view, com_view);
+        auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, cp_view, origin_view);
 
         if (local_min_relvel < min_relvel) {
             min_relvel = local_min_relvel;
@@ -135,18 +125,8 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
                 body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[1]);
 
-            auto originA = static_cast<vector3>(posA);
-            auto originB = static_cast<vector3>(posB);
-
-            if (com_view.contains(manifold.body[0])) {
-                auto &com = com_view.get(manifold.body[0]);
-                originA = to_world_space(-com, posA, ornA);
-            }
-
-            if (com_view.contains(manifold.body[1])) {
-                auto &com = com_view.get(manifold.body[1]);
-                originB = to_world_space(-com, posB, ornB);
-            }
+            auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get(manifold.body[0]) : static_cast<vector3>(posA);
+            auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get(manifold.body[1]) : static_cast<vector3>(posB);
 
             // Create constraint rows for non-penetration constraints for each
             // contact point.
@@ -284,7 +264,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             auto &manifold = manifold_view.get(edge_entity);
 
             // Ignore manifolds which are not penetrating fast enough.
-            auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, cp_view, com_view);
+            auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, cp_view, origin_view);
 
             if (local_min_relvel < relvel_threshold) {
                 manifold_entities.push_back(edge_entity);

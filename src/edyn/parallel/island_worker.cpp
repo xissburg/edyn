@@ -319,11 +319,17 @@ void island_worker::on_island_delta(const island_delta &delta) {
     });
 
     // When orientation is set manually, a few dependent components must be
-    // updated, e.g. AABB, inertia_world_inv, rotated meshes...
-    delta.updated_for_each<orientation>(index_source, [&] (entt::entity remote_entity, const orientation &) {
+    // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
+    delta.updated_for_each<orientation>(index_source, [&] (entt::entity remote_entity, const orientation &orn) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
+
+        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
+            auto &com = m_registry.get<center_of_mass>(local_entity);
+            auto &pos = m_registry.get<position>(local_entity);
+            *origin = to_world_space(-com, pos, orn);
+        }
 
         update_aabb(m_registry, local_entity);
 
@@ -336,17 +342,22 @@ void island_worker::on_island_delta(const island_delta &delta) {
         }
     });
 
-    // When position is set manually, the AABB must be updated.
-    delta.updated_for_each<position>(index_source, [&] (entt::entity remote_entity, const position &) {
+    // When position is set manually, the AABB and cached origin must be updated.
+    delta.updated_for_each<position>(index_source, [&] (entt::entity remote_entity, const position &pos) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
+
+        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
+            auto &com = m_registry.get<center_of_mass>(local_entity);
+            auto &orn = m_registry.get<orientation>(local_entity);
+            *origin = to_world_space(-com, pos, orn);
+        }
 
         if (m_registry.has<AABB>(local_entity)) {
             update_aabb(m_registry, local_entity);
         }
     });
-
 
     m_importing_delta = false;
 }
