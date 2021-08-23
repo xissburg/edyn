@@ -6,6 +6,7 @@
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/sys/update_inertias.hpp"
+#include "edyn/sys/update_origins.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
@@ -178,6 +179,9 @@ void solver::update(scalar dt) {
             break;
         }
     }
+
+
+    update_origins(registry);
 
     // Update rotated vertices of convex meshes after rotations change. It is
     // important to do this before `update_aabbs` because the rotated meshes

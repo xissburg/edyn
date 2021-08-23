@@ -1,5 +1,6 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
@@ -142,6 +143,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // TODO: synchronized merges would eliminate the need to share these
         // components continuously.
         registry.emplace<continuous>(entity).insert<position, orientation, linvel, angvel>();
+
+        if (def.center_of_mass) {
+            registry.get<continuous>(entity).insert<origin>();
+        }
     }
 
     if (def.sleeping_disabled) {
@@ -303,14 +308,25 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
     if (com != vector3_zero) {
         if (has_com) {
             registry.replace<center_of_mass>(entity, com);
-            dirty.updated<center_of_mass>();
+            registry.replace<edyn::origin>(entity, origin);
+            dirty.updated<center_of_mass, edyn::origin>();
         } else {
             registry.emplace<center_of_mass>(entity, com);
-            dirty.created<center_of_mass>();
+            registry.emplace<edyn::origin>(entity, origin);
+            dirty.created<center_of_mass, edyn::origin>();
+
+            if (registry.has<dynamic_tag>(entity)) {
+                registry.get_or_emplace<continuous>(entity).insert<edyn::origin>();
+            }
         }
     } else if (has_com) {
         registry.remove<center_of_mass>(entity);
-        dirty.destroyed<center_of_mass>();
+        registry.remove<edyn::origin>(entity);
+        dirty.destroyed<center_of_mass, edyn::origin>();
+
+        /* if (registry.has<dynamic_tag>(entity)) {
+            registry.get_or_emplace<continuous>(entity).remove<edyn::origin>();
+        } */
     }
 }
 

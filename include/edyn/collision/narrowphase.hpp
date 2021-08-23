@@ -4,7 +4,7 @@
 #include <array>
 #include <entt/entity/fwd.hpp>
 #include "edyn/comp/aabb.hpp"
-#include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -79,7 +79,7 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
                                            ContactManifoldView &manifold_view) {
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();
-    auto com_view = m_registry->view<center_of_mass>();
+    auto origin_view = m_registry->view<origin>();
     auto cp_view = m_registry->view<contact_point>();
     auto vel_view = m_registry->view<angvel>();
     auto rolling_view = m_registry->view<rolling_tag>();
@@ -91,9 +91,9 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
         entt::entity manifold_entity = *it;
         auto &manifold = manifold_view.get(manifold_entity);
         collision_result result;
-        detect_collision(manifold.body, result, body_view, com_view, views_tuple);
+        detect_collision(manifold.body, result, body_view, origin_view, views_tuple);
 
-        process_collision(manifold_entity, manifold, result, cp_view, imp_view, tr_view, vel_view, rolling_view, com_view, dt,
+        process_collision(manifold_entity, manifold, result, cp_view, imp_view, tr_view, vel_view, rolling_view, origin_view, dt,
                           [&] (const collision_result::collision_point &rp) {
             auto contact_entity = create_contact_point(*m_registry, manifold_entity, manifold, rp);
             add_new_contact_point(contact_entity, manifold.body);

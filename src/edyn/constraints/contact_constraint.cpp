@@ -9,7 +9,7 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
-#include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -73,7 +73,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     auto con_view = registry.view<contact_constraint>();
     auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
     auto roll_dir_view = registry.view<roll_direction>();
     auto &settings = registry.ctx<edyn::settings>();
 
@@ -97,18 +97,8 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         EDYN_ASSERT(con.body[0] == cp.body[0]);
         EDYN_ASSERT(con.body[1] == cp.body[1]);
 
-        auto originA = static_cast<vector3>(posA);
-        auto originB = static_cast<vector3>(posB);
-
-        if (com_view.contains(con.body[0])) {
-            auto &com = com_view.get(con.body[0]);
-            originA = to_world_space(-com, posA, ornA);
-        }
-
-        if (com_view.contains(con.body[1])) {
-            auto &com = com_view.get(con.body[1]);
-            originB = to_world_space(-com, posB, ornB);
-        }
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get(con.body[1]) : static_cast<vector3>(posB);
 
         auto normal = cp.normal;
         auto pivotA = to_world_space(cp.pivotA, originA, ornA);
@@ -287,7 +277,7 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
     auto cp_view = registry.view<contact_point>();
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
     auto min_dist = scalar(0);
 
     cp_view.each([&] (contact_point &cp) {
@@ -296,18 +286,8 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
         auto [posB, ornB, inv_mB, inv_IB] =
             body_view.get<position, orientation, mass_inv, inertia_world_inv>(cp.body[1]);
 
-        auto originA = static_cast<vector3>(posA);
-        auto originB = static_cast<vector3>(posB);
-
-        if (com_view.contains(cp.body[0])) {
-            auto &com = com_view.get(cp.body[0]);
-            originA = to_world_space(-com, posA, ornA);
-        }
-
-        if (com_view.contains(cp.body[1])) {
-            auto &com = com_view.get(cp.body[1]);
-            originB = to_world_space(-com, posB, ornB);
-        }
+        auto originA = origin_view.contains(cp.body[0]) ? origin_view.get(cp.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(cp.body[1]) ? origin_view.get(cp.body[1]) : static_cast<vector3>(posB);
 
         auto pivotA = to_world_space(cp.pivotA, originA, ornA);
         auto pivotB = to_world_space(cp.pivotB, originB, ornB);

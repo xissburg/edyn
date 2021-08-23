@@ -10,6 +10,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/tag.hpp"
@@ -53,6 +54,7 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     contact_point,
     continuous,
     center_of_mass,
+    origin,
     dynamic_tag,
     kinematic_tag,
     static_tag,
