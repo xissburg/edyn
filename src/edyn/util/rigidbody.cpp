@@ -142,10 +142,11 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // of the present position and orientation in `update_presentation`.
         // TODO: synchronized merges would eliminate the need to share these
         // components continuously.
-        registry.emplace<continuous>(entity).insert<position, orientation, linvel, angvel>();
+        auto &cont = registry.emplace<continuous>(entity);
+        cont.insert<position, orientation, linvel, angvel>();
 
         if (def.center_of_mass) {
-            registry.get<continuous>(entity).insert<origin>();
+            cont.insert<origin>();
         }
     }
 
@@ -316,7 +317,8 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
             dirty.created<center_of_mass, edyn::origin>();
 
             if (registry.has<dynamic_tag>(entity)) {
-                registry.get_or_emplace<continuous>(entity).insert<edyn::origin>();
+                registry.get<continuous>(entity).insert<edyn::origin>();
+                dirty.updated<continuous>();
             }
         }
     } else if (has_com) {
@@ -324,9 +326,10 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
         registry.remove<edyn::origin>(entity);
         dirty.destroyed<center_of_mass, edyn::origin>();
 
-        /* if (registry.has<dynamic_tag>(entity)) {
-            registry.get_or_emplace<continuous>(entity).remove<edyn::origin>();
-        } */
+        if (registry.has<dynamic_tag>(entity)) {
+            registry.get<continuous>(entity).remove<edyn::origin>();
+            dirty.updated<continuous>();
+        }
     }
 }
 
