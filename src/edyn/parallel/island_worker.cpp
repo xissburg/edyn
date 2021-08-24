@@ -331,7 +331,9 @@ void island_worker::on_island_delta(const island_delta &delta) {
             *origin = to_world_space(-com, pos, orn);
         }
 
-        update_aabb(m_registry, local_entity);
+        if (m_registry.has<AABB>(local_entity)) {
+            update_aabb(m_registry, local_entity);
+        }
 
         if (m_registry.has<dynamic_tag>(local_entity)) {
             update_inertia(m_registry, local_entity);
