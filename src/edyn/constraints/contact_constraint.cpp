@@ -275,12 +275,14 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
     // Solve position constraints by applying linear and angular corrections
     // iteratively. Based on Box2D's solver:
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
+    auto con_view = registry.view<contact_constraint>();
     auto cp_view = registry.view<contact_point>();
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
     auto origin_view = registry.view<origin>();
     auto min_dist = scalar(0);
 
-    cp_view.each([&] (contact_point &cp) {
+    for (auto entity : con_view) {
+        auto &cp = cp_view.get(entity);
         auto [posA, ornA, inv_mA, inv_IA] =
             body_view.get<position, orientation, mass_inv, inertia_world_inv>(cp.body[0]);
         auto [posB, ornB, inv_mB, inv_IB] =
@@ -332,7 +334,7 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
 
         auto basisB = to_matrix3x3(ornB);
         inv_IB = basisB * inv_IB * transpose(basisB);
-    });
+    }
 
     return min_dist > contact_position_solver_min_error;
 }
