@@ -35,6 +35,15 @@ static const auto static_shapes_tuple = std::tuple<
     paged_mesh_shape
 >{};
 
+// Shapes that can roll.
+static const auto rolling_shapes_tuple = std::tuple<
+    sphere_shape,
+    cylinder_shape,
+    capsule_shape
+>{};
+
+using rolling_shapes_tuple_t = std::decay_t<decltype(rolling_shapes_tuple)>;
+
 // Tuple containing all shape types.
 static const auto shapes_tuple = std::tuple_cat(dynamic_shapes_tuple, static_shapes_tuple);
 
@@ -95,6 +104,21 @@ template<typename VisitorType>
 void visit_shape(entt::registry &registry, entt::entity entity, VisitorType visitor) {
     auto &index = registry.get<shape_index>(entity);
     visit_component(shapes_tuple, index.value, entity, registry, visitor);
+}
+
+/**
+ * @brief Get the restricted rolling direction of a shape, if it has one.
+ * @tparam ShapeType A type of shape that can roll.
+ * @return A unit vector or the zero vector if the shape can roll in any
+ * direction.
+ */
+template<typename ShapeType, std::enable_if_t<has_type<ShapeType, rolling_shapes_tuple_t>::value, bool> = true>
+constexpr vector3 shape_rolling_direction() {
+    if constexpr(std::is_same_v<ShapeType, cylinder_shape>) {
+        return vector3_x;
+    }
+
+    return vector3_zero;
 }
 
 }

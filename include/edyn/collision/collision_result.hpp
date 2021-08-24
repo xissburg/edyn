@@ -6,6 +6,7 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/config/constants.hpp"
 #include "edyn/util/array.hpp"
+#include "edyn/collision/contact_normal_attachment.hpp"
 
 namespace edyn {
 
@@ -15,6 +16,7 @@ struct collision_result {
         vector3 pivotB;
         vector3 normal;
         scalar distance;
+        contact_normal_attachment normal_attachment;
     };
 
     size_t num_points {0};

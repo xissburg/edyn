@@ -23,6 +23,7 @@ void collide(const polyhedron_shape &shA, const plane_shape &shB,
     auto polygon = point_cloud_support_polygon(
         rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
         normal, proj_poly, true, support_feature_tolerance);
+    auto normal_attachment = contact_normal_attachment::normal_on_B;
 
     for (auto idxA : polygon.hull) {
         auto &pointA = polygon.vertices[idxA];
@@ -30,7 +31,7 @@ void collide(const polyhedron_shape &shA, const plane_shape &shB,
         auto pivotA = rotate(conjugate(ctx.ornA), pointA);
         auto local_distance = dot(pointA - center, normal);
         auto pivotB = pointA - normal * local_distance + posA; // Project onto plane.
-        result.maybe_add_point({pivotA, pivotB, normal, local_distance});
+        result.maybe_add_point({pivotA, pivotB, normal, local_distance, normal_attachment});
     }
 }
 

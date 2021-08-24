@@ -162,7 +162,7 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
         row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = imp_view.get(entity).values[0];
 
-        prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
         warm_start(row);
 
         cache.con_num_rows.push_back(1);

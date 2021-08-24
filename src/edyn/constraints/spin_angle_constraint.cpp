@@ -64,7 +64,7 @@ void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_ca
             auto options = constraint_row_options{};
             options.error = error / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
+            prepare_row(row, options, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
             warm_start(row);
         }
 
@@ -87,7 +87,7 @@ void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_ca
             row.spin_axis[0] = axisA;
             row.spin_axis[1] = axisB;
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
+            prepare_row(row, {}, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
             warm_start(row);
         }
 

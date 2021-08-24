@@ -79,7 +79,7 @@ void prepare_constraints<spin_constraint>(entt::registry &registry, row_cache &c
             row.dsB = nullptr;
         }
 
-        prepare_row(row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
+        prepare_row(row, {}, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
         warm_start(row);
 
         cache.con_num_rows.push_back(1);

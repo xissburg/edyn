@@ -63,6 +63,17 @@ void iterate_constraints(entt::registry &registry, row_cache &cache, scalar dt) 
     }, constraints_tuple);
 }
 
+inline
+bool solve_position_constraints(entt::registry &registry, scalar dt) {
+    auto solved = false;
+
+    std::apply([&] (auto ... c) {
+        solved = (solve_position_constraints<decltype(c)>(registry, dt) && ...);
+    }, constraints_tuple);
+
+    return solved;
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_CONSTRAINT_HPP

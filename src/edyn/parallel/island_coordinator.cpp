@@ -1,7 +1,6 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
-#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
@@ -22,6 +21,7 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/dynamics/material_mixing.hpp"
 #include <entt/entity/registry.hpp>
 #include <set>
 
@@ -71,7 +71,20 @@ void island_coordinator::on_construct_graph_edge(entt::registry &registry, entt:
 
 void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
-    registry.ctx<entity_graph>().remove_node(node.node_index);
+    auto &graph = registry.ctx<entity_graph>();
+
+    // Prevent edges from being removed in `on_destroy_graph_edge`. The more
+    // direct `entity_graph::remove_all_edges` will be used instead.
+    registry.on_destroy<graph_edge>().disconnect<&island_coordinator::on_destroy_graph_edge>(*this);
+
+    graph.visit_edges(node.node_index, [&] (entt::entity edge_entity) {
+        registry.destroy(edge_entity);
+    });
+
+    registry.on_destroy<graph_edge>().connect<&island_coordinator::on_destroy_graph_edge>(*this);
+
+    graph.remove_all_edges(node.node_index);
+    graph.remove_node(node.node_index);
 }
 
 void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
@@ -241,8 +254,7 @@ void island_coordinator::init_new_nodes_and_edges() {
         },
         [&] () { // connectedComponentFunc
             if (island_entities.empty()) {
-                auto island_entity = create_island(m_timestamp, false);
-                insert_to_island(island_entity, connected_nodes, connected_edges);
+                create_island(m_timestamp, false, connected_nodes, connected_edges);
             } else if (island_entities.size() == 1) {
                 auto island_entity = *island_entities.begin();
                 insert_to_island(island_entity, connected_nodes, connected_edges);
@@ -282,7 +294,9 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
     });
 }
 
-entt::entity island_coordinator::create_island(double timestamp, bool sleeping) {
+entt::entity island_coordinator::create_island(double timestamp, bool sleeping,
+                                               const std::vector<entt::entity> &nodes,
+                                               const std::vector<entt::entity> &edges) {
     auto island_entity = m_registry->create();
     m_registry->emplace<island>(island_entity);
     auto &isle_time = m_registry->emplace<island_timestamp>(island_entity);
@@ -297,11 +311,15 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
     auto &settings = m_registry->ctx<edyn::settings>();
-    auto *worker = new island_worker(island_entity, settings,
+    auto &material_table = m_registry->ctx<edyn::material_mix_table>();
+    auto *worker = new island_worker(island_entity, settings, material_table,
                                      message_queue_in_out(main_queue_input, isle_queue_output));
-    auto ctx = std::make_unique<island_worker_context>(island_entity, worker,
-                                                       (*settings.make_island_delta_builder)(),
-                                                       message_queue_in_out(isle_queue_input, main_queue_output));
+
+    m_island_ctx_map[island_entity] = std::make_unique<island_worker_context>(
+        island_entity, worker, (*settings.make_island_delta_builder)(),
+        message_queue_in_out(isle_queue_input, main_queue_output));
+
+    auto &ctx = m_island_ctx_map[island_entity];
 
     // Insert the first entity mapping between the remote island entity and
     // the local island entity.
@@ -313,17 +331,31 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
 
     // Send over a delta containing this island entity to the island worker
     // before it even starts.
-    auto builder = (*settings.make_island_delta_builder)();
-    builder->created(island_entity, isle_time);
+    ctx->m_delta_builder->created(island_entity, isle_time);
 
     if (sleeping) {
         m_registry->emplace<sleeping_tag>(island_entity);
-        builder->created(island_entity, sleeping_tag{});
+        ctx->m_delta_builder->created(island_entity, sleeping_tag{});
     }
 
-    ctx->send<island_delta>(builder->finish());
+    insert_to_island(*ctx, nodes, edges);
 
-    m_island_ctx_map.emplace(island_entity, std::move(ctx));
+    ctx->send<island_delta>(ctx->m_delta_builder->finish());
+
+    // Create tree_view for this island using the procedural node AABBs. This
+    // ensures expectations will be met after this function call, or else this
+    // island would not have a tree_view until the worker sends an update.
+    dynamic_tree tree;
+    auto aabb_view = m_registry->view<AABB, procedural_tag>();
+
+    for (auto entity : nodes) {
+        if (aabb_view.contains(entity)) {
+            auto &aabb = aabb_view.get<AABB>(entity);
+            tree.create(aabb, entity);
+        }
+    }
+
+    m_registry->emplace<tree_view>(island_entity, tree.view());
 
     return island_entity;
 }
@@ -331,18 +363,21 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping) 
 void island_coordinator::insert_to_island(entt::entity island_entity,
                                           const std::vector<entt::entity> &nodes,
                                           const std::vector<entt::entity> &edges) {
-
     auto &ctx = m_island_ctx_map.at(island_entity);
-    ctx->m_nodes.insert(nodes.begin(), nodes.end());
-    ctx->m_edges.insert(edges.begin(), edges.end());
+    insert_to_island(*ctx, nodes, edges);
+}
+
+void island_coordinator::insert_to_island(island_worker_context &ctx,
+                                          const std::vector<entt::entity> &nodes,
+                                          const std::vector<entt::entity> &edges) {
+
+    ctx.m_nodes.insert(nodes.begin(), nodes.end());
+    ctx.m_edges.insert(edges.begin(), edges.end());
 
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
     auto manifold_view = m_registry->view<contact_manifold>();
-    auto cp_view = m_registry->view<contact_point>();
-    auto contact_view = m_registry->view<contact_constraint>();
-    auto patch_view = m_registry->view<contact_patch_constraint>();
-    auto impulse_view = m_registry->view<constraint_impulse>();
+    auto procedural_view = m_registry->view<procedural_tag>();
 
     // Calculate total number of certain kinds of entities to later reserve
     // the expected number of components for better performance.
@@ -359,183 +394,30 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
         }
     }
 
-    ctx->m_delta_builder->reserve_created(nodes.size() + edges.size() + total_num_points);
-    ctx->m_delta_builder->reserve_created<contact_constraint>(total_num_points);
-    ctx->m_delta_builder->reserve_created<contact_point>(total_num_points);
-    ctx->m_delta_builder->reserve_created<constraint_impulse>(total_num_constraints);
-    ctx->m_delta_builder->reserve_created<position, orientation, linvel, angvel, continuous>(nodes.size());
-    ctx->m_delta_builder->reserve_created<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>(nodes.size());
-
-    // Insert created/updated components one-by-one explicitly. Could use
-    // created_all/updated_all but this is more efficient.
-    auto tr_view = m_registry->view<position, orientation>();
-    auto vel_view = m_registry->view<linvel, angvel>();
-    auto spin_view = m_registry->view<spin, spin_angle>();
-    auto mass_view = m_registry->view<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>();
-    auto gravity_view = m_registry->view<gravity>();
-    auto com_view = m_registry->view<center_of_mass>();
-    auto material_view = m_registry->view<material>();
-    auto tire_view = m_registry->view<tire_material, tire_state>();
-    auto continuous_view = m_registry->view<continuous>();
-    auto procedural_view = m_registry->view<procedural_tag>();
-    auto external_view = m_registry->view<external_tag>();
-    auto static_view = m_registry->view<static_tag>();
-    auto sleeping_disabled_view = m_registry->view<sleeping_disabled_tag>();
-    auto continuous_contacts_view = m_registry->view<continuous_contacts_tag>();
-    auto collision_view = m_registry->view<shape_index, AABB, collision_filter>();
-    auto exclusion_view = m_registry->view<collision_exclusion>();
-    auto shape_views_tuple = get_tuple_of_shape_views(*m_registry);
+    ctx.m_delta_builder->reserve_created(nodes.size() + edges.size() + total_num_points);
+    ctx.m_delta_builder->reserve_created<contact_constraint>(total_num_points);
+    ctx.m_delta_builder->reserve_created<contact_point>(total_num_points);
+    ctx.m_delta_builder->reserve_created<constraint_impulse>(total_num_constraints);
+    ctx.m_delta_builder->reserve_created<position, orientation, linvel, angvel, continuous>(nodes.size());
+    ctx.m_delta_builder->reserve_created<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>(nodes.size());
+    auto island_entity = ctx.island_entity();
 
     for (auto entity : nodes) {
-        if (external_view.contains(entity)) {
-            if (procedural_view.contains(entity)) {
-                auto &resident = resident_view.get(entity);
-                resident.island_entity = island_entity;
-                ctx->m_delta_builder->created(entity);
-                ctx->m_delta_builder->created_all(entity, *m_registry);
-            } else {
-                auto &resident = multi_resident_view.get(entity);
-
-                if (resident.island_entities.count(island_entity) == 0) {
-                    // Non-procedural entity is not yet in this island, thus create it.
-                    resident.island_entities.insert(island_entity);
-                    ctx->m_delta_builder->created(entity);
-                    ctx->m_delta_builder->created_all(entity, *m_registry);
-                }
-            }
-
-            continue;
-        }
-
         if (procedural_view.contains(entity)) {
             auto &resident = resident_view.get(entity);
             resident.island_entity = island_entity;
-
-            ctx->m_delta_builder->created(entity);
-
-            ctx->m_delta_builder->created(entity, tr_view.get<position>(entity));
-            ctx->m_delta_builder->created(entity, tr_view.get<orientation>(entity));
-            ctx->m_delta_builder->created(entity, vel_view.get<linvel>(entity));
-            ctx->m_delta_builder->created(entity, vel_view.get<angvel>(entity));
-
-            ctx->m_delta_builder->created(entity, mass_view.get<mass>(entity));
-            ctx->m_delta_builder->created(entity, mass_view.get<mass_inv>(entity));
-            ctx->m_delta_builder->created(entity, mass_view.get<inertia>(entity));
-            ctx->m_delta_builder->created(entity, mass_view.get<inertia_inv>(entity));
-            ctx->m_delta_builder->created(entity, mass_view.get<inertia_world_inv>(entity));
-
-            if (gravity_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, gravity_view.get(entity));
-            }
-
-            if (spin_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, spin_view.get<spin>(entity));
-                ctx->m_delta_builder->created(entity, spin_view.get<spin_angle>(entity));
-            }
-
-            if (com_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, com_view.get(entity));
-            }
-
-            if (material_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, material_view.get(entity));
-            }
-
-            if (tire_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, tire_view.get<tire_material>(entity));
-                ctx->m_delta_builder->created(entity, tire_view.get<tire_state>(entity));
-            }
-
-            if (collision_view.contains(entity)) {
-                auto sh_idx = collision_view.get<shape_index>(entity);
-                ctx->m_delta_builder->created(entity, sh_idx);
-
-                visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
-                    ctx->m_delta_builder->created(entity, shape);
-                });
-
-                ctx->m_delta_builder->created(entity, collision_view.get<AABB>(entity));
-                ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));
-            }
-
-            if (sleeping_disabled_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, sleeping_disabled_tag{});
-            }
-
-            if (exclusion_view.contains(entity)) {
-                ctx->m_delta_builder->created(entity, exclusion_view.get(entity));
-            }
-
-            ctx->m_delta_builder->created(entity, dynamic_tag{});
-            ctx->m_delta_builder->created(entity, procedural_tag{});
-            ctx->m_delta_builder->created(entity, continuous_view.get(entity));
-
-            ctx->m_delta_builder->created_external(entity, *m_registry);
+            ctx.m_delta_builder->created(entity);
+            ctx.m_delta_builder->created_all(entity, *m_registry);
         } else {
             auto &resident = multi_resident_view.get(entity);
 
             if (resident.island_entities.count(island_entity) == 0) {
                 // Non-procedural entity is not yet in this island, thus create it.
                 resident.island_entities.insert(island_entity);
-
-                ctx->m_delta_builder->created(entity);
-
-                ctx->m_delta_builder->created(entity, tr_view.get<position>(entity));
-                ctx->m_delta_builder->created(entity, tr_view.get<orientation>(entity));
-                ctx->m_delta_builder->created(entity, vel_view.get<linvel>(entity));
-                ctx->m_delta_builder->created(entity, vel_view.get<angvel>(entity));
-
-                ctx->m_delta_builder->created(entity, mass_view.get<mass>(entity));
-                ctx->m_delta_builder->created(entity, mass_view.get<mass_inv>(entity));
-                ctx->m_delta_builder->created(entity, mass_view.get<inertia>(entity));
-                ctx->m_delta_builder->created(entity, mass_view.get<inertia_inv>(entity));
-                ctx->m_delta_builder->created(entity, mass_view.get<inertia_world_inv>(entity));
-
-                if (material_view.contains(entity)) {
-                    ctx->m_delta_builder->created(entity, material_view.get(entity));
-                }
-
-                if (collision_view.contains(entity)) {
-                    auto sh_idx = collision_view.get<shape_index>(entity);
-                    ctx->m_delta_builder->created(entity, sh_idx);
-
-                    visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
-                        ctx->m_delta_builder->created(entity, shape);
-                    });
-
-                    ctx->m_delta_builder->created(entity, collision_view.get<AABB>(entity));
-                    ctx->m_delta_builder->created(entity, collision_view.get<collision_filter>(entity));
-                }
-
-                if (exclusion_view.contains(entity)) {
-                    ctx->m_delta_builder->created(entity, exclusion_view.get(entity));
-                }
-
-                if (static_view.contains(entity)) {
-                    ctx->m_delta_builder->created(entity, static_tag{});
-                } else {
-                    ctx->m_delta_builder->created(entity, kinematic_tag{});
-                }
-
-                ctx->m_delta_builder->created_external(entity, *m_registry);
-            } else if (!static_view.contains(entity)) {
-                // Non-procedural entity is already in this island.
-                // If kinematic, update transform and velocity.
-                ctx->m_delta_builder->updated(entity, tr_view.get<position>(entity));
-                ctx->m_delta_builder->updated(entity, tr_view.get<orientation>(entity));
-                ctx->m_delta_builder->updated(entity, vel_view.get<linvel>(entity));
-                ctx->m_delta_builder->updated(entity, vel_view.get<angvel>(entity));
-
-                // Also update external components.
-                ctx->m_delta_builder->updated_external(entity, *m_registry);
+                ctx.m_delta_builder->created(entity);
+                ctx.m_delta_builder->created_all(entity, *m_registry);
             }
         }
-
-        if (continuous_contacts_view.contains(entity)) {
-            ctx->m_delta_builder->created(entity, continuous_contacts_tag{});
-        }
-
-        ctx->m_delta_builder->created(entity, rigidbody_tag{});
     }
 
     for (auto entity : edges) {
@@ -544,53 +426,24 @@ void island_coordinator::insert_to_island(entt::entity island_entity,
         auto &resident = resident_view.get(entity);
         resident.island_entity = island_entity;
         // Add new entities to the delta builder.
-        ctx->m_delta_builder->created(entity);
+        ctx.m_delta_builder->created(entity);
+        ctx.m_delta_builder->created_all(entity, *m_registry);
 
         // Add child entities.
         if (manifold_view.contains(entity)) {
             auto &manifold = manifold_view.get(entity);
-            ctx->m_delta_builder->created(entity, manifold);
-
             auto num_points = manifold.num_points();
 
             for (size_t i = 0; i < num_points; ++i) {
                 auto point_entity = manifold.point[i];
+
                 auto &point_resident = resident_view.get(point_entity);
                 point_resident.island_entity = island_entity;
 
-                auto point = cp_view.get(point_entity);
-                ctx->m_delta_builder->created(point_entity);
-                ctx->m_delta_builder->created(point_entity, point);
-
-                if (contact_view.contains(point_entity)) {
-                    ctx->m_delta_builder->created(point_entity, contact_view.get(point_entity));
-                    ctx->m_delta_builder->created(point_entity, impulse_view.get(point_entity));
-                } else if (patch_view.contains(point_entity)) {
-                    ctx->m_delta_builder->created(point_entity, patch_view.get(point_entity));
-                    ctx->m_delta_builder->created(point_entity, impulse_view.get(point_entity));
-                }
-
-                if (continuous_view.contains(point_entity)) {
-                    ctx->m_delta_builder->created(point_entity, continuous_view.get(point_entity));
-                }
+                ctx.m_delta_builder->created(point_entity);
+                ctx.m_delta_builder->created_all(point_entity, *m_registry);
             }
-        } else {
-            std::apply([&] (auto ... c) {
-                ((m_registry->has<decltype(c)>(entity) ?
-                    ctx->m_delta_builder->created(entity, m_registry->get<decltype(c)>(entity)) :
-                    void(0)), ...);
-            }, constraints_tuple);
-
-            ctx->m_delta_builder->created(entity, impulse_view.get(entity));
         }
-
-        ctx->m_delta_builder->created<procedural_tag>(entity, *m_registry);
-
-        if (continuous_view.contains(entity)) {
-            ctx->m_delta_builder->created(entity, continuous_view.get(entity));
-        }
-
-        ctx->m_delta_builder->created_external(entity, *m_registry);
     }
 }
 
@@ -683,8 +536,7 @@ void island_coordinator::create_island(std::vector<entt::entity> nodes, bool sle
 #endif
 
     auto timestamp = performance_time();
-    auto island_entity = create_island(timestamp, sleeping);
-    insert_to_island(island_entity, nodes, {});
+    create_island(timestamp, sleeping, nodes, {});
 }
 
 void island_coordinator::refresh_dirty_entities() {
@@ -896,8 +748,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
         // contain any procedural node.
         if (!contains_procedural) continue;
 
-        auto island_entity = create_island(timestamp, sleeping);
-        insert_to_island(island_entity, connected.nodes, connected.edges);
+        create_island(timestamp, sleeping, connected.nodes, connected.edges);
     }
 }
 
@@ -949,26 +800,21 @@ void island_coordinator::step_simulation() {
     }
 }
 
-void island_coordinator::set_fixed_dt(scalar dt) {
-    for (auto &pair : m_island_ctx_map) {
-        auto &ctx = pair.second;
-        ctx->send<msg::set_fixed_dt>(dt);
-    }
-}
-
-void island_coordinator::set_solver_iterations(unsigned iterations) {
-    for (auto &pair : m_island_ctx_map) {
-        auto &ctx = pair.second;
-        ctx->send<msg::set_solver_iterations>(iterations);
-    }
-}
-
 void island_coordinator::settings_changed() {
     auto &settings = m_registry->ctx<edyn::settings>();
 
     for (auto &pair : m_island_ctx_map) {
         auto &ctx = pair.second;
         ctx->send<msg::set_settings>(settings);
+    }
+}
+
+void island_coordinator::material_table_changed() {
+    auto &material_table = m_registry->ctx<material_mix_table>();
+
+    for (auto &pair : m_island_ctx_map) {
+        auto &ctx = pair.second;
+        ctx->send<msg::set_material_table>(material_table);
     }
 }
 

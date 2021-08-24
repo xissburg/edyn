@@ -1,9 +1,9 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
-#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/spin.hpp"
@@ -11,6 +11,7 @@
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
+#include "edyn/dynamics/material_mixing.hpp"
 
 namespace edyn {
 
@@ -68,37 +69,86 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     registry.emplace<procedural_tag>(manifold_entity);
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
 
+    auto &dirty = registry.get_or_emplace<edyn::dirty>(manifold_entity);
+    dirty.set_new().created<procedural_tag, contact_manifold>();
+
+    auto material_view = registry.view<material>();
+
+    if (material_view.contains(body0) && material_view.contains(body1)) {
+        auto &material0 = material_view.get(body0);
+        auto &material1 = material_view.get(body1);
+
+        auto &material_table = registry.ctx<material_mix_table>();
+        auto restitution = scalar(0);
+
+        if (auto *material = material_table.try_get({material0.id, material1.id})) {
+            restitution = material->restitution;
+        } else {
+            restitution = material_mix_restitution(material0.restitution, material1.restitution);
+        }
+
+        if (restitution > EDYN_EPSILON) {
+            registry.emplace<contact_manifold_with_restitution>(manifold_entity);
+            dirty.created<contact_manifold_with_restitution>();
+        }
+    }
+
     auto node_index0 = registry.get<graph_node>(body0).node_index;
     auto node_index1 = registry.get<graph_node>(body1).node_index;
     auto edge_index = registry.ctx<entity_graph>().insert_edge(manifold_entity, node_index0, node_index1);
     registry.emplace<graph_edge>(manifold_entity, edge_index);
-
-    registry.get_or_emplace<dirty>(manifold_entity)
-        .set_new()
-        .created<procedural_tag,
-                 contact_manifold>();
 }
 
 scalar get_effective_mass(const constraint_row &row) {
-    auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
-                     dot(row.inv_IA * row.J[1], row.J[1]) +
-                     dot(row.J[2], row.J[2]) * row.inv_mB +
-                     dot(row.inv_IB * row.J[3], row.J[3]);
+    if (row.num_entities == 2) {
+        auto J = std::array<vector3, 4>{row.J[0], row.J[1], row.J[2], row.J[3]};
+        return get_effective_mass(J, row.inv_mA, row.inv_IA, row.inv_mB, row.inv_IB);
+    }
+
+    return get_effective_mass(row.J, row.inv_mA, row.inv_IA, row.inv_mB, row.inv_IB, row.inv_mC, row.inv_IC);
+}
+
+scalar get_effective_mass(const std::array<vector3, 4> &J,
+                          scalar inv_mA, const matrix3x3 &inv_IA,
+                          scalar inv_mB, const matrix3x3 &inv_IB) {
+    auto J_invM_JT = dot(J[0], J[0]) * inv_mA +
+                     dot(inv_IA * J[1], J[1]) +
+                     dot(J[2], J[2]) * inv_mB +
+                     dot(inv_IB * J[3], J[3]);
     auto eff_mass = scalar(1) / J_invM_JT;
     return eff_mass;
 }
 
-static
-scalar restitution_curve(scalar restitution, scalar relvel) {
-    // TODO: figure out how to adjust the restitution when resting.
-    scalar decay = 1;//std::clamp(-relvel * 1.52 - scalar(0.12), scalar(0), scalar(1));
-    return restitution * decay;
+scalar get_effective_mass(const std::array<vector3, 6> &J,
+                          scalar inv_mA, const matrix3x3 &inv_IA,
+                          scalar inv_mB, const matrix3x3 &inv_IB,
+                          scalar inv_mC, const matrix3x3 &inv_IC) {
+    auto J_invM_JT = dot(J[0], J[0]) * inv_mA +
+                     dot(inv_IA * J[1], J[1]) +
+                     dot(J[2], J[2]) * inv_mB +
+                     dot(inv_IB * J[3], J[3]) +
+                     dot(J[4], J[4]) * inv_mC +
+                     dot(inv_IC * J[5], J[5]);
+    auto eff_mass = scalar(1) / J_invM_JT;
+    return eff_mass;
+}
+
+scalar get_relative_speed(const std::array<vector3, 4> &J,
+                          const vector3 &linvelA,
+                          const vector3 &angvelA,
+                          const vector3 &linvelB,
+                          const vector3 &angvelB) {
+    auto relspd = dot(J[0], linvelA) +
+                  dot(J[1], angvelA) +
+                  dot(J[2], linvelB) +
+                  dot(J[3], angvelB);
+    return relspd;
 }
 
 void prepare_row(constraint_row &row,
                  const constraint_row_options &options,
-                 const vector3 &linvelA, const vector3 &linvelB,
-                 const vector3 &angvelA, const vector3 &angvelB) {
+                 const vector3 &linvelA, const vector3 &angvelA,
+                 const vector3 &linvelB, const vector3 &angvelB) {
     auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
                      dot(row.inv_IA * row.J[1], row.J[1]) +
                      dot(row.J[2], row.J[2]) * row.inv_mB +
@@ -110,8 +160,7 @@ void prepare_row(constraint_row &row,
                   dot(row.J[2], linvelB) +
                   dot(row.J[3], angvelB);
 
-    auto restitution = restitution_curve(options.restitution, relvel);
-    row.rhs = -(options.error * options.erp + relvel * (1 + restitution));
+    row.rhs = -(options.error * options.erp + relvel * (1 + options.restitution));
 }
 
 void apply_angular_impulse(scalar impulse,
@@ -167,13 +216,10 @@ void prepare_row3(constraint_row &row,
                  const constraint_row_options &options,
                  const vector3 &linvelA, const vector3 &linvelB, const vector3 &linvelC,
                  const vector3 &angvelA, const vector3 &angvelB, const vector3 &angvelC) {
-    auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
-                     dot(row.inv_IA * row.J[1], row.J[1]) +
-                     dot(row.J[2], row.J[2]) * row.inv_mB +
-                     dot(row.inv_IB * row.J[3], row.J[3]) +
-                     dot(row.J[4], row.J[4]) * row.inv_mC +
-                     dot(row.inv_IC * row.J[5], row.J[5]);
-    row.eff_mass = 1 / J_invM_JT;
+    row.eff_mass = get_effective_mass(row.J,
+                                      row.inv_mA, row.inv_IA,
+                                      row.inv_mB, row.inv_IB,
+                                      row.inv_mC, row.inv_IC);
 
     auto relvel = dot(row.J[0], linvelA) +
                   dot(row.J[1], angvelA) +
@@ -182,8 +228,7 @@ void prepare_row3(constraint_row &row,
                   dot(row.J[4], linvelC) +
                   dot(row.J[5], angvelC);
 
-    auto restitution = restitution_curve(options.restitution, relvel);
-    row.rhs = -(options.error * options.erp + relvel * (1 + restitution));
+    row.rhs = -(options.error * options.erp + relvel * (1 + options.restitution));
 }
 
 void apply_impulse3(scalar impulse, constraint_row &row) {

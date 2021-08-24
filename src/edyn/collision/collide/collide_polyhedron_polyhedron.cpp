@@ -134,6 +134,14 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
         rmeshB.vertices.begin(), rmeshB.vertices.end(), posB,
         sep_axis, projectionB, false, support_feature_tolerance);
 
+    auto normal_attachment = contact_normal_attachment::none;
+
+    if (polygonB.hull.size() > 2) {
+        normal_attachment = contact_normal_attachment::normal_on_B;
+    } else if (polygonA.hull.size() > 2) {
+        normal_attachment = contact_normal_attachment::normal_on_A;
+    }
+
     // First, add contact points for vertices that lie inside the opposing face.
     // If the feature on B is a face, i.e. `verticesB` has 3 or more elements,
     // check if the points in `verticesA` lie inside the prism spanned by `verticesB`
@@ -146,7 +154,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                 auto pivotA = to_object_space(pointA, posA, ornA);
                 auto pivotB_world = project_plane(pointA, polygonB.origin, sep_axis);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
             }
         }
     }
@@ -159,7 +167,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                 auto pivotB = to_object_space(pointB, posB, ornB);
                 auto pivotA_world = project_plane(pointB, polygonA.origin, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
             }
         }
     }
@@ -194,7 +202,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                     auto pivotB_world = lerp(polygonB.vertices[idx0B], polygonB.vertices[idx1B], t[k]);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
                 }
             }
         }

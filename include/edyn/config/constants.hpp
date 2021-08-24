@@ -10,6 +10,12 @@ inline constexpr size_t max_constraint_rows = 16;
 inline constexpr size_t max_contacts = 4;
 
 /**
+ * Collisions will start once the signed distance along the contact normal
+ * between the closest points is below this value.
+ */
+inline constexpr auto collision_threshold = scalar(0.01);
+
+/**
  * If the normal or tangential separation of a contact point goes above this
  * value, it will be destroyed.
  */
@@ -49,6 +55,16 @@ inline constexpr auto island_time_to_sleep = scalar(2);
  * are selected as part of the support feature.
  */
 inline constexpr auto support_feature_tolerance = scalar(0.004);
+
+/**
+ * Error correction rate when solving contact position constraints.
+ */
+inline constexpr auto contact_position_correction_rate = scalar(0.2);
+
+/**
+ * Minimum acceptable error in the contact position solver.
+ */
+inline constexpr auto contact_position_solver_min_error = scalar(-0.005);
 
 }
 

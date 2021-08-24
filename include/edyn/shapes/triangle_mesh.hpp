@@ -8,7 +8,7 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/util/triangle_util.hpp"
 #include "edyn/collision/static_tree.hpp"
-#include "edyn/util/commutative_pair.hpp"
+#include "edyn/util/unordered_pair.hpp"
 #include "edyn/util/flat_nested_array.hpp"
 
 namespace edyn {
@@ -173,7 +173,7 @@ private:
 
     // Vertex indices for each unique edge. Each pair of values represent the
     // vertex indices for one edge.
-    std::vector<commutative_pair<index_type>> m_edge_vertex_indices;
+    std::vector<unordered_pair<index_type>> m_edge_vertex_indices;
 
     // Indices of edges for each vertex. Each element is a list of indices of
     // edges that share the vertex.

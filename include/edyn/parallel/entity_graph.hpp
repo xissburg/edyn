@@ -63,9 +63,12 @@ public:
 
     index_type insert_edge(entt::entity entity, index_type node_index0, index_type node_index1);
     void remove_edge(index_type edge_index);
+    void remove_all_edges(index_type node_index);
     entt::entity edge_entity(index_type edge_index) const;
     bool has_adjacency(index_type node_index0, index_type node_index1) const;
     entity_pair edge_node_entities(index_type edge_index) const;
+
+    bool is_connecting_node(index_type node_index) const;
 
     /**
      * @brief Calculate whether this graph contains a single connected component.
@@ -135,6 +138,16 @@ public:
      */
     connected_components_t connected_components();
 
+    /**
+     * @brief Traverses nodes starting at the given node, ignoring
+     * non-connecting nodes.
+     * @tparam Func Function type with signature `void(index_type)`.
+     * @param start_nodex_index Index of node where traversal starts.
+     * @param func Function called for each node.
+     */
+    template<typename Func>
+    void traverse_connecting_nodes(index_type start_node_index, Func func);
+
     void optimize_if_needed();
 
 private:
@@ -165,6 +178,7 @@ void entity_graph::visit_neighbors(index_type node_index, Func func) const {
         auto &neighbor = m_nodes[adj.node_index];
         EDYN_ASSERT(neighbor.entity != entt::null);
         func(neighbor.entity);
+        EDYN_ASSERT(adj.next != adj_index);
         adj_index = adj.next;
     }
 }
@@ -175,6 +189,7 @@ void entity_graph::visit_edges(index_type node_index0, index_type node_index1, F
     EDYN_ASSERT(node_index1 < m_nodes.size());
 
     auto adj_index = m_nodes[node_index0].adjacency_index;
+
     while (adj_index != null_index) {
         auto &adj = m_adjacencies[adj_index];
         if (adj.node_index == node_index1) {
@@ -183,6 +198,7 @@ void entity_graph::visit_edges(index_type node_index0, index_type node_index1, F
                 auto &edge = m_edges[edge_index];
                 EDYN_ASSERT(edge.entity != entt::null);
                 func(edge.entity);
+                EDYN_ASSERT(edge.next != edge_index);
                 edge_index = edge.next;
             }
             break;
@@ -196,6 +212,7 @@ void entity_graph::visit_edges(index_type node_index, Func func) const {
     EDYN_ASSERT(node_index < m_nodes.size());
 
     auto adj_index = m_nodes[node_index].adjacency_index;
+
     while (adj_index != null_index) {
         auto &adj = m_adjacencies[adj_index];
         auto edge_index = adj.edge_index;
@@ -204,6 +221,7 @@ void entity_graph::visit_edges(index_type node_index, Func func) const {
             auto &edge = m_edges[edge_index];
             EDYN_ASSERT(edge.entity != entt::null);
             func(edge.entity);
+            EDYN_ASSERT(edge.next != edge_index);
             edge_index = edge.next;
         }
 
@@ -301,6 +319,47 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
 
         non_connecting_indices.clear();
         to_visit.clear();
+    }
+}
+
+template<typename Func>
+void entity_graph::traverse_connecting_nodes(index_type start_node_index, Func func) {
+    m_visited.assign(m_nodes.size(), false);
+
+    std::vector<index_type> to_visit;
+    to_visit.push_back(start_node_index);
+
+    while (!to_visit.empty()) {
+        auto node_index = to_visit.back();
+        to_visit.pop_back();
+
+        m_visited[node_index] = true;
+        const auto &node = m_nodes[node_index];
+        EDYN_ASSERT(node.entity != entt::null);
+
+        // Ignore non-connecting nodes.
+        if (node.non_connecting) {
+            continue;
+        }
+
+        func(node_index);
+
+        // Add neighbors to be visited.
+        auto adj_index = node.adjacency_index;
+
+        while (adj_index != null_index) {
+            auto &adj = m_adjacencies[adj_index];
+            auto neighbor_index = adj.node_index;
+
+            if (!m_visited[neighbor_index]) {
+                // Insert to beginning for a breadth-first traversal.
+                to_visit.insert(to_visit.begin(), neighbor_index);
+                // Set as visited to avoid adding it to `to_visit` more than once.
+                m_visited[neighbor_index] = true;
+            }
+
+            adj_index = adj.next;
+        }
     }
 }
 

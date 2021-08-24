@@ -1,7 +1,9 @@
 #include "edyn/edyn.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/collision/broadphase_main.hpp"
+#include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/sys/update_presentation.hpp"
+#include "edyn/dynamics/material_mixing.hpp"
 
 namespace edyn {
 
@@ -23,6 +25,7 @@ void attach(entt::registry &registry) {
     registry.set<contact_manifold_map>(registry);
     registry.set<island_coordinator>(registry);
     registry.set<broadphase_main>(registry);
+    registry.set<material_mix_table>();
 }
 
 void detach(entt::registry &registry) {
@@ -31,6 +34,7 @@ void detach(entt::registry &registry) {
     registry.unset<contact_manifold_map>();
     registry.unset<island_coordinator>();
     registry.unset<broadphase_main>();
+    registry.unset<material_mix_table>();
 }
 
 scalar get_fixed_dt(const entt::registry &registry) {
@@ -39,7 +43,7 @@ scalar get_fixed_dt(const entt::registry &registry) {
 
 void set_fixed_dt(entt::registry &registry, scalar dt) {
     registry.ctx<settings>().fixed_dt = dt;
-    registry.ctx<island_coordinator>().set_fixed_dt(dt);
+    registry.ctx<island_coordinator>().settings_changed();
 }
 
 bool is_paused(const entt::registry &registry) {
@@ -172,13 +176,51 @@ void set_gravity(entt::registry &registry, vector3 gravity) {
     }
 }
 
-unsigned get_solver_iterations(const entt::registry &registry) {
-    return registry.ctx<settings>().num_solver_iterations;
+unsigned get_solver_velocity_iterations(const entt::registry &registry) {
+    return registry.ctx<settings>().num_solver_velocity_iterations;
 }
 
-void set_solver_iterations(entt::registry &registry, unsigned iterations) {
-    registry.ctx<settings>().num_solver_iterations = iterations;
-    registry.ctx<island_coordinator>().set_solver_iterations(iterations);
+void set_solver_velocity_iterations(entt::registry &registry, unsigned iterations) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.num_solver_velocity_iterations = iterations;
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
+unsigned get_solver_position_iterations(const entt::registry &registry) {
+    return registry.ctx<settings>().num_solver_position_iterations;
+}
+
+void set_solver_position_iterations(entt::registry &registry, unsigned iterations) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.num_solver_position_iterations = iterations;
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
+unsigned get_solver_restitution_iterations(const entt::registry &registry) {
+    return registry.ctx<settings>().num_restitution_iterations;
+}
+
+void set_solver_restitution_iterations(entt::registry &registry, unsigned iterations) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.num_restitution_iterations = iterations;
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
+unsigned get_solver_individual_restitution_iterations(const entt::registry &registry) {
+    return registry.ctx<settings>().num_individual_restitution_iterations;
+}
+
+void set_solver_individual_restitution_iterations(entt::registry &registry, unsigned iterations) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.num_individual_restitution_iterations = iterations;
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
+void insert_material_mixing(entt::registry &registry, unsigned material_id0,
+                            unsigned material_id1, const material_base &material) {
+    auto &material_table = registry.ctx<material_mix_table>();
+    material_table.insert({material_id0, material_id1}, material);
+    registry.ctx<island_coordinator>().material_table_changed();
 }
 
 }

@@ -73,7 +73,8 @@ static void collide_sphere_triangle(
         if (point_in_triangle(tri_vertices, tri_normal, sphere_pos)) {
             auto pivotA = rotate(conjugate(sphere_orn), -tri_normal * sphere.radius);
             auto pivotB = project_plane(sphere_pos, tri_vertices[0], tri_normal);
-            result.maybe_add_point({pivotA, pivotB, tri_normal, distance});
+            auto normal_attachment = contact_normal_attachment::normal_on_B;
+            result.maybe_add_point({pivotA, pivotB, tri_normal, distance, normal_attachment});
         }
         break;
     }
@@ -86,14 +87,16 @@ static void collide_sphere_triangle(
 
         if (t > 0 && t < 1) {
             auto pivotA = rotate(conjugate(sphere_orn), -sep_axis * sphere.radius);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+            auto normal_attachment = contact_normal_attachment::none;
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
         }
         break;
     }
     case triangle_feature::vertex: {
         auto pivotA = rotate(conjugate(sphere_orn), -sep_axis * sphere.radius);
         auto &pivotB = tri_vertices[tri_feature_index];
-        result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+        auto normal_attachment = contact_normal_attachment::none;
+        result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
     }
     }
 }

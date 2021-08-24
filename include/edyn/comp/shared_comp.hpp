@@ -10,6 +10,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/tag.hpp"
@@ -22,6 +23,7 @@
 #include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/tire_state.hpp"
 #include "edyn/comp/spin.hpp"
+#include "edyn/comp/roll_direction.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -55,9 +57,11 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     spin_angle,
     spin,
     contact_manifold,
+    contact_manifold_with_restitution,
     contact_point,
     continuous,
     center_of_mass,
+    origin,
     dynamic_tag,
     kinematic_tag,
     static_tag,
@@ -69,6 +73,8 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     external_tag,
     shape_index,
     rigidbody_tag,
+    rolling_tag,
+    roll_direction,
     tree_view
 >{}, constraints_tuple, shapes_tuple); // Concatenate with all shapes and constraints at the end.
 

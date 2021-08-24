@@ -66,7 +66,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -88,7 +88,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -108,7 +108,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -128,7 +128,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -154,7 +154,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             auto options = constraint_row_options{};
             options.error = error / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -182,7 +182,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             auto options = constraint_row_options{};
             options.error = error / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
+            prepare_row(row, options, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
             warm_start(row);
         }
 
@@ -207,7 +207,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
             row.impulse = imp.values[row_idx++];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
+            prepare_row(row, {}, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
             warm_start(row);
         }
 

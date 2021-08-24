@@ -1,5 +1,6 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
+#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -10,80 +11,152 @@
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
-#include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
+#include "edyn/comp/roll_direction.hpp"
 #include "edyn/collision/contact_point.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/math/geom.hpp"
+#include "edyn/math/math.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
 
-struct row_start_index_contact_constraint {
-    size_t value;
-};
+namespace internal {
+    void solve_friction_row_pair(contact_friction_row_pair &friction_row_pair, constraint_row &normal_row) {
+        vector2 delta_impulse;
+        vector2 impulse;
+        auto &friction_rows = friction_row_pair.row;
+
+        auto dsA = vector3_zero;
+        auto dsB = vector3_zero;
+
+        if (normal_row.dsA != nullptr) {
+            dsA = normal_row.spin_axis[0] * *normal_row.dsA;
+        }
+
+        if (normal_row.dsB != nullptr) {
+            dsB = normal_row.spin_axis[1] * *normal_row.dsB;
+        }
+
+        for (auto i = 0; i < 2; ++i) {
+            auto &friction_row = friction_rows[i];
+            auto delta_relspd = get_relative_speed(friction_row.J,
+                                                   *normal_row.dvA, *normal_row.dwA + dsA,
+                                                   *normal_row.dvB, *normal_row.dwB + dsB);
+            delta_impulse[i] = (friction_row.rhs - delta_relspd) * friction_row.eff_mass;
+            impulse[i] = friction_row.impulse + delta_impulse[i];
+        }
+
+        auto impulse_len_sqr = length_sqr(impulse);
+        auto max_impulse_len = friction_row_pair.friction_coefficient * normal_row.impulse;
+
+        // Limit impulse by normal load.
+        if (impulse_len_sqr > square(max_impulse_len)) {
+            auto impulse_len = std::sqrt(impulse_len_sqr);
+
+            if (impulse_len > EDYN_EPSILON) {
+                impulse = impulse / impulse_len * max_impulse_len;
+            } else {
+                impulse = {0, 0};
+            }
+
+            for (auto i = 0; i < 2; ++i) {
+                delta_impulse[i] = impulse[i] - friction_rows[i].impulse;
+            }
+        }
+
+        // Apply delta impulse.
+        for (auto i = 0; i < 2; ++i) {
+            auto &friction_row = friction_rows[i];
+            friction_row.impulse = impulse[i];
+
+            *normal_row.dvA += normal_row.inv_mA * friction_row.J[0] * delta_impulse[i];
+            *normal_row.dvB += normal_row.inv_mB * friction_row.J[2] * delta_impulse[i];
+
+            auto deltaA = normal_row.inv_IA * friction_row.J[1] * delta_impulse[i];
+            auto deltaB = normal_row.inv_IB * friction_row.J[3] * delta_impulse[i];
+
+            // Split spin impulse as in `apply_angular_impulse`.
+            if (normal_row.dsA) {
+                auto spin = dot(normal_row.spin_axis[0], deltaA);
+                *normal_row.dsA += spin;
+                *normal_row.dwA += deltaA - normal_row.spin_axis[0] * spin;
+            } else {
+                *normal_row.dwA += deltaA;
+            }
+
+            if (normal_row.dsB) {
+                auto spin = dot(normal_row.spin_axis[1], deltaB);
+                *normal_row.dsB += spin;
+                *normal_row.dwB += deltaB - normal_row.spin_axis[1] * spin;
+            } else {
+                *normal_row.dwB += deltaB;
+            }
+        }
+    }
+}
 
 template<>
 void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
-    auto con_view = registry.view<contact_constraint, contact_point>();
+    auto con_view = registry.view<contact_constraint>();
+    auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
-    auto com_view = registry.view<center_of_mass>();
     auto spin_view = registry.view<spin>();
+    auto origin_view = registry.view<origin>();
+    auto roll_dir_view = registry.view<roll_direction>();
+    auto &settings = registry.ctx<edyn::settings>();
 
-    size_t start_idx = cache.rows.size();
-    registry.ctx_or_set<row_start_index_contact_constraint>().value = start_idx;
+    cache.rows.reserve(cache.rows.size() + con_view.size());
 
-    size_t num_rows_per_constraint = 2;
-    cache.rows.reserve(cache.rows.size() + con_view.size() * num_rows_per_constraint);
+    auto &ctx = registry.ctx<internal::contact_constraint_context>();
+    ctx.row_start_index = cache.rows.size();
+    ctx.row_count_start_index = cache.con_num_rows.size();
+    ctx.friction_rows.clear();
+    ctx.friction_rows.reserve(con_view.size());
+    ctx.roll_friction_rows.clear();
 
-    con_view.each([&] (entt::entity entity, contact_constraint &con, contact_point &cp) {
+    con_view.each([&] (entt::entity entity, contact_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto &imp = imp_view.get(entity);
+        auto &cp = cp_view.get(entity);
 
         EDYN_ASSERT(con.body[0] == cp.body[0]);
         EDYN_ASSERT(con.body[1] == cp.body[1]);
 
         auto spinvelA = vector3_zero;
         auto spinvelB = vector3_zero;
+        auto spin_axisA = vector3_zero;
+        auto spin_axisB = vector3_zero;
 
         if (spin_view.contains(con.body[0])) {
             auto &s = spin_view.get(con.body[0]);
-            spinvelA = quaternion_x(ornA) * scalar(s);
+            spin_axisA = quaternion_x(ornA);
+            spinvelA = spin_axisA * scalar(s);
         }
 
         if (spin_view.contains(con.body[1])) {
             auto &s = spin_view.get(con.body[1]);
-            spinvelB = quaternion_x(ornB) * scalar(s);
+            spin_axisB = quaternion_x(ornB);
+            spinvelB = spin_axisB * scalar(s);
         }
 
-        auto originA = static_cast<vector3>(posA);
-        auto originB = static_cast<vector3>(posB);
-
-        if (com_view.contains(con.body[0])) {
-            auto &com = com_view.get(con.body[0]);
-            originA = to_world_space(-com, posA, ornA);
-        }
-
-        if (com_view.contains(con.body[1])) {
-            auto &com = com_view.get(con.body[1]);
-            originB = to_world_space(-com, posB, ornB);
-        }
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get(con.body[1]) : static_cast<vector3>(posB);
 
         auto normal = cp.normal;
         auto pivotA = to_world_space(cp.pivotA, originA, ornA);
         auto pivotB = to_world_space(cp.pivotB, originB, ornB);
         auto rA = pivotA - posA;
         auto rB = pivotB - posB;
-        auto vA = linvelA + cross(angvelA + spinvelA, rA);
-        auto vB = linvelB + cross(angvelB + spinvelB, rB);
-        auto relvel = vA - vB;
-        auto normal_relvel = dot(relvel, normal);
 
-        // Create normal row.
+        // Create normal row, i.e. non-penetration constraint.
         auto &normal_row = cache.rows.emplace_back();
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
         normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
@@ -92,79 +165,236 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         normal_row.dvB = &dvB; normal_row.dwB = &dwB;
         normal_row.impulse = imp.values[0];
         normal_row.lower_limit = 0;
+        normal_row.use_spin[0] = true;
+        normal_row.use_spin[1] = true;
+        normal_row.spin_axis[0] = spin_axisA;
+        normal_row.spin_axis[1] = spin_axisB;
 
-        if (con.stiffness < large_scalar) {
-            auto spring_force = cp.distance * con.stiffness;
-            auto damper_force = normal_relvel * con.damping;
-            normal_row.upper_limit = std::abs(spring_force + damper_force) * dt;
-        } else {
+        auto normal_options = constraint_row_options{};
+
+        // Do not use the traditional restitution path if the restitution solver
+        // is being used.
+        if (settings.num_restitution_iterations == 0) {
+            normal_options.restitution = cp.restitution;
+        }
+
+        if (cp.distance < 0) {
+            if (con.stiffness < large_scalar) {
+                auto vA = linvelA + cross(angvelA + spinvelA, rA);
+                auto vB = linvelB + cross(angvelB + spinvelB, rB);
+                auto relvel = vA - vB;
+                auto normal_relvel = dot(relvel, normal);
+                auto spring_force = cp.distance * con.stiffness;
+                auto damper_force = normal_relvel * con.damping;
+                normal_row.upper_limit = std::abs(spring_force + damper_force) * dt;
+            } else {
+                normal_row.upper_limit = large_scalar;
+            }
+        } else if (con.stiffness >= large_scalar) {
+            // It is not penetrating thus apply an impulse that will prevent
+            // penetration after the following physics update.
+            normal_options.error = cp.distance / dt;
             normal_row.upper_limit = large_scalar;
         }
 
-        auto penetration = dot(pivotA - pivotB, normal);
-        auto pvel = penetration / dt;
-
-        auto normal_options = constraint_row_options{};
-        normal_options.restitution = cp.restitution;
-        normal_options.error = 0;
-
-        // If not penetrating and the velocity necessary to touch in `dt` seconds
-        // is smaller than the bounce velocity, it should apply an impulse that
-        // will prevent penetration after the following physics update.
-        if (penetration > 0 && pvel > -cp.restitution * normal_relvel) {
-            normal_options.error = std::max(pvel, scalar(0));
-        } else {
-            // If this is a resting contact and it is penetrating, apply impulse to push it out.
-            //if (cp.lifetime > 0) {
-                normal_options.error = std::min(pvel, scalar(0));
-            //}
-        }
-
-        prepare_row(normal_row, normal_options, linvelA, linvelB, angvelA, angvelB);
+        prepare_row(normal_row, normal_options, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
         warm_start(normal_row);
 
-        // Create friction row.
-        auto tangent_relvel = relvel - normal * normal_relvel;
-        auto tangent_relspd = length(tangent_relvel);
-        auto tangent = tangent_relspd > EDYN_EPSILON ?
-            tangent_relvel / tangent_relspd : vector3_x;
+        // Create special friction rows.
+        auto &friction_rows = ctx.friction_rows.emplace_back();
+        friction_rows.friction_coefficient = cp.friction;
 
-        auto &friction_row = cache.rows.emplace_back();
-        friction_row.J = {tangent, cross(rA, tangent), -tangent, -cross(rB, tangent)};
-        friction_row.inv_mA = inv_mA; friction_row.inv_IA = inv_IA;
-        friction_row.inv_mB = inv_mB; friction_row.inv_IB = inv_IB;
-        friction_row.dvA = &dvA; friction_row.dwA = &dwA; friction_row.dsA = registry.try_get<delta_spin>(con.body[0]);
-        friction_row.dvB = &dvB; friction_row.dwB = &dwB; friction_row.dsB = registry.try_get<delta_spin>(con.body[1]);
-        friction_row.impulse = imp.values[1];
-        // friction_row limits are calculated in `iterate_contact_constraints`
-        // using the normal impulse.
-        friction_row.lower_limit = friction_row.upper_limit = 0;
-        friction_row.use_spin[0] = true;
-        friction_row.use_spin[1] = true;
-        friction_row.spin_axis[0] = quaternion_x(ornA);
-        friction_row.spin_axis[1] = quaternion_x(ornB);
+        vector3 tangents[2];
+        plane_space(normal, tangents[0], tangents[1]);
 
-        prepare_row(friction_row, {}, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
-        warm_start(friction_row);
+        for (auto i = 0; i < 2; ++i) {
+            auto &friction_row = friction_rows.row[i];
+            friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
+            friction_row.impulse = imp.values[1 + i];
+            friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
+            friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
 
-        con.m_friction = cp.friction;
+            // Warm-starting.
+            dvA += inv_mA * friction_row.J[0] * friction_row.impulse;
+            dwA += inv_IA * friction_row.J[1] * friction_row.impulse;
+            dvB += inv_mB * friction_row.J[2] * friction_row.impulse;
+            dwB += inv_IB * friction_row.J[3] * friction_row.impulse;
+        }
 
-        cache.con_num_rows.push_back(num_rows_per_constraint);
+        if (cp.roll_friction > 0) {
+            auto &roll_rows = ctx.roll_friction_rows.emplace_back();
+            roll_rows.friction_coefficient = cp.roll_friction;
+
+            for (auto i = 0; i < 2; ++i) {
+                auto axis = tangents[i];
+
+                // If any of the bodies has a rolling direction, scale down the
+                // axis by the projection of the roll direction onto the axis,
+                // thus preventing impulses in the undesired directions.
+                for (auto j = 0; j < 2; ++j) {
+                    if (roll_dir_view.contains(cp.body[j])) {
+                        auto roll_dir = rotate(ornA, roll_dir_view.get(cp.body[j]));
+                        axis *= dot(roll_dir, axis);
+                    }
+                }
+
+                auto &roll_row = roll_rows.row[i];
+                roll_row.J = {vector3_zero, axis, vector3_zero, -axis};
+                roll_row.impulse = imp.values[4 + i];
+                auto J_invM_JT = dot(inv_IA * roll_row.J[1], roll_row.J[1]) +
+                                 dot(inv_IB * roll_row.J[3], roll_row.J[3]);
+
+                if (J_invM_JT > EDYN_EPSILON) {
+                    roll_row.eff_mass = scalar(1) / J_invM_JT;
+                } else {
+                    roll_row.eff_mass = 0;
+                }
+
+                roll_row.rhs = -get_relative_speed(roll_row.J, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
+
+                // Warm-starting.
+                dwA += inv_IA * roll_row.J[1] * roll_row.impulse;
+                dwB += inv_IB * roll_row.J[3] * roll_row.impulse;
+            }
+        }
+
+        auto num_rows = size_t{1};
+
+        if (cp.spin_friction > 0) {
+            auto &spin_row = cache.rows.emplace_back();
+            spin_row.J = {vector3_zero, normal, vector3_zero, -normal};
+            spin_row.inv_mA = inv_mA; spin_row.inv_IA = inv_IA;
+            spin_row.inv_mB = inv_mB; spin_row.inv_IB = inv_IB;
+            spin_row.dvA = &dvA; spin_row.dwA = &dwA;
+            spin_row.dvB = &dvB; spin_row.dwB = &dwB;
+            spin_row.impulse = imp.values[3];
+            spin_row.use_spin[0] = true;
+            spin_row.use_spin[1] = true;
+            spin_row.spin_axis[0] = spin_axisA;
+            spin_row.spin_axis[1] = spin_axisB;
+
+            prepare_row(spin_row, {}, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
+            warm_start(spin_row);
+            ++num_rows;
+        }
+
+        cache.con_num_rows.push_back(num_rows);
     });
 }
 
 template<>
 void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
+    auto &ctx = registry.ctx<internal::contact_constraint_context>();
+    auto row_idx = ctx.row_start_index;
+    auto con_idx = size_t(0);
+    auto roll_idx = size_t(0);
     auto con_view = registry.view<contact_constraint>();
-    auto row_idx = registry.ctx<row_start_index_contact_constraint>().value;
+    auto cp_view = registry.view<contact_point>();
 
-    con_view.each([&] (contact_constraint &con) {
-        const auto &normal_row = cache.rows[row_idx++];
-        auto &friction_row = cache.rows[row_idx++];
-        auto friction_impulse = std::abs(normal_row.impulse * con.m_friction);
-        friction_row.lower_limit = -friction_impulse;
-        friction_row.upper_limit = friction_impulse;
-    });
+    // Solve friction rows locally using a non-standard method where the impulse
+    // is limited by the length of a 2D vector to assure a friction circle.
+    // These are the same fundamental operations found in `edyn::solver` adapted
+    // to couple the two friction constraints together.
+    // It is interesting to note that all friction constraints will be solved
+    // before the non-penetration constraints, i.e. they're not interleaved.
+    // Solving the non-penetration constraints last helps minimize penetration
+    // errors because there won't be additional errors introduced by other
+    // constraints.
+    for (auto entity : con_view) {
+        auto &normal_row = cache.rows[row_idx];
+
+        auto &friction_row_pair = ctx.friction_rows[con_idx];
+        internal::solve_friction_row_pair(friction_row_pair, normal_row);
+
+        auto num_rows = cache.con_num_rows[ctx.row_count_start_index + con_idx];
+        auto &cp = cp_view.get(entity);
+
+        if (cp.roll_friction > 0) {
+            auto &roll_row_pair = ctx.roll_friction_rows[roll_idx];
+            internal::solve_friction_row_pair(roll_row_pair, normal_row);
+            ++roll_idx;
+        }
+
+        if (cp.spin_friction > 0) {
+            EDYN_ASSERT(num_rows > 1);
+            auto &spin_row = cache.rows[row_idx + 1];
+            auto max_impulse_len = cp.spin_friction * normal_row.impulse;
+            spin_row.lower_limit = -max_impulse_len;
+            spin_row.upper_limit = max_impulse_len;
+        }
+
+        row_idx += num_rows;
+        ++con_idx;
+    }
+}
+
+template<>
+bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt) {
+    // Solve position constraints by applying linear and angular corrections
+    // iteratively. Based on Box2D's solver:
+    // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
+    auto con_view = registry.view<contact_constraint>();
+    auto cp_view = registry.view<contact_point>();
+    auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
+    auto origin_view = registry.view<origin>();
+    auto min_dist = scalar(0);
+
+    for (auto entity : con_view) {
+        auto &cp = cp_view.get(entity);
+        auto [posA, ornA, inv_mA, inv_IA] =
+            body_view.get<position, orientation, mass_inv, inertia_world_inv>(cp.body[0]);
+        auto [posB, ornB, inv_mB, inv_IB] =
+            body_view.get<position, orientation, mass_inv, inertia_world_inv>(cp.body[1]);
+
+        auto originA = origin_view.contains(cp.body[0]) ? origin_view.get(cp.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(cp.body[1]) ? origin_view.get(cp.body[1]) : static_cast<vector3>(posB);
+
+        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+
+        switch (cp.normal_attachment) {
+        case contact_normal_attachment::normal_on_A:
+            cp.normal = rotate(ornA, cp.local_normal);
+            break;
+        case contact_normal_attachment::normal_on_B:
+            cp.normal = rotate(ornB, cp.local_normal);
+            break;
+        case contact_normal_attachment::none:
+            break;
+        }
+
+        auto normal = cp.normal;
+        cp.distance = dot(pivotA - pivotB, normal);
+        min_dist = std::min(cp.distance, min_dist);
+
+        auto rA = pivotA - posA;
+        auto rB = pivotB - posB;
+        auto J = std::array<vector3, 4>{normal, cross(rA, normal), -normal, -cross(rB, normal)};
+        auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
+        auto error = std::min(cp.distance, scalar(0));
+        auto correction = -error * contact_position_correction_rate * eff_mass;
+
+        posA += inv_mA * J[0] * correction;
+        posB += inv_mB * J[2] * correction;
+
+        // Use quaternion derivative to apply angular correction which should
+        // be good enough for small angles.
+        auto angular_correctionA = inv_IA * J[1] * correction;
+        ornA += quaternion_derivative(ornA, angular_correctionA);
+        ornA = normalize(ornA);
+
+        auto angular_correctionB = inv_IB * J[3] * correction;
+        ornB += quaternion_derivative(ornB, angular_correctionB);
+        ornB = normalize(ornB);
+
+        auto basisA = to_matrix3x3(ornA);
+        inv_IA = basisA * inv_IA * transpose(basisA);
+
+        auto basisB = to_matrix3x3(ornB);
+        inv_IB = basisB * inv_IB * transpose(basisB);
+    }
+
+    return min_dist > contact_position_solver_min_error;
 }
 
 }

@@ -8,20 +8,23 @@
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/sys/update_inertias.hpp"
+#include "edyn/sys/update_origins.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/dynamics/restitution_solver.hpp"
+#include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
 
-static
 scalar solve(constraint_row &row) {
     auto dsA = vector3_zero;
     auto dsB = vector3_zero;
@@ -111,6 +114,50 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
     }
 }
 
+// Specialization to assign the impulses of friction constraints which are not
+// stored in traditional constraint rows.
+template<>
+void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
+    auto con_view = registry.view<contact_constraint>();
+    auto cp_view = registry.view<contact_point>();
+    auto imp_view = registry.view<constraint_impulse>();
+    auto &ctx = registry.ctx<internal::contact_constraint_context>();
+    auto local_idx = size_t(0);
+    auto roll_idx = size_t(0);
+
+    for (auto entity : con_view) {
+        auto &imp = imp_view.get(entity);
+        auto num_rows = cache.con_num_rows[con_idx];
+        // Normal impulse.
+        imp.values[0] = cache.rows[row_idx].impulse;
+
+        // Friction impulse.
+        auto &friction_rows = ctx.friction_rows[local_idx];
+
+        for (auto i = 0; i < 2; ++i) {
+            imp.values[1 + i] = friction_rows.row[i].impulse;
+        }
+
+        // Rolling friction impulse.
+        if (cp_view.get<contact_point>(entity).roll_friction > 0) {
+            auto &roll_rows = ctx.roll_friction_rows[roll_idx];
+            for (auto i = 0; i < 2; ++i) {
+                imp.values[4 + i] = roll_rows.row[i].impulse;
+            }
+            ++roll_idx;
+        }
+
+        // Spinning friction impulse.
+        if (num_rows > 1) {
+            imp.values[3] = cache.rows[row_idx + 1].impulse;
+        }
+
+        row_idx += num_rows;
+        ++con_idx;
+        ++local_idx;
+    }
+}
+
 void update_impulses(entt::registry &registry, row_cache &cache) {
     // Assign impulses from constraint rows back into the `constraint_impulse`
     // components. The rows are inserted into the cache for each constraint type
@@ -132,14 +179,21 @@ solver::solver(entt::registry &registry)
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
     registry.on_construct<spin>().connect<&entt::registry::emplace<delta_spin>>();
+
+    registry.set<internal::contact_constraint_context>();
 }
 
 solver::~solver() = default;
 
 void solver::update(scalar dt) {
     auto &registry = *m_registry;
+    auto &settings = registry.ctx<edyn::settings>();
 
     m_row_cache.clear();
+
+    // Apply restitution impulses before gravity to prevent resting objects to
+    // start bouncing due to the initial gravity acceleration.
+    solve_restitution(registry, dt);
 
     apply_gravity(registry, dt);
 
@@ -147,7 +201,7 @@ void solver::update(scalar dt) {
     prepare_constraints(registry, m_row_cache, dt);
 
     // Solve constraints.
-    for (uint32_t i = 0; i < iterations; ++i) {
+    for (unsigned i = 0; i < settings.num_solver_velocity_iterations; ++i) {
         // Prepare constraints for iteration.
         iterate_constraints(registry, m_row_cache, dt);
 
@@ -187,6 +241,16 @@ void solver::update(scalar dt) {
     integrate_spin(registry, dt);
 
     update_tire_state(registry, dt);
+
+    // Now that rigid bodies have moved, perform positional correction.
+    for (unsigned i = 0; i < settings.num_solver_position_iterations; ++i) {
+        if (solve_position_constraints(registry, dt)) {
+            break;
+        }
+    }
+
+
+    update_origins(registry);
 
     // Update rotated vertices of convex meshes after rotations change. It is
     // important to do this before `update_aabbs` because the rotated meshes

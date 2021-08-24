@@ -54,7 +54,7 @@ void convex_mesh::calculate_normals() {
         auto &v0 = vertices[i0];
         auto &v1 = vertices[i1];
 
-        // Find a second edge that's not colinear.
+        // Find a second edge that's not collinear.
         for (size_t j = 1; j < count; ++j) {
             auto i2 = indices[first + j];
             auto i3 = indices[first + (j + 1) % count];
@@ -113,7 +113,7 @@ void convex_mesh::validate() const {
         auto i0 = indices[first];
         auto &v0 = vertices[i0];
 
-        // Find a second edge that's not colinear.
+        // Find a second edge that's not collinear.
         for (size_t j = 1; j < count; ++j) {
             auto ij = indices[first + j];
             auto &vj = vertices[ij];

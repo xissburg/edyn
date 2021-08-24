@@ -3,6 +3,7 @@
 
 #include "edyn/math/scalar.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/dynamics/material_mixing.hpp"
 
 namespace edyn::msg {
 
@@ -10,16 +11,12 @@ struct set_paused {
     bool paused;
 };
 
-struct set_fixed_dt {
-    scalar dt;
-};
-
-struct set_solver_iterations {
-    unsigned iterations;
-};
-
 struct set_settings {
     edyn::settings settings;
+};
+
+struct set_material_table {
+    edyn::material_mix_table table;
 };
 
 struct step_simulation {};

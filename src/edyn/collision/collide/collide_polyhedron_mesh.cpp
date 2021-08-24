@@ -157,25 +157,32 @@ static void collide_polyhedron_triangle(
         plane_vertices_tri[i] = vertex_plane;
     }
 
+    auto normal_attachment = contact_normal_attachment::none;
+
     // If the closest triangle feature is its face, check if the vertices of the
     // convex hull of the closest vertices of the polyhedron lie within the
     // triangle.
     if (tri_feature == triangle_feature::face) {
+        normal_attachment = contact_normal_attachment::normal_on_B;
+
         for (auto idxA : polygon.hull) {
             auto &pointA = polygon.vertices[idxA];
 
             if (point_in_triangle(tri_vertices, sep_axis, pointA)) {
                 auto pivotA = to_object_space(pointA, vector3_zero, orn_poly);
                 auto pivotB = project_plane(pointA, contact_origin_tri, sep_axis) + pos_poly;
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
             }
         }
+    } else if (polygon.hull.size() > 2) {
+        normal_attachment = contact_normal_attachment::normal_on_A;
     }
 
     // If the boundary points of the polyhedron from a polygon (i.e. more than
     // 2 points) add contact points for the vertices of closest triangle feature
     // that lie inside of it.
     if (polygon.hull.size() > 2) {
+
         for (size_t i = 0; i < hull_tri_size; ++i) {
             auto idxB = hull_tri[i];
             auto &pointB = tri_vertices[idxB];
@@ -184,7 +191,7 @@ static void collide_polyhedron_triangle(
                 auto pivotB = tri_vertices_original[idxB];
                 auto pivotA_world = project_plane(pointB, polygon.origin, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, vector3_zero, orn_poly);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
             }
         }
     }
@@ -217,7 +224,7 @@ static void collide_polyhedron_triangle(
                     auto pivotA_world = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
                     auto pivotA = to_object_space(pivotA_world, vector3_zero, orn_poly);
                     auto pivotB = lerp(tri_vertices_original[idx0B], tri_vertices_original[idx1B], t[k]);
-                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance});
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
                 }
             }
         }

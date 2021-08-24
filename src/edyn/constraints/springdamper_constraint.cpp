@@ -111,7 +111,7 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[0];
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -142,7 +142,7 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[1];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -166,7 +166,7 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[2];
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 

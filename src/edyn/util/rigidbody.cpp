@@ -1,5 +1,6 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
@@ -108,6 +109,19 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
             registry.emplace<shape_index>(entity, get_shape_index<ShapeType>());
             auto aabb = shape_aabb(shape, def.position, def.orientation);
             registry.emplace<AABB>(entity, aabb);
+
+            // Assign tag for rolling shapes.
+            if (def.kind == rigidbody_kind::rb_dynamic) {
+                if constexpr(has_type<ShapeType, rolling_shapes_tuple_t>::value) {
+                    registry.emplace<rolling_tag>(entity);
+
+                    auto roll_dir = shape_rolling_direction<ShapeType>();
+
+                    if (roll_dir != vector3_zero) {
+                        registry.emplace<roll_direction>(entity, roll_dir);
+                    }
+                }
+            }
         }, *def.shape);
 
         auto &filter = registry.emplace<collision_filter>(entity);
@@ -138,7 +152,16 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // of the present position and orientation in `update_presentation`.
         // TODO: synchronized merges would eliminate the need to share these
         // components continuously.
-        registry.emplace<continuous>(entity).insert<position, orientation, linvel, angvel>();
+        auto &cont = registry.emplace<continuous>(entity);
+        cont.insert<position, orientation, linvel, angvel>();
+
+        if (def.center_of_mass) {
+            cont.insert<origin>();
+        }
+    }
+
+    if (def.sleeping_disabled) {
+        registry.emplace<sleeping_disabled_tag>(entity);
     }
 
     if (def.spin_enabled && def.kind == rigidbody_kind::rb_dynamic) {
@@ -241,11 +264,14 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
     auto manifold_view = registry.view<contact_manifold>();
     auto cp_view = registry.view<contact_point>();
 
-    material_view.get(entity).friction = friction;
-    refresh<material>(registry, entity);
+    auto &material = material_view.get(entity);
+    material.friction = friction;
+    refresh<edyn::material>(registry, entity);
 
+    // Update friction in contact manifolds.
     auto &graph = registry.ctx<entity_graph>();
     auto &node = registry.get<graph_node>(entity);
+    auto &material_table = registry.ctx<material_mix_table>();
 
     graph.visit_edges(node.node_index, [&] (auto edge_entity) {
         if (!manifold_view.contains(edge_entity)) {
@@ -256,11 +282,19 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
         auto other_entity = manifold.body[0] == entity ? manifold.body[1] : manifold.body[0];
         auto &other_material = material_view.get(other_entity);
+
+        // Do not update friction if these materials are combined via the
+        // material mixing table.
+        if (material_table.contains({material.id, other_material.id})) {
+            return;
+        }
+
+        auto combined_friction = material_mix_friction(friction, other_material.friction);
         auto num_points = manifold.num_points();
 
         for (size_t i = 0; i < num_points; ++i) {
             auto &cp = cp_view.get(manifold.point[i]);
-            cp.friction = friction * other_material.friction;
+            cp.friction = combined_friction;
             refresh<contact_point>(registry, manifold.point[i]);
         }
     });
@@ -295,14 +329,27 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
     if (com != vector3_zero) {
         if (has_com) {
             registry.replace<center_of_mass>(entity, com);
-            dirty.updated<center_of_mass>();
+            registry.replace<edyn::origin>(entity, origin);
+            dirty.updated<center_of_mass, edyn::origin>();
         } else {
             registry.emplace<center_of_mass>(entity, com);
-            dirty.created<center_of_mass>();
+            registry.emplace<edyn::origin>(entity, origin);
+            dirty.created<center_of_mass, edyn::origin>();
+
+            if (registry.has<dynamic_tag>(entity)) {
+                registry.get<continuous>(entity).insert<edyn::origin>();
+                dirty.updated<continuous>();
+            }
         }
     } else if (has_com) {
         registry.remove<center_of_mass>(entity);
-        dirty.destroyed<center_of_mass>();
+        registry.remove<edyn::origin>(entity);
+        dirty.destroyed<center_of_mass, edyn::origin>();
+
+        if (registry.has<dynamic_tag>(entity)) {
+            registry.get<continuous>(entity).remove<edyn::origin>();
+            dirty.updated<continuous>();
+        }
     }
 }
 

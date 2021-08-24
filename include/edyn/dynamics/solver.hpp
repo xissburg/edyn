@@ -8,14 +8,14 @@
 
 namespace edyn {
 
+scalar solve(constraint_row &row);
+
 class solver {
 public:
     solver(entt::registry &);
     ~solver();
 
     void update(scalar dt);
-
-    unsigned iterations {10};
 
 private:
     entt::registry *m_registry;

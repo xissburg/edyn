@@ -168,7 +168,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[con_row_idx++];
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -193,7 +193,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = imp.values[con_row_idx++];
 
-            prepare_row(row, {}, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -595,7 +595,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto options = constraint_row_options{};
             options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA + spinvelA, angvelB + spinvelB);
+            prepare_row(row, options, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
             warm_start(row);
         }
 
@@ -618,7 +618,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto options = constraint_row_options{};
             options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -641,7 +641,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto options = constraint_row_options{};
             options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 

@@ -67,7 +67,9 @@ class island_worker final {
     void update();
 
 public:
-    island_worker(entt::entity island_entity, const settings &, message_queue_in_out message_queue);
+    island_worker(entt::entity island_entity, const settings &settings,
+                  const material_mix_table &material_table,
+                  message_queue_in_out message_queue);
 
     ~island_worker();
 
@@ -81,6 +83,7 @@ public:
 
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
     void on_destroy_contact_point(entt::registry &, entt::entity);
+    void on_construct_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
     void on_construct_polyhedron_shape(entt::registry &, entt::entity);
@@ -89,9 +92,8 @@ public:
 
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);
-    void on_set_fixed_dt(const msg::set_fixed_dt &msg);
-    void on_set_solver_iterations(const msg::set_solver_iterations &msg);
     void on_set_settings(const msg::set_settings &msg);
+    void on_set_material_table(const msg::set_material_table &msg);
     void on_wake_up_island(const msg::wake_up_island &);
     void on_set_com(const msg::set_com &);
 
@@ -121,6 +123,7 @@ private:
 
     std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_importing_delta;
+    bool m_destroying_node;
     bool m_topology_changed;
     bool m_pending_split_calculation;
     double m_calculate_split_delay;

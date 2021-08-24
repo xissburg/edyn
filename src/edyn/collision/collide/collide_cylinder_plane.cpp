@@ -22,6 +22,7 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
     size_t feature_indexA;
     shA.support_feature(posA, ornA, -normal, featureA, feature_indexA,
                         support_feature_tolerance);
+    auto normal_attachment = contact_normal_attachment::normal_on_B;
 
     switch (featureA) {
     case cylinder_feature::face:{
@@ -35,7 +36,7 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
             auto pivotA_world = to_world_space(pivotA, posA, ornA);
             auto pivotB = project_plane(pivotA_world, center, normal);
             auto local_distance = dot(pivotA_world - pivotB, normal);
-            result.maybe_add_point({pivotA, pivotB, normal, local_distance});
+            result.maybe_add_point({pivotA, pivotB, normal, local_distance, normal_attachment});
         }
         break;
     }
@@ -64,7 +65,7 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
             auto pivotB = project_plane(pivotA_world, center, normal);
             auto local_distance = dot(pivotA_world - pivotB, normal);
-            result.maybe_add_point({pivotA, pivotB, normal, local_distance});
+            result.maybe_add_point({pivotA, pivotB, normal, local_distance, normal_attachment});
         }
         break;
     }

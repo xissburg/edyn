@@ -94,7 +94,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             auto options = constraint_row_options{};
             options.error = 0.5 * (ul2 - con.upper_length * con.upper_length) / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -114,7 +114,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             auto options = constraint_row_options{};
             options.error = 0.5 * (ll2 - con.lower_length * con.lower_length) / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -138,7 +138,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             auto options = constraint_row_options{};
             options.error = dot(ud, chassis_z) / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -162,7 +162,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             auto options = constraint_row_options{};
             options.error = dot(ld, chassis_z) / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -194,7 +194,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             auto options = constraint_row_options{};
             options.error = 0.2 * (dot(md, chassis_x) + 0.2) / dt; // be gentle
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
@@ -217,7 +217,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             auto options = constraint_row_options{};
             options.error = dot(chassis_z, wheel_x) / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 

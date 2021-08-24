@@ -22,6 +22,34 @@ struct quaternion {
 
 inline constexpr quaternion quaternion_identity {0, 0, 0, 1};
 
+// Add two quaternions.
+inline quaternion operator+(const quaternion& q0, const quaternion &q1) {
+    return {q0.x + q1.x, q0.y + q1.y, q0.z + q1.z, q0.w + q1.w};
+}
+
+// Add a quaternion into another quaternion.
+inline quaternion& operator+=(quaternion &q0, const quaternion &q1) {
+    q0.x += q1.x;
+    q0.y += q1.y;
+    q0.z += q1.z;
+    q0.w += q1.w;
+    return q0;
+}
+
+// Subtract two quaternions.
+inline quaternion operator-(const quaternion &q0, const quaternion &q1) {
+    return {q0.x - q1.x, q0.y - q1.y, q0.z - q1.z, q0.w - q1.w};
+}
+
+// Subtract a quaternion from another quaternion.
+inline quaternion& operator-=(quaternion &q0, const quaternion &q1) {
+    q0.x -= q1.x;
+    q0.y -= q1.y;
+    q0.z -= q1.z;
+    q0.w -= q1.w;
+    return q0;
+}
+
 // Multiply quaternion by scalar.
 inline quaternion operator*(const quaternion& q, scalar s) {
     return {q.x * s, q.y * s, q.z * s, q.w * s};
@@ -194,6 +222,12 @@ quaternion shortest_arc(const vector3 &v0, const vector3 &v1);
 
 // Returns the angle between two quaternions along the shortest path.
 scalar angle_between(const quaternion &q0, const quaternion &q1);
+
+// Derivative of a quaternion along an axis-angle.
+// Reference: https://fgiesen.wordpress.com/2012/08/24/quaternion-differentiation/
+inline quaternion quaternion_derivative(const quaternion &q, const vector3 &w) {
+    return quaternion{w.x, w.y, w.z, 0} * q * scalar(0.5);
+}
 
 inline
 vector3 to_object_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
