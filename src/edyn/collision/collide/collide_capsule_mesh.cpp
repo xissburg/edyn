@@ -50,7 +50,7 @@ static void collide_capsule_triangle(
             dir_len_sqr = length_sqr(dir);
 
             if (!(dir_len_sqr > EDYN_EPSILON)) {
-                // Segments are parallel and colinear.
+                // Segments are parallel and collinear.
                 continue;
             }
         }

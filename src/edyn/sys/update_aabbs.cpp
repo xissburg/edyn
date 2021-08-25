@@ -1,5 +1,5 @@
 #include "edyn/sys/update_aabbs.hpp"
-#include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -27,36 +27,32 @@ AABB updated_aabb(const polyhedron_shape &polyhedron,
     return aabb;
 }
 
-template<typename ShapeType, typename TransformView, typename CoMView>
-void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view, CoMView &com_view) {
-    auto [pos, orn, aabb] = tr_view.template get<position, orientation, AABB>(entity);
-    auto origin = static_cast<vector3>(pos);
-
-    if (com_view.contains(entity)) {
-        auto &com = com_view.get(entity);
-        origin = to_world_space(-com, pos, orn);
-    }
-
+template<typename ShapeType, typename TransformView, typename OriginView>
+void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view, OriginView &origin_view) {
+    auto [orn, aabb] = tr_view.template get<orientation, AABB>(entity);
+    auto origin = origin_view.contains(entity) ?
+        static_cast<vector3>(origin_view.get(entity)) :
+        static_cast<vector3>(tr_view.template get<position>(entity));
     aabb = updated_aabb(shape, origin, orn);
 }
 
 void update_aabb(entt::registry &registry, entt::entity entity) {
     auto tr_view = registry.view<position, orientation, AABB>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
 
     visit_shape(registry, entity, [&] (auto &&shape) {
-        update_aabb(entity, shape, tr_view, com_view);
+        update_aabb(entity, shape, tr_view, origin_view);
     });
 }
 
 template<typename ShapeType>
 void update_aabbs(entt::registry &registry) {
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
     auto tr_view = registry.view<position, orientation, ShapeType, AABB>();
 
     for (auto entity : tr_view) {
         auto &shape = tr_view.template get<ShapeType>(entity);
-        update_aabb(entity, shape, tr_view, com_view);
+        update_aabb(entity, shape, tr_view, origin_view);
     }
 }
 

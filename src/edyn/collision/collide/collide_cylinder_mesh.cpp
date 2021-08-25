@@ -123,7 +123,7 @@ void collide_cylinder_triangle(
                                  tri_feature, tri_feature_index,
                                  proj_tri, support_feature_tolerance);
 
-    auto proj_cyl= -cylinder.support_projection(posA, ornA, -sep_axis);
+    auto proj_cyl = -cylinder.support_projection(posA, ornA, -sep_axis);
 
     distance = proj_cyl - proj_tri;
 

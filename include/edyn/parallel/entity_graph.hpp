@@ -68,6 +68,8 @@ public:
     bool has_adjacency(index_type node_index0, index_type node_index1) const;
     entity_pair edge_node_entities(index_type edge_index) const;
 
+    bool is_connecting_node(index_type node_index) const;
+
     /**
      * @brief Calculate whether this graph contains a single connected component.
      * @return Whether this graph is a single connected component.
@@ -135,6 +137,16 @@ public:
      * @return The connected components.
      */
     connected_components_t connected_components();
+
+    /**
+     * @brief Traverses nodes starting at the given node, ignoring
+     * non-connecting nodes.
+     * @tparam Func Function type with signature `void(index_type)`.
+     * @param start_nodex_index Index of node where traversal starts.
+     * @param func Function called for each node.
+     */
+    template<typename Func>
+    void traverse_connecting_nodes(index_type start_node_index, Func func);
 
     void optimize_if_needed();
 
@@ -307,6 +319,47 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
 
         non_connecting_indices.clear();
         to_visit.clear();
+    }
+}
+
+template<typename Func>
+void entity_graph::traverse_connecting_nodes(index_type start_node_index, Func func) {
+    m_visited.assign(m_nodes.size(), false);
+
+    std::vector<index_type> to_visit;
+    to_visit.push_back(start_node_index);
+
+    while (!to_visit.empty()) {
+        auto node_index = to_visit.back();
+        to_visit.pop_back();
+
+        m_visited[node_index] = true;
+        const auto &node = m_nodes[node_index];
+        EDYN_ASSERT(node.entity != entt::null);
+
+        // Ignore non-connecting nodes.
+        if (node.non_connecting) {
+            continue;
+        }
+
+        func(node_index);
+
+        // Add neighbors to be visited.
+        auto adj_index = node.adjacency_index;
+
+        while (adj_index != null_index) {
+            auto &adj = m_adjacencies[adj_index];
+            auto neighbor_index = adj.node_index;
+
+            if (!m_visited[neighbor_index]) {
+                // Insert to beginning for a breadth-first traversal.
+                to_visit.insert(to_visit.begin(), neighbor_index);
+                // Set as visited to avoid adding it to `to_visit` more than once.
+                m_visited[neighbor_index] = true;
+            }
+
+            adj_index = adj.next;
+        }
     }
 }
 

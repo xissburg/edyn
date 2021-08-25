@@ -10,7 +10,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
@@ -24,7 +24,7 @@ void prepare_constraints<point_constraint>(entt::registry &registry, row_cache &
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<point_constraint, constraint_impulse>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
 
     con_view.each([&] (point_constraint &con, constraint_impulse& imp) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
@@ -32,18 +32,8 @@ void prepare_constraints<point_constraint>(entt::registry &registry, row_cache &
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
-        auto originA = static_cast<vector3>(posA);
-        auto originB = static_cast<vector3>(posB);
-
-        if (com_view.contains(con.body[0])) {
-            auto &com = com_view.get(con.body[0]);
-            originA = to_world_space(-com, posA, ornA);
-        }
-
-        if (com_view.contains(con.body[1])) {
-            auto &com = com_view.get(con.body[1]);
-            originB = to_world_space(-com, posB, ornB);
-        }
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get(con.body[1]) : static_cast<vector3>(posB);
 
         auto pivotA = to_world_space(con.pivot[0], originA, ornA);
         auto pivotB = to_world_space(con.pivot[1], originB, ornB);
@@ -69,7 +59,7 @@ void prepare_constraints<point_constraint>(entt::registry &registry, row_cache &
             auto options = constraint_row_options{};
             options.error = (pivotA[i] - pivotB[i]) / dt;
 
-            prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 

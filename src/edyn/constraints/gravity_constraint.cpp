@@ -54,7 +54,7 @@ void prepare_constraints<gravity_constraint>(entt::registry &registry, row_cache
         auto options = constraint_row_options{};
         options.error = large_scalar;
 
-        prepare_row(row, options, linvelA, linvelB, angvelA, angvelB);
+        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
         warm_start(row);
 
         cache.con_num_rows.push_back(1);

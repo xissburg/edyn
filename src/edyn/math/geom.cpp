@@ -1,7 +1,8 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/vector3.hpp"
+#include "edyn/util/triangle_util.hpp"
 #include <algorithm>
 
 namespace edyn {
@@ -721,6 +722,126 @@ scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, co
 	vector3 tmp2 = cross(a[2], b[2]);
 
 	return std::max(std::max(length_sqr(tmp0), length_sqr(tmp1)), length_sqr(tmp2));
+}
+
+insertion_point_result insertion_point_index(const vector3 *points,
+                                             const scalar *depths,
+                                             size_t count,
+                                             size_t &num_points,
+                                             const vector3 &new_point,
+                                             scalar new_point_depth) {
+    EDYN_ASSERT(num_points <= count);
+    const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
+
+    if (num_points < 2) {
+        return {point_insertion_type::append, num_points++};
+    }
+
+    if (num_points == 2) {
+        // Check if collinear.
+        if (length_sqr(cross(new_point - points[0], new_point - points[1])) > EDYN_EPSILON) {
+            return {point_insertion_type::append, num_points++};
+        } else {
+            // Select a point to replace. Maximize segment length.
+            auto dist_sqr0 = distance_sqr(new_point, points[0]);
+            auto dist_sqr1 = distance_sqr(new_point, points[1]);
+            auto curr_dist_sqr = distance_sqr(points[0], points[1]);
+
+            if (dist_sqr0 > curr_dist_sqr && dist_sqr0 > dist_sqr1) {
+                auto type = dist_sqr1 < max_dist_similar_sqr ?
+                    point_insertion_type::similar : point_insertion_type::replace;
+                return {type, 1};
+            } else if (dist_sqr1 > curr_dist_sqr && dist_sqr1 > dist_sqr0) {
+                auto type = dist_sqr0 < max_dist_similar_sqr ?
+                    point_insertion_type::similar : point_insertion_type::replace;
+                return {type, 0};
+            } else {
+                // Ignore new point because the current contact set is better as it is.
+                return {point_insertion_type::none, count};
+            }
+        }
+    }
+
+    if (num_points == 3) {
+        auto vertices = std::array<vector3, 3>{points[0], points[1], points[2]};
+        auto normal = cross(points[0] - points[1], points[1] - points[2]);
+
+        if (try_normalize(normal)) {
+            if (point_in_triangle(vertices, normal, new_point)) {
+                // Ignore new point because it's inside the existing contact region.
+                return {point_insertion_type::none, count};
+            } else {
+                return {point_insertion_type::append, num_points++};
+            }
+        } else {
+            // Points are collinear. Replace point in the middle.
+            auto d0 = dot(points[1] - points[0], points[2] - points[0]);
+
+            if (d0 > 0 && d0 < 1) {
+                // Point 1 is between 0 and 2.
+                return {point_insertion_type::replace, 1};
+            }
+
+            auto d1 = dot(points[0] - points[1], points[2] - points[1]);
+
+            if (d1 > 0 && d1 < 1) {
+                // Point 0 is between 1 and 2.
+                return {point_insertion_type::replace, 0};
+            }
+
+            auto d2 = dot(points[2] - points[0], points[1] - points[0]);
+
+            if (d2 > 0 && d2 < 1) {
+                // Point 2 is between 0 and 1.
+                return {point_insertion_type::replace, 2};
+            }
+
+            // Points coincide. Find them and replace one.
+            std::array<scalar, 3> dist_sqr;
+            dist_sqr[0] = distance_sqr(points[0], points[1]);
+            dist_sqr[1] = distance_sqr(points[1], points[2]);
+            dist_sqr[2] = distance_sqr(points[2], points[0]);
+
+            size_t min_dist_idx = SIZE_MAX;
+            auto min_dist_sqr = EDYN_SCALAR_MAX;
+
+            for (size_t i = 0; i < dist_sqr.size(); ++i) {
+                if (dist_sqr[i] < min_dist_sqr) {
+                    min_dist_sqr = dist_sqr[i];
+                    min_dist_idx = i;
+                }
+            }
+
+            return {point_insertion_type::replace, min_dist_idx};
+        }
+    }
+
+    // The approximate area when the i-th point is removed.
+    auto areas = make_array<4>(scalar(0));
+    areas[0] = area_4_points(new_point, points[1], points[2], points[3]);
+    areas[1] = area_4_points(new_point, points[0], points[2], points[3]);
+    areas[2] = area_4_points(new_point, points[0], points[1], points[3]);
+    areas[3] = area_4_points(new_point, points[0], points[1], points[2]);
+
+    auto current_area = area_4_points(points[0], points[1], points[2], points[3]);
+    auto max_area = current_area;
+    auto max_area_idx = SIZE_MAX;
+
+    for (size_t i = 0; i < areas.size(); ++i) {
+        if (areas[i] > max_area) {
+            max_area = areas[i];
+            max_area_idx = i;
+        }
+    }
+
+    if (max_area_idx < max_contacts) {
+        auto type = distance_sqr(points[max_area_idx], new_point) < max_dist_similar_sqr ?
+                    point_insertion_type::similar : point_insertion_type::replace;
+        return {type, max_area_idx};
+    }
+
+    // Ignore new point because the current contact set is better as it is.
+    return {point_insertion_type::none, count};
 }
 
 vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p) {

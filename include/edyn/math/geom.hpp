@@ -3,8 +3,8 @@
 
 #include <vector>
 #include <cstdint>
+#include "edyn/config/config.h"
 #include "edyn/config/constants.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/matrix3x3.hpp"
@@ -228,67 +228,20 @@ struct insertion_point_result {
     size_t index;
 };
 
+insertion_point_result insertion_point_index(const vector3 *points,
+                                             const scalar *depths,
+                                             size_t count,
+                                             size_t &num_points,
+                                             const vector3 &new_point,
+                                             scalar new_point_depth);
+
 template<size_t N> inline
 insertion_point_result insertion_point_index(const std::array<vector3, N> &points,
                                              const std::array<scalar, N> &depths,
                                              size_t &num_points,
                                              const vector3 &new_point,
                                              scalar new_point_depth) {
-    EDYN_ASSERT(num_points <= N);
-    const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
-
-    // Return the index after last to signal the insertion of a new point.
-    if (num_points < N) {
-        return {point_insertion_type::append, num_points++};
-    }
-
-    // Find deepest point and don't replace it.
-    auto deepest_dist = new_point_depth;
-    auto deepest_dist_idx = N;
-
-    for (size_t i = 0; i < N; ++i) {
-        if (depths[i] < deepest_dist) {
-            deepest_dist = depths[i];
-            deepest_dist_idx = i;
-        }
-    }
-
-    // The approximate area when the i-th point is removed.
-    auto areas = make_array<N>(scalar(0));
-
-    // Do not calculate it for the deepest point.
-    if (deepest_dist_idx != 0) {
-        areas[0] = area_4_points(new_point, points[1], points[2], points[3]);
-    }
-    if (deepest_dist_idx != 1) {
-        areas[1] = area_4_points(new_point, points[0], points[2], points[3]);
-    }
-    if (deepest_dist_idx != 2) {
-        areas[2] = area_4_points(new_point, points[0], points[1], points[3]);
-    }
-    if (deepest_dist_idx != 3) {
-        areas[3] = area_4_points(new_point, points[0], points[1], points[2]);
-    }
-
-    auto current_area = area_4_points(points[0], points[1], points[2], points[3]);
-    auto max_area = current_area;
-    auto max_area_idx = SIZE_MAX;
-
-    for (size_t i = 0; i < areas.size(); ++i) {
-        if (areas[i] > max_area) {
-            max_area = areas[i];
-            max_area_idx = i;
-        }
-    }
-
-    if (max_area_idx < max_contacts) {
-        auto type = distance_sqr(points[max_area_idx], new_point) < max_dist_similar_sqr ?
-                    point_insertion_type::similar : point_insertion_type::replace;
-        return {type, max_area_idx};
-    }
-
-    // Ignore new point because the current contact set is better as it is.
-    return {point_insertion_type::none, N};
+    return insertion_point_index(points.data(), depths.data(), N, num_points, new_point, new_point_depth);
 }
 
 /**

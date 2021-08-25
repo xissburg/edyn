@@ -11,6 +11,12 @@ inline constexpr size_t max_contacts = 4;
 inline constexpr size_t max_constrained_entities = 2;
 
 /**
+ * Collisions will start once the signed distance along the contact normal
+ * between the closest points is below this value.
+ */
+inline constexpr auto collision_threshold = scalar(0.01);
+
+/**
  * If the normal or tangential separation of a contact point goes above this
  * value, it will be destroyed.
  */

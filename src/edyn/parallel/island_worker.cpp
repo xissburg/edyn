@@ -50,7 +50,9 @@ void island_worker_func(job::data_type &data) {
     }
 }
 
-island_worker::island_worker(entt::entity island_entity, const settings &settings, message_queue_in_out message_queue)
+island_worker::island_worker(entt::entity island_entity, const settings &settings,
+                             const material_mix_table &material_table,
+                             message_queue_in_out message_queue)
     : m_message_queue(message_queue)
     , m_splitting(false)
     , m_state(state::init)
@@ -67,14 +69,12 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
 {
     m_registry.set<entity_graph>();
     m_registry.set<edyn::settings>(settings);
+    m_registry.set<material_mix_table>(material_table);
 
     // Avoid multi-threading issues in the `should_collide` function by
     // pre-allocating the pools required in there.
     m_registry.prepare<collision_filter>();
     m_registry.prepare<collision_exclusion>();
-
-    m_solver.velocity_iterations = settings.num_solver_velocity_iterations;
-    m_solver.position_iterations = settings.num_solver_position_iterations;
 
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);
@@ -100,10 +100,10 @@ void island_worker::init() {
     m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
-    m_message_queue.sink<msg::set_fixed_dt>().connect<&island_worker::on_set_fixed_dt>(*this);
-    m_message_queue.sink<msg::set_solver_iterations>().connect<&island_worker::on_set_solver_iterations>(*this);
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
+    m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
+    m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
 
     // Process messages enqueued before the worker was started. This includes
     // the island deltas containing the initial entities that were added to
@@ -319,13 +319,21 @@ void island_worker::on_island_delta(const island_delta &delta) {
     });
 
     // When orientation is set manually, a few dependent components must be
-    // updated, e.g. AABB, inertia_world_inv, rotated meshes...
-    delta.updated_for_each<orientation>(index_source, [&] (entt::entity remote_entity, const orientation &) {
+    // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
+    delta.updated_for_each<orientation>(index_source, [&] (entt::entity remote_entity, const orientation &orn) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
 
-        update_aabb(m_registry, local_entity);
+        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
+            auto &com = m_registry.get<center_of_mass>(local_entity);
+            auto &pos = m_registry.get<position>(local_entity);
+            *origin = to_world_space(-com, pos, orn);
+        }
+
+        if (m_registry.has<AABB>(local_entity)) {
+            update_aabb(m_registry, local_entity);
+        }
 
         if (m_registry.has<dynamic_tag>(local_entity)) {
             update_inertia(m_registry, local_entity);
@@ -336,17 +344,22 @@ void island_worker::on_island_delta(const island_delta &delta) {
         }
     });
 
-    // When position is set manually, the AABB must be updated.
-    delta.updated_for_each<position>(index_source, [&] (entt::entity remote_entity, const position &) {
+    // When position is set manually, the AABB and cached origin must be updated.
+    delta.updated_for_each<position>(index_source, [&] (entt::entity remote_entity, const position &pos) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
+
+        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
+            auto &com = m_registry.get<center_of_mass>(local_entity);
+            auto &orn = m_registry.get<orientation>(local_entity);
+            *origin = to_world_space(-com, pos, orn);
+        }
 
         if (m_registry.has<AABB>(local_entity)) {
             update_aabb(m_registry, local_entity);
         }
     });
-
 
     m_importing_delta = false;
 }
@@ -761,6 +774,8 @@ void island_worker::init_new_shapes() {
     auto compound_view = m_registry.view<compound_shape>();
 
     for (auto entity : m_new_polyhedron_shapes) {
+        if (!polyhedron_view.contains(entity)) continue;
+
         auto &polyhedron = polyhedron_view.get(entity);
         // A new `rotated_mesh` is assigned to it, replacing another reference
         // that could be already in there, thus preventing concurrent access.
@@ -771,6 +786,8 @@ void island_worker::init_new_shapes() {
     }
 
     for (auto entity : m_new_compound_shapes) {
+        if (!compound_view.contains(entity)) continue;
+
         auto &compound = compound_view.get(entity);
         auto &orn = orn_view.get(entity);
         auto prev_rotated_entity = entt::entity{entt::null};
@@ -890,20 +907,12 @@ void island_worker::on_step_simulation(const msg::step_simulation &) {
     }
 }
 
-void island_worker::on_set_fixed_dt(const msg::set_fixed_dt &msg) {
-    m_registry.ctx<edyn::settings>().fixed_dt = msg.dt;
-}
-
-void island_worker::on_set_solver_iterations(const msg::set_solver_iterations &msg) {
-    auto &settings = m_registry.ctx<edyn::settings>();
-    settings.num_solver_velocity_iterations = msg.velocity_iterations;
-    settings.num_solver_position_iterations = msg.position_iterations;
-    m_solver.velocity_iterations = msg.velocity_iterations;
-    m_solver.position_iterations = msg.position_iterations;
-}
-
 void island_worker::on_set_settings(const msg::set_settings &msg) {
     m_registry.ctx<settings>() = msg.settings;
+}
+
+void island_worker::on_set_material_table(const msg::set_material_table &msg) {
+    m_registry.ctx<material_mix_table>() = msg.table;
 }
 
 void island_worker::on_set_com(const msg::set_com &msg) {
