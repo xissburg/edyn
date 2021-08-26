@@ -7,6 +7,7 @@
 #include "edyn/networking/client_networking_context.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/parallel/entity_graph.hpp"
+#include "edyn/networking/extrapolation_job.hpp"
 #include "edyn/edyn.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -179,6 +180,8 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     import_pool(registry, snapshot.orientations);
     import_pool(registry, snapshot.linvels);
     import_pool(registry, snapshot.angvels);
+
+    auto job = new extrapolation_job()
 }
 
 void client_process_packet(entt::registry &registry, const packet::edyn_packet &packet) {
