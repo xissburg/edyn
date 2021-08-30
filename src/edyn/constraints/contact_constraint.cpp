@@ -91,14 +91,14 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
-        auto &imp = imp_view.get(entity);
-        auto &cp = cp_view.get(entity);
+        auto &imp = imp_view.get<edyn::constraint_impulse>(entity);
+        auto &cp = cp_view.get<edyn::contact_point>(entity);
 
         EDYN_ASSERT(con.body[0] == cp.body[0]);
         EDYN_ASSERT(con.body[1] == cp.body[1]);
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get(con.body[1]) : static_cast<vector3>(posB);
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<edyn::origin>(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<edyn::origin>(con.body[1]) : static_cast<vector3>(posB);
 
         auto normal = cp.normal;
         auto pivotA = to_world_space(cp.pivotA, originA, ornA);
@@ -179,7 +179,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                 // thus preventing impulses in the undesired directions.
                 for (auto j = 0; j < 2; ++j) {
                     if (roll_dir_view.contains(cp.body[j])) {
-                        auto roll_dir = rotate(ornA, roll_dir_view.get(cp.body[j]));
+                        auto roll_dir = rotate(ornA, roll_dir_view.get<edyn::roll_direction>(cp.body[j]));
                         axis *= dot(roll_dir, axis);
                     }
                 }
@@ -249,7 +249,7 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
         internal::solve_friction_row_pair(friction_row_pair, normal_row);
 
         auto num_rows = cache.con_num_rows[ctx.row_count_start_index + con_idx];
-        auto &cp = cp_view.get(entity);
+        auto &cp = cp_view.get<edyn::contact_point>(entity);
 
         if (cp.roll_friction > 0) {
             auto &roll_row_pair = ctx.roll_friction_rows[roll_idx];
@@ -282,14 +282,14 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
     auto min_dist = scalar(0);
 
     for (auto entity : con_view) {
-        auto &cp = cp_view.get(entity);
+        auto &cp = cp_view.get<edyn::contact_point>(entity);
         auto [posA, ornA, inv_mA, inv_IA] =
             body_view.get<position, orientation, mass_inv, inertia_world_inv>(cp.body[0]);
         auto [posB, ornB, inv_mB, inv_IB] =
             body_view.get<position, orientation, mass_inv, inertia_world_inv>(cp.body[1]);
 
-        auto originA = origin_view.contains(cp.body[0]) ? origin_view.get(cp.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(cp.body[1]) ? origin_view.get(cp.body[1]) : static_cast<vector3>(posB);
+        auto originA = origin_view.contains(cp.body[0]) ? origin_view.get<edyn::origin>(cp.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(cp.body[1]) ? origin_view.get<edyn::origin>(cp.body[1]) : static_cast<vector3>(posB);
 
         auto pivotA = to_world_space(cp.pivotA, originA, ornA);
         auto pivotB = to_world_space(cp.pivotB, originB, ornB);

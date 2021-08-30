@@ -30,7 +30,7 @@ template<typename ShapeType, typename TransformView, typename OriginView>
 void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view, OriginView &origin_view) {
     auto [orn, aabb] = tr_view.template get<orientation, AABB>(entity);
     auto origin = origin_view.contains(entity) ?
-        static_cast<vector3>(origin_view.get(entity)) :
+        static_cast<vector3>(origin_view.template get<edyn::origin>(entity)) :
         static_cast<vector3>(tr_view.template get<position>(entity));
     aabb = updated_aabb(shape, origin, orn);
 }

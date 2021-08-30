@@ -33,8 +33,8 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get(con.body[1]) : static_cast<vector3>(posB);
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<edyn::origin>(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<edyn::origin>(con.body[1]) : static_cast<vector3>(posB);
 
         auto pivotA = to_world_space(con.pivot[0], originA, ornA);
         auto pivotB = to_world_space(con.pivot[1], originB, ornB);
@@ -117,8 +117,8 @@ bool solve_position_constraints<hinge_constraint>(entt::registry &registry, scal
         auto [posB, ornB, inv_mB, inv_IB] =
             body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[1]);
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get(con.body[1]) : static_cast<vector3>(posB);
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<edyn::origin>(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<edyn::origin>(con.body[1]) : static_cast<vector3>(posB);
 
         auto axisA = rotate(ornA, con.axis[0]);
         auto axisB = rotate(ornB, con.axis[1]);
