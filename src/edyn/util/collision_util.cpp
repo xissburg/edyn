@@ -20,8 +20,8 @@ void update_contact_distances(entt::registry &registry) {
     cp_view.each([&] (contact_point &cp) {
         auto [posA, ornA] = tr_view.get<position, orientation>(cp.body[0]);
         auto [posB, ornB] = tr_view.get<position, orientation>(cp.body[1]);
-        auto originA = origin_view.contains(cp.body[0]) ? origin_view.get<edyn::origin>(cp.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(cp.body[1]) ? origin_view.get<edyn::origin>(cp.body[1]) : static_cast<vector3>(posB);
+        auto originA = origin_view.contains(cp.body[0]) ? origin_view.get<origin>(cp.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(cp.body[1]) ? origin_view.get<origin>(cp.body[1]) : static_cast<vector3>(posB);
         auto pivotA_world = to_world_space(cp.pivotA, originA, ornA);
         auto pivotB_world = to_world_space(cp.pivotB, originB, ornB);
         cp.distance = dot(cp.normal, pivotA_world - pivotB_world);
@@ -220,10 +220,10 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &result
         auto &ornB = body_view.get<orientation>(body[1]);
 
         auto originA = origin_view.contains(body[0]) ?
-            static_cast<vector3>(origin_view.get<edyn::origin>(body[0])) :
+            static_cast<vector3>(origin_view.get<origin>(body[0])) :
             static_cast<vector3>(body_view.get<position>(body[0]));
         auto originB = origin_view.contains(body[1]) ?
-            static_cast<vector3>(origin_view.get<edyn::origin>(body[1])) :
+            static_cast<vector3>(origin_view.get<origin>(body[1])) :
             static_cast<vector3>(body_view.get<position>(body[1]));
 
         auto shape_indexA = body_view.get<shape_index>(body[0]);

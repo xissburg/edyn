@@ -65,8 +65,8 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     auto material_view = registry.view<material>();
 
     if (material_view.contains(body0) && material_view.contains(body1)) {
-        auto &material0 = material_view.get<edyn::material>(body0);
-        auto &material1 = material_view.get<edyn::material>(body1);
+        auto &material0 = material_view.get<material>(body0);
+        auto &material1 = material_view.get<material>(body1);
 
         auto &material_table = registry.ctx<material_mix_table>();
         auto restitution = scalar(0);

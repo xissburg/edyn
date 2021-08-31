@@ -1,8 +1,5 @@
 #include <entt/entity/registry.hpp>
-#include "edyn/collision/contact_manifold.hpp"
-#include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/center_of_mass.hpp"
-#include "edyn/comp/material.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/math/matrix3x3.hpp"
@@ -261,7 +258,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
             return;
         }
 
-        auto &manifold = manifold_view.get<edyn::contact_manifold>(edge_entity);
+        auto &manifold = manifold_view.get<contact_manifold>(edge_entity);
 
         auto other_entity = manifold.body[0] == entity ? manifold.body[1] : manifold.body[0];
         auto &other_material = material_view.get<edyn::material>(other_entity);
@@ -276,7 +273,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
         auto num_points = manifold.num_points();
 
         for (size_t i = 0; i < num_points; ++i) {
-            auto &cp = cp_view.get<edyn::contact_point>(manifold.point[i]);
+            auto &cp = cp_view.get<contact_point>(manifold.point[i]);
             cp.friction = combined_friction;
             refresh<contact_point>(registry, manifold.point[i]);
         }
@@ -297,7 +294,7 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
     auto has_com = com_view.contains(entity);
 
     if (has_com) {
-        com_old = com_view.get<edyn::center_of_mass>(entity);
+        com_old = com_view.get<center_of_mass>(entity);
     }
 
     // Position and linear velocity must change when center of mass shifts,

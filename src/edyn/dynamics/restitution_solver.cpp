@@ -37,13 +37,13 @@ scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView 
     auto [posB, ornB, linvelB, angvelB] =
         body_view.template get<position, orientation, linvel, angvel>(manifold.body[1]);
 
-    auto originA = origin_view.contains(manifold.body[0]) ? origin_view.template get<edyn::origin>(manifold.body[0]) : static_cast<vector3>(posA);
-    auto originB = origin_view.contains(manifold.body[1]) ? origin_view.template get<edyn::origin>(manifold.body[1]) : static_cast<vector3>(posB);
+    auto originA = origin_view.contains(manifold.body[0]) ? origin_view.template get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
+    auto originB = origin_view.contains(manifold.body[1]) ? origin_view.template get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
     auto min_relvel = EDYN_SCALAR_MAX;
 
     for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
-        auto &cp = cp_view.template get<edyn::contact_point>(manifold.point[pt_idx]);
+        auto &cp = cp_view.template get<contact_point>(manifold.point[pt_idx]);
         auto normal = cp.normal;
         auto pivotA = to_world_space(cp.pivotA, originA, ornA);
         auto pivotB = to_world_space(cp.pivotB, originB, ornB);
@@ -81,7 +81,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     auto fastest_manifold_entity = entt::entity{entt::null};
 
     for (auto entity : restitution_view) {
-        auto &manifold = manifold_view.get<edyn::contact_manifold>(entity);
+        auto &manifold = manifold_view.get<contact_manifold>(entity);
         auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, cp_view, origin_view);
 
         if (local_min_relvel < min_relvel) {
@@ -98,7 +98,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     // In order to prevent bodies from bouncing forever, calculate a minimum
     // penetration velocity that must be met for the restitution impulse to
     // be applied.
-    auto &fastest_manifold = manifold_view.get<edyn::contact_manifold>(fastest_manifold_entity);
+    auto &fastest_manifold = manifold_view.get<contact_manifold>(fastest_manifold_entity);
     auto relvel_threshold = scalar(-0.005);
 
     if (min_relvel > relvel_threshold) {
@@ -118,15 +118,15 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
         friction_row_pairs.clear();
 
         for (auto manifold_entity : manifold_entities) {
-            auto &manifold = manifold_view.get<edyn::contact_manifold>(manifold_entity);
+            auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
 
             auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
                 body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[0]);
             auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
                 body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[1]);
 
-            auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<edyn::origin>(manifold.body[0]) : static_cast<vector3>(posA);
-            auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<edyn::origin>(manifold.body[1]) : static_cast<vector3>(posB);
+            auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
+            auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
             // Create constraint rows for non-penetration constraints for each
             // contact point.
@@ -134,7 +134,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
             for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
                 auto point_entity = manifold.point[pt_idx];
-                auto &cp = cp_view.get<edyn::contact_point>(point_entity);
+                auto &cp = cp_view.get<contact_point>(point_entity);
 
                 auto normal = cp.normal;
                 auto pivotA = to_world_space(cp.pivotA, originA, ornA);
@@ -190,11 +190,11 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
         size_t row_idx = 0;
 
         for (auto manifold_entity : manifold_entities) {
-            auto &manifold = manifold_view.get<edyn::contact_manifold>(manifold_entity);
+            auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
             auto num_points = manifold.num_points();
 
             for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
-                auto &imp = imp_view.get<edyn::constraint_impulse>(manifold.point[pt_idx]);
+                auto &imp = imp_view.get<constraint_impulse>(manifold.point[pt_idx]);
                 auto &normal_row = normal_rows[row_idx];
                 imp.values[6] = normal_row.impulse;
 
@@ -210,7 +210,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
         // Apply delta velocities.
         for (auto manifold_entity : manifold_entities) {
-            auto &manifold = manifold_view.get<edyn::contact_manifold>(manifold_entity);
+            auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
 
             for (auto body_entity : manifold.body) {
                 // There are duplicates among all manifold bodies but this
@@ -261,7 +261,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
         graph.visit_edges(node_index, [&] (entt::entity edge_entity) {
             if (!manifold_view.contains(edge_entity)) return;
 
-            auto &manifold = manifold_view.get<edyn::contact_manifold>(edge_entity);
+            auto &manifold = manifold_view.get<contact_manifold>(edge_entity);
 
             // Ignore manifolds which are not penetrating fast enough.
             auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, cp_view, origin_view);

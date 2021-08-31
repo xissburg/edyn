@@ -273,8 +273,8 @@ void island_worker::on_island_delta(const island_delta &delta) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
-        auto &node0 = node_view.get<edyn::graph_node>(manifold.body[0]);
-        auto &node1 = node_view.get<edyn::graph_node>(manifold.body[1]);
+        auto &node0 = node_view.get<graph_node>(manifold.body[0]);
+        auto &node1 = node_view.get<graph_node>(manifold.body[1]);
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry.emplace<graph_edge>(local_entity, edge_index);
         m_new_imported_contact_manifolds.push_back(local_entity);
@@ -289,8 +289,8 @@ void island_worker::on_island_delta(const island_delta &delta) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
-        auto &node0 = node_view.get<edyn::graph_node>(con.body[0]);
-        auto &node1 = node_view.get<edyn::graph_node>(con.body[1]);
+        auto &node0 = node_view.get<graph_node>(con.body[0]);
+        auto &node1 = node_view.get<graph_node>(con.body[1]);
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry.emplace<graph_edge>(local_entity, edge_index);
     });
@@ -313,7 +313,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
             return;
         }
 
-        auto &cp = cp_view.get<edyn::contact_point>(local_entity);
+        auto &cp = cp_view.get<contact_point>(local_entity);
 
         if (mat_view.contains(cp.body[0]) && mat_view.contains(cp.body[1])) {
             create_contact_constraint(m_registry, local_entity, cp);
@@ -778,10 +778,10 @@ void island_worker::init_new_shapes() {
     for (auto entity : m_new_polyhedron_shapes) {
         if (!polyhedron_view.contains(entity)) continue;
 
-        auto &polyhedron = polyhedron_view.get<edyn::polyhedron_shape>(entity);
+        auto &polyhedron = polyhedron_view.get<polyhedron_shape>(entity);
         // A new `rotated_mesh` is assigned to it, replacing another reference
         // that could be already in there, thus preventing concurrent access.
-        auto rotated = make_rotated_mesh(*polyhedron.mesh, orn_view.get<edyn::orientation>(entity));
+        auto rotated = make_rotated_mesh(*polyhedron.mesh, orn_view.get<orientation>(entity));
         auto rotated_ptr = std::make_unique<rotated_mesh>(std::move(rotated));
         polyhedron.rotated = rotated_ptr.get();
         m_registry.emplace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr));
@@ -790,8 +790,8 @@ void island_worker::init_new_shapes() {
     for (auto entity : m_new_compound_shapes) {
         if (!compound_view.contains(entity)) continue;
 
-        auto &compound = compound_view.get<edyn::compound_shape>(entity);
-        auto &orn = orn_view.get<edyn::orientation>(entity);
+        auto &compound = compound_view.get<compound_shape>(entity);
+        auto &orn = orn_view.get<orientation>(entity);
         auto prev_rotated_entity = entt::entity{entt::null};
 
         for (auto &node : compound.nodes) {
