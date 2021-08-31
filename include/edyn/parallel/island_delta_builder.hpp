@@ -370,7 +370,7 @@ public:
     }
 
     void created(entt::entity entity, entt::registry &registry, entt::id_type id) override {
-        ((entt::type_id<Component>().hash() == id ?
+        ((entt::type_id<Component>().seq() == id ?
             island_delta_builder::created<Component>(entity, registry) : (void)0), ...);
     }
 
@@ -384,7 +384,7 @@ public:
     }
 
     void updated(entt::entity entity, entt::registry &registry, entt::id_type id) override {
-        ((entt::type_id<Component>().hash() == id ?
+        ((entt::type_id<Component>().seq() == id ?
             island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
     }
 
@@ -398,7 +398,7 @@ public:
     }
 
     void destroyed(entt::entity entity, entt::id_type id) override {
-        ((entt::type_id<Component>().hash() == id ?
+        ((entt::type_id<Component>().seq() == id ?
             island_delta_builder::destroyed<Component>(entity) : (void)0), ...);
     }
 };

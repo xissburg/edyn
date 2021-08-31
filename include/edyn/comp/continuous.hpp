@@ -18,14 +18,14 @@ struct continuous {
 
     template<typename... Component>
     void insert() {
-        ((types[size++] = entt::type_id<Component>().hash()), ...);
+        ((types[size++] = entt::type_id<Component>().seq()), ...);
         EDYN_ASSERT(size <= max_size);
     }
 
     template<typename Component>
     void remove() {
         for (size_t i = 0; i < size; ++i) {
-            if (types[i] == entt::type_id<Component>().hash()) {
+            if (types[i] == entt::type_id<Component>().seq()) {
                 types[i] = types[--size];
                 break;
             }

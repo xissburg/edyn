@@ -68,7 +68,7 @@ private:
     // CUD: Create, Update, Delete.
     template<typename... Ts>
     dirty & cud(id_vector_t dirty:: *member) {
-        ((this->*member).push_back(entt::type_id<Ts>().hash()), ...);
+        ((this->*member).push_back(entt::type_id<Ts>().seq()), ...);
         return *this;
     }
 };
