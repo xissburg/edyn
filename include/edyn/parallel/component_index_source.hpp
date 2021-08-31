@@ -22,7 +22,7 @@ struct component_index_source {
             return tuple_index_of<Component>(shared_components);
         } else {
             // Get external component index by `entt::type_index`.
-            return index_of_id(entt::type_index<Component>::value());
+            return index_of_id(entt::type_id<Component>().seq());
         }
     }
 
@@ -35,7 +35,7 @@ struct external_component_index_source : public component_index_source {
 
     size_t index_of_id(entt::id_type id) const override {
         auto idx = SIZE_MAX;
-        ((entt::type_index<Component>::value() == id ?
+        ((entt::type_id<Component>().seq() == id ?
             (idx = edyn::index_of<size_t, Component, components_tuple_t>::value) : (size_t)0), ...);
         EDYN_ASSERT(idx != SIZE_MAX);
         return idx;

@@ -32,8 +32,8 @@ void prepare_constraints<distance_constraint>(entt::registry &registry, row_cach
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get(con.body[1]) : static_cast<vector3>(posB);
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
         auto pivotA = to_world_space(con.pivot[0], originA, ornA);
         auto pivotB = to_world_space(con.pivot[1], originB, ornB);
@@ -59,7 +59,7 @@ void prepare_constraints<distance_constraint>(entt::registry &registry, row_cach
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
         row.dvA = &dvA; row.dwA = &dwA;
         row.dvB = &dvB; row.dwB = &dwB;
-        row.impulse = imp_view.get(entity).values[0];
+        row.impulse = imp_view.get<constraint_impulse>(entity).values[0];
 
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
         warm_start(row);

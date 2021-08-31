@@ -89,7 +89,7 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
 
     for (auto it = begin; it != end; ++it) {
         entt::entity manifold_entity = *it;
-        auto &manifold = manifold_view.get(manifold_entity);
+        auto &manifold = manifold_view.template get<contact_manifold>(manifold_entity);
         collision_result result;
         detect_collision(manifold.body, result, body_view, origin_view, views_tuple);
 

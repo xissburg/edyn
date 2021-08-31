@@ -1,5 +1,5 @@
 [requires]
-entt/3.5.2
+entt/3.8.0
 
 [generators]
 cmake_find_package
