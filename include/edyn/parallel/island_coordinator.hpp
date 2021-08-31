@@ -45,6 +45,7 @@ class island_coordinator final {
     void sync();
 
 public:
+    island_coordinator(island_coordinator const&) = delete;
     island_coordinator operator=(island_coordinator const&) = delete;
     island_coordinator(entt::registry &);
     ~island_coordinator();
