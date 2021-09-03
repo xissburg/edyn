@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12.4)
 
-project(Edyn VERSION 0.1.0 LANGUAGES CXX)
+project(Edyn VERSION 0.2.0 LANGUAGES CXX)
 
 # Options
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
