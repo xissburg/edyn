@@ -7,13 +7,15 @@ endif()
 
 project(Edyn VERSION 0.2.0 LANGUAGES CXX)
 
+include(CMakeDependentOption)
+
 # Options
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
 option(EDYN_INSTALL "Enable installation of Edyn" ${Edyn_MAIN_PROJECT})
 option(EDYN_BUILD_EXAMPLES "Build examples" ${Edyn_MAIN_PROJECT})
 option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
 option(EDYN_DISABLE_ASSERT "Disable assertions in Edyn for better performance." OFF)
-option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF)
+cmake_dependent_option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF "NOT MSVC" OFF)
 
 if(NOT CMAKE_DEBUG_POSTFIX)
   set(CMAKE_DEBUG_POSTFIX "_d")

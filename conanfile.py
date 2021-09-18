@@ -18,12 +18,19 @@ class EdynConan(ConanFile):
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
+        "enable_assert": [True, False],
+        "enable_sanitizer": [True, False],
         "floating_type": ["float", "double"],
+        "build_tests": [True, False],
     }
     default_options = {
         "shared": False,
         "fPIC": True,
+        "enable_assert": False,
+        "enable_sanitizer": False,
         "floating_type": "float",
+        "build_tests": False,
+        "gtest:no_main": False,
     }
     settings = "os", "arch", "compiler", "build_type"
 
@@ -40,13 +47,18 @@ class EdynConan(ConanFile):
 
     def requirements(self):
         self.requires("entt/3.8.0")
+        if self.options.build_tests:
+            self.requires("gtest/1.11.0", private=True)
 
     def export_sources(self):
         self.copy("AUTHORS")
         self.copy("LICENSE")
         self.copy("CMakeLists.txt")
-        for folder in ("cmake", "docs", "include", "src"):
+        for folder in ("cmake", "docs", "examples", "include", "src", "test"):
             shutil.copytree(folder, os.path.join(self.export_sources_folder , folder))
+
+    def package_id(self):
+        del self.info.options.build_tests
 
     def build(self):
         def no_backslashes(path: str) -> str:
@@ -61,13 +73,15 @@ class EdynConan(ConanFile):
             add_subdirectory("{no_backslashes(self.source_folder)}" edyn)
         """))
         cmake = CMake(self)
-        cmake.definitions["EDYN_BUILD_EXAMPLES"] = False
-        cmake.definitions["EDYN_BUILD_TESTS"] = False
+        cmake.definitions["EDYN_BUILD_EXAMPLES"] = self.options.build_tests
+        cmake.definitions["EDYN_BUILD_TESTS"] = self.options.build_tests
         cmake.definitions["EDYN_INSTALL"] = True
         cmake.definitions["EDYN_CONFIG_DOUBLE"] = self.options.floating_type == "double"
-        cmake.definitions["EDYN_DISABLE_ASSERT"] = True
+        cmake.definitions["EDYN_DISABLE_ASSERT"] = not self.options.enable_assert
+        cmake.definitions["EDYN_ENABLE_SANITIZER"] = self.options.enable_sanitizer
         cmake.configure(source_folder=self.build_folder)
         cmake.build()
+        cmake.test()
 
     def package(self):
         cmake = CMake(self)
