@@ -120,7 +120,7 @@ endif()
 
 if(UNIX AND NOT APPLE)
     target_link_libraries(Edyn
-        PRIVATE
+        PUBLIC
             dl
             pthread
     )
@@ -131,7 +131,7 @@ if(WIN32)
         src/edyn/time/windows/time.cpp
     )
     target_link_libraries(Edyn
-        PRIVATE
+        PUBLIC
             winmm
     )
 endif()
@@ -201,14 +201,14 @@ if(EDYN_INSTALL)
     )
     install(
         EXPORT EdynTargets
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Edyn"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
         NAMESPACE "Edyn::"
         FILE "Edyn-targets.cmake"
     )
     install(
         FILES
             cmake/Edyn-config.cmake
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Edyn"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
     )
     install(
         FILES
