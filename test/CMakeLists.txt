@@ -1,11 +1,13 @@
-include_directories($<TARGET_PROPERTY:Edyn,INCLUDE_DIRECTORIES>)
-add_compile_options($<TARGET_PROPERTY:Edyn,COMPILE_OPTIONS>)
+cmake_minimum_required(VERSION 3.9)
+
+include(GoogleTest)
+find_package(GTest REQUIRED)
 
 macro(SETUP_AND_ADD_TEST TEST_NAME TEST_SOURCE)
     add_executable(${TEST_NAME} ${TEST_SOURCE})
-    target_link_libraries(${TEST_NAME} PRIVATE Edyn GTest::Main)
+    target_link_libraries(${TEST_NAME} PRIVATE Edyn::Edyn GTest::gtest_main)
     set_property(TARGET ${TEST_NAME} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin/test)
-    gtest_discover_tests(${TEST_NAME})
+    gtest_discover_tests(${TEST_NAME} PROPERTIES TIMEOUT 5)
 endmacro()
 
 SETUP_AND_ADD_TEST(vector3 edyn/math/test_vector3.cpp)
@@ -24,5 +26,5 @@ SETUP_AND_ADD_TEST(collision edyn/collision/test_collision.cpp)
 SETUP_AND_ADD_TEST(shape_volume edyn/shapes/test_shape_volume.cpp)
 SETUP_AND_ADD_TEST(centroid edyn/shapes/test_centroid.cpp)
 SETUP_AND_ADD_TEST(trimesh edyn/shapes/test_trimesh.cpp)
-SETUP_AND_ADD_TEST(paged_trimesh edyn/shapes/test_paged_trimesh.cpp)
+SETUP_AND_ADD_TEST(paged_trimesh edyn/shapes/test_paged_trimesh.cpp)  # FIXME: re-enable test!!!
 SETUP_AND_ADD_TEST(broadphase edyn/collision/test_broadphase.cpp)
