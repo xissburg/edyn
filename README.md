@@ -22,7 +22,7 @@ In the terminal, go into the _Edyn_ directory and do:
 ```
 $ mkdir build
 $ cd build
-$ conan install ../conanfile.txt
+$ conan install ..
 $ cmake ..
 $ make
 ```
