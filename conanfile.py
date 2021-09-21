@@ -73,6 +73,7 @@ class EdynConan(ConanFile):
             add_subdirectory("{no_backslashes(self.source_folder)}" edyn)
         """))
         cmake = CMake(self)
+        cmake.verbose = True
         cmake.definitions["EDYN_BUILD_EXAMPLES"] = self.options.build_tests
         cmake.definitions["EDYN_BUILD_TESTS"] = self.options.build_tests
         cmake.definitions["EDYN_INSTALL"] = True
@@ -81,7 +82,8 @@ class EdynConan(ConanFile):
         cmake.definitions["EDYN_ENABLE_SANITIZER"] = self.options.enable_sanitizer
         cmake.configure(source_folder=self.build_folder)
         cmake.build()
-        cmake.test()
+        if self.options.build_tests:
+            cmake.test()
 
     def package(self):
         cmake = CMake(self)
