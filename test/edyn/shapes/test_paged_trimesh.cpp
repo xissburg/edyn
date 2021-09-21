@@ -3,7 +3,7 @@
 class triangle_mesh_page_loader: public edyn::triangle_mesh_page_loader_base {
 public:
     void load(size_t index) override {}
-    virtual entt::delegate<loaded_mesh_func_t> & on_load_sink() override {
+    virtual entt::sink<loaded_mesh_func_t> on_load_sink() override {
             return entt::sink {m_loaded_signal};
     }
 
