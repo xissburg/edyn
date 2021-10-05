@@ -109,6 +109,7 @@ add_library(Edyn
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
+    src/edyn/time/common/time.cpp
 )
 add_library(Edyn::Edyn ALIAS Edyn)
 
