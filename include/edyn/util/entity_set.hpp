@@ -1,12 +1,11 @@
 #ifndef EDYN_UTIL_ENTITY_COLLECTION_HPP
 #define EDYN_UTIL_ENTITY_COLLECTION_HPP
 
-#include <entt/entity/fwd.hpp>
-#include <unordered_set>
+#include <entt/entity/sparse_set.hpp>
 
 namespace edyn {
 
-using entity_set = std::unordered_set<entt::entity>;
+using entity_set = entt::sparse_set;
 
 }
 

@@ -98,8 +98,12 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
 
     // Remove from island.
     auto &ctx = m_island_ctx_map.at(resident.island_entity);
-    ctx->m_nodes.erase(entity);
-    ctx->m_edges.erase(entity);
+
+    if (ctx->m_nodes.contains(entity)) {
+        ctx->m_nodes.erase(entity);
+    } else if (ctx->m_edges.contains(entity)) {
+        ctx->m_edges.erase(entity);
+    }
 
     if (m_importing_delta) return;
 
@@ -285,10 +289,10 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
         if (other_resident.island_entity == entt::null) return;
 
         auto &ctx = m_island_ctx_map.at(other_resident.island_entity);
-        ctx->m_nodes.insert(node_entity);
+        ctx->m_nodes.emplace(node_entity);
 
-        if (!resident.island_entities.count(other_resident.island_entity)) {
-            resident.island_entities.insert(other_resident.island_entity);
+        if (!resident.island_entities.contains(other_resident.island_entity)) {
+            resident.island_entities.emplace(other_resident.island_entity);
             ctx->m_delta_builder->created(node_entity);
             ctx->m_delta_builder->created_all(node_entity, *m_registry);
         }
@@ -372,8 +376,17 @@ void island_coordinator::insert_to_island(island_worker_context &ctx,
                                           const std::vector<entt::entity> &nodes,
                                           const std::vector<entt::entity> &edges) {
 
-    ctx.m_nodes.insert(nodes.begin(), nodes.end());
-    ctx.m_edges.insert(edges.begin(), edges.end());
+    for (auto entity : nodes) {
+        if (!ctx.m_nodes.contains(entity)) {
+            ctx.m_nodes.emplace(entity);
+        }
+    }
+
+    for (auto entity : edges) {
+        if (!ctx.m_edges.contains(entity)) {
+            ctx.m_edges.emplace(entity);
+        }
+    }
 
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
@@ -412,9 +425,9 @@ void island_coordinator::insert_to_island(island_worker_context &ctx,
         } else {
             auto &resident = multi_resident_view.get<multi_island_resident>(entity);
 
-            if (resident.island_entities.count(island_entity) == 0) {
+            if (resident.island_entities.contains(island_entity) == 0) {
                 // Non-procedural entity is not yet in this island, thus create it.
-                resident.island_entities.insert(island_entity);
+                resident.island_entities.emplace(island_entity);
                 ctx.m_delta_builder->created(entity);
                 ctx.m_delta_builder->created_all(entity, *m_registry);
             }
@@ -491,7 +504,9 @@ entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &
             auto &resident = multi_resident_view.get<multi_island_resident>(entity);
 
             for (auto other_island_entity : other_island_entities) {
-                resident.island_entities.erase(other_island_entity);
+                if (resident.island_entities.contains(other_island_entity)) {
+                    resident.island_entities.erase(other_island_entity);
+                }
             }
         }
     }
@@ -605,10 +620,10 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
             m_registry->emplace<island_resident>(local_entity, source_island_entity);
         } else {
             auto &resident = m_registry->emplace<multi_island_resident>(local_entity);
-            resident.island_entities.insert(source_island_entity);
+            resident.island_entities.emplace(source_island_entity);
         }
 
-        source_ctx->m_nodes.insert(local_entity);
+        source_ctx->m_nodes.emplace(local_entity);
     };
 
     delta.created_for_each<dynamic_tag>(index_source, insert_node);
@@ -638,7 +653,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry->emplace<graph_edge>(local_entity, edge_index);
         m_registry->emplace<island_resident>(local_entity, source_island_entity);
-        source_ctx->m_edges.insert(local_entity);
+        source_ctx->m_edges.emplace(local_entity);
 
         assign_island_to_contact_points(manifold);
     });
@@ -660,7 +675,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry->emplace<graph_edge>(local_entity, edge_index);
         m_registry->emplace<island_resident>(local_entity, source_island_entity);
-        source_ctx->m_edges.insert(local_entity);
+        source_ctx->m_edges.emplace(local_entity);
     });
 
     delta.updated_for_each<contact_manifold>(index_source, [&] (entt::entity, const contact_manifold &manifold) {
@@ -733,10 +748,17 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
                 ctx->m_nodes.erase(entity);
             } else if (!vector_contains(remaining_non_procedural_entities, entity)) {
                 // Remove island that was split from multi-residents if they're not
-                // present in the source island.
+                // present in the source island. Non-procedural could be in many
+                // islands thus it's necessary to check before erasing.
                 auto &resident = multi_resident_view.get<multi_island_resident>(entity);
-                resident.island_entities.erase(split_island_entity);
-                ctx->m_nodes.erase(entity);
+
+                if (resident.island_entities.contains(split_island_entity)) {
+                    resident.island_entities.erase(split_island_entity);
+                }
+
+                if (ctx->m_nodes.contains(entity)) {
+                    ctx->m_nodes.erase(entity);
+                }
             }
         }
 

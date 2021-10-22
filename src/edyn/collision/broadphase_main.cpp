@@ -146,7 +146,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
         // because if it is already in, collisions are handled in the
         // island worker.
         auto &resident = resident_view.get<multi_island_resident>(np_entity);
-        if (resident.island_entities.count(island_entityA)) {
+        if (resident.island_entities.contains(island_entityA)) {
             return;
         }
 
