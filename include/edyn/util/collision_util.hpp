@@ -5,6 +5,7 @@
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/origin.hpp"
@@ -22,10 +23,17 @@ namespace edyn {
  */
 void update_contact_distances(entt::registry &registry);
 
+using material_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, material>;
+using mesh_shape_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, mesh_shape>;
+using paged_mesh_shape_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, paged_mesh_shape>;
+
 /**
- * Merges a `collision_point` onto a `contact_point`.
+ * Merges a `collision_point` onto a `contact_point`. It needs the material and
+ * mesh shape views in order to update the contact point material properties
+ * in case a mesh shape with per-vertex materials is involved.
  */
-void merge_point(const collision_result::collision_point &rp, contact_point &cp);
+void merge_point(const collision_result::collision_point &rp, contact_point &cp,
+                 const material_view_t &, const mesh_shape_view_t &, const paged_mesh_shape_view_t &);
 
 /**
  * Creates a contact constraint for a contact point.
@@ -103,6 +111,9 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                        VelView &vel_view,
                        RollingView &rolling_view,
                        const origin_view_t &origin_view,
+                       const material_view_t &material_view,
+                       const mesh_shape_view_t &mesh_shape_view,
+                       const paged_mesh_shape_view_t &paged_mesh_shape_view,
                        scalar dt,
                        NewPointFunc new_point_func,
                        DestroyPointFunc destroy_point_func) {
@@ -143,7 +154,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         }
 
         if (nearest_idx < result.num_points && !merged_indices[nearest_idx]) {
-            merge_point(result.point[nearest_idx], cp);
+            merge_point(result.point[nearest_idx], cp, material_view, mesh_shape_view, paged_mesh_shape_view);
             merged_indices[nearest_idx] = true;
         } else if (maybe_remove_point(manifold, cp, pt_idx, originA, ornA, originB, ornB)) {
             destroy_point_func(point_entity);
@@ -238,7 +249,8 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
             if (local_pt.entity == entt::null) {
                 new_point_func(local_pt.point);
             } else {
-                merge_point(local_pt.point, cp_view.template get<contact_point>(local_pt.entity));
+                merge_point(local_pt.point, cp_view.template get<contact_point>(local_pt.entity),
+                            material_view, mesh_shape_view, paged_mesh_shape_view);
             }
             break;
         case point_insertion_type::replace:

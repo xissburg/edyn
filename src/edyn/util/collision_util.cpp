@@ -30,40 +30,52 @@ void update_contact_distances(entt::registry &registry) {
     });
 }
 
-void merge_point(const collision_result::collision_point &rp, contact_point &cp) {
+scalar get_mesh_friction(const mesh_shape &shape, const vector3 &pivot, collision_feature coll_feature) {
+    auto feature = std::get<triangle_feature>(coll_feature.feature);
+
+    switch (feature) {
+    case triangle_feature::vertex:
+        return shape.trimesh->get_vertex_friction(coll_feature.index);
+    case triangle_feature::edge:
+        return shape.trimesh->get_edge_friction(coll_feature.index, pivot);
+    case triangle_feature::face:
+        return shape.trimesh->get_face_friction(coll_feature.index, pivot);
+    }
+
+    return {};
+}
+
+void merge_point(const collision_result::collision_point &rp, contact_point &cp,
+                 const material_view_t &material_view,
+                 const mesh_shape_view_t &mesh_shape_view,
+                 const paged_mesh_shape_view_t &paged_mesh_shape_view) {
     cp.pivotA = rp.pivotA;
     cp.pivotB = rp.pivotB;
     cp.normal = rp.normal;
     cp.distance = rp.distance;
+    cp.normal_attachment = rp.normal_attachment;
     cp.featureA = rp.featureA;
     cp.featureB = rp.featureB;
 
-    // Update material properties if a `varying_material` is involved.
-
+    // Update material properties if a mesh with per-vertex material is involed.
+    if (mesh_shape_view.contains(cp.body[0])) {
+        auto [shapeA] = mesh_shape_view.get(cp.body[0]);
+        if (shapeA.trimesh->has_per_vertex_friction()) {
+            auto [materialB] = material_view.get(cp.body[1]);
+            cp.friction = material_mix_friction(get_mesh_friction(shapeA, cp.pivotA, *cp.featureA), materialB.friction);
+        }
+    } else if (mesh_shape_view.contains(cp.body[1])) {
+        auto [shapeB] = mesh_shape_view.get(cp.body[1]);
+        if (shapeB.trimesh->has_per_vertex_friction()) {
+            auto [materialA] = material_view.get(cp.body[0]);
+            cp.friction = material_mix_friction(materialA.friction, get_mesh_friction(shapeB, cp.pivotB, *cp.featureB));
+        }
+    }
 }
 
 void create_contact_constraint(entt::registry &registry,
                                entt::entity contact_entity,
                                contact_point &cp) {
-    if (auto *shapeA = registry.try_get<mesh_shape>(cp.body[0])) {
-        auto featureA = std::get<triangle_feature>(cp.featureA->feature);
-        scalar frictionA;
-
-        switch (featureA) {
-        case triangle_feature::vertex:
-            frictionA = shapeA->trimesh->get_vertex_friction(cp.featureA->index);
-            break;
-        case triangle_feature::edge:
-            frictionA = shapeA->trimesh->get_edge_friction(cp.featureA->index, cp.pivotA);
-            break;
-        case triangle_feature::face:
-            frictionA = shapeA->trimesh->get_face_friction(cp.featureA->index, cp.pivotA);
-            break;
-        }
-
-
-    }
-
     auto &materialA = registry.get<material>(cp.body[0]);
     auto &materialB = registry.get<material>(cp.body[1]);
 
@@ -79,8 +91,15 @@ void create_contact_constraint(entt::registry &registry,
         stiffness = material->stiffness;
         damping = material->damping;
     } else {
+        if (auto *shapeA = registry.try_get<mesh_shape>(cp.body[0]); shapeA->trimesh->has_per_vertex_friction()) {
+            cp.friction = material_mix_friction(get_mesh_friction(*shapeA, cp.pivotA, *cp.featureA), materialB.friction);
+        } else if (auto *shapeB = registry.try_get<mesh_shape>(cp.body[1]); shapeB->trimesh->has_per_vertex_friction()) {
+            cp.friction = material_mix_friction(materialA.friction, get_mesh_friction(*shapeB, cp.pivotB, *cp.featureB));
+        } else {
+            cp.friction = material_mix_friction(materialA.friction, materialB.friction);
+        }
+
         cp.restitution = material_mix_restitution(materialA.restitution, materialB.restitution);
-        cp.friction = material_mix_friction(materialA.friction, materialB.friction);
         cp.roll_friction = material_mix_roll_friction(materialA.roll_friction, materialB.roll_friction);
         cp.spin_friction = material_mix_spin_friction(materialA.spin_friction, materialB.spin_friction);
 

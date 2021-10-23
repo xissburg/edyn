@@ -171,6 +171,10 @@ public:
         return m_adjacent_normals[tri_idx][edge_idx];
     }
 
+    bool has_per_vertex_friction() const {
+        return static_cast<bool>(m_friction);
+    }
+
     scalar get_vertex_friction(size_t vertex_idx) const {
         return (*m_friction)[vertex_idx];
     }
