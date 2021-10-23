@@ -2,6 +2,7 @@
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/shapes/mesh_shape.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/collision/collide.hpp"
@@ -9,6 +10,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/util/triangle_util.hpp"
 
 namespace edyn {
 
@@ -33,11 +35,35 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp)
     cp.pivotB = rp.pivotB;
     cp.normal = rp.normal;
     cp.distance = rp.distance;
+    cp.featureA = rp.featureA;
+    cp.featureB = rp.featureB;
+
+    // Update material properties if a `varying_material` is involved.
+
 }
 
 void create_contact_constraint(entt::registry &registry,
                                entt::entity contact_entity,
                                contact_point &cp) {
+    if (auto *shapeA = registry.try_get<mesh_shape>(cp.body[0])) {
+        auto featureA = std::get<triangle_feature>(cp.featureA->feature);
+        scalar frictionA;
+
+        switch (featureA) {
+        case triangle_feature::vertex:
+            frictionA = shapeA->trimesh->get_vertex_friction(cp.featureA->index);
+            break;
+        case triangle_feature::edge:
+            frictionA = shapeA->trimesh->get_edge_friction(cp.featureA->index, cp.pivotA);
+            break;
+        case triangle_feature::face:
+            frictionA = shapeA->trimesh->get_face_friction(cp.featureA->index, cp.pivotA);
+            break;
+        }
+
+
+    }
+
     auto &materialA = registry.get<material>(cp.body[0]);
     auto &materialB = registry.get<material>(cp.body[1]);
 

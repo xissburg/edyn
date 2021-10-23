@@ -3,6 +3,9 @@
 
 #include <cstdint>
 #include <vector>
+#include "edyn/config/config.h"
+#include "edyn/math/math.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -46,6 +49,20 @@ public:
         for (auto it = first; it != last; it += 3) {
             m_indices.push_back({*it, *(it + 1), *(it + 2)});
         }
+    }
+
+    template<typename It>
+    void insert_friction_coefficients(It first, It last) {
+        m_friction = std::vector<scalar>{};
+        m_friction->reserve(std::distance(first, last));
+        m_friction->insert(m_friction->end(), first, last);
+    }
+
+    template<typename It>
+    void insert_restitution_coefficients(It first, It last) {
+        m_restitution = std::vector<scalar>{};
+        m_restitution->reserve(std::distance(first, last));
+        m_restitution->insert(m_restitution->end(), first, last);
     }
 
     size_t num_vertices() const {
@@ -148,8 +165,58 @@ public:
         return m_face_edge_indices[tri_idx][edge_idx];
     }
 
-    vector3 get_adjacent_face_normal(size_t tri_idx, size_t v_idx) const {
-        return m_adjacent_normals[tri_idx][v_idx];
+    vector3 get_adjacent_face_normal(size_t tri_idx, size_t edge_idx) const {
+        EDYN_ASSERT(tri_idx < m_adjacent_normals.size());
+        EDYN_ASSERT(edge_idx < 3);
+        return m_adjacent_normals[tri_idx][edge_idx];
+    }
+
+    scalar get_vertex_friction(size_t vertex_idx) const {
+        return (*m_friction)[vertex_idx];
+    }
+
+    scalar get_edge_friction(size_t edge_idx, scalar fraction) const {
+        auto f0 = get_vertex_friction(m_edge_vertex_indices[edge_idx][0]);
+        auto f1 = get_vertex_friction(m_edge_vertex_indices[edge_idx][1]);
+        return lerp(f0, f1, fraction);
+    }
+
+    scalar get_edge_friction(size_t edge_idx, vector3 point) const {
+        auto [v0, v1] = get_edge_vertices(edge_idx);
+        auto fraction = distance_sqr(point, v0) / distance_sqr(v1, v0);
+        EDYN_ASSERT(fraction < scalar(1) + EDYN_EPSILON);
+        EDYN_ASSERT(std::abs(length_sqr(cross(point - v0, v1 - v0))) <= EDYN_EPSILON);
+        return get_edge_friction(edge_idx, fraction);
+    }
+
+    scalar get_face_friction(size_t tri_idx, scalar t0, scalar t1) const {
+        auto f0 = get_vertex_friction(m_indices[tri_idx][0]);
+        auto f1 = get_vertex_friction(m_indices[tri_idx][1]);
+        auto f2 = get_vertex_friction(m_indices[tri_idx][2]);
+        auto t2 = scalar(1) - t0 - t1;
+        return  f0 * t0 + f1 * t1 + f2 * t2;
+    }
+
+    scalar get_face_friction(size_t tri_idx, vector3 point) const {
+        auto vertices = get_triangle_vertices(tri_idx);
+        auto normal = get_triangle_normal(tri_idx);
+        EDYN_ASSERT(point_in_triangle(vertices, normal, point));
+        auto edge_normal = cross(vertices[2] - vertices[1], normal);
+        auto t0 = scalar(1) - dot(point - vertices[0], edge_normal) /
+                  dot(vertices[1] - vertices[0], edge_normal);
+        auto f0 = get_vertex_friction(m_indices[tri_idx][0]);
+
+        if (t0 > scalar(1) - EDYN_EPSILON) {
+            return f0;
+        }
+
+        auto f1 = get_vertex_friction(m_indices[tri_idx][1]);
+        auto f2 = get_vertex_friction(m_indices[tri_idx][2]);
+        auto point_opposite_edge = lerp(vertices[0], point, scalar(1) / (scalar(1) - t0));
+        auto t1 = distance_sqr(vertices[1], point_opposite_edge) /
+                  distance_sqr(vertices[1], vertices[2]) * (scalar(1) - t0);
+        auto t2 = scalar(1) - t0 - t1;
+        return  f0 * t0 + f1 * t1 + f2 * t2;
     }
 
     template<typename Archive>
@@ -192,6 +259,10 @@ private:
 
     // Whether an edge is convex.
     std::vector<bool> m_is_convex_edge;
+
+    // Per-vertex friction and restitution coefficients.
+    std::optional<std::vector<scalar>> m_friction;
+    std::optional<std::vector<scalar>> m_restitution;
 
     static_tree m_triangle_tree;
 };

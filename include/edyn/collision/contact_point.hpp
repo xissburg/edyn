@@ -3,10 +3,12 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/collision/contact_normal_attachment.hpp"
+#include "edyn/collision/collision_feature.hpp"
 
 namespace edyn {
 
@@ -23,6 +25,8 @@ struct contact_point {
     scalar restitution; // Combined coefficient of restitution.
     uint32_t lifetime {0}; // Incremented in each simulation step where the contact is persisted.
     scalar distance; // Signed distance along normal.
+    std::optional<collision_feature> featureA;
+    std::optional<collision_feature> featureB;
 };
 
 }

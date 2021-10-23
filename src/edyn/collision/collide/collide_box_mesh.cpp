@@ -110,10 +110,10 @@ static void collide_box_triangle(
     }
 
     box_feature box_feature;
-    size_t feature_indexA;
+    size_t box_feature_index;
     scalar proj_box;
     box.support_feature(posA, ornA, vector3_zero, -sep_axis,
-                        box_feature, feature_indexA, proj_box,
+                        box_feature, box_feature_index, proj_box,
                         support_feature_tolerance);
 
     distance = -proj_box - proj_tri;
@@ -122,9 +122,12 @@ static void collide_box_triangle(
         return;
     }
 
+    auto collision_featureA = collision_feature{box_feature, box_feature_index};
+    auto collision_featureB = collision_feature{tri_feature, tri_feature_index};
+
     if (box_feature == box_feature::face && tri_feature == triangle_feature::face) {
-        auto normalA = box.get_face_normal(feature_indexA, ornA);
-        auto verticesA_local = box.get_face(feature_indexA);
+        auto normalA = box.get_face_normal(box_feature_index, ornA);
+        auto verticesA_local = box.get_face(box_feature_index);
         std::array<vector3, 4> verticesA;
         for (int i = 0; i < 4; ++i) {
             verticesA[i] = to_world_space(verticesA_local[i], posA, ornA);
@@ -141,7 +144,8 @@ static void collide_box_triangle(
                 auto pivotA = to_object_space(pivot_on_face, posA, ornA);
                 auto pivotB = tri_vertices[i];
                 auto local_distance = dot(pivot_on_face - pivotB, sep_axis);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment,
+                                       collision_featureA, collision_featureB});
                 ++num_tri_vert_in_box_face;
             }
         }
@@ -160,7 +164,8 @@ static void collide_box_triangle(
                 auto pivotA = verticesA_local[i];
                 auto pivotB = project_plane(verticesA[i], tri_vertices[0], tri_normal);
                 auto local_distance = dot(verticesA[i] - tri_vertices[0], sep_axis);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment,
+                                       collision_featureA, collision_featureB});
                 ++num_box_vert_in_tri_face;
             }
         }
@@ -184,13 +189,13 @@ static void collide_box_triangle(
             vector2 p0, p1;
 
             // Pick the planar coordinates based on the face index.
-            if (feature_indexA == 0 || feature_indexA == 1) { // X face
+            if (box_feature_index == 0 || box_feature_index == 1) { // X face
                 half_extents = to_vector2_zy(box.half_extents);
                 p0 = to_vector2_zy(b0_in_A); p1 = to_vector2_zy(b1_in_A);
-            } else if (feature_indexA == 2 || feature_indexA == 3) { // Y face
+            } else if (box_feature_index == 2 || box_feature_index == 3) { // Y face
                 half_extents = to_vector2_xz(box.half_extents);
                 p0 = to_vector2_xz(b0_in_A); p1 = to_vector2_xz(b1_in_A);
-            } else { // if (feature_indexA == 4 || feature_indexA == 5) { // Z face
+            } else { // if (box_feature_index == 4 || box_feature_index == 5) { // Z face
                 half_extents = to_vector2_xy(box.half_extents);
                 p0 = to_vector2_xy(b0_in_A); p1 = to_vector2_xy(b1_in_A);
             }
@@ -205,14 +210,15 @@ static void collide_box_triangle(
                 auto pivotA_world = project_plane(pivotB, verticesA[0], normalA);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
                 auto local_distance = dot(pivotA_world - pivotB, sep_axis);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment,
+                                       collision_featureA, collision_featureB});
             }
         }
     } else if (box_feature == box_feature::face && tri_feature == triangle_feature::edge) {
         EDYN_ASSERT(mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, tri_feature_index)));
 
-        auto normalA = box.get_face_normal(feature_indexA, ornA);
-        auto verticesA_local = box.get_face(feature_indexA);
+        auto normalA = box.get_face_normal(box_feature_index, ornA);
+        auto verticesA_local = box.get_face(box_feature_index);
         std::array<vector3, 4> verticesA;
         for (int i = 0; i < 4; ++i) {
             verticesA[i] = to_world_space(verticesA_local[i], posA, ornA);
@@ -231,7 +237,8 @@ static void collide_box_triangle(
                 auto pivotA = to_object_space(pivot_on_face, posA, ornA);
                 auto pivotB = edge_vertices[i];
                 auto local_distance = dot(pivot_on_face - pivotB, sep_axis);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment,
+                                       collision_featureA, collision_featureB});
                 ++num_edge_vert_in_box_face;
             }
         }
@@ -247,13 +254,13 @@ static void collide_box_triangle(
         vector2 half_extents;
         vector2 p0, p1;
 
-        if (feature_indexA == 0 || feature_indexA == 1) { // X face
+        if (box_feature_index == 0 || box_feature_index == 1) { // X face
             half_extents = to_vector2_zy(box.half_extents);
             p0 = to_vector2_zy(e0_in_A); p1 = to_vector2_zy(e1_in_A);
-        } else if (feature_indexA == 2 || feature_indexA == 3) { // Y face
+        } else if (box_feature_index == 2 || box_feature_index == 3) { // Y face
             half_extents = to_vector2_xz(box.half_extents);
             p0 = to_vector2_xz(e0_in_A); p1 = to_vector2_xz(e1_in_A);
-        } else { // if (feature_indexA == 4 || feature_indexA == 5) { // Z face
+        } else { // if (box_feature_index == 4 || box_feature_index == 5) { // Z face
             half_extents = to_vector2_xy(box.half_extents);
             p0 = to_vector2_xy(e0_in_A); p1 = to_vector2_xy(e1_in_A);
         }
@@ -268,11 +275,12 @@ static void collide_box_triangle(
             auto pivotA_world = project_plane(pivotB, verticesA[0], normalA);
             auto pivotA = to_object_space(pivotA_world, posA, ornA);
             auto local_distance = dot(pivotA_world - pivotB, sep_axis);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment,
+                                   collision_featureA, collision_featureB});
         }
     } else if (box_feature == box_feature::edge && tri_feature == triangle_feature::face) {
         // Check if edge vertices are inside triangle face.
-        auto verticesA_local = box.get_edge(feature_indexA);
+        auto verticesA_local = box.get_edge(box_feature_index);
         std::array<vector3, 2> verticesA;
         size_t num_edge_vert_in_tri_face = 0;
         auto normal_attachment = contact_normal_attachment::normal_on_B;
@@ -284,7 +292,8 @@ static void collide_box_triangle(
                 auto pivotA = verticesA_local[i];
                 auto pivotB = project_plane(verticesA[i], tri_vertices[0], tri_normal);
                 auto local_distance = dot(verticesA[i] - tri_vertices[0], sep_axis);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment,
+                                       collision_featureA, collision_featureB});
                 ++num_edge_vert_in_tri_face;
             }
         }
@@ -322,13 +331,14 @@ static void collide_box_triangle(
                 auto pivotB = lerp(v0, v1, t[k]);
                 auto pivotA_world = lerp(verticesA[0], verticesA[1], s[k]);
                 auto local_distance = dot(pivotA_world - pivotB, sep_axis);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment,
+                                       collision_featureA, collision_featureB});
             }
         }
     } else if (box_feature == box_feature::edge && tri_feature == triangle_feature::edge) {
         EDYN_ASSERT(mesh.is_convex_edge(mesh.get_face_edge_index(tri_idx, tri_feature_index)));
 
-        auto edgeA_local = box.get_edge(feature_indexA);
+        auto edgeA_local = box.get_edge(box_feature_index);
         vector3 edgeA[] = {
             to_world_space(edgeA_local[0], posA, ornA),
             to_world_space(edgeA_local[1], posA, ornA)
@@ -351,25 +361,28 @@ static void collide_box_triangle(
 
             auto pivotA = lerp(edgeA_local[0], edgeA_local[1], s[i]);
             auto pivotB = pB[i]; // Triangle already located in world space.
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none,
+                                   collision_featureA, collision_featureB});
         }
     } else if (box_feature == box_feature::face && tri_feature == triangle_feature::vertex) {
         auto vertex = tri_vertices[tri_feature_index];
-        auto face_normal = box.get_face_normal(feature_indexA, ornA);
-        auto face_vertices = box.get_face(feature_indexA, posA, ornA);
+        auto face_normal = box.get_face_normal(box_feature_index, ornA);
+        auto face_vertices = box.get_face(box_feature_index, posA, ornA);
 
         if (point_in_polygonal_prism(face_vertices, face_normal, vertex)) {
             auto vertex_proj = vertex + sep_axis * distance;
             auto pivotA = to_object_space(vertex_proj, posA, ornA);
             auto pivotB = vertex;
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_A});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_A,
+                                   collision_featureA, collision_featureB});
         }
     } else if (box_feature == box_feature::vertex && tri_feature == triangle_feature::face) {
-        auto pivotA = box.get_vertex(feature_indexA);
+        auto pivotA = box.get_vertex(box_feature_index);
         auto pivotA_world = to_world_space(pivotA, posA, ornA);
         if (point_in_triangle(tri_vertices, tri_normal, pivotA_world)) {
             auto pivotB = pivotA_world - tri_normal * distance;
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B});
+            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B,
+                                   collision_featureA, collision_featureB});
         }
     }
 }
