@@ -46,6 +46,7 @@ scalar get_mesh_friction(const mesh_shape &shape, const vector3 &pivot, collisio
 }
 
 void merge_point(const collision_result::collision_point &rp, contact_point &cp,
+                 const orientation_view_t &orn_view,
                  const material_view_t &material_view,
                  const mesh_shape_view_t &mesh_shape_view,
                  const paged_mesh_shape_view_t &paged_mesh_shape_view) {
@@ -56,6 +57,14 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp,
     cp.normal_attachment = rp.normal_attachment;
     cp.featureA = rp.featureA;
     cp.featureB = rp.featureB;
+
+    if (rp.normal_attachment != contact_normal_attachment::none) {
+        auto idx = rp.normal_attachment == contact_normal_attachment::normal_on_A ? 0 : 1;
+        auto [orn] = orn_view.get(cp.body[idx]);
+        cp.local_normal = rotate(conjugate(orn), rp.normal);
+    } else {
+        cp.local_normal = vector3_zero;
+    }
 
     // Update material properties if a mesh with per-vertex material is involed.
     if (mesh_shape_view.contains(cp.body[0])) {
@@ -91,9 +100,11 @@ void create_contact_constraint(entt::registry &registry,
         stiffness = material->stiffness;
         damping = material->damping;
     } else {
-        if (auto *shapeA = registry.try_get<mesh_shape>(cp.body[0]); shapeA->trimesh->has_per_vertex_friction()) {
+        if (auto *shapeA = registry.try_get<mesh_shape>(cp.body[0]);
+            shapeA && shapeA->trimesh->has_per_vertex_friction()) {
             cp.friction = material_mix_friction(get_mesh_friction(*shapeA, cp.pivotA, *cp.featureA), materialB.friction);
-        } else if (auto *shapeB = registry.try_get<mesh_shape>(cp.body[1]); shapeB->trimesh->has_per_vertex_friction()) {
+        } else if (auto *shapeB = registry.try_get<mesh_shape>(cp.body[1]);
+                   shapeB && shapeB->trimesh->has_per_vertex_friction()) {
             cp.friction = material_mix_friction(materialA.friction, get_mesh_friction(*shapeB, cp.pivotB, *cp.featureB));
         } else {
             cp.friction = material_mix_friction(materialA.friction, materialB.friction);
@@ -177,6 +188,8 @@ entt::entity create_contact_point(entt::registry& registry,
     auto contact_entity = registry.create();
     manifold.point[idx] = contact_entity;
 
+    EDYN_ASSERT(length_sqr(rp.normal) > EDYN_EPSILON);
+
     auto local_normal = vector3{};
 
     if (rp.normal_attachment != contact_normal_attachment::none) {
@@ -198,7 +211,9 @@ entt::entity create_contact_point(entt::registry& registry,
         scalar{}, // roll friction
         scalar{}, // restitution
         uint32_t{0}, // lifetime
-        rp.distance // distance
+        rp.distance, // distance
+        rp.featureA,
+        rp.featureB
     );
 
     auto &contact_dirty = registry.get_or_emplace<dirty>(contact_entity);
@@ -207,7 +222,7 @@ entt::entity create_contact_point(entt::registry& registry,
     if (registry.any_of<continuous_contacts_tag>(manifold.body[0]) ||
         registry.any_of<continuous_contacts_tag>(manifold.body[1])) {
 
-        registry.emplace<edyn::continuous>(contact_entity).insert<edyn::contact_point>();
+        registry.emplace<continuous>(contact_entity).insert<edyn::contact_point>();
         contact_dirty.created<continuous>();
     }
 

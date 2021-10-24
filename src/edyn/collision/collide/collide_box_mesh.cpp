@@ -123,7 +123,19 @@ static void collide_box_triangle(
     }
 
     auto collision_featureA = collision_feature{box_feature, box_feature_index};
-    auto collision_featureB = collision_feature{tri_feature, tri_feature_index};
+    auto collision_featureB = collision_feature{tri_feature};
+
+    switch (tri_feature) {
+    case triangle_feature::face:
+        collision_featureB.index = tri_idx;
+        break;
+    case triangle_feature::edge:
+        collision_featureB.index = mesh.get_face_edge_index(tri_idx, tri_feature_index);
+        break;
+    case triangle_feature::vertex:
+        collision_featureB.index = mesh.get_face_vertex_index(tri_idx, tri_feature_index);
+        break;
+    }
 
     if (box_feature == box_feature::face && tri_feature == triangle_feature::face) {
         auto normalA = box.get_face_normal(box_feature_index, ornA);

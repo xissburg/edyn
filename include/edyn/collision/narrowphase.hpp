@@ -85,6 +85,7 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
     auto rolling_view = m_registry->view<rolling_tag>();
     auto imp_view = m_registry->view<constraint_impulse>();
     auto material_view = m_registry->view<material>();
+    auto orn_view = m_registry->view<orientation>();
     auto mesh_shape_view = m_registry->view<mesh_shape>();
     auto paged_mesh_shape_view = m_registry->view<paged_mesh_shape>();
     auto views_tuple = get_tuple_of_shape_views(*m_registry);
@@ -97,8 +98,8 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
         detect_collision(manifold.body, result, body_view, origin_view, views_tuple);
 
         process_collision(manifold_entity, manifold, result, cp_view, imp_view,
-                          tr_view, vel_view, rolling_view, origin_view, material_view,
-                          mesh_shape_view, paged_mesh_shape_view, dt,
+                          tr_view, vel_view, rolling_view, origin_view, orn_view,
+                          material_view, mesh_shape_view, paged_mesh_shape_view, dt,
                           [&] (const collision_result::collision_point &rp) {
             auto contact_entity = create_contact_point(*m_registry, manifold_entity, manifold, rp);
             add_new_contact_point(contact_entity, manifold.body);

@@ -28,7 +28,14 @@ struct collision_result {
         for (size_t i = 0; i < num_points; ++i) {
             auto &cp = point[i];
             std::swap(cp.pivotA, cp.pivotB);
+            std::swap(cp.featureA, cp.featureB);
             cp.normal *= -1; // Point towards new A.
+
+            if (cp.normal_attachment == contact_normal_attachment::normal_on_A) {
+                cp.normal_attachment = contact_normal_attachment::normal_on_B;
+            } else if (cp.normal_attachment == contact_normal_attachment::normal_on_B) {
+                cp.normal_attachment = contact_normal_attachment::normal_on_A;
+            }
         }
         return *this;
     }

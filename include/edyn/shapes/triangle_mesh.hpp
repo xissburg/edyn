@@ -5,7 +5,6 @@
 #include <vector>
 #include "edyn/config/config.h"
 #include "edyn/math/math.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
