@@ -178,9 +178,9 @@ size_t find_nearest_contact_rolling(const collision_result &result, const vector
 }
 
 entt::entity create_contact_point(entt::registry& registry,
-                                entt::entity manifold_entity,
-                                contact_manifold& manifold,
-                                const collision_result::collision_point& rp) {
+                                  entt::entity manifold_entity,
+                                  contact_manifold& manifold,
+                                  const collision_result::collision_point& rp) {
     auto idx = manifold.num_points();
 
     EDYN_ASSERT(idx < max_contacts);

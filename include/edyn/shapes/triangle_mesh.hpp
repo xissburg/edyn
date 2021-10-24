@@ -170,57 +170,11 @@ public:
         return m_adjacent_normals[tri_idx][edge_idx];
     }
 
-    bool has_per_vertex_friction() const {
-        return static_cast<bool>(m_friction);
-    }
-
-    scalar get_vertex_friction(size_t vertex_idx) const {
-        return (*m_friction)[vertex_idx];
-    }
-
-    scalar get_edge_friction(size_t edge_idx, scalar fraction) const {
-        auto f0 = get_vertex_friction(m_edge_vertex_indices[edge_idx][0]);
-        auto f1 = get_vertex_friction(m_edge_vertex_indices[edge_idx][1]);
-        return lerp(f0, f1, fraction);
-    }
-
-    scalar get_edge_friction(size_t edge_idx, vector3 point) const {
-        auto [v0, v1] = get_edge_vertices(edge_idx);
-        auto fraction = distance_sqr(point, v0) / distance_sqr(v1, v0);
-        EDYN_ASSERT(fraction < scalar(1) + EDYN_EPSILON);
-        EDYN_ASSERT(std::abs(length_sqr(cross(point - v0, v1 - v0))) <= EDYN_EPSILON);
-        return get_edge_friction(edge_idx, fraction);
-    }
-
-    scalar get_face_friction(size_t tri_idx, scalar t0, scalar t1) const {
-        auto f0 = get_vertex_friction(m_indices[tri_idx][0]);
-        auto f1 = get_vertex_friction(m_indices[tri_idx][1]);
-        auto f2 = get_vertex_friction(m_indices[tri_idx][2]);
-        auto t2 = scalar(1) - t0 - t1;
-        return  f0 * t0 + f1 * t1 + f2 * t2;
-    }
-
-    scalar get_face_friction(size_t tri_idx, vector3 point) const {
-        auto vertices = get_triangle_vertices(tri_idx);
-        auto normal = get_triangle_normal(tri_idx);
-        EDYN_ASSERT(point_in_triangle(vertices, normal, point));
-        auto edge_normal = cross(vertices[2] - vertices[1], normal);
-        auto t0 = scalar(1) - dot(point - vertices[0], edge_normal) /
-                  dot(vertices[1] - vertices[0], edge_normal);
-        auto f0 = get_vertex_friction(m_indices[tri_idx][0]);
-
-        if (t0 > scalar(1) - EDYN_EPSILON) {
-            return f0;
-        }
-
-        auto f1 = get_vertex_friction(m_indices[tri_idx][1]);
-        auto f2 = get_vertex_friction(m_indices[tri_idx][2]);
-        auto point_opposite_edge = lerp(vertices[0], point, scalar(1) / (scalar(1) - t0));
-        auto t1 = distance_sqr(vertices[1], point_opposite_edge) /
-                  distance_sqr(vertices[1], vertices[2]) * (scalar(1) - t0);
-        auto t2 = scalar(1) - t0 - t1;
-        return  f0 * t0 + f1 * t1 + f2 * t2;
-    }
+    bool has_per_vertex_friction() const;
+    scalar get_vertex_friction(size_t vertex_idx) const;
+    scalar get_edge_friction(size_t edge_idx, scalar fraction) const;
+    scalar get_edge_friction(size_t edge_idx, vector3 point) const;
+    scalar get_face_friction(size_t tri_idx, vector3 point) const;
 
     template<typename Archive>
     friend void serialize(Archive &, triangle_mesh &);
