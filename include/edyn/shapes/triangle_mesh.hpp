@@ -1,8 +1,9 @@
 #ifndef EDYN_SHAPES_TRIANGLE_MESH_HPP
 #define EDYN_SHAPES_TRIANGLE_MESH_HPP
 
-#include <cstdint>
 #include <vector>
+#include <cstdint>
+#include <optional>
 #include "edyn/config/config.h"
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"

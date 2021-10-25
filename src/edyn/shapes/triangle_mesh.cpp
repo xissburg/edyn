@@ -177,7 +177,7 @@ scalar triangle_mesh::get_face_friction(size_t tri_idx, vector3 point) const {
     // Use barycentric coordinates to interpolate the vertex friction coefficients.
     auto vertices = get_triangle_vertices(tri_idx);
     auto normal = get_triangle_normal(tri_idx);
-    EDYN_ASSERT(point_in_triangle(vertices, normal, point));
+
     // The contribution of a vertex to the interpolation is equals to the ratio
     // between the area of the sub-triangle where the vertices are the point and
     // the two vertices of the edge opposite to this vertex and the area of the

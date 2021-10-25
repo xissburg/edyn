@@ -44,21 +44,52 @@ static vector3 read_vector3(std::istringstream &iss) {
     return v;
 }
 
+static void read_face_indices(std::istringstream &iss,
+                              std::vector<uint16_t> &indices,
+                              uint16_t offset, bool triangulate) {
+    std::string idx_str;
+    auto count = size_t{};
+    uint16_t first_idx;
+    uint16_t prev_idx;
+
+    while (true) {
+        iss >> idx_str;
+        if (iss.fail()) break;
+
+        // Remove everything after the first slash to keep only the first
+        // element in the "v/vt/vn" sequence.
+        auto pos = idx_str.find_first_of('/');
+        if (pos != std::string::npos) {
+            idx_str.erase(pos);
+        }
+
+        auto idx = std::stoi(idx_str);
+        EDYN_ASSERT(idx >= 1 + offset);
+
+        if (triangulate && count >= 3) {
+            indices.push_back(first_idx);
+            indices.push_back(prev_idx);
+        }
+
+        indices.push_back(idx - 1 - offset);
+
+        if (count == 0) {
+            first_idx = indices.back();
+        }
+
+        prev_idx = indices.back();
+        ++count;
+    }
+}
+
 static void read_face(std::istringstream &iss,
                       std::vector<uint16_t> &indices,
                       std::vector<uint16_t> &faces,
-                      uint16_t offset) {
+                      uint16_t offset, bool triangulate) {
     // Store where this face starts in the `indices` array.
     faces.push_back(indices.size());
 
-    uint16_t idx;
-
-    while (true) {
-        iss >> idx;
-        if (iss.fail()) break;
-        EDYN_ASSERT(idx >= 1 + offset);
-        indices.push_back(idx - 1 - offset);
-    }
+    read_face_indices(iss, indices, offset, triangulate);
 
     // Store the number of vertices in this face.
     auto count = indices.size() - faces.back();
@@ -111,9 +142,18 @@ bool load_meshes_from_obj(const std::string &path,
             }
 
             mesh.vertices.push_back(v);
+
+            if (!iss.eof()) {
+                // Try reading vertex color.
+                auto color = read_vector3(iss);
+
+                if (!iss.fail()) {
+                    mesh.colors.push_back(color);
+                }
+            }
         } else if (cmd == "f") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            read_face(iss, mesh.indices, mesh.faces, index_offset);
+            read_face(iss, mesh.indices, mesh.faces, index_offset, false);
         }
     }
 
@@ -127,6 +167,7 @@ bool load_meshes_from_obj(const std::string &path,
 bool load_tri_mesh_from_obj(const std::string &path,
                         std::vector<vector3> &vertices,
                         std::vector<uint16_t> &indices,
+                        std::vector<vector3> *colors,
                         vector3 pos,
                         quaternion orn,
                         vector3 scale) {
@@ -164,13 +205,18 @@ bool load_tri_mesh_from_obj(const std::string &path,
             }
 
             vertices.push_back(v);
+
+            if (colors != nullptr && !iss.eof()) {
+                // Try reading vertex color.
+                auto color = read_vector3(iss);
+
+                if (!iss.fail()) {
+                    colors->push_back(color);
+                }
+            }
         } else if (cmd == "f") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            uint16_t idx[3];
-            iss >> idx[0] >> idx[1] >> idx[2];
-            indices.push_back(idx[0] - 1);
-            indices.push_back(idx[1] - 1);
-            indices.push_back(idx[2] - 1);
+            read_face_indices(iss, indices, 0, true);
         }
     }
 

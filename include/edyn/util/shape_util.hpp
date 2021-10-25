@@ -65,6 +65,7 @@ void make_box_mesh(const vector3 &half_extents,
 
 struct obj_mesh {
     std::vector<vector3> vertices;
+    std::vector<vector3> colors;
     std::vector<uint16_t> indices;
     std::vector<uint16_t> faces;
 };
@@ -91,6 +92,7 @@ bool load_meshes_from_obj(const std::string &path,
  * @param path Path to file.
  * @param vertices Array to be filled with vertices.
  * @param indices Array to be filled with indices for each triangle.
+ * @param colors Array to be filled with vertex colors.
  * @param pos Position offset to add to vertices.
  * @param orn Orientation to rotate vertices.
  * @param scale Scaling to be applied to all vertices.
@@ -99,6 +101,7 @@ bool load_meshes_from_obj(const std::string &path,
 bool load_tri_mesh_from_obj(const std::string &path,
                             std::vector<vector3> &vertices,
                             std::vector<uint16_t> &indices,
+                            std::vector<vector3> *colors = nullptr,
                             vector3 pos = vector3_zero,
                             quaternion orn = quaternion_identity,
                             vector3 scale = vector3_one);
