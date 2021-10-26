@@ -226,6 +226,9 @@ public:
         return *m_page_loader;
     }
 
+    bool has_per_vertex_friction() const;
+    bool has_per_vertex_restitution() const;
+
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
      * is loaded, if the number of vertices would exceed this number, the

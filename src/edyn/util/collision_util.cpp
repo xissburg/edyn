@@ -30,19 +30,136 @@ void update_contact_distances(entt::registry &registry) {
     });
 }
 
-scalar get_mesh_friction(const mesh_shape &shape, const vector3 &pivot, collision_feature coll_feature) {
+static scalar get_trimesh_friction(const triangle_mesh &trimesh,
+                                   const vector3 &pivot, collision_feature coll_feature) {
     auto feature = std::get<triangle_feature>(coll_feature.feature);
 
     switch (feature) {
     case triangle_feature::vertex:
-        return shape.trimesh->get_vertex_friction(coll_feature.index);
+        return trimesh.get_vertex_friction(coll_feature.index);
     case triangle_feature::edge:
-        return shape.trimesh->get_edge_friction(coll_feature.index, pivot);
+        return trimesh.get_edge_friction(coll_feature.index, pivot);
     case triangle_feature::face:
-        return shape.trimesh->get_face_friction(coll_feature.index, pivot);
+        return trimesh.get_face_friction(coll_feature.index, pivot);
     }
 
     return {};
+}
+
+static scalar get_trimesh_restitution(const triangle_mesh &trimesh,
+                                      const vector3 &pivot, collision_feature coll_feature) {
+    auto feature = std::get<triangle_feature>(coll_feature.feature);
+
+    switch (feature) {
+    case triangle_feature::vertex:
+        return trimesh.get_vertex_restitution(coll_feature.index);
+    case triangle_feature::edge:
+        return trimesh.get_edge_restitution(coll_feature.index, pivot);
+    case triangle_feature::face:
+        return trimesh.get_face_restitution(coll_feature.index, pivot);
+    }
+
+    return {};
+}
+
+static scalar get_paged_mesh_friction(const paged_mesh_shape &shape,
+                                      const vector3 &pivot, collision_feature coll_feature) {
+    auto submesh = shape.trimesh->get_submesh(coll_feature.part);
+
+    if (submesh) {
+        return get_trimesh_friction(*submesh, pivot, coll_feature);
+    }
+
+    return {};
+}
+
+static scalar get_paged_mesh_restitution(const paged_mesh_shape &shape,
+                                         const vector3 &pivot, collision_feature coll_feature) {
+    auto submesh = shape.trimesh->get_submesh(coll_feature.part);
+
+    if (submesh) {
+        return get_trimesh_restitution(*submesh, pivot, coll_feature);
+    }
+
+    return {};
+}
+
+static bool try_assign_per_vertex_friction(
+    contact_point &cp,
+    const material_view_t &material_view,
+    const mesh_shape_view_t &mesh_shape_view,
+    const paged_mesh_shape_view_t &paged_mesh_shape_view) {
+
+    if (mesh_shape_view.contains(cp.body[0])) {
+        auto [shapeA] = mesh_shape_view.get(cp.body[0]);
+        if (shapeA.trimesh->has_per_vertex_friction()) {
+            auto [materialB] = material_view.get(cp.body[1]);
+            cp.friction = material_mix_friction(get_trimesh_friction(*shapeA.trimesh, cp.pivotA, *cp.featureA), materialB.friction);
+            return true;
+        }
+    } else if (mesh_shape_view.contains(cp.body[1])) {
+        auto [shapeB] = mesh_shape_view.get(cp.body[1]);
+        if (shapeB.trimesh->has_per_vertex_friction()) {
+            auto [materialA] = material_view.get(cp.body[0]);
+            cp.friction = material_mix_friction(materialA.friction, get_trimesh_friction(*shapeB.trimesh, cp.pivotB, *cp.featureB));
+            return true;
+        }
+    } else if (paged_mesh_shape_view.contains(cp.body[0])) {
+        auto [shapeA] = paged_mesh_shape_view.get(cp.body[0]);
+        if (shapeA.trimesh->has_per_vertex_friction()) {
+            auto [materialB] = material_view.get(cp.body[1]);
+            cp.friction = material_mix_friction(get_paged_mesh_friction(shapeA, cp.pivotA, *cp.featureA), materialB.friction);
+            return true;
+        }
+    } else if (paged_mesh_shape_view.contains(cp.body[1])) {
+        auto [shapeB] = paged_mesh_shape_view.get(cp.body[1]);
+        if (shapeB.trimesh->has_per_vertex_friction()) {
+            auto [materialA] = material_view.get(cp.body[0]);
+            cp.friction = material_mix_friction(materialA.friction, get_paged_mesh_friction(shapeB, cp.pivotB, *cp.featureB));
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool try_assign_per_vertex_restitution(
+    contact_point &cp,
+    const material_view_t &material_view,
+    const mesh_shape_view_t &mesh_shape_view,
+    const paged_mesh_shape_view_t &paged_mesh_shape_view) {
+
+    if (mesh_shape_view.contains(cp.body[0])) {
+        auto [shapeA] = mesh_shape_view.get(cp.body[0]);
+        if (shapeA.trimesh->has_per_vertex_restitution()) {
+            auto [materialB] = material_view.get(cp.body[1]);
+            cp.restitution = material_mix_restitution(get_trimesh_restitution(*shapeA.trimesh, cp.pivotA, *cp.featureA), materialB.restitution);
+            return true;
+        }
+    } else if (mesh_shape_view.contains(cp.body[1])) {
+        auto [shapeB] = mesh_shape_view.get(cp.body[1]);
+        if (shapeB.trimesh->has_per_vertex_restitution()) {
+            auto [materialA] = material_view.get(cp.body[0]);
+            cp.restitution = material_mix_restitution(materialA.restitution, get_trimesh_restitution(*shapeB.trimesh, cp.pivotB, *cp.featureB));
+            return true;
+        }
+    } else if (paged_mesh_shape_view.contains(cp.body[0])) {
+        auto [shapeA] = paged_mesh_shape_view.get(cp.body[0]);
+        if (shapeA.trimesh->has_per_vertex_restitution()) {
+            auto [materialB] = material_view.get(cp.body[1]);
+            cp.restitution = material_mix_restitution(get_paged_mesh_restitution(shapeA, cp.pivotA, *cp.featureA), materialB.restitution);
+            return true;
+        }
+    } else if (paged_mesh_shape_view.contains(cp.body[1])) {
+        auto [shapeB] = paged_mesh_shape_view.get(cp.body[1]);
+        if (shapeB.trimesh->has_per_vertex_restitution()) {
+            auto [materialA] = material_view.get(cp.body[0]);
+            cp.restitution = material_mix_restitution(materialA.restitution, get_paged_mesh_restitution(shapeB, cp.pivotB, *cp.featureB));
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void merge_point(const collision_result::collision_point &rp, contact_point &cp,
@@ -66,27 +183,16 @@ void merge_point(const collision_result::collision_point &rp, contact_point &cp,
         cp.local_normal = vector3_zero;
     }
 
-    // Update material properties if a mesh with per-vertex material is involed.
-    if (mesh_shape_view.contains(cp.body[0])) {
-        auto [shapeA] = mesh_shape_view.get(cp.body[0]);
-        if (shapeA.trimesh->has_per_vertex_friction()) {
-            auto [materialB] = material_view.get(cp.body[1]);
-            cp.friction = material_mix_friction(get_mesh_friction(shapeA, cp.pivotA, *cp.featureA), materialB.friction);
-        }
-    } else if (mesh_shape_view.contains(cp.body[1])) {
-        auto [shapeB] = mesh_shape_view.get(cp.body[1]);
-        if (shapeB.trimesh->has_per_vertex_friction()) {
-            auto [materialA] = material_view.get(cp.body[0]);
-            cp.friction = material_mix_friction(materialA.friction, get_mesh_friction(shapeB, cp.pivotB, *cp.featureB));
-        }
-    }
+    try_assign_per_vertex_friction(cp, material_view, mesh_shape_view, paged_mesh_shape_view);
+    try_assign_per_vertex_restitution(cp, material_view, mesh_shape_view, paged_mesh_shape_view);
 }
 
 void create_contact_constraint(entt::registry &registry,
                                entt::entity contact_entity,
                                contact_point &cp) {
-    auto &materialA = registry.get<material>(cp.body[0]);
-    auto &materialB = registry.get<material>(cp.body[1]);
+    auto material_view = registry.view<material>();
+    auto [materialA] = material_view.get(cp.body[0]);
+    auto [materialB] = material_view.get(cp.body[1]);
 
     auto &material_table = registry.ctx<material_mix_table>();
     auto stiffness = large_scalar;
@@ -100,17 +206,17 @@ void create_contact_constraint(entt::registry &registry,
         stiffness = material->stiffness;
         damping = material->damping;
     } else {
-        if (auto *shapeA = registry.try_get<mesh_shape>(cp.body[0]);
-            shapeA && shapeA->trimesh->has_per_vertex_friction()) {
-            cp.friction = material_mix_friction(get_mesh_friction(*shapeA, cp.pivotA, *cp.featureA), materialB.friction);
-        } else if (auto *shapeB = registry.try_get<mesh_shape>(cp.body[1]);
-                   shapeB && shapeB->trimesh->has_per_vertex_friction()) {
-            cp.friction = material_mix_friction(materialA.friction, get_mesh_friction(*shapeB, cp.pivotB, *cp.featureB));
-        } else {
+        auto mesh_shape_view = registry.view<mesh_shape>();
+        auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
+
+        if (!try_assign_per_vertex_friction(cp, material_view, mesh_shape_view, paged_mesh_shape_view)) {
             cp.friction = material_mix_friction(materialA.friction, materialB.friction);
         }
 
-        cp.restitution = material_mix_restitution(materialA.restitution, materialB.restitution);
+        if (!try_assign_per_vertex_restitution(cp, material_view, mesh_shape_view, paged_mesh_shape_view)) {
+            cp.restitution = material_mix_restitution(materialA.restitution, materialB.restitution);
+        }
+
         cp.roll_friction = material_mix_roll_friction(materialA.roll_friction, materialB.roll_friction);
         cp.spin_friction = material_mix_spin_friction(materialA.spin_friction, materialB.spin_friction);
 

@@ -90,4 +90,24 @@ void paged_triangle_mesh::assign_mesh(size_t index, std::shared_ptr<triangle_mes
     m_is_loading_submesh[index].store(false, std::memory_order_release);
 }
 
+bool paged_triangle_mesh::has_per_vertex_friction() const {
+    for (auto &node : m_cache) {
+        if (node.trimesh && node.trimesh->has_per_vertex_friction()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool paged_triangle_mesh::has_per_vertex_restitution() const {
+    for (auto &node : m_cache) {
+        if (node.trimesh && node.trimesh->has_per_vertex_restitution()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 }

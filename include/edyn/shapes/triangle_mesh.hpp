@@ -3,7 +3,6 @@
 
 #include <vector>
 #include <cstdint>
-#include <optional>
 #include "edyn/config/config.h"
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"
@@ -53,16 +52,14 @@ public:
 
     template<typename It>
     void insert_friction_coefficients(It first, It last) {
-        m_friction = std::vector<scalar>{};
-        m_friction->reserve(std::distance(first, last));
-        m_friction->insert(m_friction->end(), first, last);
+        m_friction.clear();
+        m_friction.insert(m_friction.end(), first, last);
     }
 
     template<typename It>
     void insert_restitution_coefficients(It first, It last) {
-        m_restitution = std::vector<scalar>{};
-        m_restitution->reserve(std::distance(first, last));
-        m_restitution->insert(m_restitution->end(), first, last);
+        m_restitution.clear();
+        m_restitution.insert(m_restitution.end(), first, last);
     }
 
     size_t num_vertices() const {
@@ -177,6 +174,14 @@ public:
     scalar get_edge_friction(size_t edge_idx, vector3 point) const;
     scalar get_face_friction(size_t tri_idx, vector3 point) const;
 
+    bool has_per_vertex_restitution() const;
+    scalar get_vertex_restitution(size_t vertex_idx) const;
+    scalar get_edge_restitution(size_t edge_idx, scalar fraction) const;
+    scalar get_edge_restitution(size_t edge_idx, vector3 point) const;
+    scalar get_face_restitution(size_t tri_idx, vector3 point) const;
+
+    scalar interpolate_triangle(size_t tri_idx, vector3 point, vector3 values) const;
+
     template<typename Archive>
     friend void serialize(Archive &, triangle_mesh &);
     friend size_t serialization_sizeof(const triangle_mesh &);
@@ -219,8 +224,8 @@ private:
     std::vector<bool> m_is_convex_edge;
 
     // Per-vertex friction and restitution coefficients.
-    std::optional<std::vector<scalar>> m_friction;
-    std::optional<std::vector<scalar>> m_restitution;
+    std::vector<scalar> m_friction;
+    std::vector<scalar> m_restitution;
 
     static_tree m_triangle_tree;
 };
