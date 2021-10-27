@@ -25,8 +25,8 @@ struct contact_point {
     scalar restitution; // Combined coefficient of restitution.
     uint32_t lifetime {0}; // Incremented in each simulation step where the contact is persisted.
     scalar distance; // Signed distance along normal.
-    std::optional<collision_feature> featureA;
-    std::optional<collision_feature> featureB;
+    std::optional<collision_feature> featureA; // Closest feature on A.
+    std::optional<collision_feature> featureB; // Closest feature on B.
 };
 
 }
