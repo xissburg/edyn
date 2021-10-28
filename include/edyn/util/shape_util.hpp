@@ -7,6 +7,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/geom.hpp"
+#include "edyn/util/triangle_util.hpp"
 #include <vector>
 #include <cstdint>
 #include <string>
@@ -391,6 +392,20 @@ scalar cylinder_support_projection(scalar radius, scalar half_length, const vect
 vector3 mesh_centroid(const std::vector<vector3> &vertices,
                       const std::vector<uint16_t> &indices,
                       const std::vector<uint16_t> &faces);
+
+struct collision_feature;
+
+/**
+ * @brief Get a triangle mesh feature index from the local index of a triangle
+ * feature.
+ * @param mesh The mesh indices should be obtained from.
+ * @param tri_idx Triangle index in the mesh.
+ * @param tri_feature Triangle feature.
+ * @param tri_feature_index Index of triangle feature.
+ * @return Index of feature in the triangle mesh.
+ */
+size_t get_triangle_mesh_feature_index(const triangle_mesh &mesh, size_t tri_idx,
+                                       triangle_feature tri_feature, size_t tri_feature_idx);
 
 }
 

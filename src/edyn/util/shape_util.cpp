@@ -4,6 +4,7 @@
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/shapes/triangle_mesh.hpp"
 #include <fstream>
 #include <sstream>
 #include <numeric>
@@ -518,6 +519,20 @@ vector3 mesh_centroid(const std::vector<vector3> &vertices,
     center /= 24 * 2 * volume;
 
     return center;
+}
+
+size_t get_triangle_mesh_feature_index(const triangle_mesh &mesh, size_t tri_idx,
+                                       triangle_feature tri_feature, size_t tri_feature_idx) {
+    switch (tri_feature) {
+    case triangle_feature::face:
+        return tri_idx;
+    case triangle_feature::edge:
+        return mesh.get_face_edge_index(tri_idx, tri_feature_idx);
+    case triangle_feature::vertex:
+        return mesh.get_face_vertex_index(tri_idx, tri_feature_idx);
+    }
+
+    return SIZE_MAX;
 }
 
 }

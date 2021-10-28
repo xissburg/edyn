@@ -5,6 +5,7 @@
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
+#include "edyn/util/shape_util.hpp"
 #include "edyn/util/triangle_util.hpp"
 
 namespace edyn {
@@ -136,10 +137,17 @@ void collide_cylinder_triangle(
     cylinder.support_feature(posA, ornA, -sep_axis, cyl_feature, cyl_feature_index,
                              support_feature_tolerance);
 
+    collision_result::collision_point point;
+    point.normal = sep_axis;
+    point.distance = distance;
+    point.featureA = {cyl_feature, cyl_feature_index};
+    point.featureB = {tri_feature};
+    point.featureB->index = get_triangle_mesh_feature_index(mesh, tri_idx, tri_feature, tri_feature_index);
+
     if (cyl_feature == cylinder_feature::face && tri_feature == triangle_feature::face) {
         size_t num_vertices_in_face = 0;
         auto sign_faceA = to_sign(cyl_feature_index == 0);
-        auto normal_attachment = contact_normal_attachment::normal_on_B;
+        point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         // Check if triangle vertices are inside a cylinder cap face (by checking
         // if its distance from the cylinder axis is smaller than the cylinder radius).
@@ -149,10 +157,10 @@ void collide_cylinder_triangle(
 
             if (dist_sqr > cylinder.radius * cylinder.radius) continue;
 
-            auto pivotA = to_object_space(vertex, posA, ornA);
-            pivotA.x = cylinder.half_length * sign_faceA;
-            auto pivotB = vertex;
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+            point.pivotA = to_object_space(vertex, posA, ornA);
+            point.pivotA.x = cylinder.half_length * sign_faceA;
+            point.pivotB = vertex;
+            result.maybe_add_point(point);
 
             ++num_vertices_in_face;
         }
@@ -168,18 +176,18 @@ void collide_cylinder_triangle(
         for (auto i = 0; i < 4; ++i) {
             auto j = (i + 1) % 4;
             auto pivotA_x = cylinder.half_length * sign_faceA;
-            auto pivotA = vector3{pivotA_x,
-                                  cylinder.radius * multipliers[i],
-                                  cylinder.radius * multipliers[j]};
-            auto pivotA_world = to_world_space(pivotA, posA, ornA);
+            point.pivotA = vector3{pivotA_x,
+                                   cylinder.radius * multipliers[i],
+                                   cylinder.radius * multipliers[j]};
+            auto pivotA_world = to_world_space(point.pivotA, posA, ornA);
 
             if (!point_in_triangle(tri_vertices, tri_normal, pivotA_world)) {
                 continue;
             }
 
-            auto local_distance = dot(pivotA_world - tri_vertices[0], tri_normal);
-            auto pivotB = pivotA_world - tri_normal * local_distance;
-            result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+            point.distance = dot(pivotA_world - tri_vertices[0], tri_normal);
+            point.pivotB = pivotA_world - tri_normal * point.distance;
+            result.maybe_add_point(point);
         }
 
         // Check if circle and triangle edges intersect.
@@ -207,10 +215,10 @@ void collide_cylinder_triangle(
                 if (!(t > 0 && t < 1)) continue;
 
                 auto pivotA_x = cylinder.half_length * sign_faceA;
-                auto pivotA = lerp(v0_A, v1_A, t);
-                pivotA.x = pivotA_x;
-                auto pivotB = lerp(v0, v1, t);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                point.pivotA = lerp(v0_A, v1_A, t);
+                point.pivotA.x = pivotA_x;
+                point.pivotB = lerp(v0, v1, t);
+                result.maybe_add_point(point);
             }
         }
     } else if (cyl_feature == cylinder_feature::face && tri_feature == triangle_feature::edge) {
@@ -232,15 +240,15 @@ void collide_cylinder_triangle(
 
         auto sign_faceA = to_sign(cyl_feature_index == 0);
         auto pivotA_x = cylinder.half_length * sign_faceA;
-        auto normal_attachment = contact_normal_attachment::normal_on_A;
+        point.normal_attachment = contact_normal_attachment::normal_on_A;
 
         for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
             auto t = clamp_unit(s[pt_idx]);
-            auto pivotA = lerp(v0A, v1A, t);
-            auto local_distance = (pivotA.x - pivotA_x) * sign_faceA;
-            pivotA.x = pivotA_x;
-            auto pivotB = lerp(edge_vertices[0], edge_vertices[1], t);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+            point.pivotA = lerp(v0A, v1A, t);
+            point.distance = (point.pivotA.x - pivotA_x) * sign_faceA;
+            point.pivotA.x = pivotA_x;
+            point.pivotB = lerp(edge_vertices[0], edge_vertices[1], t);
+            result.maybe_add_point(point);
         }
     } else if (cyl_feature == cylinder_feature::face && tri_feature == triangle_feature::vertex) {
         auto vertex = tri_vertices[tri_feature_index];
@@ -248,26 +256,26 @@ void collide_cylinder_triangle(
         auto dist_sqr = closest_point_line(posA, cylinder_axis, vertex, t, closest);
 
         if (dist_sqr < cylinder.radius * cylinder.radius) {
-            auto pivotA = to_object_space(vertex, posA, ornA);
-            pivotA.x = cylinder.half_length * to_sign(cyl_feature_index == 0);
-            auto pivotB = vertex;
-            auto normal_attachment = contact_normal_attachment::normal_on_A;
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+            point.pivotA = to_object_space(vertex, posA, ornA);
+            point.pivotA.x = cylinder.half_length * to_sign(cyl_feature_index == 0);
+            point.pivotB = vertex;
+            point.normal_attachment = contact_normal_attachment::normal_on_A;
+            result.maybe_add_point(point);
         }
     } else if (cyl_feature == cylinder_feature::side_edge && tri_feature == triangle_feature::face) {
         // Check if edge vertices are inside triangle face.
         size_t num_edge_vert_in_tri_face = 0;
 
         auto radial_dir = normalize(project_direction(-sep_axis, cylinder_axis));
-        auto normal_attachment = contact_normal_attachment::normal_on_B;
+        point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         for (auto vertex : cylinder_vertices) {
             if (point_in_triangle(tri_vertices, tri_normal, vertex)) {
                 auto pivotA_world = vertex + radial_dir * cylinder.radius;
-                auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                auto local_distance = dot(pivotA_world - tri_vertices[0], sep_axis);
-                auto pivotB = pivotA_world - sep_axis * local_distance;
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+                point.pivotA = to_object_space(pivotA_world, posA, ornA);
+                point.distance = dot(pivotA_world - tri_vertices[0], sep_axis);
+                point.pivotB = pivotA_world - sep_axis * point.distance;
+                result.maybe_add_point(point);
                 ++num_edge_vert_in_tri_face;
             }
         }
@@ -307,10 +315,10 @@ void collide_cylinder_triangle(
 
             for (size_t k = 0; k < num_points; ++k) {
                 auto pivotA_world = lerp(cylinder_vertices[0], cylinder_vertices[1], s[k]) + radial_dir * cylinder.radius;
-                auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                auto pivotB = lerp(v0, v1, t[k]);
-                auto local_distance = dot(pivotA_world - pivotB, sep_axis);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, normal_attachment});
+                point.pivotA = to_object_space(pivotA_world, posA, ornA);
+                point.pivotB = lerp(v0, v1, t[k]);
+                point.distance = dot(pivotA_world - point.pivotB, sep_axis);
+                result.maybe_add_point(point);
             }
         }
     } else if (cyl_feature == cylinder_feature::side_edge && tri_feature == triangle_feature::edge) {
@@ -324,7 +332,7 @@ void collide_cylinder_triangle(
                                       &s[1], &t[1], &closestA[1], &closestB[1]);
 
         if (num_points > 0) {
-            auto normal_attachment = contact_normal_attachment::none;
+            point.normal_attachment = contact_normal_attachment::none;
 
             // If there's a single closest point, ignore it if it's at a vertex.
             // If there are more than one point, the segments are parallel and
@@ -332,9 +340,9 @@ void collide_cylinder_triangle(
             if ((num_points == 1 && s[0] > 0 && s[0] < 1 && t[0] > 0 && t[0] < 1) || num_points > 1) {
                 for (size_t i = 0; i < num_points; ++i) {
                     auto pivotA_world = closestA[i] - sep_axis * cylinder.radius;
-                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                    auto pivotB = closestB[i];
-                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                    point.pivotA = to_object_space(pivotA_world, posA, ornA);
+                    point.pivotB = closestB[i];
+                    result.maybe_add_point(point);
                 }
             }
         }
@@ -355,20 +363,21 @@ void collide_cylinder_triangle(
             // of their lengths.
             if (!(std::abs(square(dot(dir, sep_axis)) - dir_len_sqr) > EDYN_EPSILON)) {
                 auto pivotA_world = closest - sep_axis * cylinder.radius;
-                auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                auto pivotB = vertex;
-                auto normal_attachment = contact_normal_attachment::none;
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                point.pivotA = to_object_space(pivotA_world, posA, ornA);
+                point.pivotB = vertex;
+                point.normal_attachment = contact_normal_attachment::none;
+                result.maybe_add_point(point);
             }
         }
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::face) {
         auto supportA = support_point_circle(cylinder_vertices[cyl_feature_index], ornA, cylinder.radius, -sep_axis);
 
         if (point_in_triangle(tri_vertices, tri_normal, supportA)) {
-            auto pivotA = to_object_space(supportA, posA, ornA);
-            auto pivotB = project_plane(supportA, tri_vertices[0], tri_normal);
-            auto normal_attachment = contact_normal_attachment::normal_on_B;
-            result.maybe_add_point({pivotA, pivotB, tri_normal, distance, normal_attachment});
+            point.pivotA = to_object_space(supportA, posA, ornA);
+            point.pivotB = project_plane(supportA, tri_vertices[0], tri_normal);
+            point.normal_attachment = contact_normal_attachment::normal_on_B;
+            point.normal = tri_normal;
+            result.maybe_add_point(point);
         }
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::edge) {
         auto supportA = support_point_circle(cylinder_vertices[cyl_feature_index], ornA, cylinder.radius, -sep_axis);
@@ -385,10 +394,10 @@ void collide_cylinder_triangle(
             auto dir_len_sqr = length_sqr(dir);
 
             if (!(std::abs(square(dot(dir, sep_axis)) - dir_len_sqr) > EDYN_EPSILON)) {
-                auto pivotA = to_object_space(supportA, posA, ornA);
-                auto pivotB = closest;
-                auto normal_attachment = contact_normal_attachment::none;
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                point.pivotA = to_object_space(supportA, posA, ornA);
+                point.pivotB = closest;
+                point.normal_attachment = contact_normal_attachment::none;
+                result.maybe_add_point(point);
             }
         }
     }

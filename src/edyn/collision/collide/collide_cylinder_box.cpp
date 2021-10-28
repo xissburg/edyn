@@ -173,6 +173,11 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
     shB.support_feature(posB, ornB, sep_axis, featureB, feature_indexB,
                         support_feature_tolerance);
 
+    collision_result::collision_point point;
+    point.normal = sep_axis;
+    point.distance = distance;
+    point.featureA = {featureA, feature_indexA};
+    point.featureB = {featureB, feature_indexB};
 
     if (featureA == cylinder_feature::face && featureB == box_feature::face) {
         auto sign_faceA = to_sign(feature_indexA == 0);
@@ -182,6 +187,8 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         for (size_t i = 0; i < 4; ++i) {
             verticesB_world[i] = to_world_space(verticesB_local[i], posB, ornB);
         }
+
+        point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         size_t num_edge_intersections = 0;
         std::pair<vector3, vector3> last_edge;
@@ -231,11 +238,11 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
                 if (!(t < 1)) continue;
 
                 auto u = clamp_unit(t);
-                auto pivotA = lerp(v0A, v1A, u);
-                auto local_distance = (pivotA.x - pivotA_x) * sign_faceA;
-                pivotA.x = pivotA_x;
-                auto pivotB = lerp(v0B, v1B, u);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, contact_normal_attachment::normal_on_B});
+                point.pivotA = lerp(v0A, v1A, u);
+                point.pivotA.x = pivotA_x;
+                point.pivotB = lerp(v0B, v1B, u);
+                point.distance = (point.pivotA.x - pivotA_x) * sign_faceA;
+                result.maybe_add_point(point);
             }
         }
 
@@ -252,13 +259,13 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
                 for(int i = 0; i < 4; ++i) {
                     auto j = (i + 1) % 4;
                     auto pivotA_x = shA.half_length * sign_faceA;
-                    auto pivotA = vector3{pivotA_x,
-                                        shA.radius * multipliers[i],
-                                        shA.radius * multipliers[j]};
-                    auto pivotA_in_B = to_world_space(pivotA, posA_in_B, ornA_in_B);
-                    auto local_distance = dot(pivotA_in_B - verticesB_local[0], face_normal_local);
-                    auto pivotB = project_plane(pivotA_in_B, verticesB_local[0], face_normal_local);
-                    result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, contact_normal_attachment::normal_on_B});
+                    point.pivotA = vector3{pivotA_x,
+                                           shA.radius * multipliers[i],
+                                           shA.radius * multipliers[j]};
+                    auto pivotA_in_B = to_world_space(point.pivotA, posA_in_B, ornA_in_B);
+                    point.distance = dot(pivotA_in_B - verticesB_local[0], face_normal_local);
+                    point.pivotB = project_plane(pivotA_in_B, verticesB_local[0], face_normal_local);
+                    result.maybe_add_point(point);
                 }
             }
         } else if (num_edge_intersections == 1) {
@@ -279,12 +286,12 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             }
 
             auto pivotA_x = shA.half_length * to_sign(feature_indexA == 0);
-            auto pivotA = vector3{pivotA_x, tangent.y * shA.radius, tangent.x * shA.radius};
+            point.pivotA = vector3{pivotA_x, tangent.y * shA.radius, tangent.x * shA.radius};
             // Transform pivotA into box space and project onto box face.
-            auto pivotA_in_B = to_world_space(pivotA, posA_in_B, ornA_in_B);
-            auto pivotB = project_plane(pivotA_in_B, verticesB_local[0], face_normal_local);
-            auto local_distance = dot(pivotA_in_B - verticesB_local[0], face_normal_local);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, contact_normal_attachment::normal_on_B});
+            auto pivotA_in_B = to_world_space(point.pivotA, posA_in_B, ornA_in_B);
+            point.pivotB = project_plane(pivotA_in_B, verticesB_local[0], face_normal_local);
+            point.distance = dot(pivotA_in_B - verticesB_local[0], face_normal_local);
+            result.maybe_add_point(point);
         }
     } else if (featureA == cylinder_feature::face && featureB == box_feature::edge) {
         auto verticesB_local = shB.get_edge(feature_indexB);
@@ -293,6 +300,8 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         for (size_t i = 0; i < 2; ++i) {
             verticesB_world[i] = to_world_space(verticesB_local[i], posB, ornB);
         }
+
+        point.normal_attachment = contact_normal_attachment::normal_on_A;
 
         // Check if circle and edge intersect.
         // Transform vertices to `shA` (cylinder) space. The cylinder axis
@@ -313,24 +322,27 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
         for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
             auto t = clamp_unit(s[pt_idx]);
-            auto pivotA = lerp(v0A, v1A, t);
-            auto local_distance = (pivotA.x - pivotA_x) * sign_faceA;
-            pivotA.x = pivotA_x;
-            auto pivotB = lerp(verticesB_local[0], verticesB_local[1], t);
-            result.maybe_add_point({pivotA, pivotB, sep_axis, local_distance, contact_normal_attachment::normal_on_A});
+            point.pivotA = lerp(v0A, v1A, t);
+            point.distance = (point.pivotA.x - pivotA_x) * sign_faceA;
+            point.pivotA.x = pivotA_x;
+            point.pivotB = lerp(verticesB_local[0], verticesB_local[1], t);
+            result.maybe_add_point(point);
         }
     } else if (featureA == cylinder_feature::face && featureB == box_feature::vertex) {
         auto sign_faceA = to_sign(feature_indexA == 0);
-        auto vertexB = shB.get_vertex(feature_indexB);
-        auto vertexB_world = to_world_space(vertexB, posB, ornB);
-        auto vertexA_x = shA.half_length * sign_faceA;
-        auto vertexA = to_object_space(vertexB_world, posA, ornA);
-        auto local_distance = (vertexA.x - vertexA_x) * sign_faceA;
-        vertexA.x = vertexA_x; // Project onto face by setting the x value directly.
-        result.maybe_add_point({vertexA, vertexB, sep_axis, local_distance, contact_normal_attachment::normal_on_A});
+        point.pivotB = shB.get_vertex(feature_indexB);
+        auto pivotB_world = to_world_space(point.pivotB, posB, ornB);
+        auto pivotA_x = shA.half_length * sign_faceA;
+        point.pivotA = to_object_space(pivotB_world, posA, ornA);
+        point.distance = (point.pivotA.x - pivotA_x) * sign_faceA;
+        point.pivotA.x = pivotA_x; // Project onto face by setting the x value directly.
+        point.normal_attachment = contact_normal_attachment::normal_on_A;
+        result.maybe_add_point(point);
     } else if (featureA == cylinder_feature::side_edge && featureB == box_feature::face) {
         auto face_normal = shB.get_face_normal(feature_indexB, ornB);
         auto face_vertices = shB.get_face(feature_indexB, posB, ornB);
+
+        point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         std::array<vector3, 2> edge_vertices;
         edge_vertices[0] = cyl_vertices[0] - sep_axis * shA.radius;
@@ -352,13 +364,14 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         for (size_t i = 0; i < num_points; ++i) {
             auto t = clamp_unit(s[i]); // Keep points within segment.
             auto edge_pivot = lerp(edge_vertices[0], edge_vertices[1], t);
-            auto local_distance = dot(edge_pivot - face_vertices[0], face_normal);
-            auto pivot_on_face = edge_pivot - face_normal * local_distance;
-            auto pivotA = to_object_space(edge_pivot, posA, ornA);
-            auto pivotB = to_object_space(pivot_on_face, posB, ornB);
-            result.add_point({pivotA, pivotB, sep_axis, local_distance, contact_normal_attachment::normal_on_B});
+            point.distance = dot(edge_pivot - face_vertices[0], face_normal);
+            auto pivot_on_face = edge_pivot - face_normal * point.distance;
+            point.pivotA = to_object_space(edge_pivot, posA, ornA);
+            point.pivotB = to_object_space(pivot_on_face, posB, ornB);
+            result.add_point(point);
         }
     } else if (featureA == cylinder_feature::side_edge && featureB == box_feature::edge) {
+        point.normal_attachment = contact_normal_attachment::none;
         auto box_edge = shB.get_edge(feature_indexB, posB, ornB);
         scalar s[2], t[2];
         vector3 closestA[2], closestB[2];
@@ -371,27 +384,28 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         for (size_t i = 0; i < num_points; ++i) {
             auto pivotA_world = closestA[i] - sep_axis * shA.radius;
             auto pivotB_world = closestB[i];
-            auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            auto pivotB = to_object_space(pivotB_world, posB, ornB);
-            result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none});
+            point.pivotA = to_object_space(pivotA_world, posA, ornA);
+            point.pivotB = to_object_space(pivotB_world, posB, ornB);
+            result.add_point(point);
         }
     } else if (featureA == cylinder_feature::side_edge && featureB == box_feature::vertex) {
-        auto pivotB = shB.get_vertex(feature_indexB);
-        auto pivotB_world = to_world_space(pivotB, posB, ornB);
+        point.pivotB = shB.get_vertex(feature_indexB);
+        auto pivotB_world = to_world_space(point.pivotB, posB, ornB);
         vector3 closest; scalar t;
         closest_point_segment(cyl_vertices[0], cyl_vertices[1], pivotB_world, t, closest);
 
         auto pivotA_world = closest - sep_axis * shA.radius;
-        auto pivotA = to_object_space(pivotA_world, posA, ornA);
-        result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none});
+        point.pivotA = to_object_space(pivotA_world, posA, ornA);
+        point.normal_attachment = contact_normal_attachment::none;
+        result.add_point(point);
     } else if (featureA == cylinder_feature::cap_edge) {
         auto supportA = shA.support_point(posA, ornA, -sep_axis);
-        auto pivotA = to_object_space(supportA, posA, ornA);
-        auto pivotB = to_object_space(supportA - sep_axis * distance, posB, ornB);
-        auto normal_attachment = featureB == box_feature::face ?
+        point.pivotA = to_object_space(supportA, posA, ornA);
+        point.pivotB = to_object_space(supportA - sep_axis * distance, posB, ornB);
+        point.normal_attachment = featureB == box_feature::face ?
             contact_normal_attachment::normal_on_B :
             contact_normal_attachment::none;
-        result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+        result.maybe_add_point(point);
     }
 }
 
