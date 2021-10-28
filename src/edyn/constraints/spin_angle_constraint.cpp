@@ -35,6 +35,7 @@ void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_ca
             body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB, dsB] =
             body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[1]);
+        auto &imp = imp_view.get<constraint_impulse>(entity);
 
         auto axisA = quaternion_x(ornA);
         auto axisB = quaternion_x(ornB);
@@ -55,7 +56,7 @@ void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_ca
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
             row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
-            row.impulse = imp_view.get(entity).values[0];
+            row.impulse = imp.values[0];
             row.use_spin[0] = true;
             row.use_spin[1] = true;
             row.spin_axis[0] = axisA;
@@ -81,7 +82,7 @@ void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_ca
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
             row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
-            row.impulse = imp_view.get(entity).values[1];
+            row.impulse = imp.values[1];
             row.use_spin[0] = true;
             row.use_spin[1] = true;
             row.spin_axis[0] = axisA;

@@ -21,12 +21,12 @@ namespace internal {
         // Multiple constraints of different types can be assigned to the same
         // entity. If this entity already has a graph edge, just do a few
         // consistency checks.
-        if (registry.has<graph_edge>(entity)) {
+        if (registry.any_of<graph_edge>(entity)) {
             auto &edge = registry.get<graph_edge>(entity);
             auto [ent0, ent1] = registry.ctx<entity_graph>().edge_node_entities(edge.edge_index);
             EDYN_ASSERT(ent0 == body0 && ent1 == body1);
-            EDYN_ASSERT(registry.has<constraint_impulse>(entity));
-            EDYN_ASSERT(registry.has<procedural_tag>(entity));
+            EDYN_ASSERT(registry.any_of<constraint_impulse>(entity));
+            EDYN_ASSERT(registry.any_of<procedural_tag>(entity));
             return false;
         }
 
@@ -57,12 +57,12 @@ entt::entity make_contact_manifold(entt::registry &registry, entt::entity body0,
 }
 
 void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
-    EDYN_ASSERT(registry.has<rigidbody_tag>(body0) && registry.has<rigidbody_tag>(body1));
+    EDYN_ASSERT(registry.all_of<rigidbody_tag>(body0) && registry.all_of<rigidbody_tag>(body1));
     // One of the bodies must be dynamic.
-    EDYN_ASSERT(registry.has<dynamic_tag>(body0) || registry.has<dynamic_tag>(body1));
+    EDYN_ASSERT(registry.all_of<dynamic_tag>(body0) || registry.all_of<dynamic_tag>(body1));
 
     // Tire must be in the first entry. This is an assumption made by the `contact_patch_constraint`.
-    if (registry.has<tire_material>(body1)) {
+    if (registry.all_of<tire_material>(body1)) {
         std::swap(body0, body1);
     }
 
@@ -75,8 +75,8 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     auto material_view = registry.view<material>();
 
     if (material_view.contains(body0) && material_view.contains(body1)) {
-        auto &material0 = material_view.get(body0);
-        auto &material1 = material_view.get(body1);
+        auto &material0 = material_view.get<material>(body0);
+        auto &material1 = material_view.get<material>(body1);
 
         auto &material_table = registry.ctx<material_mix_table>();
         auto restitution = scalar(0);

@@ -58,7 +58,7 @@ class message_queue {
         }
 
         entt::id_type type_id() const ENTT_NOEXCEPT override {
-            return entt::type_info<Message>::id();
+            return entt::type_id<Message>().seq();
         }
 
     private:
@@ -72,7 +72,7 @@ class message_queue {
         static_assert(std::is_same_v<Message, std::decay_t<Message>>, "Invalid event type");
 
         auto it = std::find_if(m_pools.begin(), m_pools.end(),
-            [id = entt::type_info<Message>::id()](const auto &cpool) { return id == cpool->type_id(); });
+            [id = entt::type_id<Message>().seq()](const auto &cpool) { return id == cpool->type_id(); });
         return static_cast<pool_handler<Message> &>(it == m_pools.cend() ?
             *m_pools.emplace_back(new pool_handler<Message>{}) : **it);
     }

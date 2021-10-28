@@ -31,6 +31,7 @@ void prepare_constraints<spin_constraint>(entt::registry &registry, row_cache &c
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+        auto &imp = imp_view.get<constraint_impulse>(entity);
 
         auto axisA = rotate(ornA, vector3_x);
         auto axisB = rotate(ornB, vector3_x);
@@ -59,7 +60,7 @@ void prepare_constraints<spin_constraint>(entt::registry &registry, row_cache &c
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
         row.dvA = &dvA; row.dwA = &dwA;
         row.dvB = &dvB; row.dwB = &dwB;
-        row.impulse = imp_view.get(entity).values[0];
+        row.impulse = imp.values[0];
         row.use_spin[0] = con.m_use_spinA;
         row.use_spin[1] = con.m_use_spinB;
         row.spin_axis[0] = axisA;

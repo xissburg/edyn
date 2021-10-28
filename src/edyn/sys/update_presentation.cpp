@@ -22,21 +22,21 @@ void update_presentation(entt::registry &registry, double time) {
 
     linear_view.each([&] (position &pos, linvel &vel, present_position &pre, island_resident &resident) {
         EDYN_ASSERT(registry.valid(resident.island_entity));
-        auto &isle_time = timestamp_view.get(resident.island_entity);
+        auto &isle_time = timestamp_view.get<island_timestamp>(resident.island_entity);
         auto dt = scalar(std::min(time - isle_time.value, max_dt));
         pre = pos + vel * dt;
     });
 
     angular_view.each([&] (orientation &orn, angvel &vel, present_orientation &pre, island_resident &resident) {
         EDYN_ASSERT(registry.valid(resident.island_entity));
-        auto &isle_time = timestamp_view.get(resident.island_entity);
+        auto &isle_time = timestamp_view.get<island_timestamp>(resident.island_entity);
         auto dt = scalar(std::min(time - isle_time.value, max_dt));
         pre = integrate(orn, vel, dt);
     });
 
     spin_view.each([&] (spin_angle &angle, spin &spin, present_spin_angle &pre, island_resident &resident) {
         EDYN_ASSERT(registry.valid(resident.island_entity));
-        auto &isle_time = timestamp_view.get(resident.island_entity);
+        auto &isle_time = timestamp_view.get<island_timestamp>(resident.island_entity);
         auto dt = scalar(std::min(time - isle_time.value, max_dt));
         pre.s = angle.s + spin.s * dt;
     });

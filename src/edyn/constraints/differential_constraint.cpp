@@ -51,7 +51,7 @@ void prepare_constraints<differential_constraint>(entt::registry &registry, row_
         row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
         row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
         row.dvC = &dvC; row.dwC = &dwC; row.dsC = &dsC;
-        row.impulse = imp_view.get(entity).values[0];
+        row.impulse = imp_view.get<constraint_impulse>(entity).values[0];
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.use_spin[2] = true;

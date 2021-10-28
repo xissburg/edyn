@@ -32,7 +32,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             body_view.get<position, orientation, spin_angle, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[0]);
         auto [posB, ornB, angleB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB, dsB] =
             body_view.get<position, orientation, spin_angle, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[1]);
-        auto &imp = imp_view.get(entity);
+        auto &imp = imp_view.get<constraint_impulse>(entity);
 
         const auto axisA_x = quaternion_x(ornA);
 

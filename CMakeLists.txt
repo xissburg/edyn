@@ -1,23 +1,32 @@
 cmake_minimum_required(VERSION 3.12.4)
 
-project(Edyn VERSION 0.1.0 LANGUAGES CXX)
+set(Edyn_MAIN_PROJECT ON)
+if(DEFINED PROJECT_SOURCE_DIR)
+    set(Edyn_MAIN_PROJECT OFF)
+endif()
+
+project(Edyn VERSION 0.2.0 LANGUAGES CXX)
+
+include(CMakeDependentOption)
 
 # Options
 option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
-option(EDYN_BUILD_EXAMPLES "Build examples" ON)
+option(EDYN_INSTALL "Enable installation of Edyn" ${Edyn_MAIN_PROJECT})
+option(EDYN_BUILD_EXAMPLES "Build examples" ${Edyn_MAIN_PROJECT})
 option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
 option(EDYN_DISABLE_ASSERT "Disable assertions in Edyn for better performance." OFF)
-option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF)
+cmake_dependent_option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF "NOT MSVC" OFF)
 
 if(NOT CMAKE_DEBUG_POSTFIX)
   set(CMAKE_DEBUG_POSTFIX "_d")
 endif()
 
-include(${CMAKE_BINARY_DIR}/conan_paths.cmake OPTIONAL)
-
 find_package(EnTT REQUIRED)
 
-set(Edyn_SOURCES
+configure_file(cmake/in/build_settings.h.in include/edyn/build_settings.h @ONLY)
+
+add_library(Edyn
+    cmake/in/build_settings.h.in
     src/edyn/math/geom.cpp
     src/edyn/math/quaternion.cpp
     src/edyn/math/linear_curve.cpp
@@ -112,46 +121,65 @@ set(Edyn_SOURCES
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
+    src/edyn/time/common/time.cpp
 )
+add_library(Edyn::Edyn ALIAS Edyn)
 
 if(UNIX)
-    set(Edyn_SOURCES
-        ${Edyn_SOURCES}
+    target_sources(Edyn PRIVATE
         src/edyn/time/unix/time.cpp
     )
 endif()
 
-if(WIN32)
-    set(Edyn_SOURCES
-        ${Edyn_SOURCES}
-	src/edyn/time/windows/time.cpp
+if(UNIX AND NOT APPLE)
+    target_link_libraries(Edyn
+        PUBLIC
+            dl
+            pthread
     )
 endif()
 
-add_library(Edyn)
-target_sources(Edyn PRIVATE ${Edyn_SOURCES})
-
-configure_file(${Edyn_SOURCE_DIR}/cmake/in/build_settings.h.in ${Edyn_BINARY_DIR}/include/edyn/build_settings.h @ONLY)
-install(FILES ${Edyn_BINARY_DIR}/include/build_settings.h DESTINATION include/edyn)
+if(WIN32)
+    target_sources(Edyn PRIVATE
+        src/edyn/time/windows/time.cpp
+    )
+    target_link_libraries(Edyn
+        PUBLIC
+            winmm
+    )
+endif()
 
 target_include_directories(Edyn
-    PUBLIC ${Edyn_SOURCE_DIR}/include
-    PUBLIC ${Edyn_BINARY_DIR}/include
+    PUBLIC
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 set_target_properties(Edyn PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 target_compile_features(Edyn PUBLIC cxx_std_17)
-target_compile_definitions(Edyn PUBLIC  $<$<CONFIG:Debug>:EDYN_DEBUG>)
-target_compile_definitions(Edyn PUBLIC  $<$<BOOL:${EDYN_DISABLE_ASSERT}>:EDYN_DISABLE_ASSERT>)
-target_compile_definitions(Edyn PRIVATE $<$<BOOL:${EDYN_DISABLE_ASSERT}>:ENTT_DISABLE_ASSERT>)
+target_compile_definitions(Edyn
+    PUBLIC
+        $<$<CONFIG:Debug>:EDYN_DEBUG>
+        $<$<BOOL:${EDYN_DISABLE_ASSERT}>:EDYN_DISABLE_ASSERT>
+    PRIVATE
+        $<$<BOOL:${EDYN_DISABLE_ASSERT}>:ENTT_DISABLE_ASSERT>
+)
 
 target_compile_options(Edyn PUBLIC
-    $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>)
+    $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer>
+)
 
-target_link_libraries(Edyn PUBLIC
-    EnTT::EnTT
-    $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined>)
+target_link_libraries(Edyn
+    PUBLIC
+        EnTT::EnTT
+)
+
+target_link_options(Edyn
+    PUBLIC
+        $<$<BOOL:${EDYN_ENABLE_SANITIZER}>:-fsanitize=address -fsanitize=undefined>
+)
 
 if(MSVC)
     target_compile_options(Edyn PRIVATE /W4)
@@ -164,10 +192,47 @@ if(EDYN_BUILD_EXAMPLES)
 endif()
 
 if(EDYN_BUILD_TESTS)
-    find_package(GTest REQUIRED)
-    find_library(GMock_LIBRARY gmock)
-    find_library(GMockMain_LIBRARY gmock_main)
-
     enable_testing()
     add_subdirectory(test)
+endif()
+
+if(EDYN_INSTALL)
+    include(GNUInstallDirs)
+    install(
+        TARGETS Edyn
+        EXPORT EdynTargets
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    )
+    install(
+        DIRECTORY include/edyn/ src/edyn/ ${PROJECT_BINARY_DIR}/include/edyn/
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/edyn"
+        FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp"
+    )
+    install(
+        EXPORT EdynTargets
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
+        NAMESPACE "Edyn::"
+        FILE "Edyn-targets.cmake"
+    )
+    install(
+        FILES
+            cmake/Edyn-config.cmake
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
+    )
+    install(
+        FILES
+            LICENSE
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/licenses/${PROJECT_NAME}"
+    )
+    if(MSVC AND BUILD_SHARED_LIBS)
+        install(
+            FILES $<TARGET_PDB_FILE:Edyn>
+            DESTINATION "${CMAKE_INSTALL_BINDIR}"
+            OPTIONAL
+        )
+    endif()
 endif()

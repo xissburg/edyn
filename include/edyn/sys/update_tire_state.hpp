@@ -2,6 +2,7 @@
 #define EDYN_SYS_UPDATE_TIRE_STATE_HPP
 
 #include <entt/entt.hpp>
+#include "edyn/comp/origin.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -23,7 +24,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<linvel, angvel>();
     auto spin_view = registry.view<spin>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
     auto &graph = registry.ctx<entity_graph>();
 
     ts_view.each([&] (auto entity, graph_node &node, tire_state &ts) {
@@ -33,14 +34,8 @@ void update_tire_state(entt::registry &registry, scalar dt) {
         auto &ornA = tr_view.get<orientation>(entity);
         auto &linvelA = vel_view.get<linvel>(entity);
         auto &angvelA = vel_view.get<angvel>(entity);
-        auto spinvelA = quaternion_x(ornA) * spin_view.get(entity).s;
-
-        auto originA = static_cast<vector3>(posA);
-
-        if (com_view.contains(entity)) {
-            auto &com = com_view.get(entity);
-            originA = to_world_space(-com, posA, ornA);
-        }
+        auto spinvelA = quaternion_x(ornA) * spin_view.get<spin>(entity).s;
+        auto originA = origin_view.contains(entity) ? origin_view.get<origin>(entity) : static_cast<vector3>(posA);
 
         graph.visit_edges(node.node_index, [&] (auto edge_entity) {
             auto *manifold = registry.try_get<contact_manifold>(edge_entity);
@@ -62,20 +57,15 @@ void update_tire_state(entt::registry &registry, scalar dt) {
             auto spinvelB = vector3_zero;
 
             if (spin_view.contains(ts.other_entity)) {
-                spinvelB = quaternion_x(ornB) * spin_view.get(ts.other_entity).s;
+                spinvelB = quaternion_x(ornB) * spin_view.get<spin>(ts.other_entity).s;
             }
 
-            auto originB = static_cast<vector3>(posB);
-
-            if (com_view.contains(ts.other_entity)) {
-                auto &com = com_view.get(ts.other_entity);
-                originB = to_world_space(-com, posB, ornB);
-            }
+            auto originB = origin_view.contains(ts.other_entity) ? origin_view.get<origin>(ts.other_entity) : static_cast<vector3>(posB);
 
             for (size_t i = 0; i < manifold->num_points(); ++i) {
                 auto point_entity = manifold->point[i];
 
-                if (!registry.has<contact_patch_constraint>(point_entity)) {
+                if (!registry.all_of<contact_patch_constraint>(point_entity)) {
                     continue;
                 }
 

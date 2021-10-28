@@ -49,7 +49,7 @@ void update_rotated_mesh(entt::entity entity, RotatedView &rotated_view, Orienta
             break;
         }
 
-        rot_list_ptr = &rotated_view.get(rot_list_ptr->next);
+        rot_list_ptr = &rotated_view.template get<rotated_mesh_list>(rot_list_ptr->next);
     }
 }
 

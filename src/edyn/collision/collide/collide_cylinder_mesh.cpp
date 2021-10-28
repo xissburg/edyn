@@ -320,30 +320,49 @@ void collide_cylinder_triangle(
         vector3 closestA[2], closestB[2];
         size_t num_points = 0;
         closest_point_segment_segment(cylinder_vertices[1], cylinder_vertices[0], v0, v1,
-                                        s[0], t[0], closestA[0], closestB[0], &num_points,
-                                        &s[1], &t[1], &closestA[1], &closestB[1]);
+                                      s[0], t[0], closestA[0], closestB[0], &num_points,
+                                      &s[1], &t[1], &closestA[1], &closestB[1]);
 
         if (num_points > 0) {
             auto normal_attachment = contact_normal_attachment::none;
 
-            for (size_t i = 0; i < num_points; ++i) {
-                auto pivotA_world = closestA[i] - sep_axis * cylinder.radius;
-                auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                auto pivotB = closestB[i];
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+            // If there's a single closest point, ignore it if it's at a vertex.
+            // If there are more than one point, the segments are parallel and
+            // both closest points should be considered.
+            if ((num_points == 1 && s[0] > 0 && s[0] < 1 && t[0] > 0 && t[0] < 1) || num_points > 1) {
+                for (size_t i = 0; i < num_points; ++i) {
+                    auto pivotA_world = closestA[i] - sep_axis * cylinder.radius;
+                    auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                    auto pivotB = closestB[i];
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                }
             }
         }
     } else if (cyl_feature == cylinder_feature::side_edge && tri_feature == triangle_feature::vertex) {
         auto vertex = tri_vertices[tri_feature_index];
         vector3 closest; scalar t;
-        closest_point_line(cylinder_vertices[0], cylinder_axis, vertex, t, closest);
-        auto pivotA_world = closest - sep_axis * cylinder.radius;
-        auto pivotA = to_object_space(pivotA_world, posA, ornA);
-        auto pivotB = vertex;
-        auto normal_attachment = contact_normal_attachment::none;
-        result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+        auto cyl_dir = cylinder_vertices[1] - cylinder_vertices[0];
+        closest_point_line(cylinder_vertices[0], cyl_dir, vertex, t, closest);
+
+        // Check if closest point is on the cylinder axis.
+        if (t > 0 && t < 1) {
+            // Add point to result if the closest point match or the vector
+            // connecting them is parallel to the separating axis.
+            auto dir = closest - vertex;
+            auto dir_len_sqr = length_sqr(dir);
+
+            // They're parallel if the absolute dot product is equals to the product
+            // of their lengths.
+            if (!(std::abs(square(dot(dir, sep_axis)) - dir_len_sqr) > EDYN_EPSILON)) {
+                auto pivotA_world = closest - sep_axis * cylinder.radius;
+                auto pivotA = to_object_space(pivotA_world, posA, ornA);
+                auto pivotB = vertex;
+                auto normal_attachment = contact_normal_attachment::none;
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+            }
+        }
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::face) {
-        auto supportA = cylinder.support_point(posA, ornA, -sep_axis);
+        auto supportA = support_point_circle(cylinder_vertices[cyl_feature_index], ornA, cylinder.radius, -sep_axis);
 
         if (point_in_triangle(tri_vertices, tri_normal, supportA)) {
             auto pivotA = to_object_space(supportA, posA, ornA);
@@ -352,11 +371,26 @@ void collide_cylinder_triangle(
             result.maybe_add_point({pivotA, pivotB, tri_normal, distance, normal_attachment});
         }
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::edge) {
-        auto supportA = cylinder.support_point(posA, ornA, -sep_axis);
-        auto pivotA = to_object_space(supportA, posA, ornA);
-        auto pivotB = supportA - sep_axis * distance;
-        auto normal_attachment = contact_normal_attachment::none;
-        result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+        auto supportA = support_point_circle(cylinder_vertices[cyl_feature_index], ornA, cylinder.radius, -sep_axis);
+        auto v0 = tri_vertices[tri_feature_index];
+        auto v1 = tri_vertices[(tri_feature_index + 1) % 3];
+        vector3 closest; scalar t;
+        closest_point_line(v0, v1 - v0, supportA, t, closest);
+
+        // Check if closest point is on the triangle edge segment.
+        if (t > 0 && t < 1) {
+            // Add point to result if the closest point match or the vector
+            // connecting them is parallel to the separating axis.
+            auto dir = supportA - closest;
+            auto dir_len_sqr = length_sqr(dir);
+
+            if (!(std::abs(square(dot(dir, sep_axis)) - dir_len_sqr) > EDYN_EPSILON)) {
+                auto pivotA = to_object_space(supportA, posA, ornA);
+                auto pivotB = closest;
+                auto normal_attachment = contact_normal_attachment::none;
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+            }
+        }
     }
 }
 

@@ -191,10 +191,4 @@ void delay(uint32_t ms) {
     } while (was_error && (errno == EINTR));
 }
 
-double performance_time()
-{
-    return static_cast<double>(performance_counter()) /
-           static_cast<double>(performance_frequency());
-}
-
 }

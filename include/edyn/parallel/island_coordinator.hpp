@@ -45,6 +45,8 @@ class island_coordinator final {
     void sync();
 
 public:
+    island_coordinator(island_coordinator const&) = delete;
+    island_coordinator operator=(island_coordinator const&) = delete;
     island_coordinator(entt::registry &);
     ~island_coordinator();
 
@@ -95,7 +97,7 @@ template<typename... Component>
 void island_coordinator::refresh(entt::entity entity) {
     static_assert(sizeof...(Component) > 0);
 
-    if (m_registry->has<island_resident>(entity)) {
+    if (m_registry->any_of<island_resident>(entity)) {
         auto &resident = m_registry->get<island_resident>(entity);
         auto &ctx = m_island_ctx_map.at(resident.island_entity);
         ctx->m_delta_builder->updated<Component...>(entity, *m_registry);

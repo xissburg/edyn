@@ -207,7 +207,7 @@ void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
 }
 
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
-    EDYN_ASSERT(registry.has<kinematic_tag>(entity));
+    EDYN_ASSERT(registry.any_of<kinematic_tag>(entity));
     auto &curpos = registry.get<position>(entity);
     auto &vel = registry.get<linvel>(entity);
     vel = (pos - curpos) / dt;
@@ -215,7 +215,7 @@ void update_kinematic_position(entt::registry &registry, entt::entity entity, co
 }
 
 void update_kinematic_orientation(entt::registry &registry, entt::entity entity, const quaternion &orn, scalar dt) {
-    EDYN_ASSERT(registry.has<kinematic_tag>(entity));
+    EDYN_ASSERT(registry.any_of<kinematic_tag>(entity));
     auto &curorn = registry.get<orientation>(entity);
     auto q = normalize(conjugate(curorn) * orn);
     auto &vel = registry.get<angvel>(entity);
@@ -236,21 +236,21 @@ void clear_kinematic_velocities(entt::registry &registry) {
 }
 
 bool validate_rigidbody(entt::entity entity, entt::registry &registry) {
-    return registry.has<position, orientation, linvel, angvel>(entity);
+    return registry.all_of<position, orientation, linvel, angvel>(entity);
 }
 
 void set_rigidbody_mass(entt::registry &registry, entt::entity entity, scalar mass) {
     EDYN_ASSERT(mass > EDYN_EPSILON && mass < large_scalar);
-    EDYN_ASSERT(registry.has<dynamic_tag>(entity));
-    EDYN_ASSERT(registry.has<rigidbody_tag>(entity));
+    EDYN_ASSERT(registry.any_of<dynamic_tag>(entity));
+    EDYN_ASSERT(registry.any_of<rigidbody_tag>(entity));
     registry.replace<edyn::mass>(entity, mass);
     registry.replace<edyn::mass_inv>(entity, scalar(1.0) / mass);
     refresh<edyn::mass, edyn::mass_inv>(registry, entity);
 }
 
 void set_rigidbody_inertia(entt::registry &registry, entt::entity entity, const matrix3x3 &inertia) {
-    EDYN_ASSERT(registry.has<dynamic_tag>(entity));
-    EDYN_ASSERT(registry.has<rigidbody_tag>(entity));
+    EDYN_ASSERT(registry.any_of<dynamic_tag>(entity));
+    EDYN_ASSERT(registry.any_of<rigidbody_tag>(entity));
     auto I_inv = inverse_matrix_symmetric(inertia);
     registry.replace<edyn::inertia>(entity, inertia);
     registry.replace<edyn::inertia_inv>(entity, I_inv);
@@ -258,13 +258,13 @@ void set_rigidbody_inertia(entt::registry &registry, entt::entity entity, const 
 }
 
 void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scalar friction) {
-    EDYN_ASSERT(registry.has<rigidbody_tag>(entity));
+    EDYN_ASSERT(registry.any_of<rigidbody_tag>(entity));
 
     auto material_view = registry.view<material>();
     auto manifold_view = registry.view<contact_manifold>();
     auto cp_view = registry.view<contact_point>();
 
-    auto &material = material_view.get(entity);
+    auto &material = material_view.get<edyn::material>(entity);
     material.friction = friction;
     refresh<edyn::material>(registry, entity);
 
@@ -278,10 +278,10 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
             return;
         }
 
-        auto &manifold = manifold_view.get(edge_entity);
+        auto &manifold = manifold_view.get<contact_manifold>(edge_entity);
 
         auto other_entity = manifold.body[0] == entity ? manifold.body[1] : manifold.body[0];
-        auto &other_material = material_view.get(other_entity);
+        auto &other_material = material_view.get<edyn::material>(other_entity);
 
         // Do not update friction if these materials are combined via the
         // material mixing table.
@@ -293,7 +293,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
         auto num_points = manifold.num_points();
 
         for (size_t i = 0; i < num_points; ++i) {
-            auto &cp = cp_view.get(manifold.point[i]);
+            auto &cp = cp_view.get<contact_point>(manifold.point[i]);
             cp.friction = combined_friction;
             refresh<contact_point>(registry, manifold.point[i]);
         }
@@ -314,7 +314,7 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
     auto has_com = com_view.contains(entity);
 
     if (has_com) {
-        com_old = com_view.get(entity);
+        com_old = com_view.get<center_of_mass>(entity);
     }
 
     // Position and linear velocity must change when center of mass shifts,
@@ -336,7 +336,7 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
             registry.emplace<edyn::origin>(entity, origin);
             dirty.created<center_of_mass, edyn::origin>();
 
-            if (registry.has<dynamic_tag>(entity)) {
+            if (registry.any_of<dynamic_tag>(entity)) {
                 registry.get<continuous>(entity).insert<edyn::origin>();
                 dirty.updated<continuous>();
             }
@@ -346,7 +346,7 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
         registry.remove<edyn::origin>(entity);
         dirty.destroyed<center_of_mass, edyn::origin>();
 
-        if (registry.has<dynamic_tag>(entity)) {
+        if (registry.any_of<dynamic_tag>(entity)) {
             registry.get<continuous>(entity).remove<edyn::origin>();
             dirty.updated<continuous>();
         }
@@ -354,7 +354,7 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
 }
 
 vector3 get_rigidbody_origin(const entt::registry &registry, entt::entity entity) {
-    if (!registry.has<center_of_mass>(entity)) {
+    if (!registry.any_of<center_of_mass>(entity)) {
         return registry.get<position>(entity);
     }
 
@@ -364,7 +364,7 @@ vector3 get_rigidbody_origin(const entt::registry &registry, entt::entity entity
 }
 
 vector3 get_rigidbody_present_origin(const entt::registry &registry, entt::entity entity) {
-    if (!registry.has<center_of_mass>(entity)) {
+    if (!registry.any_of<center_of_mass>(entity)) {
         return registry.get<present_position>(entity);
     }
 

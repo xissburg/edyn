@@ -1,4 +1,5 @@
 #include "edyn/constraints/contact_patch_constraint.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -73,7 +74,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
     auto con_view = registry.view<contact_patch_constraint>();
     auto cp_view = registry.view<contact_point>();
     auto imp_view = registry.view<constraint_impulse>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
     auto spin_view = registry.view<spin>();
 
     con_view.each([&] (entt::entity entity, contact_patch_constraint &con) {
@@ -81,15 +82,10 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
-        auto &imp = imp_view.get(entity);
+        auto &imp = imp_view.get<constraint_impulse>(entity);
 
-        auto &cp = cp_view.get(entity);
-        auto originB = static_cast<vector3>(posB);
-
-        if (com_view.contains(con.body[1])) {
-            auto &com = com_view.get(con.body[1]);
-            originB = to_world_space(-com, posB, ornB);
-        }
+        auto &cp = cp_view.get<contact_point>(entity);
+                auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
         // Wheel spin axis in world space.
         const auto axis = quaternion_x(ornA);
@@ -99,7 +95,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         auto spinvelB = vector3_zero;
 
         if (spin_view.contains(con.body[1])) {
-            auto &spinB = spin_view.get(con.body[1]);
+            auto &spinB = spin_view.get<spin>(con.body[1]);
             spinvelB = quaternion_x(ornB) * spinB.s;
         }
 

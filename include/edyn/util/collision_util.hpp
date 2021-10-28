@@ -119,17 +119,17 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
     auto is_tireB = false;
 
     if (tire_view.contains(manifold.body[0])) {
-        tire = &tire_view.get(manifold.body[0]);
+        tire = &tire_view.template get<tire_material>(manifold.body[0]);
         is_tireA = true;
     }
 
     if (tire_view.contains(manifold.body[1])) {
-        tire = &tire_view.get(manifold.body[1]);
+        tire = &tire_view.template get<tire_material>(manifold.body[1]);
         is_tireB = true;
     }
 
-    auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get(manifold.body[0]) : static_cast<vector3>(posA);
-    auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get(manifold.body[1]) : static_cast<vector3>(posB);
+    auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
+    auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
     auto rollingA = !is_tireA && rolling_view.contains(manifold.body[0]);
     auto rollingB = !is_tireB && rolling_view.contains(manifold.body[1]);
@@ -263,7 +263,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
             if (local_pt.entity == entt::null) {
                 new_point_func(local_pt.point);
             } else {
-                merge_point(local_pt.point, cp_view.get(local_pt.entity));
+                merge_point(local_pt.point, cp_view.template get<contact_point>(local_pt.entity));
             }
             break;
         case point_insertion_type::replace:

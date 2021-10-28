@@ -1,4 +1,5 @@
 #include "edyn/constraints/tierod_constraint.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -26,7 +27,7 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<tierod_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
 
     con_view.each([&] (entt::entity entity, tierod_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
@@ -37,18 +38,8 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
         con.update_steering_axis();
         con.update_steering_arm();
 
-        auto originA = static_cast<vector3>(posA);
-        auto originB = static_cast<vector3>(posB);
-
-        if (com_view.contains(con.body[0])) {
-            auto &com = com_view.get(con.body[0]);
-            originA = to_world_space(-com, posA, ornA);
-        }
-
-        if (com_view.contains(con.body[1])) {
-            auto &com = com_view.get(con.body[1]);
-            originB = to_world_space(-com, posB, ornB);
-        }
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
         // Given the tie rod joint position on the steering rack (pivotA), the position
         // of the upper and lower control arm joints on the upright, the position of
@@ -160,7 +151,7 @@ void prepare_constraints<tierod_constraint>(entt::registry &registry, row_cache 
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
         row.dvA = &dvA; row.dwA = &dwA;
         row.dvB = &dvB; row.dwB = &dwB;
-        row.impulse = imp_view.get(entity).values[0];
+        row.impulse = imp_view.get<constraint_impulse>(entity).values[0];
 
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
         warm_start(row);

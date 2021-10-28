@@ -27,8 +27,8 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
     shape_raycast_result result;
 
     auto raycast_shape = [&] (entt::entity entity) {
-        auto sh_idx = index_view.get(entity);
-        auto pos = origin_view.contains(entity) ? static_cast<vector3>(origin_view.get(entity)) : tr_view.get<position>(entity);
+        auto sh_idx = index_view.get<shape_index>(entity);
+        auto pos = origin_view.contains(entity) ? static_cast<vector3>(origin_view.get<origin>(entity)) : tr_view.get<position>(entity);
         auto orn = tr_view.get<orientation>(entity);
         auto ctx = raycast_context{pos, orn, p0, p1};
 
@@ -47,7 +47,7 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
     if (registry.try_ctx<broadphase_main>() != nullptr) {
         auto &bphase = registry.ctx<broadphase_main>();
         bphase.raycast_islands(p0, p1, [&] (entt::entity island_entity) {
-            auto &tree_view = tree_view_view.get(island_entity);
+            auto &tree_view = tree_view_view.get<edyn::tree_view>(island_entity);
             tree_view.raycast(p0, p1, [&] (tree_node_id_t id) {
                 auto entity = tree_view.get_node(id).entity;
                 raycast_shape(entity);

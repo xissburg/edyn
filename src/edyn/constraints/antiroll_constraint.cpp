@@ -1,4 +1,5 @@
 #include "edyn/constraints/antiroll_constraint.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -18,7 +19,6 @@
 
 namespace edyn {
 
-
 template<>
 void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation,
@@ -27,7 +27,7 @@ void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cach
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<antiroll_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
 
     con_view.each([&] (entt::entity entity, antiroll_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
@@ -36,24 +36,9 @@ void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cach
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
         auto [posC, ornC] = body_view.get<position, orientation>(con.m_third_entity);
 
-        auto originA = static_cast<vector3>(posA);
-        auto originB = static_cast<vector3>(posB);
-        auto originC = static_cast<vector3>(posC);
-
-        if (com_view.contains(con.body[0])) {
-            auto &com = com_view.get(con.body[0]);
-            originA = to_world_space(-com, posA, ornA);
-        }
-
-        if (com_view.contains(con.body[1])) {
-            auto &com = com_view.get(con.body[1]);
-            originB = to_world_space(-com, posB, ornB);
-        }
-
-        if (com_view.contains(con.m_third_entity)) {
-            auto &com = com_view.get(con.m_third_entity);
-            originC = to_world_space(-com, posC, ornC);
-        }
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+        auto originC = origin_view.contains(con.m_third_entity) ? origin_view.get<origin>(con.m_third_entity) : static_cast<vector3>(posC);
 
         auto ctrl_armA = to_world_space(con.m_ctrl_arm_pivotA, originA, ornA);
         auto ctrl_armB = to_world_space(con.m_ctrl_arm_pivotB, originB, ornB);
@@ -146,7 +131,7 @@ void prepare_constraints<antiroll_constraint>(entt::registry &registry, row_cach
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
         row.dvA = &dvA; row.dwA = &dwA;
         row.dvB = &dvB; row.dwB = &dwB;
-        row.impulse = imp_view.get(entity).values[0];
+        row.impulse = imp_view.get<constraint_impulse>(entity).values[0];
 
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
         warm_start(row);

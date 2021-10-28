@@ -103,7 +103,7 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
     auto imp_view = registry.view<constraint_impulse>();
 
     for (auto entity : con_view) {
-        auto &imp = imp_view.get(entity);
+        auto &imp = imp_view.get<constraint_impulse>(entity);
         auto num_rows = cache.con_num_rows[con_idx];
         for (size_t i = 0; i < num_rows; ++i) {
             imp.values[i] = cache.rows[row_idx + i].impulse;
@@ -126,7 +126,7 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
     auto roll_idx = size_t(0);
 
     for (auto entity : con_view) {
-        auto &imp = imp_view.get(entity);
+        auto &imp = imp_view.get<constraint_impulse>(entity);
         auto num_rows = cache.con_num_rows[con_idx];
         // Normal impulse.
         imp.values[0] = cache.rows[row_idx].impulse;

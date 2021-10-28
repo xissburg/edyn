@@ -1,4 +1,5 @@
 #include "edyn/constraints/springdamper_constraint.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -26,29 +27,19 @@ void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<springdamper_constraint>();
     auto imp_view = registry.view<constraint_impulse>();
-    auto com_view = registry.view<center_of_mass>();
+    auto origin_view = registry.view<origin>();
 
     con_view.each([&] (entt::entity entity, springdamper_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
-        auto &imp = imp_view.get(entity);
+        auto &imp = imp_view.get<constraint_impulse>(entity);
 
         scalar side = con.m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
 
-        auto originA = static_cast<vector3>(posA);
-        auto originB = static_cast<vector3>(posB);
-
-        if (com_view.contains(con.body[0])) {
-            auto &com = com_view.get(con.body[0]);
-            originA = to_world_space(-com, posA, ornA);
-        }
-
-        if (com_view.contains(con.body[1])) {
-            auto &com = com_view.get(con.body[1]);
-            originB = to_world_space(-com, posB, ornB);
-        }
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
         auto ctrl_armA = to_world_space(con.m_ctrl_arm_pivotA, originA, ornA);
         auto ctrl_armB = to_world_space(con.m_ctrl_arm_pivotB, originB, ornB);
