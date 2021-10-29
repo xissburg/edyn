@@ -85,7 +85,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         auto &imp = imp_view.get<constraint_impulse>(entity);
 
         auto &cp = cp_view.get<contact_point>(entity);
-                auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
         // Wheel spin axis in world space.
         const auto axis = quaternion_x(ornA);
