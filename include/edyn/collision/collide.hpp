@@ -302,6 +302,12 @@ void collide(const compound_shape &shA, const T &shB,
         for (size_t i = 0; i < child_result.num_points; ++i) {
             auto &child_point = child_result.point[i];
             child_point.pivotA = to_world_space(child_point.pivotA, nodeA.position, nodeA.orientation);
+
+            if (!child_point.featureA) {
+                child_point.featureA = {};
+            }
+
+            child_point.featureA->part = node_index;
             result.maybe_add_point(child_point);
         }
     });
@@ -342,7 +348,14 @@ void collide(const T &shA, const paged_mesh_shape &shB,
 
     shB.trimesh->visit_submeshes(inset_aabb, [&] (size_t mesh_idx) {
         auto trimesh = shB.trimesh->get_submesh(mesh_idx);
-        collide(shA, *trimesh, ctx, result);
+        collision_result child_result;
+        collide(shA, *trimesh, ctx, child_result);
+
+        for (size_t i = 0; i < child_result.num_points; ++i) {
+            auto &child_point = child_result.point[i];
+            child_point.featureB->part = mesh_idx;
+            result.maybe_add_point(child_point);
+        }
     });
 }
 
@@ -357,7 +370,7 @@ template<typename ShapeAType, typename ShapeBType>
 void swap_collide(const ShapeAType &shA, const ShapeBType &shB,
                   const collision_context &ctx, collision_result &result) {
     collide(shB, shA, ctx.swapped(), result);
-    result.swap(ctx.ornB, ctx.ornA);
+    result.swap();
 }
 
 #if defined(_MSC_VER)

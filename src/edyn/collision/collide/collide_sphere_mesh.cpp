@@ -3,6 +3,7 @@
 #include "edyn/math/math.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/util/shape_util.hpp"
 #include "edyn/util/triangle_util.hpp"
 #include <cmath>
 
@@ -68,13 +69,20 @@ static void collide_sphere_triangle(
         return;
     }
 
+    collision_result::collision_point point;
+    point.normal = sep_axis;
+    point.distance = distance;
+    point.featureB = {tri_feature};
+    point.featureB->index = get_triangle_mesh_feature_index(mesh, tri_idx, tri_feature, tri_feature_index);
+
     switch (tri_feature) {
     case triangle_feature::face: {
         if (point_in_triangle(tri_vertices, tri_normal, sphere_pos)) {
-            auto pivotA = rotate(conjugate(sphere_orn), -tri_normal * sphere.radius);
-            auto pivotB = project_plane(sphere_pos, tri_vertices[0], tri_normal);
-            auto normal_attachment = contact_normal_attachment::normal_on_B;
-            result.maybe_add_point({pivotA, pivotB, tri_normal, distance, normal_attachment});
+            point.pivotA = rotate(conjugate(sphere_orn), -tri_normal * sphere.radius);
+            point.pivotB = project_plane(sphere_pos, tri_vertices[0], tri_normal);
+            point.normal_attachment = contact_normal_attachment::normal_on_B;
+            point.normal = tri_normal;
+            result.maybe_add_point(point);
         }
         break;
     }
@@ -86,17 +94,18 @@ static void collide_sphere_triangle(
         closest_point_line(v0, v1 - v0, sphere_pos, t, pivotB);
 
         if (t > 0 && t < 1) {
-            auto pivotA = rotate(conjugate(sphere_orn), -sep_axis * sphere.radius);
-            auto normal_attachment = contact_normal_attachment::none;
-            result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+            point.pivotA = rotate(conjugate(sphere_orn), -sep_axis * sphere.radius);
+            point.pivotB = pivotB;
+            point.normal_attachment = contact_normal_attachment::none;
+            result.maybe_add_point(point);
         }
         break;
     }
     case triangle_feature::vertex: {
-        auto pivotA = rotate(conjugate(sphere_orn), -sep_axis * sphere.radius);
-        auto &pivotB = tri_vertices[tri_feature_index];
-        auto normal_attachment = contact_normal_attachment::none;
-        result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+        point.pivotA = rotate(conjugate(sphere_orn), -sep_axis * sphere.radius);
+        point.pivotB = tri_vertices[tri_feature_index];
+        point.normal_attachment = contact_normal_attachment::none;
+        result.maybe_add_point(point);
     }
     }
 }

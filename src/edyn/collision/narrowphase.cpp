@@ -35,6 +35,10 @@ void narrowphase::update_async(job &completion_job) {
     auto cp_view = m_registry->view<contact_point>();
     auto imp_view = m_registry->view<constraint_impulse>();
     auto tire_view = m_registry->view<tire_material>();
+    auto material_view = m_registry->view<material>();
+    auto orn_view = m_registry->view<orientation>();
+    auto mesh_shape_view = m_registry->view<mesh_shape>();
+    auto paged_mesh_shape_view = m_registry->view<paged_mesh_shape>();
     auto shapes_views_tuple = get_tuple_of_shape_views(*m_registry);
     auto dt = m_registry->ctx<settings>().fixed_dt;
 
@@ -45,8 +49,9 @@ void narrowphase::update_async(job &completion_job) {
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job,
-            [this, body_view, tr_view, vel_view, rolling_view, origin_view,
-             manifold_view, cp_view, imp_view, tire_view, shapes_views_tuple, dt] (size_t index) {
+            [this, body_view, tr_view, vel_view, rolling_view, tire_view, origin_view,
+             manifold_view, cp_view, imp_view, orn_view, material_view,
+             mesh_shape_view, paged_mesh_shape_view, shapes_views_tuple, dt] (size_t index) {
         auto entity = manifold_view[index];
         auto &manifold = manifold_view.get<contact_manifold>(entity);
         collision_result result;
@@ -54,7 +59,9 @@ void narrowphase::update_async(job &completion_job) {
         auto &destruction_info = m_cp_destruction_infos[index];
 
         detect_collision(manifold.body, result, body_view, origin_view, shapes_views_tuple);
-        process_collision(entity, manifold, result, cp_view, imp_view, tr_view, vel_view, rolling_view, origin_view, tire_view, dt,
+        process_collision(entity, manifold, result, cp_view, imp_view, tr_view,
+                          vel_view, rolling_view, tire_view, origin_view, orn_view,
+                          material_view, mesh_shape_view, paged_mesh_shape_view, dt,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
         }, [&destruction_info] (entt::entity contact_entity) {

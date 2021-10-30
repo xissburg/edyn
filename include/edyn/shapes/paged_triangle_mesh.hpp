@@ -226,6 +226,9 @@ public:
         return *m_page_loader;
     }
 
+    bool has_per_vertex_friction() const;
+    bool has_per_vertex_restitution() const;
+
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
      * is loaded, if the number of vertices would exceed this number, the
@@ -236,10 +239,11 @@ public:
 
     template<typename VertexIterator, typename IndexIterator>
     friend void create_paged_triangle_mesh(
-        paged_triangle_mesh &paged_tri_mesh,
-        VertexIterator vertex_begin, VertexIterator vertex_end,
-        IndexIterator index_begin, IndexIterator index_end,
-        size_t max_tri_per_submesh);
+            paged_triangle_mesh &paged_tri_mesh,
+            VertexIterator vertex_begin, VertexIterator vertex_end,
+            IndexIterator index_begin, IndexIterator index_end,
+            size_t max_tri_per_submesh,
+            const std::vector<vector3> &vertex_colors);
 
     friend struct detail::submesh_builder;
 

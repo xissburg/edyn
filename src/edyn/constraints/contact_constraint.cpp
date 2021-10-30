@@ -150,6 +150,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
+        EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
         auto normal = cp.normal;
         auto pivotA = to_world_space(cp.pivotA, originA, ornA);
         auto pivotB = to_world_space(cp.pivotB, originB, ornB);
