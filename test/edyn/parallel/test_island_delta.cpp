@@ -44,9 +44,9 @@ TEST(island_delta_test, test_island_delta_export_import) {
     reg0.emplace<parent_component>(ent0, std::array<entt::entity, 2>{child0, child1});
     auto ent1 = reg0.create();
     reg0.emplace<edyn::contact_point>(ent1, std::array<entt::entity, 2>{child0, child1});
-    reg0.get<edyn::contact_point>(ent1).distance = 6.28;
+    reg0.get<edyn::contact_point>(ent1).distance = 6.28f;
     auto ent2 = reg0.create();
-    reg0.emplace<custom_component>(ent2, 3.14, child0);
+    reg0.emplace<custom_component>(ent2, 3.14f, child0);
 
     auto map0 = edyn::entity_map{};
     auto builder = edyn::make_island_delta_builder(reg0);
@@ -82,8 +82,8 @@ TEST(island_delta_test, test_island_delta_export_import) {
     ASSERT_TRUE(array_contains(reg1.get<parent_component>(map1.remloc(ent0)).entity, map1.remloc(child0)));
     ASSERT_TRUE(array_contains(reg1.get<parent_component>(map1.remloc(ent0)).entity, map1.remloc(child1)));
     ASSERT_EQ(map1.locrem(reg1.get<edyn::contact_point>(map1.remloc(ent1)).body[0]), child0);
-    ASSERT_SCALAR_EQ(reg1.get<edyn::contact_point>(map1.remloc(ent1)).distance, 6.28);
-    ASSERT_SCALAR_EQ(reg1.get<custom_component>(map1.remloc(ent2)).value, 3.14);
+    ASSERT_SCALAR_EQ(reg1.get<edyn::contact_point>(map1.remloc(ent1)).distance, 6.28f);
+    ASSERT_SCALAR_EQ(reg1.get<custom_component>(map1.remloc(ent2)).value, 3.14f);
     ASSERT_EQ(reg1.get<custom_component>(map1.remloc(ent2)).entity, map1.remloc(child0));
 
     // Replace some entities in `reg1`, export it and load it into `reg0`.
@@ -104,7 +104,7 @@ TEST(island_delta_test, test_island_delta_export_import) {
     ASSERT_TRUE(array_contains(reg0.get<parent_component>(ent0).entity, ent1));
     ASSERT_TRUE(array_contains(reg0.get<parent_component>(ent0).entity, child1));
     ASSERT_EQ(reg0.get<edyn::contact_point>(ent1).body[0], child0);
-    ASSERT_SCALAR_EQ(reg0.get<edyn::contact_point>(ent1).distance, 6.28);
+    ASSERT_SCALAR_EQ(reg0.get<edyn::contact_point>(ent1).distance, 6.28f);
     ASSERT_EQ(reg0.get<custom_component>(ent2).entity, ent2);
 
     edyn::detach(reg0);
