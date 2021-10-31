@@ -155,7 +155,7 @@ The polyhedron keeps a weak reference to the `edyn::rotated_mesh` thus the `edyn
 
 ## Triangle mesh shape
 
-The `edyn::triangle_mesh` represents a (usually large) concave mesh of triangles. It contains a static bounding volume tree which provides a quicker way to find all triangles that intersect a given AABB. The `edyn::mesh_shape` holds a `std::shared_ptr` to a `edyn::triangle_mesh` which allows it to be present in multiple registries without duplicating the `edyn::triangle_mesh`, which is generally contains a lot of data.
+The `edyn::triangle_mesh` represents a (usually large) concave mesh of triangles. It contains a static bounding volume tree which provides a quicker way to find all triangles that intersect a given AABB. The `edyn::mesh_shape` holds a `std::shared_ptr` to a `edyn::triangle_mesh` which allows it to be present in multiple registries without duplicating the `edyn::triangle_mesh`, which generally contains a lot of data.
 
 The concept of Voronoi regions is used to prevent internal edge collisions. The normal vector of all three adjacent triangles is stored for each triangle. Using the adjacent normal, it is possible to tell whether a direction (separating axis or minimum translation vector) lies in a valid region. If the axis is not in the voronoi region of the closest triangle feature, it is projected onto it so a valid direction is used.
 

@@ -61,14 +61,14 @@ void make_plane_mesh(scalar extent_x, scalar extent_z,
  */
 void make_box_mesh(const vector3 &half_extents,
                    std::vector<vector3> &vertices,
-                   std::vector<uint16_t> &indices,
-                   std::vector<uint16_t> &faces);
+                   std::vector<uint32_t> &indices,
+                   std::vector<uint32_t> &faces);
 
 struct obj_mesh {
     std::vector<vector3> vertices;
     std::vector<vector3> colors;
-    std::vector<uint16_t> indices;
-    std::vector<uint16_t> faces;
+    std::vector<uint32_t> indices;
+    std::vector<uint32_t> faces;
 };
 
 /**
@@ -101,7 +101,7 @@ bool load_meshes_from_obj(const std::string &path,
  */
 bool load_tri_mesh_from_obj(const std::string &path,
                             std::vector<vector3> &vertices,
-                            std::vector<uint16_t> &indices,
+                            std::vector<uint32_t> &indices,
                             std::vector<vector3> *colors = nullptr,
                             vector3 pos = vector3_zero,
                             quaternion orn = quaternion_identity,
@@ -390,8 +390,8 @@ scalar cylinder_support_projection(scalar radius, scalar half_length, const vect
  * @return The centroid.
  */
 vector3 mesh_centroid(const std::vector<vector3> &vertices,
-                      const std::vector<uint16_t> &indices,
-                      const std::vector<uint16_t> &faces);
+                      const std::vector<uint32_t> &indices,
+                      const std::vector<uint32_t> &faces);
 
 struct collision_feature;
 

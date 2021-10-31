@@ -13,8 +13,8 @@ namespace edyn {
 
 void make_box_mesh(const vector3 &he,
                    std::vector<vector3> &vertices,
-                   std::vector<uint16_t> &indices,
-                   std::vector<uint16_t> &faces) {
+                   std::vector<uint32_t> &indices,
+                   std::vector<uint32_t> &faces) {
     vertices.push_back({-he.x, -he.y, -he.z});
     vertices.push_back({ he.x, -he.y, -he.z});
     vertices.push_back({ he.x, -he.y,  he.z});
@@ -46,12 +46,12 @@ static vector3 read_vector3(std::istringstream &iss) {
 }
 
 static void read_face_indices(std::istringstream &iss,
-                              std::vector<uint16_t> &indices,
-                              uint16_t offset, bool triangulate) {
+                              std::vector<uint32_t> &indices,
+                              uint32_t offset, bool triangulate) {
     std::string idx_str;
     auto count = size_t{};
-    uint16_t first_idx;
-    uint16_t prev_idx;
+    uint32_t first_idx;
+    uint32_t prev_idx;
 
     while (true) {
         iss >> idx_str;
@@ -64,7 +64,7 @@ static void read_face_indices(std::istringstream &iss,
             idx_str.erase(pos);
         }
 
-        auto idx = std::stoi(idx_str);
+        auto idx = static_cast<uint32_t>(std::stoi(idx_str));
         EDYN_ASSERT(idx >= 1 + offset);
 
         if (triangulate && count >= 3) {
@@ -84,9 +84,9 @@ static void read_face_indices(std::istringstream &iss,
 }
 
 static void read_face(std::istringstream &iss,
-                      std::vector<uint16_t> &indices,
-                      std::vector<uint16_t> &faces,
-                      uint16_t offset, bool triangulate) {
+                      std::vector<uint32_t> &indices,
+                      std::vector<uint32_t> &faces,
+                      uint32_t offset, bool triangulate) {
     // Store where this face starts in the `indices` array.
     faces.push_back(indices.size());
 
@@ -110,7 +110,7 @@ bool load_meshes_from_obj(const std::string &path,
 
     std::string line;
     auto mesh = obj_mesh{};
-    uint16_t index_offset = 0;
+    uint32_t index_offset = 0;
 
     while (std::getline(file, line)) {
         auto pos_space = line.find(" ");
@@ -167,7 +167,7 @@ bool load_meshes_from_obj(const std::string &path,
 
 bool load_tri_mesh_from_obj(const std::string &path,
                         std::vector<vector3> &vertices,
-                        std::vector<uint16_t> &indices,
+                        std::vector<uint32_t> &indices,
                         std::vector<vector3> *colors,
                         vector3 pos,
                         quaternion orn,
@@ -478,8 +478,8 @@ scalar cylinder_support_projection(scalar radius, scalar half_length, const vect
 }
 
 vector3 mesh_centroid(const std::vector<vector3> &vertices,
-                      const std::vector<uint16_t> &indices,
-                      const std::vector<uint16_t> &faces) {
+                      const std::vector<uint32_t> &indices,
+                      const std::vector<uint32_t> &faces) {
     // Reference: "Calculating the volume and centroid of a polyhedron in 3d"
     // http://wwwf.imperial.ac.uk/~rn/centroid.pdf
     auto center = vector3_zero;
