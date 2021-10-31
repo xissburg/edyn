@@ -36,7 +36,7 @@ struct island_resident {
  * simultaneously.
  */
 struct multi_island_resident {
-    entity_set island_entities;
+    entity_set island_entities {entity_set{}};
 };
 
 }
