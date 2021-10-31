@@ -39,8 +39,8 @@ vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
 
 matrix3x3 moment_of_inertia_polyhedron(scalar mass,
                                        const std::vector<vector3> &vertices,
-                                       const std::vector<uint16_t> &indices,
-                                       const std::vector<uint16_t> &faces);
+                                       const std::vector<uint32_t> &indices,
+                                       const std::vector<uint32_t> &faces);
 
 // Default moment of inertia for shapes.
 matrix3x3 moment_of_inertia(const plane_shape &sh, scalar mass);

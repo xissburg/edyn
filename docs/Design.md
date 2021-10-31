@@ -155,7 +155,7 @@ The polyhedron keeps a weak reference to the `edyn::rotated_mesh` thus the `edyn
 
 ## Triangle mesh shape
 
-The `edyn::triangle_mesh` represents a (usually large) concave mesh of triangles. It contains a static bounding volume tree which provides a quicker way to find all triangles that intersect a given AABB.
+The `edyn::triangle_mesh` represents a (usually large) concave mesh of triangles. It contains a static bounding volume tree which provides a quicker way to find all triangles that intersect a given AABB. The `edyn::mesh_shape` holds a `std::shared_ptr` to a `edyn::triangle_mesh` which allows it to be present in multiple registries without duplicating the `edyn::triangle_mesh`, which generally contains a lot of data.
 
 The concept of Voronoi regions is used to prevent internal edge collisions. The normal vector of all three adjacent triangles is stored for each triangle. Using the adjacent normal, it is possible to tell whether a direction (separating axis or minimum translation vector) lies in a valid region. If the axis is not in the voronoi region of the closest triangle feature, it is projected onto it so a valid direction is used.
 
@@ -175,7 +175,7 @@ edyn::serialize(input, trimesh);
 
 ## Paged triangle mesh shape
 
-For the shape of the world's terrain, a triangle mesh shape is usually the best choice. For larger worlds, it is interesting to split up this terrain in smaller chunks and load them in and out of the world as needed. The `edyn::paged_triangle_mesh` offers a deferred loading mechanism that will load chunks of a concave triangle mesh as dynamic objects enter their bounding boxes. It keeps a static bounding volume tree with one `edyn::triangle_mesh` on each leaf node and loads them on demand.
+For the shape of the world's terrain, a triangle mesh shape is usually the best choice. For larger worlds, it is interesting to split up this terrain in smaller chunks and load them in and out of the world as needed. The `edyn::paged_triangle_mesh` offers a deferred loading mechanism that will load chunks of a concave triangle mesh as dynamic objects enter their bounding boxes. It keeps a static bounding volume tree with one `edyn::triangle_mesh` on each leaf node and loads them on demand. The `edyn::paged_mesh_shape` holds a `std::shared_ptr` to a `edyn::paged_triangle_mesh` which allows it to be shared among multiples registries without duplicating the data.
 
 It can be created from a list of vertices and indices using the `edyn::create_paged_triangle_mesh` function, which will split the large mesh into smaller chunks. Right after the call, all submeshes will be loaded into the cache which allows it to be fully written to a binary file using a `edyn::paged_triangle_mesh_file_output_archive`. The cache can be cleared afterwards calling `edyn::paged_triangle_mesh::clear_cache()`. Now the mesh can be loaded quickly from file using a `edyn::paged_triangle_mesh_file_input_archive`.
 
@@ -184,6 +184,12 @@ As dynamic entities move into the AABB of the submeshes, it will ask the loader 
 When there are no dynamic entities in the AABB of the submesh, it becomes a candidate for unloading.
 
 In the creation process of a `edyn::paged_triangle_mesh`, the whole mesh is loaded into a single `edyn::triangle_mesh`. Then, it's split up into smaller chunks during the construction of the static bounding volume tree of submeshes, which is configured to continue splitting until the number of triangles in a node is under a certain threshold. For each leaf node, a new `edyn::triangle_mesh` is created containing only the triangles in that node. The submeshes require a special initialization procedure so that adjacency with other submeshes can be accounted for. This part will take already calculated information from the global triangle mesh and assign that directly into the submesh, particularly adjacent triangle normals, which are crucial to prevent internal edge collisions at the submesh boundaries.
+
+## Per-vertex material properties
+
+The `edyn::mesh_shape` and `edyn::paged_mesh_shape` support per-vertex material properties, which allow friction and restitution coefficients to be assigned to each vertex and then the coefficient for each contact point is interpolated over the triangle where the point is located. These coefficients can be assigned using `edyn::triangle_mesh::insert_friction_coefficients` and they can also be loaded from the vertex colors of an _*.obj_ file via `edyn::load_tri_mesh_from_obj` and passed to `edyn::create_paged_triangle_mesh` in the last parameter.
+
+When creating and updating contact points, if a triangle mesh with per-vertex materials is involved, the coefficients will be obtained from the mesh and assigned to the point. The closest feature present in the contact point is used to interpolate the coefficient among the vertices of that feature and obtain a value for the contact point location. If the closest feature is a vertex, the vertex value is used; if it's an edge, the values are linearly interpolated between the two vertices of the edge; if it's a triangle, barycentric coordinates are used to interpolate the values among the three vertices.
 
 # Multi-threading
 
@@ -227,7 +233,7 @@ Nodes that have their state calculated by the physics simulation are characteriz
 
 Entities that are part of an island need a way to tell what island they're in. Procedural entities can only be present in one island at any given moment, thus they have an `edyn::island_resident` assigned to them, whereas non-procedural entities can be in multiple islands simultaneously, thus they have a `edyn::multi_island_resident` instead.
 
-The presence of non-procedural nodes in multiple islands means that their data will have to be duplicated multiple times. In general this is not much data so duplication shouldn't be a concern. One case where it can be desirable to not duplicate data due to its size, is where a static entity is linked to a triangle mesh shape containing thousands of triangles. In this case, the `edyn::triangle_mesh` keeps a `std::shared_ptr` to its triangle data so when it's duplicated, the bulk of its data is reused. This data is going to be accessed from multiple threads thus it must be thread-safe. For a `edyn::triangle_mesh` the data is immutable. A `edyn::paged_triangle_mesh` has a dynamic page loading mechanism which must be secured using mutexes.
+The presence of non-procedural nodes in multiple islands means that their data will have to be duplicated multiple times. In general this is not much data so duplication shouldn't be a concern. One case where it can be desirable to not duplicate data due to its size, is where a static entity is linked to a triangle mesh shape containing thousands of triangles. In this case, the `edyn::mesh_shape` keeps a `std::shared_ptr` to its triangle data so when it's duplicated, the bulk of its data is reused. This data is going to be accessed from multiple threads thus it must be thread-safe. For a `edyn::mesh_shape` the data is immutable. A `edyn::paged_mesh_shape` has a dynamic page loading mechanism which must be secured using mutexes.
 
 ### Island Coordinator
 

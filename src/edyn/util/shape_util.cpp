@@ -4,6 +4,7 @@
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/shapes/triangle_mesh.hpp"
 #include <fstream>
 #include <sstream>
 #include <numeric>
@@ -12,8 +13,8 @@ namespace edyn {
 
 void make_box_mesh(const vector3 &he,
                    std::vector<vector3> &vertices,
-                   std::vector<uint16_t> &indices,
-                   std::vector<uint16_t> &faces) {
+                   std::vector<uint32_t> &indices,
+                   std::vector<uint32_t> &faces) {
     vertices.push_back({-he.x, -he.y, -he.z});
     vertices.push_back({ he.x, -he.y, -he.z});
     vertices.push_back({ he.x, -he.y,  he.z});
@@ -44,21 +45,52 @@ static vector3 read_vector3(std::istringstream &iss) {
     return v;
 }
 
+static void read_face_indices(std::istringstream &iss,
+                              std::vector<uint32_t> &indices,
+                              uint32_t offset, bool triangulate) {
+    std::string idx_str;
+    auto count = size_t{};
+    uint32_t first_idx;
+    uint32_t prev_idx;
+
+    while (true) {
+        iss >> idx_str;
+        if (iss.fail()) break;
+
+        // Remove everything after the first slash to keep only the first
+        // element in the "v/vt/vn" sequence.
+        auto pos = idx_str.find_first_of('/');
+        if (pos != std::string::npos) {
+            idx_str.erase(pos);
+        }
+
+        auto idx = static_cast<uint32_t>(std::stoi(idx_str));
+        EDYN_ASSERT(idx >= 1 + offset);
+
+        if (triangulate && count >= 3) {
+            indices.push_back(first_idx);
+            indices.push_back(prev_idx);
+        }
+
+        indices.push_back(idx - 1 - offset);
+
+        if (count == 0) {
+            first_idx = indices.back();
+        }
+
+        prev_idx = indices.back();
+        ++count;
+    }
+}
+
 static void read_face(std::istringstream &iss,
-                      std::vector<uint16_t> &indices,
-                      std::vector<uint16_t> &faces,
-                      uint16_t offset) {
+                      std::vector<uint32_t> &indices,
+                      std::vector<uint32_t> &faces,
+                      uint32_t offset, bool triangulate) {
     // Store where this face starts in the `indices` array.
     faces.push_back(indices.size());
 
-    uint16_t idx;
-
-    while (true) {
-        iss >> idx;
-        if (iss.fail()) break;
-        EDYN_ASSERT(idx >= 1 + offset);
-        indices.push_back(idx - 1 - offset);
-    }
+    read_face_indices(iss, indices, offset, triangulate);
 
     // Store the number of vertices in this face.
     auto count = indices.size() - faces.back();
@@ -78,7 +110,7 @@ bool load_meshes_from_obj(const std::string &path,
 
     std::string line;
     auto mesh = obj_mesh{};
-    uint16_t index_offset = 0;
+    uint32_t index_offset = 0;
 
     while (std::getline(file, line)) {
         auto pos_space = line.find(" ");
@@ -111,9 +143,18 @@ bool load_meshes_from_obj(const std::string &path,
             }
 
             mesh.vertices.push_back(v);
+
+            if (!iss.eof()) {
+                // Try reading vertex color.
+                auto color = read_vector3(iss);
+
+                if (!iss.fail()) {
+                    mesh.colors.push_back(color);
+                }
+            }
         } else if (cmd == "f") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            read_face(iss, mesh.indices, mesh.faces, index_offset);
+            read_face(iss, mesh.indices, mesh.faces, index_offset, false);
         }
     }
 
@@ -126,7 +167,8 @@ bool load_meshes_from_obj(const std::string &path,
 
 bool load_tri_mesh_from_obj(const std::string &path,
                         std::vector<vector3> &vertices,
-                        std::vector<uint16_t> &indices,
+                        std::vector<uint32_t> &indices,
+                        std::vector<vector3> *colors,
                         vector3 pos,
                         quaternion orn,
                         vector3 scale) {
@@ -164,13 +206,18 @@ bool load_tri_mesh_from_obj(const std::string &path,
             }
 
             vertices.push_back(v);
+
+            if (colors != nullptr && !iss.eof()) {
+                // Try reading vertex color.
+                auto color = read_vector3(iss);
+
+                if (!iss.fail()) {
+                    colors->push_back(color);
+                }
+            }
         } else if (cmd == "f") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
-            uint16_t idx[3];
-            iss >> idx[0] >> idx[1] >> idx[2];
-            indices.push_back(idx[0] - 1);
-            indices.push_back(idx[1] - 1);
-            indices.push_back(idx[2] - 1);
+            read_face_indices(iss, indices, 0, true);
         }
     }
 
@@ -431,8 +478,8 @@ scalar cylinder_support_projection(scalar radius, scalar half_length, const vect
 }
 
 vector3 mesh_centroid(const std::vector<vector3> &vertices,
-                      const std::vector<uint16_t> &indices,
-                      const std::vector<uint16_t> &faces) {
+                      const std::vector<uint32_t> &indices,
+                      const std::vector<uint32_t> &faces) {
     // Reference: "Calculating the volume and centroid of a polyhedron in 3d"
     // http://wwwf.imperial.ac.uk/~rn/centroid.pdf
     auto center = vector3_zero;
@@ -472,6 +519,20 @@ vector3 mesh_centroid(const std::vector<vector3> &vertices,
     center /= 24 * 2 * volume;
 
     return center;
+}
+
+size_t get_triangle_mesh_feature_index(const triangle_mesh &mesh, size_t tri_idx,
+                                       triangle_feature tri_feature, size_t tri_feature_idx) {
+    switch (tri_feature) {
+    case triangle_feature::face:
+        return tri_idx;
+    case triangle_feature::edge:
+        return mesh.get_face_edge_index(tri_idx, tri_feature_idx);
+    case triangle_feature::vertex:
+        return mesh.get_face_vertex_index(tri_idx, tri_feature_idx);
+    }
+
+    return SIZE_MAX;
 }
 
 }

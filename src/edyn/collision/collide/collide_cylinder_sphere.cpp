@@ -1,6 +1,7 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/shapes/cylinder_shape.hpp"
 
 namespace edyn {
 
@@ -13,65 +14,75 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
     const auto threshold = ctx.threshold;
 
     const auto cyl_axis = quaternion_x(ornA);
-    const auto hl = cyl_axis * shA.half_length;
-    const auto p0 = posA - hl;
-    const auto p1 = posA + hl;
+    const auto cyl_vertices = std::array<vector3, 2>{
+        posA + cyl_axis * shA.half_length,
+        posA - cyl_axis * shA.half_length
+    };
 
-    const auto v = p1 - p0; // Direction vector of cylinder segment.
-    const auto w = posB - p0; // Vector from initial point of cylinder segment to point sphere center.
-    const auto a = dot(w, v);
-    const auto b = dot(v, v);
-    EDYN_ASSERT(b > EDYN_EPSILON);
-    const auto t = a / b;
+    const auto v = cyl_vertices[1] - cyl_vertices[0]; // Direction vector of cylinder segment.
+    const auto w = posB - cyl_vertices[0]; // Vector from initial point of cylinder segment to point sphere center.
+    const auto denom = dot(v, v);
+    EDYN_ASSERT(denom > EDYN_EPSILON);
+    const auto t = dot(w, v) / denom;
 
     if (t > 0 && t < 1) {
-        const auto p = p0 + v * t;
-        const auto d = p - posB;
-        const auto l2 = length_sqr(d);
+        const auto p_cyl = cyl_vertices[0] + v * t;
+        const auto dir = p_cyl - posB;
+        const auto dist_sqr = length_sqr(dir);
         const auto min_dist = shA.radius + shB.radius + threshold;
 
-        if (l2 > min_dist * min_dist) {
+        if (dist_sqr > min_dist * min_dist) {
             return;
         }
 
-        const auto l = std::sqrt(l2);
-        const auto normal = l2 > EDYN_EPSILON ? d / l : vector3_y;
+        const auto dist = std::sqrt(dist_sqr);
+        const auto normal = dist_sqr > EDYN_EPSILON ? dir / dist : vector3_y;
 
-        auto pivotA = rotate(conjugate(ornA), p - normal * shA.radius - posA);
-        auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
-        auto distance = l - shA.radius - shB.radius;
-        result.add_point({pivotA, pivotB, normal, distance, contact_normal_attachment::none});
+        collision_result::collision_point point;
+        point.pivotA = rotate(conjugate(ornA), p_cyl - normal * shA.radius - posA);
+        point.pivotB = rotate(conjugate(ornB), normal * shB.radius);
+        point.distance = dist - shA.radius - shB.radius;
+        point.normal = normal;
+        point.normal_attachment = contact_normal_attachment::none;
+        point.featureA = {cylinder_feature::side_edge};
+        result.add_point(point);
         return;
     }
 
-    const auto dpos = t < 0.5 ? p0 : p1;
-    vector3 q;
-    const auto l2 = closest_point_disc(dpos, ornA, shA.radius, posB, q);
+    size_t cyl_face_idx = t < 0.5 ? 0 : 1;
+    const auto disc_pos = cyl_vertices[cyl_face_idx];
+    vector3 closest;
+    const auto dist_sqr = closest_point_disc(disc_pos, ornA, shA.radius, posB, closest);
     const auto min_dist = shB.radius + threshold;
 
-    if (l2 > min_dist * min_dist) {
+    if (dist_sqr > min_dist * min_dist) {
         return;
     }
 
-    auto normal = q - posB;
-    const auto nl2 = length_sqr(normal);
-    const auto nl = std::sqrt(nl2);
-    normal = nl2 > EDYN_EPSILON ? normal / nl : rotate(ornA, vector3_x) * to_sign(t > 0.5);
+    auto normal = closest - posB;
+    const auto n_len_sqr = length_sqr(normal);
+    const auto n_len = std::sqrt(n_len_sqr);
+    normal = n_len_sqr > EDYN_EPSILON ? normal / n_len : rotate(ornA, vector3_x) * to_sign(t > 0.5);
 
-    auto pivotA = rotate(conjugate(ornA), q - posA);
-    auto pivotB = rotate(conjugate(ornB), normal * shB.radius);
-    auto distance = nl - shB.radius;
+    collision_result::collision_point point;
+    point.pivotA = rotate(conjugate(ornA), closest - posA);
+    point.pivotB = rotate(conjugate(ornB), normal * shB.radius);
+    point.distance = n_len - shB.radius;
+    point.normal = normal;
 
     // If the closest feature is the cylinder face, attach normal to A.
     // I.e. if the projection of the sphere center is inside the cap face.
-    auto normal_attachment = contact_normal_attachment::none;
     auto sphere_proj = project_plane(posB, posA, cyl_axis);
 
     if (distance_sqr(sphere_proj, posA) < shA.radius * shA.radius) {
-        normal_attachment = contact_normal_attachment::normal_on_A;
+        point.normal_attachment = contact_normal_attachment::normal_on_A;
+        point.featureA = {cylinder_feature::face, cyl_face_idx};
+    } else {
+        point.normal_attachment = contact_normal_attachment::none;
+        point.featureA = {cylinder_feature::side_edge, cyl_face_idx};
     }
 
-    result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
+    result.add_point(point);
 }
 
 void collide(const sphere_shape &shA, const cylinder_shape &shB,
