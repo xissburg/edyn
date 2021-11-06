@@ -15,6 +15,7 @@ struct doublewishbone_constraint : public constraint_base {
     vector3 lower_pivotA;
     vector3 lower_pivotB;
     scalar lower_length;
+    bool steerable;
 };
 
 

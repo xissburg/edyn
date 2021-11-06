@@ -65,6 +65,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
 
         // Wheel rotation axis.
         scalar side = con.lower_pivotA.x > 0 ? 1 : -1;
+        auto wheel_x = rotate(ornB, vector3_x * side);
 
         auto row_idx = size_t(0);
 
@@ -183,6 +184,29 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
 
             auto options = constraint_row_options{};
             options.error = 0.2 * (dot(md, chassis_x) + 0.2) / dt; // be gentle
+
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+            warm_start(row);
+        }
+
+        if (!con.steerable) {
+            // Constrain wheel rotation axis to a plane that passes through upper pivot
+            // on chassis with normal equals chassis' z axis
+            auto q = cross(chassis_z, wheel_x);
+
+            auto &row = cache.rows.emplace_back();
+            row.J = {vector3_zero, q, vector3_zero, -q};
+            row.lower_limit = -large_scalar;
+            row.upper_limit = large_scalar;
+
+            row.inv_mA = inv_mA;  row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+            row.impulse = imp.values[row_idx++];
+
+            auto options = constraint_row_options{};
+            options.error = dot(chassis_z, wheel_x) / dt;
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
