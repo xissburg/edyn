@@ -15,6 +15,7 @@
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>

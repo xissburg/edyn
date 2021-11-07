@@ -3,6 +3,7 @@
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 

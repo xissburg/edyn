@@ -3,6 +3,7 @@
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/mass.hpp"

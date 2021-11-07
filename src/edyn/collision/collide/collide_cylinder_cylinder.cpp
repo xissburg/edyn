@@ -3,10 +3,10 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/quaternion.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/transform.hpp"
 #include <array>
 
 namespace edyn {

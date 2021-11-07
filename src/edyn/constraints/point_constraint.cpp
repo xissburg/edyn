@@ -1,6 +1,7 @@
 #include "edyn/constraints/point_constraint.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"

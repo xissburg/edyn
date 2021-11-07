@@ -1,7 +1,7 @@
 #ifndef EDYN_PARALLEL_MESSAGE_HPP
 #define EDYN_PARALLEL_MESSAGE_HPP
 
-#include "edyn/math/scalar.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 

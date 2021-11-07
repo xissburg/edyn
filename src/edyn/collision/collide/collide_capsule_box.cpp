@@ -3,6 +3,7 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/shapes/capsule_shape.hpp"
 #include "edyn/util/shape_util.hpp"

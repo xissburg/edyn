@@ -6,6 +6,7 @@
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 

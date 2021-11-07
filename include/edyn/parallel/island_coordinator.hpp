@@ -5,7 +5,6 @@
 #include <memory>
 #include <unordered_map>
 #include <entt/entity/fwd.hpp>
-#include "edyn/math/scalar.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker_context.hpp"

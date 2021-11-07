@@ -2,6 +2,7 @@
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/shapes/mesh_shape.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/constraints/contact_constraint.hpp"

@@ -2,6 +2,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/math.hpp"

@@ -229,16 +229,6 @@ inline quaternion quaternion_derivative(const quaternion &q, const vector3 &w) {
     return quaternion{w.x, w.y, w.z, 0} * q * scalar(0.5);
 }
 
-inline
-vector3 to_object_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
-    return rotate(conjugate(orn), p - pos);
-}
-
-inline
-vector3 to_world_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
-    return pos + rotate(orn, p);
-}
-
 }
 
 #endif // EDYN_MATH_QUATERNION_HPP

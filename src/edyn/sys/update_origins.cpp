@@ -3,6 +3,7 @@
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/math/transform.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
