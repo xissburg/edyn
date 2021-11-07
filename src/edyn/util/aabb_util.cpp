@@ -1,5 +1,6 @@
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/shape_util.hpp"
+#include "edyn/math/transform.hpp"
 #include <variant>
 
 namespace edyn {

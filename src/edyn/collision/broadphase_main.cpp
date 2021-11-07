@@ -26,7 +26,7 @@ broadphase_main::broadphase_main(entt::registry &registry)
 }
 
 void broadphase_main::on_construct_tree_view(entt::registry &registry, entt::entity entity) {
-    EDYN_ASSERT(registry.has<island>(entity));
+    EDYN_ASSERT(registry.any_of<island>(entity));
 
     auto &view = registry.get<tree_view>(entity);
     auto id = m_island_tree.create(view.root_aabb(), entity);
@@ -34,7 +34,7 @@ void broadphase_main::on_construct_tree_view(entt::registry &registry, entt::ent
 }
 
 void broadphase_main::on_construct_static_kinematic_tag(entt::registry &registry, entt::entity entity) {
-    if (!registry.has<AABB>(entity)) return;
+    if (!registry.any_of<AABB>(entity)) return;
 
     auto &aabb = registry.get<AABB>(entity);
     auto id = m_np_tree.create(aabb, entity);
@@ -117,7 +117,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
                                                               const aabb_view_t &aabb_view,
                                                               const multi_resident_view_t &resident_view,
                                                               const tree_view_view_t &tree_view_view) const {
-    auto &tree_viewA = tree_view_view.get(island_entityA);
+    auto tree_viewA = tree_view_view.get<tree_view>(island_entityA);
     auto island_aabb = tree_viewA.root_aabb().inset(m_aabb_offset);
     entity_pair_vector results;
 
@@ -132,7 +132,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
 
         // Look for AABB intersections between entities from different islands
         // and create manifolds.
-        auto &tree_viewB = tree_view_view.get(island_entityB);
+        auto &tree_viewB = tree_view_view.get<tree_view>(island_entityB);
         auto pairs = intersect_islands(tree_viewA, tree_viewB, aabb_view);
         results.insert(results.end(), pairs.begin(), pairs.end());
     });
@@ -145,8 +145,8 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
         // Only proceed if the non-procedural entity is not in the island,
         // because if it is already in, collisions are handled in the
         // island worker.
-        auto &resident = resident_view.get(np_entity);
-        if (resident.island_entities.count(island_entityA)) {
+        auto &resident = resident_view.get<multi_island_resident>(np_entity);
+        if (resident.island_entities.contains(island_entityA)) {
             return;
         }
 
@@ -179,13 +179,13 @@ entity_pair_vector broadphase_main::intersect_islands_a(const tree_view &tree_vi
     tree_viewA.each([&] (const tree_view::tree_node &nodeA) {
         auto entityA = nodeA.entity;
 
-        auto aabbA = aabb_view.get(entityA).inset(m_aabb_offset);
+        auto aabbA = aabb_view.get<AABB>(entityA).inset(m_aabb_offset);
 
         tree_viewB.query(aabbA, [&] (tree_node_id_t idB) {
             auto entityB = tree_viewB.get_node(idB).entity;
 
             if (should_collide(entityA, entityB) && !manifold_map.contains(entityA, entityB)) {
-                auto &aabbB = aabb_view.get(entityB);
+                auto &aabbB = aabb_view.get<AABB>(entityB);
 
                 if (intersect(aabbA, aabbB)) {
                     results.emplace_back(entityA, entityB);
@@ -199,7 +199,7 @@ entity_pair_vector broadphase_main::intersect_islands_a(const tree_view &tree_vi
 
 entity_pair_vector broadphase_main::intersect_island_np(const tree_view &island_tree, entt::entity np_entity,
                                                         const aabb_view_t &aabb_view) const {
-    auto np_aabb = aabb_view.get(np_entity).inset(m_aabb_offset);
+    auto np_aabb = aabb_view.get<AABB>(np_entity).inset(m_aabb_offset);
     entity_pair_vector results;
     auto &manifold_map = m_registry->ctx<contact_manifold_map>();
 
@@ -207,7 +207,7 @@ entity_pair_vector broadphase_main::intersect_island_np(const tree_view &island_
         auto entity = island_tree.get_node(idA).entity;
 
         if (should_collide(entity, np_entity) && !manifold_map.contains(entity, np_entity)) {
-            auto &aabb = aabb_view.get(entity);
+            auto &aabb = aabb_view.get<AABB>(entity);
 
             if (intersect(aabb, np_aabb)) {
                 results.emplace_back(entity, np_entity);

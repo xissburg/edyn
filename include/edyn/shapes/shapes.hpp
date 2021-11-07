@@ -51,6 +51,14 @@ static const auto shapes_tuple = std::tuple_cat(dynamic_shapes_tuple, static_sha
 static const auto shapes_variant = tuple_to_variant(shapes_tuple);
 using shapes_variant_t = std::decay_t<decltype(shapes_variant)>;
 
+// Variant containing all possible shape feature types.
+using shape_feature_t = std::variant<
+    box_feature,
+    cylinder_feature,
+    capsule_feature,
+    triangle_feature
+>;
+
 /**
  * @brief Returns the index value of a shape type. This is the value that
  * should be stored in a `shape_index` component.

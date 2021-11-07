@@ -20,13 +20,13 @@ void update_aabbs_of_interest(entt::registry &registry) {
         });
 
         for (auto entity : aabb_of.entities) {
-            if (!contained_entities.count(entity)) {
+            if (!contained_entities.contains(entity)) {
                 aabb_of.destroy_entities.push_back(entity);
             }
         }
 
         for (auto entity : contained_entities) {
-            if (!aabb_of.entities.count(entity)) {
+            if (!aabb_of.entities.contains(entity)) {
                 aabb_of.create_entities.push_back(entity);
             }
         }

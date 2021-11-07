@@ -2,6 +2,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/math.hpp"
@@ -168,11 +169,16 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     shB.support_feature(posB, ornB, sep_axis, featureB, feature_indexB,
                         support_feature_tolerance);
 
+    collision_result::collision_point point;
+    point.normal = normal;
+    point.distance = distance;
+    point.featureB = {featureB, feature_indexB};
+
     switch (featureB) {
     case cylinder_feature::face: {
         size_t num_vertices_in_face = 0;
         auto sign_faceB = to_sign(feature_indexB == 0);
-        auto normal_attachment = contact_normal_attachment::normal_on_B;
+        point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         // Check if polygon vertices are inside a cylinder cap face (by checking
         // if its distance from the cylinder axis is smaller than the cylinder radius).
@@ -183,10 +189,10 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
             if (dist_sqr > shB.radius * shB.radius) continue;
 
-            auto pivotA = pointA;
-            auto pivotB = to_object_space(pointA, posB, ornB);
-            pivotB.x = shB.half_length * sign_faceB;
-            result.maybe_add_point({pivotA, pivotB, normal, distance, normal_attachment});
+            point.pivotA = pointA;
+            point.pivotB = to_object_space(pointA, posB, ornB);
+            point.pivotB.x = shB.half_length * sign_faceB;
+            result.maybe_add_point(point);
 
             ++num_vertices_in_face;
         }
@@ -220,10 +226,10 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
                 auto t = s[j];
                 if (t < 0 || t> 1) continue;
 
-                auto pivotA = lerp(v0A, v1A, t);
-                auto pivotB = lerp(v0B, v1B, t);
-                pivotB.x = shB.half_length * sign_faceB;
-                result.maybe_add_point({pivotA, pivotB, normal, distance, normal_attachment});
+                point.pivotA = lerp(v0A, v1A, t);
+                point.pivotB = lerp(v0B, v1B, t);
+                point.pivotB.x = shB.half_length * sign_faceB;
+                result.maybe_add_point(point);
 
                 ++num_edge_intersections;
             }
@@ -236,12 +242,12 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
                 auto pivotB_x = shB.half_length * sign_faceB;
 
                 for(int i = 0; i < 4; ++i) {
-                    auto pivotB = vector3{pivotB_x,
-                                          shB.radius * multipliers[i],
-                                          shB.radius * multipliers[(i + 1) % 4]};
-                    auto pivotA = to_world_space(pivotB, posB, ornB);
-                    pivotA = project_plane(pivotA, polygon.origin, sep_axis);
-                    result.maybe_add_point({pivotA, pivotB, normal, distance, normal_attachment});
+                    point.pivotB = vector3{pivotB_x,
+                                           shB.radius * multipliers[i],
+                                           shB.radius * multipliers[(i + 1) % 4]};
+                    point.pivotA = to_world_space(point.pivotB, posB, ornB);
+                    point.pivotA = project_plane(point.pivotA, polygon.origin, sep_axis);
+                    result.maybe_add_point(point);
                 }
             }
         }
@@ -252,7 +258,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         edge_vertices[0] = face_center_neg + sep_axis * shB.radius;
         edge_vertices[1] = face_center_pos + sep_axis * shB.radius;
 
-        auto normal_attachment = polygon.hull.size() > 2 ?
+        point.normal_attachment = polygon.hull.size() > 2 ?
             contact_normal_attachment::normal_on_A:
             contact_normal_attachment::none;
 
@@ -260,9 +266,9 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
         if (polygon.hull.size() > 2) {
             for (auto &pointB : edge_vertices) {
                 if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
-                    auto pivotA = project_plane(pointB, polygon.origin, sep_axis);
-                    auto pivotB = to_object_space(pointB, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, normal, distance, normal_attachment});
+                    point.pivotA = project_plane(pointB, polygon.origin, sep_axis);
+                    point.pivotB = to_object_space(pointB, posB, ornB);
+                    result.maybe_add_point(point);
                 }
             }
         }
@@ -298,32 +304,32 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
                                                      s[0], t[0], s[1], t[1]);
 
                 for (size_t k = 0; k < num_points; ++k) {
-                    auto pivotA = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
+                    point.pivotA = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
                     auto pivotB_world = lerp(edge_vertices[0], edge_vertices[1], t[k]);
-                    auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, normal, distance, normal_attachment});
+                    point.pivotB = to_object_space(pivotB_world, posB, ornB);
+                    result.maybe_add_point(point);
                 }
             }
         } else {
             // Polygon vertex against cylinder edge.
             EDYN_ASSERT(polygon.hull.size() == 1);
-            auto &pivotA = polygon.vertices[polygon.hull[0]];
+            point.pivotA = polygon.vertices[polygon.hull[0]];
             auto edge_dir = edge_vertices[1] - edge_vertices[0];
             vector3 pivotB_world; scalar t;
-            closest_point_line(edge_vertices[0], edge_dir, pivotA, t, pivotB_world);
-            auto pivotB = to_object_space(pivotB_world, posB, ornB);
-            result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
+            closest_point_line(edge_vertices[0], edge_dir, point.pivotA, t, pivotB_world);
+            point.pivotB = to_object_space(pivotB_world, posB, ornB);
+            result.add_point(point);
         }
         break;
     }
     case cylinder_feature::cap_edge: {
         auto supportB = shB.support_point(posB, ornB, sep_axis);
-        auto pivotB = to_object_space(supportB, posB, ornB);
-        auto pivotA = supportB + sep_axis * distance;
-        auto normal_attachment = polygon.hull.size() > 2 ?
+        point.pivotA = supportB + sep_axis * distance;
+        point.pivotB = to_object_space(supportB, posB, ornB);
+        point.normal_attachment = polygon.hull.size() > 2 ?
             contact_normal_attachment::normal_on_A:
             contact_normal_attachment::none;
-        result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
+        result.add_point(point);
         break;
     }
     }

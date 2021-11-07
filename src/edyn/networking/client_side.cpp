@@ -145,7 +145,7 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
 
 template<typename Component>
 void import_pool(entt::registry &registry, const std::vector<std::pair<entt::entity, Component>> &pool) {
-    if constexpr(entt::is_eto_eligible_v<Component>) {
+    if constexpr(std::is_empty_v<Component>) {
         return;
     }
 
@@ -159,7 +159,7 @@ void import_pool(entt::registry &registry, const std::vector<std::pair<entt::ent
             auto local_entity = ctx.entity_map.remloc(remote_entity);
 
             if (registry.valid(local_entity)) {
-                if (registry.has<Component>(local_entity)) {
+                if (registry.any_of<Component>(local_entity)) {
                     registry.replace<Component>(local_entity, pair.second);
                     edyn::refresh<Component>(registry, local_entity);
                 } else {
@@ -181,7 +181,7 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     import_pool(registry, snapshot.linvels);
     import_pool(registry, snapshot.angvels);
 
-    auto job = new extrapolation_job()
+    //auto job = new extrapolation_job();
 }
 
 void client_process_packet(entt::registry &registry, const packet::edyn_packet &packet) {

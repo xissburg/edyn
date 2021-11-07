@@ -41,7 +41,7 @@ struct updated_entity_component_container: public entity_component_container_bas
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);
 
-            auto& old_component = view.get(local_entity);
+            auto& old_component = view.template get<Component>(local_entity);
             merge(&old_component, pair.second, ctx);
             registry.replace<Component>(local_entity, pair.second);
         }
@@ -86,7 +86,7 @@ struct created_entity_component_container: public entity_component_container_bas
             // If it's a duplicate, remove it from the array by swapping with last
             // and popping last. This ensures no duplicates after processing, which
             // can be useful during post processing after import.
-            if (registry.has<Component>(local_entity)) {
+            if (registry.any_of<Component>(local_entity)) {
                 pairs[index] = pairs.back();
                 pairs.pop_back();
                 continue;

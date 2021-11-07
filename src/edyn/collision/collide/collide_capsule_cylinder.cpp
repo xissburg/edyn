@@ -1,6 +1,6 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/util/shape_util.hpp"
@@ -143,16 +143,33 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         dot(capsule_vertices[1], sep_axis)
     };
 
+    capsule_feature featureA;
+    size_t feature_indexA = {};
     auto is_capsule_edge = std::abs(proj_capsule_vertices[0] -
                                     proj_capsule_vertices[1]) < support_feature_tolerance;
+
+    if (is_capsule_edge) {
+        featureA = capsule_feature::side;
+    } else {
+        featureA = capsule_feature::hemisphere;
+        feature_indexA = proj_capsule_vertices[0] < proj_capsule_vertices[1] ? 0 : 1;
+    }
 
     cylinder_feature featureB;
     size_t feature_indexB;
     shB.support_feature(posB, ornB, sep_axis, featureB, feature_indexB,
                         support_feature_tolerance);
 
+    collision_result::collision_point point;
+    point.normal = sep_axis;
+    point.distance = distance;
+    point.featureA = {featureA, feature_indexA};
+    point.featureB = {featureB, feature_indexB};
+
     switch (featureB) {
     case cylinder_feature::face: {
+        point.normal_attachment = contact_normal_attachment::normal_on_B;
+
         if (is_capsule_edge) {
             // Check if the capsule edge intersects the circular cap.
             auto v0 = to_object_space(capsule_vertices[0], posB, ornB);
@@ -166,10 +183,10 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
                 auto t = clamp_unit(s[i]);
                 auto pivotA_world = lerp(capsule_vertices[0], capsule_vertices[1], t) - sep_axis * shA.radius;
                 auto pivotB_world = project_plane(pivotA_world, cylinder_vertices[feature_indexB], sep_axis);
-                auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                auto local_distance = dot(pivotA_world - pivotB_world, sep_axis);
-                result.add_point({pivotA, pivotB, sep_axis, local_distance, contact_normal_attachment::normal_on_B});
+                point.pivotA = to_object_space(pivotA_world, posA, ornA);
+                point.pivotB = to_object_space(pivotB_world, posB, ornB);
+                point.distance = dot(pivotA_world - pivotB_world, sep_axis);
+                result.add_point(point);
             }
         } else {
             // Cylinder cap face against capsule vertex.
@@ -177,13 +194,14 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
                                            capsule_vertices[0] : capsule_vertices[1];
             auto pivotA_world = closest_capsule_vertex - sep_axis * shA.radius;
             auto pivotB_world = project_plane(closest_capsule_vertex, cylinder_vertices[feature_indexB], sep_axis);
-            auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            auto pivotB = to_object_space(pivotB_world, posB, ornB);
-            result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B});
+            point.pivotA = to_object_space(pivotA_world, posA, ornA);
+            point.pivotB = to_object_space(pivotB_world, posB, ornB);
+            result.add_point(point);
         }
         break;
     }
     case cylinder_feature::side_edge: {
+        point.normal_attachment = contact_normal_attachment::none;
         scalar s[2], t[2];
         vector3 closest_capsule[2], closest_cylinder[2];
         size_t num_points;
@@ -195,18 +213,19 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
             &s[1], &t[1], &closest_capsule[1], &closest_cylinder[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
-            auto pivotA = to_object_space(closest_capsule[i] - sep_axis * shA.radius, posA, ornA);
-            auto pivotB = to_object_space(closest_cylinder[i] + sep_axis * shB.radius, posB, ornB);
-            result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none});
+            point.pivotA = to_object_space(closest_capsule[i] - sep_axis * shA.radius, posA, ornA);
+            point.pivotB = to_object_space(closest_cylinder[i] + sep_axis * shB.radius, posB, ornB);
+            result.add_point(point);
         }
 
         break;
     }
     case cylinder_feature::cap_edge: {
+        point.normal_attachment = contact_normal_attachment::none;
         auto supportB = shB.support_point(posB, ornB, sep_axis);
-        auto pivotB = to_object_space(supportB, posB, ornB);
-        auto pivotA = to_object_space(supportB + sep_axis * distance, posA, ornA);
-        result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none});
+        point.pivotB = to_object_space(supportB, posB, ornB);
+        point.pivotA = to_object_space(supportB + sep_axis * distance, posA, ornA);
+        result.add_point(point);
         break;
     }
     }

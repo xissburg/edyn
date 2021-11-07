@@ -1,11 +1,14 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 
 void collide(const compound_shape &shA, const plane_shape &shB,
              const collision_context &ctx, collision_result &result) {
-    for (auto &node : shA.nodes) {
+    for (size_t node_idx = 0; node_idx < shA.nodes.size(); ++node_idx) {
+        auto &node = shA.nodes[node_idx];
+
         const auto inset = vector3_one * -contact_breaking_threshold;
         auto aabbA = aabb_to_world_space(node.aabb, ctx.posA, ctx.ornA).inset(inset);
 
@@ -25,6 +28,13 @@ void collide(const compound_shape &shA, const plane_shape &shB,
         for (size_t i = 0; i < child_result.num_points; ++i) {
             auto &child_point = child_result.point[i];
             child_point.pivotA = to_world_space(child_point.pivotA, node.position, node.orientation);
+
+            if (!child_point.featureA) {
+                child_point.featureA = {};
+            }
+
+            child_point.featureA->part = node_idx;
+
             result.maybe_add_point(child_point);
         }
     }

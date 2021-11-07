@@ -35,8 +35,8 @@ struct submesh_builder {
 
     template<typename VertexIterator, typename IndexIterator>
     void build(paged_triangle_mesh &paged_tri_mesh, const triangle_mesh &global_tri_mesh,
-               VertexIterator vertex_begin, VertexIterator vertex_end,
-               IndexIterator index_begin, IndexIterator index_end) {
+               VertexIterator vertex_begin, IndexIterator index_begin,
+               const std::vector<vector3> &vertex_colors) {
         // Allocate space in cache for all submeshes.
         paged_tri_mesh.m_cache.resize(infos.size());
 
@@ -68,9 +68,19 @@ struct submesh_builder {
             auto submesh = std::make_unique<triangle_mesh>();
             submesh->m_vertices.reserve(local_indices.size());
 
+            if (!vertex_colors.empty()) {
+                submesh->m_friction.reserve(local_indices.size());
+                submesh->m_restitution.reserve(local_indices.size());
+            }
+
             // Insert vertices into triangle mesh.
             for (auto idx : local_indices) {
                 submesh->m_vertices.push_back(*(vertex_begin + idx));
+
+                if (!vertex_colors.empty()) {
+                    submesh->m_friction.push_back(vertex_colors[idx].x);
+                    submesh->m_restitution.push_back(vertex_colors[idx].y);
+                }
             }
 
             submesh->m_indices.resize(local_num_triangles);
@@ -178,7 +188,8 @@ void create_paged_triangle_mesh(
         paged_triangle_mesh &paged_tri_mesh,
         VertexIterator vertex_begin, VertexIterator vertex_end,
         IndexIterator index_begin, IndexIterator index_end,
-        size_t max_tri_per_submesh) {
+        size_t max_tri_per_submesh,
+        const std::vector<vector3> &vertex_colors) {
 
     // Only allowed to create a mesh if this instance is empty.
     EDYN_ASSERT(paged_tri_mesh.m_tree.empty() && paged_tri_mesh.m_cache.empty());
@@ -208,7 +219,7 @@ void create_paged_triangle_mesh(
     // Build tree and submeshes.
     auto builder = detail::submesh_builder{};
     paged_tri_mesh.m_tree.build(aabbs.begin(), aabbs.end(), builder, max_tri_per_submesh);
-    builder.build(paged_tri_mesh, global_tri_mesh, vertex_begin, vertex_end, index_begin, index_end);
+    builder.build(paged_tri_mesh, global_tri_mesh, vertex_begin, index_begin, vertex_colors);
 
     // Resize LRU queue to have the number of leaves.
     paged_tri_mesh.m_lru_indices.resize(paged_tri_mesh.m_cache.size());

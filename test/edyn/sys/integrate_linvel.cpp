@@ -7,21 +7,21 @@ TEST(integrate_linvel, test) {
     auto e1 = registry.create();
     auto e2 = registry.create();
 
-    auto& p0 = registry.emplace<edyn::position>(e0, 2, 3, 4);
+    auto& p0 = registry.emplace<edyn::position>(e0, 2.f, 3.f, 4.f);
     const auto p0_0 = p0;
 
-    auto& p1 = registry.emplace<edyn::position>(e1, -2, -3, -5.1);
+    auto& p1 = registry.emplace<edyn::position>(e1, -2.f, -3.f, -5.1f);
     const auto p1_0 = p1;
-    
-    registry.emplace<edyn::linvel>(e1, -0.33, -0.5, -0.1);
-    registry.emplace<edyn::linvel>(e2, -0.12, -0.99, 0.12);
+
+    registry.emplace<edyn::linvel>(e1, -0.33f, -0.5f, -0.1f);
+    registry.emplace<edyn::linvel>(e2, -0.12f, -0.99f, 0.12f);
 
     // Only dynamic entities have their position updated.
     registry.emplace<edyn::dynamic_tag>(e0);
     registry.emplace<edyn::dynamic_tag>(e1);
     registry.emplace<edyn::dynamic_tag>(e2);
 
-    const edyn::scalar dt = 0.1666;
+    const edyn::scalar dt = 0.1666f;
     const size_t n = 3;
 
     for (size_t i = 0; i < n; ++i) {

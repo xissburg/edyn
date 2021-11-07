@@ -22,13 +22,13 @@ void serialize(Archive &archive, entity_components_pair &pair) {
 
 template<typename Component>
 void insert_component_in_entity_components_pair(entt::registry &registry, entt::entity entity, entity_components_pair &pair) {
-    if (!registry.has<Component>(entity)) {
+    if (!registry.any_of<Component>(entity)) {
         return;
     }
 
     auto index = tuple_index_of<Component, unsigned>(networked_components);
 
-    if constexpr(entt::is_eto_eligible_v<Component>) {
+    if constexpr(std::is_empty_v<Component>) {
         auto ptr = std::make_shared<component_wrapper<Component>>(component_wrapper<Component>{index});
         pair.components.push_back(std::move(ptr));
     } else {

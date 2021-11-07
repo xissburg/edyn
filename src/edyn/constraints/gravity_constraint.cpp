@@ -49,7 +49,7 @@ void prepare_constraints<gravity_constraint>(entt::registry &registry, row_cache
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
         row.dvA = &dvA; row.dwA = &dwA;
         row.dvB = &dvB; row.dwB = &dwB;
-        row.impulse = imp_view.get(entity).values[0];
+        row.impulse = imp_view.get<constraint_impulse>(entity).values[0];
 
         auto options = constraint_row_options{};
         options.error = large_scalar;

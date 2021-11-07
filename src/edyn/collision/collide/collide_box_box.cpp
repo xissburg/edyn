@@ -7,6 +7,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 
@@ -112,21 +113,28 @@ void collide(const box_shape &shA, const box_shape &shB,
                         featureB, feature_indexB, projectionB,
                         support_feature_tolerance);
 
+    collision_result::collision_point point;
+    point.normal = sep_axis;
+    point.distance = distance;
+    point.featureA = {featureA, feature_indexA};
+    point.featureB = {featureB, feature_indexB};
+
     if (featureA == box_feature::face && featureB == box_feature::face) {
         // Face-Face.
         auto face_verticesA = shA.get_face(feature_indexA, posA, ornA);
         auto face_normalA = shA.get_face_normal(feature_indexA, ornA);
         auto face_verticesB = shB.get_face(feature_indexB, posB, ornB);
         auto face_normalB = shB.get_face_normal(feature_indexB, ornB);
+        point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         // Check for vertices of Face B contained in Face A.
         for (size_t i = 0; i < 4; ++i) {
             if (point_in_polygonal_prism(face_verticesA, face_normalA, face_verticesB[i])) {
                 // Face B vertex is inside Face A.
                 auto pivot_face = project_plane(face_verticesB[i], face_verticesA[0], face_normalA);
-                auto pivotA = to_object_space(pivot_face, posA, ornA);
-                auto pivotB = to_object_space(face_verticesB[i], posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B});
+                point.pivotA = to_object_space(pivot_face, posA, ornA);
+                point.pivotB = to_object_space(face_verticesB[i], posB, ornB);
+                result.maybe_add_point(point);
             }
         }
 
@@ -135,9 +143,9 @@ void collide(const box_shape &shA, const box_shape &shB,
             if (point_in_polygonal_prism(face_verticesB, face_normalB, face_verticesA[i])) {
                 // Face A vertex is inside Face B.
                 auto pivot_face = project_plane(face_verticesA[i], face_verticesB[0], face_normalB);
-                auto pivotA = to_object_space(face_verticesA[i], posA, ornA);
-                auto pivotB = to_object_space(pivot_face, posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B});
+                point.pivotA = to_object_space(face_verticesA[i], posA, ornA);
+                point.pivotB = to_object_space(pivot_face, posB, ornB);
+                result.maybe_add_point(point);
             }
         }
 
@@ -162,9 +170,9 @@ void collide(const box_shape &shA, const box_shape &shB,
 
                     auto q1 = lerp(b0_world, b1_world, s[k]);
                     auto q0 = project_plane(q1, face_center, face_normalA);
-                    auto pivotA = to_object_space(q0, posA, ornA);
-                    auto pivotB = to_object_space(q1, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B});
+                    point.pivotA = to_object_space(q0, posA, ornA);
+                    point.pivotB = to_object_space(q1, posB, ornB);
+                    result.maybe_add_point(point);
                 }
             }
         }
@@ -179,7 +187,7 @@ void collide(const box_shape &shA, const box_shape &shB,
                                         shB.get_face(feature_indexB, posB, ornB);
         auto edge_vertices = is_faceA ? shB.get_edge(feature_indexB, posB, ornB) :
                                         shA.get_edge(feature_indexA, posA, ornA);
-        auto normal_attachment = is_faceA ?
+        point.normal_attachment = is_faceA ?
             contact_normal_attachment::normal_on_A :
             contact_normal_attachment::normal_on_B;
 
@@ -188,11 +196,11 @@ void collide(const box_shape &shA, const box_shape &shB,
             if (point_in_polygonal_prism(face_vertices, face_normal, edge_vertices[i])) {
                 // Edge's vertex is inside face.
                 auto pivot_face = project_plane(edge_vertices[i], face_vertices[0], face_normal);
-                auto pivotA = is_faceA ? to_object_space(pivot_face, posA, ornA) :
-                                         to_object_space(edge_vertices[i], posA, ornA);
-                auto pivotB = is_faceA ? to_object_space(edge_vertices[i], posB, ornB) :
-                                         to_object_space(pivot_face, posB, ornB);
-                result.add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                point.pivotA = is_faceA ? to_object_space(pivot_face, posA, ornA) :
+                                          to_object_space(edge_vertices[i], posA, ornA);
+                point.pivotB = is_faceA ? to_object_space(edge_vertices[i], posB, ornB) :
+                                          to_object_space(pivot_face, posB, ornB);
+                result.add_point(point);
             }
         }
 
@@ -218,9 +226,9 @@ void collide(const box_shape &shA, const box_shape &shB,
 
                 auto edge_pivot = lerp(edge_vertices[0], edge_vertices[1], s[i]);
                 auto face_pivot = project_plane(edge_pivot, face_center, sep_axis);
-                auto pivotA = to_object_space(is_faceA ? face_pivot : edge_pivot, posA, ornA);
-                auto pivotB = to_object_space(is_faceA ? edge_pivot : face_pivot, posB, ornB);
-                result.add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                point.pivotA = to_object_space(is_faceA ? face_pivot : edge_pivot, posA, ornA);
+                point.pivotB = to_object_space(is_faceA ? edge_pivot : face_pivot, posB, ornB);
+                result.add_point(point);
             }
         }
     } else if (featureA == box_feature::edge && featureB == box_feature::edge) {
@@ -233,24 +241,27 @@ void collide(const box_shape &shA, const box_shape &shB,
         closest_point_segment_segment(edgeA[0], edgeA[1], edgeB[0], edgeB[1],
                                       s[0], t[0], p0[0], p1[0], &num_points,
                                       &s[1], &t[1], &p0[1], &p1[1]);
+        point.normal_attachment = contact_normal_attachment::none;
 
         for (size_t i = 0; i < num_points; ++i) {
-            auto pivotA = to_object_space(p0[i], posA, ornA);
-            auto pivotB = to_object_space(p1[i], posB, ornB);
-            result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::none});
+            point.pivotA = to_object_space(p0[i], posA, ornA);
+            point.pivotB = to_object_space(p1[i], posB, ornB);
+            result.add_point(point);
         }
     } else if (featureA == box_feature::face && featureB == box_feature::vertex) {
         // Face A, Vertex B.
-        auto pivotB = shB.get_vertex(feature_indexB);
-        auto pivotA = to_world_space(pivotB, posB, ornB) + sep_axis * distance;
-        pivotA = to_object_space(pivotA, posA, ornA);
-        result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_A});
+        point.pivotB = shB.get_vertex(feature_indexB);
+        point.pivotA = to_world_space(point.pivotB, posB, ornB) + sep_axis * distance;
+        point.pivotA = to_object_space(point.pivotA, posA, ornA);
+        point.normal_attachment = contact_normal_attachment::normal_on_A;
+        result.add_point(point);
     } else if (featureB == box_feature::face && featureA == box_feature::vertex) {
         // Face B, Vertex A.
-        auto pivotA = shA.get_vertex(feature_indexA);
-        auto pivotB = to_world_space(pivotA, posA, ornA) - sep_axis * distance;
-        pivotB = to_object_space(pivotB, posB, ornB);
-        result.add_point({pivotA, pivotB, sep_axis, distance, contact_normal_attachment::normal_on_B});
+        point.pivotA = shA.get_vertex(feature_indexA);
+        point.pivotB = to_world_space(point.pivotA, posA, ornA) - sep_axis * distance;
+        point.pivotB = to_object_space(point.pivotB, posB, ornB);
+        point.normal_attachment = contact_normal_attachment::normal_on_B;
+        result.add_point(point);
     }
 }
 

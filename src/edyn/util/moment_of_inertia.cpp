@@ -59,8 +59,8 @@ vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
 
 matrix3x3 moment_of_inertia_polyhedron(scalar mass,
                                        const std::vector<vector3> &vertices,
-                                       const std::vector<uint16_t> &indices,
-                                       const std::vector<uint16_t> &faces) {
+                                       const std::vector<uint32_t> &indices,
+                                       const std::vector<uint32_t> &faces) {
     // Reference:
     // https://github.com/erich666/jgt-code/blob/master/Volume_11/Number_2/Kallay2006/Moment_of_Inertia.cpp
     scalar volume = 0;

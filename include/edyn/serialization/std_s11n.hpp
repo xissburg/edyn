@@ -8,6 +8,7 @@
 #include <variant>
 #include <string>
 #include <utility>
+#include <optional>
 #include <type_traits>
 #include <entt/core/ident.hpp>
 #include "edyn/util/tuple_util.hpp"
@@ -152,6 +153,33 @@ void serialize(Archive &archive, std::shared_ptr<T> &ptr) {
     }
 
     archive(*ptr);
+}
+
+template<typename Archive, typename T>
+void serialize(Archive &archive, std::optional<T> &opt) {
+    bool has_value = opt.has_value();
+    archive(has_value);
+
+    if constexpr(Archive::is_input::value) {
+        if (has_value) {
+            archive(opt.emplace());
+        } else {
+            opt.reset();
+        }
+    } else {
+        if (has_value) {
+            archive(*opt);
+        }
+    }
+}
+
+template<typename T>
+size_t serialization_sizeof(const std::optional<T> &opt) {
+    if (opt) {
+        return sizeof(bool) + serialization_sizeof(*opt);
+    }
+
+    return sizeof(bool);
 }
 
 }

@@ -2,7 +2,7 @@
 #define EDYN_MATH_VECTOR2_HPP
 
 #include <cmath>
-#include "scalar.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/config/config.h"
 
 namespace edyn {

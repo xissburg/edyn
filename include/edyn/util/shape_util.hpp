@@ -6,7 +6,9 @@
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/math/geom.hpp"
+#include "edyn/util/triangle_util.hpp"
 #include <vector>
 #include <cstdint>
 #include <string>
@@ -60,13 +62,14 @@ void make_plane_mesh(scalar extent_x, scalar extent_z,
  */
 void make_box_mesh(const vector3 &half_extents,
                    std::vector<vector3> &vertices,
-                   std::vector<uint16_t> &indices,
-                   std::vector<uint16_t> &faces);
+                   std::vector<uint32_t> &indices,
+                   std::vector<uint32_t> &faces);
 
 struct obj_mesh {
     std::vector<vector3> vertices;
-    std::vector<uint16_t> indices;
-    std::vector<uint16_t> faces;
+    std::vector<vector3> colors;
+    std::vector<uint32_t> indices;
+    std::vector<uint32_t> faces;
 };
 
 /**
@@ -91,6 +94,7 @@ bool load_meshes_from_obj(const std::string &path,
  * @param path Path to file.
  * @param vertices Array to be filled with vertices.
  * @param indices Array to be filled with indices for each triangle.
+ * @param colors Array to be filled with vertex colors.
  * @param pos Position offset to add to vertices.
  * @param orn Orientation to rotate vertices.
  * @param scale Scaling to be applied to all vertices.
@@ -98,7 +102,8 @@ bool load_meshes_from_obj(const std::string &path,
  */
 bool load_tri_mesh_from_obj(const std::string &path,
                             std::vector<vector3> &vertices,
-                            std::vector<uint16_t> &indices,
+                            std::vector<uint32_t> &indices,
+                            std::vector<vector3> *colors = nullptr,
                             vector3 pos = vector3_zero,
                             quaternion orn = quaternion_identity,
                             vector3 scale = vector3_one);
@@ -386,8 +391,22 @@ scalar cylinder_support_projection(scalar radius, scalar half_length, const vect
  * @return The centroid.
  */
 vector3 mesh_centroid(const std::vector<vector3> &vertices,
-                      const std::vector<uint16_t> &indices,
-                      const std::vector<uint16_t> &faces);
+                      const std::vector<uint32_t> &indices,
+                      const std::vector<uint32_t> &faces);
+
+struct collision_feature;
+
+/**
+ * @brief Get a triangle mesh feature index from the local index of a triangle
+ * feature.
+ * @param mesh The mesh indices should be obtained from.
+ * @param tri_idx Triangle index in the mesh.
+ * @param tri_feature Triangle feature.
+ * @param tri_feature_index Index of triangle feature.
+ * @return Index of feature in the triangle mesh.
+ */
+size_t get_triangle_mesh_feature_index(const triangle_mesh &mesh, size_t tri_idx,
+                                       triangle_feature tri_feature, size_t tri_feature_idx);
 
 }
 

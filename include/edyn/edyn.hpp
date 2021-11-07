@@ -14,6 +14,7 @@
 #include "math/vector2.hpp"
 #include "math/quaternion.hpp"
 #include "math/matrix3x3.hpp"
+#include "math/transform.hpp"
 #include "math/math.hpp"
 #include "math/geom.hpp"
 #include "time/time.hpp"

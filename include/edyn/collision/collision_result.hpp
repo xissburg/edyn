@@ -3,10 +3,10 @@
 
 #include <array>
 #include <utility>
-#include "edyn/math/quaternion.hpp"
+#include <optional>
 #include "edyn/config/constants.hpp"
-#include "edyn/util/array.hpp"
 #include "edyn/collision/contact_normal_attachment.hpp"
+#include "edyn/collision/collision_feature.hpp"
 
 namespace edyn {
 
@@ -17,16 +17,25 @@ struct collision_result {
         vector3 normal;
         scalar distance;
         contact_normal_attachment normal_attachment;
+        std::optional<collision_feature> featureA;
+        std::optional<collision_feature> featureB;
     };
 
     size_t num_points {0};
     std::array<collision_point, max_contacts> point;
 
-    collision_result & swap(const quaternion &ornA, const quaternion &ornB) {
+    collision_result & swap() {
         for (size_t i = 0; i < num_points; ++i) {
             auto &cp = point[i];
             std::swap(cp.pivotA, cp.pivotB);
+            std::swap(cp.featureA, cp.featureB);
             cp.normal *= -1; // Point towards new A.
+
+            if (cp.normal_attachment == contact_normal_attachment::normal_on_A) {
+                cp.normal_attachment = contact_normal_attachment::normal_on_B;
+            } else if (cp.normal_attachment == contact_normal_attachment::normal_on_B) {
+                cp.normal_attachment = contact_normal_attachment::normal_on_A;
+            }
         }
         return *this;
     }

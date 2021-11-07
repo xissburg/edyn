@@ -21,8 +21,8 @@ bool point_in_triangle(const triangle_vertices &vertices,
     auto d1 = dot(en1, q1);
     auto d2 = dot(en2, q2);
 
-    return (d0 >= 0 && d1 >= 0 && d2 >= 0) ||
-           (d0 <= 0 && d1 <= 0 && d2 <= 0);
+    return (d0 > -EDYN_EPSILON && d1 > -EDYN_EPSILON && d2 > -EDYN_EPSILON) ||
+           (d0 < EDYN_EPSILON && d1 < EDYN_EPSILON && d2 < EDYN_EPSILON);
 }
 
 triangle_edges get_triangle_edges(const triangle_vertices &vertices) {

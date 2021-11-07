@@ -1,4 +1,5 @@
 #include "edyn/collision/collide.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 
@@ -10,7 +11,9 @@ void collide(const compound_shape &shA, const compound_shape &shB,
         return;
     }
 
-    for (auto &nodeB : shB.nodes) {
+    for (size_t node_idx = 0; node_idx < shB.nodes.size(); ++node_idx) {
+        auto &nodeB = shB.nodes[node_idx];
+
         // Create a new collision context with the position of the child of B
         // in world space.
         auto child_ctx = ctx;
@@ -28,6 +31,15 @@ void collide(const compound_shape &shA, const compound_shape &shB,
         for (size_t i = 0; i < child_result.num_points; ++i) {
             auto &child_point = child_result.point[i];
             child_point.pivotB = to_world_space(child_point.pivotB, nodeB.position, nodeB.orientation);
+
+            // Assign the part index for the second compound. The part index
+            // for featureA was already assigned in the call to `collide` above.
+            if (!child_point.featureB) {
+                child_point.featureB = {};
+            }
+
+            child_point.featureB->part = node_idx;
+
             result.maybe_add_point(child_point);
         }
     }

@@ -2,7 +2,6 @@
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/quaternion.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"

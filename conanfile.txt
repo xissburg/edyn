@@ -1,6 +1,0 @@
-[requires]
-entt/3.5.2
-
-[generators]
-cmake_find_package
-cmake_paths

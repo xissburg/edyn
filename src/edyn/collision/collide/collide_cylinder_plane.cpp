@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 
@@ -22,7 +23,12 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
     size_t feature_indexA;
     shA.support_feature(posA, ornA, -normal, featureA, feature_indexA,
                         support_feature_tolerance);
-    auto normal_attachment = contact_normal_attachment::normal_on_B;
+
+    collision_result::collision_point point;
+    point.normal = normal;
+    point.distance = distance;
+    point.featureA = {featureA, feature_indexA};
+    point.normal_attachment = contact_normal_attachment::normal_on_B;
 
     switch (featureA) {
     case cylinder_feature::face:{
@@ -30,13 +36,13 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
         auto pivotA_x = shA.half_length * to_sign(feature_indexA == 0);
 
         for(int i = 0; i < 4; ++i) {
-            auto pivotA = vector3{pivotA_x,
-                                  shA.radius * multipliers[i],
-                                  shA.radius * multipliers[(i + 1) % 4]};
-            auto pivotA_world = to_world_space(pivotA, posA, ornA);
-            auto pivotB = project_plane(pivotA_world, center, normal);
-            auto local_distance = dot(pivotA_world - pivotB, normal);
-            result.maybe_add_point({pivotA, pivotB, normal, local_distance, normal_attachment});
+            point.pivotA = vector3{pivotA_x,
+                                   shA.radius * multipliers[i],
+                                   shA.radius * multipliers[(i + 1) % 4]};
+            auto pivotA_world = to_world_space(point.pivotA, posA, ornA);
+            point.pivotB = project_plane(pivotA_world, center, normal);
+            point.distance = dot(pivotA_world - point.pivotB, normal);
+            result.maybe_add_point(point);
         }
         break;
     }
@@ -62,10 +68,10 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
         for (auto i = 0; i < num_vertices; ++i) {
             auto &vertex = cyl_vertices[i];
             auto pivotA_world = vertex + dirA * shA.radius;
-            auto pivotA = to_object_space(pivotA_world, posA, ornA);
-            auto pivotB = project_plane(pivotA_world, center, normal);
-            auto local_distance = dot(pivotA_world - pivotB, normal);
-            result.maybe_add_point({pivotA, pivotB, normal, local_distance, normal_attachment});
+            point.pivotA = to_object_space(pivotA_world, posA, ornA);
+            point.pivotB = project_plane(pivotA_world, center, normal);
+            point.distance = dot(pivotA_world - point.pivotB, normal);
+            result.maybe_add_point(point);
         }
         break;
     }

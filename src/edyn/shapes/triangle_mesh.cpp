@@ -151,4 +151,84 @@ triangle_vertices triangle_mesh::get_triangle_vertices(size_t tri_idx) const {
     };
 }
 
+bool triangle_mesh::has_per_vertex_friction() const {
+    return !m_friction.empty();
+}
+
+scalar triangle_mesh::get_vertex_friction(size_t vertex_idx) const {
+    return m_friction[vertex_idx];
+}
+
+scalar triangle_mesh::get_edge_friction(size_t edge_idx, scalar fraction) const {
+    auto f0 = get_vertex_friction(m_edge_vertex_indices[edge_idx][0]);
+    auto f1 = get_vertex_friction(m_edge_vertex_indices[edge_idx][1]);
+    return lerp(f0, f1, fraction);
+}
+
+scalar triangle_mesh::get_edge_friction(size_t edge_idx, vector3 point) const {
+    auto [v0, v1] = get_edge_vertices(edge_idx);
+    auto fraction = distance_sqr(point, v0) / distance_sqr(v1, v0);
+    EDYN_ASSERT(fraction < scalar(1) + EDYN_EPSILON);
+    EDYN_ASSERT(std::abs(length_sqr(cross(point - v0, v1 - v0))) <= EDYN_EPSILON);
+    return get_edge_friction(edge_idx, fraction);
+}
+
+scalar triangle_mesh::get_face_friction(size_t tri_idx, vector3 point) const {
+    auto f0 = get_vertex_friction(m_indices[tri_idx][0]);
+    auto f1 = get_vertex_friction(m_indices[tri_idx][1]);
+    auto f2 = get_vertex_friction(m_indices[tri_idx][2]);
+    return  interpolate_triangle(tri_idx, point, {f0, f1, f2});
+}
+
+bool triangle_mesh::has_per_vertex_restitution() const {
+    return !m_restitution.empty();
+}
+
+scalar triangle_mesh::get_vertex_restitution(size_t vertex_idx) const {
+    return m_restitution[vertex_idx];
+}
+
+scalar triangle_mesh::get_edge_restitution(size_t edge_idx, scalar fraction) const {
+    auto f0 = get_vertex_restitution(m_edge_vertex_indices[edge_idx][0]);
+    auto f1 = get_vertex_restitution(m_edge_vertex_indices[edge_idx][1]);
+    return lerp(f0, f1, fraction);
+}
+
+scalar triangle_mesh::get_edge_restitution(size_t edge_idx, vector3 point) const {
+    auto [v0, v1] = get_edge_vertices(edge_idx);
+    auto fraction = distance_sqr(point, v0) / distance_sqr(v1, v0);
+    EDYN_ASSERT(fraction < scalar(1) + EDYN_EPSILON);
+    EDYN_ASSERT(std::abs(length_sqr(cross(point - v0, v1 - v0))) <= EDYN_EPSILON);
+    return get_edge_restitution(edge_idx, fraction);
+}
+
+scalar triangle_mesh::get_face_restitution(size_t tri_idx, vector3 point) const {
+    auto f0 = get_vertex_restitution(m_indices[tri_idx][0]);
+    auto f1 = get_vertex_restitution(m_indices[tri_idx][1]);
+    auto f2 = get_vertex_restitution(m_indices[tri_idx][2]);
+    return  interpolate_triangle(tri_idx, point, {f0, f1, f2});
+}
+
+scalar triangle_mesh::interpolate_triangle(size_t tri_idx, vector3 point, vector3 values) const {
+    // Use barycentric coordinates to interpolate the values at vertices.
+    auto vertices = get_triangle_vertices(tri_idx);
+    auto normal = get_triangle_normal(tri_idx);
+
+    // The contribution of a vertex to the interpolation is equals to the ratio
+    // between the area of the sub-triangle where the vertices are the point and
+    // the two vertices of the edge opposite to this vertex and the area of the
+    // full triangle.
+    auto edge_normal0 = cross(vertices[2] - vertices[1], normal);
+    auto t0 = dot(point - vertices[1], edge_normal0) /
+              dot(vertices[0] - vertices[1], edge_normal0);
+
+    auto edge_normal1 = cross(vertices[0] - vertices[2], normal);
+    auto t1 = dot(point - vertices[2], edge_normal1) /
+              dot(vertices[1] - vertices[2], edge_normal1);
+
+    auto t2 = scalar(1) - t0 - t1;
+
+    return values[0] * t0 + values[1] * t1 + values[2] * t2;
+}
+
 }

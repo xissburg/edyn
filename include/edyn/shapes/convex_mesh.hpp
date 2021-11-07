@@ -20,16 +20,16 @@ struct convex_mesh {
     std::vector<vector3> vertices;
 
     // Vertex indices of all faces.
-    std::vector<uint16_t> indices;
+    std::vector<uint32_t> indices;
 
     // Each subsequent pair of integers represents the indices of the two
     // vertices of an edge in the `vertices` array.
-    std::vector<uint16_t> edges;
+    std::vector<uint32_t> edges;
 
     // Each subsequent pair of integers represents the index of the first
     // vertex of a face in the `indices` array and the number of vertices
     // in the face.
-    std::vector<uint16_t> faces;
+    std::vector<uint32_t> faces;
 
     // Face normals.
     std::vector<vector3> normals;
@@ -56,7 +56,7 @@ struct convex_mesh {
         return faces.size() / 2;
     }
 
-    uint16_t face_vertex_index(size_t face_idx, size_t vertex_idx) const {
+    uint32_t face_vertex_index(size_t face_idx, size_t vertex_idx) const {
         auto face_index_idx = face_idx * 2;
         EDYN_ASSERT(face_index_idx < faces.size());
         auto index_idx = faces[face_index_idx];
@@ -70,7 +70,7 @@ struct convex_mesh {
      * @param face_idx Face index.
      * @return Vertex index of the first vertex in the face.
      */
-    uint16_t first_vertex_index(size_t face_idx) const {
+    uint32_t first_vertex_index(size_t face_idx) const {
         return face_vertex_index(face_idx, 0);
     }
 
@@ -79,7 +79,7 @@ struct convex_mesh {
      * @param face_idx Face index.
      * @return Number of vertices on the face.
      */
-    uint16_t vertex_count(size_t face_idx) const {
+    uint32_t vertex_count(size_t face_idx) const {
         auto face_count_idx = face_idx * 2 + 1;
         EDYN_ASSERT(face_count_idx < faces.size());
         return faces[face_count_idx];

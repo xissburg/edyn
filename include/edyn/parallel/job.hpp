@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_JOB_HPP
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace edyn {

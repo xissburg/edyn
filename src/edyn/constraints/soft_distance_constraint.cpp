@@ -11,6 +11,7 @@
 #include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/math/transform.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -38,8 +39,8 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
             body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get(con.body[1]) : static_cast<vector3>(posB);
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
         auto pivotA = to_world_space(con.pivot[0], originA, ornA);
         auto pivotB = to_world_space(con.pivot[1], originB, ornB);

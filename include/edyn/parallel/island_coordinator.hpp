@@ -5,7 +5,6 @@
 #include <memory>
 #include <unordered_map>
 #include <entt/entity/fwd.hpp>
-#include "edyn/math/scalar.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
@@ -45,6 +44,8 @@ class island_coordinator final {
     void sync();
 
 public:
+    island_coordinator(island_coordinator const&) = delete;
+    island_coordinator operator=(island_coordinator const&) = delete;
     island_coordinator(entt::registry &);
     ~island_coordinator();
 
@@ -99,14 +100,14 @@ template<typename... Component>
 void island_coordinator::refresh(entt::entity entity) {
     static_assert(sizeof...(Component) > 0);
 
-    if (m_registry->has<island_resident>(entity)) {
+    if (m_registry->any_of<island_resident>(entity)) {
         auto &resident = m_registry->get<island_resident>(entity);
 
         if (resident.island_entity != entt::null) {
             auto &ctx = m_island_ctx_map.at(resident.island_entity);
             ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
         }
-    } else if (m_registry->has<multi_island_resident>(entity)) {
+    } else if (m_registry->any_of<multi_island_resident>(entity)) {
         auto &resident = m_registry->get<multi_island_resident>(entity);
 
         for (auto island_entity : resident.island_entities) {

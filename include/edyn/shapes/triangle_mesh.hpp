@@ -1,8 +1,10 @@
 #ifndef EDYN_SHAPES_TRIANGLE_MESH_HPP
 #define EDYN_SHAPES_TRIANGLE_MESH_HPP
 
-#include <cstdint>
 #include <vector>
+#include <cstdint>
+#include "edyn/config/config.h"
+#include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -46,6 +48,18 @@ public:
         for (auto it = first; it != last; it += 3) {
             m_indices.push_back({*it, *(it + 1), *(it + 2)});
         }
+    }
+
+    template<typename It>
+    void insert_friction_coefficients(It first, It last) {
+        m_friction.clear();
+        m_friction.insert(m_friction.end(), first, last);
+    }
+
+    template<typename It>
+    void insert_restitution_coefficients(It first, It last) {
+        m_restitution.clear();
+        m_restitution.insert(m_restitution.end(), first, last);
     }
 
     size_t num_vertices() const {
@@ -148,9 +162,25 @@ public:
         return m_face_edge_indices[tri_idx][edge_idx];
     }
 
-    vector3 get_adjacent_face_normal(size_t tri_idx, size_t v_idx) const {
-        return m_adjacent_normals[tri_idx][v_idx];
+    vector3 get_adjacent_face_normal(size_t tri_idx, size_t edge_idx) const {
+        EDYN_ASSERT(tri_idx < m_adjacent_normals.size());
+        EDYN_ASSERT(edge_idx < 3);
+        return m_adjacent_normals[tri_idx][edge_idx];
     }
+
+    bool has_per_vertex_friction() const;
+    scalar get_vertex_friction(size_t vertex_idx) const;
+    scalar get_edge_friction(size_t edge_idx, scalar fraction) const;
+    scalar get_edge_friction(size_t edge_idx, vector3 point) const;
+    scalar get_face_friction(size_t tri_idx, vector3 point) const;
+
+    bool has_per_vertex_restitution() const;
+    scalar get_vertex_restitution(size_t vertex_idx) const;
+    scalar get_edge_restitution(size_t edge_idx, scalar fraction) const;
+    scalar get_edge_restitution(size_t edge_idx, vector3 point) const;
+    scalar get_face_restitution(size_t tri_idx, vector3 point) const;
+
+    scalar interpolate_triangle(size_t tri_idx, vector3 point, vector3 values) const;
 
     template<typename Archive>
     friend void serialize(Archive &, triangle_mesh &);
@@ -192,6 +222,10 @@ private:
 
     // Whether an edge is convex.
     std::vector<bool> m_is_convex_edge;
+
+    // Per-vertex friction and restitution coefficients.
+    std::vector<scalar> m_friction;
+    std::vector<scalar> m_restitution;
 
     static_tree m_triangle_tree;
 };

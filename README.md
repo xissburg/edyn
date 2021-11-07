@@ -22,12 +22,30 @@ In the terminal, go into the _Edyn_ directory and do:
 ```
 $ mkdir build
 $ cd build
-$ conan install ../conanfile.txt
+$ conan install ..
 $ cmake ..
 $ make
 ```
 
-Then you should find the library under `edyn/build/lib/`.
+Then you should find the library under `edyn/build/lib/`. Optionally, you can use `make install` to neatly package the library, in which case the files will be placed under `edyn/build/package`.
+
+It's also possible to use Conan to build the library:
+
+```
+$ mkdir build
+$ cd build
+$ conan install ..
+$ conan build ..
+$ make
+```
+
+This is will build the library in Release mode by default. Other build modes can be specified in the `conan build` command, e.g. to build it in Debug mode with assertions enabled:
+
+```
+$ conan install .. -s build_type=Debug -o enable_assert=True
+$ conan build ..
+$ make
+```
 
 ## Windows and Visual Studio 2019
 

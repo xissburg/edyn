@@ -3,10 +3,11 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/util/shape_util.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/util/shape_util.hpp"
 
 namespace edyn {
 
@@ -111,13 +112,16 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
     shB.support_feature(posB, ornB, sep_axis, featureB, feature_indexB,
                         support_feature_tolerance);
 
-    // Separating axis is in A's space.
-    auto normal = rotate(ctx.ornA, sep_axis);
+    collision_result::collision_point point;
+    // Separating axis is in A's space. Transform to global.
+    point.normal = rotate(ctx.ornA, sep_axis);
+    point.distance = distance;
+    point.featureB = {featureB, feature_indexB};
 
     switch (featureB) {
     case box_feature::face: {
         auto face_verticesB = shB.get_face(feature_indexB, posB, ornB);
-        auto normal_attachment = contact_normal_attachment::normal_on_B;
+        point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         // Check if vertices of the polyhedron on the contact plane are inside
         // the box face.
@@ -125,11 +129,11 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
             auto &pointA = polygon.vertices[idxA];
 
             if (point_in_polygonal_prism(face_verticesB, sep_axis, pointA)) {
-                auto pivotA = pointA;
-                auto local_distance = dot(pointA - face_verticesB[0], sep_axis);
-                auto pivotB_world = pointA - sep_axis * local_distance; // Project onto face.
-                auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, normal, local_distance, normal_attachment});
+                point.distance = dot(pointA - face_verticesB[0], sep_axis);
+                auto pivotB_world = pointA - sep_axis * point.distance; // Project onto face.
+                point.pivotA = pointA;
+                point.pivotB = to_object_space(pivotB_world, posB, ornB);
+                result.maybe_add_point(point);
             }
         }
 
@@ -138,10 +142,10 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
         if (polygon.hull.size() > 2) {
             for (auto &pointB : face_verticesB) {
                 if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
-                    auto local_distance = dot(polygon.origin - pointB, sep_axis);
-                    auto pivotA = pointB + sep_axis * local_distance; // Project onto polygon.
-                    auto pivotB = to_object_space(pointB, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, normal, local_distance, normal_attachment});
+                    point.distance = dot(polygon.origin - pointB, sep_axis);
+                    point.pivotA = pointB + sep_axis * point.distance; // Project onto polygon.
+                    point.pivotB = to_object_space(pointB, posB, ornB);
+                    result.maybe_add_point(point);
                 }
             }
         }
@@ -176,10 +180,10 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
                                                          s[0], t[0], s[1], t[1]);
 
                     for (size_t k = 0; k < num_points; ++k) {
-                        auto pivotA = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
+                        point.pivotA = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
                         auto pivotB_world = lerp(face_verticesB[idx0B], face_verticesB[idx1B], t[k]);
-                        auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                        result.maybe_add_point({pivotA, pivotB, normal, distance, normal_attachment});
+                        point.pivotB = to_object_space(pivotB_world, posB, ornB);
+                        result.maybe_add_point(point);
                     }
                 }
             }
@@ -189,7 +193,7 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
     case box_feature::edge: {
         auto edge_vertices_local = shB.get_edge(feature_indexB);
         auto edge_vertices = shB.get_edge(feature_indexB, posB, ornB);
-        auto normal_attachment = polygon.hull.size() > 2 ?
+        point.normal_attachment = polygon.hull.size() > 2 ?
             contact_normal_attachment::normal_on_A:
             contact_normal_attachment::none;
 
@@ -197,9 +201,9 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
         if (polygon.hull.size() > 2) {
             for (auto &pointB : edge_vertices) {
                 if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, pointB)) {
-                    auto pivotA = project_plane(pointB, polygon.origin, sep_axis);
-                    auto pivotB = to_object_space(pointB, posB, ornB);
-                    result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
+                    point.pivotA = project_plane(pointB, polygon.origin, sep_axis);
+                    point.pivotB = to_object_space(pointB, posB, ornB);
+                    result.add_point(point);
                 }
             }
         }
@@ -230,31 +234,31 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
                                                      s[0], t[0], s[1], t[1]);
 
                 for (size_t k = 0; k < num_points; ++k) {
-                    auto pivotA = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
-                    auto pivotB = lerp(edge_vertices_local[0], edge_vertices_local[1], t[k]);
-                    result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
+                    point.pivotA = lerp(polygon.vertices[idx0A], polygon.vertices[idx1A], s[k]);
+                    point.pivotB = lerp(edge_vertices_local[0], edge_vertices_local[1], t[k]);
+                    result.add_point(point);
                 }
             }
         } else {
             // Polygon vertex against box edge.
             EDYN_ASSERT(polygon.hull.size() == 1);
-            auto &pivotA = polygon.vertices[polygon.hull[0]];
+            point.pivotA = polygon.vertices[polygon.hull[0]];
             auto edge_dir = edge_vertices[1] - edge_vertices[0];
             vector3 pivotB_world; scalar t;
-            closest_point_line(edge_vertices[0], edge_dir, pivotA, t, pivotB_world);
-            auto pivotB = lerp(edge_vertices_local[0], edge_vertices_local[1], t);
-            result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
+            closest_point_line(edge_vertices[0], edge_dir, point.pivotA, t, pivotB_world);
+            point.pivotB = lerp(edge_vertices_local[0], edge_vertices_local[1], t);
+            result.add_point(point);
         }
         break;
     }
     case box_feature::vertex: {
-        auto pivotB = shB.get_vertex(feature_indexB);
-        auto pivotB_world = to_world_space(pivotB, posB, ornB);
-        auto pivotA = pivotB_world + sep_axis * distance;
-        auto normal_attachment = polygon.hull.size() > 2 ?
+        point.pivotB = shB.get_vertex(feature_indexB);
+        auto pivotB_world = to_world_space(point.pivotB, posB, ornB);
+        point.pivotA = pivotB_world + sep_axis * distance;
+        point.normal_attachment = polygon.hull.size() > 2 ?
             contact_normal_attachment::normal_on_A:
             contact_normal_attachment::none;
-        result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
+        result.add_point(point);
     }
     }
 }

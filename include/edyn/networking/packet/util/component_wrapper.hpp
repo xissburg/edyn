@@ -75,7 +75,7 @@ inline void emplace_component_wrapper<rigidbody_tag>(entt::registry &registry, e
                                               const edyn::entity_map &entity_map) {
     registry.emplace<rigidbody_tag>(entity);
 
-    auto non_connecting = !registry.has<dynamic_tag>(entity);
+    auto non_connecting = !registry.any_of<dynamic_tag>(entity);
     auto node_index = registry.ctx<entity_graph>().insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);
 }

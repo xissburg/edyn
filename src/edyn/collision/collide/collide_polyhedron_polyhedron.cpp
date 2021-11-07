@@ -2,8 +2,9 @@
 #include "edyn/math/math.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/vector2_3_util.hpp"
-#include "edyn/util/shape_util.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/util/shape_util.hpp"
 
 namespace edyn {
 

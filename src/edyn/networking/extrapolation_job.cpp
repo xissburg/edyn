@@ -11,6 +11,7 @@
 #include "edyn/sys/update_inertias.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 
@@ -165,8 +166,8 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
-        auto &node0 = node_view.get(manifold.body[0]);
-        auto &node1 = node_view.get(manifold.body[1]);
+        auto &node0 = node_view.get<graph_node>(manifold.body[0]);
+        auto &node1 = node_view.get<graph_node>(manifold.body[1]);
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry.emplace<graph_edge>(local_entity, edge_index);
         m_new_imported_contact_manifolds.push_back(local_entity);
@@ -181,8 +182,8 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
-        auto &node0 = node_view.get(con.body[0]);
-        auto &node1 = node_view.get(con.body[1]);
+        auto &node0 = node_view.get<graph_node>(con.body[0]);
+        auto &node1 = node_view.get<graph_node>(con.body[1]);
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry.emplace<graph_edge>(local_entity, edge_index);
     });
@@ -205,7 +206,7 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
             return;
         }
 
-        auto &cp = cp_view.get(local_entity);
+        auto &cp = cp_view.get<contact_point>(local_entity);
 
         if (mat_view.contains(cp.body[0]) && mat_view.contains(cp.body[1])) {
             create_contact_constraint(m_registry, local_entity, cp);
@@ -225,15 +226,15 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
             *origin = to_world_space(-com, pos, orn);
         }
 
-        if (m_registry.has<AABB>(local_entity)) {
+        if (m_registry.any_of<AABB>(local_entity)) {
             update_aabb(m_registry, local_entity);
         }
 
-        if (m_registry.has<dynamic_tag>(local_entity)) {
+        if (m_registry.any_of<dynamic_tag>(local_entity)) {
             update_inertia(m_registry, local_entity);
         }
 
-        if (m_registry.has<rotated_mesh_list>(local_entity)) {
+        if (m_registry.any_of<rotated_mesh_list>(local_entity)) {
             update_rotated_mesh(m_registry, local_entity);
         }
     });
@@ -250,7 +251,7 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
             *origin = to_world_space(-com, pos, orn);
         }
 
-        if (m_registry.has<AABB>(local_entity)) {
+        if (m_registry.any_of<AABB>(local_entity)) {
             update_aabb(m_registry, local_entity);
         }
     });
@@ -525,10 +526,10 @@ void extrapolation_job::init_new_shapes() {
     for (auto entity : m_new_polyhedron_shapes) {
         if (!polyhedron_view.contains(entity)) continue;
 
-        auto &polyhedron = polyhedron_view.get(entity);
+        auto &polyhedron = polyhedron_view.get<polyhedron_shape>(entity);
         // A new `rotated_mesh` is assigned to it, replacing another reference
         // that could be already in there, thus preventing concurrent access.
-        auto rotated = make_rotated_mesh(*polyhedron.mesh, orn_view.get(entity));
+        auto rotated = make_rotated_mesh(*polyhedron.mesh, orn_view.get<orientation>(entity));
         auto rotated_ptr = std::make_unique<rotated_mesh>(std::move(rotated));
         polyhedron.rotated = rotated_ptr.get();
         m_registry.emplace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr));
@@ -537,8 +538,8 @@ void extrapolation_job::init_new_shapes() {
     for (auto entity : m_new_compound_shapes) {
         if (!compound_view.contains(entity)) continue;
 
-        auto &compound = compound_view.get(entity);
-        auto &orn = orn_view.get(entity);
+        auto &compound = compound_view.get<compound_shape>(entity);
+        auto &orn = orn_view.get<orientation>(entity);
         auto prev_rotated_entity = entt::entity{entt::null};
 
         for (auto &node : compound.nodes) {
@@ -575,7 +576,7 @@ void extrapolation_job::insert_remote_node(entt::entity remote_entity) {
     if (!m_entity_map.has_rem(remote_entity)) return;
 
     auto local_entity = m_entity_map.remloc(remote_entity);
-    auto non_connecting = !m_registry.has<procedural_tag>(local_entity);
+    auto non_connecting = !m_registry.any_of<procedural_tag>(local_entity);
 
     auto &graph = m_registry.ctx<entity_graph>();
     auto node_index = graph.insert_node(local_entity, non_connecting);

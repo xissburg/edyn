@@ -42,7 +42,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 template<typename Component>
 void import_pool(entt::registry &registry, entt::entity client_entity,
                  const std::vector<std::pair<entt::entity, Component>> &pool) {
-    if constexpr(entt::is_eto_eligible_v<Component>) {
+    if constexpr(std::is_empty_v<Component>) {
         return;
     }
 
@@ -55,7 +55,7 @@ void import_pool(entt::registry &registry, entt::entity client_entity,
             auto local_entity = client.entity_map.remloc(remote_entity);
 
             if (registry.valid(local_entity)) {
-                if (registry.has<Component>(local_entity)) {
+                if (registry.any_of<Component>(local_entity)) {
                     registry.replace<Component>(local_entity, pair.second);
                     edyn::refresh<Component>(registry, local_entity);
                 } else {
@@ -217,12 +217,12 @@ template<typename Component>
 void insert_all_into_pool(entt::registry &registry, std::vector<std::pair<entt::entity, Component>> &pool) {
     auto view = registry.view<Component, procedural_tag, networked_tag>();
 
-    if (view.empty()) {
+    if (view.size_hint() == 0) {
         return;
     }
 
     for (auto entity : view) {
-        if constexpr(entt::is_eto_eligible_v<Component>) {
+        if constexpr(std::is_empty_v<Component>) {
             pool.emplace_back(entity);
         } else {
             auto &comp = view.template get<Component>(entity);

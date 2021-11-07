@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 
@@ -51,12 +52,31 @@ void collide(const capsule_shape &shA, const capsule_shape &shB,
         distance = -(shA.radius + shB.radius);
     }
 
+    collision_result::collision_point point;
+    point.normal = normal;
+    point.distance = distance;
+    point.normal_attachment = contact_normal_attachment::none;
+
+    if (num_points == 2 || (s[0] > 0 && s[0] < 1)) {
+        point.featureA = {capsule_feature::side};
+    } else {
+        point.featureA = {capsule_feature::hemisphere};
+        point.featureA->index = s[0] == 0 ? 0 : 1;
+    }
+
+    if (num_points == 2 || (t[0] > 0 && t[0] < 1)) {
+        point.featureB = {capsule_feature::side};
+    } else {
+        point.featureB = {capsule_feature::hemisphere};
+        point.featureB->index = t[0] == 0 ? 0 : 1;
+    }
+
     for (size_t i = 0; i < num_points; ++i) {
         auto pivotA_world = closestA[i] - normal * shA.radius;
         auto pivotB_world = closestB[i] + normal * shB.radius;
-        auto pivotA = to_object_space(pivotA_world, posA, ornA);
-        auto pivotB = to_object_space(pivotB_world, posB, ornB);
-        result.add_point({pivotA, pivotB, normal, distance, contact_normal_attachment::none});
+        point.pivotA = to_object_space(pivotA_world, posA, ornA);
+        point.pivotB = to_object_space(pivotB_world, posB, ornB);
+        result.add_point(point);
     }
 }
 

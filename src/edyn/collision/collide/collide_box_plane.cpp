@@ -1,5 +1,5 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/math/quaternion.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/shapes/box_shape.hpp"
 
 namespace edyn {
@@ -39,13 +39,19 @@ void collide(const box_shape &shA, const plane_shape &shB,
         num_vertices = 4;
     }
 
+    collision_result::collision_point point;
+    point.normal = shB.normal;
+    point.distance = distance;
+    point.featureA = {featureA, feature_indexA};
+    point.normal_attachment = contact_normal_attachment::normal_on_B;
+
     for (size_t i = 0; i < num_vertices; ++i) {
-        auto &pivotA = vertices[i];
-        auto pivotA_world = to_world_space(pivotA, ctx.posA, ctx.ornA);
+        point.pivotA = vertices[i];
+        auto pivotA_world = to_world_space(point.pivotA, ctx.posA, ctx.ornA);
         auto pivotB_world = project_plane(pivotA_world, center, shB.normal);
-        auto pivotB = to_object_space(pivotB_world, ctx.posB, ctx.ornB);
-        auto local_distance = dot(pivotA_world - pivotB_world, shB.normal);
-        result.add_point({pivotA, pivotB, shB.normal, local_distance, contact_normal_attachment::normal_on_B});
+        point.pivotB = to_object_space(pivotB_world, ctx.posB, ctx.ornB);
+        point.distance = dot(pivotA_world - pivotB_world, shB.normal);
+        result.add_point(point);
     }
 }
 
