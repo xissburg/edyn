@@ -223,7 +223,24 @@ void insert_all_into_pool(entt::registry &registry, entt::entity client_entity, 
 
     for (auto entity : view) {
         // Only include entities which are in islands not fully owned by the client.
+        auto &resident = registry.get<island_resident>(entity);
+        auto &island = registry.get<edyn::island>(resident.island_entity);
+        auto owned_by_this_client = false;
+        auto owned_by_another_client = false;
 
+        for (auto node : island.nodes) {
+            if (auto *owner = registry.try_get<entity_owner>(node)) {
+                if (owner->client_entity == client_entity) {
+                    owned_by_this_client = true;
+                } else {
+                    owned_by_another_client = true;
+                }
+            }
+        }
+
+        if (owned_by_this_client && !owned_by_another_client) {
+            continue;
+        }
 
         if constexpr(std::is_empty_v<Component>) {
             pool.emplace_back(entity);
