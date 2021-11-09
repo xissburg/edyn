@@ -11,7 +11,7 @@ void update_networking_server(entt::registry &);
 
 void server_process_packet(entt::registry &, entt::entity client_entity, const packet::edyn_packet &);
 
-packet::transient_snapshot server_get_transient_snapshot(entt::registry &);
+packet::transient_snapshot server_get_transient_snapshot(entt::registry &, entt::entity client_entity);
 
 void server_make_client(entt::registry &, entt::entity);
 entt::entity server_make_client(entt::registry &);

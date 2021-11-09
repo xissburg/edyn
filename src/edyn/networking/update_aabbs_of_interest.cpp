@@ -1,21 +1,20 @@
 #include "edyn/networking/update_aabbs_of_interest.hpp"
 #include "edyn/networking/aabb_of_interest.hpp"
 #include "edyn/collision/broadphase_main.hpp"
-#include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/comp/island.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
 
 void update_aabbs_of_interest(entt::registry &registry) {
     auto &bphase = registry.ctx<broadphase_main>();
-    auto &coordinator = registry.ctx<island_coordinator>();
 
     auto view = registry.view<aabb_of_interest>();
     view.each([&] (aabb_of_interest &aabb_of) {
-        entity_set contained_entities;
+        entt::sparse_set contained_entities;
 
         bphase.query_islands(aabb_of.aabb, [&] (entt::entity island_entity) {
-            auto &nodes = coordinator.get_island_nodes(island_entity);
+            auto &nodes = registry.get<edyn::island>(island_entity).nodes;
 
             for (auto entity : nodes) {
                 if (!contained_entities.contains(entity)) {
