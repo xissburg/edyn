@@ -353,7 +353,7 @@ The server simulation runs in the past with respect to the client. This allows t
 
 The step number is obviously different for each client and server but they increase at the same rate. Using the _round trip time_ (RTT) one can calculate a _step delta_ which can be added to the local step number to convert it to the remote step number.
 
-If the length of the jitter buffer in unit of time is smaller than half the RTT, it will happen that the client state will be applied as soon as it arrives in the server because in that case it should have been applied before it had arrived in the server (which is obviously not possible). That means, the amount of time in the past the server simulation must run has to be bigger than half the maximum RTT among all clients.
+If the length of the jitter buffer in units of time is smaller than half the RTT, it will happen that the client state will be applied as soon as it arrives in the server because in that case it should have been applied before it had arrived in the server (which is obviously not possible). That means, the amount of time in the past the server simulation must run has to be bigger than half the maximum RTT among all clients.
 
 If the jitter buffer is too long, that means a bigger problem for the clients because the data they'll get from the server will be older and they'll have to extrapolate more to bring it to the current time which is more costly and errors in prediction are increased. More on extrapolation on the next sections.
 
@@ -361,7 +361,7 @@ To avoid having a jitter buffer that's big enough for all clients, clients are s
 
 The reason why groups are used instead of islands is that islands are only merged when they are too close to one another. In the case where a client with small RTT is near another client with a large RTT, in the server world their location could be off significantly (e.g. two vehicles driving side by side) due to the different jitter buffer lengths so it's possible collisions would be missed. Creating groups by using larger AABBs prepares the world for those situations.
 
-The concept of _ownership_ is central to decentralized control and conflict resolution in the server simulation. Dynamic entities can have an owning client, which means that the client has exclusive control over that entity and can directly modify its components. The entities permanently owned by a client are usually the ones created by it or created for it. Those are the entities that are directly controlled by the client, such as a character or a vehicle.
+The concept of _ownership_ is key to decentralized control and conflict resolution in the server simulation. Dynamic entities can have an owning client, which means that the client has exclusive control over that entity and can directly modify its components. The entities permanently owned by a client are usually the ones created by it or created for it. Those are the entities that are directly controlled by the client, such as a character or a vehicle.
 
 The client will send snapshots of its owned entities to the server which will verify these and possibly apply them to its simulation, in the corresponding group. In the case where there are no other entities owned by another client in the same group, the snapshot will go through a verification process where the components are compared to their current value and they're checked for hacking attempts where the values would be unrealistic. These components will be discarded.
 
@@ -377,11 +377,9 @@ The server will hand ownership back to the client when the dynamic state sent by
 
 ## Server sends data to client
 
-The server will periodically capture snapshots of relevant islands and send them out to clients. Which islands will be sent and how often is determined by the client's _points of interest_.
+The server will periodically capture snapshots of relevant islands and send them out to clients. Which islands will be sent and how often is determined by the client's _AABB of interest_, which is an AABB the server can use to query its broadphase tree to determine which islands to send. Extra AABBs of interest are necessary in case the user can operate a free-look camera and move around to see the world somewhere else.
 
-The point of interest is simply an entity that has a `edyn::position` component. This means a dynamic or kinematic object can be set as a point of interest, such as the character or vehicle controlled by the user which is the only one point of interest that will exist in most cases. Extra points of interest are necessary in case the user can operate a free-look camera and move around to see the world somewhere else.
-
-All entities in a radius around the point of interest will be included in the snapshot. Not all entities are necessarily included in one snapshot. If the server is multi-threaded, this will be done separately per island, which will result in a bunch of smaller snapshot packets being sent for the same step number. These packets don't need to be reliably delivered.
+Not all entities are necessarily included in one snapshot. If the server is multi-threaded, this will be done separately per island, which will result in a bunch of smaller snapshot packets being sent for the same step number. These packets don't need to be reliably delivered.
 
 ## Client sends data to server
 

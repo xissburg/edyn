@@ -31,7 +31,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
     if (!res.pairs.empty()) {
         auto &client = registry.get<remote_client>(client_entity);
-        client.packet_signal.publish(packet::edyn_packet{res});
+        client.packet_signal.publish(client_entity, packet::edyn_packet{res});
     }
 }
 
@@ -90,7 +90,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         client.owned_entities.push_back(local_entity);
     }
 
-    client.packet_signal.publish(packet::edyn_packet{emap_packet});
+    client.packet_signal.publish(client_entity, packet::edyn_packet{emap_packet});
 
     for (auto &pair : packet.pairs) {
         auto remote_entity = pair.entity;
@@ -186,11 +186,11 @@ void update_networking_server(entt::registry &registry) {
     });
 
     auto view = registry.view<remote_client, aabb_of_interest>();
-    view.each([&] (remote_client &client, aabb_of_interest &aabboi) {
+    view.each([&] (entt::entity client_entity, remote_client &client, aabb_of_interest &aabboi) {
         if (!aabboi.destroy_entities.empty()) {
             auto packet = packet::destroy_entity{};
             packet.entities = std::move(aabboi.destroy_entities);
-            client.packet_signal.publish(packet::edyn_packet{packet});
+            client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
         }
 
         if (!aabboi.create_entities.empty()) {
@@ -201,7 +201,7 @@ void update_networking_server(entt::registry &registry) {
                 packet.pairs.push_back(pair);
             }
 
-            client.packet_signal.publish(packet::edyn_packet{packet});
+            client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
             aabboi.create_entities.clear();
         }
     });
@@ -214,7 +214,7 @@ void server_process_packet(entt::registry &registry, entt::entity client_entity,
 }
 
 template<typename Component>
-void insert_all_into_pool(entt::registry &registry, std::vector<std::pair<entt::entity, Component>> &pool) {
+void insert_all_into_pool(entt::registry &registry, entt::entity client_entity, std::vector<std::pair<entt::entity, Component>> &pool) {
     auto view = registry.view<Component, procedural_tag, networked_tag>();
 
     if (view.size_hint() == 0) {
@@ -222,6 +222,9 @@ void insert_all_into_pool(entt::registry &registry, std::vector<std::pair<entt::
     }
 
     for (auto entity : view) {
+        // Only include entities which are in islands not fully owned by the client.
+
+
         if constexpr(std::is_empty_v<Component>) {
             pool.emplace_back(entity);
         } else {
@@ -231,12 +234,12 @@ void insert_all_into_pool(entt::registry &registry, std::vector<std::pair<entt::
     }
 }
 
-packet::transient_snapshot server_get_transient_snapshot(entt::registry &registry) {
+packet::transient_snapshot server_get_transient_snapshot(entt::registry &registry, entt::entity client_entity) {
     auto snapshot = packet::transient_snapshot{};
-    insert_all_into_pool(registry, snapshot.positions);
-    insert_all_into_pool(registry, snapshot.orientations);
-    insert_all_into_pool(registry, snapshot.linvels);
-    insert_all_into_pool(registry, snapshot.angvels);
+    insert_all_into_pool(registry, client_entity, snapshot.positions);
+    insert_all_into_pool(registry, client_entity, snapshot.orientations);
+    insert_all_into_pool(registry, client_entity, snapshot.linvels);
+    insert_all_into_pool(registry, client_entity, snapshot.angvels);
     return snapshot;
 }
 

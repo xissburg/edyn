@@ -16,7 +16,12 @@ void update_aabbs_of_interest(entt::registry &registry) {
 
         bphase.query_islands(aabb_of.aabb, [&] (entt::entity island_entity) {
             auto &nodes = coordinator.get_island_nodes(island_entity);
-            contained_entities.insert(nodes.begin(), nodes.end());
+
+            for (auto entity : nodes) {
+                if (!contained_entities.contains(entity)) {
+                    contained_entities.emplace(entity);
+                }
+            }
         });
 
         for (auto entity : aabb_of.entities) {
