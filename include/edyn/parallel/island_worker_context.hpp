@@ -4,8 +4,8 @@
 #include <memory>
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/fwd.hpp>
+#include <entt/entity/sparse_set.hpp>
 #include "edyn/parallel/island_delta.hpp"
-#include "edyn/util/entity_set.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/message.hpp"
@@ -26,8 +26,8 @@ class island_worker_context {
     bool m_pending_flush;
 
 public:
-    entity_set m_nodes;
-    entity_set m_edges;
+    entt::sparse_set m_nodes;
+    entt::sparse_set m_edges;
     entity_map m_entity_map;
     std::unique_ptr<island_delta_builder> m_delta_builder;
 
