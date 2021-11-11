@@ -9,13 +9,30 @@
 
 namespace edyn {
 
+template<typename ShapeType>
+AABB updated_aabb(const ShapeType &shape, const vector3 &pos, const quaternion &orn) {
+    return shape_aabb(shape, pos, orn);
+}
+
+template<>
+AABB updated_aabb(const polyhedron_shape &polyhedron,
+                  const vector3 &pos, const quaternion &orn) {
+    // `shape_aabb(const polyhedron_shape &, ...)` rotates each vertex of a
+    // polyhedron to calculate the AABB. Specialize `updated_aabb` for
+    // polyhedrons to use the rotated mesh.
+    auto aabb = point_cloud_aabb(polyhedron.rotated->vertices);
+    aabb.min += pos;
+    aabb.max += pos;
+    return aabb;
+}
+
 template<typename ShapeType, typename TransformView, typename OriginView>
 void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view, OriginView &origin_view) {
     auto [orn, aabb] = tr_view.template get<orientation, AABB>(entity);
     auto origin = origin_view.contains(entity) ?
         static_cast<vector3>(origin_view.template get<edyn::origin>(entity)) :
         static_cast<vector3>(tr_view.template get<edyn::position>(entity));
-    aabb = shape_aabb(shape, origin, orn);
+    aabb = updated_aabb(shape, origin, orn);
 }
 
 void update_aabb(entt::registry &registry, entt::entity entity) {

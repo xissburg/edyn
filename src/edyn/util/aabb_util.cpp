@@ -1,5 +1,4 @@
 #include "edyn/util/aabb_util.hpp"
-#include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/transform.hpp"
 #include <variant>
@@ -153,18 +152,12 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
                       const vector3 &pos, const quaternion &orn) {
     // TODO: implement and use `parallel_reduce`.
     auto aabb = AABB{vector3_max, -vector3_max};
-    // Obtain a matrix and use it instead because quaternion rotation requires
-    // more operations.
-    auto basis = to_matrix3x3(orn);
 
     for (auto &point_local : points) {
-        auto point_world = basis * point_local;
+        auto point_world = to_world_space(point_local, pos, orn);
         aabb.min = min(aabb.min, point_world);
         aabb.max = max(aabb.max, point_world);
     }
-
-    aabb.min += pos;
-    aabb.max += pos;
 
     return aabb;
 }
