@@ -106,6 +106,7 @@ void convex_mesh::calculate_edges() {
 }
 
 void convex_mesh::calculate_relevant_normals() {
+    // Find unique face normals.
     for (size_t face_idx = 0; face_idx < normals.size(); ++face_idx) {
         auto &normal = normals[face_idx];
         auto found_it = std::find_if(relevant_normals.begin(), relevant_normals.end(), [normal] (auto &&relevant) {
@@ -115,12 +116,13 @@ void convex_mesh::calculate_relevant_normals() {
         if (found_it == relevant_normals.end()) {
             relevant_normals.push_back(normal);
             auto v_idx = first_vertex_index(face_idx);
-            relevant_vertices.push_back(vertices[v_idx]);
+            relevant_indices.push_back(v_idx);
         }
     }
 }
 
 void convex_mesh::calculate_relevant_edges() {
+    // Find unique edge directions.
     for (size_t i = 0; i < edges.size(); i += 2) {
         auto i0 = edges[i];
         auto i1 = edges[i + 1];
@@ -174,10 +176,9 @@ void convex_mesh::validate() const {
 
 rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn) {
     auto rotated = rotated_mesh{};
-    rotated.all_vertices.resize(mesh.vertices.size());
-    rotated.vertices.resize(mesh.relevant_vertices.size());
-    rotated.normals.resize(mesh.relevant_normals.size());
-    rotated.edges.resize(mesh.relevant_edges.size());
+    rotated.vertices.resize(mesh.vertices.size());
+    rotated.relevant_normals.resize(mesh.relevant_normals.size());
+    rotated.relevant_edges.resize(mesh.relevant_edges.size());
 
     update_rotated_mesh(rotated, mesh, orn);
 

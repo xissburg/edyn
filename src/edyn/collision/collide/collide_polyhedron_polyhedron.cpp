@@ -19,16 +19,15 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     scalar max_distance = -EDYN_SCALAR_MAX;
     auto best_dir = vector3_zero;
 
-    for (size_t i = 0; i < rotatedA.vertices.size(); ++i) {
-        auto normal_world = -rotatedA.normals[i]; // Normal pointing towards A.
-        auto vertexA = rotatedA.vertices[i];
+    for (size_t i = 0; i < rotatedA.relevant_normals.size(); ++i) {
+        auto normal_world = -rotatedA.relevant_normals[i]; // Normal pointing towards A.
+        auto vertexA = rotatedA.vertices[shA.mesh->relevant_indices[i]];
         auto vertex_world = vertexA + posA;
-
         auto projA = dot(vertex_world, normal_world);
 
         // Find point on B that's furthest along the opposite direction
         // of the face normal.
-        auto projB = point_cloud_support_projection(rotatedB.all_vertices, normal_world) + dot(posB, normal_world);
+        auto projB = point_cloud_support_projection(rotatedB.vertices, normal_world) + dot(posB, normal_world);
 
         auto dist = projA - projB;
 
@@ -91,8 +90,8 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
     }
 
     // Edge vs edge.
-    for (auto &edgeA : rmeshA.edges) {
-        for (auto &edgeB : rmeshB.edges) {
+    for (auto &edgeA : rmeshA.relevant_edges) {
+        for (auto &edgeB : rmeshB.relevant_edges) {
             auto dir = cross(edgeA, edgeB);
 
             if (!try_normalize(dir)) {
@@ -104,8 +103,8 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                 dir *= -1;
             }
 
-            auto projA = -point_cloud_support_projection(rmeshA.all_vertices, -dir);
-            auto projB = point_cloud_support_projection(rmeshB.all_vertices, dir) + dot(posB, dir);
+            auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
+            auto projB = point_cloud_support_projection(rmeshB.vertices, dir) + dot(posB, dir);
             auto dist = projA - projB;
 
             if (dist > distance) {
@@ -122,10 +121,10 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
     }
 
     auto polygonA = point_cloud_support_polygon(
-        rmeshA.all_vertices.begin(), rmeshA.all_vertices.end(), vector3_zero,
+        rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
         sep_axis, projectionA, true, support_feature_tolerance);
     auto polygonB = point_cloud_support_polygon(
-        rmeshB.all_vertices.begin(), rmeshB.all_vertices.end(), posB,
+        rmeshB.vertices.begin(), rmeshB.vertices.end(), posB,
         sep_axis, projectionB, false, support_feature_tolerance);
 
     auto normal_attachment = contact_normal_attachment::none;

@@ -24,7 +24,7 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
     // Face normals of polyhedron.
     for (size_t i = 0; i < meshA.relevant_normals.size(); ++i) {
         auto normalA = -meshA.relevant_normals[i]; // Point towards polyhedron.
-        auto &vertexA = meshA.relevant_vertices[i];
+        auto &vertexA = meshA.vertices[meshA.relevant_indices[i]];
 
         auto projA = dot(vertexA, normalA);
         auto projB = dot(posB, normalA) + shB.radius;

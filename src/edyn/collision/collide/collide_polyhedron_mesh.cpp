@@ -36,9 +36,9 @@ static void collide_polyhedron_triangle(
     auto projection_poly = scalar{};
 
     // Polyhedron face normals.
-    for (size_t i = 0; i < rmesh.normals.size(); ++i) {
-        auto dir = -rmesh.normals[i]; // Point towards polyhedron.
-        auto &poly_vertex = rmesh.vertices[i];
+    for (size_t i = 0; i < rmesh.relevant_normals.size(); ++i) {
+        auto dir = -rmesh.relevant_normals[i]; // Point towards polyhedron.
+        auto &poly_vertex = rmesh.vertices[poly.mesh->relevant_indices[i]];
 
         auto proj_poly = dot(poly_vertex, dir);
         auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
@@ -82,7 +82,7 @@ static void collide_polyhedron_triangle(
     };
 
     // Edge vs edge.
-    for (auto &poly_edge : rmesh.edges) {
+    for (auto &poly_edge : rmesh.relevant_edges) {
         for (size_t j = 0; j < 3; ++j) {
             auto v0 = tri_vertices[j];
             auto v1 = tri_vertices[(j + 1) % 3];

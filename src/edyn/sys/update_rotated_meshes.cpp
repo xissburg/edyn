@@ -9,37 +9,30 @@ namespace edyn {
 
 static void update_rotated_mesh_vertices(rotated_mesh &rotated, const convex_mesh &mesh,
                                          const quaternion &orn) {
-    EDYN_ASSERT(mesh.relevant_vertices.size() == rotated.vertices.size());
-
-    for (size_t i = 0; i < mesh.relevant_vertices.size(); ++i) {
-        auto &vertex_local = mesh.relevant_vertices[i];
-        rotated.vertices[i] = rotate(orn, vertex_local);
-    }
-
-    EDYN_ASSERT(mesh.vertices.size() == rotated.all_vertices.size());
+    EDYN_ASSERT(mesh.vertices.size() == rotated.vertices.size());
     for (size_t i = 0; i < mesh.vertices.size(); ++i) {
         auto &vertex_local = mesh.vertices[i];
-        rotated.all_vertices[i] = rotate(orn, vertex_local);
+        rotated.vertices[i] = rotate(orn, vertex_local);
     }
 }
 
 static void update_rotated_mesh_normals(rotated_mesh &rotated, const convex_mesh &mesh,
                                         const quaternion &orn) {
-    EDYN_ASSERT(mesh.relevant_normals.size() == rotated.normals.size());
+    EDYN_ASSERT(mesh.relevant_normals.size() == rotated.relevant_normals.size());
 
     for (size_t i = 0; i < mesh.relevant_normals.size(); ++i) {
         auto &normal_local = mesh.relevant_normals[i];
-        rotated.normals[i] = rotate(orn, normal_local);
+        rotated.relevant_normals[i] = rotate(orn, normal_local);
     }
 }
 
 static void update_rotated_mesh_edges(rotated_mesh &rotated, const convex_mesh &mesh,
                                       const quaternion &orn) {
-    EDYN_ASSERT(mesh.relevant_edges.size() == rotated.edges.size());
+    EDYN_ASSERT(mesh.relevant_edges.size() == rotated.relevant_edges.size());
 
     for (size_t i = 0; i < mesh.relevant_edges.size(); ++i) {
         auto &edge_local = mesh.relevant_edges[i];
-        rotated.edges[i] = rotate(orn, edge_local);
+        rotated.relevant_edges[i] = rotate(orn, edge_local);
     }
 }
 

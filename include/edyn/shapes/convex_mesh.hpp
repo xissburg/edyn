@@ -34,7 +34,10 @@ struct convex_mesh {
     // Face normals.
     std::vector<vector3> normals;
 
-    std::vector<vector3> relevant_vertices;
+    // Data which is relevant in collision detection using SAT, i.e. unique
+    // face normals and an index of a vertex on respective face and unique
+    // edge directions.
+    std::vector<uint32_t> relevant_indices;
     std::vector<vector3> relevant_normals;
     std::vector<vector3> relevant_edges;
 
@@ -118,14 +121,13 @@ struct convex_mesh {
 
 /**
  * @brief Accompanying component for `convex_mesh`es containg their
- * rotated vertices and normals to prevent repeated recalculation of
+ * rotated vertices, normals and edges to prevent repeated recalculation of
  * these values.
  */
 struct rotated_mesh {
-    std::vector<vector3> all_vertices;
     std::vector<vector3> vertices;
-    std::vector<vector3> normals;
-    std::vector<vector3> edges;
+    std::vector<vector3> relevant_normals;
+    std::vector<vector3> relevant_edges;
 };
 
 /**
