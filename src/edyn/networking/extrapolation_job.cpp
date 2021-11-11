@@ -23,7 +23,7 @@ void extrapolation_job_func(job::data_type &data) {
     job->update();
 }
 
-extrapolation_job::extrapolation_job(entt::entity island_entity, double target_time,
+extrapolation_job::extrapolation_job(double target_time,
                                      const settings &settings,
                                      const material_mix_table &material_table,
                                      message_queue_in_out message_queue)
@@ -34,7 +34,6 @@ extrapolation_job::extrapolation_job(entt::entity island_entity, double target_t
     , m_nphase(m_registry)
     , m_solver(m_registry)
     , m_delta_builder((*settings.make_island_delta_builder)())
-    , m_importing_delta(false)
     , m_destroying_node(false)
 {
     m_registry.set<entity_graph>();
@@ -47,7 +46,6 @@ extrapolation_job::extrapolation_job(entt::entity island_entity, double target_t
     m_registry.prepare<collision_exclusion>();
 
     m_island_entity = m_registry.create();
-    m_entity_map.insert(island_entity, m_island_entity);
 
     m_this_job.func = &extrapolation_job_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
@@ -59,11 +57,10 @@ void extrapolation_job::init() {
     m_registry.on_destroy<graph_node>().connect<&extrapolation_job::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&extrapolation_job::on_destroy_graph_edge>(*this);
     m_registry.on_destroy<contact_manifold>().connect<&extrapolation_job::on_destroy_contact_manifold>(*this);
+    m_registry.on_destroy<contact_point>().connect<&extrapolation_job::on_destroy_contact_point>(*this);
     m_registry.on_construct<polyhedron_shape>().connect<&extrapolation_job::on_construct_polyhedron_shape>(*this);
     m_registry.on_construct<compound_shape>().connect<&extrapolation_job::on_construct_compound_shape>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&extrapolation_job::on_destroy_rotated_mesh_list>(*this);
-    m_registry.on_construct<polyhedron_shape>().connect<&extrapolation_job::on_construct_polyhedron_shape>(*this);
-    m_registry.on_construct<compound_shape>().connect<&extrapolation_job::on_construct_compound_shape>(*this);
 
     m_message_queue.sink<island_delta>().connect<&extrapolation_job::on_island_delta>(*this);
 
@@ -101,6 +98,10 @@ void extrapolation_job::on_destroy_contact_manifold(entt::registry &registry, en
     m_delta_builder->destroyed(entity);
 }
 
+void extrapolation_job::on_destroy_contact_point(entt::registry &registry, entt::entity entity) {
+    m_delta_builder->destroyed(entity);
+}
+
 void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
     auto &graph = registry.ctx<entity_graph>();
@@ -118,6 +119,14 @@ void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::en
     graph.remove_node(node.node_index);
 
     m_delta_builder->destroyed(entity);
+}
+
+void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
+    if (!m_destroying_node) {
+        auto &edge = registry.get<graph_edge>(entity);
+        registry.ctx<entity_graph>().remove_edge(edge.edge_index);
+        m_delta_builder->destroyed(entity);
+    }
 }
 
 void extrapolation_job::on_construct_polyhedron_shape(entt::registry &registry, entt::entity entity) {
@@ -138,7 +147,6 @@ void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, e
 
 void extrapolation_job::on_island_delta(const island_delta &delta) {
     // Import components from main registry.
-    m_importing_delta = true;
     delta.import(m_registry, m_entity_map);
 
     for (auto remote_entity : delta.created_entities()) {
@@ -212,51 +220,6 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
             create_contact_constraint(m_registry, local_entity, cp);
         }
     });
-
-    // When orientation is set manually, a few dependent components must be
-    // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
-    delta.updated_for_each<orientation>(index_source, [&] (entt::entity remote_entity, const orientation &orn) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
-
-        auto local_entity = m_entity_map.remloc(remote_entity);
-
-        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
-            auto &com = m_registry.get<center_of_mass>(local_entity);
-            auto &pos = m_registry.get<position>(local_entity);
-            *origin = to_world_space(-com, pos, orn);
-        }
-
-        if (m_registry.any_of<AABB>(local_entity)) {
-            update_aabb(m_registry, local_entity);
-        }
-
-        if (m_registry.any_of<dynamic_tag>(local_entity)) {
-            update_inertia(m_registry, local_entity);
-        }
-
-        if (m_registry.any_of<rotated_mesh_list>(local_entity)) {
-            update_rotated_mesh(m_registry, local_entity);
-        }
-    });
-
-    // When position is set manually, the AABB and cached origin must be updated.
-    delta.updated_for_each<position>(index_source, [&] (entt::entity remote_entity, const position &pos) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
-
-        auto local_entity = m_entity_map.remloc(remote_entity);
-
-        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
-            auto &com = m_registry.get<center_of_mass>(local_entity);
-            auto &orn = m_registry.get<orientation>(local_entity);
-            *origin = to_world_space(-com, pos, orn);
-        }
-
-        if (m_registry.any_of<AABB>(local_entity)) {
-            update_aabb(m_registry, local_entity);
-        }
-    });
-
-    m_importing_delta = false;
 }
 
 void extrapolation_job::sync() {

@@ -48,7 +48,7 @@ class extrapolation_job final {
     void update();
 
 public:
-    extrapolation_job(entt::entity island_entity, double target_time, const settings &settings,
+    extrapolation_job(double target_time, const settings &settings,
                   const material_mix_table &material_table,
                   message_queue_in_out message_queue);
 
@@ -61,6 +61,7 @@ public:
     void reschedule();
 
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
+    void on_destroy_contact_point(entt::registry &, entt::entity);
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
     void on_construct_polyhedron_shape(entt::registry &, entt::entity);
@@ -81,7 +82,6 @@ private:
     state m_state;
 
     std::unique_ptr<island_delta_builder> m_delta_builder;
-    bool m_importing_delta;
     bool m_destroying_node;
 
     double m_target_time;
