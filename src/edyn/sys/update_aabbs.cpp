@@ -20,7 +20,7 @@ AABB updated_aabb(const polyhedron_shape &polyhedron,
     // `shape_aabb(const polyhedron_shape &, ...)` rotates each vertex of a
     // polyhedron to calculate the AABB. Specialize `updated_aabb` for
     // polyhedrons to use the rotated mesh.
-    auto aabb = point_cloud_aabb(polyhedron.rotated->vertices);
+    auto aabb = point_cloud_aabb(polyhedron.rotated->all_vertices);
     aabb.min += pos;
     aabb.max += pos;
     return aabb;

@@ -34,6 +34,10 @@ struct convex_mesh {
     // Face normals.
     std::vector<vector3> normals;
 
+    std::vector<vector3> relevant_vertices;
+    std::vector<vector3> relevant_normals;
+    std::vector<vector3> relevant_edges;
+
     /**
      * @brief Initializes calculated properties. Call this after vertices,
      * indices and faces are assigned.
@@ -104,6 +108,8 @@ struct convex_mesh {
     void shift_to_centroid();
     void calculate_normals();
     void calculate_edges();
+    void calculate_relevant_normals();
+    void calculate_relevant_edges();
 
 #ifdef EDYN_DEBUG
     void validate() const;
@@ -116,8 +122,10 @@ struct convex_mesh {
  * these values.
  */
 struct rotated_mesh {
+    std::vector<vector3> all_vertices;
     std::vector<vector3> vertices;
     std::vector<vector3> normals;
+    std::vector<vector3> edges;
 };
 
 /**

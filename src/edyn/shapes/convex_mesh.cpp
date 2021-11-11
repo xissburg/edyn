@@ -1,4 +1,5 @@
 #include "edyn/shapes/convex_mesh.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/util/shape_util.hpp"
@@ -9,6 +10,8 @@ void convex_mesh::initialize() {
     shift_to_centroid();
     calculate_normals();
     calculate_edges();
+    calculate_relevant_normals();
+    calculate_relevant_edges();
 
 #ifdef EDYN_DEBUG
     validate();
@@ -102,6 +105,39 @@ void convex_mesh::calculate_edges() {
     }
 }
 
+void convex_mesh::calculate_relevant_normals() {
+    for (size_t face_idx = 0; face_idx < normals.size(); ++face_idx) {
+        auto &normal = normals[face_idx];
+        auto found_it = std::find_if(relevant_normals.begin(), relevant_normals.end(), [normal] (auto &&relevant) {
+            return !(dot(normal, relevant) < scalar(1) - EDYN_EPSILON);
+        });
+
+        if (found_it == relevant_normals.end()) {
+            relevant_normals.push_back(normal);
+            auto v_idx = first_vertex_index(face_idx);
+            relevant_vertices.push_back(vertices[v_idx]);
+        }
+    }
+}
+
+void convex_mesh::calculate_relevant_edges() {
+    for (size_t i = 0; i < edges.size(); i += 2) {
+        auto i0 = edges[i];
+        auto i1 = edges[i + 1];
+        auto v0 = vertices[i0];
+        auto v1 = vertices[i1];
+        auto edge = normalize(v1 - v0);
+
+        auto found_it = std::find_if(relevant_edges.begin(), relevant_edges.end(), [edge] (auto &&relevant) {
+            return !(std::abs(dot(edge, relevant)) < scalar(1) - EDYN_EPSILON);
+        });
+
+        if (found_it == relevant_edges.end()) {
+            relevant_edges.push_back(edge);
+        }
+    }
+}
+
 #ifdef EDYN_DEBUG
 void convex_mesh::validate() const {
     // Check if all faces are flat.
@@ -138,8 +174,10 @@ void convex_mesh::validate() const {
 
 rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn) {
     auto rotated = rotated_mesh{};
-    rotated.vertices.resize(mesh.vertices.size());
-    rotated.normals.resize(mesh.normals.size());
+    rotated.all_vertices.resize(mesh.vertices.size());
+    rotated.vertices.resize(mesh.relevant_vertices.size());
+    rotated.normals.resize(mesh.relevant_normals.size());
+    rotated.edges.resize(mesh.relevant_edges.size());
 
     update_rotated_mesh(rotated, mesh, orn);
 

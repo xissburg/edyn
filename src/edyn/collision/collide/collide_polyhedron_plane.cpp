@@ -2,6 +2,7 @@
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/util/shape_util.hpp"
 
 namespace edyn {
@@ -14,14 +15,14 @@ void collide(const polyhedron_shape &shA, const plane_shape &shB,
     auto normal = shB.normal;
     auto center = shB.normal * shB.constant - posA;
 
-    auto proj_poly = -point_cloud_support_projection(rmeshA.vertices, -normal);
+    auto proj_poly = -point_cloud_support_projection(rmeshA.all_vertices, -normal);
     auto proj_plane = dot(center, normal);
     scalar distance = proj_poly - proj_plane;
 
     if (distance > ctx.threshold) return;
 
     auto polygon = point_cloud_support_polygon(
-        rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
+        rmeshA.all_vertices.begin(), rmeshA.all_vertices.end(), vector3_zero,
         normal, proj_poly, true, support_feature_tolerance);
     auto normal_attachment = contact_normal_attachment::normal_on_B;
 
