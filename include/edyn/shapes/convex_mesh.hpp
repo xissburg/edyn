@@ -53,6 +53,8 @@ struct convex_mesh {
      */
     void initialize();
 
+    void update_calculated_properties();
+
     size_t num_edges() const {
         EDYN_ASSERT(edges.size() % 2 == 0);
         return edges.size() / 2;

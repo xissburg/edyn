@@ -93,8 +93,7 @@ TEST(test_collision, collide_polyhedron_sphere) {
     auto mesh = std::make_shared<edyn::convex_mesh>();
 
     edyn::make_box_mesh({0.5, 0.5, 0.5}, mesh->vertices, mesh->indices, mesh->faces);
-    mesh->calculate_normals();
-    mesh->calculate_edges();
+    mesh->initialize();
 
     auto rotated = edyn::make_rotated_mesh(*mesh);
 

@@ -1,6 +1,4 @@
 #include "edyn/shapes/convex_mesh.hpp"
-#include "edyn/math/scalar.hpp"
-#include "edyn/math/vector3.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/util/shape_util.hpp"
 
@@ -8,14 +6,18 @@ namespace edyn {
 
 void convex_mesh::initialize() {
     shift_to_centroid();
-    calculate_normals();
-    calculate_edges();
-    calculate_relevant_normals();
-    calculate_relevant_edges();
+    update_calculated_properties();
 
 #ifdef EDYN_DEBUG
     validate();
 #endif
+}
+
+void convex_mesh::update_calculated_properties() {
+    calculate_normals();
+    calculate_edges();
+    calculate_relevant_normals();
+    calculate_relevant_edges();
 }
 
 void convex_mesh::shift_to_centroid() {
@@ -122,7 +124,9 @@ void convex_mesh::calculate_relevant_normals() {
 }
 
 void convex_mesh::calculate_relevant_edges() {
-    // Find unique edge directions.
+    // Find unique edge directions. Parallel edges that point in opposite
+    // directions are considered similar since the direction doesn't matter
+    // when doing edge vs edge in SAT.
     for (size_t i = 0; i < edges.size(); i += 2) {
         auto i0 = edges[i];
         auto i1 = edges[i + 1];
