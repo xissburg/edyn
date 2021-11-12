@@ -34,8 +34,7 @@ compound_shape::compound_shape(const std::string &path_to_obj,
         polyhedron.mesh->vertices = std::move(mesh.vertices);
         polyhedron.mesh->indices = std::move(mesh.indices);
         polyhedron.mesh->faces = std::move(mesh.faces);
-        polyhedron.mesh->calculate_normals();
-        polyhedron.mesh->calculate_edges();
+        polyhedron.mesh->update_calculated_properties();
 
     #ifdef EDYN_DEBUG
         polyhedron.mesh->validate();

@@ -2,6 +2,7 @@
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/util/shape_util.hpp"
 
 namespace edyn {
