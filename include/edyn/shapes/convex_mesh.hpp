@@ -34,6 +34,13 @@ struct convex_mesh {
     // Face normals.
     std::vector<vector3> normals;
 
+    // Data which is relevant in collision detection using SAT, i.e. unique
+    // face normals and an index of a vertex on respective face and unique
+    // edge directions.
+    std::vector<uint32_t> relevant_indices;
+    std::vector<vector3> relevant_normals;
+    std::vector<vector3> relevant_edges;
+
     /**
      * @brief Initializes calculated properties. Call this after vertices,
      * indices and faces are assigned.
@@ -45,6 +52,8 @@ struct convex_mesh {
      * calculating the moment of inertia of a compound shape.
      */
     void initialize();
+
+    void update_calculated_properties();
 
     size_t num_edges() const {
         EDYN_ASSERT(edges.size() % 2 == 0);
@@ -104,6 +113,8 @@ struct convex_mesh {
     void shift_to_centroid();
     void calculate_normals();
     void calculate_edges();
+    void calculate_relevant_normals();
+    void calculate_relevant_edges();
 
 #ifdef EDYN_DEBUG
     void validate() const;
@@ -112,12 +123,13 @@ struct convex_mesh {
 
 /**
  * @brief Accompanying component for `convex_mesh`es containg their
- * rotated vertices and normals to prevent repeated recalculation of
+ * rotated vertices, normals and edges to prevent repeated recalculation of
  * these values.
  */
 struct rotated_mesh {
     std::vector<vector3> vertices;
-    std::vector<vector3> normals;
+    std::vector<vector3> relevant_normals;
+    std::vector<vector3> relevant_edges;
 };
 
 /**

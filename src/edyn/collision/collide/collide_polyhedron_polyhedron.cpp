@@ -19,13 +19,10 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     scalar max_distance = -EDYN_SCALAR_MAX;
     auto best_dir = vector3_zero;
 
-    for (size_t i = 0; i < shA.mesh->num_faces(); ++i) {
-        auto normal_world = -rotatedA.normals[i]; // Normal pointing towards A.
-
-        auto vertex_idx = shA.mesh->first_vertex_index(i);
-        auto &vertexA = rotatedA.vertices[vertex_idx];
+    for (size_t i = 0; i < rotatedA.relevant_normals.size(); ++i) {
+        auto normal_world = -rotatedA.relevant_normals[i]; // Normal pointing towards A.
+        auto vertexA = rotatedA.vertices[shA.mesh->relevant_indices[i]];
         auto vertex_world = vertexA + posA;
-
         auto projA = dot(vertex_world, normal_world);
 
         // Find point on B that's furthest along the opposite direction
@@ -93,13 +90,8 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
     }
 
     // Edge vs edge.
-    for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
-        auto [vertexA0, vertexA1] = shA.mesh->get_rotated_edge(rmeshA, i);
-        auto edgeA = vertexA1 - vertexA0;
-
-        for (size_t j = 0; j < shB.mesh->num_edges(); ++j) {
-            auto [vertexB0, vertexB1] = shB.mesh->get_rotated_edge(rmeshB, j);
-            auto edgeB = vertexB1 - vertexB0;
+    for (auto &edgeA : rmeshA.relevant_edges) {
+        for (auto &edgeB : rmeshB.relevant_edges) {
             auto dir = cross(edgeA, edgeB);
 
             if (!try_normalize(dir)) {

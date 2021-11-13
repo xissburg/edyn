@@ -23,12 +23,11 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
     auto sep_axis = vector3_zero;
 
     // Face normals of polyhedron.
-    for (size_t i = 0; i < shA.mesh->num_faces(); ++i) {
-        auto normalA = -meshA.normals[i]; // Point towards polyhedron.
-        auto vertex_idx = shA.mesh->first_vertex_index(i);
-        auto &vertex_world = meshA.vertices[vertex_idx];
+    for (size_t i = 0; i < meshA.relevant_normals.size(); ++i) {
+        auto normalA = -meshA.relevant_normals[i]; // Point towards polyhedron.
+        auto &vertexA = meshA.vertices[meshA.relevant_indices[i]];
 
-        auto projA = dot(vertex_world, normalA);
+        auto projA = dot(vertexA, normalA);
         auto projB = capsule_support_projection(capsule_vertices, shB.radius, normalA);
         auto dist = projA - projB;
 
@@ -40,8 +39,8 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
     }
 
     // Edges vs capsule axis
-    for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
-        auto [vertexA0, vertexA1] = shA.mesh->get_edge(i);
+    for (size_t i = 0; i < meshA.num_edges(); ++i) {
+        auto [vertexA0, vertexA1] = meshA.get_edge(i);
         scalar s, t;
         vector3 closestA, closestB;
         closest_point_segment_segment(vertexA0, vertexA1,
