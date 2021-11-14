@@ -7,6 +7,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector2_3_util.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 

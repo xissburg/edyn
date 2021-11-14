@@ -15,6 +15,7 @@
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/math/geom.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"

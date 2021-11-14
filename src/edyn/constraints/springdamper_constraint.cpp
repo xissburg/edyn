@@ -12,6 +12,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/util/spring_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/rigidbody.hpp"

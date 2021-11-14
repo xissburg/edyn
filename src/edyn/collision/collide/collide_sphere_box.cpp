@@ -1,6 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
-#include "edyn/math/scalar.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 

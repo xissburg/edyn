@@ -15,6 +15,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entt.hpp>
 

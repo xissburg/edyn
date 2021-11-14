@@ -1,7 +1,8 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/geom.hpp"
-#include "edyn/util/shape_util.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/math/transform.hpp"
+#include "edyn/util/shape_util.hpp"
 
 namespace edyn {
 
@@ -21,12 +22,11 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
     auto sep_axis = vector3_zero;
 
     // Face normals of polyhedron.
-    for (size_t i = 0; i < shA.mesh->num_faces(); ++i) {
-        auto normalA = -meshA.normals[i]; // Point towards polyhedron.
-        auto vertex_idx = shA.mesh->first_vertex_index(i);
-        auto &vertex_world = meshA.vertices[vertex_idx];
+    for (size_t i = 0; i < meshA.relevant_normals.size(); ++i) {
+        auto normalA = -meshA.relevant_normals[i]; // Point towards polyhedron.
+        auto &vertexA = meshA.vertices[meshA.relevant_indices[i]];
 
-        auto projA = dot(vertex_world, normalA);
+        auto projA = dot(vertexA, normalA);
         auto projB = dot(posB, normalA) + shB.radius;
         auto dist = projA - projB;
 
@@ -40,7 +40,6 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
     if (distance > threshold) {
         return;
     }
-
 
     auto polygon = point_cloud_support_polygon(
         meshA.vertices.begin(), meshA.vertices.end(), vector3_zero,

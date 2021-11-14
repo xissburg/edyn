@@ -11,6 +11,7 @@
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/tire_state.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"

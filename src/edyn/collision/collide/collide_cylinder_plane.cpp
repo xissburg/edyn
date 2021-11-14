@@ -1,5 +1,6 @@
 #include "edyn/collision/collide.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/transform.hpp"
 
 namespace edyn {
 

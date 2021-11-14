@@ -15,6 +15,7 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/spin.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/util/tire_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/math/matrix3x3.hpp"

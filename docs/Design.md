@@ -153,9 +153,11 @@ Unlike the `edyn::convex_mesh` held by a polyhedron, the `edyn::rotated_mesh` is
 
 The polyhedron keeps a weak reference to the `edyn::rotated_mesh` thus the `edyn::island_worker` actually owns the rotated meshes and is responsible for keeping them alive until the polyhedron is destroyed. They are stored in `edyn::rotated_mesh_list` components because `edyn::compound_shape`s can hold multiple polyhedrons, thus it is necessary to be able to store a list of `edyn::rotated_mesh`es for them. The first `edyn::rotated_mesh_list` is assigned to the entity holding the shape itself. New entities are created for the next ones and are linked to the previous. When the original entity is deleted, all linked `edyn::rotated_mesh_list` are deleted in succession.
 
+Furthermore, an array of unique face normals and edge directions are stored in the `edyn::convex_mesh` and their rotated state in a `edyn::rotated_mesh` to avoid testing the same axis multiple times in SAT implementations involving polyhedron shapes. E.g. in a box shaped polyhedron, only 3 edge directions will be considered instead of all 12 edges. They are termed the _relevant_ face normals and edge directions.
+
 ## Triangle mesh shape
 
-The `edyn::triangle_mesh` represents a (usually large) concave mesh of triangles. It contains a static bounding volume tree which provides a quicker way to find all triangles that intersect a given AABB. The `edyn::mesh_shape` holds a `std::shared_ptr` to a `edyn::triangle_mesh` which allows it to be present in multiple registries without duplicating the `edyn::triangle_mesh`, which is generally contains a lot of data.
+The `edyn::triangle_mesh` represents a (usually large) concave mesh of triangles. It contains a static bounding volume tree which provides a quicker way to find all triangles that intersect a given AABB. The `edyn::mesh_shape` holds a `std::shared_ptr` to a `edyn::triangle_mesh` which allows it to be present in multiple registries without duplicating the `edyn::triangle_mesh`, which generally contains a lot of data.
 
 The concept of Voronoi regions is used to prevent internal edge collisions. The normal vector of all three adjacent triangles is stored for each triangle. Using the adjacent normal, it is possible to tell whether a direction (separating axis or minimum translation vector) lies in a valid region. If the axis is not in the voronoi region of the closest triangle feature, it is projected onto it so a valid direction is used.
 

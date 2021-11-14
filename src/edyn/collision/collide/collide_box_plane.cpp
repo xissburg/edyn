@@ -1,5 +1,5 @@
 #include "edyn/collision/collide.hpp"
-#include "edyn/math/quaternion.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/shapes/box_shape.hpp"
 
 namespace edyn {

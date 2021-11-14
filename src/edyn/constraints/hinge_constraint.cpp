@@ -5,6 +5,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/linvel.hpp"

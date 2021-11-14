@@ -1,9 +1,9 @@
 #ifndef EDYN_COMP_ISLAND_HPP
 #define EDYN_COMP_ISLAND_HPP
 
-#include "edyn/util/entity_set.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
+#include <entt/entity/sparse_set.hpp>
 
 namespace edyn {
 
@@ -36,7 +36,7 @@ struct island_resident {
  * simultaneously.
  */
 struct multi_island_resident {
-    entity_set island_entities;
+    entt::sparse_set island_entities {};
 };
 
 }

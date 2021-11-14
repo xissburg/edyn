@@ -6,6 +6,7 @@
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/util/triangle_util.hpp"
 #include <vector>

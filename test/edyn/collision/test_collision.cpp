@@ -2,7 +2,6 @@
 #include "edyn/collision/collision_result.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/quaternion.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
@@ -94,8 +93,7 @@ TEST(test_collision, collide_polyhedron_sphere) {
     auto mesh = std::make_shared<edyn::convex_mesh>();
 
     edyn::make_box_mesh({0.5, 0.5, 0.5}, mesh->vertices, mesh->indices, mesh->faces);
-    mesh->calculate_normals();
-    mesh->calculate_edges();
+    mesh->initialize();
 
     auto rotated = edyn::make_rotated_mesh(*mesh);
 

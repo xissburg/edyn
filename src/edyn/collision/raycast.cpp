@@ -9,6 +9,7 @@
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/util/triangle_util.hpp"
 #include "edyn/util/tuple_util.hpp"

@@ -32,7 +32,7 @@ TEST(test_paged_trimesh, voronoi_regions) {
 
     auto loader = std::make_shared<triangle_mesh_page_loader>();
     auto trimesh = edyn::paged_triangle_mesh(loader);
-    edyn::create_paged_triangle_mesh(trimesh, vertices.begin(), vertices.end(), indices.begin(), indices.end(), 2);
+    edyn::create_paged_triangle_mesh(trimesh, vertices.begin(), vertices.end(), indices.begin(), indices.end(), 2, {});
 
     auto offset = edyn::vector3_one * 0.01f;
     auto vertex_aabb = edyn::AABB{vertices[4] - offset, vertices[4] + offset};
