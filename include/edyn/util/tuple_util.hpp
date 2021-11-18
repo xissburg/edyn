@@ -66,6 +66,47 @@ auto tuple_to_variant(std::tuple<Ts...>) {
     return std::variant<Ts...>{};
 }
 
+namespace detail {
+    template<typename VisitorType, typename TupleType, typename T>
+    constexpr auto make_visit_tuple_function() {
+        return [] (TupleType &tuple, VisitorType visitor) {
+            visitor(std::get<T>(tuple));
+        };
+    }
+
+    template<typename VisitorType, typename... Ts>
+    struct visit_tuple_function_array {
+        using TupleType = std::tuple<Ts...>;
+        using VisitFuncType = void(*)(TupleType &, VisitorType);
+        std::array<VisitFuncType, sizeof...(Ts)> functions;
+
+        constexpr visit_tuple_function_array() : functions{} {
+            size_t i = 0;
+            ((functions[i++] = make_visit_tuple_function<VisitorType, TupleType, Ts>()), ...);
+        }
+    };
+
+    template<typename VisitorType, typename... Ts>
+    struct tuple_visitor_table {
+        static constexpr auto array = visit_tuple_function_array<VisitorType, Ts...>();
+    };
+}
+
+/**
+ * Allows access to a tuple element via a runtime index.
+ * @tparam Ts Tuple element types.
+ * @tparam IndexType Type of index.
+ * @tparam VisitorType Type of visitor function.
+ * @param tuple Tuple to be visited.
+ * @param index Index of element in tuple.
+ * @param visitor Visitor function.
+ */
+template<typename... Ts, typename IndexType, typename VisitorType>
+void visit_tuple(std::tuple<Ts...> &tuple, IndexType index, VisitorType visitor) {
+    constexpr auto table = detail::tuple_visitor_table<VisitorType, Ts...>{};
+    table.array.functions[index](tuple, visitor);
+}
+
 }
 
 #endif // EDYN_UTIL_TUPLE_UTIL_HPP
