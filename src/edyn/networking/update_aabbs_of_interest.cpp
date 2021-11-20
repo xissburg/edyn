@@ -14,9 +14,15 @@ void update_aabbs_of_interest(entt::registry &registry) {
         entt::sparse_set contained_entities;
 
         bphase.query_islands(aabb_of.aabb, [&] (entt::entity island_entity) {
-            auto &nodes = registry.get<edyn::island>(island_entity).nodes;
+            auto &island = registry.get<edyn::island>(island_entity);
 
-            for (auto entity : nodes) {
+            for (auto entity : island.nodes) {
+                if (!contained_entities.contains(entity)) {
+                    contained_entities.emplace(entity);
+                }
+            }
+
+            for (auto entity : island.edges) {
                 if (!contained_entities.contains(entity)) {
                     contained_entities.emplace(entity);
                 }

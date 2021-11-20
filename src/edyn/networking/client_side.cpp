@@ -103,23 +103,75 @@ static void process_packet(entt::registry &registry, const packet::entity_respon
     }
 }
 
+template<typename T>
+void create_graph_edge(entt::registry &registry, entt::entity entity) {
+    if (registry.any_of<graph_edge>(entity)) return;
+
+    auto &comp = registry.get<T>(entity);
+    auto node_index0 = registry.get<graph_node>(comp.body[0]).node_index;
+    auto node_index1 = registry.get<graph_node>(comp.body[1]).node_index;
+    auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
+    registry.emplace<graph_edge>(entity, edge_index);
+}
+
+template<typename... Ts>
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity) {
+    ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
+}
+
 static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
     auto &ctx = registry.ctx<client_networking_context>();
     ctx.importing_entities = true;
 
     auto emap_packet = packet::update_entity_map{};
 
+    // Create entities first...
     for (auto &pair : packet.pairs) {
         auto remote_entity = pair.entity;
         auto local_entity = registry.create();
         ctx.entity_map.insert(remote_entity, local_entity);
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
+    }
+
+    // ... assign components later so that entity references will be available
+    // to be mapped into the local registry.
+    for (auto &pair : packet.pairs) {
+        auto remote_entity = pair.entity;
+        auto local_entity = ctx.entity_map.remloc(remote_entity);
 
         for (auto &comp_ptr : pair.components) {
             assign_component_wrapper(registry, local_entity, *comp_ptr, ctx.entity_map);
         }
 
         registry.emplace<networked_tag>(local_entity);
+    }
+
+    // Create nodes and edges in entity graph.
+    for (auto &pair : packet.pairs) {
+        auto remote_entity = pair.entity;
+        auto local_entity = ctx.entity_map.remloc(remote_entity);
+
+        if (registry.any_of<rigidbody_tag, external_tag>(local_entity)) {
+            auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
+            auto node_index = registry.ctx<entity_graph>().insert_node(local_entity, non_connecting);
+            registry.emplace<graph_node>(local_entity, node_index);
+        }
+    }
+
+    for (auto &pair : packet.pairs) {
+        auto remote_entity = pair.entity;
+        auto local_entity = ctx.entity_map.remloc(remote_entity);
+
+        maybe_create_graph_edge<
+            contact_manifold,
+            null_constraint,
+            gravity_constraint,
+            point_constraint,
+            distance_constraint,
+            soft_distance_constraint,
+            hinge_constraint,
+            generic_constraint
+        >(registry, local_entity);
     }
 
     ctx.importing_entities = false;

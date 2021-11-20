@@ -1,6 +1,7 @@
-#ifndef EDYN_NETWORKING_PACKET_COMPONENT_WRAPPER_HPP
-#define EDYN_NETWORKING_PACKET_COMPONENT_WRAPPER_HPP
+#ifndef EDYN_NETWORKING_PACKET_UTIL_COMPONENT_WRAPPER_HPP
+#define EDYN_NETWORKING_PACKET_UTIL_COMPONENT_WRAPPER_HPP
 
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/networking/networked_comp.hpp"
 #include "edyn/comp/graph_node.hpp"
@@ -11,6 +12,7 @@
 #include "edyn/parallel/merge/merge_constraint.hpp"
 #include "edyn/parallel/merge/merge_tree_view.hpp"
 #include "edyn/parallel/merge/merge_collision_exclusion.hpp"
+#include <type_traits>
 
 namespace edyn {
 
@@ -24,15 +26,33 @@ struct component_wrapper : public component_wrapper_base {
 };
 
 namespace detail {
-    template<typename Archive, typename... Component>
-    void serialize(Archive &archive, component_wrapper_base &comp) {
-        archive(comp.component_index);
-        unsigned i = 0;
-        ((i++ == comp.component_index ? serialize(archive, static_cast<component_wrapper<Component> &>(comp)) : void(0)), ...);
+    template<typename Component, typename Archive>
+    void serialize_derived(Archive &archive, std::shared_ptr<component_wrapper_base> &comp) {
+        if (!comp) {
+            comp.reset(new component_wrapper<Component>);
+        }
+
+        archive(std::static_pointer_cast<component_wrapper<Component>>(comp)->value);
     }
 
     template<typename Archive, typename... Component>
-    void serialize(Archive &archive, component_wrapper_base &comp, std::tuple<Component...>) {
+    void serialize(Archive &archive, std::shared_ptr<component_wrapper_base> &comp) {
+        if constexpr(Archive::is_output::value) {
+            archive(comp->component_index);
+            unsigned i = 0;
+            ((i++ == comp->component_index ? serialize_derived<Component>(archive, comp) : void(0)), ...);
+        } else {
+            unsigned component_index;
+            archive(component_index);
+
+            unsigned i = 0;
+            ((i++ == component_index ? serialize_derived<Component>(archive, comp) : void(0)), ...);
+            comp->component_index = component_index;
+        }
+    }
+
+    template<typename Archive, typename... Component>
+    void serialize(Archive &archive, std::shared_ptr<component_wrapper_base> &comp, std::tuple<Component...>) {
         serialize<Archive, Component...>(archive, comp);
     }
 
@@ -44,13 +64,8 @@ namespace detail {
 }
 
 template<typename Archive>
-void serialize(Archive &archive, component_wrapper_base &comp) {
+void serialize(Archive &archive, std::shared_ptr<component_wrapper_base> &comp) {
     detail::serialize(archive, comp, networked_components);
-}
-
-template<typename Archive, typename Component>
-void serialize(Archive &archive, component_wrapper<Component> &comp) {
-    archive(comp.value);
 }
 
 template<typename Func>
@@ -67,47 +82,6 @@ void emplace_component_wrapper(entt::registry &registry, entt::entity entity,
     auto ctx = merge_context{&registry, &entity_map};
     merge<Component>(nullptr, comp, ctx);
     registry.emplace<Component>(entity, comp);
-}
-
-template<>
-inline void emplace_component_wrapper<rigidbody_tag>(entt::registry &registry, entt::entity entity,
-                                              const component_wrapper_base &comp,
-                                              const edyn::entity_map &entity_map) {
-    registry.emplace<rigidbody_tag>(entity);
-
-    auto non_connecting = !registry.any_of<dynamic_tag>(entity);
-    auto node_index = registry.ctx<entity_graph>().insert_node(entity, non_connecting);
-    registry.emplace<graph_node>(entity, node_index);
-}
-
-template<typename Constraint>
-void emplace_constraint_wrapper(entt::registry &registry, entt::entity entity,
-                                const component_wrapper_base &wrapper,
-                                const edyn::entity_map &entity_map) {
-    auto &typed_wrapper = static_cast<const component_wrapper<Constraint> &>(wrapper);
-    auto constraint = typed_wrapper.value;
-    auto ctx = merge_context{&registry, &entity_map};
-    merge<Constraint>(nullptr, constraint, ctx);
-    registry.emplace<Constraint>(entity, constraint);
-
-    auto node_index0 = registry.get<graph_node>(constraint.body[0]).node_index;
-    auto node_index1 = registry.get<graph_node>(constraint.body[1]).node_index;
-    auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
-    registry.emplace<graph_edge>(entity, edge_index);
-}
-
-template<>
-inline void emplace_component_wrapper<contact_manifold>(entt::registry &registry, entt::entity entity,
-                                                 const component_wrapper_base &wrapper,
-                                                 const edyn::entity_map &entity_map) {
-    emplace_constraint_wrapper<contact_manifold>(registry, entity, wrapper, entity_map);
-}
-
-template<>
-inline void emplace_component_wrapper<soft_distance_constraint>(entt::registry &registry, entt::entity entity,
-                                                 const component_wrapper_base &wrapper,
-                                                 const edyn::entity_map &entity_map) {
-    emplace_constraint_wrapper<soft_distance_constraint>(registry, entity, wrapper, entity_map);
 }
 
 namespace detail {
@@ -129,4 +103,4 @@ void assign_component_wrapper(entt::registry &registry, entt::entity entity,
 
 }
 
-#endif // EDYN_NETWORKING_PACKET_COMPONENT_WRAPPER_HPP
+#endif // EDYN_NETWORKING_PACKET_UTIL_COMPONENT_WRAPPER_HPP
