@@ -188,6 +188,14 @@ void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
     auto &i_inv = registry.get<inertia_world_inv>(entity);
     registry.get<linvel>(entity) += impulse * m_inv;
     registry.get<angvel>(entity) += i_inv * cross(rel_location, impulse);
+    refresh<linvel, angvel>(registry, entity);
+}
+
+void rigidbody_apply_torque_impulse(entt::registry &registry, entt::entity entity,
+                                    const vector3 &torque_impulse) {
+    auto &i_inv = registry.get<inertia_world_inv>(entity);
+    registry.get<angvel>(entity) += i_inv * torque_impulse;
+    refresh<angvel>(registry, entity);
 }
 
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {

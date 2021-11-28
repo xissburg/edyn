@@ -200,7 +200,9 @@ void set_should_collide(entt::registry &registry, should_collide_func_t func);
  */
 template<typename... Component>
 void refresh(entt::registry &registry, entt::entity entity) {
-    registry.ctx<island_coordinator>().refresh<Component...>(entity);
+    if (auto *coordinator = registry.try_ctx<island_coordinator>(); coordinator) {
+        coordinator->refresh<Component...>(entity);
+    }
 }
 
 /**
