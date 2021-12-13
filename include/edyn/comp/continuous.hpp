@@ -8,25 +8,27 @@
 namespace edyn {
 
 /**
- * Specifies a set of component types that the island worker must send back to
- * the coordinator after every step of the simulation.
+ * @brief Specifies a set of component types that the island worker must send
+ * back to the coordinator after every step of the simulation.
+ * @remark The types are referred to the index of the component in the current
+ * `component_source_index` as to make them stable among different machines to
+ * allow this component to be shared between client and server in a networked
+ * simulation.
  */
 struct continuous {
     static constexpr size_t max_size = 16;
-    std::array<entt::id_type, max_size> types;
+    std::array<size_t, max_size> indices;
     size_t size {0};
 
-    template<typename... Component>
-    void insert() {
-        ((types[size++] = entt::type_id<Component>().seq()), ...);
+    void insert(size_t index) {
+        indices[size++] = index;
         EDYN_ASSERT(size <= max_size);
     }
 
-    template<typename Component>
-    void remove() {
+    void remove(size_t index) {
         for (size_t i = 0; i < size; ++i) {
-            if (types[i] == entt::type_id<Component>().seq()) {
-                types[i] = types[--size];
+            if (indices[i] == index) {
+                indices[i] = indices[--size];
                 break;
             }
         }

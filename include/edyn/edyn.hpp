@@ -109,6 +109,10 @@ void step_simulation(entt::registry &registry);
 /**
  * @brief Registers external components to be shared between island coordinator
  * and island workers.
+ * @remark If you need a component of your own to be available in an external
+ * system, it must be registered using this function. That will ensure the
+ * component is sent to the island workers and is inserted in their private
+ * registry.
  * @tparam Component External component types.
  */
 template<typename... Component>
