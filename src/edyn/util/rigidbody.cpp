@@ -144,10 +144,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // components continuously.
         auto &settings = registry.ctx<edyn::settings>();
         auto &cont = registry.emplace<continuous>(entity);
-        cont.insert(settings.index_source->index_of<position>());
-        cont.insert(settings.index_source->index_of<orientation>());
-        cont.insert(settings.index_source->index_of<linvel>());
-        cont.insert(settings.index_source->index_of<angvel>());
+        cont.insert(settings.index_source->indices_of<position, orientation, linvel, angvel>());
 
         if (def.center_of_mass) {
             cont.insert(settings.index_source->index_of<origin>());
@@ -192,6 +189,13 @@ void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
     auto &i_inv = registry.get<inertia_world_inv>(entity);
     registry.get<linvel>(entity) += impulse * m_inv;
     registry.get<angvel>(entity) += i_inv * cross(rel_location, impulse);
+}
+
+void rigidbody_apply_torque_impulse(entt::registry &registry, entt::entity entity,
+                                    const vector3 &torque_impulse) {
+    auto &i_inv = registry.get<inertia_world_inv>(entity);
+    registry.get<angvel>(entity) += i_inv * torque_impulse;
+    refresh<angvel>(registry, entity);
 }
 
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {

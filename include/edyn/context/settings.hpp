@@ -26,7 +26,7 @@ struct settings {
     unsigned num_individual_restitution_iterations {3};
 
     make_island_delta_builder_func_t make_island_delta_builder {&make_island_delta_builder_default};
-    std::shared_ptr<component_index_source> index_source {new external_component_index_source(shared_components)};
+    std::shared_ptr<component_index_source> index_source {new component_index_source_impl(shared_components)};
     external_system_func_t external_system_init {nullptr};
     external_system_func_t external_system_pre_step {nullptr};
     external_system_func_t external_system_post_step {nullptr};
