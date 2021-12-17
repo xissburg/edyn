@@ -136,6 +136,10 @@ void island_coordinator::on_destroy_multi_island_resident(entt::registry &regist
         if (!m_importing_delta)  {
             auto &ctx = m_island_ctx_map.at(island_entity);
             ctx->m_delta_builder->destroyed(entity);
+
+            if (ctx->m_entity_map.has_loc(entity)) {
+                ctx->m_entity_map.erase_loc(entity);
+            }
         }
     }
 }
@@ -753,6 +757,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
             if (procedural_view.contains(entity)) {
                 contains_procedural = true;
                 island.nodes.erase(entity);
+                ctx->m_entity_map.erase_loc(entity);
             } else if (!vector_contains(remaining_non_procedural_entities, entity)) {
                 // Remove island that was split from multi-residents if they're not
                 // present in the source island. Non-procedural could be in many
@@ -765,12 +770,22 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
 
                 if (island.nodes.contains(entity)) {
                     island.nodes.erase(entity);
+                    ctx->m_entity_map.erase_loc(entity);
                 }
             }
         }
 
         for (auto entity : connected.edges) {
             island.edges.erase(entity);
+            ctx->m_entity_map.erase_loc(entity);
+
+            // If this edge is a manifold, the contact point entities must be
+            // removed from the entity map manually.
+            if (auto *manifold = m_registry->try_get<contact_manifold>(entity)) {
+                for (size_t i = 0; i < manifold->num_points(); ++i) {
+                    ctx->m_entity_map.erase_loc(manifold->point[i]);
+                }
+            }
         }
 
         // Do not create a new island if this connected component does not
