@@ -11,6 +11,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/context/settings.hpp"
 #include "edyn/util/triangle_util.hpp"
 
 namespace edyn {
@@ -337,7 +338,8 @@ entt::entity create_contact_point(entt::registry& registry,
     if (registry.any_of<continuous_contacts_tag>(manifold.body[0]) ||
         registry.any_of<continuous_contacts_tag>(manifold.body[1])) {
 
-        registry.emplace<continuous>(contact_entity).insert<edyn::contact_point>();
+        auto &settings = registry.ctx<edyn::settings>();
+        registry.emplace<continuous>(contact_entity).insert(settings.index_source->index_of<edyn::contact_point>());
         contact_dirty.created<continuous>();
     }
 

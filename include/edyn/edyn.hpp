@@ -107,19 +107,49 @@ void update(entt::registry &registry);
 void step_simulation(entt::registry &registry);
 
 /**
+ * @brief Get index of a component type among all shared components within the
+ * library. Also supports any registered external component.
+ * @tparam Component The component type.
+ * @param registry Data source.
+ * @return Component index.
+ */
+template<typename Component>
+size_t get_component_index(entt::registry &registry) {
+    auto &settings = registry.ctx<edyn::settings>();
+    return settings.index_source->index_of<Component>();
+}
+
+/*! @copydoc get_component_index */
+template<typename... Component>
+auto get_component_indices(entt::registry &registry) {
+    auto &settings = registry.ctx<edyn::settings>();
+    return settings.index_source->indices_of<Component...>();
+}
+
+/**
  * @brief Registers external components to be shared between island coordinator
  * and island workers.
+ * @remark If you need a component of your own to be available in an external
+ * system, it must be registered using this function. That will ensure the
+ * component is sent to the island workers and is inserted in their private
+ * registry.
  * @tparam Component External component types.
  */
 template<typename... Component>
 void register_external_components(entt::registry &registry) {
     auto &settings = registry.ctx<edyn::settings>();
+
     settings.make_island_delta_builder = [] () {
         auto external = std::tuple<Component...>{};
         auto all_components = std::tuple_cat(shared_components, external);
         return std::unique_ptr<island_delta_builder>(
             new island_delta_builder_impl(all_components));
     };
+
+    auto external = std::tuple<Component...>{};
+    auto all_components = std::tuple_cat(shared_components, external);
+    settings.index_source.reset(new component_index_source_impl(all_components));
+
     registry.ctx<island_coordinator>().settings_changed();
 }
 

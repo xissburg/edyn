@@ -3,8 +3,6 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
-#include "edyn/comp/present_orientation.hpp"
-#include "edyn/comp/present_position.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/parallel/message.hpp"
@@ -97,15 +95,17 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
     auto &resident = registry.get<island_resident>(entity);
 
     // Remove from island.
-    auto &ctx = m_island_ctx_map.at(resident.island_entity);
+    auto &island = registry.get<edyn::island>(resident.island_entity);
 
-    if (ctx->m_nodes.contains(entity)) {
-        ctx->m_nodes.erase(entity);
-    } else if (ctx->m_edges.contains(entity)) {
-        ctx->m_edges.erase(entity);
+    if (island.nodes.contains(entity)) {
+        island.nodes.erase(entity);
+    } else if (island.edges.contains(entity)) {
+        island.edges.erase(entity);
     }
 
     if (m_importing_delta) return;
+
+    auto &ctx = m_island_ctx_map.at(resident.island_entity);
 
     // When importing delta, the entity is removed from the entity map as part
     // of the import process. Otherwise, the removal has to be done here.
@@ -130,11 +130,16 @@ void island_coordinator::on_destroy_multi_island_resident(entt::registry &regist
 
     // Remove from islands.
     for (auto island_entity : resident.island_entities) {
-        auto &ctx = m_island_ctx_map.at(island_entity);
-        ctx->m_nodes.erase(entity);
+        auto &island = registry.get<edyn::island>(island_entity);
+        island.nodes.erase(entity);
 
         if (!m_importing_delta)  {
+            auto &ctx = m_island_ctx_map.at(island_entity);
             ctx->m_delta_builder->destroyed(entity);
+
+            if (ctx->m_entity_map.has_loc(entity)) {
+                ctx->m_entity_map.erase_loc(entity);
+            }
         }
     }
 }
@@ -288,11 +293,12 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
         auto &other_resident = resident_view.get<island_resident>(other);
         if (other_resident.island_entity == entt::null) return;
 
-        auto &ctx = m_island_ctx_map.at(other_resident.island_entity);
-        ctx->m_nodes.emplace(node_entity);
+        auto &island = m_registry->get<edyn::island>(other_resident.island_entity);
+        island.nodes.emplace(node_entity);
 
         if (!resident.island_entities.contains(other_resident.island_entity)) {
             resident.island_entities.emplace(other_resident.island_entity);
+            auto &ctx = m_island_ctx_map.at(other_resident.island_entity);
             ctx->m_delta_builder->created(node_entity);
             ctx->m_delta_builder->created_all(node_entity, *m_registry);
         }
@@ -376,15 +382,17 @@ void island_coordinator::insert_to_island(island_worker_context &ctx,
                                           const std::vector<entt::entity> &nodes,
                                           const std::vector<entt::entity> &edges) {
 
+    auto &island = m_registry->get<edyn::island>(ctx.island_entity());
+
     for (auto entity : nodes) {
-        if (!ctx.m_nodes.contains(entity)) {
-            ctx.m_nodes.emplace(entity);
+        if (!island.nodes.contains(entity)) {
+            island.nodes.emplace(entity);
         }
     }
 
     for (auto entity : edges) {
-        if (!ctx.m_edges.contains(entity)) {
-            ctx.m_edges.emplace(entity);
+        if (!island.edges.contains(entity)) {
+            island.edges.emplace(entity);
         }
     }
 
@@ -471,8 +479,8 @@ entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &
     size_t biggest_size = 0;
 
     for (auto entity : island_entities) {
-        auto &ctx = m_island_ctx_map.at(entity);
-        auto size = ctx->m_nodes.size() + ctx->m_edges.size();
+        auto &island = m_registry->get<edyn::island>(entity);
+        auto size = island.nodes.size() + island.edges.size();
 
         if (size > biggest_size) {
             biggest_size = size;
@@ -487,9 +495,9 @@ entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &
     auto all_edges = new_edges;
 
     for (auto other_island_entity : other_island_entities) {
-        auto &ctx = m_island_ctx_map.at(other_island_entity);
-        all_nodes.insert(all_nodes.end(), ctx->m_nodes.begin(), ctx->m_nodes.end());
-        all_edges.insert(all_edges.end(), ctx->m_edges.begin(), ctx->m_edges.end());
+        auto &island = m_registry->get<edyn::island>(other_island_entity);
+        all_nodes.insert(all_nodes.end(), island.nodes.begin(), island.nodes.end());
+        all_edges.insert(all_edges.end(), island.edges.begin(), island.edges.end());
     }
 
     auto multi_resident_view = m_registry->view<multi_island_resident>();
@@ -598,16 +606,17 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     // Insert entity mappings for new entities into the current delta.
     for (auto remote_entity : delta.created_entities()) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) continue;
+        if (source_ctx->m_delta_builder->has_rem(remote_entity)) continue;
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
         source_ctx->m_delta_builder->insert_entity_mapping(remote_entity, local_entity);
     }
 
     auto procedural_view = m_registry->view<procedural_tag>();
     auto node_view = m_registry->view<graph_node>();
+    auto &island = m_registry->get<edyn::island>(source_island_entity);
 
     // Insert nodes in the graph for each rigid body.
     auto &graph = m_registry->ctx<entity_graph>();
-    auto &index_source = source_ctx->m_delta_builder->get_index_source();
     auto insert_node = [&] (entt::entity remote_entity, auto &) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 
@@ -623,13 +632,13 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
             resident.island_entities.emplace(source_island_entity);
         }
 
-        source_ctx->m_nodes.emplace(local_entity);
+        island.nodes.emplace(local_entity);
     };
 
-    delta.created_for_each<dynamic_tag>(index_source, insert_node);
-    delta.created_for_each<static_tag>(index_source, insert_node);
-    delta.created_for_each<kinematic_tag>(index_source, insert_node);
-    delta.created_for_each<external_tag>(index_source, insert_node);
+    delta.created_for_each<dynamic_tag>(insert_node);
+    delta.created_for_each<static_tag>(insert_node);
+    delta.created_for_each<kinematic_tag>(insert_node);
+    delta.created_for_each<external_tag>(insert_node);
 
     auto assign_island_to_contact_points = [&] (const contact_manifold &manifold) {
         auto num_points = manifold.num_points();
@@ -644,7 +653,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     };
 
     // Insert edges in the graph for contact manifolds.
-    delta.created_for_each<contact_manifold>(index_source, [&] (entt::entity remote_entity, const contact_manifold &manifold) {
+    delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
@@ -653,13 +662,13 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry->emplace<graph_edge>(local_entity, edge_index);
         m_registry->emplace<island_resident>(local_entity, source_island_entity);
-        source_ctx->m_edges.emplace(local_entity);
+        island.edges.emplace(local_entity);
 
         assign_island_to_contact_points(manifold);
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each(constraints_tuple, index_source, [&] (entt::entity remote_entity, const auto &con) {
+    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
@@ -675,10 +684,10 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry->emplace<graph_edge>(local_entity, edge_index);
         m_registry->emplace<island_resident>(local_entity, source_island_entity);
-        source_ctx->m_edges.emplace(local_entity);
+        island.edges.emplace(local_entity);
     });
 
-    delta.updated_for_each<contact_manifold>(index_source, [&] (entt::entity, const contact_manifold &manifold) {
+    delta.updated_for_each<contact_manifold>([&] (entt::entity, const contact_manifold &manifold) {
         assign_island_to_contact_points(manifold);
     });
 
@@ -738,6 +747,8 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
         }
     }
 
+    auto &island = m_registry->get<edyn::island>(split_island_entity);
+
     for (size_t i = 1; i < connected_components.size(); ++i) {
         auto &connected = connected_components[i];
         bool contains_procedural = false;
@@ -745,7 +756,8 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
         for (auto entity : connected.nodes) {
             if (procedural_view.contains(entity)) {
                 contains_procedural = true;
-                ctx->m_nodes.erase(entity);
+                island.nodes.erase(entity);
+                ctx->m_entity_map.erase_loc(entity);
             } else if (!vector_contains(remaining_non_procedural_entities, entity)) {
                 // Remove island that was split from multi-residents if they're not
                 // present in the source island. Non-procedural could be in many
@@ -756,14 +768,24 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
                     resident.island_entities.erase(split_island_entity);
                 }
 
-                if (ctx->m_nodes.contains(entity)) {
-                    ctx->m_nodes.erase(entity);
+                if (island.nodes.contains(entity)) {
+                    island.nodes.erase(entity);
+                    ctx->m_entity_map.erase_loc(entity);
                 }
             }
         }
 
         for (auto entity : connected.edges) {
-            ctx->m_edges.erase(entity);
+            island.edges.erase(entity);
+            ctx->m_entity_map.erase_loc(entity);
+
+            // If this edge is a manifold, the contact point entities must be
+            // removed from the entity map manually.
+            if (auto *manifold = m_registry->try_get<contact_manifold>(entity)) {
+                for (size_t i = 0; i < manifold->num_points(); ++i) {
+                    ctx->m_entity_map.erase_loc(manifold->point[i]);
+                }
+            }
         }
 
         // Do not create a new island if this connected component does not

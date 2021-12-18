@@ -26,12 +26,22 @@ struct component_index_source {
         }
     }
 
+    template<typename... Component>
+    auto indices_of() const {
+        return std::array<size_t, sizeof...(Component)>{index_of<Component>()...};
+    }
+
     virtual size_t index_of_id(entt::id_type id) const = 0;
+
+    virtual entt::id_type type_id_of(size_t index) const = 0;
 };
 
 template<typename... Component>
-struct external_component_index_source : public component_index_source {
+struct component_index_source_impl : public component_index_source {
     using components_tuple_t = std::tuple<Component...>;
+
+    component_index_source_impl() = default;
+    component_index_source_impl([[maybe_unused]] std::tuple<Component...>) {}
 
     size_t index_of_id(entt::id_type id) const override {
         auto idx = SIZE_MAX;
@@ -39,6 +49,15 @@ struct external_component_index_source : public component_index_source {
             (idx = edyn::index_of<size_t, Component, components_tuple_t>::value) : (size_t)0), ...);
         EDYN_ASSERT(idx != SIZE_MAX);
         return idx;
+    }
+
+    entt::id_type type_id_of(size_t index) const override {
+        auto id = entt::id_type{};
+        auto tuple = components_tuple_t{};
+        visit_tuple(tuple, index, [&] (auto &&c) {
+            id = entt::type_id<std::decay_t<decltype(c)>>().seq();
+        });
+        return id;
     }
 };
 

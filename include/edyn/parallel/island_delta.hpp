@@ -1,10 +1,11 @@
 #ifndef EDYN_PARALLEL_ISLAND_DELTA_HPP
 #define EDYN_PARALLEL_ISLAND_DELTA_HPP
 
+#include <map>
 #include <vector>
 #include <entt/entity/fwd.hpp>
+#include <entt/core/type_info.hpp>
 #include "edyn/util/entity_map.hpp"
-#include "edyn/parallel/component_index_source.hpp"
 #include "edyn/parallel/entity_component_container.hpp"
 
 namespace edyn {
@@ -15,7 +16,7 @@ namespace edyn {
  */
 class island_delta {
 
-    using typed_component_container_vector = std::vector<std::unique_ptr<entity_component_container_base>>;
+    using typed_component_container_map = std::map<entt::id_type, std::unique_ptr<entity_component_container_base>>;
 
     template<typename... Component>
     void reserve_created(size_t size);
@@ -31,30 +32,30 @@ class island_delta {
     void import_destroyed_components(entt::registry &, entity_map &) const;
 
     template<typename Component, typename Func>
-    void _created_for_each(const component_index_source &index_source, Func func) const {
-        const auto index = index_source.index_of<Component>();
-        if (!(index < m_created_components.size())) return;
+    void _created_for_each(Func func) const {
+        auto id = entt::type_id<Component>().seq();
 
-        if (auto &created_ptr = m_created_components[index]; created_ptr) {
-            using container_type = created_entity_component_container<Component>;
-            auto *container = static_cast<const container_type *>(created_ptr.get());
-            for (auto &pair : container->pairs) {
-                func(pair.first, pair.second);
-            }
+        if (m_created_components.count(id) == 0) return;
+
+        auto &created_ptr = m_created_components.at(id);
+        using container_type = created_entity_component_container<Component>;
+        auto *container = static_cast<const container_type *>(created_ptr.get());
+        for (auto &pair : container->pairs) {
+            func(pair.first, pair.second);
         }
     }
 
     template<typename Component, typename Func>
-    void _updated_for_each(const component_index_source &index_source, Func func) const {
-        const auto index = index_source.index_of<Component>();
-        if (!(index < m_updated_components.size())) return;
+    void _updated_for_each(Func func) const {
+        auto id = entt::type_id<Component>().seq();
 
-        if (auto &updated_ptr = m_updated_components[index]; updated_ptr) {
-            using container_type = updated_entity_component_container<Component>;
-            auto *container = static_cast<const container_type *>(updated_ptr.get());
-            for (auto &pair : container->pairs) {
-                func(pair.first, pair.second);
-            }
+        if (m_updated_components.count(id) == 0) return;
+
+        auto &updated_ptr = m_updated_components.at(id);
+        using container_type = updated_entity_component_container<Component>;
+        auto *container = static_cast<const container_type *>(updated_ptr.get());
+        for (auto &pair : container->pairs) {
+            func(pair.first, pair.second);
         }
     }
 
@@ -76,23 +77,23 @@ public:
     const auto created_entities() const { return m_created_entities; }
 
     template<typename... Component, typename Func>
-    void created_for_each(const component_index_source &index_source, Func func) const {
-        (_created_for_each<Component>(index_source, func), ...);
+    void created_for_each(Func func) const {
+        (_created_for_each<Component>(func), ...);
     }
 
     template<typename... Component, typename Func>
-    void created_for_each(std::tuple<Component...>, const component_index_source &index_source, Func func) const {
-        created_for_each<Component...>(index_source, func);
+    void created_for_each(std::tuple<Component...>, Func func) const {
+        created_for_each<Component...>(func);
     }
 
     template<typename... Component, typename Func>
-    void updated_for_each(const component_index_source &index_source, Func func) const {
-        (_updated_for_each<Component>(index_source, func), ...);
+    void updated_for_each(Func func) const {
+        (_updated_for_each<Component>(func), ...);
     }
 
     template<typename... Component, typename Func>
-    void updated_for_each(std::tuple<Component...>, const component_index_source &index_source, Func func) const {
-        updated_for_each<Component...>(index_source, func);
+    void updated_for_each(std::tuple<Component...>, Func func) const {
+        updated_for_each<Component...>(func);
     }
 
     friend class island_delta_builder;
@@ -104,9 +105,9 @@ private:
     std::vector<entt::entity> m_created_entities;
     std::vector<entt::entity> m_destroyed_entities;
 
-    typed_component_container_vector m_created_components;
-    typed_component_container_vector m_updated_components;
-    typed_component_container_vector m_destroyed_components;
+    typed_component_container_map m_created_components;
+    typed_component_container_map m_updated_components;
+    typed_component_container_map m_destroyed_components;
 };
 
 }

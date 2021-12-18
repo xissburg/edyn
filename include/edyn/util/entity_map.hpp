@@ -13,6 +13,8 @@ namespace edyn {
 class entity_map {
 public:
     void insert(entt::entity remote_entity, entt::entity local_entity) {
+        EDYN_ASSERT(!has_rem(remote_entity));
+        EDYN_ASSERT(!has_loc(local_entity));
         m_remloc[remote_entity] = local_entity;
         m_locrem[local_entity] = remote_entity;
     }
