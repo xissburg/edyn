@@ -78,8 +78,20 @@ public:
      */
     void insert_entity_mapping(entt::entity remote_entity, entt::entity local_entity);
 
+    /**
+     * @brief Check whether a remote entity is present in the current snapshot's
+     * entity mapping.
+     * @param remote_entity Entity in remote registry.
+     * @return Whether an remote entity was already inserted.
+     */
     bool has_rem(entt::entity remote_entity) const;
 
+    /**
+     * @brief Check whether a local entity is present in the current snapshot's
+     * entity mapping.
+     * @param remote_entity Entity in local registry.
+     * @return Whether an local entity was already inserted.
+     */
     bool has_loc(entt::entity local_entity) const;
 
     /**

@@ -15,10 +15,12 @@ void island_delta_builder::insert_entity_mapping(entt::entity remote_entity, ent
 }
 
 bool island_delta_builder::has_rem(entt::entity remote_entity) const {
+    // Remember that remote and local are swapped in the builder.
     return m_delta.m_entity_map.has_loc(remote_entity);
 }
 
 bool island_delta_builder::has_loc(entt::entity local_entity) const {
+    // Remember that remote and local are swapped in the builder.
     return m_delta.m_entity_map.has_rem(local_entity);
 }
 
