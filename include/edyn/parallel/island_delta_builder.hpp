@@ -1,6 +1,7 @@
 #ifndef EDYN_PARALLEL_ISLAND_DELTA_BUILDER_HPP
 #define EDYN_PARALLEL_ISLAND_DELTA_BUILDER_HPP
 
+#include <entt/core/type_info.hpp>
 #include <tuple>
 #include <memory>
 #include <utility>
@@ -19,17 +20,13 @@ class island_delta_builder {
     template<typename Component>
     void _created(entt::entity entity, const Component &component) {
         using container_type = created_entity_component_container<Component>;
-        const auto index = m_index_source->index_of<Component>();
+        const auto id = entt::type_id<Component>().seq();
 
-        if (!(index < m_delta.m_created_components.size())) {
-            m_delta.m_created_components.resize(index + 1);
+        if (m_delta.m_created_components.count(id) == 0) {
+            m_delta.m_created_components[id].reset(new container_type());
         }
 
-        if (auto &ptr = m_delta.m_created_components[index]; !ptr) {
-            ptr.reset(new container_type());
-        }
-
-        auto *container = static_cast<container_type *>(m_delta.m_created_components[index].get());
+        auto *container = static_cast<container_type *>(m_delta.m_created_components.at(id).get());
         container->insert(entity, component);
     }
 
@@ -38,34 +35,26 @@ class island_delta_builder {
     template<typename Component, std::enable_if_t<!std::is_empty_v<Component>, bool> = true>
     void _updated(entt::entity entity, const Component &component) {
         using container_type = updated_entity_component_container<Component>;
-        const auto index = m_index_source->index_of<Component>();
+        const auto id = entt::type_id<Component>().seq();
 
-        if (!(index < m_delta.m_updated_components.size())) {
-            m_delta.m_updated_components.resize(index + 1);
+        if (m_delta.m_updated_components.count(id) == 0) {
+            m_delta.m_updated_components[id].reset(new container_type());
         }
 
-        if (auto &ptr = m_delta.m_updated_components[index]; !ptr) {
-            ptr.reset(new container_type());
-        }
-
-        auto *container = static_cast<container_type *>(m_delta.m_updated_components[index].get());
+        auto *container = static_cast<container_type *>(m_delta.m_updated_components.at(id).get());
         container->insert(entity, component);
     }
 
     template<typename Component>
     void _destroyed(entt::entity entity) {
         using container_type = destroyed_entity_component_container<Component>;
-        const auto index = m_index_source->index_of<Component>();
+        const auto id = entt::type_id<Component>().seq();
 
-        if (!(index < m_delta.m_destroyed_components.size())) {
-            m_delta.m_destroyed_components.resize(index + 1);
+        if (m_delta.m_destroyed_components.count(id) == 0) {
+            m_delta.m_destroyed_components[id].reset(new container_type());
         }
 
-        if (auto &ptr = m_delta.m_destroyed_components[index]; !ptr) {
-            ptr.reset(new container_type());
-        }
-
-        auto *container = static_cast<container_type *>(m_delta.m_destroyed_components[index].get());
+        auto *container = static_cast<container_type *>(m_delta.m_destroyed_components.at(id).get());
         container->entities.push_back(entity);
     }
 
@@ -77,7 +66,7 @@ public:
     island_delta_builder(island_delta_builder &&) = default;
 
     // Explicitly delete copy constructor because `island_delta` also deletes it.
-    island_delta_builder(const island_delta_builder&) = delete;
+    island_delta_builder(const island_delta_builder &) = delete;
 
     virtual ~island_delta_builder() {}
 
@@ -88,6 +77,22 @@ public:
      * @param local_entity An entity in the local registry.
      */
     void insert_entity_mapping(entt::entity remote_entity, entt::entity local_entity);
+
+    /**
+     * @brief Check whether a remote entity is present in the current snapshot's
+     * entity mapping.
+     * @param remote_entity Entity in remote registry.
+     * @return Whether an remote entity was already inserted.
+     */
+    bool has_rem(entt::entity remote_entity) const;
+
+    /**
+     * @brief Check whether a local entity is present in the current snapshot's
+     * entity mapping.
+     * @param remote_entity Entity in local registry.
+     * @return Whether an local entity was already inserted.
+     */
+    bool has_loc(entt::entity local_entity) const;
 
     /**
      * @brief Marks the given entity as newly created.
@@ -156,8 +161,6 @@ public:
      */
     virtual void created_all(entt::entity entity, entt::registry &registry) = 0;
 
-    virtual void created_external(entt::entity entity, entt::registry &registry) = 0;
-
     /**
      * @brief Adds the given components to the list of updated components.
      * @tparam Component Pack of component types.
@@ -221,8 +224,6 @@ public:
      * @param registry The source registry.
      */
     virtual void updated_all(entt::entity entity, entt::registry &registry) = 0;
-
-    virtual void updated_external(entt::entity entity, entt::registry &registry) = 0;
 
     /**
      * @brief Marks components as deleted or marks the entity as destroyed if no
@@ -292,15 +293,8 @@ public:
         return std::move(m_delta);
     }
 
-    const component_index_source & get_index_source() const {
-        return *m_index_source.get();
-    }
-
 private:
     island_delta m_delta;
-
-protected:
-    std::unique_ptr<component_index_source> m_index_source;
 };
 
 template<typename... Component>
@@ -315,17 +309,13 @@ void island_delta_builder::reserve_created(size_t size) {
 template<typename Component>
 void island_delta_builder::_reserve_created(size_t size) {
     using container_type = created_entity_component_container<Component>;
-    const auto index = m_index_source->index_of<Component>();
+    const auto id = entt::type_id<Component>().seq();
 
-    if (!(index < m_delta.m_created_components.size())) {
-        m_delta.m_created_components.resize(index + 1);
+    if (m_delta.m_created_components.count(id) == 0) {
+        m_delta.m_created_components[id].reset(new container_type());
     }
 
-    if (auto &ptr = m_delta.m_created_components[index]; !ptr) {
-        ptr.reset(new container_type());
-    }
-
-    auto *container = static_cast<container_type *>(m_delta.m_created_components[index].get());
+    auto *container = static_cast<container_type *>(m_delta.m_created_components.at(id).get());
     container->reserve(size);
 }
 
@@ -347,26 +337,9 @@ void island_delta_builder::_reserve_created(size_t size) {
 template<typename... Component>
 class island_delta_builder_impl: public island_delta_builder {
 
-    template<typename Comp>
-    void _created_external(entt::entity entity, entt::registry &registry) {
-        if constexpr(!has_type<Comp, shared_components_t>::value) {
-            if (registry.any_of<Comp>(entity)) {
-                island_delta_builder::created<Comp>(entity, registry);
-            }
-        }
-    }
-
-    template<typename Comp>
-    void _updated_external(entt::entity entity, entt::registry &registry) {
-        if constexpr(!has_type<Comp, shared_components_t>::value) {
-            if (registry.any_of<Comp>(entity)) {
-                island_delta_builder::updated<Comp>(entity, registry);
-            }
-        }
-    }
 public:
     island_delta_builder_impl([[maybe_unused]] std::tuple<Component...>) {
-        m_index_source = std::make_unique<external_component_index_source<Component...>>();
+
     }
 
     void created(entt::entity entity, entt::registry &registry, entt::id_type id) override {
@@ -379,10 +352,6 @@ public:
             island_delta_builder::created<Component>(entity, registry) : (void)0), ...);
     }
 
-    void created_external(entt::entity entity, entt::registry &registry) override {
-        (_created_external<Component>(entity, registry), ...);
-    }
-
     void updated(entt::entity entity, entt::registry &registry, entt::id_type id) override {
         ((entt::type_id<Component>().seq() == id ?
             island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
@@ -391,10 +360,6 @@ public:
     void updated_all(entt::entity entity, entt::registry &registry) override {
         ((registry.any_of<Component>(entity) ?
             island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
-    }
-
-    void updated_external(entt::entity entity, entt::registry &registry) override {
-        (_updated_external<Component>(entity, registry), ...);
     }
 
     void destroyed(entt::entity entity, entt::id_type id) override {

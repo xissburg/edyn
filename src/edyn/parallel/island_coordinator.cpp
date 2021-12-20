@@ -3,8 +3,6 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
-#include "edyn/comp/present_orientation.hpp"
-#include "edyn/comp/present_position.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/parallel/message.hpp"
@@ -138,6 +136,10 @@ void island_coordinator::on_destroy_multi_island_resident(entt::registry &regist
         if (!m_importing_delta)  {
             auto &ctx = m_island_ctx_map.at(island_entity);
             ctx->m_delta_builder->destroyed(entity);
+
+            if (ctx->m_entity_map.has_loc(entity)) {
+                ctx->m_entity_map.erase_loc(entity);
+            }
         }
     }
 }
@@ -604,6 +606,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     // Insert entity mappings for new entities into the current delta.
     for (auto remote_entity : delta.created_entities()) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) continue;
+        if (source_ctx->m_delta_builder->has_rem(remote_entity)) continue;
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
         source_ctx->m_delta_builder->insert_entity_mapping(remote_entity, local_entity);
     }
@@ -614,7 +617,6 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
 
     // Insert nodes in the graph for each rigid body.
     auto &graph = m_registry->ctx<entity_graph>();
-    auto &index_source = source_ctx->m_delta_builder->get_index_source();
     auto insert_node = [&] (entt::entity remote_entity, auto &) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 
@@ -633,10 +635,10 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         island.nodes.emplace(local_entity);
     };
 
-    delta.created_for_each<dynamic_tag>(index_source, insert_node);
-    delta.created_for_each<static_tag>(index_source, insert_node);
-    delta.created_for_each<kinematic_tag>(index_source, insert_node);
-    delta.created_for_each<external_tag>(index_source, insert_node);
+    delta.created_for_each<dynamic_tag>(insert_node);
+    delta.created_for_each<static_tag>(insert_node);
+    delta.created_for_each<kinematic_tag>(insert_node);
+    delta.created_for_each<external_tag>(insert_node);
 
     auto assign_island_to_contact_points = [&] (const contact_manifold &manifold) {
         auto num_points = manifold.num_points();
@@ -651,7 +653,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     };
 
     // Insert edges in the graph for contact manifolds.
-    delta.created_for_each<contact_manifold>(index_source, [&] (entt::entity remote_entity, const contact_manifold &manifold) {
+    delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = source_ctx->m_entity_map.remloc(remote_entity);
@@ -666,7 +668,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each(constraints_tuple, index_source, [&] (entt::entity remote_entity, const auto &con) {
+    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
@@ -685,7 +687,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         island.edges.emplace(local_entity);
     });
 
-    delta.updated_for_each<contact_manifold>(index_source, [&] (entt::entity, const contact_manifold &manifold) {
+    delta.updated_for_each<contact_manifold>([&] (entt::entity, const contact_manifold &manifold) {
         assign_island_to_contact_points(manifold);
     });
 
@@ -755,6 +757,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
             if (procedural_view.contains(entity)) {
                 contains_procedural = true;
                 island.nodes.erase(entity);
+                ctx->m_entity_map.erase_loc(entity);
             } else if (!vector_contains(remaining_non_procedural_entities, entity)) {
                 // Remove island that was split from multi-residents if they're not
                 // present in the source island. Non-procedural could be in many
@@ -767,12 +770,22 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
 
                 if (island.nodes.contains(entity)) {
                     island.nodes.erase(entity);
+                    ctx->m_entity_map.erase_loc(entity);
                 }
             }
         }
 
         for (auto entity : connected.edges) {
             island.edges.erase(entity);
+            ctx->m_entity_map.erase_loc(entity);
+
+            // If this edge is a manifold, the contact point entities must be
+            // removed from the entity map manually.
+            if (auto *manifold = m_registry->try_get<contact_manifold>(entity)) {
+                for (size_t i = 0; i < manifold->num_points(); ++i) {
+                    ctx->m_entity_map.erase_loc(manifold->point[i]);
+                }
+            }
         }
 
         // Do not create a new island if this connected component does not

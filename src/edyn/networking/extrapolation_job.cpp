@@ -157,20 +157,19 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
 
     auto &graph = m_registry.ctx<entity_graph>();
     auto node_view = m_registry.view<graph_node>();
-    auto &index_source = m_delta_builder->get_index_source();
 
     // Insert nodes in the graph for each rigid body.
     auto insert_node = [this] (entt::entity remote_entity, auto &) {
         insert_remote_node(remote_entity);
     };
 
-    delta.created_for_each<dynamic_tag>(index_source, insert_node);
-    delta.created_for_each<static_tag>(index_source, insert_node);
-    delta.created_for_each<kinematic_tag>(index_source, insert_node);
-    delta.created_for_each<external_tag>(index_source, insert_node);
+    delta.created_for_each<dynamic_tag>(insert_node);
+    delta.created_for_each<static_tag>(insert_node);
+    delta.created_for_each<kinematic_tag>(insert_node);
+    delta.created_for_each<external_tag>(insert_node);
 
     // Insert edges in the graph for contact manifolds.
-    delta.created_for_each<contact_manifold>(index_source, [&] (entt::entity remote_entity, const contact_manifold &manifold) {
+    delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
@@ -182,7 +181,7 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each(constraints_tuple, index_source, [&] (entt::entity remote_entity, const auto &con) {
+    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
@@ -203,7 +202,7 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
     auto cp_view = m_registry.view<contact_point>();
     auto cc_view = m_registry.view<contact_constraint>();
     auto mat_view = m_registry.view<material>();
-    delta.created_for_each<contact_point>(index_source, [&] (entt::entity remote_entity, const contact_point &) {
+    delta.created_for_each<contact_point>([&] (entt::entity remote_entity, const contact_point &) {
         if (!m_entity_map.has_rem(remote_entity)) {
             return;
         }
@@ -245,9 +244,11 @@ void extrapolation_job::sync() {
     });
 
     // Update continuous components.
+    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &index_source = *settings.index_source;
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
-            m_delta_builder->updated(entity, m_registry, cont.types[i]);
+            m_delta_builder->updated(entity, m_registry, index_source.type_id_of(cont.indices[i]));
         }
     });
 

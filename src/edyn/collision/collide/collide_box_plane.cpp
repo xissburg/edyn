@@ -56,7 +56,7 @@ void collide(const box_shape &shA, const plane_shape &shB,
 }
 
 void collide(const plane_shape &shA, const box_shape &shB,
-                         const collision_context &ctx, collision_result &result) {
+             const collision_context &ctx, collision_result &result) {
     swap_collide(shA, shB, ctx, result);
 }
 

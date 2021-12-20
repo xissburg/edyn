@@ -82,6 +82,7 @@ void step_simulation(entt::registry &registry) {
 void remove_external_components(entt::registry &registry) {
     auto &settings = registry.ctx<edyn::settings>();
     settings.make_island_delta_builder = &make_island_delta_builder_default;
+    settings.index_source.reset(new component_index_source_impl(shared_components));
     registry.ctx<island_coordinator>().settings_changed();
 }
 

@@ -12,7 +12,7 @@ void serialize(Archive &archive, continuous &c) {
     EDYN_ASSERT(c.size < c.max_size);
 
     for (unsigned i = 0; i < c.size; ++i) {
-        archive(c.types[i]);
+        archive(c.indices[i]);
     }
 }
 

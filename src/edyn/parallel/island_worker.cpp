@@ -250,26 +250,26 @@ void island_worker::on_island_delta(const island_delta &delta) {
 
     for (auto remote_entity : delta.created_entities()) {
         if (!m_entity_map.has_rem(remote_entity)) continue;
+        if (m_delta_builder->has_rem(remote_entity)) continue;
         auto local_entity = m_entity_map.remloc(remote_entity);
         m_delta_builder->insert_entity_mapping(remote_entity, local_entity);
     }
 
     auto &graph = m_registry.ctx<entity_graph>();
     auto node_view = m_registry.view<graph_node>();
-    auto &index_source = m_delta_builder->get_index_source();
 
     // Insert nodes in the graph for each rigid body.
     auto insert_node = [this] (entt::entity remote_entity, auto &) {
         insert_remote_node(remote_entity);
     };
 
-    delta.created_for_each<dynamic_tag>(index_source, insert_node);
-    delta.created_for_each<static_tag>(index_source, insert_node);
-    delta.created_for_each<kinematic_tag>(index_source, insert_node);
-    delta.created_for_each<external_tag>(index_source, insert_node);
+    delta.created_for_each<dynamic_tag>(insert_node);
+    delta.created_for_each<static_tag>(insert_node);
+    delta.created_for_each<kinematic_tag>(insert_node);
+    delta.created_for_each<external_tag>(insert_node);
 
     // Insert edges in the graph for contact manifolds.
-    delta.created_for_each<contact_manifold>(index_source, [&] (entt::entity remote_entity, const contact_manifold &manifold) {
+    delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
@@ -281,7 +281,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
     });
 
     // Insert edges in the graph for constraints (except contact constraints).
-    delta.created_for_each(constraints_tuple, index_source, [&] (entt::entity remote_entity, const auto &con) {
+    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
         // Contact constraints are not added as edges to the graph.
         // The contact manifold which owns them is added instead.
         if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
@@ -289,6 +289,9 @@ void island_worker::on_island_delta(const island_delta &delta) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
+
+        if (m_registry.any_of<graph_edge>(local_entity)) return;
+
         auto &node0 = node_view.get<graph_node>(con.body[0]);
         auto &node1 = node_view.get<graph_node>(con.body[1]);
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
@@ -300,16 +303,16 @@ void island_worker::on_island_delta(const island_delta &delta) {
     // them if they were just created in the last step of the island where it's
     // coming from.
     auto cp_view = m_registry.view<contact_point>();
-    auto cc_view = m_registry.view<contact_constraint>();
+    auto contact_view = m_registry.view<contact_constraint>();
     auto mat_view = m_registry.view<material>();
-    delta.created_for_each<contact_point>(index_source, [&] (entt::entity remote_entity, const contact_point &) {
+    delta.created_for_each<contact_point>([&] (entt::entity remote_entity, const contact_point &) {
         if (!m_entity_map.has_rem(remote_entity)) {
             return;
         }
 
         auto local_entity = m_entity_map.remloc(remote_entity);
 
-        if (cc_view.contains(local_entity)) {
+        if (contact_view.contains(local_entity)) {
             return;
         }
 
@@ -322,7 +325,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
 
     // When orientation is set manually, a few dependent components must be
     // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
-    delta.updated_for_each<orientation>(index_source, [&] (entt::entity remote_entity, const orientation &orn) {
+    delta.updated_for_each<orientation>([&] (entt::entity remote_entity, const orientation &orn) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
@@ -347,7 +350,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
     });
 
     // When position is set manually, the AABB and cached origin must be updated.
-    delta.updated_for_each<position>(index_source, [&] (entt::entity remote_entity, const position &pos) {
+    delta.updated_for_each<position>([&] (entt::entity remote_entity, const position &pos) {
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
@@ -407,9 +410,11 @@ void island_worker::sync() {
     });
 
     // Update continuous components.
+    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &index_source = *settings.index_source;
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
-            m_delta_builder->updated(entity, m_registry, cont.types[i]);
+            m_delta_builder->updated(entity, m_registry, index_source.type_id_of(cont.indices[i]));
         }
     });
 
@@ -863,6 +868,7 @@ bool island_worker::could_go_to_sleep() {
 
     // Check if there are any entities moving faster than the sleep threshold.
     auto vel_view = m_registry.view<linvel, angvel, procedural_tag>();
+
     for (auto entity : vel_view) {
         auto [v, w] = vel_view.get<linvel, angvel>(entity);
 

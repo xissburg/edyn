@@ -7,6 +7,7 @@
 #include "edyn/context/external_system.hpp"
 #include "edyn/parallel/make_island_delta_builder.hpp"
 #include "edyn/collision/should_collide.hpp"
+#include "edyn/parallel/component_index_source.hpp"
 
 namespace edyn {
 
@@ -25,6 +26,7 @@ struct settings {
     unsigned num_individual_restitution_iterations {3};
 
     make_island_delta_builder_func_t make_island_delta_builder {&make_island_delta_builder_default};
+    std::shared_ptr<component_index_source> index_source {new component_index_source_impl(shared_components)};
     external_system_func_t external_system_init {nullptr};
     external_system_func_t external_system_pre_step {nullptr};
     external_system_func_t external_system_post_step {nullptr};

@@ -142,11 +142,12 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // of the present position and orientation in `update_presentation`.
         // TODO: synchronized merges would eliminate the need to share these
         // components continuously.
+        auto &settings = registry.ctx<edyn::settings>();
         auto &cont = registry.emplace<continuous>(entity);
-        cont.insert<position, orientation, linvel, angvel>();
+        cont.insert(settings.index_source->indices_of<position, orientation, linvel, angvel>());
 
         if (def.center_of_mass) {
-            cont.insert<origin>();
+            cont.insert(settings.index_source->index_of<origin>());
         }
     }
 
@@ -192,6 +193,13 @@ void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
     auto &i_inv = registry.get<inertia_world_inv>(entity);
     registry.get<linvel>(entity) += impulse * m_inv;
     registry.get<angvel>(entity) += i_inv * cross(rel_location, impulse);
+}
+
+void rigidbody_apply_torque_impulse(entt::registry &registry, entt::entity entity,
+                                    const vector3 &torque_impulse) {
+    auto &i_inv = registry.get<inertia_world_inv>(entity);
+    registry.get<angvel>(entity) += i_inv * torque_impulse;
+    refresh<angvel>(registry, entity);
 }
 
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
@@ -321,7 +329,8 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
             dirty.created<center_of_mass, edyn::origin>();
 
             if (registry.any_of<dynamic_tag>(entity)) {
-                registry.get<continuous>(entity).insert<edyn::origin>();
+                auto &settings = registry.ctx<edyn::settings>();
+                registry.get<continuous>(entity).insert(settings.index_source->index_of<edyn::origin>());
                 dirty.updated<continuous>();
             }
         }
@@ -331,7 +340,8 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
         dirty.destroyed<center_of_mass, edyn::origin>();
 
         if (registry.any_of<dynamic_tag>(entity)) {
-            registry.get<continuous>(entity).remove<edyn::origin>();
+            auto &settings = registry.ctx<edyn::settings>();
+            registry.get<continuous>(entity).remove(settings.index_source->index_of<edyn::origin>());
             dirty.updated<continuous>();
         }
     }

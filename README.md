@@ -114,6 +114,14 @@ def.gravity = edyn::gravity_earth;
 auto entity = edyn::make_rigidbody(registry, def);
 ```
 
+You are free to assign other components of your own to the returned entity. An existing entity can be passed to `edyn::make_rigidbody` as well, such as:
+
+```cpp
+auto entity = registry.create();
+registry.emplace<MyCustomComponent>(entity, ...); // Assign your own components to it.
+edyn::make_rigidbody(entity, registry, def);
+```
+
 # Basics
 
 _Edyn_ is built as a multi-threaded library from the ground up which requires initializing its worker threads on start-up invoking `edyn::init()`, and then it must be attached to an `entt::registry` before setting up the scene:

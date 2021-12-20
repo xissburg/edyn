@@ -14,6 +14,16 @@ void island_delta_builder::insert_entity_mapping(entt::entity remote_entity, ent
     m_delta.m_entity_map.insert(local_entity, remote_entity);
 }
 
+bool island_delta_builder::has_rem(entt::entity remote_entity) const {
+    // Remember that remote and local are swapped in the builder.
+    return m_delta.m_entity_map.has_loc(remote_entity);
+}
+
+bool island_delta_builder::has_loc(entt::entity local_entity) const {
+    // Remember that remote and local are swapped in the builder.
+    return m_delta.m_entity_map.has_rem(local_entity);
+}
+
 bool island_delta_builder::empty() const {
     return m_delta.empty();
 }
@@ -24,21 +34,21 @@ bool island_delta_builder::needs_wakeup() const {
         return true;
     }
 
-    for (auto &ptr : m_delta.m_created_components) {
-        if (ptr && !ptr->empty()) {
-            return true;
+    for (auto &pair : m_delta.m_created_components) {
+        if (!pair.second->empty()) {
+            return false;
         }
     }
 
-    for (auto &ptr : m_delta.m_updated_components) {
-        if (ptr && !ptr->empty()) {
-            return true;
+    for (auto &pair : m_delta.m_updated_components) {
+        if (!pair.second->empty()) {
+            return false;
         }
     }
 
-    for (auto &ptr : m_delta.m_destroyed_components) {
-        if (ptr && !ptr->empty()) {
-            return true;
+    for (auto &pair : m_delta.m_destroyed_components) {
+        if (!pair.second->empty()) {
+            return false;
         }
     }
 
