@@ -22,10 +22,11 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/shapes/shapes.hpp"
+#include "edyn/networking/entity_owner.hpp"
 
 namespace edyn {
 
-static const auto networked_components = std::tuple_cat(std::tuple<
+static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple<
     AABB,
     collision_filter,
     collision_exclusion,
@@ -41,8 +42,6 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     material,
     position,
     orientation,
-    present_position,
-    present_orientation,
     continuous,
     center_of_mass,
     dynamic_tag,
@@ -62,8 +61,9 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     distance_constraint,
     soft_distance_constraint,
     hinge_constraint,
-    generic_constraint
->{}, shapes_tuple);
+    generic_constraint,
+    entity_owner
+>{});
 
 }
 

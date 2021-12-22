@@ -22,6 +22,9 @@ struct remote_client {
     double latency {0};
     double playout_delay {0};
     std::vector<edyn::packet::edyn_packet> packet_queue;
+
+    double last_snapshot_time {0};
+    double snapshot_rate {1};
 };
 
 }

@@ -7,6 +7,7 @@
 #include "edyn/networking/packet/create_entity.hpp"
 #include "edyn/networking/packet/destroy_entity.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
+#include "edyn/networking/packet/client_created.hpp"
 #include <variant>
 
 namespace edyn::packet {
@@ -18,7 +19,8 @@ struct edyn_packet {
         transient_snapshot,
         create_entity,
         destroy_entity,
-        update_entity_map
+        update_entity_map,
+        client_created
     > var;
 
     double timestamp;

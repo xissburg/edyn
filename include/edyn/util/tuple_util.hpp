@@ -90,6 +90,30 @@ namespace detail {
     struct tuple_visitor_table {
         static constexpr auto array = visit_tuple_function_array<VisitorType, Ts...>();
     };
+
+    template<typename VisitorType, typename TupleType, typename T>
+    constexpr auto make_visit_const_tuple_function() {
+        return [] (const TupleType &tuple, VisitorType visitor) {
+            visitor(std::get<T>(tuple));
+        };
+    }
+
+    template<typename VisitorType, typename... Ts>
+    struct visit_const_tuple_function_array {
+        using TupleType = std::tuple<Ts...>;
+        using VisitFuncType = void(*)(const TupleType &, VisitorType);
+        std::array<VisitFuncType, sizeof...(Ts)> functions;
+
+        constexpr visit_const_tuple_function_array() : functions{} {
+            size_t i = 0;
+            ((functions[i++] = make_visit_const_tuple_function<VisitorType, TupleType, Ts>()), ...);
+        }
+    };
+
+    template<typename VisitorType, typename... Ts>
+    struct const_tuple_visitor_table {
+        static constexpr auto array = visit_const_tuple_function_array<VisitorType, Ts...>();
+    };
 }
 
 /**
@@ -104,6 +128,12 @@ namespace detail {
 template<typename... Ts, typename IndexType, typename VisitorType>
 void visit_tuple(std::tuple<Ts...> &tuple, IndexType index, VisitorType visitor) {
     constexpr auto table = detail::tuple_visitor_table<VisitorType, Ts...>{};
+    table.array.functions[index](tuple, visitor);
+}
+
+template<typename... Ts, typename IndexType, typename VisitorType>
+void visit_tuple(const std::tuple<Ts...> &tuple, IndexType index, VisitorType visitor) {
+    constexpr auto table = detail::const_tuple_visitor_table<VisitorType, Ts...>{};
     table.array.functions[index](tuple, visitor);
 }
 

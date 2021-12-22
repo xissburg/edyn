@@ -1,4 +1,5 @@
 #include "edyn/networking/server_side.hpp"
+#include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
@@ -7,6 +8,8 @@
 #include "edyn/networking/entity_owner.hpp"
 #include "edyn/networking/update_aabbs_of_interest.hpp"
 #include "edyn/networking/server_networking_context.hpp"
+#include "edyn/networking/server_import_pool.hpp"
+#include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/edyn.hpp"
@@ -18,7 +21,7 @@
 
 namespace edyn {
 
-static bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
+bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
     auto &resident = registry.get<island_resident>(entity);
     auto &island = registry.get<edyn::island>(resident.island_entity);
     auto owned_by_this_client = false;
@@ -38,6 +41,7 @@ static bool is_fully_owned_by_client(const entt::registry &registry, entt::entit
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
+    auto &ctx = registry.ctx<server_networking_context>();
     auto res = packet::entity_response{};
     auto entities = std::set<entt::entity>(req.entities.begin(), req.entities.end());
 
@@ -46,11 +50,15 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
             continue;
         }
 
-        auto pair = make_entity_components_pair(registry, entity);
-        res.pairs.push_back(pair);
+        res.entities.push_back(entity);
+        (*ctx.insert_entity_components_func)(registry, entity, res.pools);
     }
 
-    if (!res.pairs.empty()) {
+    if (!res.entities.empty()) {
+        std::sort(res.pools.begin(), res.pools.end(), [] (auto &&lhs, auto &&rhs) {
+            return lhs.component_index < rhs.component_index;
+        });
+
         auto &client = registry.get<remote_client>(client_entity);
         client.packet_signal.publish(client_entity, packet::edyn_packet{res});
     }
@@ -100,19 +108,21 @@ void import_pool(entt::registry &registry, entt::entity client_entity,
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
-    import_pool(registry, client_entity, snapshot.positions);
-    import_pool(registry, client_entity, snapshot.orientations);
-    import_pool(registry, client_entity, snapshot.linvels);
-    import_pool(registry, client_entity, snapshot.angvels);
+    auto &ctx = registry.ctx<server_networking_context>();
+
+    for (auto &pool : snapshot.pools) {
+        (*ctx.import_pool_func)(registry, client_entity, pool);
+    }
 }
 
+
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::create_entity &packet) {
+    auto &ctx = registry.ctx<server_networking_context>();
     auto &client = registry.get<remote_client>(client_entity);
     auto emap_packet = packet::update_entity_map{};
 
-    for (auto &pair : packet.pairs) {
+    for (auto remote_entity : packet.entities) {
         auto local_entity = registry.create();
-        auto remote_entity = pair.entity;
         registry.emplace<entity_owner>(local_entity, client_entity);
 
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
@@ -122,15 +132,17 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
     client.packet_signal.publish(client_entity, packet::edyn_packet{emap_packet});
 
-    for (auto &pair : packet.pairs) {
-        auto remote_entity = pair.entity;
+    for (auto &pool : packet.pools) {
+        (*ctx.import_pool_func)(registry, client_entity, pool);
+    }
+
+    for (auto remote_entity : packet.entities) {
         auto local_entity = client.entity_map.remloc(remote_entity);
-
-        for (auto &comp_ptr : pair.components) {
-            assign_component_wrapper(registry, local_entity, *comp_ptr, client.entity_map);
-        }
-
         registry.emplace<networked_tag>(local_entity);
+
+        /* auto [null_entity, null_con] = edyn::make_constraint<edyn::null_constraint>(registry, local_entity, client_entity);
+        registry.emplace<edyn::entity_owner>(null_entity, client_entity);
+        registry.emplace<edyn::networked_tag>(null_entity); */
     }
 }
 
@@ -195,8 +207,15 @@ static void handle_packet(entt::registry &registry, entt::entity client_entity, 
     process_packet(registry, client_entity, packet);
 }
 
+static void handle_packet(entt::registry &, entt::entity, const packet::client_created &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
+
 void init_networking_server(entt::registry &registry) {
     registry.set<server_networking_context>();
+}
+
+void deinit_networking_server(entt::registry &registry) {
+    registry.unset<server_networking_context>();
 }
 
 void server_process_packets(entt::registry &registry) {
@@ -225,6 +244,10 @@ void update_networking_server(entt::registry &registry) {
     auto *ctx = registry.try_ctx<server_networking_context>();
     if (!ctx) return;
 
+    auto time = performance_time();
+
+    server_process_packets(registry);
+
     update_aabbs_of_interest(registry);
 
     auto view = registry.view<remote_client, aabb_of_interest>();
@@ -237,16 +260,49 @@ void update_networking_server(entt::registry &registry) {
 
         if (!aabboi.create_entities.empty()) {
             auto packet = packet::create_entity{};
+            packet.entities = aabboi.create_entities;
 
             for (auto entity : aabboi.create_entities) {
-                auto pair = make_entity_components_pair(registry, entity);
-                packet.pairs.push_back(pair);
+                (*ctx->insert_entity_components_func)(registry, entity, packet.pools);
             }
+
+            std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+                return lhs.component_index < rhs.component_index;
+            });
 
             client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
             aabboi.create_entities.clear();
         }
+
+        if (time - client.last_snapshot_time > 1 / client.snapshot_rate) {
+            auto packet = packet::transient_snapshot{};
+
+            for (auto entity : aabboi.entities) {
+                if (!registry.all_of<procedural_tag, networked_tag>(entity)) {
+                    continue;
+                }
+
+                // Only include entities which are in islands not fully owned by the client.
+                if (!is_fully_owned_by_client(registry, client_entity, entity)) {
+                   (*ctx->insert_transient_components_func)(registry, entity, packet.pools);
+                }
+            }
+
+            client.last_snapshot_time = time;
+
+            if (!packet.pools.empty()) {
+                client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+            }
+        }
     });
+
+    for (auto client_entity : ctx->pending_created_clients) {
+        auto &client = registry.get<remote_client>(client_entity);
+        auto packet = packet::client_created{client_entity};
+        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+    }
+
+    ctx->pending_created_clients.clear();
 }
 
 void server_handle_packet(entt::registry &registry, entt::entity client_entity, const packet::edyn_packet &packet) {
@@ -278,18 +334,13 @@ void insert_all_into_pool(entt::registry &registry, entt::entity client_entity, 
     }
 }
 
-packet::transient_snapshot server_get_transient_snapshot(entt::registry &registry, entt::entity client_entity) {
-    auto snapshot = packet::transient_snapshot{};
-    insert_all_into_pool(registry, client_entity, snapshot.positions);
-    insert_all_into_pool(registry, client_entity, snapshot.orientations);
-    insert_all_into_pool(registry, client_entity, snapshot.linvels);
-    insert_all_into_pool(registry, client_entity, snapshot.angvels);
-    return snapshot;
-}
-
 void server_make_client(entt::registry &registry, entt::entity entity) {
     registry.emplace<remote_client>(entity);
     registry.emplace<aabb_of_interest>(entity);
+    edyn::tag_external_entity(registry, entity, false);
+
+    auto &ctx = registry.ctx<server_networking_context>();
+    ctx.pending_created_clients.push_back(entity);
 }
 
 entt::entity server_make_client(entt::registry &registry) {
