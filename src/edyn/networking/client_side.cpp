@@ -35,6 +35,10 @@ void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) 
 
     if (!ctx.importing_entities) {
         ctx.destroyed_entities.push_back(entity);
+
+        if (ctx.entity_map.has_loc(entity)) {
+            ctx.entity_map.erase_loc(entity);
+        }
     }
 }
 
@@ -204,6 +208,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
     auto &ctx = registry.ctx<client_networking_context>();
     ctx.importing_entities = true;
 
+    // Collect new entity mappings to send back to server.
     auto emap_packet = packet::update_entity_map{};
 
     // Create entities first...
@@ -212,6 +217,10 @@ static void process_packet(entt::registry &registry, const packet::create_entity
         auto local_entity = registry.create();
         ctx.entity_map.insert(remote_entity, local_entity);
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
+    }
+
+    if (!emap_packet.pairs.empty()) {
+        ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
 
     // ... assign components later so that entity references will be available
@@ -253,10 +262,6 @@ static void process_packet(entt::registry &registry, const packet::create_entity
     }
 
     ctx.importing_entities = false;
-
-    if (!emap_packet.pairs.empty()) {
-        ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
-    }
 }
 
 static void process_packet(entt::registry &registry, const packet::destroy_entity &packet) {
@@ -264,8 +269,12 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
     ctx.importing_entities = true;
 
     for (auto remote_entity : packet.entities) {
-        if (ctx.entity_map.has_rem(remote_entity)) {
-            auto local_entity = ctx.entity_map.remloc(remote_entity);
+        if (!ctx.entity_map.has_rem(remote_entity)) continue;
+
+        auto local_entity = ctx.entity_map.remloc(remote_entity);
+        ctx.entity_map.erase_rem(remote_entity);
+
+        if (registry.valid(local_entity)) {
             registry.destroy(local_entity);
         }
     }
@@ -274,6 +283,14 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
 }
 
 static void process_packet(entt::registry &registry, const packet::transient_snapshot &snapshot) {
+    auto &ctx = registry.ctx<client_networking_context>();
+
+    for (auto &pool : snapshot.pools) {
+        (*ctx.import_pool_func)(registry, pool);
+    }
+}
+
+static void process_packet(entt::registry &registry, const packet::general_snapshot &snapshot) {
     auto &ctx = registry.ctx<client_networking_context>();
 
     for (auto &pool : snapshot.pools) {

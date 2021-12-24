@@ -8,7 +8,7 @@
 namespace edyn {
 
 struct pool_snapshot;
-void import_pool_server_default(entt::registry &, entt::entity client_entity, const pool_snapshot &);
+void import_pool_server_default(entt::registry &, entt::entity client_entity, const pool_snapshot &, bool broadcast);
 void insert_entity_components_default(entt::registry &, entt::entity entity,
                                       std::vector<pool_snapshot> &pools);
 void insert_transient_components_default(entt::registry &, entt::entity entity,

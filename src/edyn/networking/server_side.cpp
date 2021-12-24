@@ -111,17 +111,44 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &ctx = registry.ctx<server_networking_context>();
 
     for (auto &pool : snapshot.pools) {
-        (*ctx.import_pool_func)(registry, client_entity, pool);
+        (*ctx.import_pool_func)(registry, client_entity, pool, false);
     }
 }
 
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::general_snapshot &snapshot) {
+    auto &ctx = registry.ctx<server_networking_context>();
+
+    for (auto &pool : snapshot.pools) {
+        (*ctx.import_pool_func)(registry, client_entity, pool, true);
+    }
+}
+
+template<typename T>
+void create_graph_edge(entt::registry &registry, entt::entity entity) {
+    if (registry.any_of<graph_edge>(entity)) return;
+
+    auto &comp = registry.get<T>(entity);
+    auto node_index0 = registry.get<graph_node>(comp.body[0]).node_index;
+    auto node_index1 = registry.get<graph_node>(comp.body[1]).node_index;
+    auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
+    registry.emplace<graph_edge>(entity, edge_index);
+}
+
+template<typename... Ts>
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity) {
+    ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
+}
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::create_entity &packet) {
     auto &ctx = registry.ctx<server_networking_context>();
     auto &client = registry.get<remote_client>(client_entity);
+
+    // Collect entity mappings for new entities to send back to client.
     auto emap_packet = packet::update_entity_map{};
 
     for (auto remote_entity : packet.entities) {
+        if (client.entity_map.has_rem(remote_entity)) continue;
+
         auto local_entity = registry.create();
         registry.emplace<entity_owner>(local_entity, client_entity);
 
@@ -130,10 +157,12 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         client.owned_entities.push_back(local_entity);
     }
 
-    client.packet_signal.publish(client_entity, packet::edyn_packet{emap_packet});
+    if (!emap_packet.pairs.empty()) {
+        client.packet_signal.publish(client_entity, packet::edyn_packet{emap_packet});
+    }
 
     for (auto &pool : packet.pools) {
-        (*ctx.import_pool_func)(registry, client_entity, pool);
+        (*ctx.import_pool_func)(registry, client_entity, pool, false);
     }
 
     for (auto remote_entity : packet.entities) {
@@ -143,6 +172,33 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         /* auto [null_entity, null_con] = edyn::make_constraint<edyn::null_constraint>(registry, local_entity, client_entity);
         registry.emplace<edyn::entity_owner>(null_entity, client_entity);
         registry.emplace<edyn::networked_tag>(null_entity); */
+    }
+
+    // Create nodes and edges in entity graph.
+    for (auto remote_entity : packet.entities) {
+        auto local_entity = client.entity_map.remloc(remote_entity);
+
+        if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&
+            !registry.all_of<graph_node>(local_entity)) {
+            auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
+            auto node_index = registry.ctx<entity_graph>().insert_node(local_entity, non_connecting);
+            registry.emplace<graph_node>(local_entity, node_index);
+        }
+    }
+
+    for (auto remote_entity : packet.entities) {
+        auto local_entity = client.entity_map.remloc(remote_entity);
+
+        maybe_create_graph_edge<
+            contact_manifold,
+            null_constraint,
+            gravity_constraint,
+            point_constraint,
+            distance_constraint,
+            soft_distance_constraint,
+            hinge_constraint,
+            generic_constraint
+        >(registry, local_entity);
     }
 }
 
@@ -183,6 +239,13 @@ static void handle_packet(entt::registry &registry, entt::entity client_entity, 
 }
 
 static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
+    auto &client = registry.get<remote_client>(client_entity);
+    auto packet = packet::edyn_packet{snapshot};
+    packet.timestamp = performance_time() - client.latency;
+    client.packet_queue.push_back(packet);
+}
+
+static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::general_snapshot &snapshot) {
     auto &client = registry.get<remote_client>(client_entity);
     auto packet = packet::edyn_packet{snapshot};
     packet.timestamp = performance_time() - client.latency;
@@ -303,6 +366,13 @@ void update_networking_server(entt::registry &registry) {
     }
 
     ctx->pending_created_clients.clear();
+
+    registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
+        if (client.current_snapshot.pools.empty()) return;
+        auto packet = packet::edyn_packet{std::move(client.current_snapshot)};
+        client.packet_signal.publish(client_entity, packet);
+        EDYN_ASSERT(client.current_snapshot.pools.empty());
+    });
 }
 
 void server_handle_packet(entt::registry &registry, entt::entity client_entity, const packet::edyn_packet &packet) {

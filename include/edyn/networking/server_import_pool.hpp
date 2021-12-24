@@ -13,14 +13,14 @@ bool is_fully_owned_by_client(const entt::registry &, entt::entity client_entity
 
 template<typename Component>
 void import_pool_server(entt::registry &registry, entt::entity client_entity,
-                        const std::vector<std::pair<entt::entity, Component>> &pool) {
+                        const std::vector<std::pair<entt::entity, Component>> &pool, bool broadcast) {
     auto &client = registry.get<remote_client>(client_entity);
     auto merge_ctx = merge_context{&registry, &client.entity_map};
 
     for (auto &pair : pool) {
         auto remote_entity = pair.first;
 
-        if (!client.entity_map.has_rem(pair.first)) {
+        if (!client.entity_map.has_rem(remote_entity)) {
             continue;
         }
 
@@ -49,6 +49,15 @@ void import_pool_server(entt::registry &registry, entt::entity client_entity,
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);
                 refresh<Component>(registry, local_entity);
+
+                if (broadcast) {
+                    // Broadcast change to other clients which contain this entity in
+                    // their AABB of interest.
+                    registry.view<remote_client>().each([&] (entt::entity other_client_entity, remote_client &client) {
+                        if (other_client_entity == client_entity) return;
+                        insert_entity_component<Component>(registry, local_entity, client.current_snapshot.pools);
+                    });
+                }
             } else {
                 registry.emplace<Component>(local_entity, comp);
                 registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
@@ -58,15 +67,15 @@ void import_pool_server(entt::registry &registry, entt::entity client_entity,
 }
 
 template<typename... Component>
-void import_pool_server(entt::registry &registry, entt::entity client_entity, const pool_snapshot &pool, const std::tuple<Component...> &all_components) {
+void import_pool_server(entt::registry &registry, entt::entity client_entity, const pool_snapshot &pool, bool broadcast, const std::tuple<Component...> &all_components) {
     visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
         using CompType = std::decay_t<decltype(c)>;
-        import_pool_server(registry, client_entity, std::static_pointer_cast<pool_snapshot_data<CompType>>(pool.ptr)->pairs);
+        import_pool_server(registry, client_entity, std::static_pointer_cast<pool_snapshot_data<CompType>>(pool.ptr)->pairs, broadcast);
     });
 }
 
-inline void import_pool_server_default(entt::registry &registry, entt::entity client_entity, const pool_snapshot &pool) {
-    import_pool_server(registry, client_entity, pool, networked_components);
+inline void import_pool_server_default(entt::registry &registry, entt::entity client_entity, const pool_snapshot &pool, bool broadcast) {
+    import_pool_server(registry, client_entity, pool, broadcast, networked_components);
 }
 
 }
