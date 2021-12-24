@@ -189,6 +189,7 @@ void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
     auto &i_inv = registry.get<inertia_world_inv>(entity);
     registry.get<linvel>(entity) += impulse * m_inv;
     registry.get<angvel>(entity) += i_inv * cross(rel_location, impulse);
+    refresh<linvel, angvel>(registry, entity);
 }
 
 void rigidbody_apply_torque_impulse(entt::registry &registry, entt::entity entity,
