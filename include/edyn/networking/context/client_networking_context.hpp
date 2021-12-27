@@ -1,7 +1,7 @@
 #ifndef EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 #define EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 
-#include "edyn/networking/networked_comp.hpp"
+#include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include <entt/entity/fwd.hpp>

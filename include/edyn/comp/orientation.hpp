@@ -14,5 +14,4 @@ struct orientation : public quaternion {
 
 }
 
-
 #endif // EDYN_COMP_ORIENTATION_HPP

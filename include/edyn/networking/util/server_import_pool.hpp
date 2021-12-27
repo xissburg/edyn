@@ -4,7 +4,7 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/dirty.hpp"
 #include "edyn/edyn.hpp"
-#include "edyn/networking/remote_client.hpp"
+#include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 
 namespace edyn {

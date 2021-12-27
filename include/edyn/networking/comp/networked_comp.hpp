@@ -22,7 +22,7 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/shapes/shapes.hpp"
-#include "edyn/networking/entity_owner.hpp"
+#include "edyn/networking/comp/entity_owner.hpp"
 
 namespace edyn {
 

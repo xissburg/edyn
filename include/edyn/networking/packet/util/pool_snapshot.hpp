@@ -9,8 +9,8 @@
 #include <vector>
 #include <utility>
 #include <entt/entity/fwd.hpp>
-#include "edyn/networking/networked_comp.hpp"
-#include "edyn/networking/transient_comp.hpp"
+#include "edyn/networking/comp/networked_comp.hpp"
+#include "edyn/networking/comp/transient_comp.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/util/tuple_util.hpp"
 

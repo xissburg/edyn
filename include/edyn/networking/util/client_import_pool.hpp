@@ -4,7 +4,7 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/dirty.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
-#include "edyn/networking/client_networking_context.hpp"
+#include "edyn/networking/context/client_networking_context.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/edyn.hpp"
 

@@ -1,5 +1,5 @@
-#include "edyn/networking/update_aabbs_of_interest.hpp"
-#include "edyn/networking/aabb_of_interest.hpp"
+#include "edyn/networking/sys/update_aabbs_of_interest.hpp"
+#include "edyn/networking/comp/aabb_of_interest.hpp"
 #include "edyn/collision/broadphase_main.hpp"
 #include "edyn/comp/island.hpp"
 #include <entt/entity/registry.hpp>
