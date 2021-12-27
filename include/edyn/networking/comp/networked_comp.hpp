@@ -26,6 +26,9 @@
 
 namespace edyn {
 
+/**
+ * @brief Tuple of components which are shared over the network.
+ */
 static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple<
     AABB,
     collision_filter,

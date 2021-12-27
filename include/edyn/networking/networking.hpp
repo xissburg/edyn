@@ -8,11 +8,10 @@
 #include "edyn/networking/context/client_networking_context.hpp"
 #include "edyn/networking/context/server_networking_context.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
+#include "edyn/networking/networking_external.hpp"
 #include <entt/entity/fwd.hpp>
 
 namespace edyn {
-
-
 
 }
 

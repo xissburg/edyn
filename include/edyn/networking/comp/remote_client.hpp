@@ -9,23 +9,43 @@
 
 namespace edyn {
 
+/**
+ * @brief Stores data pertaining to a remote client in the server side.
+ */
 struct remote_client {
     using packet_observer_func_t = void(entt::entity, const packet::edyn_packet &);
+
+    // Triggered every time the server needs to send a packet to a client.
+    // Users of Edyn must observe this signal and send the packet data over
+    // the network using their mechanism of choice.
     entt::sigh<packet_observer_func_t> packet_signal;
 
     auto packet_sink() {
         return entt::sink{packet_signal};
     }
 
+    // List of entities owned by this client.
     std::vector<entt::entity> owned_entities;
-    edyn::entity_map entity_map;
-    double latency {0};
-    double playout_delay {0};
-    std::vector<edyn::packet::edyn_packet> packet_queue;
-    packet::general_snapshot current_snapshot;
 
+    // Maps entities between the client registry and the server registry.
+    edyn::entity_map entity_map;
+
+    // Client latency in ms.
+    double latency {0};
+
+    // The delay in ms applied to packet processing.
+    double playout_delay {0};
+
+    // List of packets pending processing.
+    std::vector<edyn::packet::edyn_packet> packet_queue;
+
+    // Timestamp of the last transient snapshot that was sent.
     double last_snapshot_time {0};
+
+    // Rate of transient snapshots, i.e. transient snapshots sent per second.
     double snapshot_rate {1};
+
+    packet::general_snapshot current_snapshot;
 };
 
 }

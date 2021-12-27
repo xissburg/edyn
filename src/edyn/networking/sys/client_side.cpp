@@ -298,7 +298,7 @@ static void process_packet(entt::registry &registry, const packet::general_snaps
     }
 }
 
-void client_process_packet(entt::registry &registry, const packet::edyn_packet &packet) {
+void client_handle_packet(entt::registry &registry, const packet::edyn_packet &packet) {
     std::visit([&] (auto &&inner_packet) {
         process_packet(registry, inner_packet);
     }, packet.var);

@@ -5,6 +5,9 @@
 
 namespace edyn {
 
+/**
+ * @brief Component assigned to entities that are owned by a remote client.
+ */
 struct entity_owner {
     entt::entity client_entity;
 };

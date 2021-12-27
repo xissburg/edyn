@@ -9,6 +9,10 @@
 
 namespace edyn {
 
+/**
+ * @brief Networked components that change frequently and need to be constantly
+ * exchanged between client and server.
+ */
 static const auto transient_components = std::tuple<
     position,
     orientation,
