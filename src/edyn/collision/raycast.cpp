@@ -268,8 +268,8 @@ shape_raycast_result raycast(const polyhedron_shape &poly, const raycast_context
     auto p0 = to_object_space(ctx.p0, ctx.pos, ctx.orn);
     auto p1 = to_object_space(ctx.p1, ctx.pos, ctx.orn);
     auto d = p1 - p0;
-    auto t0 = scalar(0);
-    auto t1 = scalar(1);
+    auto t0 = -EDYN_SCALAR_MAX;
+    auto t1 = EDYN_SCALAR_MAX;
     auto intersect_face_idx = SIZE_MAX;
 
     for (size_t face_idx = 0; face_idx < poly.mesh->num_faces(); ++face_idx) {
@@ -310,10 +310,15 @@ shape_raycast_result raycast(const polyhedron_shape &poly, const raycast_context
         }
     }
 
+    // Check if intersection range intersects the [0, 1] interval.
+    if ((t0 < 0 && t1 < 0) || (t0 > 1 && t1 > 1)) {
+        return {};
+    }
+
     EDYN_ASSERT(intersect_face_idx != SIZE_MAX);
 
     auto result = shape_raycast_result{};
-    result.fraction = t0;
+    result.fraction = clamp_unit(t0);
     result.normal = rotate(ctx.orn, poly.mesh->normals[intersect_face_idx]);
     result.info_var = polyhedron_raycast_info{intersect_face_idx};
 
