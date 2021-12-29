@@ -24,14 +24,11 @@ struct edyn_packet {
         client_created,
         general_snapshot
     > var;
-
-    double timestamp;
 };
 
 template<typename Archive>
 void serialize(Archive &archive, edyn_packet &packet) {
     archive(packet.var);
-    archive(packet.timestamp);
 }
 
 }

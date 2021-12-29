@@ -201,29 +201,29 @@ static void handle_packet(entt::registry &registry, entt::entity client_entity, 
 
 static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
     auto &client = registry.get<remote_client>(client_entity);
-    auto packet = packet::edyn_packet{snapshot};
-    packet.timestamp = performance_time() - client.latency;
+    auto timestamp = performance_time() - client.latency;
+    auto packet = client_packet{packet::edyn_packet{snapshot}, timestamp};
     client.packet_queue.push_back(packet);
 }
 
 static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::general_snapshot &snapshot) {
     auto &client = registry.get<remote_client>(client_entity);
-    auto packet = packet::edyn_packet{snapshot};
-    packet.timestamp = performance_time() - client.latency;
+    auto timestamp = performance_time() - client.latency;
+    auto packet = client_packet{packet::edyn_packet{snapshot}, timestamp};
     client.packet_queue.push_back(packet);
 }
 
 static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::create_entity &create) {
     auto &client = registry.get<remote_client>(client_entity);
-    auto packet = packet::edyn_packet{create};
-    packet.timestamp = performance_time() - client.latency;
+    auto timestamp = performance_time() - client.latency;
+    auto packet = client_packet{packet::edyn_packet{create}, timestamp};
     client.packet_queue.push_back(packet);
 }
 
 static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::destroy_entity &destroy) {
     auto &client = registry.get<remote_client>(client_entity);
-    auto packet = packet::edyn_packet{destroy};
-    packet.timestamp = performance_time() - client.latency;
+    auto timestamp = performance_time() - client.latency;
+    auto packet = client_packet{packet::edyn_packet{destroy}, timestamp};
     client.packet_queue.push_back(packet);
 }
 
@@ -251,13 +251,13 @@ void server_process_packets(entt::registry &registry) {
     registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
         auto first = client.packet_queue.begin();
         auto last = std::find_if(first, client.packet_queue.end(), [&] (auto &&packet) {
-            return packet.timestamp > timestamp - client.playout_delay;
+            return packet.arrival_timestamp > timestamp - client.playout_delay;
         });
 
         for (auto it = first; it != last; ++it) {
             std::visit([&] (auto &&decoded_packet) {
                 process_packet(registry, client_entity, decoded_packet);
-            }, it->var);
+            }, it->packet.var);
         }
 
         client.packet_queue.erase(first, last);
@@ -278,23 +278,45 @@ void update_networking_server(entt::registry &registry) {
     view.each([&] (entt::entity client_entity, remote_client &client, aabb_of_interest &aabboi) {
         if (!aabboi.destroy_entities.empty()) {
             auto packet = packet::destroy_entity{};
-            packet.entities = std::move(aabboi.destroy_entities);
-            client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+
+            for (auto entity : aabboi.destroy_entities) {
+                if (!registry.valid(entity)) continue;
+
+                if (auto *owner = registry.try_get<entity_owner>(entity);
+                    owner == nullptr || owner->client_entity != client_entity) {
+                    packet.entities.push_back(entity);
+                }
+            }
+
+            if (!packet.entities.empty()) {
+                client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+            }
+
+            aabboi.destroy_entities.clear();
         }
 
         if (!aabboi.create_entities.empty()) {
             auto packet = packet::create_entity{};
-            packet.entities = aabboi.create_entities;
 
             for (auto entity : aabboi.create_entities) {
-                (*ctx->insert_entity_components_func)(registry, entity, packet.pools);
+                if (auto *owner = registry.try_get<entity_owner>(entity);
+                    owner == nullptr || owner->client_entity != client_entity) {
+                    packet.entities.push_back(entity);
+                }
             }
 
-            std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
-                return lhs.component_index < rhs.component_index;
-            });
+            if (!packet.entities.empty()) {
+                for (auto entity : packet.entities) {
+                    (*ctx->insert_entity_components_func)(registry, entity, packet.pools);
+                }
 
-            client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+                std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+                    return lhs.component_index < rhs.component_index;
+                });
+
+                client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+            }
+
             aabboi.create_entities.clear();
         }
 

@@ -5,7 +5,7 @@
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
 #include "edyn/util/entity_map.hpp"
-#include "edyn/networking/packet/edyn_packet.hpp"
+#include "edyn/networking/comp/client_packet.hpp"
 
 namespace edyn {
 
@@ -37,7 +37,7 @@ struct remote_client {
     double playout_delay {0};
 
     // List of packets pending processing.
-    std::vector<edyn::packet::edyn_packet> packet_queue;
+    std::vector<client_packet> packet_queue;
 
     // Timestamp of the last transient snapshot that was sent.
     double last_snapshot_time {0};
