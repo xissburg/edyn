@@ -45,6 +45,8 @@ struct remote_client {
     // Rate of transient snapshots, i.e. transient snapshots sent per second.
     double snapshot_rate {1};
 
+    // A snapshot where changes to be reported to a client can be accumulated
+    // and then consumed at the end of an update.
     packet::general_snapshot current_snapshot;
 };
 

@@ -11,10 +11,16 @@ void serialize(Archive &archive, contact_point &cp) {
     archive(cp.pivotA);
     archive(cp.pivotB);
     archive(cp.normal);
+    archive(cp.local_normal);
+    archive(cp.normal_attachment);
     archive(cp.friction);
+    archive(cp.spin_friction);
+    archive(cp.roll_friction);
     archive(cp.restitution);
     archive(cp.lifetime);
     archive(cp.distance);
+    archive(cp.featureA);
+    archive(cp.featureB);
 }
 
 }

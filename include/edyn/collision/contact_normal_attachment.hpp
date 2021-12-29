@@ -1,6 +1,8 @@
 #ifndef EDYN_COLLISION_CONTACT_NORMAL_ATTACHMENT_HPP
 #define EDYN_COLLISION_CONTACT_NORMAL_ATTACHMENT_HPP
 
+#include <type_traits>
+
 namespace edyn {
 
 /**
@@ -13,11 +15,16 @@ namespace edyn {
  * where the contact normal is attached to, and thus it is rotated with this
  * body in each iteration.
  */
-enum class contact_normal_attachment {
+enum class contact_normal_attachment : unsigned char {
     none,
     normal_on_A,
     normal_on_B
 };
+
+template<typename Archive>
+void serialize(Archive &archive, contact_normal_attachment &attachment) {
+    serialize_enum(archive, attachment);
+}
 
 }
 

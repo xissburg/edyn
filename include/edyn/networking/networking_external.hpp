@@ -1,8 +1,8 @@
 #ifndef EDYN_NETWORKING_NETWORKING_EXTERNAL_HPP
 #define EDYN_NETWORKING_NETWORKING_EXTERNAL_HPP
 
-#include <entt/entity/registry.hpp>
 #include <tuple>
+#include <entt/entity/registry.hpp>
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/context/client_networking_context.hpp"
 #include "edyn/networking/context/server_networking_context.hpp"

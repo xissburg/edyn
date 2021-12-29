@@ -68,45 +68,6 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
 }
 
-template<typename Component>
-void import_pool(entt::registry &registry, entt::entity client_entity,
-                 const std::vector<std::pair<entt::entity, Component>> &pool) {
-    if constexpr(std::is_empty_v<Component>) {
-        return;
-    }
-
-    auto &client = registry.get<remote_client>(client_entity);
-
-    for (auto &pair : pool) {
-        auto remote_entity = pair.first;
-
-        if (!client.entity_map.has_rem(pair.first)) {
-            continue;
-        }
-
-        auto local_entity = client.entity_map.remloc(remote_entity);
-
-        if (!registry.valid(local_entity)) {
-            client.entity_map.erase_loc(local_entity);
-            continue;
-        }
-
-        // Do not apply this update if this is a dynamic entity which is not
-        // fully owned by this client.
-        if (registry.any_of<dynamic_tag>(local_entity) && !is_fully_owned_by_client(registry, client_entity, local_entity)) {
-            continue;
-        }
-
-        if (registry.any_of<Component>(local_entity)) {
-            registry.replace<Component>(local_entity, pair.second);
-            edyn::refresh<Component>(registry, local_entity);
-        } else {
-            registry.emplace<Component>(local_entity, pair.second);
-            registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
-        }
-    }
-}
-
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<server_networking_context>();
 
@@ -367,6 +328,7 @@ void update_networking_server(entt::registry &registry) {
 
     ctx->pending_created_clients.clear();
 
+    // Send out accumulated changes to clients.
     registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
         if (client.current_snapshot.pools.empty()) return;
         auto packet = packet::edyn_packet{std::move(client.current_snapshot)};
@@ -379,29 +341,6 @@ void server_handle_packet(entt::registry &registry, entt::entity client_entity, 
     std::visit([&] (auto &&decoded_packet) {
         handle_packet(registry, client_entity, decoded_packet);
     }, packet.var);
-}
-
-template<typename Component>
-void insert_all_into_pool(entt::registry &registry, entt::entity client_entity, std::vector<std::pair<entt::entity, Component>> &pool) {
-    auto view = registry.view<Component, procedural_tag, networked_tag>();
-
-    if (view.size_hint() == 0) {
-        return;
-    }
-
-    for (auto entity : view) {
-        // Only include entities which are in islands not fully owned by the client.
-        if (is_fully_owned_by_client(registry, client_entity, entity)) {
-            continue;
-        }
-
-        if constexpr(std::is_empty_v<Component>) {
-            pool.emplace_back(entity);
-        } else {
-            auto &comp = view.template get<Component>(entity);
-            pool.emplace_back(entity, comp);
-        }
-    }
 }
 
 void server_make_client(entt::registry &registry, entt::entity entity) {

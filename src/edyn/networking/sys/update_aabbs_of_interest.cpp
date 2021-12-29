@@ -13,6 +13,7 @@ void update_aabbs_of_interest(entt::registry &registry) {
     view.each([&] (aabb_of_interest &aabb_of) {
         entt::sparse_set contained_entities;
 
+        // Collect entities of islands which intersect the AABB of interest.
         bphase.query_islands(aabb_of.aabb, [&] (entt::entity island_entity) {
             auto &island = registry.get<edyn::island>(island_entity);
 
@@ -29,6 +30,7 @@ void update_aabbs_of_interest(entt::registry &registry) {
             }
         });
 
+        // Calculate which entities have entered and exited the AABB of interest.
         for (auto entity : aabb_of.entities) {
             if (!contained_entities.contains(entity)) {
                 aabb_of.destroy_entities.push_back(entity);
@@ -41,6 +43,8 @@ void update_aabbs_of_interest(entt::registry &registry) {
             }
         }
 
+        // Assign the current set of entities which are in an island that
+        // intersects the AABB of interest.
         aabb_of.entities = std::move(contained_entities);
     });
 }

@@ -4,6 +4,7 @@
 #include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/serialization/std_s11n.hpp"
 #include "edyn/serialization/static_tree_s11n.hpp"
+#include "edyn/serialization/s11n_util.hpp"
 
 namespace edyn {
 
@@ -62,6 +63,11 @@ size_t serialization_sizeof(const triangle_mesh &tri_mesh) {
         serialization_sizeof(tri_mesh.m_triangle_tree) +
         serialization_sizeof(tri_mesh.m_friction) +
         serialization_sizeof(tri_mesh.m_restitution);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, triangle_feature &f) {
+    serialize_enum(archive, f);
 }
 
 }

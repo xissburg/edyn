@@ -12,6 +12,9 @@ void serialize(Archive &archive, contact_manifold &manifold) {
     archive(manifold.point);
 }
 
+template<typename Archive>
+void serialize(Archive &, contact_manifold_with_restitution &) {}
+
 }
 
 #endif // EDYN_SERIALIZATION_COMP_CONTACT_MANIFOLD_S11N_HPP

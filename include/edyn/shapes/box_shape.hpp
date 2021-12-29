@@ -10,7 +10,7 @@
 
 namespace edyn {
 
-enum class box_feature {
+enum class box_feature : uint8_t {
     vertex,
     edge,
     face
