@@ -10,8 +10,6 @@
 #include "edyn/parallel/job.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/parallel/message.hpp"
-#include "edyn/collision/narrowphase.hpp"
-#include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/util/entity_map.hpp"
@@ -110,8 +108,6 @@ private:
     entt::registry m_registry;
     entt::entity m_island_entity;
     entity_map m_entity_map;
-    broadphase_worker m_bphase;
-    narrowphase m_nphase;
     solver m_solver;
     message_queue_in_out m_message_queue;
 
