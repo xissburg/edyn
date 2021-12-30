@@ -1,6 +1,8 @@
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
+#include "edyn/collision/narrowphase.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
@@ -58,8 +60,6 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     : m_message_queue(message_queue)
     , m_splitting(false)
     , m_state(state::init)
-    , m_bphase(m_registry)
-    , m_nphase(m_registry)
     , m_solver(m_registry)
     , m_delta_builder((*settings.make_island_delta_builder)())
     , m_importing_delta(false)
@@ -69,6 +69,8 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     , m_calculate_split_delay(0.6)
     , m_calculate_split_timestamp(0)
 {
+    m_registry.set<broadphase_worker>(m_registry);
+    m_registry.set<narrowphase>(m_registry);
     m_registry.set<entity_graph>();
     m_registry.set<edyn::settings>(settings);
     m_registry.set<material_mix_table>(material_table);
@@ -119,10 +121,11 @@ void island_worker::init() {
 
     // Run broadphase to initialize the internal dynamic trees with the
     // imported AABBs.
-    m_bphase.update();
+    auto &bphase = m_registry.ctx<broadphase_worker>();
+    bphase.update();
 
     // Assign tree view containing the updated broad-phase tree.
-    auto tview = m_bphase.view();
+    auto tview = bphase.view();
     m_registry.emplace<tree_view>(m_island_entity, tview);
 
     m_state = state::step;
@@ -557,7 +560,8 @@ void island_worker::begin_step() {
     // value of the impulse applied and the construction of `constraint_impulse`
     // or `contact_constraint` can be observed to capture the initial impact
     // of a new contact.
-    m_nphase.create_contact_constraints();
+    auto &nphase = m_registry.ctx<narrowphase>();
+    nphase.create_contact_constraints();
 
     m_state = state::solve;
 }
@@ -570,13 +574,14 @@ void island_worker::run_solver() {
 
 bool island_worker::run_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase);
+    auto &bphase = m_registry.ctx<broadphase_worker>();
 
-    if (m_bphase.parallelizable()) {
+    if (bphase.parallelizable()) {
         m_state = state::broadphase_async;
-        m_bphase.update_async(m_this_job);
+        bphase.update_async(m_this_job);
         return false;
     } else {
-        m_bphase.update();
+        bphase.update();
         m_state = state::narrowphase;
         return true;
     }
@@ -584,16 +589,18 @@ bool island_worker::run_broadphase() {
 
 void island_worker::finish_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase_async);
-    m_bphase.finish_async_update();
+    auto &bphase = m_registry.ctx<broadphase_worker>();
+    bphase.finish_async_update();
     m_state = state::narrowphase;
 }
 
 bool island_worker::run_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase);
+    auto &nphase = m_registry.ctx<narrowphase>();
 
-    if (m_nphase.parallelizable()) {
+    if (nphase.parallelizable()) {
         m_state = state::narrowphase_async;
-        m_nphase.update_async(m_this_job);
+        nphase.update_async(m_this_job);
         return false;
     } else {
         // Separating contact points will be destroyed in the next call. Move
@@ -602,7 +609,7 @@ bool island_worker::run_narrowphase() {
         // points that were created in this step and are going to be destroyed
         // next to be missing in the island delta.
         sync_dirty();
-        m_nphase.update();
+        nphase.update();
         m_state = state::finish_step;
         return true;
     }
@@ -615,7 +622,8 @@ void island_worker::finish_narrowphase() {
     // the dirty contact points into the current island delta before that
     // happens.
     sync_dirty();
-    m_nphase.finish_async_update();
+    auto &nphase = m_registry.ctx<narrowphase>();
+    nphase.finish_async_update();
     m_state = state::finish_step;
 }
 
@@ -644,7 +652,8 @@ void island_worker::finish_step() {
     m_delta_builder->updated<island_timestamp>(m_island_entity, isle_time);
 
     // Update tree view.
-    auto tview = m_bphase.view();
+    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto tview = bphase.view();
     m_registry.replace<tree_view>(m_island_entity, tview);
     m_delta_builder->updated(m_island_entity, tview);
 
@@ -770,7 +779,8 @@ void island_worker::init_new_imported_contact_manifolds() {
     if (m_new_imported_contact_manifolds.empty()) return;
 
     // Find contact points for new manifolds imported from the main registry.
-    m_nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
+    auto &nphase = m_registry.ctx<narrowphase>();
+    nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
                                       m_new_imported_contact_manifolds.end());
     m_new_imported_contact_manifolds.clear();
 }
@@ -993,7 +1003,8 @@ entity_graph::connected_components_t island_worker::split() {
 
     // Refresh island tree view after nodes are removed and send it back to
     // the coordinator via the message queue.
-    auto tview = m_bphase.view();
+    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto tview = bphase.view();
     m_registry.replace<tree_view>(m_island_entity, tview);
     m_delta_builder->updated(m_island_entity, tview);
     auto delta = m_delta_builder->finish();
