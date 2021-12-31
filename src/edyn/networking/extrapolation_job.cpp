@@ -12,6 +12,8 @@
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/time/time.hpp"
+#include <atomic>
 
 namespace edyn {
 
@@ -23,19 +25,21 @@ void extrapolation_job_func(job::data_type &data) {
     job->update();
 }
 
-extrapolation_job::extrapolation_job(double target_time,
+extrapolation_job::extrapolation_job(double start_time,
                                      const settings &settings,
                                      const material_mix_table &material_table,
+                                     client_networking_context::import_pool_func_t import_pool_func,
                                      message_queue_in_out message_queue)
     : m_message_queue(message_queue)
-    , m_target_time(target_time)
     , m_state(state::init)
-    , m_bphase(m_registry)
-    , m_nphase(m_registry)
+    , m_current_time(start_time)
     , m_solver(m_registry)
+    , m_import_pool_func(import_pool_func)
     , m_delta_builder((*settings.make_island_delta_builder)())
     , m_destroying_node(false)
 {
+    m_registry.set<broadphase_worker>(m_registry);
+    m_registry.set<narrowphase>(m_registry);
     m_registry.set<entity_graph>();
     m_registry.set<edyn::settings>(settings);
     m_registry.set<material_mix_table>(material_table);
@@ -44,8 +48,6 @@ extrapolation_job::extrapolation_job(double target_time,
     // pre-allocating the pools required in there.
     m_registry.prepare<collision_filter>();
     m_registry.prepare<collision_exclusion>();
-
-    m_island_entity = m_registry.create();
 
     m_this_job.func = &extrapolation_job_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
@@ -57,12 +59,12 @@ void extrapolation_job::init() {
     m_registry.on_destroy<graph_node>().connect<&extrapolation_job::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&extrapolation_job::on_destroy_graph_edge>(*this);
     m_registry.on_destroy<contact_manifold>().connect<&extrapolation_job::on_destroy_contact_manifold>(*this);
-    m_registry.on_destroy<contact_point>().connect<&extrapolation_job::on_destroy_contact_point>(*this);
     m_registry.on_construct<polyhedron_shape>().connect<&extrapolation_job::on_construct_polyhedron_shape>(*this);
     m_registry.on_construct<compound_shape>().connect<&extrapolation_job::on_construct_compound_shape>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&extrapolation_job::on_destroy_rotated_mesh_list>(*this);
 
     m_message_queue.sink<island_delta>().connect<&extrapolation_job::on_island_delta>(*this);
+    m_message_queue.sink<packet::transient_snapshot>().connect<&extrapolation_job::on_transient_snapshot>(*this);
 
     // Process messages enqueued before the job was started. This includes
     // the island deltas containing the initial entities that were added to
@@ -76,11 +78,8 @@ void extrapolation_job::init() {
 
     // Run broadphase to initialize the internal dynamic trees with the
     // imported AABBs.
-    m_bphase.update();
-
-    // Assign tree view containing the updated broad-phase tree.
-    auto tview = m_bphase.view();
-    m_registry.emplace<tree_view>(m_island_entity, tview);
+    auto &bphase = m_registry.ctx<broadphase_worker>();
+    bphase.update();
 
     m_state = state::step;
 }
@@ -92,14 +91,7 @@ void extrapolation_job::on_destroy_contact_manifold(entt::registry &registry, en
     for (size_t i = 0; i < num_points; ++i) {
         auto contact_entity = manifold.point[i];
         registry.destroy(contact_entity);
-        m_delta_builder->destroyed(contact_entity);
     }
-
-    m_delta_builder->destroyed(entity);
-}
-
-void extrapolation_job::on_destroy_contact_point(entt::registry &registry, entt::entity entity) {
-    m_delta_builder->destroyed(entity);
 }
 
 void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -110,7 +102,6 @@ void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::en
 
     graph.visit_edges(node.node_index, [&] (entt::entity edge_entity) {
         registry.destroy(edge_entity);
-        m_delta_builder->destroyed(edge_entity);
     });
 
     m_destroying_node = false;
@@ -118,7 +109,9 @@ void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::en
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
 
-    m_delta_builder->destroyed(entity);
+    if (m_entity_map.has_loc(entity)) {
+        m_entity_map.erase_loc(entity);
+    }
 }
 
 void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
@@ -126,6 +119,10 @@ void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::en
         auto &edge = registry.get<graph_edge>(entity);
         registry.ctx<entity_graph>().remove_edge(edge.edge_index);
         m_delta_builder->destroyed(entity);
+    }
+
+    if (m_entity_map.has_loc(entity)) {
+        m_entity_map.erase_loc(entity);
     }
 }
 
@@ -200,7 +197,7 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
     // them if they were just created in the last step of the island where it's
     // coming from.
     auto cp_view = m_registry.view<contact_point>();
-    auto cc_view = m_registry.view<contact_constraint>();
+    auto contact_view = m_registry.view<contact_constraint>();
     auto mat_view = m_registry.view<material>();
     delta.created_for_each<contact_point>([&] (entt::entity remote_entity, const contact_point &) {
         if (!m_entity_map.has_rem(remote_entity)) {
@@ -209,7 +206,7 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
 
         auto local_entity = m_entity_map.remloc(remote_entity);
 
-        if (cc_view.contains(local_entity)) {
+        if (contact_view.contains(local_entity)) {
             return;
         }
 
@@ -221,26 +218,27 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
     });
 }
 
-void extrapolation_job::sync() {
-    // Always update AABBs since they're needed for broad-phase in the coordinator.
+void extrapolation_job::on_transient_snapshot(const packet::transient_snapshot &snapshot) {
+    for (auto &pool : snapshot.pools) {
+        (*m_import_pool_func)(m_registry, pool);
+    }
+}
+
+void extrapolation_job::apply_history() {
+    auto &settings = m_registry.ctx<edyn::settings>();
+    auto start_time = m_current_time - settings.fixed_dt;
+    auto end_time = m_current_time;
+
+    for (auto &delta : m_history) {
+        if (delta.m_timestamp >= start_time && delta.m_timestamp < end_time) {
+            delta.import(m_registry, m_entity_map);
+        }
+    }
+}
+
+void extrapolation_job::sync_and_finish() {
     m_registry.view<AABB>().each([&] (entt::entity entity, AABB &aabb) {
         m_delta_builder->updated(entity, aabb);
-    });
-
-    // Always update applied impulses since they're needed to maintain warm starting
-    // functioning correctly when constraints are moved from one island to another.
-    // TODO: synchronized merges would eliminate the need to share these
-    // components continuously.
-    m_registry.view<constraint_impulse>().each([&] (entt::entity entity, constraint_impulse &imp) {
-        m_delta_builder->updated(entity, imp);
-    });
-
-    // Updated contact points are needed when moving entities from one island to
-    // another when merging/splitting in the coordinator.
-    // TODO: synchronized merges would eliminate the need to share these
-    // components continuously.
-    m_registry.view<contact_point>().each([&] (entt::entity entity, contact_point &cp) {
-        m_delta_builder->updated(entity, cp);
     });
 
     // Update continuous components.
@@ -252,42 +250,11 @@ void extrapolation_job::sync() {
         }
     });
 
-    sync_dirty();
 
     auto delta = m_delta_builder->finish();
     m_message_queue.send<island_delta>(std::move(delta));
-}
 
-void extrapolation_job::sync_dirty() {
-    // Assign dirty components to the delta builder. This can be called at
-    // any time to move the current dirty entities into the next island delta.
-    m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
-        if (dirty.is_new_entity) {
-            m_delta_builder->created(entity);
-        }
-
-        m_delta_builder->created(entity, m_registry,
-            dirty.created_indexes.begin(), dirty.created_indexes.end());
-        m_delta_builder->updated(entity, m_registry,
-            dirty.updated_indexes.begin(), dirty.updated_indexes.end());
-        m_delta_builder->destroyed(entity,
-            dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
-    });
-
-    m_registry.clear<dirty>();
-}
-
-void extrapolation_job::apply_history() {
-    auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
-    auto &settings = m_registry.ctx<edyn::settings>();
-    auto start_time = isle_time.value - settings.fixed_dt;
-    auto end_time = isle_time.value;
-
-    for (auto &delta : m_history) {
-        if (delta.m_timestamp >= start_time && delta.m_timestamp < end_time) {
-            delta.import(m_registry, m_entity_map);
-        }
-    }
+    m_finished.store(true, std::memory_order_release);
 }
 
 void extrapolation_job::update() {
@@ -308,8 +275,6 @@ void extrapolation_job::update() {
                     reschedule();
                 }
             }
-        } else {
-            reschedule();
         }
 
         break;
@@ -355,6 +320,21 @@ void extrapolation_job::process_messages() {
     m_message_queue.update();
 }
 
+bool extrapolation_job::should_step() {
+    auto time = performance_time();
+    auto &settings = m_registry.ctx<edyn::settings>();
+
+    if (m_current_time + settings.fixed_dt > time) {
+        // job is done.
+        sync_and_finish();
+        return false;
+    }
+
+    m_state = state::begin_step;
+
+    return true;
+}
+
 void extrapolation_job::begin_step() {
     EDYN_ASSERT(m_state == state::begin_step);
 
@@ -379,7 +359,8 @@ void extrapolation_job::begin_step() {
     // value of the impulse applied and the construction of `constraint_impulse`
     // or `contact_constraint` can be observed to capture the initial impact
     // of a new contact.
-    m_nphase.create_contact_constraints();
+    auto &nphase = m_registry.ctx<narrowphase>();
+    nphase.create_contact_constraints();
 
     m_state = state::solve;
 }
@@ -392,13 +373,14 @@ void extrapolation_job::run_solver() {
 
 bool extrapolation_job::run_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase);
+    auto &bphase = m_registry.ctx<broadphase_worker>();
 
-    if (m_bphase.parallelizable()) {
+    if (bphase.parallelizable()) {
         m_state = state::broadphase_async;
-        m_bphase.update_async(m_this_job);
+        bphase.update_async(m_this_job);
         return false;
     } else {
-        m_bphase.update();
+        bphase.update();
         m_state = state::narrowphase;
         return true;
     }
@@ -406,19 +388,21 @@ bool extrapolation_job::run_broadphase() {
 
 void extrapolation_job::finish_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase_async);
-    m_bphase.finish_async_update();
+    auto &bphase = m_registry.ctx<broadphase_worker>();
+    bphase.finish_async_update();
     m_state = state::narrowphase;
 }
 
 bool extrapolation_job::run_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase);
+    auto &nphase = m_registry.ctx<narrowphase>();
 
-    if (m_nphase.parallelizable()) {
+    if (nphase.parallelizable()) {
         m_state = state::narrowphase_async;
-        m_nphase.update_async(m_this_job);
+        nphase.update_async(m_this_job);
         return false;
     } else {
-        m_nphase.update();
+        nphase.update();
         m_state = state::finish_step;
         return true;
     }
@@ -426,23 +410,16 @@ bool extrapolation_job::run_narrowphase() {
 
 void extrapolation_job::finish_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase_async);
-    m_nphase.finish_async_update();
+    auto &nphase = m_registry.ctx<narrowphase>();
+    nphase.finish_async_update();
     m_state = state::finish_step;
 }
 
 void extrapolation_job::finish_step() {
     EDYN_ASSERT(m_state == state::finish_step);
 
-    auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto &settings = m_registry.ctx<edyn::settings>();
-    isle_time.value += settings.fixed_dt;
-
-    m_delta_builder->updated<island_timestamp>(m_island_entity, isle_time);
-
-    // Update tree view.
-    auto tview = m_bphase.view();
-    m_registry.replace<tree_view>(m_island_entity, tview);
-    m_delta_builder->updated(m_island_entity, tview);
+    m_current_time += settings.fixed_dt;
 
     if (settings.external_system_post_step) {
         (*settings.external_system_post_step)(m_registry);
@@ -452,14 +429,7 @@ void extrapolation_job::finish_step() {
 }
 
 void extrapolation_job::reschedule() {
-    auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
-
-    if (isle_time.value > m_target_time) {
-        // job is done.
-        sync();
-    } else {
-        job_dispatcher::global().async(m_this_job);
-    }
+    job_dispatcher::global().async(m_this_job);
 }
 
 void extrapolation_job::init_new_imported_contact_manifolds() {
@@ -477,8 +447,9 @@ void extrapolation_job::init_new_imported_contact_manifolds() {
     if (m_new_imported_contact_manifolds.empty()) return;
 
     // Find contact points for new manifolds imported from the main registry.
-    m_nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
-                                      m_new_imported_contact_manifolds.end());
+    auto &nphase = m_registry.ctx<narrowphase>();
+    nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
+                                    m_new_imported_contact_manifolds.end());
     m_new_imported_contact_manifolds.clear();
 }
 

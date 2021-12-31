@@ -19,6 +19,7 @@ void import_pool_client(entt::registry &registry, const std::vector<std::pair<en
         auto remote_entity = pair.first;
 
         if (!ctx.entity_map.has_rem(pair.first)) {
+            // Entity not present in client. Send an entity request to server.
             ctx.request_entity_signal.publish(remote_entity);
             continue;
         }

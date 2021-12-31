@@ -16,11 +16,19 @@
 
 namespace edyn {
 
-struct pool_snapshot_data_base {};
+struct pool_snapshot_data_base {
+    virtual std::vector<entt::entity> get_entities() const = 0;
+};
 
 template<typename Component>
 struct pool_snapshot_data : public pool_snapshot_data_base {
     std::vector<std::pair<entt::entity, Component>> pairs;
+
+    std::vector<entt::entity> get_entities() const override {
+        auto entities = std::vector<entt::entity>(pairs.size());
+        std::transform(pairs.begin(), pairs.end(), entities.begin(), [] (auto &&pair) { return pair.first; });
+        return entities;
+    }
 };
 
 struct pool_snapshot {

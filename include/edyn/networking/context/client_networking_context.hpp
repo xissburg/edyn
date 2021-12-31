@@ -2,6 +2,7 @@
 #define EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 
 #include "edyn/util/entity_map.hpp"
+#include "edyn/parallel/message_queue.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
@@ -14,6 +15,12 @@ namespace packet {
 }
 
 struct pool_snapshot;
+class extrapolation_job;
+
+struct extrapolation_job_context {
+    std::unique_ptr<extrapolation_job> job;
+    message_queue_in_out m_message_queue;
+};
 
 void import_pool_client_default(entt::registry &, const pool_snapshot &);
 void insert_entity_components_default(entt::registry &, entt::entity entity,
@@ -32,6 +39,10 @@ struct client_networking_context {
 
     double last_snapshot_time {0};
     double snapshot_rate {30};
+    double round_trip_time {0};
+    double server_playout_delay {0.2};
+
+    std::vector<extrapolation_job_context> extrapolation_jobs;
 
     using request_entity_func_t = void(entt::entity);
     entt::sigh<request_entity_func_t> request_entity_signal;

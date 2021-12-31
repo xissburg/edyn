@@ -391,13 +391,19 @@ One important piece that has to be managed by the user of the library are user i
 
 ## Client receives data from server
 
-Snapshots sent by the server in the snapshot stream do not contain all components of each entity in it. These snapshots only contain the dynamic components that change very often, such as position and velocity. However, entities are made of many other components. The client keeps an entity map which maps between local and remote entities. If an entity present in the snapshot is not yet in the entity map, it means the client doesn't know what that entity is and thus it must query the server. The server should respond with a snapshot containing the requested data and this can be loaded into the local registry which will instantiate the full entity and now it's ready to be properly updated.
+Snapshots sent by the server in the snapshot stream do not contain all components of each entity in it. These snapshots only contain the dynamic components that change very often, such as position and velocity.
+
+The client keeps an entity map which maps between local and remote entities. If an entity present in the transient snapshot is not yet in the entity map, it means the client doesn't know what that entity is and thus it must query the server. The server should respond with a snapshot containing the requested data and this can be loaded into the local registry which will instantiate the full entity and now it's ready to be properly updated.
 
 The server will notify a client whenever a new entity enters its AABB of interest, providing the state of all components. It'll also notify the client when the entity leaves. That means most times, the entity will be available locally by the time a new snapshot arrives.
 
 Upon receiving snapshots from the server, the client is required to extrapolate these to the future before merging them onto its local simulation since the server simulation stays in the past plus there's latency to compensate for. The amount of time to extrapolate forward is calculated based on the snapshot step number converted to the local time frame.
 
-Extrapolation is performed in a background worker thread. It is the same as a typical island task except that it is not synchronized with the global timer. Once it's done, the result comes back to the world/coordinator which has to perhaps step it forward once or twice to make the step number match and then it overrides its components with the extrapolated data. Islands now have to be recalculated. The islands that contain the entities that were extrapolated must be updated with the new data.
+Extrapolation is performed in a background worker thread. It is the same as a typical island worker job except that it is not synchronized with the global timer, i.e. it runs the simulation steps one immediately after the other, as quickly as possible.
+
+The client-side networking system should prepare a registry snapshot containing all entities involved in the extrapolation and put it into the message queue of the extrapolation job. It should also send the transient snapshot to the extrapolation job. When run, the extrapolation job will read these messages and instantiate all entities and components with the first message, and apply the server state with the second. Then it's ready to run the extrapolation.
+
+Once it's done, it sends a registry snapshot to the coordinator containing the final state to be applied. The coordinator might have to step the extrapolation job's simulation forward once or twice to make the step number match and then it overrides its components with the extrapolated data.
 
 In case the server had taken ownership of an entity that's owned by the client, this entity will be contained in the snapshot. In this case it is necessary to also apply all inputs during extrapolation, thus a local input history has to be kept to be used here.
 

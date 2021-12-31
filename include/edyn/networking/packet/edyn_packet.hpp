@@ -9,6 +9,7 @@
 #include "edyn/networking/packet/update_entity_map.hpp"
 #include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/general_snapshot.hpp"
+#include "edyn/networking/packet/set_playout_delay.hpp"
 #include <variant>
 
 namespace edyn::packet {
@@ -22,7 +23,8 @@ struct edyn_packet {
         destroy_entity,
         update_entity_map,
         client_created,
-        general_snapshot
+        general_snapshot,
+        set_playout_delay
     > var;
 };
 

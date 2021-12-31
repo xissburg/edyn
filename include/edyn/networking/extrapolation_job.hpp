@@ -9,7 +9,10 @@
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/island_delta.hpp"
+#include "edyn/networking/packet/transient_snapshot.hpp"
+#include "edyn/networking/context/client_networking_context.hpp"
 #include <entt/entity/registry.hpp>
+#include <atomic>
 
 namespace edyn {
 
@@ -42,26 +45,26 @@ class extrapolation_job final {
     void init_new_imported_contact_manifolds();
     void init_new_shapes();
     void insert_remote_node(entt::entity remote_entity);
-    void sync();
-    void sync_dirty();
     void apply_history();
+    void sync_and_finish();
     void update();
 
 public:
-    extrapolation_job(double target_time, const settings &settings,
-                  const material_mix_table &material_table,
-                  message_queue_in_out message_queue);
-
-    entt::entity island_entity() const {
-        return m_island_entity;
-    }
+    extrapolation_job(double start_time, const settings &settings,
+                      const material_mix_table &material_table,
+                      client_networking_context::import_pool_func_t import_pool_func,
+                      message_queue_in_out message_queue);
 
     void on_island_delta(const island_delta &delta);
+    void on_transient_snapshot(const packet::transient_snapshot &snapshot);
 
     void reschedule();
 
+    bool is_finished() const {
+        return m_finished.load(std::memory_order_relaxed);
+    }
+
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
-    void on_destroy_contact_point(entt::registry &, entt::entity);
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
     void on_construct_polyhedron_shape(entt::registry &, entt::entity);
@@ -72,19 +75,17 @@ public:
 
 private:
     entt::registry m_registry;
-    entt::entity m_island_entity;
     entity_map m_entity_map;
-    broadphase_worker m_bphase;
-    narrowphase m_nphase;
     solver m_solver;
     message_queue_in_out m_message_queue;
+    client_networking_context::import_pool_func_t m_import_pool_func;
 
     state m_state;
+    double m_current_time;
+    std::atomic<bool> m_finished {false};
 
     std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_destroying_node;
-
-    double m_target_time;
 
     std::vector<entt::entity> m_new_imported_contact_manifolds;
     std::vector<entt::entity> m_new_polyhedron_shapes;

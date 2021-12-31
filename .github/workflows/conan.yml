@@ -6,7 +6,7 @@ jobs:
   build-conan:
     strategy:
       matrix:
-        os: ['windows-latest', 'ubuntu-latest', 'macos-latest']
+        os: ['ubuntu-latest', 'macos-latest']
         shared: ['False']
     runs-on: '${{ matrix.os }}'
     steps:

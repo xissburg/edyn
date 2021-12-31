@@ -234,6 +234,9 @@ static void handle_packet(entt::registry &registry, entt::entity client_entity, 
 static void handle_packet(entt::registry &, entt::entity, const packet::client_created &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
 
+static void handle_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
+
 void init_networking_server(entt::registry &registry) {
     registry.set<server_networking_context>();
 }

@@ -13,12 +13,14 @@
 #include "edyn/networking/context/client_networking_context.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/networking/extrapolation_job.hpp"
 #include "edyn/networking/util/client_import_pool.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include <entt/entity/registry.hpp>
+#include <set>
 
 namespace edyn {
 
@@ -118,6 +120,17 @@ void update_networking_client(entt::registry &registry) {
         if (!packet.pools.empty()) {
             ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
         }
+    }
+
+    // Check if extrapolation jobs are finished and merge their results into
+    // the main registry.
+    for (auto &extr_ctx : ctx.extrapolation_jobs) {
+        if (!extr_ctx.job->is_finished()) continue;
+
+
+        extr_ctx.m_message_queue.update();
+
+        // TODO
     }
 }
 
@@ -284,10 +297,69 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
 
 static void process_packet(entt::registry &registry, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<client_networking_context>();
+    double snapshot_time = performance_time() - (ctx.server_playout_delay + ctx.round_trip_time / 2);
+
+    // Collect the node indices of all entities involved in the snapshot.
+    std::set<entity_graph::index_type> node_indices;
+    auto node_view = registry.view<graph_node>();
 
     for (auto &pool : snapshot.pools) {
-        (*ctx.import_pool_func)(registry, pool);
+        auto pool_entities = pool.ptr->get_entities();
+
+        for (auto entity : pool_entities) {
+            if (node_view.contains(entity)) {
+                auto node_index = node_view.get<graph_node>(entity).node_index;
+                node_indices.insert(node_index);
+            }
+        }
     }
+
+    // Traverse entity graph to find all entities connected to the entities
+    // present in the transient snapshot.
+    auto entities = entt::sparse_set{};
+    auto &graph = registry.ctx<entity_graph>();
+    graph.reach(
+        node_indices.begin(), node_indices.end(),
+        [&] (entt::entity entity) { // visitNodeFunc
+            if (!entities.contains(entity)) {
+                entities.emplace(entity);
+            }
+        },
+        [&] (entt::entity entity) { // visitEdgeFunc
+            if (!entities.contains(entity)) {
+                entities.emplace(entity);
+            }
+        },
+        [&] (entity_graph::index_type) { // shouldVisitFunc
+            return true;
+        },
+        [] () { // connectedComponentFunc
+        });
+
+    // Create registry snapshot to send to extrapolation job.
+    auto builder = make_island_delta_builder(registry);
+    for (auto entity : entities) {
+        builder->created(entity);
+        builder->created_all(entity, registry);
+    }
+
+    // Create extrapolation job and put the registry snapshot and the transient
+    // snapshot into its message queue.
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &material_table = registry.ctx<material_mix_table>();
+
+    auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
+    auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
+
+    auto job = std::make_unique<extrapolation_job>(snapshot_time, settings, material_table, ctx.import_pool_func,
+                                                   message_queue_in_out(main_queue_input, isle_queue_output));
+    main_queue_input.send<island_delta>(builder->finish());
+    main_queue_input.send<packet::transient_snapshot>(snapshot);
+
+    job->reschedule();
+
+    ctx.extrapolation_jobs.push_back(extrapolation_job_context{std::move(job),
+                                     message_queue_in_out(isle_queue_input, main_queue_output)});
 }
 
 static void process_packet(entt::registry &registry, const packet::general_snapshot &snapshot) {
@@ -296,6 +368,11 @@ static void process_packet(entt::registry &registry, const packet::general_snaps
     for (auto &pool : snapshot.pools) {
         (*ctx.import_pool_func)(registry, pool);
     }
+}
+
+static void process_packet(entt::registry &registry, const packet::set_playout_delay &delay) {
+    auto &ctx = registry.ctx<client_networking_context>();
+    ctx.server_playout_delay = delay.value;
 }
 
 void client_handle_packet(entt::registry &registry, const packet::edyn_packet &packet) {

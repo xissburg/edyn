@@ -781,7 +781,7 @@ void island_worker::init_new_imported_contact_manifolds() {
     // Find contact points for new manifolds imported from the main registry.
     auto &nphase = m_registry.ctx<narrowphase>();
     nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
-                                      m_new_imported_contact_manifolds.end());
+                                    m_new_imported_contact_manifolds.end());
     m_new_imported_contact_manifolds.clear();
 }
 
