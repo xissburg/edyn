@@ -64,39 +64,44 @@ void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx,
 // stored in traditional constraint rows.
 template<>
 void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<contact_constraint>();
-    auto cp_view = registry.view<contact_point>();
+    auto manifold_view = registry.view<contact_manifold>();
     auto imp_view = registry.view<constraint_impulse>();
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
     auto local_idx = size_t(0);
     auto roll_idx = size_t(0);
 
-    for (auto entity : con_view) {
+    for (auto entity : manifold_view) {
+        auto &manifold = manifold_view.get<contact_manifold>(entity);
         auto &imp = imp_view.get<constraint_impulse>(entity);
         auto num_rows = cache.con_num_rows[con_idx];
-        // Normal impulse.
-        imp.values[0] = cache.rows[row_idx].impulse;
 
-        // Friction impulse.
-        auto &friction_rows = ctx.friction_rows[local_idx];
+         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
+            auto &cp = manifold.point[manifold.indices[pt_idx]];
+            auto start_idx = pt_idx * 9;
+            // Normal impulse.
+            imp.values[start_idx + 0] = cache.rows[start_idx + row_idx].impulse;
 
-        for (auto i = 0; i < 2; ++i) {
-            imp.values[1 + i] = friction_rows.row[i].impulse;
-        }
+            // Friction impulse.
+            auto &friction_rows = ctx.friction_rows[local_idx];
 
-        // Rolling friction impulse.
-        if (cp_view.get<contact_point>(entity).roll_friction > 0) {
-            auto &roll_rows = ctx.roll_friction_rows[roll_idx];
             for (auto i = 0; i < 2; ++i) {
-                imp.values[4 + i] = roll_rows.row[i].impulse;
+                imp.values[start_idx + 1 + i] = friction_rows.row[start_idx + i].impulse;
             }
-            ++roll_idx;
-        }
 
-        // Spinning friction impulse.
-        if (num_rows > 1) {
-            imp.values[3] = cache.rows[row_idx + 1].impulse;
-        }
+            // Rolling friction impulse.
+            if (cp.roll_friction > 0) {
+                auto &roll_rows = ctx.roll_friction_rows[roll_idx];
+                for (auto i = 0; i < 2; ++i) {
+                    imp.values[start_idx + 4 + i] = roll_rows.row[start_idx + i].impulse;
+                }
+                ++roll_idx;
+            }
+
+            // Spinning friction impulse.
+            if (num_rows > 1) {
+                imp.values[start_idx + 3] = cache.rows[start_idx + row_idx + 1].impulse;
+            }
+         }
 
         row_idx += num_rows;
         ++con_idx;

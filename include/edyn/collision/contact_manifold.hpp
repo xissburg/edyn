@@ -4,26 +4,21 @@
 #include <array>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
+#include <limits>
 #include "edyn/config/constants.hpp"
-#include "edyn/util/array.hpp"
+#include "edyn/collision/contact_point.hpp"
 
 namespace edyn {
 
 struct contact_manifold {
+    using contact_index_type = unsigned;
+    static constexpr auto invalid_index = std::numeric_limits<contact_index_type>::max();
+
     std::array<entt::entity, 2> body {entt::null, entt::null};
     scalar separation_threshold;
-    std::array<entt::entity, max_contacts> point =
-        make_array<max_contacts>(entt::entity{entt::null});
-
-    size_t num_points() const {
-        size_t count = 0;
-        for (auto e : point) {
-            if (e != entt::null) {
-                ++count;
-            }
-        }
-        return count;
-    }
+    unsigned num_points {0};
+    std::array<contact_index_type, max_contacts> indices;
+    std::array<contact_point, max_contacts> point;
 };
 
 /**

@@ -251,7 +251,6 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
     auto material_view = registry.view<material>();
     auto manifold_view = registry.view<contact_manifold>();
-    auto cp_view = registry.view<contact_point>();
 
     auto &material = material_view.get<edyn::material>(entity);
     material.friction = friction;
@@ -269,6 +268,10 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
         auto &manifold = manifold_view.get<contact_manifold>(edge_entity);
 
+        if (manifold.num_points == 0) {
+            return;
+        }
+
         auto other_entity = manifold.body[0] == entity ? manifold.body[1] : manifold.body[0];
         auto &other_material = material_view.get<edyn::material>(other_entity);
 
@@ -279,13 +282,13 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
         }
 
         auto combined_friction = material_mix_friction(friction, other_material.friction);
-        auto num_points = manifold.num_points();
 
-        for (size_t i = 0; i < num_points; ++i) {
-            auto &cp = cp_view.get<contact_point>(manifold.point[i]);
+        for (size_t i = 0; i < manifold.num_points; ++i) {
+            auto &cp = manifold.point[manifold.indices[i]];
             cp.friction = combined_friction;
-            refresh<contact_point>(registry, manifold.point[i]);
         }
+
+        refresh<contact_manifold>(registry, entity);
     });
 }
 

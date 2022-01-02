@@ -1,8 +1,8 @@
 #ifndef EDYN_CONSTRAINTS_CONTACT_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_CONTACT_CONSTRAINT_HPP
 
+#include <array>
 #include <vector>
-#include <entt/entity/fwd.hpp>
 #include "edyn/math/constants.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
@@ -28,8 +28,7 @@ namespace edyn {
  * be correct. Add them up to get the full normal and friction impulses.
  */
 struct contact_constraint : public constraint_base {
-    scalar stiffness {large_scalar};
-    scalar damping {large_scalar};
+
 };
 
 struct constraint_row;

@@ -6,6 +6,7 @@
 #include <optional>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
+#include "edyn/math/constants.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/collision/contact_normal_attachment.hpp"
 #include "edyn/collision/collision_feature.hpp"
@@ -13,7 +14,6 @@
 namespace edyn {
 
 struct contact_point {
-    std::array<entt::entity, 2> body {entt::null, entt::null};
     vector3 pivotA; // A's pivot in object space.
     vector3 pivotB; // B's pivot in object space.
     vector3 normal; // Normal in world space.
@@ -23,6 +23,8 @@ struct contact_point {
     scalar spin_friction; // Combined spin friction coefficient.
     scalar roll_friction; // Combined rolling friction coefficient.
     scalar restitution; // Combined coefficient of restitution.
+    scalar stiffness {large_scalar};
+    scalar damping {large_scalar};
     uint32_t lifetime {0}; // Incremented in each simulation step where the contact is persisted.
     scalar distance; // Signed distance along normal.
     std::optional<collision_feature> featureA; // Closest feature on A.
