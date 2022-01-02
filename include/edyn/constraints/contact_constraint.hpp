@@ -49,7 +49,17 @@ namespace internal {
     struct contact_constraint_context {
         std::vector<contact_friction_row_pair> friction_rows;
         std::vector<contact_friction_row_pair> roll_friction_rows;
+
+        /**
+         * Index where the contact constraints start in the row cache, i.e.
+         * `row_cache::rows`.
+         */
         size_t row_start_index;
+
+        /**
+         * Index where the contact constraints start in the row count array,
+         * i.e. `row_cache::con_num_rows`.
+         */
         size_t row_count_start_index;
     };
 

@@ -369,7 +369,8 @@ bool maybe_remove_point(contact_manifold &manifold, size_t pt_idx,
     EDYN_ASSERT(manifold.num_points > 0);
     size_t last_idx = manifold.num_points - 1;
     manifold.indices[pt_idx] = manifold.indices[last_idx];
-    manifold.indices[last_idx] = std::numeric_limits<std::decay_t<decltype(manifold.indices[0])>>::max();
+    manifold.indices[last_idx] = contact_manifold::invalid_index;
+    --manifold.num_points;
 
     return true;
 }

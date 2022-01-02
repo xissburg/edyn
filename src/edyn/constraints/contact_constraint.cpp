@@ -70,7 +70,9 @@ namespace internal {
 
 template<>
 void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>();
+    auto body_view = registry.view<position, orientation, linvel, angvel,
+                                   mass_inv, inertia_world_inv,
+                                   delta_linvel, delta_angvel>();
     auto con_view = registry.view<contact_constraint, contact_manifold>();
     auto imp_view = registry.view<constraint_impulse>();
     auto origin_view = registry.view<origin>();
@@ -87,17 +89,18 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     ctx.roll_friction_rows.clear();
 
     con_view.each([&] (entt::entity entity, contact_constraint &con, contact_manifold &manifold) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
         auto &imp = imp_view.get<constraint_impulse>(entity);
 
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
+        // Store initial size of the constraint row cache so the number of rows
+        // for this contact constraint can be calculated at the end.
         const auto row_start_index = cache.rows.size();
 
+        // Create constraint rows for each contact point.
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
             auto &cp = manifold.point[manifold.indices[pt_idx]];
             auto imp_start_idx = pt_idx * 9;
@@ -149,7 +152,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             prepare_row(normal_row, normal_options, linvelA, angvelA, linvelB, angvelB);
             warm_start(normal_row);
 
-            // Create special friction rows.
+            // Create special friction rows, always one pair per contact point.
             auto &friction_rows = ctx.friction_rows.emplace_back();
             friction_rows.friction_coefficient = cp.friction;
 
@@ -232,6 +235,7 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     auto row_idx = ctx.row_start_index;
     auto con_idx = size_t(0);
     auto roll_idx = size_t(0);
+    auto cp_idx = size_t(0); // Global contact point index.
     auto manifold_view = registry.view<contact_manifold>();
 
     // Solve friction rows locally using a non-standard method where the impulse
@@ -243,35 +247,33 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     // Solving the non-penetration constraints last helps minimize penetration
     // errors because there won't be additional errors introduced by other
     // constraints.
-    manifold_view.each([&] (contact_manifold &manifold) {
-        auto &normal_row = cache.rows[row_idx];
-
-        auto &friction_row_pair = ctx.friction_rows[con_idx];
-        internal::solve_friction_row_pair(friction_row_pair, normal_row);
-
-        auto num_rows = cache.con_num_rows[ctx.row_count_start_index + con_idx];
+    for (auto entity : manifold_view) {
+        auto [manifold] = manifold_view.get(entity);
 
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
+            auto &normal_row = cache.rows[row_idx++];
+            auto &friction_row_pair = ctx.friction_rows[cp_idx];
+            internal::solve_friction_row_pair(friction_row_pair, normal_row);
+
             auto &cp = manifold.point[manifold.indices[pt_idx]];
 
             if (cp.roll_friction > 0) {
-                auto &roll_row_pair = ctx.roll_friction_rows[roll_idx];
+                auto &roll_row_pair = ctx.roll_friction_rows[roll_idx++];
                 internal::solve_friction_row_pair(roll_row_pair, normal_row);
-                ++roll_idx;
             }
 
             if (cp.spin_friction > 0) {
-                EDYN_ASSERT(num_rows > 1);
-                auto &spin_row = cache.rows[row_idx + 1];
+                auto &spin_row = cache.rows[row_idx++];
                 auto max_impulse_len = cp.spin_friction * normal_row.impulse;
                 spin_row.lower_limit = -max_impulse_len;
                 spin_row.upper_limit = max_impulse_len;
             }
+
+            ++cp_idx;
         }
 
-        row_idx += num_rows;
         ++con_idx;
-    });
+    }
 }
 
 template<>
@@ -285,12 +287,10 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
     auto min_dist = scalar(0);
 
     for (auto entity : manifold_view) {
-        auto &manifold = manifold_view.get<contact_manifold>(entity);
+        auto [manifold] = manifold_view.get(entity);
 
-        auto [posA, ornA, inv_mA, inv_IA] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(manifold.body[0]);
-        auto [posB, ornB, inv_mB, inv_IB] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(manifold.body[1]);
+        auto [posA, ornA, inv_mA, inv_IA] = body_view.get(manifold.body[0]);
+        auto [posB, ornB, inv_mB, inv_IB] = body_view.get(manifold.body[1]);
 
         auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);

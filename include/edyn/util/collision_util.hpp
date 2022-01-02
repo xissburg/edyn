@@ -271,6 +271,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                         size_t last_idx = manifold.num_points - 1;
                         manifold.indices[i] = manifold.indices[last_idx];
                         manifold.indices[last_idx] = contact_manifold::invalid_index;
+                        --manifold.num_points;
                         break;
                     }
                 }
