@@ -73,39 +73,36 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
     for (auto entity : manifold_view) {
         auto &manifold = manifold_view.get<contact_manifold>(entity);
         auto &imp = imp_view.get<constraint_impulse>(entity);
-        auto num_rows = cache.con_num_rows[con_idx];
 
-         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
+        for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
             auto &cp = manifold.point[manifold.indices[pt_idx]];
             auto start_idx = pt_idx * 9;
             // Normal impulse.
-            imp.values[start_idx + 0] = cache.rows[start_idx + row_idx].impulse;
+            imp.values[start_idx + 0] = cache.rows[row_idx++].impulse;
 
             // Friction impulse.
             auto &friction_rows = ctx.friction_rows[local_idx];
 
             for (auto i = 0; i < 2; ++i) {
-                imp.values[start_idx + 1 + i] = friction_rows.row[start_idx + i].impulse;
+                imp.values[start_idx + 1 + i] = friction_rows.row[i].impulse;
             }
 
             // Rolling friction impulse.
             if (cp.roll_friction > 0) {
                 auto &roll_rows = ctx.roll_friction_rows[roll_idx];
                 for (auto i = 0; i < 2; ++i) {
-                    imp.values[start_idx + 4 + i] = roll_rows.row[start_idx + i].impulse;
+                    imp.values[start_idx + 4 + i] = roll_rows.row[i].impulse;
                 }
                 ++roll_idx;
             }
 
             // Spinning friction impulse.
-            if (num_rows > 1) {
-                imp.values[start_idx + 3] = cache.rows[start_idx + row_idx + 1].impulse;
+            if (cp.spin_friction > 0) {
+                imp.values[start_idx + 3] = cache.rows[row_idx++].impulse;
             }
-         }
 
-        row_idx += num_rows;
-        ++con_idx;
-        ++local_idx;
+            ++local_idx;
+        }
     }
 }
 

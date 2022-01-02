@@ -96,10 +96,11 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
-        auto row_start_index = cache.rows.size();
+        const auto row_start_index = cache.rows.size();
 
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
             auto &cp = manifold.point[manifold.indices[pt_idx]];
+            auto imp_start_idx = pt_idx * 9;
 
             EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
             auto normal = cp.normal;
@@ -115,7 +116,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
             normal_row.dvA = &dvA; normal_row.dwA = &dwA;
             normal_row.dvB = &dvB; normal_row.dwB = &dwB;
-            normal_row.impulse = imp.values[0];
+            normal_row.impulse = imp.values[imp_start_idx + 0];
             normal_row.lower_limit = 0;
 
             auto normal_options = constraint_row_options{};
@@ -158,7 +159,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             for (auto i = 0; i < 2; ++i) {
                 auto &friction_row = friction_rows.row[i];
                 friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-                friction_row.impulse = imp.values[1 + i];
+                friction_row.impulse = imp.values[imp_start_idx + 1 + i];
                 friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
                 friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA, linvelB, angvelB);
 
@@ -188,7 +189,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
                     auto &roll_row = roll_rows.row[i];
                     roll_row.J = {vector3_zero, axis, vector3_zero, -axis};
-                    roll_row.impulse = imp.values[4 + i];
+                    roll_row.impulse = imp.values[imp_start_idx + 4 + i];
                     auto J_invM_JT = dot(inv_IA * roll_row.J[1], roll_row.J[1]) +
                                     dot(inv_IB * roll_row.J[3], roll_row.J[3]);
 
@@ -213,12 +214,11 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                 spin_row.inv_mB = inv_mB; spin_row.inv_IB = inv_IB;
                 spin_row.dvA = &dvA; spin_row.dwA = &dwA;
                 spin_row.dvB = &dvB; spin_row.dwB = &dwB;
-                spin_row.impulse = imp.values[3];
+                spin_row.impulse = imp.values[imp_start_idx + 3];
 
                 prepare_row(spin_row, {}, linvelA, angvelA, linvelB, angvelB);
                 warm_start(spin_row);
             }
-
         }
 
         auto num_rows = cache.rows.size() - row_start_index;

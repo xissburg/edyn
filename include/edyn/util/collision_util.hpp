@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
-#include <limits>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/position.hpp"
@@ -76,7 +75,7 @@ void create_contact_point(entt::registry& registry,
 /**
  * Removes a contact point from a manifold if it's separating.
  */
-bool maybe_remove_point(contact_manifold &manifold, const contact_point &cp, size_t pt_idx,
+bool maybe_remove_point(contact_manifold &manifold, size_t pt_idx,
                         const vector3 &posA, const quaternion &ornA,
                         const vector3 &posB, const quaternion &ornB);
 
@@ -162,7 +161,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         if (nearest_idx < result.num_points && !merged_indices[nearest_idx]) {
             merge_point(manifold.body, result.point[nearest_idx], cp, orn_view, material_view, mesh_shape_view, paged_mesh_shape_view);
             merged_indices[nearest_idx] = true;
-        } else if (maybe_remove_point(manifold, cp, local_pt_idx, originA, ornA, originB, ornB)) {
+        } else if (maybe_remove_point(manifold, local_pt_idx, originA, ornA, originB, ornB)) {
             destroy_point_func(pt_idx);
         }
     }

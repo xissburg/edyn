@@ -291,6 +291,7 @@ void create_contact_point(entt::registry& registry,
     cp.pivotB = rp.pivotB;
     cp.normal = rp.normal;
     cp.normal_attachment = rp.normal_attachment;
+    cp.lifetime = 0;
     cp.distance = rp.distance;
     cp.featureA = rp.featureA;
     cp.featureB = rp.featureB;
@@ -335,14 +336,16 @@ void create_contact_point(entt::registry& registry,
         if (materialA.stiffness < large_scalar || materialB.stiffness < large_scalar) {
             cp.stiffness = material_mix_stiffness(materialA.stiffness, materialB.stiffness);
             cp.damping = material_mix_damping(materialA.damping, materialB.damping);
+        } else {
+            cp.stiffness = large_scalar;
+            cp.damping = large_scalar;
         }
     }
 
     registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold>();
 }
 
-bool maybe_remove_point(entt::entity manifold_entity,
-                        contact_manifold &manifold, size_t pt_idx,
+bool maybe_remove_point(contact_manifold &manifold, size_t pt_idx,
                         const vector3 &posA, const quaternion &ornA,
                         const vector3 &posB, const quaternion &ornB) {
     constexpr auto threshold = contact_breaking_threshold;
