@@ -1,7 +1,6 @@
 #include "edyn/dynamics/restitution_solver.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -62,7 +61,6 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     auto body_view = registry.view<position, orientation, linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
-    auto imp_view = registry.view<constraint_impulse>();
     auto origin_view = registry.view<origin>();
     auto restitution_view = registry.view<contact_manifold_with_restitution>();
     auto manifold_view = registry.view<contact_manifold>();
@@ -188,17 +186,16 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
         for (auto manifold_entity : manifold_entities) {
             auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
-            auto &imp = imp_view.get<constraint_impulse>(manifold_entity);
 
             for (size_t pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-                auto start_idx = pt_idx * 9;
+                auto &cp = manifold.point[manifold.indices[pt_idx]];
                 auto &normal_row = normal_rows[row_idx];
-                imp.values[start_idx + 6] = normal_row.impulse;
+                cp.normal_restitution_impulse = normal_row.impulse;
 
                 auto &friction_row_pair = friction_row_pairs[row_idx];
 
                 for (auto i = 0; i < 2; ++i) {
-                    imp.values[start_idx + 7 + i] = friction_row_pair.row[i].impulse;
+                    cp.friction_restitution_impulse[i] = friction_row_pair.row[i].impulse;
                 }
 
                 ++row_idx;

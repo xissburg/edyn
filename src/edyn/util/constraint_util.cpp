@@ -6,7 +6,6 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
@@ -21,17 +20,15 @@ namespace internal {
         // entity. If this entity already has a graph edge, just do a few
         // consistency checks.
         if (registry.any_of<graph_edge>(entity)) {
+        #ifdef EDYN_DEBUG
             auto &edge = registry.get<graph_edge>(entity);
             auto [ent0, ent1] = registry.ctx<entity_graph>().edge_node_entities(edge.edge_index);
             EDYN_ASSERT(ent0 == body0 && ent1 == body1);
-            EDYN_ASSERT(registry.any_of<constraint_impulse>(entity));
             EDYN_ASSERT(registry.any_of<procedural_tag>(entity));
+        #endif
             return false;
         }
 
-        registry.emplace<constraint_impulse>(entity);
-        auto &con_dirty = registry.get_or_emplace<dirty>(entity);
-        con_dirty.created<constraint_impulse>();
 
         // If the constraint is not a graph edge (e.g. when it's a `contact_constraint`
         // in a contact manifold), it means it is handled as a child of another entity
@@ -42,6 +39,8 @@ namespace internal {
             auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
             registry.emplace<procedural_tag>(entity);
             registry.emplace<graph_edge>(entity, edge_index);
+
+            auto &con_dirty = registry.get_or_emplace<dirty>(entity);
             con_dirty.created<procedural_tag>();
         }
 

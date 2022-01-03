@@ -33,7 +33,6 @@ void narrowphase::update_async(job &completion_job) {
     auto vel_view = m_registry->view<angvel>();
     auto rolling_view = m_registry->view<rolling_tag>();
     auto origin_view = m_registry->view<origin>();
-    auto imp_view = m_registry->view<constraint_impulse>();
     auto material_view = m_registry->view<material>();
     auto orn_view = m_registry->view<orientation>();
     auto mesh_shape_view = m_registry->view<mesh_shape>();
@@ -49,8 +48,8 @@ void narrowphase::update_async(job &completion_job) {
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job,
             [this, body_view, tr_view, vel_view, rolling_view, origin_view,
-             manifold_view, imp_view, orn_view, material_view,
-             mesh_shape_view, paged_mesh_shape_view, shapes_views_tuple, dt] (size_t index) {
+             manifold_view, orn_view, material_view, mesh_shape_view,
+             paged_mesh_shape_view, shapes_views_tuple, dt] (size_t index) {
         auto entity = manifold_view[index];
         auto &manifold = manifold_view.get<contact_manifold>(entity);
         collision_result result;
@@ -58,9 +57,9 @@ void narrowphase::update_async(job &completion_job) {
         auto &destruction_info = m_cp_destruction_infos[index];
 
         detect_collision(manifold.body, result, body_view, origin_view, shapes_views_tuple);
-        process_collision(entity, manifold, result, imp_view, tr_view,
-                          vel_view, rolling_view, origin_view, orn_view,
-                          material_view, mesh_shape_view, paged_mesh_shape_view, dt,
+        process_collision(entity, manifold, result, tr_view, vel_view,
+                          rolling_view, origin_view, orn_view, material_view,
+                          mesh_shape_view, paged_mesh_shape_view, dt,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
         }, [&destruction_info] (auto pt_idx) {

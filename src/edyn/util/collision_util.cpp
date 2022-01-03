@@ -295,6 +295,12 @@ void create_contact_point(entt::registry& registry,
     cp.distance = rp.distance;
     cp.featureA = rp.featureA;
     cp.featureB = rp.featureB;
+    cp.normal_impulse = 0;
+    cp.friction_impulse = {0, 0};
+    cp.spin_friction_impulse = 0;
+    cp.rolling_friction_impulse = {0, 0};
+    cp.normal_restitution_impulse = 0;
+    cp.friction_restitution_impulse = {0, 0};
 
     if (rp.normal_attachment != contact_normal_attachment::none) {
         auto idx = rp.normal_attachment == contact_normal_attachment::normal_on_A ? 0 : 1;

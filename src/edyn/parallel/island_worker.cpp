@@ -19,7 +19,6 @@
 #include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/serialization/memory_archive.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
@@ -343,14 +342,6 @@ void island_worker::sync() {
     // Always update AABBs since they're needed for broad-phase in the coordinator.
     m_registry.view<AABB>().each([&] (entt::entity entity, AABB &aabb) {
         m_delta_builder->updated(entity, aabb);
-    });
-
-    // Always update applied impulses since they're needed to maintain warm starting
-    // functioning correctly when constraints are moved from one island to another.
-    // TODO: synchronized merges would eliminate the need to share these
-    // components continuously.
-    m_registry.view<constraint_impulse>().each([&] (entt::entity entity, constraint_impulse &imp) {
-        m_delta_builder->updated(entity, imp);
     });
 
     // Updated contact points are needed when moving entities from one island to

@@ -11,7 +11,6 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/comp/dirty.hpp"
@@ -404,7 +403,6 @@ void island_coordinator::insert_to_island(island_worker_context &ctx,
     ctx.m_delta_builder->reserve_created(nodes.size() + edges.size());
     ctx.m_delta_builder->reserve_created<contact_constraint>(manifold_view.size());
     ctx.m_delta_builder->reserve_created<contact_manifold>(manifold_view.size());
-    ctx.m_delta_builder->reserve_created<constraint_impulse>(edges.size());
     ctx.m_delta_builder->reserve_created<position, orientation, linvel, angvel, continuous>(nodes.size());
     ctx.m_delta_builder->reserve_created<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>(nodes.size());
     auto island_entity = ctx.island_entity();

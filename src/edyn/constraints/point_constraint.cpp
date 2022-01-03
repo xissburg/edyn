@@ -2,7 +2,6 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/mass.hpp"
@@ -24,14 +23,12 @@ void prepare_constraints<point_constraint>(entt::registry &registry, row_cache &
                                    linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
-    auto con_view = registry.view<point_constraint, constraint_impulse>();
+    auto con_view = registry.view<point_constraint>();
     auto origin_view = registry.view<origin>();
 
-    con_view.each([&] (point_constraint &con, constraint_impulse& imp) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
+    con_view.each([&] (point_constraint &con) {
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
@@ -55,7 +52,7 @@ void prepare_constraints<point_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[i];
+            row.impulse = con.impulse[i];
 
             auto options = constraint_row_options{};
             options.error = (pivotA[i] - pivotB[i]) / dt;

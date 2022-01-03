@@ -1,6 +1,5 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -74,7 +73,6 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<contact_constraint, contact_manifold>();
-    auto imp_view = registry.view<constraint_impulse>();
     auto origin_view = registry.view<origin>();
     auto roll_dir_view = registry.view<roll_direction>();
     auto &settings = registry.ctx<edyn::settings>();
@@ -91,7 +89,6 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     con_view.each([&] (entt::entity entity, contact_constraint &con, contact_manifold &manifold) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
-        auto &imp = imp_view.get<constraint_impulse>(entity);
 
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
@@ -103,7 +100,6 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         // Create constraint rows for each contact point.
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
             auto &cp = manifold.point[manifold.indices[pt_idx]];
-            auto imp_start_idx = pt_idx * 9;
 
             EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
             auto normal = cp.normal;
@@ -119,7 +115,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
             normal_row.dvA = &dvA; normal_row.dwA = &dwA;
             normal_row.dvB = &dvB; normal_row.dwB = &dwB;
-            normal_row.impulse = imp.values[imp_start_idx + 0];
+            normal_row.impulse = cp.normal_impulse;
             normal_row.lower_limit = 0;
 
             auto normal_options = constraint_row_options{};
@@ -162,7 +158,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             for (auto i = 0; i < 2; ++i) {
                 auto &friction_row = friction_rows.row[i];
                 friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-                friction_row.impulse = imp.values[imp_start_idx + 1 + i];
+                friction_row.impulse = cp.friction_impulse[i];
                 friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
                 friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA, linvelB, angvelB);
 
@@ -192,7 +188,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
                     auto &roll_row = roll_rows.row[i];
                     roll_row.J = {vector3_zero, axis, vector3_zero, -axis};
-                    roll_row.impulse = imp.values[imp_start_idx + 4 + i];
+                    roll_row.impulse = cp.rolling_friction_impulse[i];
                     auto J_invM_JT = dot(inv_IA * roll_row.J[1], roll_row.J[1]) +
                                     dot(inv_IB * roll_row.J[3], roll_row.J[3]);
 
@@ -217,7 +213,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                 spin_row.inv_mB = inv_mB; spin_row.inv_IB = inv_IB;
                 spin_row.dvA = &dvA; spin_row.dwA = &dwA;
                 spin_row.dvB = &dvB; spin_row.dwB = &dwB;
-                spin_row.impulse = imp.values[imp_start_idx + 3];
+                spin_row.impulse = cp.spin_friction_impulse;
 
                 prepare_row(spin_row, {}, linvelA, angvelA, linvelB, angvelB);
                 warm_start(spin_row);

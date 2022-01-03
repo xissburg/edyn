@@ -14,7 +14,6 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/collision_result.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 
 namespace edyn {
 
@@ -106,11 +105,10 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &,
  * for every point that is removed (remember to call `destroy_contact_point`
  * when appropriate for each point that is removed).
  */
-template<typename ImpulseView, typename TransformView, typename VelView,
-         typename RollingView, typename NewPointFunc, typename DestroyPointFunc>
+template<typename TransformView, typename VelView, typename RollingView,
+         typename NewPointFunc, typename DestroyPointFunc>
 void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                        const collision_result &result,
-                       ImpulseView &imp_view,
                        TransformView &tr_view,
                        VelView &vel_view,
                        RollingView &rolling_view,

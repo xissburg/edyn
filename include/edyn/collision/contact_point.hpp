@@ -29,6 +29,19 @@ struct contact_point {
     scalar distance; // Signed distance along normal.
     std::optional<collision_feature> featureA; // Closest feature on A.
     std::optional<collision_feature> featureB; // Closest feature on B.
+    scalar normal_impulse; // Applied normal impulse.
+    std::array<scalar, 2> friction_impulse; // Applied tangential friction impulse.
+    scalar spin_friction_impulse; // Applied spin friction impulse.
+    std::array<scalar, 2> rolling_friction_impulse; // Applied rolling friction impulse.
+    scalar normal_restitution_impulse; // Applied normal impulse in resitution solver.
+    std::array<scalar, 2> friction_restitution_impulse; // Applied tangential friction impulse in restitution solver.
+    /**
+     * The restitution impulses are calculated by the restitution solver and are
+     * kept separate because if mixed with `normal_impulse` and `friction_impulse`,
+     * the constraint solver will remove some of the propagated shock and the
+     * results will not be correct. Add them up to get the full normal and
+     * friction impulses.
+     */
 };
 
 }
