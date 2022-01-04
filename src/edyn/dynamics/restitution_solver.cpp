@@ -118,10 +118,8 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
         for (auto manifold_entity : manifold_entities) {
             auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
 
-            auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
-                body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[0]);
-            auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
-                body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(manifold.body[1]);
+            auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(manifold.body[0]);
+            auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(manifold.body[1]);
 
             auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
             auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
