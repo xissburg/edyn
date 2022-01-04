@@ -64,8 +64,8 @@ size_t find_nearest_contact_rolling(const collision_result &result, const vector
 /**
  * Creates a contact point from a result point and inserts it into a
  * manifold. The contact is inserted at the index assigned to the last
- * element of the `manifold.indices array`, i.e.
- * `manifold.point[manifold.indices[manifold.num_points-1]]`.
+ * element of the `manifold.ids array`, i.e.
+ * `manifold.point[manifold.ids[manifold.num_points-1]]`.
  */
 void create_contact_point(entt::registry& registry,
                           entt::entity manifold_entity,
@@ -86,7 +86,7 @@ bool maybe_remove_point(contact_manifold &manifold,
  * using `maybe_remove_point`.
  */
 void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity,
-                           contact_manifold::contact_index_type pt_idx);
+                           contact_manifold::contact_id_type pt_id);
 
 using detect_collision_body_view_t = entt::basic_view<entt::entity, entt::exclude_t<>,
                                      AABB, shape_index, position, orientation>;
@@ -139,13 +139,13 @@ void process_collision(entt::entity manifold_entity,
     std::fill(merged_indices.begin(), merged_indices.end(), false);
 
     for (auto i = manifold.num_points; i > 0; --i) {
-        auto local_pt_idx = i - 1;
+        auto pt_idx = i - 1;
         // Find a point in the result that's closest to the current point and
         // replace it. If there isn't any, check if the point is separating and
         // remove it if so. Increment lifetime if the point survives or gets
         // replaced by a matching result point.
-        auto pt_idx = manifold.indices[local_pt_idx];
-        auto &cp = manifold.point[pt_idx];
+        auto pt_id = manifold.ids[pt_idx];
+        auto &cp = manifold.point[pt_id];
         ++cp.lifetime;
 
         auto nearest_idx = find_nearest_contact(cp, result);
@@ -164,8 +164,8 @@ void process_collision(entt::entity manifold_entity,
         if (nearest_idx < result.num_points && !merged_indices[nearest_idx]) {
             merge_point(manifold.body, result.point[nearest_idx], cp, orn_view, material_view, mesh_shape_view, paged_mesh_shape_view);
             merged_indices[nearest_idx] = true;
-        } else if (maybe_remove_point(manifold, events, local_pt_idx, originA, ornA, originB, ornB)) {
-            destroy_point_func(pt_idx);
+        } else if (maybe_remove_point(manifold, events, pt_idx, originA, ornA, originB, ornB)) {
+            destroy_point_func(pt_id);
         }
     }
 
@@ -180,7 +180,7 @@ void process_collision(entt::entity manifold_entity,
     // this directly into the manifold would create some confusion.
     struct local_contact_point {
         collision_result::collision_point point;
-        unsigned pt_idx {contact_manifold::invalid_index};
+        unsigned pt_id {contact_manifold::invalid_id};
         point_insertion_type type {point_insertion_type::none};
     };
 
@@ -190,10 +190,10 @@ void process_collision(entt::entity manifold_entity,
 
     if (num_points > 0) {
         for (size_t i = 0; i < num_points; ++i) {
-            auto pt_idx = manifold.indices[i];
-            auto &cp = manifold.point[pt_idx];
+            auto pt_id = manifold.ids[i];
+            auto &cp = manifold.point[pt_id];
             local_points[i].point = {cp.pivotA, cp.pivotB, cp.normal, cp.distance};
-            local_points[i].pt_idx = pt_idx;
+            local_points[i].pt_id = pt_id;
         }
     } else {
         ++num_points;
@@ -255,10 +255,10 @@ void process_collision(entt::entity manifold_entity,
             // point which is new and is not in the manifold yet, i.e. the collision
             // result has two or more points that are very close to one another.
             // Create a new point in that case.
-            if (local_pt.pt_idx == contact_manifold::invalid_index) {
+            if (local_pt.pt_id == contact_manifold::invalid_id) {
                 new_point_func(local_pt.point);
             } else {
-                merge_point(manifold.body, local_pt.point, manifold.point[local_pt.pt_idx],
+                merge_point(manifold.body, local_pt.point, manifold.point[local_pt.pt_id],
                             orn_view, material_view, mesh_shape_view, paged_mesh_shape_view);
             }
             break;
@@ -267,22 +267,22 @@ void process_collision(entt::entity manifold_entity,
             // point must be created.
             // There is a chance the replaced point is actually one of the new
             // and thus there's no real point to be destroyed.
-            if (local_pt.pt_idx != contact_manifold::invalid_index) {
+            if (local_pt.pt_id != contact_manifold::invalid_id) {
                 for (size_t i = 0; i < manifold.num_points; ++i) {
-                    if (manifold.indices[i] == local_pt.pt_idx) {
+                    if (manifold.ids[i] == local_pt.pt_id) {
                         // Assign last to i-th and set last to null.
                         size_t last_idx = manifold.num_points - 1;
-                        manifold.indices[i] = manifold.indices[last_idx];
-                        manifold.indices[last_idx] = contact_manifold::invalid_index;
+                        manifold.ids[i] = manifold.ids[last_idx];
+                        manifold.ids[last_idx] = contact_manifold::invalid_id;
                         --manifold.num_points;
 
                         // Register contact destroyed event.
-                        events.contacts_destroyed[events.num_contacts_destroyed++] = local_pt.pt_idx;
+                        events.contacts_destroyed[events.num_contacts_destroyed++] = local_pt.pt_id;
                         break;
                     }
                 }
 
-                destroy_point_func(local_pt.pt_idx);
+                destroy_point_func(local_pt.pt_id);
             }
             new_point_func(local_pt.point);
             break;

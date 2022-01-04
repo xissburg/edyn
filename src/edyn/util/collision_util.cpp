@@ -32,7 +32,7 @@ void update_contact_distances(entt::registry &registry) {
         auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
         for (unsigned i = 0; i < manifold.num_points; ++i) {
-            auto &cp = manifold.point[manifold.indices[i]];
+            auto &cp = manifold.point[manifold.ids[i]];
             auto pivotA_world = to_world_space(cp.pivotA, originA, ornA);
             auto pivotB_world = to_world_space(cp.pivotB, originB, ornB);
             cp.distance = dot(cp.normal, pivotA_world - pivotB_world);
@@ -262,13 +262,13 @@ void create_contact_point(entt::registry& registry,
     EDYN_ASSERT(manifold.num_points < max_contacts);
 
     // Find available index.
-    std::sort(manifold.indices.begin(), manifold.indices.begin() + manifold.num_points);
+    std::sort(manifold.ids.begin(), manifold.ids.begin() + manifold.num_points);
 
-    unsigned idx = 0;
+    contact_manifold::contact_id_type pt_id = 0;
 
     for (unsigned i = 0; i < manifold.num_points; ++i) {
-        if (idx == manifold.indices[i]) {
-            ++idx;
+        if (pt_id == manifold.ids[i]) {
+            ++pt_id;
         } else {
             break;
         }
@@ -276,18 +276,18 @@ void create_contact_point(entt::registry& registry,
 
 #ifdef EDYN_DEBUG
     for (unsigned i = 0; i < manifold.num_points; ++i) {
-        EDYN_ASSERT(idx != manifold.indices[i]);
+        EDYN_ASSERT(pt_id != manifold.ids[i]);
     }
 #endif
 
     // Add new index.
     auto is_first_contact = manifold.num_points == 0;
-    manifold.indices[manifold.num_points++] = idx;
+    manifold.ids[manifold.num_points++] = pt_id;
 
     EDYN_ASSERT(length_sqr(rp.normal) > EDYN_EPSILON);
 
     // Assign new point.
-    auto &cp = manifold.point[idx];
+    auto &cp = manifold.point[pt_id];
     cp = {}; // Clear cached point.
     cp.pivotA = rp.pivotA;
     cp.pivotB = rp.pivotB;
@@ -343,7 +343,7 @@ void create_contact_point(entt::registry& registry,
     auto &events = registry.get<contact_manifold_events>(manifold_entity);
     events.contact_started |= is_first_contact;
     EDYN_ASSERT(events.num_contacts_created < max_contacts);
-    events.contacts_created[events.num_contacts_created++] = idx;
+    events.contacts_created[events.num_contacts_created++] = pt_id;
 
     registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold, contact_manifold_events>();
 }
@@ -355,8 +355,8 @@ bool maybe_remove_point(contact_manifold &manifold,
                         const vector3 &posB, const quaternion &ornB) {
     constexpr auto threshold = contact_breaking_threshold;
     constexpr auto threshold_sqr = threshold * threshold;
-    auto local_pt_idx = manifold.indices[pt_idx];
-    auto &cp = manifold.point[local_pt_idx];
+    auto pt_id = manifold.ids[pt_idx];
+    auto &cp = manifold.point[pt_id];
 
     // Remove separating contact points.
     auto pA = to_world_space(cp.pivotA, posA, ornA);
@@ -374,17 +374,21 @@ bool maybe_remove_point(contact_manifold &manifold,
     // Swap with last element.
     EDYN_ASSERT(manifold.num_points > 0);
     size_t last_idx = manifold.num_points - 1;
-    manifold.indices[pt_idx] = manifold.indices[last_idx];
-    manifold.indices[last_idx] = contact_manifold::invalid_index;
+    manifold.ids[pt_idx] = manifold.ids[last_idx];
+    manifold.ids[last_idx] = contact_manifold::invalid_id;
     --manifold.num_points;
 
     events.contact_ended = manifold.num_points == 0;
-    events.contacts_destroyed[events.num_contacts_destroyed++] = local_pt_idx;
+    events.contacts_destroyed[events.num_contacts_destroyed++] = pt_id;
 
     return true;
 }
 
-void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity, contact_manifold::contact_index_type pt_idx) {
+void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity, contact_manifold::contact_id_type pt_id) {
+    // Finalize contact point destruction. At this point, it was already
+    // removed from the manifold and the event inserted in
+    // `maybe_remove_point`, which can be run in parallel, while the
+    // operations below cannot.
     registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold, contact_manifold_events>();
 }
 

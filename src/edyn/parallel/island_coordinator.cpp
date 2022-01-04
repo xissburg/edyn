@@ -150,7 +150,7 @@ void island_coordinator::on_destroy_contact_manifold(entt::registry &registry, e
 
     if (manifold.num_points > 0) {
         for (unsigned i = 0; i < manifold.num_points; ++i) {
-            m_contact_point_destroyed_signal.publish(entity, manifold.indices[i]);
+            m_contact_point_destroyed_signal.publish(entity, manifold.ids[i]);
         }
 
         m_contact_ended_signal.publish(entity);

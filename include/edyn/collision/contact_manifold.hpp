@@ -11,13 +11,26 @@
 namespace edyn {
 
 struct contact_manifold {
-    using contact_index_type = unsigned;
-    static constexpr auto invalid_index = std::numeric_limits<contact_index_type>::max();
+    using contact_id_type = unsigned;
+    static constexpr auto invalid_id = std::numeric_limits<contact_id_type>::max();
 
+    // Pair of rigid bodies which are touching.
     std::array<entt::entity, 2> body {entt::null, entt::null};
+
+    // If the AABB of one of the bodies inflated by this amount does not
+    // intersect the AABB of the other, the manifold will be destroyed.
+    // See `edy::broadphase_worker::destroy_separated_manifolds`.
     scalar separation_threshold;
+
+    // Number of contact points in this manifold.
     unsigned num_points {0};
-    std::array<contact_index_type, max_contacts> indices;
+
+    // Ids/indices of contact points in this manifold. Only the entries at
+    // indices up to `num_points - 1` are valid.
+    std::array<contact_id_type, max_contacts> ids;
+
+    // Array of contact points. Must be accessed via the valid indices in
+    // the `ids` array.
     std::array<contact_point, max_contacts> point;
 };
 

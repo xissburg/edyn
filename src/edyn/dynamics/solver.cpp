@@ -85,7 +85,7 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
         auto &manifold = manifold_view.get<contact_manifold>(entity);
 
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-            auto &cp = manifold.point[manifold.indices[pt_idx]];
+            auto &cp = manifold.point[manifold.ids[pt_idx]];
             cp.normal_impulse = cache.rows[row_idx++].impulse;
 
             // Friction impulse.
