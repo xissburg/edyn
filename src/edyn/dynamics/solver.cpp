@@ -78,7 +78,7 @@ template<>
 void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
     auto manifold_view = registry.view<contact_manifold>();
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
-    auto local_idx = size_t(0);
+    auto global_pt_idx = size_t(0);
     auto roll_idx = size_t(0);
 
     for (auto entity : manifold_view) {
@@ -89,7 +89,7 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
             cp.normal_impulse = cache.rows[row_idx++].impulse;
 
             // Friction impulse.
-            auto &friction_rows = ctx.friction_rows[local_idx];
+            auto &friction_rows = ctx.friction_rows[global_pt_idx];
 
             for (auto i = 0; i < 2; ++i) {
                 cp.friction_impulse[i] = friction_rows.row[i].impulse;
@@ -109,7 +109,7 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
                 cp.spin_friction_impulse = cache.rows[row_idx++].impulse;
             }
 
-            ++local_idx;
+            ++global_pt_idx;
         }
 
         ++con_idx;
