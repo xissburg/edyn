@@ -103,8 +103,8 @@ private:
 
     entt::sigh<void(entt::entity)> m_contact_started_signal;
     entt::sigh<void(entt::entity)> m_contact_ended_signal;
-    entt::sigh<void(entt::entity, unsigned)> m_contact_point_created_signal;
-    entt::sigh<void(entt::entity, unsigned)> m_contact_point_destroyed_signal;
+    entt::sigh<void(entt::entity, contact_manifold::contact_id_type)> m_contact_point_created_signal;
+    entt::sigh<void(entt::entity, contact_manifold::contact_id_type)> m_contact_point_destroyed_signal;
 
     std::vector<entt::entity> m_new_graph_nodes;
     std::vector<entt::entity> m_new_graph_edges;

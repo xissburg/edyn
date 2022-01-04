@@ -170,11 +170,11 @@ entt::sink<void(entt::entity)> on_contact_ended(entt::registry &registry) {
     return registry.ctx<island_coordinator>().contact_ended_sink();
 }
 
-entt::sink<void(entt::entity, unsigned)> on_contact_point_created(entt::registry &registry) {
+entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_point_created(entt::registry &registry) {
     return registry.ctx<island_coordinator>().contact_point_created_sink();
 }
 
-entt::sink<void(entt::entity, unsigned)> on_contact_point_destroyed(entt::registry &registry) {
+entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_point_destroyed(entt::registry &registry) {
     return registry.ctx<island_coordinator>().contact_point_destroyed_sink();
 }
 
