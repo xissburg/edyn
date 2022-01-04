@@ -26,7 +26,7 @@ class narrowphase {
     };
 
     struct contact_point_destruction_info {
-        std::array<size_t, max_contacts> point_index;
+        std::array<contact_manifold::contact_id_type, max_contacts> point_id;
         size_t count {0};
     };
 
@@ -90,8 +90,8 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
                           mesh_shape_view, paged_mesh_shape_view, dt,
                           [&] (const collision_result::collision_point &rp) {
             create_contact_point(*m_registry, manifold_entity, manifold, rp);
-        }, [&] (auto pt_idx) {
-            destroy_contact_point(*m_registry, manifold_entity, pt_idx);
+        }, [&] (auto pt_id) {
+            destroy_contact_point(*m_registry, manifold_entity, pt_id);
         });
     }
 }

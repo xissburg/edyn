@@ -72,9 +72,9 @@ void narrowphase::update_async(job &completion_job) {
                           mesh_shape_view, paged_mesh_shape_view, dt,
                           [&construction_info] (const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
-        }, [&destruction_info] (auto pt_idx) {
-            EDYN_ASSERT(pt_idx < max_contacts);
-            destruction_info.point_index[destruction_info.count++] = pt_idx;
+        }, [&destruction_info] (auto pt_id) {
+            EDYN_ASSERT(pt_id < max_contacts);
+            destruction_info.point_id[destruction_info.count++] = pt_id;
         });
     });
 }
@@ -88,7 +88,7 @@ void narrowphase::finish_async_update() {
         auto &info_result = m_cp_destruction_infos[i];
 
         for (size_t j = 0; j < info_result.count; ++j) {
-            destroy_contact_point(*m_registry, entity, info_result.point_index[j]);
+            destroy_contact_point(*m_registry, entity, info_result.point_id[j]);
         }
     }
 
