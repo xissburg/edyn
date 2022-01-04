@@ -272,12 +272,42 @@ void exclude_collision(entt::registry &registry, entt::entity first, entt::entit
 /*! @copydoc exclude_collision */
 void exclude_collision(entt::registry &registry, entity_pair entities);
 
+/**
+ * @brief Signal triggered when a contact starts.
+ * A contact is considered to start when the first contact point is added to a
+ * manifold, i.e. when the number of points in a manifold becomes greater than
+ * zero.
+ * @param registry Data source.
+ * @return Sink to observe contact started events.
+ */
 entt::sink<void(entt::entity)> on_contact_started(entt::registry &);
 
+/**
+ * @brief Signal triggered when a contact ends.
+ * A contact ends when the last point is destroyed in a contact manifold, i.e.
+ * when the number of points goes to zero, or when a manifold is destroyed due
+ * to AABB separation.
+ * @param registry Data source.
+ * @return Sink to observe contact ended events.
+ */
 entt::sink<void(entt::entity)> on_contact_ended(entt::registry &);
 
+/**
+ * @brief Signal triggered when a contact point is created.
+ * This event is also triggered right after a contact started event, for each
+ * point that the contact has started with.
+ * @param registry Data source.
+ * @return Sink to observe contact point creation events.
+ */
 entt::sink<void(entt::entity, unsigned)> on_contact_point_created(entt::registry &);
 
+/**
+ * @brief Signal triggered when a contact point is destroyed.
+ * This event is also triggered for each contact point before a contact ended
+ * event.
+ * @param registry Data source.
+ * @return Sink to observe contact point destruction events.
+ */
 entt::sink<void(entt::entity, unsigned)> on_contact_point_destroyed(entt::registry &);
 
 /**
