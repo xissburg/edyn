@@ -626,16 +626,16 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
             m_contact_started_signal.publish(manifold_entity);
         }
 
-        if (events.contact_ended) {
-            m_contact_ended_signal.publish(manifold_entity);
-        }
-
         for (unsigned i = 0; i < events.num_contacts_created; ++i) {
             m_contact_point_created_signal.publish(manifold_entity, events.contacts_created[i]);
         }
 
         for (unsigned i = 0; i < events.num_contacts_destroyed; ++i) {
             m_contact_point_destroyed_signal.publish(manifold_entity, events.contacts_destroyed[i]);
+        }
+
+        if (events.contact_ended) {
+            m_contact_ended_signal.publish(manifold_entity);
         }
     });
 }
