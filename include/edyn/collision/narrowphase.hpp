@@ -30,8 +30,7 @@ class narrowphase {
         size_t count {0};
     };
 
-    void add_new_contact_point(entt::entity contact_entity,
-                               std::array<entt::entity, 2> body);
+    void clear_contact_manifold_events();
 
 public:
     narrowphase(entt::registry &);
@@ -66,6 +65,7 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
 template<typename ContactManifoldView, typename Iterator>
 void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
                                            ContactManifoldView &manifold_view) {
+    auto events_view = m_registry->view<contact_manifold_events>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();
     auto origin_view = m_registry->view<origin>();
@@ -81,10 +81,11 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
     for (auto it = begin; it != end; ++it) {
         entt::entity manifold_entity = *it;
         auto &manifold = manifold_view.template get<contact_manifold>(manifold_entity);
+        auto &events = events_view.get<contact_manifold_events>(manifold_entity);
         collision_result result;
         detect_collision(manifold.body, result, body_view, origin_view, views_tuple);
 
-        process_collision(manifold_entity, manifold, result, tr_view, vel_view,
+        process_collision(manifold_entity, manifold, events, result, tr_view, vel_view,
                           rolling_view, origin_view, orn_view, material_view,
                           mesh_shape_view, paged_mesh_shape_view, dt,
                           [&] (const collision_result::collision_point &rp) {

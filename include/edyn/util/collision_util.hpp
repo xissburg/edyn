@@ -13,6 +13,7 @@
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/collision_result.hpp"
 
 namespace edyn {
@@ -74,7 +75,9 @@ void create_contact_point(entt::registry& registry,
 /**
  * Removes a contact point from a manifold if it's separating.
  */
-bool maybe_remove_point(contact_manifold &manifold, size_t pt_idx,
+bool maybe_remove_point(contact_manifold &manifold,
+                        contact_manifold_events &events,
+                        size_t pt_idx,
                         const vector3 &posA, const quaternion &ornA,
                         const vector3 &posB, const quaternion &ornB);
 
@@ -107,7 +110,9 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &,
  */
 template<typename TransformView, typename VelView, typename RollingView,
          typename NewPointFunc, typename DestroyPointFunc>
-void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
+void process_collision(entt::entity manifold_entity,
+                       contact_manifold &manifold,
+                       contact_manifold_events &events,
                        const collision_result &result,
                        TransformView &tr_view,
                        VelView &vel_view,
@@ -159,7 +164,7 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
         if (nearest_idx < result.num_points && !merged_indices[nearest_idx]) {
             merge_point(manifold.body, result.point[nearest_idx], cp, orn_view, material_view, mesh_shape_view, paged_mesh_shape_view);
             merged_indices[nearest_idx] = true;
-        } else if (maybe_remove_point(manifold, local_pt_idx, originA, ornA, originB, ornB)) {
+        } else if (maybe_remove_point(manifold, events, local_pt_idx, originA, ornA, originB, ornB)) {
             destroy_point_func(pt_idx);
         }
     }
@@ -270,6 +275,9 @@ void process_collision(entt::entity manifold_entity, contact_manifold &manifold,
                         manifold.indices[i] = manifold.indices[last_idx];
                         manifold.indices[last_idx] = contact_manifold::invalid_index;
                         --manifold.num_points;
+
+                        // Register contact destroyed event.
+                        events.contacts_destroyed[events.num_contacts_destroyed++] = local_pt.pt_idx;
                         break;
                     }
                 }

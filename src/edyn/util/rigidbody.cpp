@@ -140,7 +140,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // Instruct island worker to continuously send position, orientation and
         // velocity updates back to coordinator. The velocity is needed for calculation
         // of the present position and orientation in `update_presentation`.
-        // TODO: synchronized merges would eliminate the need to share these
+        // TODO: the island worker refactor would eliminate the need to share these
         // components continuously.
         auto &settings = registry.ctx<edyn::settings>();
         auto &cont = registry.emplace<continuous>(entity);

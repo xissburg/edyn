@@ -272,6 +272,14 @@ void exclude_collision(entt::registry &registry, entt::entity first, entt::entit
 /*! @copydoc exclude_collision */
 void exclude_collision(entt::registry &registry, entity_pair entities);
 
+entt::sink<void(entt::entity)> on_contact_started(entt::registry &);
+
+entt::sink<void(entt::entity)> on_contact_ended(entt::registry &);
+
+entt::sink<void(entt::entity, unsigned)> on_contact_point_created(entt::registry &);
+
+entt::sink<void(entt::entity, unsigned)> on_contact_point_destroyed(entt::registry &);
+
 /**
  * @brief Visit all edges of a node in the entity graph. This can be used to
  * iterate over all constraints assigned to a rigid body.
@@ -311,12 +319,6 @@ void set_gravity(entt::registry &registry, vector3 gravity);
  * @return Number of solver velocity iterations.
  */
 unsigned get_solver_velocity_iterations(const entt::registry &registry);
-
-/**
- * @brief Set the number of constraint solver velocity iterations.
- * @param registry Data source.
- * @param iterations Number of solver velocity iterations.
- */
 
 /**
  * @brief Set the number of constraint solver velocity iterations.

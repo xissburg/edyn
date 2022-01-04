@@ -281,26 +281,21 @@ void create_contact_point(entt::registry& registry,
 #endif
 
     // Add new index.
+    auto is_first_contact = manifold.num_points == 0;
     manifold.indices[manifold.num_points++] = idx;
 
     EDYN_ASSERT(length_sqr(rp.normal) > EDYN_EPSILON);
 
     // Assign new point.
     auto &cp = manifold.point[idx];
+    cp = {}; // Clear cached point.
     cp.pivotA = rp.pivotA;
     cp.pivotB = rp.pivotB;
     cp.normal = rp.normal;
     cp.normal_attachment = rp.normal_attachment;
-    cp.lifetime = 0;
     cp.distance = rp.distance;
     cp.featureA = rp.featureA;
     cp.featureB = rp.featureB;
-    cp.normal_impulse = 0;
-    cp.friction_impulse = {0, 0};
-    cp.spin_friction_impulse = 0;
-    cp.rolling_friction_impulse = {0, 0};
-    cp.normal_restitution_impulse = 0;
-    cp.friction_restitution_impulse = {0, 0};
 
     if (rp.normal_attachment != contact_normal_attachment::none) {
         auto idx = rp.normal_attachment == contact_normal_attachment::normal_on_A ? 0 : 1;
@@ -342,21 +337,26 @@ void create_contact_point(entt::registry& registry,
         if (materialA.stiffness < large_scalar || materialB.stiffness < large_scalar) {
             cp.stiffness = material_mix_stiffness(materialA.stiffness, materialB.stiffness);
             cp.damping = material_mix_damping(materialA.damping, materialB.damping);
-        } else {
-            cp.stiffness = large_scalar;
-            cp.damping = large_scalar;
         }
     }
 
-    registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold>();
+    auto &events = registry.get<contact_manifold_events>(manifold_entity);
+    events.contact_started |= is_first_contact;
+    EDYN_ASSERT(events.num_contacts_created < max_contacts);
+    events.contacts_created[events.num_contacts_created++] = idx;
+
+    registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold, contact_manifold_events>();
 }
 
-bool maybe_remove_point(contact_manifold &manifold, size_t pt_idx,
+bool maybe_remove_point(contact_manifold &manifold,
+                        contact_manifold_events &events,
+                        size_t pt_idx,
                         const vector3 &posA, const quaternion &ornA,
                         const vector3 &posB, const quaternion &ornB) {
     constexpr auto threshold = contact_breaking_threshold;
     constexpr auto threshold_sqr = threshold * threshold;
-    auto &cp = manifold.point[manifold.indices[pt_idx]];
+    auto local_pt_idx = manifold.indices[pt_idx];
+    auto &cp = manifold.point[local_pt_idx];
 
     // Remove separating contact points.
     auto pA = to_world_space(cp.pivotA, posA, ornA);
@@ -378,13 +378,14 @@ bool maybe_remove_point(contact_manifold &manifold, size_t pt_idx,
     manifold.indices[last_idx] = contact_manifold::invalid_index;
     --manifold.num_points;
 
+    events.contact_ended = manifold.num_points == 0;
+    events.contacts_destroyed[events.num_contacts_destroyed++] = local_pt_idx;
+
     return true;
 }
 
 void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity, contact_manifold::contact_index_type pt_idx) {
-    registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold>();
-
-    // Create contact destroyed event.
+    registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold, contact_manifold_events>();
 }
 
 void detect_collision(std::array<entt::entity, 2> body, collision_result &result,

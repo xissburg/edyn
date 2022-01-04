@@ -145,14 +145,15 @@ void island_coordinator::on_destroy_multi_island_resident(entt::registry &regist
 }
 
 void island_coordinator::on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
-    if (!registry.any_of<island_resident>(entity)) return;
-
-    auto &resident = registry.get<island_resident>(entity);
+    // Trigger contact destroyed events.
     auto &manifold = registry.get<contact_manifold>(entity);
 
-    for (size_t i = 0; i < manifold.num_points; ++i) {
-        // TODO: trigger contact destroyed event
+    if (manifold.num_points > 0) {
+        for (unsigned i = 0; i < manifold.num_points; ++i) {
+            m_contact_point_destroyed_signal.publish(entity, manifold.indices[i]);
+        }
+
+        m_contact_ended_signal.publish(entity);
     }
 }
 
@@ -615,6 +616,28 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     });
 
     m_importing_delta = false;
+
+    // Generate contact events.
+    delta.updated_for_each<contact_manifold_events>([&] (entt::entity remote_entity,
+                                                         const contact_manifold_events &events) {
+        auto manifold_entity = source_ctx->m_entity_map.remloc(remote_entity);
+
+        if (events.contact_started) {
+            m_contact_started_signal.publish(manifold_entity);
+        }
+
+        if (events.contact_ended) {
+            m_contact_ended_signal.publish(manifold_entity);
+        }
+
+        for (unsigned i = 0; i < events.num_contacts_created; ++i) {
+            m_contact_point_created_signal.publish(manifold_entity, events.contacts_created[i]);
+        }
+
+        for (unsigned i = 0; i < events.num_contacts_destroyed; ++i) {
+            m_contact_point_destroyed_signal.publish(manifold_entity, events.contacts_destroyed[i]);
+        }
+    });
 }
 
 void island_coordinator::on_split_island(entt::entity source_island_entity, const msg::split_island &) {

@@ -15,7 +15,14 @@ bool narrowphase::parallelizable() const {
     return m_registry->size<contact_manifold>() > 1;
 }
 
+void narrowphase::clear_contact_manifold_events() {
+    m_registry->view<contact_manifold_events>().each([] (auto &events) {
+        events = {};
+    });
+}
+
 void narrowphase::update() {
+    clear_contact_manifold_events();
     update_contact_distances(*m_registry);
 
     auto manifold_view = m_registry->view<contact_manifold>();
@@ -23,11 +30,13 @@ void narrowphase::update() {
 }
 
 void narrowphase::update_async(job &completion_job) {
+    clear_contact_manifold_events();
     update_contact_distances(*m_registry);
 
     EDYN_ASSERT(parallelizable());
 
     auto manifold_view = m_registry->view<contact_manifold>();
+    auto events_view = m_registry->view<contact_manifold_events>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();
     auto vel_view = m_registry->view<angvel>();
@@ -48,16 +57,17 @@ void narrowphase::update_async(job &completion_job) {
 
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job,
             [this, body_view, tr_view, vel_view, rolling_view, origin_view,
-             manifold_view, orn_view, material_view, mesh_shape_view,
+             manifold_view, events_view, orn_view, material_view, mesh_shape_view,
              paged_mesh_shape_view, shapes_views_tuple, dt] (size_t index) {
         auto entity = manifold_view[index];
-        auto &manifold = manifold_view.get<contact_manifold>(entity);
+        auto [manifold] = manifold_view.get(entity);
+        auto [events] = events_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
         auto &destruction_info = m_cp_destruction_infos[index];
 
         detect_collision(manifold.body, result, body_view, origin_view, shapes_views_tuple);
-        process_collision(entity, manifold, result, tr_view, vel_view,
+        process_collision(entity, manifold, events, result, tr_view, vel_view,
                           rolling_view, origin_view, orn_view, material_view,
                           mesh_shape_view, paged_mesh_shape_view, dt,
                           [&construction_info] (const collision_result::collision_point &rp) {

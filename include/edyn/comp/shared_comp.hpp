@@ -23,6 +23,7 @@
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/contact_point.hpp"
 
 namespace edyn {
@@ -49,6 +50,7 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     orientation,
     contact_manifold,
     contact_manifold_with_restitution,
+    contact_manifold_events,
     continuous,
     center_of_mass,
     origin,

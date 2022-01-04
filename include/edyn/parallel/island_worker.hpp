@@ -43,11 +43,11 @@ class island_worker final {
     void process_messages();
     bool should_step();
     void begin_step();
-    void run_solver();
     bool run_broadphase();
     void finish_broadphase();
     bool run_narrowphase();
     void finish_narrowphase();
+    void run_solver();
     void finish_step();
     void reschedule_now();
     void maybe_reschedule();

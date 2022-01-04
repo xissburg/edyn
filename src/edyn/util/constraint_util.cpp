@@ -57,9 +57,10 @@ entt::entity make_contact_manifold(entt::registry &registry, entt::entity body0,
 void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
+    registry.emplace<contact_manifold_events>(manifold_entity);
 
     auto &dirty = registry.get_or_emplace<edyn::dirty>(manifold_entity);
-    dirty.set_new().created<contact_manifold>();
+    dirty.set_new().created<contact_manifold, contact_manifold_events>();
 
     auto material_view = registry.view<material>();
 

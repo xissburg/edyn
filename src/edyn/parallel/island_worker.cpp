@@ -143,15 +143,6 @@ void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::
         m_delta_builder->destroyed(entity);
     }
 
-    if (!importing && !splitting) {
-        auto &manifold = registry.get<contact_manifold>(entity);
-
-        // TODO: Create destruction events for contact points.
-        for (unsigned i = 0; i < manifold.num_points; ++i) {
-
-        }
-    }
-
     // Mapping might not yet exist if this entity was just created locally and
     // the coordinator has not yet replied back with the main entity id.
     if (m_entity_map.has_loc(entity)) {
@@ -346,7 +337,7 @@ void island_worker::sync() {
 
     // Updated contact points are needed when moving entities from one island to
     // another when merging/splitting in the coordinator.
-    // TODO: synchronized merges would eliminate the need to share these
+    // TODO: the island worker refactor would eliminate the need to share these
     // components continuously.
     m_registry.view<contact_manifold>().each([&] (entt::entity entity, contact_manifold &manifold) {
         m_delta_builder->updated(entity, manifold);
@@ -397,9 +388,9 @@ void island_worker::update() {
 
         if (should_step()) {
             begin_step();
-            run_solver();
             if (run_broadphase()) {
                 if (run_narrowphase()) {
+                    run_solver();
                     finish_step();
                     maybe_reschedule();
                 }
@@ -415,6 +406,7 @@ void island_worker::update() {
         break;
     case state::solve:
         run_solver();
+        finish_step();
         reschedule_now();
         break;
     case state::broadphase:
@@ -425,18 +417,21 @@ void island_worker::update() {
     case state::broadphase_async:
         finish_broadphase();
         if (run_narrowphase()) {
+            run_solver();
             finish_step();
             maybe_reschedule();
         }
         break;
     case state::narrowphase:
         if (run_narrowphase()) {
+            run_solver();
             finish_step();
             maybe_reschedule();
         }
         break;
     case state::narrowphase_async:
         finish_narrowphase();
+        run_solver();
         finish_step();
         maybe_reschedule();
         break;
@@ -491,12 +486,6 @@ void island_worker::begin_step() {
     init_new_shapes();
     init_new_imported_contact_manifolds();
 
-    m_state = state::solve;
-}
-
-void island_worker::run_solver() {
-    EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(m_registry.ctx<edyn::settings>().fixed_dt);
     m_state = state::broadphase;
 }
 
@@ -538,7 +527,7 @@ bool island_worker::run_narrowphase() {
         // next to be missing in the island delta.
         sync_dirty();
         nphase.update();
-        m_state = state::finish_step;
+        m_state = state::solve;
         return true;
     }
 }
@@ -552,6 +541,12 @@ void island_worker::finish_narrowphase() {
     sync_dirty();
     auto &nphase = m_registry.ctx<narrowphase>();
     nphase.finish_async_update();
+    m_state = state::solve;
+}
+
+void island_worker::run_solver() {
+    EDYN_ASSERT(m_state == state::solve);
+    m_solver.update(m_registry.ctx<edyn::settings>().fixed_dt);
     m_state = state::finish_step;
 }
 

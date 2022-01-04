@@ -191,7 +191,6 @@ void solver::update(scalar dt) {
         }
     }
 
-
     update_origins(registry);
 
     // Update rotated vertices of convex meshes after rotations change. It is
