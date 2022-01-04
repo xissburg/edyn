@@ -315,8 +315,6 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         auto num_points = intersect_line_circle(v0A_zy, v1A_zy,
                                                 shA.radius, s[0], s[1]);
 
-        EDYN_ASSERT(num_points > 0);
-
         auto sign_faceA = to_sign(feature_indexA == 0);
         auto pivotA_x = shA.half_length * sign_faceA;
 
