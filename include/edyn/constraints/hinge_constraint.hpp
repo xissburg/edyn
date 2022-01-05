@@ -28,7 +28,9 @@ struct hinge_constraint : public constraint_base {
     // Angular limit restitution.
     scalar limit_restitution{};
 
-    std::array<scalar, 6> impulse {make_array<6, scalar>(0)};
+    scalar friction_torque{};
+
+    std::array<scalar, 6> impulse {make_array<6>(scalar{})};
 
     /**
      * @brief Set hinge axes.

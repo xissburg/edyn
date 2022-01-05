@@ -108,43 +108,50 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             warm_start(row);
         }
 
-        // Handle angular limits.
-        if (con.angle_min < con.angle_max) {
-            auto angle_axisB = rotate(ornB, con.frame[1].column(1));
-            auto angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
-            auto error = scalar{};
+        // Handle angular limits and friction.
+        auto has_limit = con.angle_min < con.angle_max;
 
-            if (angle < con.angle_min) {
-                error = con.angle_min - angle;
-            } else if (angle > con.angle_max) {
-                error = con.angle_max - angle;
-            }
+        if (has_limit || con.friction_torque > 0) {
+            auto error = scalar{0};
 
-            if (error != scalar{}) {
-                auto axisA = rotate(ornA, con.frame[0].column(0));
-                auto &row = cache.rows.emplace_back();
-                row.J = {vector3_zero, axisA, vector3_zero, -axisA};
-                row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-                row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-                row.dvA = &dvA; row.dwA = &dwA;
-                row.dvB = &dvB; row.dwB = &dwB;
-                row.impulse = con.impulse[row_idx++];
+            if (has_limit) {
+                auto angle_axisB = rotate(ornB, con.frame[1].column(1));
+                auto angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
 
-                if (error > 0) {
-                    row.lower_limit = -large_scalar;
-                    row.upper_limit = 0;
-                } else {
-                    row.lower_limit = 0;
-                    row.upper_limit = large_scalar;
+                if (angle < con.angle_min) {
+                    error = con.angle_min - angle;
+                } else if (angle > con.angle_max) {
+                    error = con.angle_max - angle;
                 }
-
-                auto options = constraint_row_options{};
-                options.error = error / dt;
-                options.restitution = con.limit_restitution;
-
-                prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-                warm_start(row);
             }
+
+            auto axisA = rotate(ornA, con.frame[0].column(0));
+            auto &row = cache.rows.emplace_back();
+            row.J = {vector3_zero, axisA, vector3_zero, -axisA};
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+            row.impulse = con.impulse[row_idx++];
+
+            if (error > 0) {
+                row.lower_limit = -large_scalar;
+                row.upper_limit = 0;
+            } else if (error < 0) {
+                row.lower_limit = 0;
+                row.upper_limit = large_scalar;
+            } else {
+                auto friction_impulse = con.friction_torque * dt;
+                row.lower_limit = -friction_impulse;
+                row.upper_limit = friction_impulse;
+            }
+
+            auto options = constraint_row_options{};
+            options.error = error / dt;
+            options.restitution = con.limit_restitution;
+
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+            warm_start(row);
         }
 
         cache.con_num_rows.push_back(row_idx);
