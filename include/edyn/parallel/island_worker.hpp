@@ -53,7 +53,6 @@ class island_worker final {
     void maybe_reschedule();
     void reschedule_later();
     void do_terminate();
-    void init_new_imported_contact_manifolds();
     void init_new_shapes();
     void insert_remote_node(entt::entity remote_entity);
     void maybe_go_to_sleep();
@@ -125,7 +124,6 @@ private:
     double m_calculate_split_delay;
     double m_calculate_split_timestamp;
 
-    std::vector<entt::entity> m_new_imported_contact_manifolds;
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
 

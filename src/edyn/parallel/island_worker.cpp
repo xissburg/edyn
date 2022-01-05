@@ -481,10 +481,9 @@ void island_worker::begin_step() {
         (*settings.external_system_pre_step)(m_registry);
     }
 
-    // Initialize new shapes before new manifolds because it'll perform
-    // collision detection for the new manifolds.
+    // Initialize new shapes. Basically, create rotated meshes for new
+    // imported polyhedron shapes.
     init_new_shapes();
-    init_new_imported_contact_manifolds();
 
     m_state = state::broadphase;
 }
@@ -685,27 +684,6 @@ void island_worker::reschedule() {
     if (reschedule_count > 0) return;
 
     job_dispatcher::global().async(m_this_job);
-}
-
-void island_worker::init_new_imported_contact_manifolds() {
-    // Entities in the new imported contact manifolds array might've been
-    // destroyed. Remove invalid entities before proceeding.
-    for (size_t i = 0; i < m_new_imported_contact_manifolds.size();) {
-        if (m_registry.valid(m_new_imported_contact_manifolds[i])) {
-            ++i;
-        } else {
-            m_new_imported_contact_manifolds[i] = m_new_imported_contact_manifolds.back();
-            m_new_imported_contact_manifolds.pop_back();
-        }
-    }
-
-    if (m_new_imported_contact_manifolds.empty()) return;
-
-    // Find contact points for new manifolds imported from the main registry.
-    auto &nphase = m_registry.ctx<narrowphase>();
-    nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
-                                    m_new_imported_contact_manifolds.end());
-    m_new_imported_contact_manifolds.clear();
 }
 
 void island_worker::init_new_shapes() {
