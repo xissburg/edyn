@@ -10,9 +10,16 @@
 
 namespace edyn {
 
+/**
+ * @brief Constrains two points on a pair of rigid bodies to match in space.
+ */
 struct point_constraint : public constraint_base {
+    // Pivot points in object space.
     std::array<vector3, 2> pivot;
-    std::array<scalar, 3> impulse {make_array<3, scalar>(0)};
+
+    scalar friction_torque{};
+
+    std::array<scalar, 4> impulse {make_array<4>(scalar{})};
 };
 
 template<>

@@ -41,8 +41,9 @@ void prepare_constraints<point_constraint>(entt::registry &registry, row_cache &
         auto rA_skew = skew_matrix(rA);
         auto rB_skew = skew_matrix(rB);
         constexpr auto I = matrix3x3_identity;
+        auto num_rows = size_t{3};
 
-        for (size_t i = 0; i < 3; ++i) {
+        for (size_t i = 0; i < num_rows; ++i) {
             auto &row = cache.rows.emplace_back();
             row.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
             row.lower_limit = -EDYN_SCALAR_MAX;
@@ -61,7 +62,28 @@ void prepare_constraints<point_constraint>(entt::registry &registry, row_cache &
             warm_start(row);
         }
 
-        cache.con_num_rows.push_back(3);
+        if (con.friction_torque > 0) {
+            auto spin_axis = angvelA - angvelB;
+
+            if (try_normalize(spin_axis)) {
+                auto &row = cache.rows.emplace_back();
+                row.J = {vector3_zero, spin_axis, vector3_zero, -spin_axis};
+                row.inv_mA = inv_mA;  row.inv_IA = inv_IA;
+                row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+                row.dvA = &dvA; row.dwA = &dwA;
+                row.dvB = &dvB; row.dwB = &dwB;
+                row.impulse = con.impulse[++num_rows];
+
+                auto friction_impulse = con.friction_torque * dt;
+                row.lower_limit = -friction_impulse;
+                row.upper_limit = friction_impulse;
+
+                prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
+                warm_start(row);
+            }
+        }
+
+        cache.con_num_rows.push_back(num_rows);
     });
 }
 
