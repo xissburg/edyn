@@ -6,11 +6,13 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
 struct generic_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
+    std::array<scalar, 6> impulse {make_array<6, scalar>(0)};
 };
 
 template<>

@@ -3,6 +3,7 @@
 
 #include <array>
 #include <entt/entity/fwd.hpp>
+#include "edyn/util/array.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
@@ -11,6 +12,7 @@ namespace edyn {
 
 struct point_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
+    std::array<scalar, 3> impulse {make_array<3, scalar>(0)};
 };
 
 template<>

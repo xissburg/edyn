@@ -6,7 +6,6 @@
 
 namespace edyn {
 
-inline constexpr size_t max_constraint_rows = 16;
 inline constexpr size_t max_contacts = 4;
 inline constexpr size_t max_constrained_entities = 2;
 

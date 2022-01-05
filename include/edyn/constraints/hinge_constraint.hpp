@@ -6,6 +6,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
@@ -14,6 +15,7 @@ struct hinge_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
     // Rotation axes in object space.
     std::array<vector3, 2> axis;
+    std::array<scalar, 5> impulse {make_array<5, scalar>(0)};
 };
 
 template<>

@@ -14,11 +14,11 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/constraints/constraint.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/dynamics/restitution_solver.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
+#include <type_traits>
 
 namespace edyn {
 
@@ -46,71 +46,82 @@ scalar solve(constraint_row &row) {
 template<typename C>
 void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
     auto con_view = registry.view<C>();
-    auto imp_view = registry.view<constraint_impulse>();
 
     for (auto entity : con_view) {
-        auto &imp = imp_view.get<constraint_impulse>(entity);
+        auto [con] = con_view.get(entity);
         auto num_rows = cache.con_num_rows[con_idx];
-        for (size_t i = 0; i < num_rows; ++i) {
-            imp.values[i] = cache.rows[row_idx + i].impulse;
+
+        // Check if the constraint `impulse` member is a scalar, otherwise
+        // an array is expected.
+        if constexpr(std::is_same_v<decltype(con.impulse), scalar>) {
+            EDYN_ASSERT(num_rows == 1);
+            con.impulse = cache.rows[row_idx].impulse;
+        } else {
+            EDYN_ASSERT(con.impulse.size() >= num_rows);
+            for (size_t i = 0; i < num_rows; ++i) {
+                con.impulse[i] = cache.rows[row_idx + i].impulse;
+            }
         }
 
         row_idx += num_rows;
         ++con_idx;
     }
 }
+
+// Specialization for `null_constraint` which is a no-op.
+template<>
+void update_impulse<null_constraint>(entt::registry &, row_cache &, size_t &, size_t &) {}
 
 // Specialization to assign the impulses of friction constraints which are not
 // stored in traditional constraint rows.
 template<>
 void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<contact_constraint>();
-    auto cp_view = registry.view<contact_point>();
-    auto imp_view = registry.view<constraint_impulse>();
+    auto manifold_view = registry.view<contact_manifold>();
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
-    auto local_idx = size_t(0);
+    auto global_pt_idx = size_t(0);
     auto roll_idx = size_t(0);
 
-    for (auto entity : con_view) {
-        auto &imp = imp_view.get<constraint_impulse>(entity);
-        auto num_rows = cache.con_num_rows[con_idx];
-        // Normal impulse.
-        imp.values[0] = cache.rows[row_idx].impulse;
+    for (auto entity : manifold_view) {
+        auto &manifold = manifold_view.get<contact_manifold>(entity);
 
-        // Friction impulse.
-        auto &friction_rows = ctx.friction_rows[local_idx];
+        for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
+            auto &cp = manifold.point[manifold.ids[pt_idx]];
+            cp.normal_impulse = cache.rows[row_idx++].impulse;
 
-        for (auto i = 0; i < 2; ++i) {
-            imp.values[1 + i] = friction_rows.row[i].impulse;
-        }
+            // Friction impulse.
+            auto &friction_rows = ctx.friction_rows[global_pt_idx];
 
-        // Rolling friction impulse.
-        if (cp_view.get<contact_point>(entity).roll_friction > 0) {
-            auto &roll_rows = ctx.roll_friction_rows[roll_idx];
             for (auto i = 0; i < 2; ++i) {
-                imp.values[4 + i] = roll_rows.row[i].impulse;
+                cp.friction_impulse[i] = friction_rows.row[i].impulse;
             }
-            ++roll_idx;
+
+            // Rolling friction impulse.
+            if (cp.roll_friction > 0) {
+                auto &roll_rows = ctx.roll_friction_rows[roll_idx];
+                for (auto i = 0; i < 2; ++i) {
+                    cp.rolling_friction_impulse[i] = roll_rows.row[i].impulse;
+                }
+                ++roll_idx;
+            }
+
+            // Spinning friction impulse.
+            if (cp.spin_friction > 0) {
+                cp.spin_friction_impulse = cache.rows[row_idx++].impulse;
+            }
+
+            ++global_pt_idx;
         }
 
-        // Spinning friction impulse.
-        if (num_rows > 1) {
-            imp.values[3] = cache.rows[row_idx + 1].impulse;
-        }
-
-        row_idx += num_rows;
         ++con_idx;
-        ++local_idx;
     }
 }
 
 void update_impulses(entt::registry &registry, row_cache &cache) {
-    // Assign impulses from constraint rows back into the `constraint_impulse`
-    // components. The rows are inserted into the cache for each constraint type
-    // in the order they're found in `constraints_tuple` and in the same order
-    // they're in their EnTT pools, which means the rows in the cache can be
-    // matched by visiting each constraint type in the order they appear in the
-    // tuple.
+    // Assign impulses from constraint rows back into the constraints. The rows
+    // are inserted into the cache for each constraint type in the order they're
+    // found in `constraints_tuple` and in the same order they're in their EnTT
+    // pools, which means the rows in the cache can be matched by visiting each
+    // constraint type in the order they appear in the tuple.
     size_t con_idx = 0;
     size_t row_idx = 0;
 
@@ -179,7 +190,6 @@ void solver::update(scalar dt) {
             break;
         }
     }
-
 
     update_origins(registry);
 

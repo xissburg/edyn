@@ -12,13 +12,6 @@ void merge(const contact_manifold *old_comp, contact_manifold &new_comp, merge_c
     for (auto &entity : new_comp.body) {
         entity = ctx.map->remloc(entity);
     }
-
-    for (auto &entity : new_comp.point) {
-        if (entity == entt::null) {
-            break;
-        }
-        entity = ctx.map->remloc(entity);
-    }
 }
 
 }
