@@ -7,8 +7,7 @@ namespace edyn {
 
 template<typename Archive>
 void serialize(Archive &archive, contact_point &cp) {
-    archive(cp.pivotA);
-    archive(cp.pivotB);
+    archive(cp.pivotA, cp.pivotB);
     archive(cp.normal);
     archive(cp.local_normal);
     archive(cp.normal_attachment);
@@ -20,8 +19,7 @@ void serialize(Archive &archive, contact_point &cp) {
     archive(cp.damping);
     archive(cp.lifetime);
     archive(cp.distance);
-    archive(cp.featureA);
-    archive(cp.featureB);
+    archive(cp.featureA, cp.featureB);
     archive(cp.normal_impulse);
     archive(cp.friction_impulse);
     archive(cp.spin_friction_impulse);

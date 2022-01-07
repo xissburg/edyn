@@ -9,7 +9,15 @@ template<typename Archive>
 void serialize(Archive &archive, contact_manifold &manifold) {
     archive(manifold.body);
     archive(manifold.separation_threshold);
-    archive(manifold.point);
+    archive(manifold.num_points);
+
+    for (unsigned i = 0; i < manifold.num_points; ++i) {
+        archive(manifold.ids[i]);
+    }
+
+    for (unsigned i = 0; i < manifold.num_points; ++i) {
+        archive(manifold.point[manifold.ids[i]]);
+    }
 }
 
 template<typename Archive>
