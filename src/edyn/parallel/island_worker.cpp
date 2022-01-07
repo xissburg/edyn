@@ -19,7 +19,6 @@
 #include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/serialization/memory_archive.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
@@ -144,25 +143,6 @@ void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::
         m_delta_builder->destroyed(entity);
     }
 
-    auto &manifold = registry.get<contact_manifold>(entity);
-    auto num_points = manifold.num_points();
-
-    for (size_t i = 0; i < num_points; ++i) {
-        auto contact_entity = manifold.point[i];
-
-        if (!importing) {
-            registry.destroy(contact_entity);
-        }
-
-        if (!importing && !splitting) {
-            m_delta_builder->destroyed(contact_entity);
-        }
-
-        if (m_entity_map.has_loc(contact_entity)) {
-            m_entity_map.erase_loc(contact_entity);
-        }
-    }
-
     // Mapping might not yet exist if this entity was just created locally and
     // the coordinator has not yet replied back with the main entity id.
     if (m_entity_map.has_loc(entity)) {
@@ -271,24 +251,8 @@ void island_worker::on_island_delta(const island_delta &delta) {
     delta.created_for_each<kinematic_tag>(insert_node);
     delta.created_for_each<external_tag>(insert_node);
 
-    // Insert edges in the graph for contact manifolds.
-    delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
-
-        auto local_entity = m_entity_map.remloc(remote_entity);
-        auto &node0 = node_view.get<graph_node>(manifold.body[0]);
-        auto &node1 = node_view.get<graph_node>(manifold.body[1]);
-        auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
-        m_registry.emplace<graph_edge>(local_entity, edge_index);
-        m_new_imported_contact_manifolds.push_back(local_entity);
-    });
-
     // Insert edges in the graph for constraints (except contact constraints).
     delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
-        // Contact constraints are not added as edges to the graph.
-        // The contact manifold which owns them is added instead.
-        if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
-
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
@@ -299,31 +263,6 @@ void island_worker::on_island_delta(const island_delta &delta) {
         auto &node1 = node_view.get<graph_node>(con.body[1]);
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry.emplace<graph_edge>(local_entity, edge_index);
-    });
-
-    // New contact points might be coming from another island after a merge or
-    // split and they might not yet have a contact constraint associated with
-    // them if they were just created in the last step of the island where it's
-    // coming from.
-    auto cp_view = m_registry.view<contact_point>();
-    auto contact_view = m_registry.view<contact_constraint>();
-    auto mat_view = m_registry.view<material>();
-    delta.created_for_each<contact_point>([&] (entt::entity remote_entity, const contact_point &) {
-        if (!m_entity_map.has_rem(remote_entity)) {
-            return;
-        }
-
-        auto local_entity = m_entity_map.remloc(remote_entity);
-
-        if (contact_view.contains(local_entity)) {
-            return;
-        }
-
-        auto &cp = cp_view.get<contact_point>(local_entity);
-
-        if (mat_view.contains(cp.body[0]) && mat_view.contains(cp.body[1])) {
-            create_contact_constraint(m_registry, local_entity, cp);
-        }
     });
 
     // When orientation is set manually, a few dependent components must be
@@ -396,20 +335,12 @@ void island_worker::sync() {
         m_delta_builder->updated(entity, aabb);
     });
 
-    // Always update applied impulses since they're needed to maintain warm starting
-    // functioning correctly when constraints are moved from one island to another.
-    // TODO: synchronized merges would eliminate the need to share these
-    // components continuously.
-    m_registry.view<constraint_impulse>().each([&] (entt::entity entity, constraint_impulse &imp) {
-        m_delta_builder->updated(entity, imp);
-    });
-
     // Updated contact points are needed when moving entities from one island to
     // another when merging/splitting in the coordinator.
-    // TODO: synchronized merges would eliminate the need to share these
+    // TODO: the island worker refactor would eliminate the need to share these
     // components continuously.
-    m_registry.view<contact_point>().each([&] (entt::entity entity, contact_point &cp) {
-        m_delta_builder->updated(entity, cp);
+    m_registry.view<contact_manifold>().each([&] (entt::entity entity, contact_manifold &manifold) {
+        m_delta_builder->updated(entity, manifold);
     });
 
     // Update continuous components.
@@ -457,9 +388,9 @@ void island_worker::update() {
 
         if (should_step()) {
             begin_step();
-            run_solver();
             if (run_broadphase()) {
                 if (run_narrowphase()) {
+                    run_solver();
                     finish_step();
                     maybe_reschedule();
                 }
@@ -475,6 +406,7 @@ void island_worker::update() {
         break;
     case state::solve:
         run_solver();
+        finish_step();
         reschedule_now();
         break;
     case state::broadphase:
@@ -485,18 +417,21 @@ void island_worker::update() {
     case state::broadphase_async:
         finish_broadphase();
         if (run_narrowphase()) {
+            run_solver();
             finish_step();
             maybe_reschedule();
         }
         break;
     case state::narrowphase:
         if (run_narrowphase()) {
+            run_solver();
             finish_step();
             maybe_reschedule();
         }
         break;
     case state::narrowphase_async:
         finish_narrowphase();
+        run_solver();
         finish_step();
         maybe_reschedule();
         break;
@@ -546,29 +481,10 @@ void island_worker::begin_step() {
         (*settings.external_system_pre_step)(m_registry);
     }
 
-    // Initialize new shapes before new manifolds because it'll perform
-    // collision detection for the new manifolds.
+    // Initialize new shapes. Basically, create rotated meshes for new
+    // imported polyhedron shapes.
     init_new_shapes();
-    init_new_imported_contact_manifolds();
 
-    // Create new contact constraints at the beginning of the step. Since
-    // contact points are created at the end of a step, creating constraints
-    // at that point would mean that they'd have zero applied impulse,
-    // which leads to contact point construction observers not getting the
-    // value of the initial impulse of a new contact. Doing it here, means
-    // that at the end of the step, the `constraint_impulse` will have the
-    // value of the impulse applied and the construction of `constraint_impulse`
-    // or `contact_constraint` can be observed to capture the initial impact
-    // of a new contact.
-    auto &nphase = m_registry.ctx<narrowphase>();
-    nphase.create_contact_constraints();
-
-    m_state = state::solve;
-}
-
-void island_worker::run_solver() {
-    EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(m_registry.ctx<edyn::settings>().fixed_dt);
     m_state = state::broadphase;
 }
 
@@ -610,7 +526,7 @@ bool island_worker::run_narrowphase() {
         // next to be missing in the island delta.
         sync_dirty();
         nphase.update();
-        m_state = state::finish_step;
+        m_state = state::solve;
         return true;
     }
 }
@@ -624,6 +540,12 @@ void island_worker::finish_narrowphase() {
     sync_dirty();
     auto &nphase = m_registry.ctx<narrowphase>();
     nphase.finish_async_update();
+    m_state = state::solve;
+}
+
+void island_worker::run_solver() {
+    EDYN_ASSERT(m_state == state::solve);
+    m_solver.update(m_registry.ctx<edyn::settings>().fixed_dt);
     m_state = state::finish_step;
 }
 
@@ -762,27 +684,6 @@ void island_worker::reschedule() {
     if (reschedule_count > 0) return;
 
     job_dispatcher::global().async(m_this_job);
-}
-
-void island_worker::init_new_imported_contact_manifolds() {
-    // Entities in the new imported contact manifolds array might've been
-    // destroyed. Remove invalid entities before proceeding.
-    for (size_t i = 0; i < m_new_imported_contact_manifolds.size();) {
-        if (m_registry.valid(m_new_imported_contact_manifolds[i])) {
-            ++i;
-        } else {
-            m_new_imported_contact_manifolds[i] = m_new_imported_contact_manifolds.back();
-            m_new_imported_contact_manifolds.pop_back();
-        }
-    }
-
-    if (m_new_imported_contact_manifolds.empty()) return;
-
-    // Find contact points for new manifolds imported from the main registry.
-    auto &nphase = m_registry.ctx<narrowphase>();
-    nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
-                                    m_new_imported_contact_manifolds.end());
-    m_new_imported_contact_manifolds.clear();
 }
 
 void island_worker::init_new_shapes() {

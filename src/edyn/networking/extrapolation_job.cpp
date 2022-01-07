@@ -58,7 +58,6 @@ extrapolation_job::extrapolation_job(double start_time,
 void extrapolation_job::init() {
     m_registry.on_destroy<graph_node>().connect<&extrapolation_job::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&extrapolation_job::on_destroy_graph_edge>(*this);
-    m_registry.on_destroy<contact_manifold>().connect<&extrapolation_job::on_destroy_contact_manifold>(*this);
     m_registry.on_construct<polyhedron_shape>().connect<&extrapolation_job::on_construct_polyhedron_shape>(*this);
     m_registry.on_construct<compound_shape>().connect<&extrapolation_job::on_construct_compound_shape>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&extrapolation_job::on_destroy_rotated_mesh_list>(*this);
@@ -82,16 +81,6 @@ void extrapolation_job::init() {
     bphase.update();
 
     m_state = state::step;
-}
-
-void extrapolation_job::on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
-    auto &manifold = registry.get<contact_manifold>(entity);
-    auto num_points = manifold.num_points();
-
-    for (size_t i = 0; i < num_points; ++i) {
-        auto contact_entity = manifold.point[i];
-        registry.destroy(contact_entity);
-    }
 }
 
 void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -165,56 +154,18 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
     delta.created_for_each<kinematic_tag>(insert_node);
     delta.created_for_each<external_tag>(insert_node);
 
-    // Insert edges in the graph for contact manifolds.
-    delta.created_for_each<contact_manifold>([&] (entt::entity remote_entity, const contact_manifold &manifold) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
-
-        auto local_entity = m_entity_map.remloc(remote_entity);
-        auto &node0 = node_view.get<graph_node>(manifold.body[0]);
-        auto &node1 = node_view.get<graph_node>(manifold.body[1]);
-        auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
-        m_registry.emplace<graph_edge>(local_entity, edge_index);
-        m_new_imported_contact_manifolds.push_back(local_entity);
-    });
-
-    // Insert edges in the graph for constraints (except contact constraints).
+    // Insert edges in the graph for constraints.
     delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
-        // Contact constraints are not added as edges to the graph.
-        // The contact manifold which owns them is added instead.
-        if constexpr(std::is_same_v<std::decay_t<decltype(con)>, contact_constraint>) return;
-
         if (!m_entity_map.has_rem(remote_entity)) return;
 
         auto local_entity = m_entity_map.remloc(remote_entity);
+
+        if (m_registry.any_of<graph_edge>(local_entity)) return;
+
         auto &node0 = node_view.get<graph_node>(con.body[0]);
         auto &node1 = node_view.get<graph_node>(con.body[1]);
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry.emplace<graph_edge>(local_entity, edge_index);
-    });
-
-    // New contact points might be coming from another island after a merge or
-    // split and they might not yet have a contact constraint associated with
-    // them if they were just created in the last step of the island where it's
-    // coming from.
-    auto cp_view = m_registry.view<contact_point>();
-    auto contact_view = m_registry.view<contact_constraint>();
-    auto mat_view = m_registry.view<material>();
-    delta.created_for_each<contact_point>([&] (entt::entity remote_entity, const contact_point &) {
-        if (!m_entity_map.has_rem(remote_entity)) {
-            return;
-        }
-
-        auto local_entity = m_entity_map.remloc(remote_entity);
-
-        if (contact_view.contains(local_entity)) {
-            return;
-        }
-
-        auto &cp = cp_view.get<contact_point>(local_entity);
-
-        if (mat_view.contains(cp.body[0]) && mat_view.contains(cp.body[1])) {
-            create_contact_constraint(m_registry, local_entity, cp);
-        }
     });
 }
 
@@ -241,6 +192,10 @@ void extrapolation_job::sync_and_finish() {
         m_delta_builder->updated(entity, aabb);
     });
 
+    m_registry.view<contact_manifold>().each([&] (entt::entity entity, contact_manifold &manifold) {
+        m_delta_builder->updated(entity, manifold);
+    });
+
     // Update continuous components.
     auto &settings = m_registry.ctx<edyn::settings>();
     auto &index_source = *settings.index_source;
@@ -249,7 +204,6 @@ void extrapolation_job::sync_and_finish() {
             m_delta_builder->updated(entity, m_registry, index_source.type_id_of(cont.indices[i]));
         }
     });
-
 
     auto delta = m_delta_builder->finish();
     m_message_queue.send<island_delta>(std::move(delta));
@@ -268,9 +222,9 @@ void extrapolation_job::update() {
 
         if (should_step()) {
             begin_step();
-            run_solver();
             if (run_broadphase()) {
                 if (run_narrowphase()) {
+                    run_solver();
                     finish_step();
                     reschedule();
                 }
@@ -284,6 +238,7 @@ void extrapolation_job::update() {
         break;
     case state::solve:
         run_solver();
+        finish_step();
         reschedule();
         break;
     case state::broadphase:
@@ -294,18 +249,21 @@ void extrapolation_job::update() {
     case state::broadphase_async:
         finish_broadphase();
         if (run_narrowphase()) {
+            run_solver();
             finish_step();
             reschedule();
         }
         break;
     case state::narrowphase:
         if (run_narrowphase()) {
+            run_solver();
             finish_step();
             reschedule();
         }
         break;
     case state::narrowphase_async:
         finish_narrowphase();
+        run_solver();
         finish_step();
         reschedule();
         break;
@@ -345,29 +303,10 @@ void extrapolation_job::begin_step() {
         (*settings.external_system_pre_step)(m_registry);
     }
 
-    // Initialize new shapes before new manifolds because it'll perform
-    // collision detection for the new manifolds.
+    // Initialize new shapes. Basically, create rotated meshes for new
+    // imported polyhedron shapes.
     init_new_shapes();
-    init_new_imported_contact_manifolds();
 
-    // Create new contact constraints at the beginning of the step. Since
-    // contact points are created at the end of a step, creating constraints
-    // at that point would mean that they'd have zero applied impulse,
-    // which leads to contact point construction observers not getting the
-    // value of the initial impulse of a new contact. Doing it here, means
-    // that at the end of the step, the `constraint_impulse` will have the
-    // value of the impulse applied and the construction of `constraint_impulse`
-    // or `contact_constraint` can be observed to capture the initial impact
-    // of a new contact.
-    auto &nphase = m_registry.ctx<narrowphase>();
-    nphase.create_contact_constraints();
-
-    m_state = state::solve;
-}
-
-void extrapolation_job::run_solver() {
-    EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(m_registry.ctx<edyn::settings>().fixed_dt);
     m_state = state::broadphase;
 }
 
@@ -403,7 +342,7 @@ bool extrapolation_job::run_narrowphase() {
         return false;
     } else {
         nphase.update();
-        m_state = state::finish_step;
+        m_state = state::solve;
         return true;
     }
 }
@@ -412,6 +351,12 @@ void extrapolation_job::finish_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase_async);
     auto &nphase = m_registry.ctx<narrowphase>();
     nphase.finish_async_update();
+    m_state = state::solve;
+}
+
+void extrapolation_job::run_solver() {
+    EDYN_ASSERT(m_state == state::solve);
+    m_solver.update(m_registry.ctx<edyn::settings>().fixed_dt);
     m_state = state::finish_step;
 }
 
@@ -430,27 +375,6 @@ void extrapolation_job::finish_step() {
 
 void extrapolation_job::reschedule() {
     job_dispatcher::global().async(m_this_job);
-}
-
-void extrapolation_job::init_new_imported_contact_manifolds() {
-    // Entities in the new imported contact manifolds array might've been
-    // destroyed. Remove invalid entities before proceeding.
-    for (size_t i = 0; i < m_new_imported_contact_manifolds.size();) {
-        if (m_registry.valid(m_new_imported_contact_manifolds[i])) {
-            ++i;
-        } else {
-            m_new_imported_contact_manifolds[i] = m_new_imported_contact_manifolds.back();
-            m_new_imported_contact_manifolds.pop_back();
-        }
-    }
-
-    if (m_new_imported_contact_manifolds.empty()) return;
-
-    // Find contact points for new manifolds imported from the main registry.
-    auto &nphase = m_registry.ctx<narrowphase>();
-    nphase.update_contact_manifolds(m_new_imported_contact_manifolds.begin(),
-                                    m_new_imported_contact_manifolds.end());
-    m_new_imported_contact_manifolds.clear();
 }
 
 void extrapolation_job::init_new_shapes() {

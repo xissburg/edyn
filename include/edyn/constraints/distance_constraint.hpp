@@ -12,6 +12,7 @@ namespace edyn {
 struct distance_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
     scalar distance {0};
+    scalar impulse {0};
 };
 
 template<>

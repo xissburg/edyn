@@ -13,7 +13,6 @@
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/present_position.hpp"
 #include "edyn/constraints/constraint.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/comp/material.hpp"
@@ -33,7 +32,6 @@ static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple
     AABB,
     collision_filter,
     collision_exclusion,
-    constraint_impulse,
     inertia,
     inertia_inv,
     inertia_world_inv,

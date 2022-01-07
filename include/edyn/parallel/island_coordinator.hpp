@@ -5,6 +5,7 @@
 #include <memory>
 #include <unordered_map>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include "edyn/comp/island.hpp"
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
@@ -80,9 +81,30 @@ public:
 
     void create_island(std::vector<entt::entity> nodes, bool sleeping = false);
 
+    auto contact_started_sink() {
+        return entt::sink{m_contact_started_signal};
+    }
+
+    auto contact_ended_sink() {
+        return entt::sink{m_contact_ended_signal};
+    }
+
+    auto contact_point_created_sink() {
+        return entt::sink{m_contact_point_created_signal};
+    }
+
+    auto contact_point_destroyed_sink() {
+        return entt::sink{m_contact_point_destroyed_signal};
+    }
+
 private:
     entt::registry *m_registry;
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;
+
+    entt::sigh<void(entt::entity)> m_contact_started_signal;
+    entt::sigh<void(entt::entity)> m_contact_ended_signal;
+    entt::sigh<void(entt::entity, contact_manifold::contact_id_type)> m_contact_point_created_signal;
+    entt::sigh<void(entt::entity, contact_manifold::contact_id_type)> m_contact_point_destroyed_signal;
 
     std::vector<entt::entity> m_new_graph_nodes;
     std::vector<entt::entity> m_new_graph_edges;

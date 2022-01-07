@@ -6,7 +6,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
+#include "edyn/context/settings.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
@@ -20,17 +20,15 @@ namespace internal {
         // entity. If this entity already has a graph edge, just do a few
         // consistency checks.
         if (registry.any_of<graph_edge>(entity)) {
+        #ifdef EDYN_DEBUG
             auto &edge = registry.get<graph_edge>(entity);
             auto [ent0, ent1] = registry.ctx<entity_graph>().edge_node_entities(edge.edge_index);
             EDYN_ASSERT(ent0 == body0 && ent1 == body1);
-            EDYN_ASSERT(registry.any_of<constraint_impulse>(entity));
             EDYN_ASSERT(registry.any_of<procedural_tag>(entity));
+        #endif
             return false;
         }
 
-        registry.emplace<constraint_impulse>(entity);
-        auto &con_dirty = registry.get_or_emplace<dirty>(entity);
-        con_dirty.created<constraint_impulse>();
 
         // If the constraint is not a graph edge (e.g. when it's a `contact_constraint`
         // in a contact manifold), it means it is handled as a child of another entity
@@ -41,6 +39,8 @@ namespace internal {
             auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
             registry.emplace<procedural_tag>(entity);
             registry.emplace<graph_edge>(entity, edge_index);
+
+            auto &con_dirty = registry.get_or_emplace<dirty>(entity);
             con_dirty.created<procedural_tag>();
         }
 
@@ -56,11 +56,11 @@ entt::entity make_contact_manifold(entt::registry &registry, entt::entity body0,
 
 void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
-    registry.emplace<procedural_tag>(manifold_entity);
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
+    registry.emplace<contact_manifold_events>(manifold_entity);
 
     auto &dirty = registry.get_or_emplace<edyn::dirty>(manifold_entity);
-    dirty.set_new().created<procedural_tag, contact_manifold>();
+    dirty.set_new().created<contact_manifold, contact_manifold_events>();
 
     auto material_view = registry.view<material>();
 
@@ -83,10 +83,16 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
         }
     }
 
-    auto node_index0 = registry.get<graph_node>(body0).node_index;
-    auto node_index1 = registry.get<graph_node>(body1).node_index;
-    auto edge_index = registry.ctx<entity_graph>().insert_edge(manifold_entity, node_index0, node_index1);
-    registry.emplace<graph_edge>(manifold_entity, edge_index);
+    if (registry.any_of<continuous_contacts_tag>(body0) ||
+        registry.any_of<continuous_contacts_tag>(body1)) {
+
+        auto &settings = registry.ctx<edyn::settings>();
+        registry.emplace<continuous>(manifold_entity).insert(settings.index_source->index_of<edyn::contact_manifold>());
+        dirty.created<continuous>();
+    }
+
+    // Assign contact constraint to manifold.
+    make_constraint<contact_constraint>(manifold_entity, registry, body0, body1);
 }
 
 scalar get_effective_mass(const constraint_row &row) {

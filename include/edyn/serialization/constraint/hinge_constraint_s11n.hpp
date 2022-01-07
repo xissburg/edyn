@@ -9,7 +9,10 @@ template<typename Archive>
 void serialize(Archive &archive, hinge_constraint &c) {
     archive(c.body);
     archive(c.pivot);
-    archive(c.axis);
+    archive(c.frame);
+    archive(c.angle_min, c.angle_max, c.limit_restitution);
+    archive(c.friction_torque);
+    archive(c.impulse);
 }
 
 }

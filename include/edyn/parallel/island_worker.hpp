@@ -43,17 +43,16 @@ class island_worker final {
     void process_messages();
     bool should_step();
     void begin_step();
-    void run_solver();
     bool run_broadphase();
     void finish_broadphase();
     bool run_narrowphase();
     void finish_narrowphase();
+    void run_solver();
     void finish_step();
     void reschedule_now();
     void maybe_reschedule();
     void reschedule_later();
     void do_terminate();
-    void init_new_imported_contact_manifolds();
     void init_new_shapes();
     void insert_remote_node(entt::entity remote_entity);
     void maybe_go_to_sleep();
@@ -125,7 +124,6 @@ private:
     double m_calculate_split_delay;
     double m_calculate_split_timestamp;
 
-    std::vector<entt::entity> m_new_imported_contact_manifolds;
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
 

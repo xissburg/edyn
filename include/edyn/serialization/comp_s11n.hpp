@@ -11,7 +11,6 @@
 #include "edyn/serialization/comp/tag_s11n.hpp"
 #include "edyn/serialization/comp/collision_exclusion_s11n.hpp"
 #include "edyn/serialization/comp/center_of_mass_s11n.hpp"
-#include "edyn/serialization/comp/constraint_impulse_s11n.hpp"
 #include "edyn/serialization/comp/contact_manifold_s11n.hpp"
 #include "edyn/serialization/comp/contact_point_s11n.hpp"
 #include "edyn/serialization/comp/continuous_s11n.hpp"

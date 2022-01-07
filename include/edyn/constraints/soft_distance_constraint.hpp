@@ -3,6 +3,7 @@
 
 #include <array>
 #include <entt/entity/fwd.hpp>
+#include "edyn/util/array.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
@@ -16,6 +17,8 @@ struct soft_distance_constraint : public constraint_base {
     scalar damping {1e10};
 
     scalar m_relspd {};
+
+    std::array<scalar, 2> impulse {make_array<2, scalar>(0)};
 };
 
 template<>

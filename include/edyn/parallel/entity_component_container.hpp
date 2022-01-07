@@ -6,7 +6,6 @@
 #include <utility>
 #include <entt/entity/registry.hpp>
 #include "edyn/parallel/merge/merge_component.hpp"
-#include "edyn/parallel/merge/merge_contact_point.hpp"
 #include "edyn/parallel/merge/merge_contact_manifold.hpp"
 #include "edyn/parallel/merge/merge_constraint.hpp"
 #include "edyn/parallel/merge/merge_tree_view.hpp"

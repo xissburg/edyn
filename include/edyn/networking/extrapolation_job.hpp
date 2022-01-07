@@ -42,7 +42,6 @@ class extrapolation_job final {
     bool run_narrowphase();
     void finish_narrowphase();
     void finish_step();
-    void init_new_imported_contact_manifolds();
     void init_new_shapes();
     void insert_remote_node(entt::entity remote_entity);
     void apply_history();
@@ -64,7 +63,6 @@ public:
         return m_finished.load(std::memory_order_relaxed);
     }
 
-    void on_destroy_contact_manifold(entt::registry &, entt::entity);
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
     void on_construct_polyhedron_shape(entt::registry &, entt::entity);
@@ -87,7 +85,6 @@ private:
     std::unique_ptr<island_delta_builder> m_delta_builder;
     bool m_destroying_node;
 
-    std::vector<entt::entity> m_new_imported_contact_manifolds;
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
 
