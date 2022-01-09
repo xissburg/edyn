@@ -1,5 +1,6 @@
 #include "edyn/networking/sys/client_side.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/config/config.h"
 #include "edyn/edyn.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
@@ -16,7 +17,6 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/networking/extrapolation_job.hpp"
-#include "edyn/networking/util/client_import_pool.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include <entt/entity/registry.hpp>
@@ -127,7 +127,6 @@ void update_networking_client(entt::registry &registry) {
     for (auto &extr_ctx : ctx.extrapolation_jobs) {
         if (!extr_ctx.job->is_finished()) continue;
 
-
         extr_ctx.m_message_queue.update();
 
         // TODO
@@ -186,7 +185,7 @@ static void process_packet(entt::registry &registry, const packet::entity_respon
     }
 
     for (auto &pool : res.pools) {
-        (*ctx.import_pool_func)(registry, pool);
+        ctx.pool_snapshot_importer->import(registry, pool);
     }
 
     for (auto remote_entity : res.entities) {
@@ -224,12 +223,55 @@ static void process_packet(entt::registry &registry, const packet::create_entity
     // Collect new entity mappings to send back to server.
     auto emap_packet = packet::update_entity_map{};
 
+    std::vector<entt::entity> manifold_entities;
+    auto manifold_component_index = tuple_index_of<contact_manifold>(networked_components);
+    pool_snapshot_data<contact_manifold> *manifold_pool = nullptr;
+
+    for (auto &pool : packet.pools) {
+        if (pool.component_index == manifold_component_index) {
+            manifold_pool = static_cast<pool_snapshot_data<contact_manifold> *>(pool.ptr.get());
+            break;
+        }
+    }
+
     // Create entities first...
     for (auto remote_entity : packet.entities) {
         if (ctx.entity_map.has_rem(remote_entity)) continue;
+
+        // Handle creation of manifold entities later because it must be checked
+        // whether a local manifold for the same pair of bodies already exists.
+        if (manifold_pool) {
+            auto found_it = std::find_if(manifold_pool->pairs.begin(), manifold_pool->pairs.end(),
+                                         [&] (auto &&pair) { return pair.first == remote_entity; });
+            if (found_it != manifold_pool->pairs.end()) {
+                continue;
+            }
+        }
+
         auto local_entity = registry.create();
         ctx.entity_map.insert(remote_entity, local_entity);
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
+    }
+
+    if (manifold_pool) {
+        auto &manifold_map = registry.ctx<contact_manifold_map>();
+
+        for (auto &pair : manifold_pool->pairs) {
+            auto local_body0 = ctx.entity_map.remloc(pair.second.body[0]);
+            auto local_body1 = ctx.entity_map.remloc(pair.second.body[1]);
+            entt::entity local_entity;
+
+            if (manifold_map.contains(local_body0, local_body1)) {
+                local_entity = manifold_map.get(local_body0, local_body1);
+            } else {
+                local_entity = registry.create();
+                registry.emplace<contact_manifold_events>(local_entity);
+            }
+
+            auto remote_entity = pair.first;
+            ctx.entity_map.insert(remote_entity, local_entity);
+            emap_packet.pairs.emplace_back(remote_entity, local_entity);
+        }
     }
 
     if (!emap_packet.pairs.empty()) {
@@ -239,7 +281,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
     // ... assign components later so that entity references will be available
     // to be mapped into the local registry.
     for (auto &pool : packet.pools) {
-        (*ctx.import_pool_func)(registry, pool);
+        ctx.pool_snapshot_importer->import(registry, pool);
     }
 
     for (auto remote_entity : packet.entities) {
@@ -297,6 +339,13 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
 
 static void process_packet(entt::registry &registry, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<client_networking_context>();
+
+    for (auto &pool : snapshot.pools) {
+        ctx.pool_snapshot_importer->import(registry, pool);
+    }
+
+    return;
+
     double snapshot_time = performance_time() - (ctx.server_playout_delay + ctx.round_trip_time / 2);
 
     // Collect the node indices of all entities involved in the snapshot.
@@ -306,12 +355,24 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     for (auto &pool : snapshot.pools) {
         auto pool_entities = pool.ptr->get_entities();
 
-        for (auto entity : pool_entities) {
-            if (node_view.contains(entity)) {
-                auto node_index = node_view.get<graph_node>(entity).node_index;
+        for (auto remote_entity : pool_entities) {
+            if (!ctx.entity_map.has_rem(remote_entity)) {
+                // Entity not present in client. Send an entity request to server.
+                ctx.request_entity_signal.publish(remote_entity);
+                continue;
+            }
+
+            auto local_entity = ctx.entity_map.remloc(remote_entity);
+
+            if (node_view.contains(local_entity)) {
+                auto node_index = node_view.get<graph_node>(local_entity).node_index;
                 node_indices.insert(node_index);
             }
         }
+    }
+
+    if (node_indices.empty()) {
+        return;
     }
 
     // Traverse entity graph to find all entities connected to the entities
@@ -351,7 +412,7 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
     auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
 
-    auto job = std::make_unique<extrapolation_job>(snapshot_time, settings, material_table, ctx.import_pool_func,
+    auto job = std::make_unique<extrapolation_job>(snapshot_time, settings, material_table, ctx.pool_snapshot_importer,
                                                    message_queue_in_out(main_queue_input, isle_queue_output));
     main_queue_input.send<island_delta>(builder->finish());
     main_queue_input.send<packet::transient_snapshot>(snapshot);
@@ -366,7 +427,7 @@ static void process_packet(entt::registry &registry, const packet::general_snaps
     auto &ctx = registry.ctx<client_networking_context>();
 
     for (auto &pool : snapshot.pools) {
-        (*ctx.import_pool_func)(registry, pool);
+        ctx.pool_snapshot_importer->import(registry, pool);
     }
 }
 

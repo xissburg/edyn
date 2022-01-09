@@ -7,7 +7,7 @@
 #include "edyn/networking/context/client_networking_context.hpp"
 #include "edyn/networking/context/server_networking_context.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
-#include "edyn/networking/util/client_import_pool.hpp"
+#include "edyn/networking/util/client_pool_snapshot_importer.hpp"
 #include "edyn/networking/util/server_import_pool.hpp"
 
 namespace edyn {
@@ -15,12 +15,11 @@ namespace edyn {
 template<typename... Component, typename... TransientComponent>
 void register_networked_components(entt::registry &registry,
                                    [[maybe_unused]] std::tuple<TransientComponent...>) {
+    auto external = std::tuple<Component...>{};
+    auto all = std::tuple_cat(networked_components, external);
+
     if (auto *ctx = registry.try_ctx<client_networking_context>()) {
-        ctx->import_pool_func = [] (entt::registry &registry, const pool_snapshot &pool) {
-            auto external = std::tuple<Component...>{};
-            auto all = std::tuple_cat(networked_components, external);
-            import_pool_client(registry, pool, all);
-        };
+        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(all));
 
         ctx->insert_entity_components_func = [] (entt::registry &registry, entt::entity entity,
                                                  std::vector<pool_snapshot> &pools) {
@@ -65,8 +64,6 @@ void register_networked_components(entt::registry &registry,
         };
     }
 
-    auto external = std::tuple<Component...>{};
-    auto all = std::tuple_cat(networked_components, external);
     g_pool_snapshot_serializer.ptr.reset(new pool_snapshot_serializer_impl(all));
 }
 
@@ -79,7 +76,7 @@ void register_networked_components(entt::registry &registry,
 
 inline void unregister_networked_components(entt::registry &registry) {
     if (auto *ctx = registry.try_ctx<client_networking_context>()) {
-        ctx->import_pool_func = &import_pool_client_default;
+        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(networked_components));
         ctx->insert_entity_components_func = &insert_entity_components_default;
         ctx->insert_transient_components_func = &insert_transient_components_default;
     }

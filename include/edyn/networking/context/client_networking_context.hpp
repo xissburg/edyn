@@ -3,8 +3,9 @@
 
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
-#include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include <entt/entity/fwd.hpp>
+#include <entt/entity/entity.hpp>
+#include <entt/entity/sparse_set.hpp>
 #include <entt/signal/sigh.hpp>
 #include <memory>
 
@@ -16,19 +17,21 @@ namespace packet {
 
 struct pool_snapshot;
 class extrapolation_job;
+class client_pool_snapshot_importer;
 
 struct extrapolation_job_context {
     std::unique_ptr<extrapolation_job> job;
     message_queue_in_out m_message_queue;
 };
 
-void import_pool_client_default(entt::registry &, const pool_snapshot &);
 void insert_entity_components_default(entt::registry &, entt::entity entity,
                                       std::vector<pool_snapshot> &pools);
 void insert_transient_components_default(entt::registry &, entt::entity entity,
                                          std::vector<pool_snapshot> &pools);
 
 struct client_networking_context {
+    client_networking_context();
+
     entt::entity client_entity {entt::null};
     entt::sparse_set owned_entities;
 
@@ -63,8 +66,7 @@ struct client_networking_context {
         return entt::sink{client_entity_assigned_signal};
     }
 
-    using import_pool_func_t = decltype(&import_pool_client_default);
-    import_pool_func_t import_pool_func {&import_pool_client_default};
+    std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer;
 
     using insert_entity_components_func_t = decltype(&insert_entity_components_default);
     insert_entity_components_func_t insert_entity_components_func {&insert_entity_components_default};

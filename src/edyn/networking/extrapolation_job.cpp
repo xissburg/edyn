@@ -28,13 +28,13 @@ void extrapolation_job_func(job::data_type &data) {
 extrapolation_job::extrapolation_job(double start_time,
                                      const settings &settings,
                                      const material_mix_table &material_table,
-                                     client_networking_context::import_pool_func_t import_pool_func,
+                                     std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer,
                                      message_queue_in_out message_queue)
     : m_message_queue(message_queue)
     , m_state(state::init)
     , m_current_time(start_time)
     , m_solver(m_registry)
-    , m_import_pool_func(import_pool_func)
+    , m_pool_snapshot_importer(pool_snapshot_importer)
     , m_delta_builder((*settings.make_island_delta_builder)())
     , m_destroying_node(false)
 {
@@ -171,7 +171,7 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
 
 void extrapolation_job::on_transient_snapshot(const packet::transient_snapshot &snapshot) {
     for (auto &pool : snapshot.pools) {
-        (*m_import_pool_func)(m_registry, pool);
+        m_pool_snapshot_importer->import(m_registry, pool);
     }
 }
 

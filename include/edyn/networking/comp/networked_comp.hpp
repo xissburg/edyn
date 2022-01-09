@@ -1,6 +1,7 @@
 #ifndef EDYN_NETWORKING_NETWORKED_COMP_HPP
 #define EDYN_NETWORKING_NETWORKED_COMP_HPP
 
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -20,6 +21,7 @@
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/continuous.hpp"
+#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 
@@ -63,6 +65,9 @@ static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple
     soft_distance_constraint,
     hinge_constraint,
     generic_constraint,
+    contact_constraint,
+    contact_manifold,
+    contact_manifold_with_restitution,
     entity_owner
 >{});
 

@@ -40,6 +40,16 @@ bool is_fully_owned_by_client(const entt::registry &registry, entt::entity clien
     return owned_by_this_client && !owned_by_another_client;
 }
 
+static void on_destroy_networked_tag(entt::registry &registry, entt::entity destroyed_entity) {
+    auto view = registry.view<aabb_of_interest>();
+    view.each([&] (aabb_of_interest &aabboi) {
+        if (aabboi.entities.contains(destroyed_entity)) {
+            aabboi.destroy_entities.push_back(destroyed_entity);
+            aabboi.entities.remove(destroyed_entity);
+        }
+    });
+}
+
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
     auto &ctx = registry.ctx<server_networking_context>();
     auto res = packet::entity_response{};
@@ -129,10 +139,6 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     for (auto remote_entity : packet.entities) {
         auto local_entity = client.entity_map.remloc(remote_entity);
         registry.emplace<networked_tag>(local_entity);
-
-        /* auto [null_entity, null_con] = edyn::make_constraint<edyn::null_constraint>(registry, local_entity, client_entity);
-        registry.emplace<edyn::entity_owner>(null_entity, client_entity);
-        registry.emplace<edyn::networked_tag>(null_entity); */
     }
 
     // Create nodes and edges in entity graph.
@@ -170,13 +176,15 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         if (client.entity_map.has_rem(remote_entity)) {
             auto local_entity = client.entity_map.remloc(remote_entity);
 
-            if (auto *owner = registry.try_get<entity_owner>(local_entity);
-                owner && owner->client_entity == client_entity) {
-                registry.destroy(local_entity);
-            }
+            if (registry.valid(local_entity)) {
+                auto *owner = registry.try_get<entity_owner>(local_entity);
 
-            client.entity_map.erase_rem(remote_entity);
-            vector_erase(client.owned_entities, local_entity);
+                if (owner && owner->client_entity == client_entity) {
+                    registry.destroy(local_entity);
+                    client.entity_map.erase_rem(remote_entity);
+                    vector_erase(client.owned_entities, local_entity);
+                }
+            }
         }
     }
 }
@@ -239,10 +247,12 @@ static void process_packet(entt::registry &, entt::entity, const packet::set_pla
 
 void init_networking_server(entt::registry &registry) {
     registry.set<server_networking_context>();
+    registry.on_destroy<networked_tag>().connect<&on_destroy_networked_tag>();
 }
 
 void deinit_networking_server(entt::registry &registry) {
     registry.unset<server_networking_context>();
+    registry.on_destroy<networked_tag>().disconnect<&on_destroy_networked_tag>();
 }
 
 void server_process_packets(entt::registry &registry) {
@@ -281,21 +291,8 @@ void update_networking_server(entt::registry &registry) {
     view.each([&] (entt::entity client_entity, remote_client &client, aabb_of_interest &aabboi) {
         if (!aabboi.destroy_entities.empty()) {
             auto packet = packet::destroy_entity{};
-
-            for (auto entity : aabboi.destroy_entities) {
-                if (!registry.valid(entity)) continue;
-
-                if (auto *owner = registry.try_get<entity_owner>(entity);
-                    owner == nullptr || owner->client_entity != client_entity) {
-                    packet.entities.push_back(entity);
-                }
-            }
-
-            if (!packet.entities.empty()) {
-                client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
-            }
-
-            aabboi.destroy_entities.clear();
+            packet.entities = std::move(aabboi.destroy_entities);
+            client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
         }
 
         if (!aabboi.create_entities.empty()) {

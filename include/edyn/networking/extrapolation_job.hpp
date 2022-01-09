@@ -11,6 +11,7 @@
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/context/client_networking_context.hpp"
+#include "edyn/networking/util/client_pool_snapshot_importer.hpp"
 #include <entt/entity/registry.hpp>
 #include <atomic>
 
@@ -51,7 +52,7 @@ class extrapolation_job final {
 public:
     extrapolation_job(double start_time, const settings &settings,
                       const material_mix_table &material_table,
-                      client_networking_context::import_pool_func_t import_pool_func,
+                      std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer,
                       message_queue_in_out message_queue);
 
     void on_island_delta(const island_delta &delta);
@@ -76,7 +77,7 @@ private:
     entity_map m_entity_map;
     solver m_solver;
     message_queue_in_out m_message_queue;
-    client_networking_context::import_pool_func_t m_import_pool_func;
+    std::shared_ptr<client_pool_snapshot_importer> m_pool_snapshot_importer;
 
     state m_state;
     double m_current_time;

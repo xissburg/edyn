@@ -107,6 +107,7 @@ add_library(Edyn
     src/edyn/parallel/island_worker_context.cpp
     src/edyn/parallel/make_island_delta_builder.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
+    src/edyn/networking/context/client_networking_context.cpp
     src/edyn/networking/sys/server_side.cpp
     src/edyn/networking/sys/client_side.cpp
     src/edyn/networking/networking.cpp
