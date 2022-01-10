@@ -1,7 +1,7 @@
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/collision/contact_point.hpp"
+#include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
@@ -68,6 +68,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     , m_calculate_split_delay(0.6)
     , m_calculate_split_timestamp(0)
 {
+    m_registry.set<contact_manifold_map>(m_registry);
     m_registry.set<broadphase_worker>(m_registry);
     m_registry.set<narrowphase>(m_registry);
     m_registry.set<entity_graph>();

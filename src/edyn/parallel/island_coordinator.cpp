@@ -620,6 +620,10 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     // Generate contact events.
     delta.updated_for_each<contact_manifold_events>([&] (entt::entity remote_entity,
                                                          const contact_manifold_events &events) {
+        if (!source_ctx->m_entity_map.has_rem(remote_entity)) {
+            return;
+        }
+
         auto manifold_entity = source_ctx->m_entity_map.remloc(remote_entity);
 
         if (events.contact_started) {
