@@ -17,6 +17,16 @@
 
 namespace edyn {
 
+struct extrapolation_completed {
+    island_delta delta;
+    double timestamp;
+};
+
+struct extrapolation_history_element {
+    island_delta delta;
+    double timestamp;
+};
+
 void extrapolation_job_func(job::data_type &);
 
 class extrapolation_job final {
@@ -89,7 +99,7 @@ private:
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
 
-    std::vector<island_delta> m_history;
+    std::vector<extrapolation_history_element> m_history;
 
     job m_this_job;
 };

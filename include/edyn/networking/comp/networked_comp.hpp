@@ -24,6 +24,7 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
+#include "edyn/networking/comp/non_proc_comp_list.hpp"
 
 namespace edyn {
 
@@ -68,7 +69,8 @@ static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple
     contact_constraint,
     contact_manifold,
     contact_manifold_with_restitution,
-    entity_owner
+    entity_owner,
+    non_proc_comp_list
 >{});
 
 }

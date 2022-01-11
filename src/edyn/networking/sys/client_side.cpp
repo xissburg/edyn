@@ -124,13 +124,22 @@ void update_networking_client(entt::registry &registry) {
 
     // Check if extrapolation jobs are finished and merge their results into
     // the main registry.
-    for (auto &extr_ctx : ctx.extrapolation_jobs) {
-        if (!extr_ctx.job->is_finished()) continue;
+    auto remove_it = std::remove_if(ctx.extrapolation_jobs.begin(), ctx.extrapolation_jobs.end(), [] (extrapolation_job_context &extr_ctx) {
+        if (extr_ctx.job->is_finished()) {
+            extr_ctx.m_message_queue.update();
+            return true;
+        }
+        return false;
+    });
+    ctx.extrapolation_jobs.erase(remove_it, ctx.extrapolation_jobs.end());
 
-        extr_ctx.m_message_queue.update();
+    // Insert non-procedural components into input history.
 
-        // TODO
-    }
+}
+
+static void apply_extrapolation_result(entt::registry &registry, extrapolation_completed &extr) {
+    auto emap = entity_map{};
+    extr.delta.import(registry, emap);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -340,12 +349,6 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
 static void process_packet(entt::registry &registry, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<client_networking_context>();
 
-    for (auto &pool : snapshot.pools) {
-        ctx.pool_snapshot_importer->import(registry, pool);
-    }
-
-    return;
-
     double snapshot_time = performance_time() - (ctx.server_playout_delay + ctx.round_trip_time / 2);
 
     // Collect the node indices of all entities involved in the snapshot.
@@ -416,6 +419,7 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
                                                    message_queue_in_out(main_queue_input, isle_queue_output));
     main_queue_input.send<island_delta>(builder->finish());
     main_queue_input.send<packet::transient_snapshot>(snapshot);
+    main_queue_output.sink<extrapolation_completed>().connect<&apply_extrapolation_result>(registry);
 
     job->reschedule();
 

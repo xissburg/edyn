@@ -98,8 +98,6 @@ public:
 
     friend class island_delta_builder;
 
-    double m_timestamp;
-
 private:
     entity_map m_entity_map;
     std::vector<entt::entity> m_created_entities;

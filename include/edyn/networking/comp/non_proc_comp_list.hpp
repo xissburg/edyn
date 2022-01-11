@@ -1,28 +1,22 @@
-#ifndef EDYN_COMP_CONTINUOUS_HPP
-#define EDYN_COMP_CONTINUOUS_HPP
+#ifndef EDYN_NETWORKING_COMP_NON_PROC_COMP_LIST_HPP
+#define EDYN_NETWORKING_COMP_NON_PROC_COMP_LIST_HPP
 
 #include "edyn/config/config.h"
+#include <algorithm>
 #include <array>
 #include <cstddef>
+#include <iterator>
 
 namespace edyn {
 
-/**
- * @brief Specifies a set of component types that the island worker must send
- * back to the coordinator after every step of the simulation.
- * @remark The types are stored as the index of the component in the current
- * `component_source_index` as to make them stable among different machines to
- * allow this component to be shared between client and server in a networked
- * simulation.
- */
-struct continuous {
+struct non_proc_comp_list {
     static constexpr size_t max_size = 16;
     std::array<size_t, max_size> indices;
     size_t size {0};
 
     /**
-     * @brief Inserts a component index to be marked as continuous. The index
-     * must be obtained via `edyn::get_component_index<Component>()`.
+     * @brief Inserts a component index to be marked as non-procedural. The
+     * index must be obtained via `edyn::get_component_index<Component>()`.
      * @param index Component index.
      */
     void insert(size_t index) {
@@ -31,8 +25,8 @@ struct continuous {
     }
 
     /**
-     * @brief Inserts multiple component indices to be marked as continuous. The
-     * indices must be obtained via `edyn::get_component_indices<Component>()`.
+     * @brief Inserts multiple component indices to be marked as non-procedural.
+     * The indices must be obtained via `edyn::get_component_indices<Component>()`.
      * @param indices Component indices.
      */
     template<size_t N>
@@ -55,8 +49,14 @@ struct continuous {
             }
         }
     }
+
+    bool contains(size_t index) const {
+        auto end = indices.begin();
+        std::advance(end, size);
+        return std::find(indices.begin(), end, index) != end;
+    }
 };
 
 }
 
-#endif // EDYN_COMP_CONTINUOUS_HPP
+#endif // EDYN_NETWORKING_COMP_NON_PROC_COMP_LIST_HPP

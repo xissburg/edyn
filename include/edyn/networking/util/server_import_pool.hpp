@@ -17,6 +17,9 @@ void import_pool_server(entt::registry &registry, entt::entity client_entity,
     auto &client = registry.get<remote_client>(client_entity);
     auto merge_ctx = merge_context{&registry, &client.entity_map};
 
+    auto &settings = registry.ctx<edyn::settings>();
+    auto comp_index = settings.index_source->index_of<Component>();
+
     for (auto &pair : pool) {
         auto remote_entity = pair.first;
 
@@ -31,9 +34,13 @@ void import_pool_server(entt::registry &registry, entt::entity client_entity,
             continue;
         }
 
-        // Do not apply this update if this is a dynamic entity which is not
-        // fully owned by this client.
-        if (registry.any_of<dynamic_tag>(local_entity) && !is_fully_owned_by_client(registry, client_entity, local_entity)) {
+        // If this is a procedural component and the entity is not fully owned
+        // by the client, the update must not be applied, because in this case
+        // the server is in control of the procedural state.
+        auto *comp_list = registry.try_get<non_proc_comp_list>(local_entity);
+        auto is_procedural = !comp_list || !comp_list->contains(comp_index);
+
+        if (is_procedural && !is_fully_owned_by_client(registry, client_entity, local_entity)) {
             continue;
         }
 

@@ -180,9 +180,9 @@ void extrapolation_job::apply_history() {
     auto start_time = m_current_time - settings.fixed_dt;
     auto end_time = m_current_time;
 
-    for (auto &delta : m_history) {
-        if (delta.m_timestamp >= start_time && delta.m_timestamp < end_time) {
-            delta.import(m_registry, m_entity_map);
+    for (auto &elem : m_history) {
+        if (elem.timestamp >= start_time && elem.timestamp < end_time) {
+            elem.delta.import(m_registry, m_entity_map);
         }
     }
 }
@@ -206,7 +206,7 @@ void extrapolation_job::sync_and_finish() {
     });
 
     auto delta = m_delta_builder->finish();
-    m_message_queue.send<island_delta>(std::move(delta));
+    m_message_queue.send<extrapolation_completed>(std::move(delta), m_current_time);
 
     m_finished.store(true, std::memory_order_release);
 }
