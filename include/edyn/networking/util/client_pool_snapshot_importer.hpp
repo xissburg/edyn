@@ -13,30 +13,31 @@ namespace edyn {
 
 class client_pool_snapshot_importer {
 public:
-    virtual void import(entt::registry &registry, const pool_snapshot &pool) = 0;
+    virtual void import(entt::registry &, entity_map &, const pool_snapshot &) = 0;
 };
 
 template<typename... Components>
 class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer {
 
     template<typename Component>
-    void import_pairs(entt::registry &registry, const std::vector<std::pair<entt::entity, Component>> &pairs) {
-        auto &ctx = registry.ctx<client_networking_context>();
-        auto merge_ctx = merge_context{&registry, &ctx.entity_map};
+    void import_pairs(entt::registry &registry, entity_map &emap, const std::vector<std::pair<entt::entity, Component>> &pairs) {
+        auto *client_ctx = registry.try_ctx<client_networking_context>();
 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
 
-            if (!ctx.entity_map.has_rem(pair.first)) {
-                // Entity not present in client. Send an entity request to server.
-                ctx.request_entity_signal.publish(remote_entity);
+            if (!emap.has_rem(pair.first)) {
+                if (client_ctx) {
+                    // Entity not present in client. Send an entity request to server.
+                    client_ctx->request_entity_signal.publish(remote_entity);
+                }
                 continue;
             }
 
-            auto local_entity = ctx.entity_map.remloc(remote_entity);
+            auto local_entity = emap.remloc(remote_entity);
 
             if (!registry.valid(local_entity)) {
-                ctx.entity_map.erase_loc(local_entity);
+                emap.erase_loc(local_entity);
                 continue;
             }
 
@@ -47,7 +48,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
                 }
             } else {
                 auto comp = pair.second;
-                merge(static_cast<Component *>(nullptr), comp, merge_ctx);
+                merge(comp, emap);
 
                 if (registry.any_of<Component>(local_entity)) {
                     registry.replace<Component>(local_entity, comp);
@@ -63,12 +64,12 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
 public:
     client_pool_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>) {}
 
-    void import(entt::registry &registry, const pool_snapshot &pool) override {
+    void import(entt::registry &registry, entity_map &emap, const pool_snapshot &pool) override {
         auto all_components = std::tuple<Components...>{};
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
             using Component = std::decay_t<decltype(c)>;
-            import_pairs(registry, std::static_pointer_cast<pool_snapshot_data<Component>>(pool.ptr)->pairs);
+            import_pairs(registry, emap, std::static_pointer_cast<pool_snapshot_data<Component>>(pool.ptr)->pairs);
         });
     }
 };

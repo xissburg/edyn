@@ -25,6 +25,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/contact_point.hpp"
+#include "edyn/networking/comp/non_proc_comp_list.hpp"
 
 namespace edyn {
 
@@ -67,7 +68,8 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     rigidbody_tag,
     rolling_tag,
     roll_direction,
-    tree_view
+    tree_view,
+    non_proc_comp_list
 >{}, constraints_tuple, shapes_tuple); // Concatenate with all shapes and constraints at the end.
 
 using shared_components_t = std::decay_t<decltype(shared_components)>;

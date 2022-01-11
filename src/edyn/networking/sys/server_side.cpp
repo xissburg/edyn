@@ -22,22 +22,26 @@
 namespace edyn {
 
 bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
-    auto &resident = registry.get<island_resident>(entity);
-    auto &island = registry.get<edyn::island>(resident.island_entity);
-    auto owned_by_this_client = false;
-    auto owned_by_another_client = false;
+    if (registry.any_of<dynamic_tag>(entity)) {
+        auto &resident = registry.get<island_resident>(entity);
+        auto &island = registry.get<edyn::island>(resident.island_entity);
+        auto owned_by_this_client = false;
+        auto owned_by_another_client = false;
 
-    for (auto node : island.nodes) {
-        if (auto *owner = registry.try_get<entity_owner>(node)) {
-            if (owner->client_entity == client_entity) {
-                owned_by_this_client = true;
-            } else {
-                owned_by_another_client = true;
+        for (auto node : island.nodes) {
+            if (auto *owner = registry.try_get<entity_owner>(node)) {
+                if (owner->client_entity == client_entity) {
+                    owned_by_this_client = true;
+                } else {
+                    owned_by_another_client = true;
+                }
             }
         }
+
+        return owned_by_this_client && !owned_by_another_client;
     }
 
-    return owned_by_this_client && !owned_by_another_client;
+    return registry.get<entity_owner>(entity).client_entity == client_entity;
 }
 
 static void on_destroy_networked_tag(entt::registry &registry, entt::entity destroyed_entity) {

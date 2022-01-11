@@ -8,9 +8,9 @@
 namespace edyn {
 
 template<> inline
-void merge(const collision_exclusion *old_comp, collision_exclusion &new_comp, merge_context &ctx) {
+void merge(collision_exclusion &new_comp, entity_map &emap) {
     for (unsigned i = 0 ; i < new_comp.num_entities; ++i) {
-        new_comp.entity[i] = ctx.map->remloc(new_comp.entity[i]);
+        new_comp.entity[i] = emap.remloc(new_comp.entity[i]);
     }
 }
 

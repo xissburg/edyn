@@ -57,6 +57,16 @@ struct non_proc_comp_list {
     }
 };
 
+template<typename Archive>
+void serialize(Archive &archive, non_proc_comp_list &c) {
+    archive(c.size);
+    EDYN_ASSERT(c.size < c.max_size);
+
+    for (unsigned i = 0; i < c.size; ++i) {
+        archive(c.indices[i]);
+    }
+}
+
 }
 
 #endif // EDYN_NETWORKING_COMP_NON_PROC_COMP_LIST_HPP

@@ -29,12 +29,14 @@ extrapolation_job::extrapolation_job(double start_time,
                                      const settings &settings,
                                      const material_mix_table &material_table,
                                      std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer,
+                                     non_proc_comp_state_history &state_history,
                                      message_queue_in_out message_queue)
     : m_message_queue(message_queue)
     , m_state(state::init)
     , m_current_time(start_time)
     , m_solver(m_registry)
     , m_pool_snapshot_importer(pool_snapshot_importer)
+    , m_state_history(&state_history)
     , m_delta_builder((*settings.make_island_delta_builder)())
     , m_destroying_node(false)
 {
@@ -42,6 +44,7 @@ extrapolation_job::extrapolation_job(double start_time,
     m_registry.set<narrowphase>(m_registry);
     m_registry.set<entity_graph>();
     m_registry.set<edyn::settings>(settings);
+    m_registry.set<contact_manifold_map>(m_registry);
     m_registry.set<material_mix_table>(material_table);
 
     // Avoid multi-threading issues in the `should_collide` function by
@@ -171,20 +174,17 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
 
 void extrapolation_job::on_transient_snapshot(const packet::transient_snapshot &snapshot) {
     for (auto &pool : snapshot.pools) {
-        m_pool_snapshot_importer->import(m_registry, pool);
+        m_pool_snapshot_importer->import(m_registry, m_entity_map, pool);
     }
 }
 
 void extrapolation_job::apply_history() {
     auto &settings = m_registry.ctx<edyn::settings>();
     auto start_time = m_current_time - settings.fixed_dt;
-    auto end_time = m_current_time;
 
-    for (auto &elem : m_history) {
-        if (elem.timestamp >= start_time && elem.timestamp < end_time) {
-            elem.delta.import(m_registry, m_entity_map);
-        }
-    }
+    m_state_history->each(start_time, settings.fixed_dt, [&] (island_delta &delta, double timstamp) {
+        delta.import(m_registry, m_entity_map);
+    });
 }
 
 void extrapolation_job::sync_and_finish() {

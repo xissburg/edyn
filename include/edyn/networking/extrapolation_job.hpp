@@ -22,10 +22,7 @@ struct extrapolation_completed {
     double timestamp;
 };
 
-struct extrapolation_history_element {
-    island_delta delta;
-    double timestamp;
-};
+class non_proc_comp_state_history;
 
 void extrapolation_job_func(job::data_type &);
 
@@ -63,6 +60,7 @@ public:
     extrapolation_job(double start_time, const settings &settings,
                       const material_mix_table &material_table,
                       std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer,
+                      non_proc_comp_state_history &state_history,
                       message_queue_in_out message_queue);
 
     void on_island_delta(const island_delta &delta);
@@ -99,7 +97,7 @@ private:
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
 
-    std::vector<extrapolation_history_element> m_history;
+    non_proc_comp_state_history *m_state_history;
 
     job m_this_job;
 };

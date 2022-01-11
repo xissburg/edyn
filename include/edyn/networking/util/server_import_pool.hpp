@@ -15,8 +15,6 @@ template<typename Component>
 void import_pool_server(entt::registry &registry, entt::entity client_entity,
                         const std::vector<std::pair<entt::entity, Component>> &pool, bool broadcast) {
     auto &client = registry.get<remote_client>(client_entity);
-    auto merge_ctx = merge_context{&registry, &client.entity_map};
-
     auto &settings = registry.ctx<edyn::settings>();
     auto comp_index = settings.index_source->index_of<Component>();
 
@@ -51,7 +49,7 @@ void import_pool_server(entt::registry &registry, entt::entity client_entity,
             }
         } else {
             auto comp = pair.second;
-            merge(static_cast<Component *>(nullptr), comp, merge_ctx);
+            merge(comp, client.entity_map);
 
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);

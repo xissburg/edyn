@@ -31,17 +31,13 @@ struct updated_entity_component_container: public entity_component_container_bas
         pairs.emplace_back(entity, comp);
     }
 
-    void import(entt::registry &registry, entity_map &map) override {
-        auto ctx = merge_context{&registry, &map};
-        auto view = registry.view<Component>();
-
+    void import(entt::registry &registry, entity_map &emap) override {
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
-            if (!map.has_rem(remote_entity)) continue;
-            auto local_entity = map.remloc(remote_entity);
+            if (!emap.has_rem(remote_entity)) continue;
+            auto local_entity = emap.remloc(remote_entity);
 
-            auto& old_component = view.template get<Component>(local_entity);
-            merge(&old_component, pair.second, ctx);
+            merge(pair.second, emap);
             registry.replace<Component>(local_entity, pair.second);
         }
     }
@@ -67,20 +63,19 @@ struct created_entity_component_container: public entity_component_container_bas
         pairs.emplace_back(entity, comp);
     }
 
-    void import(entt::registry &registry, entity_map &map) override {
-        auto ctx = merge_context{&registry, &map};
+    void import(entt::registry &registry, entity_map &emap) override {
         size_t index = 0;
 
         while (index < pairs.size()) {
             auto &pair = pairs[index];
             auto remote_entity = pair.first;
 
-            if (!map.has_rem(remote_entity)) {
+            if (!emap.has_rem(remote_entity)) {
                 ++index;
                 continue;
             }
 
-            auto local_entity = map.remloc(remote_entity);
+            auto local_entity = emap.remloc(remote_entity);
 
             // If it's a duplicate, remove it from the array by swapping with last
             // and popping last. This ensures no duplicates after processing, which
@@ -94,7 +89,7 @@ struct created_entity_component_container: public entity_component_container_bas
             if constexpr(std::is_empty_v<Component>) {
                 registry.emplace<Component>(local_entity);
             } else {
-                merge(static_cast<Component *>(nullptr), pair.second, ctx);
+                merge(pair.second, emap);
                 registry.emplace<Component>(local_entity, pair.second);
             }
 

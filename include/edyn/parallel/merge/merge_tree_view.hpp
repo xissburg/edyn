@@ -8,9 +8,9 @@
 namespace edyn {
 
 template<> inline
-void merge(const tree_view *old_comp, tree_view &new_comp, merge_context &ctx) {
+void merge(tree_view &new_comp, entity_map &emap) {
     new_comp.each([&] (tree_view::tree_node &node) {
-        node.entity = ctx.map->remloc(node.entity);
+        node.entity = emap.remloc(node.entity);
     });
 }
 

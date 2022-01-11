@@ -3,6 +3,7 @@
 
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
+#include "edyn/networking/util/non_proc_comp_state_history.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/sparse_set.hpp>
@@ -46,6 +47,7 @@ struct client_networking_context {
     double server_playout_delay {0.2};
 
     std::vector<extrapolation_job_context> extrapolation_jobs;
+    non_proc_comp_state_history state_history;
 
     using request_entity_func_t = void(entt::entity);
     entt::sigh<request_entity_func_t> request_entity_signal;

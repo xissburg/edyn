@@ -8,50 +8,50 @@
 namespace edyn {
 
 template<> inline
-void merge(const constraint_base *old_comp, constraint_base &new_comp, merge_context &ctx) {
+void merge(constraint_base &new_comp, entity_map &emap) {
     for (auto &entity : new_comp.body) {
-        entity = ctx.map->remloc(entity);
+        entity = emap.remloc(entity);
     }
 }
 
 template<> inline
-void merge(const point_constraint *old_comp, point_constraint &new_comp, merge_context &ctx) {
-    merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+void merge(point_constraint &new_comp, entity_map &emap) {
+    merge(static_cast<constraint_base &>(new_comp), emap);
 }
 
 template<> inline
-void merge(const distance_constraint *old_comp, distance_constraint &new_comp, merge_context &ctx) {
-    merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+void merge(distance_constraint &new_comp, entity_map &emap) {
+    merge(static_cast<constraint_base &>(new_comp), emap);
 }
 
 template<> inline
-void merge(const soft_distance_constraint *old_comp, soft_distance_constraint &new_comp, merge_context &ctx) {
-    merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+void merge(soft_distance_constraint &new_comp, entity_map &emap) {
+    merge(static_cast<constraint_base &>(new_comp), emap);
 }
 
 template<> inline
-void merge(const hinge_constraint *old_comp, hinge_constraint &new_comp, merge_context &ctx) {
-    merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+void merge(hinge_constraint &new_comp, entity_map &emap) {
+    merge(static_cast<constraint_base &>(new_comp), emap);
 }
 
 template<> inline
-void merge(const generic_constraint *old_comp, generic_constraint &new_comp, merge_context &ctx) {
-    merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+void merge(generic_constraint &new_comp, entity_map &emap) {
+    merge(static_cast<constraint_base &>(new_comp), emap);
 }
 
 template<> inline
-void merge(const contact_constraint *old_comp, contact_constraint &new_comp, merge_context &ctx) {
-    merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+void merge(contact_constraint &new_comp, entity_map &emap) {
+    merge(static_cast<constraint_base &>(new_comp), emap);
 }
 
 template<> inline
-void merge(const null_constraint *old_comp, null_constraint &new_comp, merge_context &ctx) {
-    merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+void merge(null_constraint &new_comp, entity_map &emap) {
+    merge(static_cast<constraint_base &>(new_comp), emap);
 }
 
 template<> inline
-void merge(const gravity_constraint *old_comp, gravity_constraint &new_comp, merge_context &ctx) {
-    merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+void merge(gravity_constraint &new_comp, entity_map &emap) {
+    merge(static_cast<constraint_base &>(new_comp), emap);
 }
 
 }
