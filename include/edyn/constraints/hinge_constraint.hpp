@@ -20,7 +20,7 @@ struct hinge_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
 
     // Frames in object space. The first column of the matrix is the hinge axis.
-    std::array<matrix3x3, 2> frame;
+    std::array<matrix3x3, 2> frame{matrix3x3_identity, matrix3x3_identity};
 
     // Angular limits. `angle_min` must be smaller than `angle_max`.
     scalar angle_min{}, angle_max{};
@@ -28,9 +28,30 @@ struct hinge_constraint : public constraint_base {
     // Angular limit restitution.
     scalar limit_restitution{};
 
+    // When limits are set, if the angle between the two frames along the hinge
+    // axis is smaller than `angle_min + bump_stop_angle` or greater than
+    // `angle_max - bump_stop_angle` a force proportional to the proximity to
+    // the angular limit multiplied by `bump_stop_stiffness` will be applied.
+    scalar bump_stop_angle{};
+
+    // Spring rate of bump stop in Nm/rad.
+    scalar bump_stop_stiffness{};
+
+    // Torque applied in the opposite direction of the angular velocity along
+    // the hinge axis, simulating resistance to motion in the hinge.
     scalar friction_torque{};
 
-    std::array<scalar, 6> impulse {make_array<6>(scalar{})};
+    // Relative angle between the two frames along the hinge axis that the
+    // spring force should try to maintain.
+    scalar rest_angle{};
+
+    // Spring stiffness in Nm/rad.
+    scalar stiffness{};
+
+    // Damping rate in Nm/(rad/s).
+    scalar damping{};
+
+    std::array<scalar, 7> impulse {make_array<7>(scalar{})};
 
     /**
      * @brief Set hinge axes.

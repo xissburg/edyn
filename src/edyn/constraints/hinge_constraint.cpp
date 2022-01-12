@@ -51,13 +51,13 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
         const auto rA_skew = skew_matrix(rA);
         const auto rB_skew = skew_matrix(rB);
         constexpr auto I = matrix3x3_identity;
-        size_t row_idx = 0;
+        const auto row_start_index = cache.rows.size();
 
         // Make the position of pivot points match, akin to a `point_constraint`.
-        for (; row_idx < 3; ++row_idx) {
+        for (int i = 0; i < 3; ++i) {
             auto &row = cache.rows.emplace_back();
-            row.J = {I.row[row_idx], -rA_skew.row[row_idx],
-                    -I.row[row_idx], rB_skew.row[row_idx]};
+            row.J = {I.row[i], -rA_skew.row[i],
+                    -I.row[i],  rB_skew.row[i]};
             row.lower_limit = -EDYN_SCALAR_MAX;
             row.upper_limit = EDYN_SCALAR_MAX;
 
@@ -65,7 +65,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx];
+            row.impulse = con.impulse[i];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -86,7 +86,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = con.impulse[3];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -102,7 +102,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = con.impulse[4];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -113,6 +113,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
 
         if (has_limit || con.friction_torque > 0) {
             auto error = scalar{0};
+            auto hinge_axis = rotate(ornA, con.frame[0].column(0));
 
             if (has_limit) {
                 auto angle_axisB = rotate(ornB, con.frame[1].column(1));
@@ -123,16 +124,48 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
                 } else if (angle > con.angle_max) {
                     error = con.angle_max - angle;
                 }
+
+                if (con.bump_stop_stiffness > 0 && con.bump_stop_angle > 0) {
+                    auto bump_stop_deflection = scalar{0};
+                    auto bump_stop_min = con.angle_min + con.bump_stop_angle;
+                    auto bump_stop_max = con.angle_max - con.bump_stop_angle;
+
+                    if (angle < bump_stop_min) {
+                        bump_stop_deflection = angle - bump_stop_min;
+                    } else if (angle > bump_stop_max) {
+                        bump_stop_deflection = angle - bump_stop_max;
+                    }
+
+                    if (bump_stop_deflection != 0) {
+                        auto &row = cache.rows.emplace_back();
+                        row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
+                        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+                        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+                        row.dvA = &dvA; row.dwA = &dwA;
+                        row.dvB = &dvB; row.dwB = &dwB;
+                        row.impulse = con.impulse[5];
+
+                        auto spring_force = con.bump_stop_stiffness * bump_stop_deflection;
+                        auto spring_impulse = spring_force * dt;
+                        row.lower_limit = std::min(spring_impulse, scalar(0));
+                        row.upper_limit = std::max(scalar(0), spring_impulse);
+
+                        auto options = constraint_row_options{};
+                        options.error = -bump_stop_deflection / dt;
+
+                        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+                        warm_start(row);
+                    }
+                }
             }
 
-            auto axisA = rotate(ornA, con.frame[0].column(0));
             auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, axisA, vector3_zero, -axisA};
+            row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = con.impulse[6];
 
             if (error > 0) {
                 row.lower_limit = -large_scalar;
@@ -142,6 +175,12 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
                 row.upper_limit = large_scalar;
             } else {
                 auto friction_impulse = con.friction_torque * dt;
+
+                if (con.damping > 0) {
+                    auto relvel = dot(angvelA, hinge_axis) - dot(angvelB, hinge_axis);
+                    friction_impulse += std::abs(relvel) * con.damping * dt;
+                }
+
                 row.lower_limit = -friction_impulse;
                 row.upper_limit = friction_impulse;
             }
@@ -154,7 +193,8 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             warm_start(row);
         }
 
-        cache.con_num_rows.push_back(row_idx);
+        auto num_rows = cache.rows.size() - row_start_index;
+        cache.con_num_rows.push_back(num_rows);
     });
 }
 
