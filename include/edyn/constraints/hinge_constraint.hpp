@@ -51,7 +51,15 @@ struct hinge_constraint : public constraint_base {
     // Damping rate in Nm/(rad/s).
     scalar damping{};
 
-    std::array<scalar, 7> impulse {make_array<7>(scalar{})};
+    // Applied impulses.
+    // 0 - 2: linear point-to-point impulses.
+    // 3: First hinge impulse.
+    // 4: Second hinge impulse.
+    // 5: Limit impulse.
+    // 6: Bump stop impulse.
+    // 7: Friction and damping.
+    static constexpr auto num_rows = 8;
+    std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
 
     /**
      * @brief Set hinge axes.
