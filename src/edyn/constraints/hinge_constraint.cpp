@@ -110,11 +110,18 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
 
         // Handle angular limits and friction.
         auto has_limit = con.angle_min < con.angle_max;
+        auto has_spring = con.stiffness > 0;
         auto has_friction = con.friction_torque > 0 || con.damping > 0;
         vector3 hinge_axis;
+        scalar angle;
 
-        if (has_limit || has_friction) {
+        if (has_limit || has_spring || has_friction) {
             hinge_axis = rotate(ornA, con.frame[0].column(0));
+        }
+
+        if (has_limit || has_spring) {
+            auto angle_axisB = rotate(ornB, con.frame[1].column(1));
+            angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
         }
 
         if (has_limit) {
@@ -128,8 +135,6 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.impulse = con.impulse[5];
 
             auto limit_error = scalar{0};
-            auto angle_axisB = rotate(ornB, con.frame[1].column(1));
-            auto angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
             auto halfway_limit = (con.angle_max - con.angle_min) / scalar(2);
 
             if (angle < halfway_limit) {
@@ -184,6 +189,28 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             }
         }
 
+        if (has_spring) {
+            auto &row = cache.rows.emplace_back();
+            row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+            row.impulse = con.impulse[7];
+
+            auto deflection = angle - con.rest_angle;
+            auto spring_force = con.stiffness * deflection;
+            auto spring_impulse = spring_force * dt;
+            row.lower_limit = std::min(spring_impulse, scalar(0));
+            row.upper_limit = std::max(scalar(0), spring_impulse);
+
+            auto options = constraint_row_options{};
+            options.error = -deflection / dt;
+
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+            warm_start(row);
+        }
+
         if (has_friction) {
             // Since damping acts as a speed-dependent friction, a single row
             // is employed for both damping and constant friction.
@@ -193,7 +220,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[7];
+            row.impulse = con.impulse[8];
 
             auto friction_impulse = con.friction_torque * dt;
 

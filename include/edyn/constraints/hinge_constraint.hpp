@@ -57,8 +57,9 @@ struct hinge_constraint : public constraint_base {
     // 4: Second hinge impulse.
     // 5: Limit impulse.
     // 6: Bump stop impulse.
-    // 7: Friction and damping.
-    static constexpr auto num_rows = 8;
+    // 7: Spring impulse.
+    // 8: Friction and damping.
+    static constexpr auto num_rows = 9;
     std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
 
     /**
