@@ -51,6 +51,10 @@ struct hinge_constraint : public constraint_base {
     // Damping rate in Nm/(rad/s).
     scalar damping{};
 
+    // Current relative angle between the two frames along the hinge axis.
+    // Do not modify.
+    scalar angle{};
+
     // Applied impulses.
     // 0 - 2: linear point-to-point impulses.
     // 3: First hinge impulse.
@@ -68,6 +72,14 @@ struct hinge_constraint : public constraint_base {
      * @param axisB Axis in the second rigid body, in object space.
      */
     void set_axes(const vector3 &axisA, const vector3 &axisB);
+
+    /**
+     * @brief Recalculates the current angle. Should be called after changing
+     * the constraint frames so that the relative angle is set correctly.
+     * @param ornA Orientation of the first rigid body.
+     * @param ornB Orientation of the second rigid body.
+     */
+    void reset_angle(const quaternion &ornA, const quaternion &ornB);
 };
 
 template<>

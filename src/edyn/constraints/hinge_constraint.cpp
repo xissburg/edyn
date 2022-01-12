@@ -27,6 +27,13 @@ void hinge_constraint::set_axes(const vector3 &axisA, const vector3 &axisB) {
     frame[1] = matrix3x3_columns(axisB, p, q);
 }
 
+void hinge_constraint::reset_angle(const quaternion &ornA, const quaternion &ornB) {
+    auto p = rotate(ornA, frame[0].column(1));
+    auto q = rotate(ornA, frame[0].column(2));
+    auto angle_axisB = rotate(ornB, frame[1].column(1));
+    angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
+}
+
 template<>
 void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation,
@@ -113,7 +120,6 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
         auto has_spring = con.stiffness > 0;
         auto has_friction = con.friction_torque > 0 || con.damping > 0;
         vector3 hinge_axis;
-        scalar angle;
 
         if (has_limit || has_spring || has_friction) {
             hinge_axis = rotate(ornA, con.frame[0].column(0));
@@ -121,7 +127,13 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
 
         if (has_limit || has_spring) {
             auto angle_axisB = rotate(ornB, con.frame[1].column(1));
-            angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
+            auto angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
+            auto previous_angle = normalize_angle(con.angle);
+            // Find shortest path from previous angle to current in the [-π, π] range.
+            auto angle_delta0 = angle - previous_angle;
+            auto angle_delta1 = angle_delta0 + pi2 * to_sign(angle_delta0 < 0);
+            auto angle_delta = std::abs(angle_delta0) < std::abs(angle_delta1) ? angle_delta0 : angle_delta1;
+            con.angle += angle_delta;
         }
 
         if (has_limit) {
@@ -137,12 +149,13 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             auto limit_error = scalar{0};
             auto halfway_limit = (con.angle_max - con.angle_min) / scalar(2);
 
-            if (angle < halfway_limit) {
-                limit_error = con.angle_min - angle;
+            // Set constraint limits according to which is the closer angular limit.
+            if (con.angle < halfway_limit) {
+                limit_error = con.angle_min - con.angle;
                 row.lower_limit = -large_scalar;
                 row.upper_limit = 0;
             } else {
-                limit_error = con.angle_max - angle;
+                limit_error = con.angle_max - con.angle;
                 row.lower_limit = 0;
                 row.upper_limit = large_scalar;
             }
@@ -160,10 +173,10 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
                 auto bump_stop_min = con.angle_min + con.bump_stop_angle;
                 auto bump_stop_max = con.angle_max - con.bump_stop_angle;
 
-                if (angle < bump_stop_min) {
-                    bump_stop_deflection = angle - bump_stop_min;
-                } else if (angle > bump_stop_max) {
-                    bump_stop_deflection = angle - bump_stop_max;
+                if (con.angle < bump_stop_min) {
+                    bump_stop_deflection = con.angle - bump_stop_min;
+                } else if (con.angle > bump_stop_max) {
+                    bump_stop_deflection = con.angle - bump_stop_max;
                 }
 
                 if (bump_stop_deflection != 0) {
@@ -198,7 +211,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = con.impulse[7];
 
-            auto deflection = angle - con.rest_angle;
+            auto deflection = con.angle - con.rest_angle;
             auto spring_force = con.stiffness * deflection;
             auto spring_impulse = spring_force * dt;
             row.lower_limit = std::min(spring_impulse, scalar(0));
