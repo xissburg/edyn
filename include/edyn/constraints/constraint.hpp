@@ -9,6 +9,7 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/hinge_constraint.hpp"
 #include "edyn/constraints/generic_constraint.hpp"
+#include "edyn/constraints/cvjoint_constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/constraints/gravity_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -28,6 +29,7 @@ static const auto constraints_tuple = std::tuple<
     soft_distance_constraint,
     hinge_constraint,
     generic_constraint,
+    cvjoint_constraint,
     contact_constraint
 >{};
 

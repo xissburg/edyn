@@ -85,7 +85,6 @@ struct hinge_constraint : public constraint_base {
 template<>
 void prepare_constraints<hinge_constraint>(entt::registry &, row_cache &, scalar dt);
 
-
 template<>
 bool solve_position_constraints<hinge_constraint>(entt::registry &, scalar dt);
 
