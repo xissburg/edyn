@@ -20,6 +20,39 @@
 
 namespace edyn {
 
+void cvjoint_constraint::reset_angle(const quaternion &ornA, const quaternion &ornB) {
+    angle = relative_angle(ornA, ornB);
+}
+
+scalar cvjoint_constraint::relative_angle(const quaternion &ornA, const quaternion &ornB) const {
+    auto spin_axisA = quaternion_x(ornA);
+    auto spin_axisB = quaternion_x(ornB);
+    return relative_angle(ornA, ornB, spin_axisA, spin_axisB);
+}
+
+scalar cvjoint_constraint::relative_angle(const quaternion &ornA, const quaternion &ornB,
+                                          const vector3 &spin_axisA, const vector3 &spin_axisB) const {
+    // Quaternion which rotates spin axis of B so it's parallel to the
+    // spin axis of A.
+    auto arc_quat = shortest_arc(spin_axisB, spin_axisA);
+
+    // Transform a non-axial vector in the frame of B onto A's space so
+    // the angular error can be calculated.
+    auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, frame[1].column(1));
+    return std::atan2(dot(angle_axisB, frame[0].column(2)),
+                      dot(angle_axisB, frame[0].column(1)));
+}
+
+void cvjoint_constraint::update_angle(scalar new_angle) {
+    auto previous_angle = normalize_angle(angle);
+    // Find shortest path from previous angle to current in
+    // the [-π, π] range.
+    auto angle_delta0 = new_angle - previous_angle;
+    auto angle_delta1 = angle_delta0 + pi2 * to_sign(angle_delta0 < 0);
+    auto angle_delta = std::abs(angle_delta0) < std::abs(angle_delta1) ? angle_delta0 : angle_delta1;
+    angle += angle_delta;
+}
+
 template<>
 void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation,
@@ -51,8 +84,8 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             auto &row = cache.rows.emplace_back();
             row.J = {I.row[i], -rA_skew.row[i],
                     -I.row[i],  rB_skew.row[i]};
-            row.lower_limit = -EDYN_SCALAR_MAX;
-            row.upper_limit = EDYN_SCALAR_MAX;
+            row.lower_limit = -large_scalar;
+            row.upper_limit = large_scalar;
 
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -64,14 +97,13 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             warm_start(row);
         }
 
+        // Relationship between velocity and relative angle along the spin axis.
         {
             auto spin_axisA = quaternion_x(ornA);
             auto spin_axisB = quaternion_x(ornB);
 
             auto &row = cache.rows.emplace_back();
             row.J = {vector3_zero, spin_axisA, vector3_zero, -spin_axisB};
-            row.lower_limit = -EDYN_SCALAR_MAX;
-            row.upper_limit = EDYN_SCALAR_MAX;
 
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -79,18 +111,35 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = con.impulse[3];
 
-            // Quaternion which rotates spin axis of B so it's parallel to the
-            // spin axis of A.
-            auto arc_quat = shortest_arc(spin_axisB, spin_axisA);
-
-            // Transform a non-axial vector in the frame of B onto A's space so
-            // the angular error can be calculated.
-            auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, con.frame[1].column(1));
-            auto angle = std::atan2(dot(angle_axisB, con.frame[0].column(2)),
-                                    dot(angle_axisB, con.frame[0].column(1)));
-
+            auto angle = con.relative_angle(ornA, ornB, spin_axisA, spin_axisB);
+            auto has_limit = con.angle_min < con.angle_max;
             auto options = constraint_row_options{};
-            options.error = -angle / dt;
+
+            if (has_limit) {
+                con.update_angle(angle);
+
+                auto limit_error = scalar{0};
+                const auto halfway_limit = (con.angle_max - con.angle_min) / scalar(2);
+
+                // Set constraint limits according to which is the closer
+                // angular limit.
+                if (con.angle < halfway_limit) {
+                    limit_error = con.angle_min - con.angle;
+                    row.lower_limit = -large_scalar;
+                    row.upper_limit = 0;
+                } else {
+                    limit_error = con.angle_max - con.angle;
+                    row.lower_limit = 0;
+                    row.upper_limit = large_scalar;
+                }
+
+                options.error = limit_error / dt;
+                options.restitution = con.limit_restitution;
+            } else {
+                row.lower_limit = -large_scalar;
+                row.upper_limit = large_scalar;
+                options.error = -angle / dt;
+            }
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
