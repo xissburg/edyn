@@ -1,10 +1,9 @@
-#include "edyn/constraints/cvjoint_constraint.hpp"
+#include "edyn/constraints/cone_constraint.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/math/quaternion.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
@@ -14,55 +13,23 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <cmath>
 
 namespace edyn {
 
-void cvjoint_constraint::reset_angle(const quaternion &ornA, const quaternion &ornB) {
-    angle = relative_angle(ornA, ornB);
-}
-
-scalar cvjoint_constraint::relative_angle(const quaternion &ornA, const quaternion &ornB) const {
-    auto spin_axisA = rotate(ornA, frame[0].column(0));
-    auto spin_axisB = rotate(ornB, frame[1].column(0));
-    return relative_angle(ornA, ornB, spin_axisA, spin_axisB);
-}
-
-scalar cvjoint_constraint::relative_angle(const quaternion &ornA, const quaternion &ornB,
-                                          const vector3 &spin_axisA, const vector3 &spin_axisB) const {
-    // Quaternion which rotates spin axis of B so it's parallel to the
-    // spin axis of A.
-    auto arc_quat = shortest_arc(spin_axisB, spin_axisA);
-
-    // Transform a non-axial vector in the frame of B onto A's space so
-    // the angular error can be calculated.
-    auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, frame[1].column(1));
-    return std::atan2(dot(angle_axisB, frame[0].column(2)),
-                      dot(angle_axisB, frame[0].column(1)));
-}
-
-void cvjoint_constraint::update_angle(scalar new_angle) {
-    auto previous_angle = normalize_angle(angle);
-    // Find shortest path from previous angle to current in
-    // the [-π, π] range.
-    auto angle_delta0 = new_angle - previous_angle;
-    auto angle_delta1 = angle_delta0 + pi2 * to_sign(angle_delta0 < 0);
-    auto angle_delta = std::abs(angle_delta0) < std::abs(angle_delta1) ? angle_delta0 : angle_delta1;
-    angle += angle_delta;
-}
-
 template<>
-void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
+void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation,
                                    linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
-    auto con_view = registry.view<cvjoint_constraint>();
+    auto con_view = registry.view<cone_constraint>();
     auto origin_view = registry.view<origin>();
 
-    con_view.each([&] (cvjoint_constraint &con) {
+    con_view.each([&] (cone_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
@@ -97,48 +64,49 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             warm_start(row);
         }
 
-        // Relationship between velocity and relative angle along the spin axis.
-        {
-            auto spin_axisA = rotate(ornA, con.frame[0].column(0));
-            auto spin_axisB = rotate(ornB, con.frame[1].column(0));
+        auto axisA = con.frame[0].column(0);
+        auto axisB_world = rotate(ornB, con.frame[1].column(0));
 
+        // Transform a B's spin axis onto A's space so the angular span can
+        // be interpolated.
+        auto axisB_in_A = edyn::rotate(conjugate(ornA), axisB_world);
+        vector3 torque_axis;
+        scalar error;
+
+        auto radius0 = std::sqrt(1 - edyn::square(con.span[0]));
+        auto radius1 = std::sqrt(1 - edyn::square(con.span[1]));
+
+        if (radius0 > radius1) {
+            auto scaling = radius0 / radius1;
+            auto axisB_in_A_scaled = con.frame[0] * normalize(axisB_in_A * con.frame[0] * vector3{1, 1, scaling});
+            error = (dot(axisA, axisB_in_A_scaled) - con.span[0]) / dt;
+            torque_axis = con.frame[0] * (cross(axisA, axisB_in_A_scaled) * con.frame[0] * vector3{1, 1, 1 / scaling});
+        } else {
+            auto scaling = radius1 / radius0;
+            auto axisB_in_A_scaled = con.frame[0] * normalize((axisB_in_A * con.frame[0]) * vector3{1, scaling, 1});
+            error = (dot(axisA, axisB_in_A_scaled) - con.span[1]) / dt;
+            torque_axis = con.frame[0] * ((cross(axisA, axisB_in_A_scaled) * con.frame[0]) * vector3{1, 1 / scaling, 1});
+        }
+
+        torque_axis = rotate(ornA, torque_axis);
+
+        /* auto error = (dot(axisA, axisB_in_A) - con.span[1]) / dt;
+        auto torque_axis = rotate(ornA, cross(axisA, axisB_in_A)); */
+
+        if (try_normalize(torque_axis)) {
             auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, spin_axisA, vector3_zero, -spin_axisB};
+            row.J = {vector3_zero, torque_axis, vector3_zero, -torque_axis};
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
+            row.lower_limit = 0;
+            row.upper_limit = large_scalar;
             row.impulse = con.impulse[3];
 
-            auto angle = con.relative_angle(ornA, ornB, spin_axisA, spin_axisB);
-            auto has_limit = con.angle_min < con.angle_max;
             auto options = constraint_row_options{};
-
-            if (has_limit) {
-                con.update_angle(angle);
-
-                auto limit_error = scalar{0};
-                const auto halfway_limit = (con.angle_max - con.angle_min) / scalar(2);
-
-                // Set constraint limits according to which is the closer
-                // angular limit.
-                if (con.angle < halfway_limit) {
-                    limit_error = con.angle_min - con.angle;
-                    row.lower_limit = -large_scalar;
-                    row.upper_limit = 0;
-                } else {
-                    limit_error = con.angle_max - con.angle;
-                    row.lower_limit = 0;
-                    row.upper_limit = large_scalar;
-                }
-
-                options.error = limit_error / dt;
-                options.restitution = con.limit_restitution;
-            } else {
-                row.lower_limit = -large_scalar;
-                row.upper_limit = large_scalar;
-                options.error = -angle / dt;
-            }
+            options.error = error;
+            options.restitution = con.limit_restitution;
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -150,14 +118,14 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
 }
 
 template<>
-bool solve_position_constraints<cvjoint_constraint>(entt::registry &registry, scalar dt) {
-    auto con_view = registry.view<cvjoint_constraint>();
+bool solve_position_constraints<cone_constraint>(entt::registry &registry, scalar dt) {
+    auto con_view = registry.view<cone_constraint>();
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
     auto origin_view = registry.view<origin>();
     auto linear_error = scalar(0);
     auto angular_error = scalar(0);
 
-    con_view.each([&] (cvjoint_constraint &con) {
+    con_view.each([&] (cone_constraint &con) {
         auto [posA, ornA, inv_mA, inv_IA] =
             body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[0]);
         auto [posB, ornB, inv_mB, inv_IB] =

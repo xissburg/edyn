@@ -72,6 +72,7 @@ add_library(Edyn
     src/edyn/constraints/hinge_constraint.cpp
     src/edyn/constraints/generic_constraint.cpp
     src/edyn/constraints/cvjoint_constraint.cpp
+    src/edyn/constraints/cone_constraint.cpp
     src/edyn/constraints/null_constraint.cpp
     src/edyn/constraints/gravity_constraint.cpp
     src/edyn/dynamics/solver.cpp
