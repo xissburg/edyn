@@ -13,6 +13,7 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
@@ -36,131 +37,71 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
-        auto pivotA = to_world_space(con.pivot[0], originA, ornA);
-        auto pivotB = to_world_space(con.pivot[1], originB, ornB);
-        auto rA = pivotA - posA;
-        auto rB = pivotB - posB;
-
-        const auto rA_skew = skew_matrix(rA);
-        const auto rB_skew = skew_matrix(rB);
-        constexpr auto I = matrix3x3_identity;
-        const auto row_start_index = cache.rows.size();
-
-        // Make the position of pivot points match, akin to a `point_constraint`.
-        for (int i = 0; i < 3; ++i) {
-            auto &row = cache.rows.emplace_back();
-            row.J = {I.row[i], -rA_skew.row[i],
-                    -I.row[i],  rB_skew.row[i]};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = large_scalar;
-
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[i];
-
-            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
-
-        auto axisA = con.frame[0].column(0);
-        auto axisB_world = rotate(ornB, con.frame[1].column(0));
-
-        // Transform a B's spin axis onto A's space so the angular span can
-        // be interpolated.
-        auto axisB_in_A = edyn::rotate(conjugate(ornA), axisB_world);
+        auto pivotB_world = to_world_space(con.pivot[1], originB, ornB);
+        auto pivotB_in_A = to_object_space(pivotB_world, originA, ornA);
+        auto pivotB_in_A_frame = to_object_space(pivotB_in_A, con.pivot[0], con.frame[0]);
 
         auto scaling_y = scalar(1) / con.span[0];
         auto scaling_z = scalar(1) / con.span[1];
-        auto axisB_in_A_scaled = con.frame[0] * ((axisB_in_A * con.frame[0]) * vector3{1, scaling_y, scaling_z});
-        axisB_in_A_scaled = normalize(axisB_in_A_scaled);
-        auto error = (dot(axisA, axisB_in_A_scaled) - std::cos(to_radians(45))) / dt;
-        auto torque_axis_unscaled = cross(axisA, axisB_in_A_scaled);
+        auto pivotB_in_A_frame_scaled = pivotB_in_A_frame * vector3{1, scaling_y, scaling_z};
 
-        if (try_normalize(torque_axis_unscaled)) {
-            auto torque_axis = con.frame[0] * (torque_axis_unscaled * con.frame[0] * vector3{1, 1 / scaling_y, 1 / scaling_z});
-            torque_axis = rotate(ornA, torque_axis);
-            torque_axis = normalize(torque_axis);
+        auto proj_yz_len_sqr = length_sqr(to_vector2_yz(pivotB_in_A_frame_scaled));
+        vector3 normal_scaled, tangent_scaled;
 
-            auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, torque_axis, vector3_zero, -torque_axis};
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.lower_limit = 0;
-            row.upper_limit = large_scalar;
-            row.impulse = con.impulse[3];
-
-            auto options = constraint_row_options{};
-            options.error = error;
-            options.restitution = con.limit_restitution;
-
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
+        if (proj_yz_len_sqr > EDYN_EPSILON) {
+            normal_scaled = normalize(vector3{-std::sqrt(proj_yz_len_sqr),
+                                              pivotB_in_A_frame_scaled.y,
+                                              pivotB_in_A_frame_scaled.z});
+            tangent_scaled = normalize(vector3{0, -pivotB_in_A_frame_scaled.z, pivotB_in_A_frame_scaled.y});
+        } else {
+            normal_scaled = vector3_y;
+            tangent_scaled = vector3_z;
         }
 
-        auto num_rows = cache.rows.size() - row_start_index;
-        cache.con_num_rows.push_back(num_rows);
+        auto error = dot(pivotB_in_A_frame_scaled, normal_scaled);
+
+        auto dir_on_cone = vector3{-normal_scaled.x, normal_scaled.y, normal_scaled.z};
+        auto cone_proj = dot(pivotB_in_A_frame_scaled, dir_on_cone);
+        auto point_on_cone_scaled = dir_on_cone * cone_proj;
+        auto point_on_cone = point_on_cone_scaled * vector3{1, 1 / scaling_y, 1 / scaling_z};
+
+        auto pivotA = to_world_space(point_on_cone, con.pivot[0], con.frame[0]);
+        auto pivotA_world = to_world_space(pivotA, originA, ornA);
+
+        // The tangent is isomorphic to scale, unlike the normal vector.
+        // Thus, unscale the tangent and recalculate the normal.
+        auto tangent = normalize(tangent_scaled * vector3{1, 1 / scaling_y, 1 / scaling_z});
+        auto normal = normalize(cross(tangent, point_on_cone));
+        auto normal_world = rotate(ornA, con.frame[0] * normal);
+
+        auto rA = pivotA_world - posA;
+        auto rB = pivotB_world - posB;
+
+        auto &row = cache.rows.emplace_back();
+        row.J = {normal_world,  cross(rA, normal_world),
+                -normal_world, -cross(rB, normal_world)};
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.lower_limit = 0;
+        row.upper_limit = large_scalar;
+        row.impulse = con.impulse;
+
+        auto options = constraint_row_options{};
+        options.error = -error / dt;
+        options.restitution = con.limit_restitution;
+
+        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+        warm_start(row);
+
+        cache.con_num_rows.push_back(1);
     });
 }
 
 template<>
 bool solve_position_constraints<cone_constraint>(entt::registry &registry, scalar dt) {
-    auto con_view = registry.view<cone_constraint>();
-    auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
-    auto origin_view = registry.view<origin>();
-    auto linear_error = scalar(0);
-    auto angular_error = scalar(0);
-
-    con_view.each([&] (cone_constraint &con) {
-        auto [posA, ornA, inv_mA, inv_IA] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[0]);
-        auto [posB, ornB, inv_mB, inv_IB] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[1]);
-
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
-
-        // Apply correction to join the pivot points together.
-        auto pivotA = to_world_space(con.pivot[0], originA, ornA);
-        auto pivotB = to_world_space(con.pivot[1], originB, ornB);
-        auto dir = pivotA - pivotB;
-        auto error = length(dir);
-
-        if (error > EDYN_EPSILON) {
-            dir /= error;
-
-            auto rA = pivotA - posA;
-            auto rB = pivotB - posB;
-            auto J = std::array<vector3, 4>{dir, cross(rA, dir), -dir, -cross(rB, dir)};
-            auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
-            auto correction = -error * eff_mass;
-
-            posA += inv_mA * J[0] * correction;
-            posB += inv_mB * J[2] * correction;
-            ornA += quaternion_derivative(ornA, inv_IA * J[1] * correction);
-            ornB += quaternion_derivative(ornB, inv_IB * J[3] * correction);
-
-            linear_error = std::max(error, linear_error);
-        }
-
-        ornA = normalize(ornA);
-        ornB = normalize(ornB);
-
-        auto basisA = to_matrix3x3(ornA);
-        inv_IA = basisA * inv_IA * transpose(basisA);
-
-        auto basisB = to_matrix3x3(ornB);
-        inv_IB = basisB * inv_IB * transpose(basisB);
-    });
-
-    if (linear_error < scalar(0.005) && angular_error < std::sin(to_radians(3))) {
-        return true;
-    }
-
-    return false;
+    return true;
 }
 
 }

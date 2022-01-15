@@ -21,8 +21,7 @@ struct cone_constraint : public constraint_base {
 
     scalar limit_restitution{};
 
-    static constexpr auto num_rows = 4;
-    std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
+    scalar impulse{};
 };
 
 template<>
