@@ -70,30 +70,19 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
         // Transform a B's spin axis onto A's space so the angular span can
         // be interpolated.
         auto axisB_in_A = edyn::rotate(conjugate(ornA), axisB_world);
-        vector3 torque_axis;
-        scalar error;
 
-        auto radius0 = std::sqrt(1 - edyn::square(con.span[0]));
-        auto radius1 = std::sqrt(1 - edyn::square(con.span[1]));
+        auto scaling_y = scalar(1) / con.span[0];
+        auto scaling_z = scalar(1) / con.span[1];
+        auto axisB_in_A_scaled = con.frame[0] * ((axisB_in_A * con.frame[0]) * vector3{1, scaling_y, scaling_z});
+        axisB_in_A_scaled = normalize(axisB_in_A_scaled);
+        auto error = (dot(axisA, axisB_in_A_scaled) - std::cos(to_radians(45))) / dt;
+        auto torque_axis_unscaled = cross(axisA, axisB_in_A_scaled);
 
-        if (radius0 > radius1) {
-            auto scaling = radius0 / radius1;
-            auto axisB_in_A_scaled = con.frame[0] * normalize(axisB_in_A * con.frame[0] * vector3{1, 1, scaling});
-            error = (dot(axisA, axisB_in_A_scaled) - con.span[0]) / dt;
-            torque_axis = con.frame[0] * (cross(axisA, axisB_in_A_scaled) * con.frame[0] * vector3{1, 1, 1 / scaling});
-        } else {
-            auto scaling = radius1 / radius0;
-            auto axisB_in_A_scaled = con.frame[0] * normalize((axisB_in_A * con.frame[0]) * vector3{1, scaling, 1});
-            error = (dot(axisA, axisB_in_A_scaled) - con.span[1]) / dt;
-            torque_axis = con.frame[0] * ((cross(axisA, axisB_in_A_scaled) * con.frame[0]) * vector3{1, 1 / scaling, 1});
-        }
+        if (try_normalize(torque_axis_unscaled)) {
+            auto torque_axis = con.frame[0] * (torque_axis_unscaled * con.frame[0] * vector3{1, 1 / scaling_y, 1 / scaling_z});
+            torque_axis = rotate(ornA, torque_axis);
+            torque_axis = normalize(torque_axis);
 
-        torque_axis = rotate(ornA, torque_axis);
-
-        /* auto error = (dot(axisA, axisB_in_A) - con.span[1]) / dt;
-        auto torque_axis = rotate(ornA, cross(axisA, axisB_in_A)); */
-
-        if (try_normalize(torque_axis)) {
             auto &row = cache.rows.emplace_back();
             row.J = {vector3_zero, torque_axis, vector3_zero, -torque_axis};
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
