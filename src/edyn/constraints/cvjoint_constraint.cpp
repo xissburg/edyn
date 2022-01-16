@@ -146,6 +146,7 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             warm_start(row);
         }
 
+        // Twist bump stops.
         if (has_limit && con.twist_bump_stop_stiffness > 0 && con.twist_bump_stop_angle > 0) {
             auto bump_stop_deflection = scalar{0};
             auto bump_stop_min = con.twist_min + con.twist_bump_stop_angle;
@@ -177,6 +178,7 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             warm_start(row);
         }
 
+        // Twist stiffness.
         if (has_limit && con.twist_stiffness > 0) {
             auto &row = cache.rows.emplace_back();
             row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
@@ -199,6 +201,7 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             warm_start(row);
         }
 
+        // Twisting friction and damping.
         if (has_limit && (con.twist_friction_torque > 0 || con.twist_damping > 0)) {
             // Since damping acts as a speed-dependent friction, a single row
             // is employed for both damping and constant friction.
@@ -215,6 +218,44 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             if (con.twist_damping > 0) {
                 auto relvel = dot(angvelA, twist_axisA) - dot(angvelB, twist_axisB);
                 friction_impulse += std::abs(relvel) * con.twist_damping * dt;
+            }
+
+            row.lower_limit = -friction_impulse;
+            row.upper_limit = friction_impulse;
+
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
+            warm_start(row);
+        }
+
+        // Bending friction and damping.
+        if (con.bend_friction_torque > 0 || con.bend_damping > 0) {
+            // Apply friction and damping to slowdown the non-twisting
+            // angular velocity.
+            auto twist_angvelA = dot(angvelA, twist_axisA) * twist_axisA;
+            auto twist_angvelB = dot(angvelB, twist_axisB) * twist_axisB;
+            auto angvel_rel = (angvelA - twist_angvelA) - (angvelB - twist_angvelB);
+            auto angspd_rel = length(angvel_rel);
+            vector3 angvel_axis;
+
+            if (angspd_rel > EDYN_EPSILON) {
+                angvel_axis = angvel_rel / angspd_rel;
+            } else {
+                // Pick axis orthogonal to `twist_axisA`.
+                angvel_axis = rotate(ornA, con.frame[0].column(1));
+            }
+
+            auto &row = cache.rows.emplace_back();
+            row.J = {vector3_zero, angvel_axis, vector3_zero, -angvel_axis};
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+            row.impulse = con.impulse[row_idx++];
+
+            auto friction_impulse = con.bend_friction_torque * dt;
+
+            if (con.twist_damping > 0) {
+                friction_impulse += std::abs(angspd_rel) * con.bend_damping * dt;
             }
 
             row.lower_limit = -friction_impulse;

@@ -57,7 +57,19 @@ struct cvjoint_constraint : public constraint_base {
     // Damping rate for twisting in Nm/(rad/s).
     scalar twist_damping{};
 
-    static constexpr auto num_rows = 7;
+    scalar rest_direction{};
+    scalar bend_stiffness{};
+
+    // Torque applied in the opposite direction of the relvative angular
+    // velocity in the plane with the twist axis of body 0 as normal, thus
+    // slowing down bending motion.
+    scalar bend_friction_torque{};
+
+    // Similar to `bend_friction_torque` but the force is proportional to
+    // the relative angular velocity.
+    scalar bend_damping{};
+
+    static constexpr auto num_rows = 8;
     std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
 
     /**
