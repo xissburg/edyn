@@ -54,8 +54,8 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
                                               pivotB_in_A_frame_scaled.z});
             tangent_scaled = normalize(vector3{0, -pivotB_in_A_frame_scaled.z, pivotB_in_A_frame_scaled.y});
         } else {
-            normal_scaled = vector3_y;
-            tangent_scaled = vector3_z;
+            normal_scaled = normalize(vector3{-1, 1, 0});
+            tangent_scaled = normalize(vector3{0, 0, 1});
         }
 
         auto error = dot(pivotB_in_A_frame_scaled, normal_scaled);
