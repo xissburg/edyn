@@ -118,7 +118,7 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
                 con.update_angle(angle);
 
                 auto limit_error = scalar{0};
-                const auto halfway_limit = (con.angle_max - con.angle_min) / scalar(2);
+                const auto halfway_limit = (con.angle_max + con.angle_min) / scalar(2);
 
                 // Set constraint limits according to which is the closer
                 // angular limit.
