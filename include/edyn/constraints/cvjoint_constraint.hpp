@@ -57,7 +57,12 @@ struct cvjoint_constraint : public constraint_base {
     // Damping rate for twisting in Nm/(rad/s).
     scalar twist_damping{};
 
-    scalar rest_direction{};
+    // Direction CV-joint tries to point towards, specified in the object space
+    // of body A.
+    vector3 rest_direction{};
+
+    // Stiffness of spring that forces the twist axis of body B to align with
+    // the frame of body A along `rest_direction`.
     scalar bend_stiffness{};
 
     // Torque applied in the opposite direction of the relvative angular
@@ -69,7 +74,7 @@ struct cvjoint_constraint : public constraint_base {
     // the relative angular velocity.
     scalar bend_damping{};
 
-    static constexpr auto num_rows = 8;
+    static constexpr auto num_rows = 9;
     std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
 
     /**

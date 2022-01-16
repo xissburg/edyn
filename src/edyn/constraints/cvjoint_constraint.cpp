@@ -5,6 +5,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/math/quaternion.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
@@ -262,6 +263,38 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             row.upper_limit = friction_impulse;
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
+            warm_start(row);
+        }
+
+        // Bending spring.
+        if (con.bend_stiffness > 0) {
+            auto bend_axis = cross(rotate(ornA, con.rest_direction), twist_axisB);
+            auto bend_axis_len = length(bend_axis);
+            auto angle = std::asin(bend_axis_len);
+
+            if (bend_axis_len > EDYN_EPSILON) {
+                bend_axis /= bend_axis_len;
+            } else {
+                bend_axis = rotate(ornA, con.frame[0].column(1));
+            }
+
+            auto &row = cache.rows.emplace_back();
+            row.J = {vector3_zero, bend_axis, vector3_zero, -bend_axis};
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+            row.impulse = con.impulse[row_idx++];
+
+            auto spring_force = con.bend_stiffness * angle;
+            auto spring_impulse = spring_force * dt;
+            row.lower_limit = std::min(spring_impulse, scalar(0));
+            row.upper_limit = std::max(scalar(0), spring_impulse);
+
+            auto options = constraint_row_options{};
+            options.error = -angle / dt;
+
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
