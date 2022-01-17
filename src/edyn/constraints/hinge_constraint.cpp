@@ -147,7 +147,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.impulse = con.impulse[5];
 
             auto limit_error = scalar{0};
-            auto halfway_limit = (con.angle_max - con.angle_min) / scalar(2);
+            auto halfway_limit = (con.angle_min + con.angle_max) / scalar(2);
 
             // Set constraint limits according to which is the closer angular limit.
             if (con.angle < halfway_limit) {
