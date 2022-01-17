@@ -13,15 +13,28 @@ struct cone_constraint : public constraint_base {
     // Pivots in object space.
     std::array<vector3, 2> pivot;
 
-    // Frames in object space. The first column of the matrix is the direction
-    // of the cone.
-    std::array<matrix3x3, 2> frame{matrix3x3_identity, matrix3x3_identity};
+    // Frame in the first body's object space. This is an orthonormal basis
+    // where the first column of the matrix is the direction of the cone.
+    matrix3x3 frame{matrix3x3_identity};
 
-    std::array<scalar, 2> span;
+    // Tangent of the span angle along the y and z axes of the first body's
+    // frame.
+    std::array<scalar, 2> span_tan;
 
-    scalar limit_restitution{};
+    // Restitution of the cone limits, i.e. how much the body will bounce
+    // once it hits the surface of the cone.
+    scalar restitution{};
 
-    scalar impulse{};
+    // Bump stop spring stiffness.
+    scalar bump_stop_stiffness{};
+
+    // Size of bump stop. When the distance between the second body's pivot to
+    // the cone surface gets below this value, the bump stop spring will start
+    // to be effective.
+    scalar bump_stop_length{};
+
+    static constexpr auto num_rows = 2;
+    std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
 };
 
 template<>
@@ -32,7 +45,9 @@ bool solve_position_constraints<cone_constraint>(entt::registry &, scalar dt);
 
 template<typename Archive>
 void serialize(Archive &archive, cone_constraint &c) {
-    archive(c.body, c.pivot, c.span);
+    archive(c.body, c.pivot, c.frame);
+    archive(c.span_tan, c.restitution);
+    archive(c.bump_stop_stiffness, c.bump_stop_length);
 };
 
 }

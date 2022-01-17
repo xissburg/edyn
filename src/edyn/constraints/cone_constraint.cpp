@@ -39,10 +39,10 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
 
         auto pivotB_world = to_world_space(con.pivot[1], originB, ornB);
         auto pivotB_in_A = to_object_space(pivotB_world, originA, ornA);
-        auto pivotB_in_A_frame = to_object_space(pivotB_in_A, con.pivot[0], con.frame[0]);
+        auto pivotB_in_A_frame = to_object_space(pivotB_in_A, con.pivot[0], con.frame);
 
-        auto scaling_y = scalar(1) / con.span[0];
-        auto scaling_z = scalar(1) / con.span[1];
+        auto scaling_y = scalar(1) / con.span_tan[0];
+        auto scaling_z = scalar(1) / con.span_tan[1];
         auto pivotB_in_A_frame_scaled = pivotB_in_A_frame * vector3{1, scaling_y, scaling_z};
 
         auto proj_yz_len_sqr = length_sqr(to_vector2_yz(pivotB_in_A_frame_scaled));
@@ -65,37 +65,63 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
         auto point_on_cone_scaled = dir_on_cone * cone_proj;
         auto point_on_cone = point_on_cone_scaled * vector3{1, 1 / scaling_y, 1 / scaling_z};
 
-        auto pivotA = to_world_space(point_on_cone, con.pivot[0], con.frame[0]);
+        auto pivotA = to_world_space(point_on_cone, con.pivot[0], con.frame);
         auto pivotA_world = to_world_space(pivotA, originA, ornA);
 
         // The tangent is isomorphic to scale, unlike the normal vector.
         // Thus, unscale the tangent and recalculate the normal.
         auto tangent = normalize(tangent_scaled * vector3{1, 1 / scaling_y, 1 / scaling_z});
         auto normal = normalize(cross(tangent, point_on_cone));
-        auto normal_world = rotate(ornA, con.frame[0] * normal);
+        auto normal_world = rotate(ornA, con.frame * normal);
 
         auto rA = pivotA_world - posA;
         auto rB = pivotB_world - posB;
+        unsigned row_idx = 0;
+
+        std::array<vector3, 2 * max_constrained_entities> J =
+            {normal_world,  cross(rA, normal_world),
+            -normal_world, -cross(rB, normal_world)};
 
         auto &row = cache.rows.emplace_back();
-        row.J = {normal_world,  cross(rA, normal_world),
-                -normal_world, -cross(rB, normal_world)};
+        row.J = J;
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
         row.dvA = &dvA; row.dwA = &dwA;
         row.dvB = &dvB; row.dwB = &dwB;
         row.lower_limit = 0;
         row.upper_limit = large_scalar;
-        row.impulse = con.impulse;
+        row.impulse = con.impulse[row_idx++];
 
         auto options = constraint_row_options{};
         options.error = -error / dt;
-        options.restitution = con.limit_restitution;
+        options.restitution = con.restitution;
 
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
         warm_start(row);
 
-        cache.con_num_rows.push_back(1);
+        if (con.bump_stop_stiffness > 0 && con.bump_stop_length > 0) {
+            auto &row = cache.rows.emplace_back();
+            row.J = J;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+            row.impulse = con.impulse[row_idx++];
+
+            auto bump_stop_deflection = con.bump_stop_length + error;
+            auto spring_force = con.bump_stop_stiffness * bump_stop_deflection;
+            auto spring_impulse = spring_force * dt;
+            row.lower_limit = 0;
+            row.upper_limit = std::max(scalar(0), spring_impulse);
+
+            auto options = constraint_row_options{};
+            options.error = -bump_stop_deflection / dt;
+
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+            warm_start(row);
+        }
+
+        cache.con_num_rows.push_back(row_idx);
     });
 }
 

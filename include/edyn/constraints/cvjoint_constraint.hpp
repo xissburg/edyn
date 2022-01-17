@@ -109,6 +109,10 @@ void serialize(Archive &archive, cvjoint_constraint &c) {
     archive(c.twist_rest_angle);
     archive(c.twist_stiffness);
     archive(c.twist_damping);
+    archive(c.rest_direction);
+    archive(c.bend_stiffness);
+    archive(c.bend_friction_torque);
+    archive(c.bend_damping);
 };
 
 }
