@@ -135,12 +135,16 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
                     row.upper_limit = large_scalar;
                 }
 
-                options.error = limit_error / dt;
+                // Only assign error if the limits haven't been violated. The
+                // position constraints will fix angular limit errors later.
+                if (con.twist_angle > con.twist_min && con.twist_angle < con.twist_max) {
+                    options.error = limit_error / dt;
+                }
+
                 options.restitution = con.twist_restitution;
             } else {
                 row.lower_limit = -large_scalar;
                 row.upper_limit = large_scalar;
-                options.error = -angle / dt;
             }
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
@@ -317,6 +321,33 @@ bool solve_position_constraints<cvjoint_constraint>(entt::registry &registry, sc
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
+        // Apply angular correction along twist axes.
+        auto twist_axisA = rotate(ornA, con.frame[0].column(0));
+        auto twist_axisB = rotate(ornB, con.frame[1].column(0));
+        auto angle = con.relative_angle(ornA, ornB, twist_axisA, twist_axisB);
+        auto J = std::array<vector3, 4>{vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
+        auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
+        auto has_limit = con.twist_min < con.twist_max;
+        auto twist_error = scalar{};
+
+        if (has_limit) {
+            con.update_angle(angle);
+
+            if (con.twist_angle < con.twist_min) {
+                twist_error = con.twist_angle - con.twist_min;
+            } else if (con.twist_angle > con.twist_max) {
+                twist_error = con.twist_angle - con.twist_max;
+            }
+        } else {
+            twist_error = angle;
+        }
+
+        const auto twist_correction_factor = scalar(0.2);
+        auto correction = twist_error * eff_mass * twist_correction_factor;
+        ornA += quaternion_derivative(ornA, inv_IA * J[1] * correction);
+        ornB += quaternion_derivative(ornB, inv_IB * J[3] * correction);
+        angular_error = std::max(angle, angular_error);
+
         // Apply correction to join the pivot points together.
         auto pivotA = to_world_space(con.pivot[0], originA, ornA);
         auto pivotB = to_world_space(con.pivot[1], originB, ornB);
@@ -350,7 +381,7 @@ bool solve_position_constraints<cvjoint_constraint>(entt::registry &registry, sc
         inv_IB = basisB * inv_IB * transpose(basisB);
     });
 
-    if (linear_error < scalar(0.005) && angular_error < std::sin(to_radians(3))) {
+    if (linear_error < scalar(0.005) && angular_error < to_radians(2)) {
         return true;
     }
 
