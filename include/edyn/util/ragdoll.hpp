@@ -8,16 +8,19 @@
 namespace edyn {
 
 struct ragdoll_simple_def {
-    vector3 position;
-    quaternion orientation;
+    vector3 position{vector3_zero};
+    quaternion orientation{quaternion_identity};
 
-    scalar height;
-    scalar weight;
+    scalar height{scalar(1.7)};
+    scalar weight{scalar(72)};
+
+    scalar restitution{0};
+    scalar friction{0.5};
 };
 
 struct ragdoll_def {
-    vector3 position;
-    quaternion orientation;
+    vector3 position{vector3_zero};
+    quaternion orientation{quaternion_identity};
 
     scalar head_mass;
     scalar neck_mass;
@@ -91,6 +94,18 @@ struct ragdoll_entities {
 
     entt::entity torso_upper_shoulder_left_constraint;
     entt::entity torso_upper_shoulder_right_constraint;
+
+    entt::entity shoulder_arm_upper_left_constraint;
+    entt::entity shoulder_arm_upper_right_constraint;
+
+    entt::entity elbow_left_hinge;
+    entt::entity elbow_right_hinge;
+
+    entt::entity arm_twist_left_hinge;
+    entt::entity arm_twist_right_hinge;
+
+    entt::entity hand_left_constraint;
+    entt::entity hand_right_constraint;
 };
 
 ragdoll_def make_ragdoll_def_from_simple(const ragdoll_simple_def &def);
