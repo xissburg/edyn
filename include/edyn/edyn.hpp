@@ -24,6 +24,7 @@
 #include "util/shape_util.hpp"
 #include "util/shape_volume.hpp"
 #include "util/tuple_util.hpp"
+#include "util/exclude_collision.hpp"
 #include "collision/contact_manifold.hpp"
 #include "collision/contact_point.hpp"
 #include "shapes/create_paged_triangle_mesh.hpp"
@@ -260,18 +261,6 @@ entt::entity get_manifold_entity(const entt::registry &registry, entt::entity fi
 
 /*! @copydoc get_manifold_entity */
 entt::entity get_manifold_entity(const entt::registry &registry, entity_pair entities);
-
-/**
- * @brief Excludes collisions between a pair of entities.
- * Use this when collision filters are not enough.
- * @param registry Data source.
- * @param first The entity that should not collide with `second`.
- * @param second The entity that should not collide with `first`.
- */
-void exclude_collision(entt::registry &registry, entt::entity first, entt::entity second);
-
-/*! @copydoc exclude_collision */
-void exclude_collision(entt::registry &registry, entity_pair entities);
 
 /**
  * @brief Signal triggered when a contact starts.
