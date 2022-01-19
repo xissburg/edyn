@@ -37,14 +37,20 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
+        // Transform B's pivot into the frame space in A and apply scaling so
+        // that the cone is circular and has an opening angle of 90 degrees, which
+        // makes calculations easier. The transformation is later reverted to
+        // gather results in world space.
         auto pivotB_world = to_world_space(con.pivot[1], originB, ornB);
         auto pivotB_in_A = to_object_space(pivotB_world, originA, ornA);
         auto pivotB_in_A_frame = to_object_space(pivotB_in_A, con.pivot[0], con.frame);
 
+        // Scaling to make the cone circular with an opening of 90 degrees.
         auto scaling_y = scalar(1) / con.span_tan[0];
         auto scaling_z = scalar(1) / con.span_tan[1];
         auto pivotB_in_A_frame_scaled = pivotB_in_A_frame * vector3{1, scaling_y, scaling_z};
 
+        // Calculate normal vector on cone which points towards the pivot.
         auto proj_yz_len_sqr = length_sqr(to_vector2_yz(pivotB_in_A_frame_scaled));
         vector3 normal_scaled, tangent_scaled;
 
@@ -60,6 +66,7 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
 
         auto error = dot(pivotB_in_A_frame_scaled, normal_scaled);
 
+        // Find point cone closest to B's pivot.
         auto dir_on_cone = vector3{-normal_scaled.x, normal_scaled.y, normal_scaled.z};
         auto cone_proj = dot(pivotB_in_A_frame_scaled, dir_on_cone);
         auto point_on_cone_scaled = dir_on_cone * cone_proj;
@@ -124,11 +131,6 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
 
         cache.con_num_rows.push_back(row_idx);
     });
-}
-
-template<>
-bool solve_position_constraints<cone_constraint>(entt::registry &registry, scalar dt) {
-    return true;
 }
 
 }

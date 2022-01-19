@@ -46,9 +46,6 @@ struct cone_constraint : public constraint_base {
 template<>
 void prepare_constraints<cone_constraint>(entt::registry &, row_cache &, scalar dt);
 
-template<>
-bool solve_position_constraints<cone_constraint>(entt::registry &, scalar dt);
-
 template<typename Archive>
 void serialize(Archive &archive, cone_constraint &c) {
     archive(c.body, c.pivot, c.frame);

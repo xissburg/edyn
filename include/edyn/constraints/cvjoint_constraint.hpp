@@ -25,6 +25,9 @@ struct cvjoint_constraint : public constraint_base {
     std::array<matrix3x3, 2> frame{matrix3x3_identity, matrix3x3_identity};
 
     // Twist angular limits. `angle_min` must be smaller than `angle_max`.
+    // The twist angle is calculated by rotating body B's frame onto A's space
+    // so that their x axes coincide, and then the angle between the y axis of
+    // the transformed B's frame with respect to the A's y axis is calculated.
     scalar twist_min{}, twist_max{};
 
     // Angular limit restitution.
@@ -66,7 +69,7 @@ struct cvjoint_constraint : public constraint_base {
     // the frame of body A along `rest_direction`.
     scalar bend_stiffness{};
 
-    // Torque applied in the opposite direction of the relvative angular
+    // Torque applied in the opposite direction of the relative angular
     // velocity in the plane with the twist axis of body 0 as normal, thus
     // slowing down bending motion.
     scalar bend_friction_torque{};
