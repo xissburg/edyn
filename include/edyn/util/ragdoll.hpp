@@ -42,7 +42,6 @@ struct ragdoll_def {
     vector3 leg_upper_size;
     vector3 leg_lower_size;
     vector3 foot_size;
-    vector3 shoulder_size;
     vector3 arm_upper_size;
     vector3 arm_lower_size;
     vector3 hand_size;
@@ -76,13 +75,9 @@ struct ragdoll_entities {
     entt::entity hand_right;
 
     entt::entity hip_torso_lower_constraint;
-
     entt::entity torso_lower_torso_middle_constraint;
-
     entt::entity torso_middle_torso_upper_constraint;
-
     entt::entity torso_upper_neck_constraint;
-
     entt::entity neck_head_constraint;
 
     entt::entity hip_upper_leg_left_constraint;
@@ -93,6 +88,9 @@ struct ragdoll_entities {
 
     entt::entity ankle_left_constraint;
     entt::entity ankle_right_constraint;
+
+    entt::entity torso_upper_shoulder_left_constraint;
+    entt::entity torso_upper_shoulder_right_constraint;
 };
 
 ragdoll_def make_ragdoll_def_from_simple(const ragdoll_simple_def &def);
