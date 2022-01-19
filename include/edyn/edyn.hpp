@@ -19,6 +19,7 @@
 #include "math/geom.hpp"
 #include "time/time.hpp"
 #include "util/rigidbody.hpp"
+#include "util/ragdoll.hpp"
 #include "util/constraint_util.hpp"
 #include "util/shape_util.hpp"
 #include "util/shape_volume.hpp"

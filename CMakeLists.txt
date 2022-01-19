@@ -92,6 +92,7 @@ add_library(Edyn
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
     src/edyn/util/triangle_util.cpp
+    src/edyn/util/ragdoll.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
