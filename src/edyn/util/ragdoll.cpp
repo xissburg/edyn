@@ -219,7 +219,10 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
     exclude_collision(registry, entities.leg_lower_right, entities.foot_right);
 
     /* Hip-lower torso */ {
-        auto [cone_ent, cone_con] = make_constraint<cone_constraint>(registry, entities.hip, entities.torso_lower);
+        entities.hip_torso_lower_constraint = registry.create();
+
+        auto &cone_con = make_constraint<cone_constraint>(
+            entities.hip_torso_lower_constraint, registry, entities.hip, entities.torso_lower);
         cone_con.pivot[0] = {0, rag_def.hip_size.y / 2, 0};
         cone_con.pivot[1] = {0, rag_def.torso_lower_size.y, 0};
         cone_con.frame = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -228,7 +231,8 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cone_con.bump_stop_stiffness = 5000;
         cone_con.bump_stop_length = 0.05;
 
-        auto [cvjoint_ent, cvjoint] = make_constraint<cvjoint_constraint>(registry, entities.hip, entities.torso_lower);
+        auto &cvjoint = make_constraint<cvjoint_constraint>(
+            entities.hip_torso_lower_constraint, registry, entities.hip, entities.torso_lower);
         cvjoint.pivot[0] = cone_con.pivot[0];
         cvjoint.pivot[1] = {0, -rag_def.torso_lower_size.y / 2, 0};
         cvjoint.frame[0] = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -242,13 +246,13 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cvjoint.twist_damping = cvjoint.bend_damping = to_Nm_per_radian(0.2);
         cvjoint.twist_bump_stop_angle = to_radians(4);
         cvjoint.twist_bump_stop_stiffness = to_Nm_per_radian(5);
-
-        entities.hip_torso_lower_cone = cone_ent;
-        entities.hip_torso_lower_cvjoint = cvjoint_ent;
     }
 
     /* Lower torso-Mid torso */ {
-        auto [cone_ent, cone_con] = make_constraint<cone_constraint>(registry, entities.torso_lower, entities.torso_middle);
+        entities.torso_lower_torso_middle_constraint = registry.create();
+
+        auto &cone_con = make_constraint<cone_constraint>(
+            entities.torso_lower_torso_middle_constraint, registry, entities.torso_lower, entities.torso_middle);
         cone_con.pivot[0] = {0, rag_def.torso_lower_size.y / 2, 0};
         cone_con.pivot[1] = {0, rag_def.torso_middle_size.y, 0};
         cone_con.frame = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -257,7 +261,8 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cone_con.bump_stop_stiffness = 5000;
         cone_con.bump_stop_length = 0.05;
 
-        auto [cvjoint_ent, cvjoint] = make_constraint<cvjoint_constraint>(registry, entities.torso_lower, entities.torso_middle);
+        auto &cvjoint = make_constraint<cvjoint_constraint>(
+            entities.torso_lower_torso_middle_constraint, registry, entities.torso_lower, entities.torso_middle);
         cvjoint.pivot[0] = cone_con.pivot[0];
         cvjoint.pivot[1] = {0, -rag_def.torso_middle_size.y / 2, 0};
         cvjoint.frame[0] = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -271,13 +276,13 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cvjoint.twist_damping = cvjoint.bend_damping = to_Nm_per_radian(0.2);
         cvjoint.twist_bump_stop_angle = to_radians(4);
         cvjoint.twist_bump_stop_stiffness = to_Nm_per_radian(5);
-
-        entities.torso_lower_torso_middle_cone = cone_ent;
-        entities.torso_lower_torso_middle_cvjoint = cvjoint_ent;
     }
 
     /* Mid torso-upper torso */ {
-        auto [cone_ent, cone_con] = make_constraint<cone_constraint>(registry, entities.torso_middle, entities.torso_upper);
+        entities.torso_middle_torso_upper_constraint = registry.create();
+
+        auto &cone_con = make_constraint<cone_constraint>(
+            entities.torso_middle_torso_upper_constraint, registry, entities.torso_middle, entities.torso_upper);
         cone_con.pivot[0] = {0, rag_def.torso_middle_size.y / 2, 0};
         cone_con.pivot[1] = {0, rag_def.torso_upper_size.y, 0};
         cone_con.frame = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -286,7 +291,8 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cone_con.bump_stop_stiffness = 5000;
         cone_con.bump_stop_length = 0.05;
 
-        auto [cvjoint_ent, cvjoint] = make_constraint<cvjoint_constraint>(registry, entities.torso_middle, entities.torso_upper);
+        auto &cvjoint = make_constraint<cvjoint_constraint>(
+            entities.torso_middle_torso_upper_constraint, registry, entities.torso_middle, entities.torso_upper);
         cvjoint.pivot[0] = cone_con.pivot[0];
         cvjoint.pivot[1] = {0, -rag_def.torso_upper_size.y / 2, 0};
         cvjoint.frame[0] = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -300,13 +306,13 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cvjoint.twist_damping = cvjoint.bend_damping = to_Nm_per_radian(0.2);
         cvjoint.twist_bump_stop_angle = to_radians(4);
         cvjoint.twist_bump_stop_stiffness = to_Nm_per_radian(5);
-
-        entities.torso_middle_torso_upper_cone = cone_ent;
-        entities.torso_middle_torso_upper_cvjoint = cvjoint_ent;
     }
 
     /* Upper torso-neck */ {
-        auto [cone_ent, cone_con] = make_constraint<cone_constraint>(registry, entities.torso_upper, entities.neck);
+        entities.torso_upper_neck_constraint = registry.create();
+
+        auto &cone_con = make_constraint<cone_constraint>(
+            entities.torso_upper_neck_constraint, registry, entities.torso_upper, entities.neck);
         cone_con.pivot[0] = {0, rag_def.torso_upper_size.y / 2 - rag_def.neck_size.y * scalar(0.17), 0};
         cone_con.pivot[1] = {0, rag_def.neck_size.y, 0};
         cone_con.frame = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -315,7 +321,8 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cone_con.bump_stop_stiffness = 3000;
         cone_con.bump_stop_length = 0.05;
 
-        auto [cvjoint_ent, cvjoint] = make_constraint<cvjoint_constraint>(registry, entities.torso_upper, entities.neck);
+        auto &cvjoint = make_constraint<cvjoint_constraint>(
+            entities.torso_upper_neck_constraint, registry, entities.torso_upper, entities.neck);
         cvjoint.pivot[0] = cone_con.pivot[0];
         cvjoint.pivot[1] = {0, -rag_def.neck_size.y * scalar(0.33), 0};
         cvjoint.frame[0] = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -329,13 +336,13 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cvjoint.twist_damping = cvjoint.bend_damping = to_Nm_per_radian(0.2);
         cvjoint.twist_bump_stop_angle = to_radians(4);
         cvjoint.twist_bump_stop_stiffness = to_Nm_per_radian(5);
-
-        entities.torso_upper_neck_cone = cone_ent;
-        entities.torso_upper_neck_cvjoint = cvjoint_ent;
     }
 
     /* Neck-head */ {
-        auto [cone_ent, cone_con] = make_constraint<cone_constraint>(registry, entities.neck, entities.head);
+        entities.neck_head_constraint = registry.create();
+
+        auto &cone_con = make_constraint<cone_constraint>(
+            entities.neck_head_constraint, registry, entities.neck, entities.head);
         cone_con.pivot[0] = {0, rag_def.neck_size.y * scalar(0.3), 0};
         cone_con.pivot[1] = {0, rag_def.head_size.y, 0.025};
         cone_con.frame = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -344,7 +351,8 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cone_con.bump_stop_stiffness = 5000;
         cone_con.bump_stop_length = 0.05;
 
-        auto [cvjoint_ent, cvjoint] = make_constraint<cvjoint_constraint>(registry, entities.neck, entities.head);
+        auto &cvjoint = make_constraint<cvjoint_constraint>(
+            entities.neck_head_constraint, registry, entities.neck, entities.head);
         cvjoint.pivot[0] = cone_con.pivot[0];
         cvjoint.pivot[1] = {0, -(rag_def.head_size.y / 2 - rag_def.neck_size.y * scalar(0.2)), 0.025};
         cvjoint.frame[0] = matrix3x3_columns(vector3_y, -vector3_x, vector3_z);
@@ -358,9 +366,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cvjoint.twist_damping = cvjoint.bend_damping = to_Nm_per_radian(0.2);
         cvjoint.twist_bump_stop_angle = to_radians(4);
         cvjoint.twist_bump_stop_stiffness = to_Nm_per_radian(5);
-
-        entities.neck_head_cone = cone_ent;
-        entities.neck_head_cvjoint = cvjoint_ent;
     }
 
     /* Hip-upper legs */
@@ -370,8 +375,9 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         auto cone_rot =
             quaternion_axis_angle({1, 0, 0}, to_radians(50)) *
             quaternion_axis_angle({0, 0, 1}, to_radians(10 * side));
+        auto con_entity = registry.create();
 
-        auto [cone_ent, cone_con] = make_constraint<cone_constraint>(registry, entities.hip, leg);
+        auto &cone_con = make_constraint<cone_constraint>(con_entity, registry, entities.hip, leg);
         cone_con.pivot[0] = {side * (rag_def.hip_size.x / 2 - (rag_def.leg_upper_size.x - scalar(0.0072)) / 2), 0, 0};
         cone_con.pivot[1] = {0, -rag_def.leg_upper_size.y, 0};
         cone_con.frame = matrix3x3_columns(
@@ -383,7 +389,7 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cone_con.bump_stop_stiffness = 5000;
         cone_con.bump_stop_length = 0.05;
 
-        auto [cvjoint_ent, cvjoint] = make_constraint<cvjoint_constraint>(registry, entities.hip, leg);
+        auto &cvjoint = make_constraint<cvjoint_constraint>(con_entity, registry, entities.hip, leg);
         cvjoint.pivot[0] = cone_con.pivot[0];
         cvjoint.pivot[1] = {0, rag_def.leg_upper_size.y / 2, 0};
         cvjoint.frame[0] = matrix3x3_columns(vector3_y, vector3_x, -vector3_z);
@@ -399,8 +405,10 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cvjoint.twist_bump_stop_angle = to_radians(4);
         cvjoint.twist_bump_stop_stiffness = to_Nm_per_radian(5);
 
-        *std::array{&entities.hip_upper_leg_left_cone, &entities.hip_upper_leg_right_cone}[i] = cone_ent;
-        *std::array{&entities.hip_upper_leg_left_cvjoint, &entities.hip_upper_leg_right_cvjoint}[i] = cvjoint_ent;
+        *std::array{
+            &entities.hip_upper_leg_left_constraint,
+            &entities.hip_upper_leg_right_constraint
+        }[i] = con_entity;
     }
 
     /* Knees */
@@ -424,7 +432,7 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             registry.get<orientation>(legs.first),
             registry.get<orientation>(legs.second));
 
-        *std::array{&entities.knee_left, &entities.knee_right}[i] = hinge_ent;
+        *std::array{&entities.knee_left_hinge, &entities.knee_right_hinge}[i] = hinge_ent;
     }
 
     /* Ankles */
@@ -433,9 +441,11 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             std::make_pair(entities.leg_lower_left, entities.foot_left),
             std::make_pair(entities.leg_lower_right, entities.foot_right)
         }[i];
+
+        auto con_entity = registry.create();
         auto cone_rot = quaternion_axis_angle({1, 0, 0}, to_radians(5));
 
-        auto [cone_ent, cone_con] = make_constraint<cone_constraint>(registry, ankle.first, ankle.second);
+        auto &cone_con = make_constraint<cone_constraint>(con_entity, registry, ankle.first, ankle.second);
         cone_con.pivot[0] = {0, -rag_def.leg_lower_size.y / 2, 0};
         cone_con.pivot[1] = {0, -rag_def.foot_size.y, 0};
         cone_con.frame = matrix3x3_columns(
@@ -447,7 +457,7 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cone_con.bump_stop_stiffness = 3000;
         cone_con.bump_stop_length = 0.03;
 
-        auto [cvjoint_ent, cvjoint] = make_constraint<cvjoint_constraint>(registry, ankle.first, ankle.second);
+        auto &cvjoint = make_constraint<cvjoint_constraint>(con_entity, registry, ankle.first, ankle.second);
         cvjoint.pivot[0] = cone_con.pivot[0];
         cvjoint.pivot[1] = {0, rag_def.foot_size.y / 2, rag_def.leg_lower_size.z / 2};
         cvjoint.frame[0] = matrix3x3_columns(vector3_y, vector3_x, -vector3_z);
@@ -458,8 +468,10 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cvjoint.bend_friction_torque = to_Nm_per_radian(0.005);
         cvjoint.bend_damping = to_Nm_per_radian(0.05);
 
-        *std::array{&entities.ankle_left_cone, &entities.ankle_right_cone}[i] = cone_ent;
-        *std::array{&entities.ankle_left_cvjoint, &entities.ankle_right_cvjoint}[i] = cvjoint_ent;
+        *std::array{
+            &entities.ankle_left_constraint,
+            &entities.ankle_right_constraint
+        }[i] = con_entity;
     }
 
     return entities;

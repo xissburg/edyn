@@ -75,33 +75,24 @@ struct ragdoll_entities {
     entt::entity hand_left;
     entt::entity hand_right;
 
-    entt::entity hip_torso_lower_cone;
-    entt::entity hip_torso_lower_cvjoint;
+    entt::entity hip_torso_lower_constraint;
 
-    entt::entity torso_lower_torso_middle_cone;
-    entt::entity torso_lower_torso_middle_cvjoint;
+    entt::entity torso_lower_torso_middle_constraint;
 
-    entt::entity torso_middle_torso_upper_cone;
-    entt::entity torso_middle_torso_upper_cvjoint;
+    entt::entity torso_middle_torso_upper_constraint;
 
-    entt::entity torso_upper_neck_cone;
-    entt::entity torso_upper_neck_cvjoint;
+    entt::entity torso_upper_neck_constraint;
 
-    entt::entity neck_head_cone;
-    entt::entity neck_head_cvjoint;
+    entt::entity neck_head_constraint;
 
-    entt::entity hip_upper_leg_left_cone;
-    entt::entity hip_upper_leg_left_cvjoint;
-    entt::entity hip_upper_leg_right_cone;
-    entt::entity hip_upper_leg_right_cvjoint;
+    entt::entity hip_upper_leg_left_constraint;
+    entt::entity hip_upper_leg_right_constraint;
 
-    entt::entity knee_left;
-    entt::entity knee_right;
+    entt::entity knee_left_hinge;
+    entt::entity knee_right_hinge;
 
-    entt::entity ankle_left_cone;
-    entt::entity ankle_left_cvjoint;
-    entt::entity ankle_right_cone;
-    entt::entity ankle_right_cvjoint;
+    entt::entity ankle_left_constraint;
+    entt::entity ankle_right_constraint;
 };
 
 ragdoll_def make_ragdoll_def_from_simple(const ragdoll_simple_def &def);
