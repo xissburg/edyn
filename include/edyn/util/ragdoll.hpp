@@ -108,9 +108,27 @@ struct ragdoll_entities {
     entt::entity hand_right_constraint;
 };
 
+/**
+ * @brief Constructs a full rag doll definition from a simple definition.
+ * @param def Simple rag doll definition.
+ * @return Full rag doll definition.
+ */
 ragdoll_def make_ragdoll_def_from_simple(const ragdoll_simple_def &def);
 
+/**
+ * @brief Creates rigid bodies and constraints which form a rag doll.
+ * @param registry Data source.
+ * @param def Simple rag doll definition.
+ * @return All entities created.
+ */
 ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_simple_def &def);
+
+/**
+ * @brief Creates rigid bodies and constraints which form a rag doll.
+ * @param registry Data source.
+ * @param def A full rag doll definition.
+ * @return All entities created.
+ */
 ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &def);
 
 }

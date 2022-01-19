@@ -68,8 +68,9 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
         auto pivotA = to_world_space(point_on_cone, con.pivot[0], con.frame);
         auto pivotA_world = to_world_space(pivotA, originA, ornA);
 
-        // The tangent is isomorphic to scale, unlike the normal vector.
-        // Thus, unscale the tangent and recalculate the normal.
+        // The tangent to a circle continues to be a tangent of the ellipse after
+        // both are scaled, unlike the normal vector. Thus, unscale the tangent
+        // and recalculate the normal.
         auto tangent = normalize(tangent_scaled * vector3{1, 1 / scaling_y, 1 / scaling_z});
         auto normal = normalize(cross(tangent, point_on_cone));
         auto normal_world = rotate(ornA, con.frame * normal);

@@ -9,8 +9,14 @@
 
 namespace edyn {
 
+/**
+ * @brief Constrains a point in one body to a cone in the other body.
+ */
 struct cone_constraint : public constraint_base {
-    // Pivots in object space.
+    // Pivots in object space. The first pivot is the location of the cone
+    // vertex in the object space of the first body. The second pivot is
+    // the point in the object space of the second body to be restricted to
+    // the cone volume.
     std::array<vector3, 2> pivot;
 
     // Frame in the first body's object space. This is an orthonormal basis

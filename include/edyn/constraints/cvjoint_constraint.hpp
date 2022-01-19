@@ -12,7 +12,8 @@
 namespace edyn {
 
 /**
- * @brief Constant-velocity joint.
+ * @brief Constant-velocity joint. It constrains the angle and angular
+ * velocity to an independent axis on each body.
  */
 struct cvjoint_constraint : public constraint_base {
     // Pivots in object space.
