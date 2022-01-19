@@ -146,22 +146,6 @@ entt::entity get_manifold_entity(const entt::registry &registry, entity_pair ent
     return manifold_map.get(entities);
 }
 
-static
-void exclude_collision_one_way(entt::registry &registry, entt::entity first, entt::entity second) {
-    auto &exclusion = registry.get_or_emplace<collision_exclusion>(first);
-    EDYN_ASSERT(exclusion.num_entities + 1 < collision_exclusion::max_exclusions);
-    exclusion.entity[exclusion.num_entities++] = second;
-}
-
-void exclude_collision(entt::registry &registry, entt::entity first, entt::entity second) {
-    exclude_collision_one_way(registry, first, second);
-    exclude_collision_one_way(registry, second, first);
-}
-
-void exclude_collision(entt::registry &registry, entity_pair entities) {
-    exclude_collision(registry, entities.first, entities.second);
-}
-
 entt::sink<void(entt::entity)> on_contact_started(entt::registry &registry) {
     return registry.ctx<island_coordinator>().contact_started_sink();
 }

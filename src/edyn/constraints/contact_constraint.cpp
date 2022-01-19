@@ -331,7 +331,6 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
             auto angular_correctionB = inv_IB * J[3] * correction;
             ornB += quaternion_derivative(ornB, angular_correctionB);
             ornB = normalize(ornB);
-
         }
 
         auto basisA = to_matrix3x3(ornA);

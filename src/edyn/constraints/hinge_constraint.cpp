@@ -147,7 +147,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.impulse = con.impulse[5];
 
             auto limit_error = scalar{0};
-            auto halfway_limit = (con.angle_max - con.angle_min) / scalar(2);
+            auto halfway_limit = (con.angle_min + con.angle_max) / scalar(2);
 
             // Set constraint limits according to which is the closer angular limit.
             if (con.angle < halfway_limit) {
@@ -263,10 +263,8 @@ bool solve_position_constraints<hinge_constraint>(entt::registry &registry, scal
     auto angular_error = scalar(0);
 
     con_view.each([&] (hinge_constraint &con) {
-        auto [posA, ornA, inv_mA, inv_IA] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[0]);
-        auto [posB, ornB, inv_mB, inv_IB] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[1]);
+        auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
+        auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
 
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);

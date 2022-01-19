@@ -72,6 +72,7 @@ add_library(Edyn
     src/edyn/constraints/hinge_constraint.cpp
     src/edyn/constraints/generic_constraint.cpp
     src/edyn/constraints/cvjoint_constraint.cpp
+    src/edyn/constraints/cone_constraint.cpp
     src/edyn/constraints/null_constraint.cpp
     src/edyn/constraints/gravity_constraint.cpp
     src/edyn/dynamics/solver.cpp
@@ -91,6 +92,8 @@ add_library(Edyn
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
     src/edyn/util/triangle_util.cpp
+    src/edyn/util/ragdoll.cpp
+    src/edyn/util/exclude_collision.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp

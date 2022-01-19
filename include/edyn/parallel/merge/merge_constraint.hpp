@@ -45,6 +45,11 @@ void merge(const cvjoint_constraint *old_comp, cvjoint_constraint &new_comp, mer
 }
 
 template<> inline
+void merge(const cone_constraint *old_comp, cone_constraint &new_comp, merge_context &ctx) {
+    merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
+}
+
+template<> inline
 void merge(const contact_constraint *old_comp, contact_constraint &new_comp, merge_context &ctx) {
     merge(static_cast<const constraint_base *>(old_comp), static_cast<constraint_base &>(new_comp), ctx);
 }
