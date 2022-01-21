@@ -9,6 +9,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/math/transform.hpp"
@@ -22,7 +23,7 @@ void prepare_constraints<distance_constraint>(entt::registry &registry, row_cach
                                    linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
-    auto con_view = registry.view<distance_constraint>();
+    auto con_view = registry.view<distance_constraint>(entt::exclude_t<disabled_tag>{});
     auto origin_view = registry.view<origin>();
 
     con_view.each([&] (entt::entity entity, distance_constraint &con) {

@@ -45,7 +45,7 @@ scalar solve(constraint_row &row) {
 
 template<typename C>
 void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<C>();
+    auto con_view = registry.view<C>(entt::exclude_t<disabled_tag>{});
 
     for (auto entity : con_view) {
         auto [con] = con_view.get(entity);
