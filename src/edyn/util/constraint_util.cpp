@@ -20,7 +20,7 @@ namespace internal {
         // entity. If this entity already has a graph edge, just do a few
         // consistency checks.
         if (registry.any_of<graph_edge>(entity)) {
-        #ifdef EDYN_DEBUG
+        #if defined(EDYN_DEBUG) && !defined(EDYN_DISABLE_ASSERT)
             auto &edge = registry.get<graph_edge>(entity);
             auto [ent0, ent1] = registry.ctx<entity_graph>().edge_node_entities(edge.edge_index);
             EDYN_ASSERT(ent0 == body0 && ent1 == body1);
