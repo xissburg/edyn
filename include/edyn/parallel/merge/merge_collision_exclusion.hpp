@@ -9,9 +9,17 @@ namespace edyn {
 
 template<> inline
 void merge(collision_exclusion &new_comp, entity_map &emap) {
-    for (unsigned i = 0 ; i < new_comp.num_entities; ++i) {
-        new_comp.entity[i] = emap.remloc(new_comp.entity[i]);
+    unsigned num_entities = 0;
+    auto entities = std::array<entt::entity, collision_exclusion::max_exclusions>{};
+
+    for (unsigned i = 0; i < new_comp.num_entities; ++i) {
+        if (emap.has_rem(new_comp.entity[i])) {
+            entities[num_entities++] = emap.remloc(new_comp.entity[i]);
+        }
     }
+
+    new_comp.num_entities = num_entities;
+    new_comp.entity = entities;
 }
 
 }

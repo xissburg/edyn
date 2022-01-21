@@ -528,6 +528,10 @@ void island_coordinator::refresh_dirty_entities() {
     auto multi_resident_view = m_registry->view<multi_island_resident>();
 
     auto refresh = [this] (entt::entity entity, dirty &dirty, entt::entity island_entity) {
+        if (!m_island_ctx_map.count(island_entity)) {
+            return;
+        }
+
         auto &ctx = m_island_ctx_map.at(island_entity);
         auto &builder = ctx->m_delta_builder;
 

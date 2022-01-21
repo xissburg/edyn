@@ -27,6 +27,13 @@ void hinge_constraint::set_axes(const vector3 &axisA, const vector3 &axisB) {
     frame[1] = matrix3x3_columns(axisB, p, q);
 }
 
+void hinge_constraint::reset_angle(const quaternion &ornA, const quaternion &ornB) {
+    auto p = rotate(ornA, frame[0].column(1));
+    auto q = rotate(ornA, frame[0].column(2));
+    auto angle_axisB = rotate(ornB, frame[1].column(1));
+    angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
+}
+
 template<>
 void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation,
@@ -51,13 +58,13 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
         const auto rA_skew = skew_matrix(rA);
         const auto rB_skew = skew_matrix(rB);
         constexpr auto I = matrix3x3_identity;
-        size_t row_idx = 0;
+        const auto row_start_index = cache.rows.size();
 
         // Make the position of pivot points match, akin to a `point_constraint`.
-        for (; row_idx < 3; ++row_idx) {
+        for (int i = 0; i < 3; ++i) {
             auto &row = cache.rows.emplace_back();
-            row.J = {I.row[row_idx], -rA_skew.row[row_idx],
-                    -I.row[row_idx], rB_skew.row[row_idx]};
+            row.J = {I.row[i], -rA_skew.row[i],
+                    -I.row[i],  rB_skew.row[i]};
             row.lower_limit = -EDYN_SCALAR_MAX;
             row.upper_limit = EDYN_SCALAR_MAX;
 
@@ -65,7 +72,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx];
+            row.impulse = con.impulse[i];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -86,7 +93,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = con.impulse[3];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -102,7 +109,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = con.impulse[4];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -110,51 +117,140 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
 
         // Handle angular limits and friction.
         auto has_limit = con.angle_min < con.angle_max;
+        auto has_spring = con.stiffness > 0;
+        auto has_friction = con.friction_torque > 0 || con.damping > 0;
+        vector3 hinge_axis;
 
-        if (has_limit || con.friction_torque > 0) {
-            auto error = scalar{0};
+        if (has_limit || has_spring || has_friction) {
+            hinge_axis = rotate(ornA, con.frame[0].column(0));
+        }
 
-            if (has_limit) {
-                auto angle_axisB = rotate(ornB, con.frame[1].column(1));
-                auto angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
+        if (has_limit || has_spring) {
+            auto angle_axisB = rotate(ornB, con.frame[1].column(1));
+            auto angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
+            auto previous_angle = normalize_angle(con.angle);
+            // Find shortest path from previous angle to current in the [-π, π] range.
+            auto angle_delta0 = angle - previous_angle;
+            auto angle_delta1 = angle_delta0 + pi2 * to_sign(angle_delta0 < 0);
+            auto angle_delta = std::abs(angle_delta0) < std::abs(angle_delta1) ? angle_delta0 : angle_delta1;
+            con.angle += angle_delta;
+        }
 
-                if (angle < con.angle_min) {
-                    error = con.angle_min - angle;
-                } else if (angle > con.angle_max) {
-                    error = con.angle_max - angle;
-                }
-            }
-
-            auto axisA = rotate(ornA, con.frame[0].column(0));
+        if (has_limit) {
+            // One row for angular limits.
             auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, axisA, vector3_zero, -axisA};
+            row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = con.impulse[5];
 
-            if (error > 0) {
+            auto limit_error = scalar{0};
+            auto halfway_limit = (con.angle_min + con.angle_max) / scalar(2);
+
+            // Set constraint limits according to which is the closer angular limit.
+            if (con.angle < halfway_limit) {
+                limit_error = con.angle_min - con.angle;
                 row.lower_limit = -large_scalar;
                 row.upper_limit = 0;
-            } else if (error < 0) {
+            } else {
+                limit_error = con.angle_max - con.angle;
                 row.lower_limit = 0;
                 row.upper_limit = large_scalar;
-            } else {
-                auto friction_impulse = con.friction_torque * dt;
-                row.lower_limit = -friction_impulse;
-                row.upper_limit = friction_impulse;
             }
 
             auto options = constraint_row_options{};
-            options.error = error / dt;
+            options.error = limit_error / dt;
             options.restitution = con.limit_restitution;
+
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+            warm_start(row);
+
+            // Another row for bump stop spring.
+            if (con.bump_stop_stiffness > 0 && con.bump_stop_angle > 0) {
+                auto bump_stop_deflection = scalar{0};
+                auto bump_stop_min = con.angle_min + con.bump_stop_angle;
+                auto bump_stop_max = con.angle_max - con.bump_stop_angle;
+
+                if (con.angle < bump_stop_min) {
+                    bump_stop_deflection = con.angle - bump_stop_min;
+                } else if (con.angle > bump_stop_max) {
+                    bump_stop_deflection = con.angle - bump_stop_max;
+                }
+
+                if (bump_stop_deflection != 0) {
+                    auto &row = cache.rows.emplace_back();
+                    row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
+                    row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+                    row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+                    row.dvA = &dvA; row.dwA = &dwA;
+                    row.dvB = &dvB; row.dwB = &dwB;
+                    row.impulse = con.impulse[6];
+
+                    auto spring_force = con.bump_stop_stiffness * bump_stop_deflection;
+                    auto spring_impulse = spring_force * dt;
+                    row.lower_limit = std::min(spring_impulse, scalar(0));
+                    row.upper_limit = std::max(scalar(0), spring_impulse);
+
+                    auto options = constraint_row_options{};
+                    options.error = -bump_stop_deflection / dt;
+
+                    prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+                    warm_start(row);
+                }
+            }
+        }
+
+        if (has_spring) {
+            auto &row = cache.rows.emplace_back();
+            row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+            row.impulse = con.impulse[7];
+
+            auto deflection = con.angle - con.rest_angle;
+            auto spring_force = con.stiffness * deflection;
+            auto spring_impulse = spring_force * dt;
+            row.lower_limit = std::min(spring_impulse, scalar(0));
+            row.upper_limit = std::max(scalar(0), spring_impulse);
+
+            auto options = constraint_row_options{};
+            options.error = -deflection / dt;
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
         }
 
-        cache.con_num_rows.push_back(row_idx);
+        if (has_friction) {
+            // Since damping acts as a speed-dependent friction, a single row
+            // is employed for both damping and constant friction.
+            auto &row = cache.rows.emplace_back();
+            row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+            row.impulse = con.impulse[8];
+
+            auto friction_impulse = con.friction_torque * dt;
+
+            if (con.damping > 0) {
+                auto relvel = dot(angvelA, hinge_axis) - dot(angvelB, hinge_axis);
+                friction_impulse += std::abs(relvel) * con.damping * dt;
+            }
+
+            row.lower_limit = -friction_impulse;
+            row.upper_limit = friction_impulse;
+
+            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
+            warm_start(row);
+        }
+
+        auto num_rows = cache.rows.size() - row_start_index;
+        cache.con_num_rows.push_back(num_rows);
     });
 }
 
@@ -167,10 +263,8 @@ bool solve_position_constraints<hinge_constraint>(entt::registry &registry, scal
     auto angular_error = scalar(0);
 
     con_view.each([&] (hinge_constraint &con) {
-        auto [posA, ornA, inv_mA, inv_IA] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[0]);
-        auto [posB, ornB, inv_mB, inv_IB] =
-            body_view.get<position, orientation, mass_inv, inertia_world_inv>(con.body[1]);
+        auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
+        auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
 
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);

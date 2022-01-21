@@ -67,7 +67,7 @@ def.gravity = edyn::gravity_earth;
 auto entity = edyn::make_rigidbody(registry, def);
 ```
 
-It is not necessary to assign a shape to a rigid body. That enables the simulation to contain implicit rigid bodies (not to be confused with the meaning of implicit from above) which are not visually present in the simulation and don't participate in collision detection, but instead are connected to other bodies via constraints and are used to generate forces that affect the primary entities that users interact with. As an example, this can be useful to simulate drivetrain components in a vehicle.
+It is not necessary to assign a shape to a rigid body. That enables the simulation to contain amorphous rigid bodies which are not visually present in the simulation and don't participate in collision detection, but instead are connected to other bodies via constraints and are used to generate forces that affect the primary entities that users interact with. As an example, this can be useful to simulate drivetrain components in a vehicle.
 
 # Foundation
 
@@ -103,7 +103,7 @@ In narrow-phase, closest point calculation is performed for the rigid body pair 
 
 Contact point persistence is important for stability and to preserve continuity over time. New contact points that are near existing points get merged together, thus extending the lifetime of an existing contact and reusing the previously applied impulse for _warm starting_ later in the constraint solver. Contact points that are separating (in either tangential or normal directions) are destroyed.
 
-Entities that don't have a shape also don't have a `edyn::AABB` assigned to them and thus are ignored in broad-phase which leads to no collisions ever happening. Rigid bodies without a shape are considered _implicit_.
+Entities that don't have a shape also don't have a `edyn::AABB` assigned to them and thus are ignored in broad-phase which leads to no collisions ever happening. Rigid bodies without a shape are considered _amorphous_.
 
 To enable collision response for an entity, a `edyn::material` component must be assigned which basically contains the _restitution_ and _friction coefficient_. Otherwise, the entity behaves as a _sensor_, i.e. collision detection is performed but no impulses are applied and intersection events can still be observed.
 

@@ -36,19 +36,19 @@ bool island_delta_builder::needs_wakeup() const {
 
     for (auto &pair : m_delta.m_created_components) {
         if (!pair.second->empty()) {
-            return false;
+            return true;
         }
     }
 
     for (auto &pair : m_delta.m_updated_components) {
         if (!pair.second->empty()) {
-            return false;
+            return true;
         }
     }
 
     for (auto &pair : m_delta.m_destroyed_components) {
         if (!pair.second->empty()) {
-            return false;
+            return true;
         }
     }
 
