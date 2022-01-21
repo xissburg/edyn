@@ -12,6 +12,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/vector3.hpp"
@@ -27,7 +28,7 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
                                    linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
-    auto con_view = registry.view<cone_constraint>();
+    auto con_view = registry.view<cone_constraint>(entt::exclude_t<disabled_tag>{});
     auto origin_view = registry.view<origin>();
 
     con_view.each([&] (cone_constraint &con) {

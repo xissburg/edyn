@@ -13,6 +13,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -60,7 +61,7 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
                                    linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
-    auto con_view = registry.view<cvjoint_constraint>();
+    auto con_view = registry.view<cvjoint_constraint>(entt::exclude_t<disabled_tag>{});
     auto origin_view = registry.view<origin>();
 
     con_view.each([&] (cvjoint_constraint &con) {
@@ -307,7 +308,7 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
 
 template<>
 bool solve_position_constraints<cvjoint_constraint>(entt::registry &registry, scalar dt) {
-    auto con_view = registry.view<cvjoint_constraint>();
+    auto con_view = registry.view<cvjoint_constraint>(entt::exclude_t<disabled_tag>{});
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
     auto origin_view = registry.view<origin>();
     auto linear_error = scalar(0);
