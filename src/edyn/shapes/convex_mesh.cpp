@@ -146,6 +146,7 @@ void convex_mesh::calculate_relevant_edges() {
 
 #ifdef EDYN_DEBUG
 void convex_mesh::validate() const {
+#ifndef EDYN_DISABLE_ASSERT
     // Check if all faces are flat.
     for (size_t i = 0; i < num_faces(); ++i) {
         auto &normal = normals[i];
@@ -175,6 +176,7 @@ void convex_mesh::validate() const {
             EDYN_ASSERT(dot(vj - v0, normal) < edyn::scalar(0.001));
         }
     }
+#endif
 }
 #endif
 
