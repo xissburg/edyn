@@ -43,6 +43,8 @@ template<> inline
 void merge(contact_constraint &new_comp, entity_map &emap) {
     merge(static_cast<constraint_base &>(new_comp), emap);
 }
+
+template<> inline
 void merge(cvjoint_constraint &new_comp, entity_map &emap) {
     merge(static_cast<constraint_base &>(new_comp), emap);
 }
