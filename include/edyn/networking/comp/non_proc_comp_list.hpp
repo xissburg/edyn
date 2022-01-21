@@ -9,6 +9,20 @@
 
 namespace edyn {
 
+/**
+ * @brief A list of non-procedural components in an entity.
+ * Due to the concept of ownership in networking, the server should only apply
+ * state for an entity received from a client if the entity is not currently
+ * owned by the server. However, exceptions must be made for certain components,
+ * those which are not procedurally calculated by the physics simulation, e.g.
+ * things that can be considered user input. The `non_proc_comp_list` keeps a
+ * list of such components which are deemed non-procedural, and the server
+ * will import the state of these components regardless of ownership status.
+ * This is also used in the client to store state history which is necessary
+ * during extrapolation, where the previous state of the non-procedural
+ * components is applied along with the extrapolation steps, in an attempt to
+ * reproduce the simulation exactly as it happened previously.
+ */
 struct non_proc_comp_list {
     static constexpr size_t max_size = 16;
     std::array<size_t, max_size> indices;

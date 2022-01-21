@@ -2,12 +2,12 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/config/config.h"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/edyn.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
-#include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/packet/entity_request.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
@@ -255,7 +255,7 @@ void create_graph_edge(entt::registry &registry, entt::entity entity) {
 }
 
 template<typename... Ts>
-void maybe_create_graph_edge(entt::registry &registry, entt::entity entity) {
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[maybe_unused]] std::tuple<Ts...>) {
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
 }
 
@@ -346,17 +346,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
     for (auto remote_entity : packet.entities) {
         auto local_entity = ctx.entity_map.remloc(remote_entity);
-
-        maybe_create_graph_edge<
-            contact_manifold,
-            null_constraint,
-            gravity_constraint,
-            point_constraint,
-            distance_constraint,
-            soft_distance_constraint,
-            hinge_constraint,
-            generic_constraint
-        >(registry, local_entity);
+        maybe_create_graph_edge(registry, local_entity, constraints_tuple);
     }
 
     ctx.importing_entities = false;

@@ -44,7 +44,7 @@ struct client_networking_context {
     double last_snapshot_time {0};
     double snapshot_rate {30};
     double round_trip_time {0};
-    double server_playout_delay {0.2};
+    double server_playout_delay {0.3};
 
     std::vector<extrapolation_job_context> extrapolation_jobs;
     non_proc_comp_state_history state_history;
