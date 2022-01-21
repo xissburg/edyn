@@ -104,8 +104,8 @@ struct ragdoll_entities {
     entt::entity arm_twist_left_hinge;
     entt::entity arm_twist_right_hinge;
 
-    entt::entity hand_left_constraint;
-    entt::entity hand_right_constraint;
+    entt::entity wrist_left_constraint;
+    entt::entity wrist_right_constraint;
 };
 
 /**

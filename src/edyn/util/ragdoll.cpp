@@ -749,7 +749,7 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         cvjoint.bend_friction_torque = to_Nm_per_radian(0.004);
         cvjoint.bend_damping = to_Nm_per_radian(0.02);
 
-        *std::array{&entities.hand_left_constraint, &entities.hand_right_constraint}[i] = con_entity;
+        *std::array{&entities.wrist_left_constraint, &entities.wrist_right_constraint}[i] = con_entity;
     }
 
     return entities;
