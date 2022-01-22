@@ -43,6 +43,7 @@ class island_coordinator final {
     void refresh_dirty_entities();
     bool should_split_island(entt::entity source_island_entity);
     void sync();
+    void clear_dangling_non_procedural_nodes();
 
 public:
     island_coordinator(island_coordinator const&) = delete;
@@ -109,6 +110,7 @@ private:
     std::vector<entt::entity> m_new_graph_nodes;
     std::vector<entt::entity> m_new_graph_edges;
     std::vector<entt::entity> m_islands_to_split;
+    entt::sparse_set m_possibly_dangling_np_nodes;
 
     bool m_importing_delta {false};
     double m_timestamp;

@@ -225,6 +225,8 @@ entt::entity entity_graph::edge_entity(index_type edge_index) const {
 }
 
 bool entity_graph::has_adjacency(index_type node_index0, index_type node_index1) const {
+    EDYN_ASSERT(node_index0 < m_nodes.size());
+    EDYN_ASSERT(node_index1 < m_nodes.size());
     auto adj_index = m_nodes[node_index0].adjacency_index;
 
     while (adj_index != null_index) {

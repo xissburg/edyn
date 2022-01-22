@@ -170,7 +170,9 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
 
-    if (!m_importing_delta && !m_splitting.load(std::memory_order_relaxed)) {
+    if (!m_importing_delta &&
+        !m_splitting.load(std::memory_order_relaxed) &&
+        !m_clearing_dangling_np_nodes) {
         m_delta_builder->destroyed(entity);
     }
 
@@ -180,12 +182,24 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
 }
 
 void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
-    if (!m_destroying_node) {
-        auto &edge = registry.get<graph_edge>(entity);
-        registry.ctx<entity_graph>().remove_edge(edge.edge_index);
+    auto &graph = registry.ctx<entity_graph>();
+
+    auto &edge = registry.get<graph_edge>(entity);
+    auto nodes = graph.edge_node_entities(edge.edge_index);
+
+    for (auto node : std::array{nodes.first, nodes.second}) {
+        if (!registry.any_of<procedural_tag>(node) && !m_possibly_dangling_np_nodes.contains(node)) {
+            m_possibly_dangling_np_nodes.emplace(node);
+        }
     }
 
-    if (!m_importing_delta && !m_splitting.load(std::memory_order_relaxed)) {
+    if (!m_destroying_node) {
+        graph.remove_edge(edge.edge_index);
+    }
+
+    if (!m_importing_delta &&
+        !m_splitting.load(std::memory_order_relaxed) &&
+        !m_clearing_dangling_np_nodes) {
         m_delta_builder->destroyed(entity);
     }
 
@@ -361,6 +375,39 @@ void island_worker::sync_dirty() {
     });
 
     m_registry.clear<dirty>();
+}
+
+void island_worker::clear_dangling_non_procedural_nodes() {
+    m_clearing_dangling_np_nodes = true;
+
+    auto &graph = m_registry.ctx<entity_graph>();
+    auto node_view = m_registry.view<graph_node>();
+    auto proc_view = m_registry.view<procedural_tag>();
+
+    for (auto entity : m_possibly_dangling_np_nodes) {
+        if (!m_registry.valid(entity)) {
+            continue;
+        }
+
+        auto node_index = node_view.get<graph_node>(entity).node_index;
+        bool has_procedural_neighbor = false;
+
+
+        for (auto node_entity : m_registry.view<graph_node>()) {
+            if (proc_view.contains(node_entity) &&
+                graph.has_adjacency(node_index, node_view.get<graph_node>(node_entity).node_index)) {
+                has_procedural_neighbor = true;
+                break;
+            }
+        }
+
+        if (!has_procedural_neighbor) {
+            m_registry.destroy(entity);
+        }
+    }
+
+    m_possibly_dangling_np_nodes.clear();
+    m_clearing_dangling_np_nodes = false;
 }
 
 void island_worker::update() {
@@ -571,6 +618,7 @@ void island_worker::finish_step() {
         (*settings.external_system_post_step)(m_registry);
     }
 
+    clear_dangling_non_procedural_nodes();
     sync();
 
     m_state = state::step;
