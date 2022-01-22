@@ -61,6 +61,7 @@ class island_worker final {
     bool should_split();
     void sync();
     void sync_dirty();
+    void clear_dangling_non_procedural_nodes();
     void update();
 
 public:
@@ -125,6 +126,8 @@ private:
 
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
+    entt::sparse_set m_possibly_dangling_np_nodes;
+    bool m_clearing_dangling_np_nodes {false};
 
     std::atomic<int> m_reschedule_counter {0};
 
