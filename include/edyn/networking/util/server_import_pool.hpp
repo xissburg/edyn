@@ -6,6 +6,7 @@
 #include "edyn/edyn.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
+#include "edyn/networking/context/server_networking_context.hpp"
 
 namespace edyn {
 
@@ -15,8 +16,8 @@ template<typename Component>
 void import_pool_server(entt::registry &registry, entt::entity client_entity,
                         const std::vector<std::pair<entt::entity, Component>> &pool, bool broadcast) {
     auto &client = registry.get<remote_client>(client_entity);
-    auto &settings = registry.ctx<edyn::settings>();
-    auto comp_index = settings.index_source->index_of<Component>();
+    auto &ctx = registry.ctx<server_networking_context>();
+    auto comp_index = ctx.index_source->index_of<Component>();
 
     for (auto &pair : pool) {
         auto remote_entity = pair.first;
@@ -60,7 +61,7 @@ void import_pool_server(entt::registry &registry, entt::entity client_entity,
                     // their AABB of interest.
                     registry.view<remote_client>().each([&] (entt::entity other_client_entity, remote_client &client) {
                         if (other_client_entity == client_entity) return;
-                        insert_entity_component<Component>(registry, local_entity, client.current_snapshot.pools);
+                        insert_entity_component<Component>(registry, local_entity, client.current_snapshot.pools, comp_index);
                     });
                 }
             } else {

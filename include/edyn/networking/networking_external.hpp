@@ -19,6 +19,7 @@ void register_networked_components(entt::registry &registry,
     auto all = std::tuple_cat(networked_components, external);
 
     if (auto *ctx = registry.try_ctx<client_networking_context>()) {
+        ctx->index_source.reset(new networked_component_index_source_impl(all));
         ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(all));
 
         ctx->insert_entity_components_func = [] (entt::registry &registry, entt::entity entity,
@@ -40,10 +41,12 @@ void register_networked_components(entt::registry &registry,
     }
 
     if (auto *ctx = registry.try_ctx<server_networking_context>()) {
-        ctx->import_pool_func = [] (entt::registry &registry, entt::entity client_entity, const pool_snapshot &pool) {
+        ctx->index_source.reset(new networked_component_index_source_impl(all));
+
+        ctx->import_pool_func = [] (entt::registry &registry, entt::entity client_entity, const pool_snapshot &pool, bool broadcast) {
             auto external = std::tuple<Component...>{};
             auto all = std::tuple_cat(networked_components, external);
-            import_pool_server(registry, client_entity, pool, all);
+            import_pool_server(registry, client_entity, pool, broadcast, all);
         };
 
         ctx->insert_entity_components_func = [] (entt::registry &registry, entt::entity entity,

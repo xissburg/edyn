@@ -73,6 +73,8 @@ static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple
     non_proc_comp_list
 >{});
 
+using networked_components_t = std::decay_t<decltype(networked_components)>;
+
 }
 
 #endif // EDYN_NETWORKING_NETWORKED_COMP_HPP

@@ -4,6 +4,7 @@
 #include <vector>
 #include <entt/entity/fwd.hpp>
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/networking/util/networked_component_index_source.hpp"
 
 namespace edyn {
 
@@ -16,6 +17,7 @@ void insert_transient_components_default(entt::registry &, entt::entity entity,
 
 struct server_networking_context {
     std::vector<entt::entity> pending_created_clients;
+    std::shared_ptr<networked_component_index_source> index_source {new networked_component_index_source_impl(networked_components)};
 
     using import_pool_func_t = decltype(&import_pool_server_default);
     import_pool_func_t import_pool_func {&import_pool_server_default};

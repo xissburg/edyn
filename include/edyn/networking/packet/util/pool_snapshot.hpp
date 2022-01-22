@@ -162,12 +162,6 @@ void insert_entity_component(entt::registry &registry, entt::entity entity, std:
     }
 }
 
-template<typename Component>
-void insert_entity_component(entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) {
-    auto index = tuple_index_of<Component>(networked_components);
-    insert_entity_component<Component>(registry, entity, pools, index);
-}
-
 template<typename... Component, typename IndexType, IndexType... Is>
 void insert_entity_components(entt::registry &registry, entt::entity entity,
                               std::vector<pool_snapshot> &pools,

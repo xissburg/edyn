@@ -4,6 +4,7 @@
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/networking/util/non_proc_comp_state_history.hpp"
+#include "edyn/networking/util/networked_component_index_source.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/sparse_set.hpp>
@@ -68,6 +69,7 @@ struct client_networking_context {
         return entt::sink{client_entity_assigned_signal};
     }
 
+    std::shared_ptr<networked_component_index_source> index_source {new networked_component_index_source_impl(networked_components)};
     std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer;
 
     using insert_entity_components_func_t = decltype(&insert_entity_components_default);
