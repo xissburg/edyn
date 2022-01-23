@@ -182,7 +182,7 @@ void extrapolation_job::apply_history() {
     auto &settings = m_registry.ctx<edyn::settings>();
     auto start_time = m_current_time - settings.fixed_dt;
 
-    m_state_history->each(start_time, settings.fixed_dt, [&] (island_delta &delta, double timstamp) {
+    m_state_history->each(start_time, settings.fixed_dt, [&] (island_delta &delta, double timestamp) {
         delta.import(m_registry, m_entity_map);
     });
 }

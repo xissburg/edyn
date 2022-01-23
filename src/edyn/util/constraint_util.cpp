@@ -91,6 +91,12 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
         dirty.created<continuous>();
     }
 
+    if (registry.any_of<networked_tag>(body0) &&
+        registry.any_of<networked_tag>(body1)) {
+
+        registry.emplace<networked_tag>(manifold_entity);
+    }
+
     // Assign contact constraint to manifold.
     make_constraint<contact_constraint>(manifold_entity, registry, body0, body1);
 }

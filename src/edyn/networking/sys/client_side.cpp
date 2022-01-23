@@ -329,7 +329,10 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
     for (auto remote_entity : packet.entities) {
         auto local_entity = ctx.entity_map.remloc(remote_entity);
-        registry.emplace_or_replace<networked_tag>(local_entity);
+
+        if (!registry.all_of<networked_tag>(local_entity)) {
+            registry.emplace<networked_tag>(local_entity);
+        }
     }
 
     // Create nodes and edges in entity graph.

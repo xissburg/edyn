@@ -10,7 +10,6 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/collision/collide.hpp"
-#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
