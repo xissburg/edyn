@@ -68,7 +68,7 @@ static void update_non_proc_comp_state_history(entt::registry &registry,
                                                double timestamp) {
     // Insert select non-procedural components into history.
     auto &settings = registry.ctx<edyn::settings>();
-    auto &index_source = *settings.index_source;
+    auto &index_source = *registry.ctx<client_networking_context>().index_source;
     auto non_proc_comp_list_view = registry.view<non_proc_comp_list>();
 
     if (!non_proc_comp_list_view.empty()) {
@@ -423,6 +423,13 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
         },
         [] () { // connectedComponentFunc
         });
+
+    // Include static entities.
+    for (auto entity : registry.view<static_tag>()) {
+        if (!entities.contains(entity)) {
+            entities.emplace(entity);
+        }
+    }
 
     // Create registry snapshot to send to extrapolation job.
     auto builder = make_island_delta_builder(registry);

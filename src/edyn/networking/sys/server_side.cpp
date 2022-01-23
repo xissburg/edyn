@@ -110,7 +110,7 @@ void create_graph_edge(entt::registry &registry, entt::entity entity) {
 }
 
 template<typename... Ts>
-void maybe_create_graph_edge(entt::registry &registry, entt::entity entity) {
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[maybe_unused]] std::tuple<Ts...>) {
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
 }
 
@@ -159,17 +159,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
     for (auto remote_entity : packet.entities) {
         auto local_entity = client.entity_map.remloc(remote_entity);
-
-        maybe_create_graph_edge<
-            contact_manifold,
-            null_constraint,
-            gravity_constraint,
-            point_constraint,
-            distance_constraint,
-            soft_distance_constraint,
-            hinge_constraint,
-            generic_constraint
-        >(registry, local_entity);
+        maybe_create_graph_edge(registry, local_entity, constraints_tuple);
     }
 }
 
@@ -295,8 +285,17 @@ void update_networking_server(entt::registry &registry) {
     view.each([&] (entt::entity client_entity, remote_client &client, aabb_of_interest &aabboi) {
         if (!aabboi.destroy_entities.empty()) {
             auto packet = packet::destroy_entity{};
-            packet.entities = std::move(aabboi.destroy_entities);
+
+            for (auto entity : aabboi.destroy_entities) {
+                // Ignore entities owned by client.
+                if (auto *owner = registry.try_get<entity_owner>(entity);
+                    owner == nullptr || owner->client_entity != client_entity) {
+                    packet.entities.push_back(entity);
+                }
+            }
+
             client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+            aabboi.destroy_entities.clear();
         }
 
         if (!aabboi.create_entities.empty()) {

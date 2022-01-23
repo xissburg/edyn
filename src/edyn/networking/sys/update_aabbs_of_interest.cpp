@@ -30,6 +30,12 @@ void update_aabbs_of_interest(entt::registry &registry) {
             }
         });
 
+        bphase.query_non_procedural(aabb_of.aabb, [&] (entt::entity np_entity) {
+            if (!contained_entities.contains(np_entity)) {
+                contained_entities.emplace(np_entity);
+            }
+        });
+
         // Calculate which entities have entered and exited the AABB of interest.
         for (auto entity : aabb_of.entities) {
             if (!contained_entities.contains(entity)) {
