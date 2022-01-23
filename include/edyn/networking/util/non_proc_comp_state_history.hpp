@@ -54,6 +54,15 @@ public:
         }
     }
 
+    island_delta * get_first_before(double time) {
+        for (auto it = history.rbegin(); it != history.rend(); ++it) {
+            if (it->timestamp < time) {
+                return &it->delta;
+            }
+        }
+        return nullptr;
+    }
+
 private:
     std::deque<element> history;
     size_t max_size {100};

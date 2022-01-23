@@ -1,4 +1,5 @@
 #include "edyn/networking/sys/server_side.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
@@ -122,30 +123,9 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // Collect entity mappings for new entities to send back to client.
     auto emap_packet = packet::update_entity_map{};
 
-    std::vector<entt::entity> manifold_entities;
-    auto manifold_component_index = tuple_index_of<contact_manifold>(networked_components);
-    pool_snapshot_data<contact_manifold> *manifold_pool = nullptr;
-
-    for (auto &pool : packet.pools) {
-        if (pool.component_index == manifold_component_index) {
-            manifold_pool = static_cast<pool_snapshot_data<contact_manifold> *>(pool.ptr.get());
-            break;
-        }
-    }
-
     // Create entities first...
     for (auto remote_entity : packet.entities) {
         if (client.entity_map.has_rem(remote_entity)) continue;
-
-        // Handle creation of manifold entities later because it must be checked
-        // whether a local manifold for the same pair of bodies already exists.
-        if (manifold_pool) {
-            auto found_it = std::find_if(manifold_pool->pairs.begin(), manifold_pool->pairs.end(),
-                                         [&] (auto &&pair) { return pair.first == remote_entity; });
-            if (found_it != manifold_pool->pairs.end()) {
-                continue;
-            }
-        }
 
         auto local_entity = registry.create();
         registry.emplace<entity_owner>(local_entity, client_entity);
@@ -153,29 +133,6 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
         client.entity_map.insert(remote_entity, local_entity);
         client.owned_entities.push_back(local_entity);
-    }
-
-    if (manifold_pool) {
-        auto &manifold_map = registry.ctx<contact_manifold_map>();
-
-        for (auto &pair : manifold_pool->pairs) {
-            auto local_body0 = client.entity_map.remloc(pair.second.body[0]);
-            auto local_body1 = client.entity_map.remloc(pair.second.body[1]);
-            entt::entity local_entity;
-
-            if (manifold_map.contains(local_body0, local_body1)) {
-                local_entity = manifold_map.get(local_body0, local_body1);
-            } else {
-                local_entity = registry.create();
-                registry.emplace<contact_manifold_events>(local_entity);
-                registry.emplace<entity_owner>(local_entity, client_entity);
-            }
-
-            auto remote_entity = pair.first;
-            emap_packet.pairs.emplace_back(remote_entity, local_entity);
-            client.entity_map.insert(remote_entity, local_entity);
-            client.owned_entities.push_back(local_entity);
-        }
     }
 
     if (!emap_packet.pairs.empty()) {
@@ -376,6 +333,15 @@ void update_networking_server(entt::registry &registry) {
             auto packet = packet::transient_snapshot{};
 
             for (auto entity : aabboi.entities) {
+                if (auto *manifold = registry.try_get<contact_manifold>(entity)) {
+                    if (!is_fully_owned_by_client(registry, client_entity, manifold->body[0]) ||
+                        !is_fully_owned_by_client(registry, client_entity, manifold->body[1]))
+                    {
+                        packet.manifolds.push_back(*manifold);
+                    }
+                    continue;
+                }
+
                 if (!registry.all_of<procedural_tag, networked_tag>(entity)) {
                     continue;
                 }

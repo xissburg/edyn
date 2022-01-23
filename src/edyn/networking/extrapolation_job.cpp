@@ -1,7 +1,10 @@
 #include "edyn/networking/extrapolation_job.hpp"
+#include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/rotated_mesh_list.hpp"
+#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/networking/context/client_networking_context.hpp"
 #include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/entity_graph.hpp"
@@ -176,6 +179,67 @@ void extrapolation_job::on_transient_snapshot(const packet::transient_snapshot &
     for (auto &pool : snapshot.pools) {
         m_pool_snapshot_importer->import(m_registry, m_entity_map, pool);
     }
+
+    // Import manifolds later, after initial collision detection is done.
+    // Existing imported manifolds from the coordinator exist with respect
+    // to the client simulation state. The snapshot manifolds are with respect
+    // to the received server state.
+    m_imported_manifolds.insert(m_imported_manifolds.end(), snapshot.manifolds.begin(), snapshot.manifolds.end());
+
+    // Apply first history state before the current time to start the simulation
+    // with the correct initial inputs.
+    if (auto *delta = m_state_history->get_first_before(m_current_time)) {
+        delta->import(m_registry, m_entity_map);
+    }
+}
+
+void swap_manifold(contact_manifold &manifold) {
+    std::swap(manifold.body[0], manifold.body[1]);
+
+    for (size_t i = 0; i < manifold.num_points; ++i) {
+        auto &cp = manifold.point[i];
+        std::swap(cp.pivotA, cp.pivotB);
+        std::swap(cp.featureA, cp.featureB);
+        cp.normal *= -1; // Point towards new A.
+
+        if (cp.normal_attachment == contact_normal_attachment::normal_on_A) {
+            cp.normal_attachment = contact_normal_attachment::normal_on_B;
+        } else if (cp.normal_attachment == contact_normal_attachment::normal_on_B) {
+            cp.normal_attachment = contact_normal_attachment::normal_on_A;
+        }
+    }
+}
+
+void extrapolation_job::import_manifolds() {
+    if (m_imported_manifolds.empty()) {
+        return;
+    }
+
+    auto &manifold_map = m_registry.ctx<contact_manifold_map>();
+
+    for (auto &manifold : m_imported_manifolds) {
+        if (!m_entity_map.has_rem(manifold.body[0]) || !m_entity_map.has_rem(manifold.body[1])) {
+            continue;
+        }
+
+        manifold.body[0] = m_entity_map.remloc(manifold.body[0]);
+        manifold.body[1] = m_entity_map.remloc(manifold.body[1]);
+
+        // Find a matching manifold and replace it.
+        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
+            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
+            auto &local_manifold = m_registry.get<contact_manifold>(manifold_entity);
+
+            if (local_manifold.body[0] != manifold.body[0]) {
+                swap_manifold(manifold);
+            }
+            EDYN_ASSERT(local_manifold.body[0] == manifold.body[0]);
+            EDYN_ASSERT(local_manifold.body[1] == manifold.body[1]);
+            local_manifold = manifold;
+        }
+    }
+
+    m_imported_manifolds.clear();
 }
 
 void extrapolation_job::apply_history() {
@@ -342,6 +406,7 @@ bool extrapolation_job::run_narrowphase() {
         return false;
     } else {
         nphase.update();
+        import_manifolds();
         m_state = state::solve;
         return true;
     }
@@ -351,6 +416,7 @@ void extrapolation_job::finish_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase_async);
     auto &nphase = m_registry.ctx<narrowphase>();
     nphase.finish_async_update();
+    import_manifolds();
     m_state = state::solve;
 }
 

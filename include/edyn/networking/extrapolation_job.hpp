@@ -1,6 +1,7 @@
 #ifndef EDYN_NETWORKING_EXTRAPOLATION_JOB_HPP
 #define EDYN_NETWORKING_EXTRAPOLATION_JOB_HPP
 
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/parallel/message.hpp"
@@ -52,6 +53,7 @@ class extrapolation_job final {
     void finish_step();
     void init_new_shapes();
     void insert_remote_node(entt::entity remote_entity);
+    void import_manifolds();
     void apply_history();
     void sync_and_finish();
     void update();
@@ -96,6 +98,7 @@ private:
 
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
+    std::vector<contact_manifold> m_imported_manifolds;
 
     non_proc_comp_state_history *m_state_history;
 
