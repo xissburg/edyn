@@ -15,6 +15,13 @@ struct generic_constraint : public constraint_base {
     std::array<scalar, 6> impulse {make_array<6, scalar>(0)};
 };
 
+template<typename Archive>
+void serialize(Archive &archive, generic_constraint &c) {
+    archive(c.body);
+    archive(c.pivot);
+    archive(c.impulse);
+}
+
 template<>
 void prepare_constraints<generic_constraint>(entt::registry &, row_cache &, scalar dt);
 

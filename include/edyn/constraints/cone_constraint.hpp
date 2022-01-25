@@ -51,6 +51,7 @@ void serialize(Archive &archive, cone_constraint &c) {
     archive(c.body, c.pivot, c.frame);
     archive(c.span_tan, c.restitution);
     archive(c.bump_stop_stiffness, c.bump_stop_length);
+    archive(c.impulse);
 };
 
 }

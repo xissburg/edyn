@@ -15,6 +15,14 @@ struct distance_constraint : public constraint_base {
     scalar impulse {0};
 };
 
+template<typename Archive>
+void serialize(Archive &archive, distance_constraint &c) {
+    archive(c.body);
+    archive(c.pivot);
+    archive(c.distance);
+    archive(c.impulse);
+}
+
 template<>
 void prepare_constraints<distance_constraint>(entt::registry &, row_cache &, scalar dt);
 

@@ -16,6 +16,11 @@ struct contact_constraint : public constraint_base {
 
 };
 
+template<typename Archive>
+void serialize(Archive &archive, contact_constraint &c) {
+    archive(c.body);
+}
+
 struct constraint_row;
 
 namespace internal {

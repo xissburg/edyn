@@ -21,6 +21,17 @@ struct soft_distance_constraint : public constraint_base {
     std::array<scalar, 2> impulse {make_array<2, scalar>(0)};
 };
 
+template<typename Archive>
+void serialize(Archive &archive, soft_distance_constraint &c) {
+    archive(c.body);
+    archive(c.pivot);
+    archive(c.distance);
+    archive(c.stiffness);
+    archive(c.damping);
+    archive(c.m_relspd);
+    archive(c.impulse);
+}
+
 template<>
 void prepare_constraints<soft_distance_constraint>(entt::registry &, row_cache &, scalar dt);
 
