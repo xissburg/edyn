@@ -12,6 +12,7 @@
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_inertias.hpp"
+#include "edyn/sys/update_origins.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/math/transform.hpp"
@@ -191,6 +192,11 @@ void extrapolation_job::on_transient_snapshot(const packet::transient_snapshot &
     if (auto *delta = m_state_history->get_first_before(m_current_time)) {
         delta->import(m_registry, m_entity_map);
     }
+
+    update_origins(m_registry);
+    update_rotated_meshes(m_registry);
+    update_aabbs(m_registry);
+    update_inertias(m_registry);
 }
 
 void swap_manifold(contact_manifold &manifold) {
