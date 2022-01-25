@@ -50,7 +50,6 @@ static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple
     kinematic_tag,
     static_tag,
     procedural_tag,
-    sleeping_tag,
     sleeping_disabled_tag,
     disabled_tag,
     continuous_contacts_tag,
