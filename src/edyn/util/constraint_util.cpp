@@ -29,7 +29,6 @@ namespace internal {
             return false;
         }
 
-
         // If the constraint is not a graph edge (e.g. when it's a `contact_constraint`
         // in a contact manifold), it means it is handled as a child of another entity
         // that is a graph edge and thus creating an edge for this would be redundant.
@@ -89,12 +88,6 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
         auto &settings = registry.ctx<edyn::settings>();
         registry.emplace<continuous>(manifold_entity).insert(settings.index_source->index_of<edyn::contact_manifold>());
         dirty.created<continuous>();
-    }
-
-    if (registry.any_of<networked_tag>(body0) &&
-        registry.any_of<networked_tag>(body1)) {
-
-        registry.emplace<networked_tag>(manifold_entity);
     }
 
     // Assign contact constraint to manifold.
