@@ -1,5 +1,6 @@
 #include "edyn/networking/sys/server_side.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
@@ -333,6 +334,10 @@ void update_networking_server(entt::registry &registry) {
             auto packet = packet::transient_snapshot{};
 
             for (auto entity : aabboi.entities) {
+                if (registry.any_of<sleeping_tag>(entity)) {
+                    continue;
+                }
+
                 if (auto *manifold = registry.try_get<contact_manifold>(entity)) {
                     if (!is_fully_owned_by_client(registry, client_entity, manifold->body[0]) ||
                         !is_fully_owned_by_client(registry, client_entity, manifold->body[1]))
