@@ -781,6 +781,8 @@ void island_coordinator::sync() {
 }
 
 void island_coordinator::clear_dangling_non_procedural_nodes() {
+    // Remove non-procedural entities from islands that have no procedural
+    // entities connecting to them.
     auto &graph = m_registry->ctx<entity_graph>();
 
     for (auto entity : m_possibly_dangling_np_nodes) {
@@ -806,6 +808,9 @@ void island_coordinator::clear_dangling_non_procedural_nodes() {
             if (!has_procedural_neighbor) {
                 island.nodes.remove(entity);
                 resident.island_entities.remove(island_entity);
+
+                auto &ctx = m_island_ctx_map.at(island_entity);
+                ctx->m_entity_map.erase_loc(entity);
             }
         }
     }
