@@ -15,7 +15,7 @@ namespace edyn {
 
 namespace internal {
     bool pre_make_constraint(entt::entity entity, entt::registry &registry,
-                             entt::entity body0, entt::entity body1, bool is_graph_edge) {
+                             entt::entity body0, entt::entity body1) {
         // Multiple constraints of different types can be assigned to the same
         // entity. If this entity already has a graph edge, just do a few
         // consistency checks.
@@ -29,32 +29,30 @@ namespace internal {
             return false;
         }
 
+        auto node_index0 = registry.get<graph_node>(body0).node_index;
+        auto node_index1 = registry.get<graph_node>(body1).node_index;
+        auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
+        registry.emplace<procedural_tag>(entity);
+        registry.emplace<graph_edge>(entity, edge_index);
 
-        // If the constraint is not a graph edge (e.g. when it's a `contact_constraint`
-        // in a contact manifold), it means it is handled as a child of another entity
-        // that is a graph edge and thus creating an edge for this would be redundant.
-        if (is_graph_edge) {
-            auto node_index0 = registry.get<graph_node>(body0).node_index;
-            auto node_index1 = registry.get<graph_node>(body1).node_index;
-            auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
-            registry.emplace<procedural_tag>(entity);
-            registry.emplace<graph_edge>(entity, edge_index);
-
-            auto &con_dirty = registry.get_or_emplace<dirty>(entity);
-            con_dirty.created<procedural_tag>();
-        }
+        auto &con_dirty = registry.get_or_emplace<dirty>(entity);
+        con_dirty.created<procedural_tag>();
 
         return true;
     }
 }
 
-entt::entity make_contact_manifold(entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
+entt::entity make_contact_manifold(entt::registry &registry,
+                                   entt::entity body0, entt::entity body1,
+                                   scalar separation_threshold) {
     auto manifold_entity = registry.create();
     make_contact_manifold(manifold_entity, registry, body0, body1, separation_threshold);
     return manifold_entity;
 }
 
-void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry, entt::entity body0, entt::entity body1, scalar separation_threshold) {
+void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry,
+                           entt::entity body0, entt::entity body1,
+                           scalar separation_threshold) {
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
     registry.emplace<contact_manifold_events>(manifold_entity);
