@@ -87,6 +87,9 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     ctx.roll_friction_rows.clear();
 
     con_view.each([&] (entt::entity entity, contact_constraint &con, contact_manifold &manifold) {
+        EDYN_ASSERT(con.body[0] == manifold.body[0]);
+        EDYN_ASSERT(con.body[1] == manifold.body[1]);
+
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 

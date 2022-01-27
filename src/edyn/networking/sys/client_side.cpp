@@ -163,8 +163,7 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_c
     extr.delta.import(registry, emap);
 
     // Must refresh entities in workers after applying state in coordinator.
-    // TODO: move call to `edyn::refresh` inside `island_delta::import`.
-    extr.delta.updated_for_each<AABB, position, orientation, linvel, angvel, contact_manifold>(
+    extr.delta.updated_for_each<AABB, position, orientation, linvel, angvel>(
         [&] (entt::entity remote_entity, auto &&comp) {
             if (!emap.has_rem(remote_entity)) return;
             auto local_entity = emap.remloc(remote_entity);
@@ -174,6 +173,40 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_c
                 edyn::refresh<Component>(registry, local_entity);
             }
         });
+
+    // Find matching contact manifolds for the same pair of rigid bodies or
+    // create new manifolds.
+    auto &manifold_map = registry.ctx<contact_manifold_map>();
+    for (auto &manifold : extr.manifolds) {
+        if (!emap.has_rem(manifold.body[0]) ||
+            !emap.has_rem(manifold.body[1])) {
+            continue;
+        }
+
+        manifold.body[0] = emap.remloc(manifold.body[0]);
+        manifold.body[1] = emap.remloc(manifold.body[1]);
+
+        // Find a matching manifold and replace it...
+        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
+            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
+            auto &local_manifold = registry.get<contact_manifold>(manifold_entity);
+
+            if (local_manifold.body[0] != manifold.body[0]) {
+                swap_manifold(manifold);
+            }
+            EDYN_ASSERT(local_manifold.body[0] == manifold.body[0]);
+            EDYN_ASSERT(local_manifold.body[1] == manifold.body[1]);
+            local_manifold = manifold;
+            edyn::refresh<contact_manifold>(registry, manifold_entity);
+        } else {
+            // ...or create a new one and assign a new value to it.
+            auto separation_threshold = contact_breaking_threshold * scalar(4 * 1.3);
+            auto manifold_entity = make_contact_manifold(registry,
+                                                         manifold.body[0], manifold.body[1],
+                                                         separation_threshold);
+            registry.get<contact_manifold>(manifold_entity) = manifold;
+        }
+    }
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -333,6 +366,14 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
 
 static void process_packet(entt::registry &registry, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<client_networking_context>();
+
+    if (!ctx.extrapolation_enabled) {
+        for (auto &pool : snapshot.pools) {
+            ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool);
+        }
+
+        return;
+    }
 
     double snapshot_time = performance_time() - (ctx.server_playout_delay + ctx.round_trip_time / 2);
 

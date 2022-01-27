@@ -7,6 +7,7 @@
 
 namespace edyn {
 
+struct contact_manifold;
 struct constraint_row;
 struct constraint_row_options;
 struct matrix3x3;
@@ -62,6 +63,8 @@ entt::entity make_contact_manifold(entt::registry &,
 void make_contact_manifold(entt::entity contact_entity, entt::registry &,
                            entt::entity body0, entt::entity body1,
                            scalar separation_threshold);
+
+void swap_manifold(contact_manifold &manifold);
 
 scalar get_effective_mass(const constraint_row &);
 

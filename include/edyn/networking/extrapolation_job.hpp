@@ -20,6 +20,7 @@ namespace edyn {
 
 struct extrapolation_completed {
     island_delta delta;
+    std::vector<contact_manifold> manifolds;
     double timestamp;
 };
 
@@ -91,6 +92,7 @@ private:
 
     state m_state;
     double m_current_time;
+    unsigned m_step_count{0};
     std::atomic<bool> m_finished {false};
 
     std::unique_ptr<island_delta_builder> m_delta_builder;

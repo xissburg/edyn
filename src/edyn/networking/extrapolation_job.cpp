@@ -1,4 +1,5 @@
 #include "edyn/networking/extrapolation_job.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/rotated_mesh_list.hpp"
@@ -114,7 +115,6 @@ void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::en
     if (!m_destroying_node) {
         auto &edge = registry.get<graph_edge>(entity);
         registry.ctx<entity_graph>().remove_edge(edge.edge_index);
-        m_delta_builder->destroyed(entity);
     }
 
     if (m_entity_map.has_loc(entity)) {
@@ -199,23 +199,6 @@ void extrapolation_job::on_transient_snapshot(const packet::transient_snapshot &
     update_inertias(m_registry);
 }
 
-void swap_manifold(contact_manifold &manifold) {
-    std::swap(manifold.body[0], manifold.body[1]);
-
-    for (size_t i = 0; i < manifold.num_points; ++i) {
-        auto &cp = manifold.point[i];
-        std::swap(cp.pivotA, cp.pivotB);
-        std::swap(cp.featureA, cp.featureB);
-        cp.normal *= -1; // Point towards new A.
-
-        if (cp.normal_attachment == contact_normal_attachment::normal_on_A) {
-            cp.normal_attachment = contact_normal_attachment::normal_on_B;
-        } else if (cp.normal_attachment == contact_normal_attachment::normal_on_B) {
-            cp.normal_attachment = contact_normal_attachment::normal_on_A;
-        }
-    }
-}
-
 void extrapolation_job::import_manifolds() {
     if (m_imported_manifolds.empty()) {
         return;
@@ -224,14 +207,15 @@ void extrapolation_job::import_manifolds() {
     auto &manifold_map = m_registry.ctx<contact_manifold_map>();
 
     for (auto &manifold : m_imported_manifolds) {
-        if (!m_entity_map.has_rem(manifold.body[0]) || !m_entity_map.has_rem(manifold.body[1])) {
+        if (!m_entity_map.has_rem(manifold.body[0]) ||
+            !m_entity_map.has_rem(manifold.body[1])) {
             continue;
         }
 
         manifold.body[0] = m_entity_map.remloc(manifold.body[0]);
         manifold.body[1] = m_entity_map.remloc(manifold.body[1]);
 
-        // Find a matching manifold and replace it.
+        // Find a matching manifold and replace it...
         if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
             auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
             auto &local_manifold = m_registry.get<contact_manifold>(manifold_entity);
@@ -242,6 +226,13 @@ void extrapolation_job::import_manifolds() {
             EDYN_ASSERT(local_manifold.body[0] == manifold.body[0]);
             EDYN_ASSERT(local_manifold.body[1] == manifold.body[1]);
             local_manifold = manifold;
+        } else {
+            // ...or create a new one and assign a new value to it.
+            auto separation_threshold = contact_breaking_threshold * scalar(4 * 1.3);
+            auto manifold_entity = make_contact_manifold(m_registry,
+                                                         manifold.body[0], manifold.body[1],
+                                                         separation_threshold);
+            m_registry.get<contact_manifold>(manifold_entity) = manifold;
         }
     }
 
@@ -262,10 +253,6 @@ void extrapolation_job::sync_and_finish() {
         m_delta_builder->updated(entity, aabb);
     });
 
-    m_registry.view<contact_manifold>().each([&] (entt::entity entity, contact_manifold &manifold) {
-        m_delta_builder->updated(entity, manifold);
-    });
-
     // Update continuous components.
     auto &settings = m_registry.ctx<edyn::settings>();
     auto &index_source = *settings.index_source;
@@ -275,8 +262,18 @@ void extrapolation_job::sync_and_finish() {
         }
     });
 
+    // Send manifolds separately. They'll be matched by rigid body pairs
+    // in the coordinator.
+    auto manifold_view = m_registry.view<contact_manifold>();
+    std::vector<contact_manifold> manifolds;
+    manifolds.reserve(manifold_view.size());
+
+    manifold_view.each([&] (contact_manifold &manifold) {
+        manifolds.push_back(manifold);
+    });
+
     auto delta = m_delta_builder->finish();
-    m_message_queue.send<extrapolation_completed>(std::move(delta), m_current_time);
+    m_message_queue.send<extrapolation_completed>(std::move(delta), std::move(manifolds), m_current_time);
 
     m_finished.store(true, std::memory_order_release);
 }
@@ -442,6 +439,7 @@ void extrapolation_job::finish_step() {
         (*settings.external_system_post_step)(m_registry);
     }
 
+    ++m_step_count;
     m_state = state::step;
 }
 
