@@ -31,7 +31,7 @@ void update_contact_distances(entt::registry &registry) {
         auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
         for (unsigned i = 0; i < manifold.num_points; ++i) {
-            auto &cp = manifold.point[manifold.ids[i]];
+            auto &cp = manifold.get_point(i);
             auto pivotA_world = to_world_space(cp.pivotA, originA, ornA);
             auto pivotB_world = to_world_space(cp.pivotB, originB, ornB);
             cp.distance = dot(cp.normal, pivotA_world - pivotB_world);

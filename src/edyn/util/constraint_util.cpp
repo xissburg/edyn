@@ -96,8 +96,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 void swap_manifold(contact_manifold &manifold) {
     std::swap(manifold.body[0], manifold.body[1]);
 
-    for (size_t i = 0; i < manifold.num_points; ++i) {
-        auto &cp = manifold.point[manifold.ids[i]];
+    manifold.each_point([] (contact_point &cp) {
         std::swap(cp.pivotA, cp.pivotB);
         std::swap(cp.featureA, cp.featureB);
         cp.normal *= -1; // Point towards new A.
@@ -107,7 +106,7 @@ void swap_manifold(contact_manifold &manifold) {
         } else if (cp.normal_attachment == contact_normal_attachment::normal_on_B) {
             cp.normal_attachment = contact_normal_attachment::normal_on_A;
         }
-    }
+    });
 }
 
 scalar get_effective_mass(const constraint_row &row) {

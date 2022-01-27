@@ -15,9 +15,9 @@ void serialize(Archive &archive, contact_manifold &manifold) {
         archive(manifold.ids[i]);
     }
 
-    for (unsigned i = 0; i < manifold.num_points; ++i) {
-        archive(manifold.point[manifold.ids[i]]);
-    }
+    manifold.each_point([&] (contact_point &cp) {
+        archive(cp);
+    });
 }
 
 template<typename Archive>

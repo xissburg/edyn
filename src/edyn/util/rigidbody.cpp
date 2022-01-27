@@ -288,10 +288,9 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
         auto combined_friction = material_mix_friction(friction, other_material.friction);
 
-        for (size_t i = 0; i < manifold.num_points; ++i) {
-            auto &cp = manifold.point[manifold.ids[i]];
+        manifold.each_point([combined_friction] (contact_point &cp) {
             cp.friction = combined_friction;
-        }
+        });
 
         refresh<contact_manifold>(registry, entity);
     });
