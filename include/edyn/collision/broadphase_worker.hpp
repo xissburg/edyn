@@ -17,7 +17,7 @@ class broadphase_worker {
     constexpr static auto m_aabb_offset = vector3_one * -contact_breaking_threshold;
 
     // Separation threshold for new manifolds.
-    constexpr static auto m_separation_threshold = contact_breaking_threshold * scalar(4 * 1.3);
+    constexpr static auto m_separation_threshold = contact_breaking_threshold * scalar(1.3);
 
     void init_new_aabb_entities();
 
