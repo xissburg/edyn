@@ -393,7 +393,6 @@ void island_worker::clear_dangling_non_procedural_nodes() {
         auto node_index = node_view.get<graph_node>(entity).node_index;
         bool has_procedural_neighbor = false;
 
-
         for (auto node_entity : m_registry.view<graph_node>()) {
             if (proc_view.contains(node_entity) &&
                 graph.has_adjacency(node_index, node_view.get<graph_node>(node_entity).node_index)) {
