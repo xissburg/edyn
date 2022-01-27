@@ -89,15 +89,6 @@ void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::e
 void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
     auto &edge = registry.get<graph_edge>(entity);
     auto &graph = registry.ctx<entity_graph>();
-
-    auto nodes = graph.edge_node_entities(edge.edge_index);
-
-    for (auto node : std::array{nodes.first, nodes.second}) {
-        if (!registry.any_of<procedural_tag>(node) && !m_possibly_dangling_np_nodes.contains(node)) {
-            m_possibly_dangling_np_nodes.emplace(node);
-        }
-    }
-
     graph.remove_edge(edge.edge_index);
 }
 
@@ -780,44 +771,6 @@ void island_coordinator::sync() {
     }
 }
 
-void island_coordinator::clear_dangling_non_procedural_nodes() {
-    // Remove non-procedural entities from islands that have no procedural
-    // entities connecting to them.
-    auto &graph = m_registry->ctx<entity_graph>();
-
-    for (auto entity : m_possibly_dangling_np_nodes) {
-        if (!m_registry->valid(entity)) {
-            continue;
-        }
-
-        auto &resident = m_registry->get<multi_island_resident>(entity);
-        auto node_index = m_registry->get<graph_node>(entity).node_index;
-
-        for (auto island_entity : resident.island_entities) {
-            auto &island = m_registry->get<edyn::island>(island_entity);
-            bool has_procedural_neighbor = false;
-
-            for (auto node_entity : island.nodes) {
-                if (m_registry->any_of<procedural_tag>(node_entity) &&
-                    graph.has_adjacency(node_index, m_registry->get<graph_node>(node_entity).node_index)) {
-                    has_procedural_neighbor = true;
-                    break;
-                }
-            }
-
-            if (!has_procedural_neighbor) {
-                island.nodes.remove(entity);
-                resident.island_entities.remove(island_entity);
-
-                auto &ctx = m_island_ctx_map.at(island_entity);
-                ctx->m_entity_map.erase_loc(entity);
-            }
-        }
-    }
-
-    m_possibly_dangling_np_nodes.clear();
-}
-
 void island_coordinator::update() {
     m_timestamp = performance_time();
 
@@ -828,7 +781,6 @@ void island_coordinator::update() {
     init_new_nodes_and_edges();
     refresh_dirty_entities();
     sync();
-    clear_dangling_non_procedural_nodes();
     split_islands();
 }
 
