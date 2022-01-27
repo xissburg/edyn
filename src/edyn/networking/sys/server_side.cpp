@@ -294,6 +294,11 @@ void update_networking_server(entt::registry &registry) {
             auto packet = packet::destroy_entity{};
 
             for (auto entity : aabboi.destroy_entities) {
+                if (!registry.valid(entity)) {
+                    packet.entities.push_back(entity);
+                    continue;
+                }
+
                 // Ignore entities owned by client.
                 if (auto *owner = registry.try_get<entity_owner>(entity);
                     owner == nullptr || owner->client_entity != client_entity) {
