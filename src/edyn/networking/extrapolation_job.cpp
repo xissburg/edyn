@@ -218,17 +218,10 @@ void extrapolation_job::import_manifolds() {
         // Find a matching manifold and replace it...
         if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
             auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
-            auto &local_manifold = m_registry.get<contact_manifold>(manifold_entity);
-
-            if (local_manifold.body[0] != manifold.body[0]) {
-                swap_manifold(manifold);
-            }
-            EDYN_ASSERT(local_manifold.body[0] == manifold.body[0]);
-            EDYN_ASSERT(local_manifold.body[1] == manifold.body[1]);
-            local_manifold = manifold;
+            m_registry.get<contact_manifold>(manifold_entity) = manifold;
         } else {
             // ...or create a new one and assign a new value to it.
-            auto separation_threshold = contact_breaking_threshold * scalar(4 * 1.3);
+            auto separation_threshold = contact_breaking_threshold * scalar(1.3);
             auto manifold_entity = make_contact_manifold(m_registry,
                                                          manifold.body[0], manifold.body[1],
                                                          separation_threshold);
@@ -258,7 +251,13 @@ void extrapolation_job::sync_and_finish() {
     auto &index_source = *settings.index_source;
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
-            m_delta_builder->updated(entity, m_registry, index_source.type_id_of(cont.indices[i]));
+            auto id = index_source.type_id_of(cont.indices[i]);
+
+            if (id == entt::type_id<contact_manifold>().seq()) {
+                continue;
+            }
+
+            m_delta_builder->updated(entity, m_registry, id);
         }
     });
 
