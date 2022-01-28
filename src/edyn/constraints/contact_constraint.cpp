@@ -87,14 +87,13 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     ctx.roll_friction_rows.clear();
 
     con_view.each([&] (entt::entity entity, contact_constraint &con, contact_manifold &manifold) {
-        EDYN_ASSERT(con.body[0] == manifold.body[0]);
-        EDYN_ASSERT(con.body[1] == manifold.body[1]);
+        auto body = manifold.body;
 
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(body[1]);
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+        auto originA = origin_view.contains(body[0]) ? origin_view.get<origin>(body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(body[1]) ? origin_view.get<origin>(body[1]) : static_cast<vector3>(posB);
 
         // Store initial size of the constraint row cache so the number of rows
         // for this contact constraint can be calculated at the end.
@@ -183,8 +182,8 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                     // axis by the projection of the roll direction onto the axis,
                     // thus preventing impulses in the undesired directions.
                     for (auto j = 0; j < 2; ++j) {
-                        if (roll_dir_view.contains(con.body[j])) {
-                            auto roll_dir = rotate(ornA, roll_dir_view.get<roll_direction>(con.body[j]));
+                        if (roll_dir_view.contains(body[j])) {
+                            auto roll_dir = rotate(ornA, roll_dir_view.get<roll_direction>(body[j]));
                             axis *= dot(roll_dir, axis);
                         }
                     }
