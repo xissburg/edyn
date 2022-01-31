@@ -6,7 +6,6 @@
 #include <shared_mutex>
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/make_island_delta_builder.hpp"
-#include "edyn/networking/comp/non_proc_comp_list.hpp"
 
 namespace edyn {
 
@@ -26,13 +25,9 @@ public:
     void emplace(island_delta &&delta, double timestamp) {
         std::lock_guard lock(mutex);
 
-    #ifdef EDYN_DEBUG
-        if (!history.empty()) {
-            EDYN_ASSERT(history.back().timestamp < timestamp);
-        }
-    #endif
-
-        history.emplace_back(std::move(delta), timestamp);
+        // Sorted insertion.
+        auto it = std::find_if(history.begin(), history.end(), [timestamp] (auto &&elem) { return elem.timestamp > timestamp; });
+        history.insert(it, {std::move(delta), timestamp});
 
         if (history.size() > max_size) {
             history.pop_front();

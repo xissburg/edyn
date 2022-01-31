@@ -66,20 +66,17 @@ void on_destroy_entity_owner(entt::registry &registry, entt::entity entity) {
 static void update_non_proc_comp_state_history(entt::registry &registry,
                                                non_proc_comp_state_history &state_history,
                                                double timestamp) {
-    // Insert select non-procedural components into history.
+    // Insert select non-procedural components into history only for entities
+    // owned by the local client.
     auto &settings = registry.ctx<edyn::settings>();
-    auto &index_source = *registry.ctx<client_networking_context>().index_source;
-    auto non_proc_comp_list_view = registry.view<non_proc_comp_list>();
+    auto builder = (*settings.make_island_delta_builder)();
+    auto &ctx = registry.ctx<client_networking_context>();
 
-    if (!non_proc_comp_list_view.empty()) {
-        auto builder = (*settings.make_island_delta_builder)();
+    for (auto entity : ctx.owned_entities) {
+        ctx.pool_snapshot_importer->insert_non_procedural_to_builder(registry, entity, *builder);
+    }
 
-        non_proc_comp_list_view.each([&] (entt::entity entity, non_proc_comp_list &comp_list) {
-            for (size_t i = 0; i < comp_list.size; ++i) {
-                builder->updated(entity, registry, index_source.type_id_of(comp_list.indices[i]));
-            }
-        });
-
+    if (!builder->empty()) {
         state_history.emplace(builder->finish(), timestamp);
     }
 }
@@ -110,7 +107,8 @@ void update_networking_client(entt::registry &registry) {
         packet.entities = ctx.created_entities;
 
         for (auto entity : ctx.created_entities) {
-            (*ctx.insert_entity_components_func)(registry, entity, packet.pools);
+            ctx.pool_snapshot_exporter->export_all(registry, entity, packet.pools);
+            registry.emplace<entity_owner>(entity, ctx.client_entity);
         }
 
         std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
@@ -134,7 +132,7 @@ void update_networking_client(entt::registry &registry) {
 
         for (auto entity : ctx.owned_entities) {
             EDYN_ASSERT(registry.all_of<networked_tag>(entity));
-            (*ctx.insert_transient_components_func)(registry, entity, packet.pools);
+            ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
         }
 
         ctx.last_snapshot_time = time;
@@ -146,7 +144,8 @@ void update_networking_client(entt::registry &registry) {
 
     // Check if extrapolation jobs are finished and merge their results into
     // the main registry.
-    auto remove_it = std::remove_if(ctx.extrapolation_jobs.begin(), ctx.extrapolation_jobs.end(), [] (extrapolation_job_context &extr_ctx) {
+    auto remove_it = std::remove_if(ctx.extrapolation_jobs.begin(), ctx.extrapolation_jobs.end(),
+                                    [] (extrapolation_job_context &extr_ctx) {
         if (extr_ctx.job->is_finished()) {
             extr_ctx.m_message_queue.update();
             return true;
@@ -260,9 +259,13 @@ static void process_packet(entt::registry &registry, const packet::entity_respon
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
     }
 
+    std::vector<entt::entity> unknown_entities;
+
     for (auto &pool : res.pools) {
-        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool);
+        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool, unknown_entities);
     }
+
+    EDYN_ASSERT(unknown_entities.empty());
 
     for (auto remote_entity : res.entities) {
         auto local_entity = ctx.entity_map.remloc(remote_entity);
@@ -312,11 +315,15 @@ static void process_packet(entt::registry &registry, const packet::create_entity
         ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
 
+    std::vector<entt::entity> unknown_entities;
+
     // ... assign components later so that entity references will be available
     // to be mapped into the local registry.
     for (auto &pool : packet.pools) {
-        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool);
+        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool, unknown_entities);
     }
+
+    EDYN_ASSERT(unknown_entities.empty());
 
     for (auto remote_entity : packet.entities) {
         auto local_entity = ctx.entity_map.remloc(remote_entity);
@@ -366,16 +373,42 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
 
 static void process_packet(entt::registry &registry, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<client_networking_context>();
+    std::vector<entt::entity> unknown_entities;
 
     if (!ctx.extrapolation_enabled) {
         for (auto &pool : snapshot.pools) {
-            ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool);
+            ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool, unknown_entities);
         }
 
         return;
     }
 
-    double snapshot_time = performance_time() - (ctx.server_playout_delay + ctx.round_trip_time / 2);
+    if (!unknown_entities.empty()) {
+        // TODO: send entity request
+    }
+
+    const auto time = performance_time();
+    const double snapshot_time = time - (ctx.server_playout_delay + ctx.round_trip_time / 2);
+
+    // Non-procedural component state from other clients must be added to the
+    // input history beforehand.
+    auto &settings = registry.ctx<edyn::settings>();
+
+    {
+        auto builder = (*settings.make_island_delta_builder)();
+        ctx.pool_snapshot_importer->insert_remote_non_procedural_to_builder(registry, snapshot.pools, ctx.entity_map, *builder);
+
+        if (!builder->empty()) {
+            ctx.state_history.emplace(builder->finish(), snapshot_time);
+        }
+    }
+
+    // Ignore it if the number of current extrapolation jobs is at maximum.
+    if (ctx.extrapolation_jobs.size() >= ctx.max_concurrent_extrapolations) {
+        return;
+    }
+
+    auto &graph = registry.ctx<entity_graph>();
 
     // Collect the node indices of all entities involved in the snapshot.
     std::set<entity_graph::index_type> node_indices;
@@ -395,7 +428,10 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
 
             if (node_view.contains(local_entity)) {
                 auto node_index = node_view.get<graph_node>(local_entity).node_index;
-                node_indices.insert(node_index);
+
+                if (graph.is_connecting_node(node_index)) {
+                    node_indices.insert(node_index);
+                }
             }
         }
     }
@@ -407,7 +443,6 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     // Traverse entity graph to find all entities connected to the entities
     // present in the transient snapshot.
     auto entities = entt::sparse_set{};
-    auto &graph = registry.ctx<entity_graph>();
     graph.reach(
         node_indices.begin(), node_indices.end(),
         [&] (entt::entity entity) { // visitNodeFunc
@@ -448,7 +483,6 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
 
     // Create extrapolation job and put the registry snapshot and the transient
     // snapshot into its message queue.
-    auto &settings = registry.ctx<edyn::settings>();
     auto &material_table = registry.ctx<material_mix_table>();
 
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
@@ -469,9 +503,14 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
 
 static void process_packet(entt::registry &registry, const packet::general_snapshot &snapshot) {
     auto &ctx = registry.ctx<client_networking_context>();
+    std::vector<entt::entity> unknown_entities;
 
     for (auto &pool : snapshot.pools) {
-        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool);
+        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool, unknown_entities);
+    }
+
+    if (!unknown_entities.empty()) {
+        // TODO: send entity request
     }
 }
 

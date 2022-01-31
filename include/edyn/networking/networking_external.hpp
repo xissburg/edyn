@@ -4,90 +4,43 @@
 #include <tuple>
 #include <entt/entity/registry.hpp>
 #include "edyn/networking/comp/networked_comp.hpp"
+#include "edyn/networking/comp/transient_comp.hpp"
 #include "edyn/networking/context/client_networking_context.hpp"
 #include "edyn/networking/context/server_networking_context.hpp"
-#include "edyn/networking/packet/util/pool_snapshot.hpp"
-#include "edyn/networking/util/client_pool_snapshot_importer.hpp"
-#include "edyn/networking/util/server_import_pool.hpp"
 
 namespace edyn {
 
-template<typename... Component, typename... TransientComponent>
+template<typename... Component, typename... Transient, typename... NonProcedural>
 void register_networked_components(entt::registry &registry,
-                                   [[maybe_unused]] std::tuple<TransientComponent...>) {
+                                   std::tuple<Transient...> transient_external,
+                                   std::tuple<NonProcedural...> non_procedural_external) {
     auto external = std::tuple<Component...>{};
     auto all = std::tuple_cat(networked_components, external);
+    auto transient_all = std::tuple_cat(transient_components, transient_external);
+    auto non_procedural_all = non_procedural_external;
 
     if (auto *ctx = registry.try_ctx<client_networking_context>()) {
-        ctx->index_source.reset(new networked_component_index_source_impl(all));
         ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(all));
-
-        ctx->insert_entity_components_func = [] (entt::registry &registry, entt::entity entity,
-                                                 std::vector<pool_snapshot> &pools) {
-            auto external = std::tuple<Component...>{};
-            auto all = std::tuple_cat(networked_components, external);
-            insert_entity_components(registry, entity, pools, all,
-                                     std::make_index_sequence<std::tuple_size_v<decltype(all)>>{});
-        };
-
-        ctx->insert_transient_components_func = [] (entt::registry &registry, entt::entity entity,
-                                                    std::vector<pool_snapshot> &pools) {
-            auto external = std::tuple<Component...>{};
-            auto all = std::tuple_cat(networked_components, external);
-            auto external_transient = std::tuple<TransientComponent...>{};
-            auto all_transient = std::tuple_cat(transient_components, external_transient);
-            insert_select_entity_components(registry, entity, pools, all, all_transient);
-        };
+        ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(all, transient_all, non_procedural_all));
     }
 
     if (auto *ctx = registry.try_ctx<server_networking_context>()) {
-        ctx->index_source.reset(new networked_component_index_source_impl(all));
-
-        ctx->import_pool_func = [] (entt::registry &registry, entt::entity client_entity, const pool_snapshot &pool, bool broadcast) {
-            auto external = std::tuple<Component...>{};
-            auto all = std::tuple_cat(networked_components, external);
-            import_pool_server(registry, client_entity, pool, broadcast, all);
-        };
-
-        ctx->insert_entity_components_func = [] (entt::registry &registry, entt::entity entity,
-                                                 std::vector<pool_snapshot> &pools) {
-            auto external = std::tuple<Component...>{};
-            auto all = std::tuple_cat(networked_components, external);
-            insert_entity_components(registry, entity, pools, all,
-                                     std::make_index_sequence<std::tuple_size_v<decltype(all)>>{});
-        };
-
-        ctx->insert_transient_components_func = [] (entt::registry &registry, entt::entity entity,
-                                                    std::vector<pool_snapshot> &pools) {
-            auto external = std::tuple<Component...>{};
-            auto all = std::tuple_cat(networked_components, external);
-            auto external_transient = std::tuple<TransientComponent...>{};
-            auto all_transient = std::tuple_cat(transient_components, external_transient);
-            insert_select_entity_components(registry, entity, pools, all, all_transient);
-        };
+        ctx->pool_snapshot_importer.reset(new server_pool_snapshot_importer_impl(all, non_procedural_all));
+        ctx->pool_snapshot_exporter.reset(new server_pool_snapshot_exporter_impl(all, transient_all));
     }
 
     g_pool_snapshot_serializer.ptr.reset(new pool_snapshot_serializer_impl(all));
 }
 
-template<typename... Component, typename... TransientComponent>
-void register_networked_components(entt::registry &registry,
-                                   [[maybe_unused]] std::tuple<Component...>,
-                                   [[maybe_unused]] std::tuple<TransientComponent...> transient_components) {
-    register_networked_components<Component...>(registry, transient_components);
-}
-
 inline void unregister_networked_components(entt::registry &registry) {
     if (auto *ctx = registry.try_ctx<client_networking_context>()) {
-        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(networked_components));
-        ctx->insert_entity_components_func = &insert_entity_components_default;
-        ctx->insert_transient_components_func = &insert_transient_components_default;
+        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(networked_components, {}));
+        ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(networked_components, transient_components, {}));
     }
 
     if (auto *ctx = registry.try_ctx<server_networking_context>()) {
-        ctx->import_pool_func = &import_pool_server_default;
-        ctx->insert_entity_components_func = &insert_entity_components_default;
-        ctx->insert_transient_components_func = &insert_transient_components_default;
+        ctx->pool_snapshot_importer.reset(new server_pool_snapshot_importer_impl(networked_components, {}));
+        ctx->pool_snapshot_exporter.reset(new server_pool_snapshot_exporter_impl(networked_components, transient_components));
     }
 
     g_pool_snapshot_serializer.ptr.reset(new pool_snapshot_serializer_impl(networked_components));

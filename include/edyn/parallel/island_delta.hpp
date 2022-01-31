@@ -62,6 +62,7 @@ class island_delta {
 public:
     island_delta() = default;
     island_delta(island_delta &&) = default;
+    island_delta & operator=(island_delta &&) = default;
 
     // Explicitly delete copy constructor since this contains vectors of unique_ptrs.
     island_delta(const island_delta &) = delete;

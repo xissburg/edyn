@@ -10,7 +10,6 @@
 #include <utility>
 #include <entt/entity/fwd.hpp>
 #include "edyn/networking/comp/networked_comp.hpp"
-#include "edyn/networking/comp/transient_comp.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/util/tuple_util.hpp"
@@ -139,62 +138,53 @@ void serialize(Archive &archive, pool_snapshot &pool) {
     }
 }
 
-template<typename Component>
-void insert_entity_component(entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools, unsigned index) {
-    if (!registry.any_of<Component>(entity)) {
-        return;
+// Pool snapshot utility functions.
+namespace internal {
+    template<typename Comp>
+    void pool_insert_entity_component_single(entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools, unsigned index) {
+        if (!registry.any_of<Comp>(entity)) {
+            return;
+        }
+
+        auto pool = std::find_if(pools.begin(), pools.end(), [index] (auto &&pool) { return pool.component_index == index; });
+
+        if (pool == pools.end()) {
+            pools.push_back(pool_snapshot{unsigned(index)});
+            pool = pools.end();
+            std::advance(pool, -1);
+            pool->ptr.reset(new pool_snapshot_data<Comp>);
+        }
+
+        if constexpr(std::is_empty_v<Comp>) {
+            std::static_pointer_cast<pool_snapshot_data<Comp>>(pool->ptr)->pairs.push_back(std::make_pair(entity, Comp{}));
+        } else {
+            auto &comp = registry.get<Comp>(entity);
+            std::static_pointer_cast<pool_snapshot_data<Comp>>(pool->ptr)->pairs.push_back(std::make_pair(entity, comp));
+        }
     }
 
-    auto pool = std::find_if(pools.begin(), pools.end(), [index] (auto &&pool) { return pool.component_index == index; });
-
-    if (pool == pools.end()) {
-        pools.push_back(pool_snapshot{unsigned(index)});
-        pool = pools.end();
-        std::advance(pool, -1);
-        pool->ptr.reset(new pool_snapshot_data<Component>);
+    template<typename... Components, typename IndexType, IndexType... Is>
+    void pool_insert_entity_components_all(entt::registry &registry, entt::entity entity,
+                                        std::vector<pool_snapshot> &pools,
+                                        [[maybe_unused]] std::tuple<Components...>,
+                                        [[maybe_unused]] std::integer_sequence<IndexType, Is...>) {
+        (pool_insert_entity_component_single<Components>(registry, entity, pools, Is), ...);
     }
 
-    if constexpr(std::is_empty_v<Component>) {
-        std::static_pointer_cast<pool_snapshot_data<Component>>(pool->ptr)->pairs.push_back(std::make_pair(entity, Component{}));
-    } else {
-        auto &comp = registry.get<Component>(entity);
-        std::static_pointer_cast<pool_snapshot_data<Component>>(pool->ptr)->pairs.push_back(std::make_pair(entity, comp));
+    template<typename Component, typename... Components>
+    void pool_insert_select_entity_component(entt::registry &registry, entt::entity entity,
+                                            std::vector<pool_snapshot> &pools,
+                                            [[maybe_unused]] std::tuple<Components...>) {
+        constexpr auto index = index_of_v<size_t, Component, Components...>;
+        pool_insert_entity_component_single<Component>(registry, entity, pools, index);
     }
-}
 
-template<typename... Component, typename IndexType, IndexType... Is>
-void insert_entity_components(entt::registry &registry, entt::entity entity,
-                              std::vector<pool_snapshot> &pools,
-                              const std::tuple<Component...> &all_components,
-                              std::integer_sequence<IndexType, Is...> int_seq) {
-    (insert_entity_component<std::tuple_element_t<Is, std::tuple<Component...>>>(registry, entity, pools, Is), ...);
-}
-
-inline void insert_entity_components_default(entt::registry &registry, entt::entity entity,
-                                             std::vector<pool_snapshot> &pools) {
-    insert_entity_components(registry, entity, pools, networked_components,
-                             std::make_index_sequence<std::tuple_size_v<decltype(networked_components)>>{});
-}
-
-template<typename SelectComponent, typename... Component>
-void insert_select_entity_component(entt::registry &registry, entt::entity entity,
-                                     std::vector<pool_snapshot> &pools,
-                                     const std::tuple<Component...> &all_components) {
-    constexpr auto index = index_of_v<size_t, SelectComponent, Component...>;
-    insert_entity_component<std::tuple_element_t<index, std::tuple<Component...>>>(registry, entity, pools, index);
-}
-
-template<typename... Component, typename... SelectComponent>
-void insert_select_entity_components(entt::registry &registry, entt::entity entity,
-                                     std::vector<pool_snapshot> &pools,
-                                     const std::tuple<Component...> &all_components,
-                                     const std::tuple<SelectComponent...> &select_components) {
-    (insert_select_entity_component<SelectComponent>(registry, entity, pools, all_components), ...);
-}
-
-inline void insert_transient_components_default(entt::registry &registry, entt::entity entity,
-                                                std::vector<pool_snapshot> &pools) {
-    insert_select_entity_components(registry, entity, pools, networked_components, transient_components);
+    template<typename... SelectComponents, typename... Components>
+    void pool_insert_select_entity_components(entt::registry &registry, entt::entity entity,
+                                            std::vector<pool_snapshot> &pools,
+                                            std::tuple<Components...> components) {
+        (pool_insert_select_entity_component<SelectComponents>(registry, entity, pools, components), ...);
+    }
 }
 
 }

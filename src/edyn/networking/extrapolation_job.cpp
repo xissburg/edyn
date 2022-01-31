@@ -2,7 +2,10 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/dirty.hpp"
+#include "edyn/comp/linvel.hpp"
+#include "edyn/comp/orientation.hpp"
 #include "edyn/comp/rotated_mesh_list.hpp"
+#include "edyn/config/config.h"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/context/client_networking_context.hpp"
@@ -177,9 +180,13 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
 }
 
 void extrapolation_job::on_transient_snapshot(const packet::transient_snapshot &snapshot) {
+    std::vector<entt::entity> unknown_entities;
+
     for (auto &pool : snapshot.pools) {
-        m_pool_snapshot_importer->import(m_registry, m_entity_map, pool);
+        m_pool_snapshot_importer->import(m_registry, m_entity_map, pool, unknown_entities);
     }
+
+    EDYN_ASSERT(unknown_entities.empty());
 
     // Import manifolds later, after initial collision detection is done.
     // Existing imported manifolds from the coordinator exist with respect
@@ -242,24 +249,37 @@ void extrapolation_job::apply_history() {
 }
 
 void extrapolation_job::sync_and_finish() {
-    m_registry.view<AABB>().each([&] (entt::entity entity, AABB &aabb) {
+    m_registry.view<AABB>().each([&] (entt::entity entity, auto &aabb) {
+        m_delta_builder->updated(entity, aabb);
+    });
+    for (auto [entity, pos] : m_registry.view<position>().each()) {
+        m_delta_builder->updated(entity, pos);
+    }
+    m_registry.view<orientation>().each([&] (entt::entity entity, auto &aabb) {
+        m_delta_builder->updated(entity, aabb);
+    });
+    m_registry.view<linvel>().each([&] (entt::entity entity, auto &aabb) {
+        m_delta_builder->updated(entity, aabb);
+    });
+    m_registry.view<angvel>().each([&] (entt::entity entity, auto &aabb) {
         m_delta_builder->updated(entity, aabb);
     });
 
     // Update continuous components.
-    auto &settings = m_registry.ctx<edyn::settings>();
+    /* auto &settings = m_registry.ctx<edyn::settings>();
     auto &index_source = *settings.index_source;
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
             auto id = index_source.type_id_of(cont.indices[i]);
 
+            // Manifolds are sent separately.
             if (id == entt::type_id<contact_manifold>().seq()) {
                 continue;
             }
 
             m_delta_builder->updated(entity, m_registry, id);
         }
-    });
+    }); */
 
     // Send manifolds separately. They'll be matched by rigid body pairs
     // in the coordinator.

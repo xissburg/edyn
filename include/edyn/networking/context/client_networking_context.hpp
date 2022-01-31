@@ -5,6 +5,8 @@
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/networking/util/non_proc_comp_state_history.hpp"
 #include "edyn/networking/util/networked_component_index_source.hpp"
+#include "edyn/networking/util/client_pool_snapshot_importer.hpp"
+#include "edyn/networking/util/client_pool_snapshot_exporter.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/sparse_set.hpp>
@@ -26,11 +28,6 @@ struct extrapolation_job_context {
     message_queue_in_out m_message_queue;
 };
 
-void insert_entity_components_default(entt::registry &, entt::entity entity,
-                                      std::vector<pool_snapshot> &pools);
-void insert_transient_components_default(entt::registry &, entt::entity entity,
-                                         std::vector<pool_snapshot> &pools);
-
 struct client_networking_context {
     client_networking_context();
 
@@ -47,6 +44,7 @@ struct client_networking_context {
     double round_trip_time {0};
     double server_playout_delay {0.3};
     bool extrapolation_enabled {true};
+    unsigned max_concurrent_extrapolations {2};
 
     std::vector<extrapolation_job_context> extrapolation_jobs;
     non_proc_comp_state_history state_history;
@@ -70,14 +68,8 @@ struct client_networking_context {
         return entt::sink{client_entity_assigned_signal};
     }
 
-    std::shared_ptr<networked_component_index_source> index_source {new networked_component_index_source_impl(networked_components)};
     std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer;
-
-    using insert_entity_components_func_t = decltype(&insert_entity_components_default);
-    insert_entity_components_func_t insert_entity_components_func {&insert_entity_components_default};
-
-    using insert_transient_components_func_t = decltype(&insert_transient_components_default);
-    insert_transient_components_func_t insert_transient_components_func {&insert_transient_components_default};
+    std::shared_ptr<client_pool_snapshot_exporter> pool_snapshot_exporter;
 };
 
 }

@@ -10,7 +10,6 @@
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
 #include "edyn/networking/context/server_networking_context.hpp"
-#include "edyn/networking/util/server_import_pool.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
@@ -25,6 +24,7 @@ namespace edyn {
 
 bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
     if (registry.any_of<dynamic_tag>(entity)) {
+        //return false;
         auto &resident = registry.get<island_resident>(entity);
         auto &island = registry.get<edyn::island>(resident.island_entity);
         auto owned_by_this_client = false;
@@ -68,7 +68,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         }
 
         res.entities.push_back(entity);
-        (*ctx.insert_entity_components_func)(registry, entity, res.pools);
+        ctx.pool_snapshot_exporter->export_all(registry, entity, res.pools);
     }
 
     if (!res.entities.empty()) {
@@ -89,7 +89,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &ctx = registry.ctx<server_networking_context>();
 
     for (auto &pool : snapshot.pools) {
-        (*ctx.import_pool_func)(registry, client_entity, pool, false);
+        ctx.pool_snapshot_importer->import(registry, client_entity, pool);
     }
 }
 
@@ -97,7 +97,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &ctx = registry.ctx<server_networking_context>();
 
     for (auto &pool : snapshot.pools) {
-        (*ctx.import_pool_func)(registry, client_entity, pool, true);
+        ctx.pool_snapshot_importer->import(registry, client_entity, pool);
     }
 }
 
@@ -141,7 +141,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     }
 
     for (auto &pool : packet.pools) {
-        (*ctx.import_pool_func)(registry, client_entity, pool, false);
+        ctx.pool_snapshot_importer->import(registry, client_entity, pool);
     }
 
     for (auto remote_entity : packet.entities) {
@@ -322,7 +322,7 @@ void update_networking_server(entt::registry &registry) {
 
             if (!packet.entities.empty()) {
                 for (auto entity : packet.entities) {
-                    (*ctx->insert_entity_components_func)(registry, entity, packet.pools);
+                    ctx->pool_snapshot_exporter->export_all(registry, entity, packet.pools);
                 }
 
                 std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
@@ -339,7 +339,7 @@ void update_networking_server(entt::registry &registry) {
             auto packet = packet::transient_snapshot{};
 
             for (auto entity : aabboi.entities) {
-                if (registry.any_of<sleeping_tag>(entity)) {
+                if (registry.any_of<static_tag, sleeping_tag>(entity)) {
                     continue;
                 }
 
@@ -352,13 +352,13 @@ void update_networking_server(entt::registry &registry) {
                     continue;
                 }
 
-                if (!registry.all_of<procedural_tag, networked_tag>(entity)) {
+                if (!registry.all_of<networked_tag>(entity)) {
                     continue;
                 }
 
                 // Only include entities which are in islands not fully owned by the client.
                 if (!is_fully_owned_by_client(registry, client_entity, entity)) {
-                   (*ctx->insert_transient_components_func)(registry, entity, packet.pools);
+                    ctx->pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
                 }
             }
 

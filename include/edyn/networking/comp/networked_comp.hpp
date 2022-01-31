@@ -10,8 +10,6 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/center_of_mass.hpp"
-#include "edyn/comp/present_orientation.hpp"
-#include "edyn/comp/present_position.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
@@ -22,7 +20,6 @@
 #include "edyn/comp/continuous.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
-#include "edyn/networking/comp/non_proc_comp_list.hpp"
 
 namespace edyn {
 
@@ -65,8 +62,7 @@ static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple
     generic_constraint,
     cone_constraint,
     cvjoint_constraint,
-    entity_owner,
-    non_proc_comp_list
+    entity_owner
 >{});
 
 using networked_components_t = std::decay_t<decltype(networked_components)>;
