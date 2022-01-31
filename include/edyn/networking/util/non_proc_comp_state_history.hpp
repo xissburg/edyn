@@ -26,7 +26,8 @@ public:
         std::lock_guard lock(mutex);
 
         // Sorted insertion.
-        auto it = std::find_if(history.begin(), history.end(), [timestamp] (auto &&elem) { return elem.timestamp > timestamp; });
+        auto it = std::find_if(history.begin(), history.end(),
+                               [timestamp] (auto &&elem) { return elem.timestamp > timestamp; });
         history.insert(it, {std::move(delta), timestamp});
 
         if (history.size() > max_size) {
@@ -49,7 +50,9 @@ public:
         }
     }
 
-    island_delta * get_first_before(double time) {
+    const island_delta * get_first_before(double time) const {
+        std::lock_guard lock(mutex);
+
         for (auto it = history.rbegin(); it != history.rend(); ++it) {
             if (it->timestamp < time) {
                 return &it->delta;
@@ -61,7 +64,7 @@ public:
 private:
     std::deque<element> history;
     size_t max_size {100};
-    std::mutex mutex;
+    mutable std::mutex mutex;
 };
 
 }

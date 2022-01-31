@@ -141,7 +141,7 @@ void serialize(Archive &archive, pool_snapshot &pool) {
 // Pool snapshot utility functions.
 namespace internal {
     template<typename Comp>
-    void pool_insert_entity_component_single(entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools, unsigned index) {
+    void pool_insert_entity_component_single(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools, unsigned index) {
         if (!registry.any_of<Comp>(entity)) {
             return;
         }
@@ -164,7 +164,7 @@ namespace internal {
     }
 
     template<typename... Components, typename IndexType, IndexType... Is>
-    void pool_insert_entity_components_all(entt::registry &registry, entt::entity entity,
+    void pool_insert_entity_components_all(const entt::registry &registry, entt::entity entity,
                                         std::vector<pool_snapshot> &pools,
                                         [[maybe_unused]] std::tuple<Components...>,
                                         [[maybe_unused]] std::integer_sequence<IndexType, Is...>) {
@@ -172,7 +172,7 @@ namespace internal {
     }
 
     template<typename Component, typename... Components>
-    void pool_insert_select_entity_component(entt::registry &registry, entt::entity entity,
+    void pool_insert_select_entity_component(const entt::registry &registry, entt::entity entity,
                                             std::vector<pool_snapshot> &pools,
                                             [[maybe_unused]] std::tuple<Components...>) {
         constexpr auto index = index_of_v<size_t, Component, Components...>;
@@ -180,7 +180,7 @@ namespace internal {
     }
 
     template<typename... SelectComponents, typename... Components>
-    void pool_insert_select_entity_components(entt::registry &registry, entt::entity entity,
+    void pool_insert_select_entity_components(const entt::registry &registry, entt::entity entity,
                                             std::vector<pool_snapshot> &pools,
                                             std::tuple<Components...> components) {
         (pool_insert_select_entity_component<SelectComponents>(registry, entity, pools, components), ...);
