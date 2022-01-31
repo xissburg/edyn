@@ -6,12 +6,17 @@
 namespace edyn {
 
 void island_delta::import_created_entities(entt::registry &registry, entity_map &map) const {
-    auto id = entt::type_id<contact_manifold>().seq();
+    // Contact manifolds are a special case because it's necessary to check
+    // whether there already is a manifold for the pair of bodies. Thus, created
+    // entities which are manifolds, are handled separately where a new local
+    // entity is only created if there isn't a manifold for that pair of bodies
+    // yet in the contact manifold map.
+    auto contact_manifold_id = entt::type_id<contact_manifold>().seq();
     using manifold_container_type = created_entity_component_container<contact_manifold>;
     const manifold_container_type *manifold_container = nullptr;
 
-    if (m_created_components.count(id)) {
-        auto &created_ptr = m_created_components.at(id);
+    if (m_created_components.count(contact_manifold_id)) {
+        auto &created_ptr = m_created_components.at(contact_manifold_id);
         manifold_container = static_cast<const manifold_container_type *>(created_ptr.get());
     }
 
