@@ -385,11 +385,15 @@ Extra AABBs of interest are necessary in case the user can operate a free-look c
 
 Not all entities are necessarily included in one snapshot. If the server is multi-threaded, this will be done separately per island, which will result in a bunch of smaller snapshot packets being sent for the same step number. These are transient snapshots which don't need to be reliably delivered.
 
+Contact manifolds are sent in an array separate from the other component pools, which will allow the client to handle them differently. Contact manifolds are not synchronized precisely like other entities, with entity mappings and such. Instead they are matched by the pair of entities that's in contact. The `edyn::contact_manifold_map` is used to find a corresponding manifold in the client side and then they can be synchronized with the remote counterpart.
+
 ## Client sends data to server
 
-Clients will periodically send snapshots of its owned entities to the server. Dynamic components will be sent often in a stream (unreliable packets). Steady components will be sent when they change (reliable packets).
+Clients will periodically send snapshots of its owned entities to the server. Dynamic components will be sent often in transient snapshots, which can be sent as unreliable packets. Steady components will be sent when they change in a general snapshot, which must be sent as reliable packets.
 
-One important piece that has to be managed by the user of the library are user inputs which will be also applied in the server. It's important that an input history is sent so that the chance of an input not reaching the server is lowered in case of packet loss.
+Due to packet loss, important state updates might be missed on the server side if the component being updated is not continuous, such as firing a weapon, versus something that is continuous which wouldn't be much of a problem, such as a floating point steering input of a vehicle. As a form of prevention, the transient snapshot may contain a component state history, which is an array of pairs of timestamp and value.
+
+The server will keep a state history for these components and will merge new received state into the history and replace duplicate elements, to maintain it as a list of states sorted by timestamp. When applying client state from the playout delay buffer, it will go over every state change since the last update and apply them individually, thus going over all values that have been set between two updates.
 
 ## Client receives data from server
 
@@ -399,15 +403,19 @@ The client keeps an entity map which maps between local and remote entities. If 
 
 The server will notify a client whenever a new entity enters its AABB of interest, providing the state of all components. It'll also notify the client when the entity leaves. That means most times, the entity will be available locally by the time a new snapshot arrives.
 
-Upon receiving snapshots from the server, the client is required to extrapolate these to the future before merging them onto its local simulation since the server simulation stays in the past plus there's latency to compensate for. The amount of time to extrapolate forward is calculated based on the snapshot step number converted to the local time frame.
+Upon receiving snapshots from the server, the client is required to extrapolate these to the future before merging them onto its local simulation since the server simulation stays in the past plus there's latency to compensate for. The timestamp of the received snapshot is estimated to be the current time minus half the RTT minus the server playout delay.
 
-Extrapolation is performed in a background worker thread. It is the same as a typical island worker job except that it is not synchronized with the global timer, i.e. it runs the simulation steps one immediately after the other, as quickly as possible.
+Extrapolation is performed in a background worker thread. It is similar to an island worker job except that it does not run in real time, i.e. it runs the simulation steps one immediately after the other, as quickly as possible. Starting at the estimated transient snapshot timestamp, it attempts to extrapolate until the current time, which is a moving target. It is possible that the time it takes to run one simulation step is greater than the fixed delta time, which means that the extrapolation would never finish in that case, since after each step is completed, the current time has moved further away than the simulation delta time. That situation must be detected and the extrapolation must be terminated early.
 
-The client-side networking system should prepare a registry snapshot containing all entities involved in the extrapolation and put it into the message queue of the extrapolation job. It should also send the transient snapshot to the extrapolation job. When run, the extrapolation job will read these messages and instantiate all entities and components with the first message, and apply the server state with the second. Then it's ready to run the extrapolation.
+Extrapolation jobs are launched as soon as a transient snapshot packet arrives. Multiple extrapolations can be run concurrently, but a limit has to be set to prevent excessive resource usage and a general slowdown. Thus, a maximum number of extrapolations is set (two or three) and if a transient snapshot arrives while there are already the maximum number of extrapolations running, it is discarded. Though, even if the extrapolation is rejected, the state of the non-procedural components in the transient snapshot must be inserted into the state history.
 
-Once it's done, it sends a registry snapshot to the coordinator containing the final state to be applied. The coordinator might have to step the extrapolation job's simulation forward once or twice to make the step number match and then it overrides its components with the extrapolated data.
+The client-side networking system should prepare a registry snapshot containing all entities involved in the extrapolation and put it into the message queue of the extrapolation job. It should also send the transient snapshot to the extrapolation job. When run, the extrapolation job will initially read these messages and instantiate all entities and components with the first message, and apply the server state with the second. Then it's ready to run the extrapolation.
 
-In case the server had taken ownership of an entity that's owned by the client, this entity will be contained in the snapshot. In this case it is necessary to also apply all inputs during extrapolation, thus a local input history has to be kept to be used here.
+Once it's done, it sends a registry snapshot to the coordinator containing the final state to be applied. Contact manifolds are included in a separate array for special handling where manifolds are matched by the entity pair they connect. Manifolds that match have their contents replaced and new manifolds are created for pairs that don't yet have one.
+
+After the state is merged in the main registry it must be sent to the island workers. That's done through calls to `edyn::refresh` for all updated entities and components.
+
+In case the server had taken ownership of an entity that's owned by the client, this entity will be contained in the snapshot. In this case it is necessary to also apply all inputs during extrapolation, thus a local input history has to be kept to be used here. Input should be stored in non-procedural components which must be registered with a call to `edyn::register_networked_components`.
 
 The server snapshot will usually contain a single island. If the extrapolation is too long, the entities in it would possibly collide with an existing object from another local island and the collision would be missed or detected only when merging. A solution would be to keep a history of all objects so that islands nearby the server snapshot island can be rolled back and extrapolated with it, but that seems to be an extra amount of processing and storage to be done for little benefit. As long as the extrapolations are not too long (which usually shouldn't be), this won't be a significant problem. This might be interesting to do for the client's entities though.
 
