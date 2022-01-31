@@ -146,6 +146,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         auto &cont = registry.emplace<continuous>(entity);
         cont.insert(settings.index_source->indices_of<position, orientation, linvel, angvel>());
 
+        if (def.shape) {
+            cont.insert(settings.index_source->index_of<AABB>());
+        }
+
         if (def.center_of_mass) {
             cont.insert(settings.index_source->index_of<origin>());
         }

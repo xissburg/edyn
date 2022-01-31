@@ -321,11 +321,6 @@ void island_worker::on_wake_up_island(const msg::wake_up_island &) {
 }
 
 void island_worker::sync() {
-    // Always update AABBs since they're needed for broad-phase in the coordinator.
-    m_registry.view<AABB>().each([&] (entt::entity entity, AABB &aabb) {
-        m_delta_builder->updated(entity, aabb);
-    });
-
     // Updated contact points are needed when moving entities from one island to
     // another when merging/splitting in the coordinator.
     // TODO: the island worker refactor would eliminate the need to share these
