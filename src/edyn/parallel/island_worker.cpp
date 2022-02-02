@@ -95,7 +95,6 @@ void island_worker::init() {
     m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_graph_node>(*this);
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
-    m_registry.on_destroy<contact_manifold>().connect<&island_worker::on_destroy_contact_manifold>(*this);
     m_registry.on_construct<polyhedron_shape>().connect<&island_worker::on_construct_polyhedron_shape>(*this);
     m_registry.on_construct<compound_shape>().connect<&island_worker::on_construct_compound_shape>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&island_worker::on_destroy_rotated_mesh_list>(*this);
@@ -128,26 +127,6 @@ void island_worker::init() {
     m_registry.emplace<tree_view>(m_island_entity, tview);
 
     m_state = state::step;
-}
-
-void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
-    const auto importing = m_importing_delta;
-    const auto splitting = m_splitting.load(std::memory_order_relaxed);
-
-    // If importing, do not insert this event into the delta because the entity
-    // was already destroyed in the coordinator.
-    // If splitting, do not insert this destruction event into the delta because
-    // the entity is not actually being destroyed, it's just being moved into
-    // another island.
-    if (!importing && !splitting) {
-        m_delta_builder->destroyed(entity);
-    }
-
-    // Mapping might not yet exist if this entity was just created locally and
-    // the coordinator has not yet replied back with the main entity id.
-    if (m_entity_map.has_loc(entity)) {
-        m_entity_map.erase_loc(entity);
-    }
 }
 
 void island_worker::on_construct_graph_node(entt::registry &registry, entt::entity entity) {

@@ -109,6 +109,8 @@ void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::en
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
 
+    m_delta_builder->destroyed(entity);
+
     if (m_entity_map.has_loc(entity)) {
         m_entity_map.erase_loc(entity);
     }
@@ -119,6 +121,8 @@ void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::en
         auto &edge = registry.get<graph_edge>(entity);
         registry.ctx<entity_graph>().remove_edge(edge.edge_index);
     }
+
+    m_delta_builder->destroyed(entity);
 
     if (m_entity_map.has_loc(entity)) {
         m_entity_map.erase_loc(entity);
@@ -142,7 +146,8 @@ void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, e
 }
 
 void extrapolation_job::on_island_delta(const island_delta &delta) {
-    // Import components from main registry.
+    // Import entities and components that will be taking part in this
+    // extrapolation.
     delta.import(m_registry, m_entity_map);
 
     for (auto remote_entity : delta.created_entities()) {
@@ -180,6 +185,8 @@ void extrapolation_job::on_island_delta(const island_delta &delta) {
 }
 
 void extrapolation_job::on_transient_snapshot(const packet::transient_snapshot &snapshot) {
+    // Apply state received from server to be the initial state of the
+    // extrapolation.
     std::vector<entt::entity> unknown_entities;
 
     for (auto &pool : snapshot.pools) {
@@ -249,50 +256,31 @@ void extrapolation_job::apply_history() {
 }
 
 void extrapolation_job::sync_and_finish() {
-    m_registry.view<AABB>().each([&] (entt::entity entity, auto &aabb) {
-        m_delta_builder->updated(entity, aabb);
-    });
-    for (auto [entity, pos] : m_registry.view<position>().each()) {
-        m_delta_builder->updated(entity, pos);
-    }
-    m_registry.view<orientation>().each([&] (entt::entity entity, auto &aabb) {
-        m_delta_builder->updated(entity, aabb);
-    });
-    m_registry.view<linvel>().each([&] (entt::entity entity, auto &aabb) {
-        m_delta_builder->updated(entity, aabb);
-    });
-    m_registry.view<angvel>().each([&] (entt::entity entity, auto &aabb) {
-        m_delta_builder->updated(entity, aabb);
-    });
-
     // Update continuous components.
-    /* auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx<edyn::settings>();
     auto &index_source = *settings.index_source;
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
             auto id = index_source.type_id_of(cont.indices[i]);
-
-            // Manifolds are sent separately.
-            if (id == entt::type_id<contact_manifold>().seq()) {
-                continue;
-            }
-
             m_delta_builder->updated(entity, m_registry, id);
         }
-    }); */
+    });
 
-    // Send manifolds separately. They'll be matched by rigid body pairs
-    // in the coordinator.
-    auto manifold_view = m_registry.view<contact_manifold>();
-    std::vector<contact_manifold> manifolds;
-    manifolds.reserve(manifold_view.size());
+    m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
+        if (dirty.is_new_entity) {
+            m_delta_builder->created(entity);
+        }
 
-    manifold_view.each([&] (contact_manifold &manifold) {
-        manifolds.push_back(manifold);
+        m_delta_builder->created(entity, m_registry,
+            dirty.created_indexes.begin(), dirty.created_indexes.end());
+        m_delta_builder->updated(entity, m_registry,
+            dirty.updated_indexes.begin(), dirty.updated_indexes.end());
+        m_delta_builder->destroyed(entity,
+            dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
     });
 
     auto delta = m_delta_builder->finish();
-    m_message_queue.send<extrapolation_completed>(std::move(delta), std::move(manifolds), m_current_time);
+    m_message_queue.send<extrapolation_completed>(std::move(delta), m_current_time);
 
     m_finished.store(true, std::memory_order_release);
 }

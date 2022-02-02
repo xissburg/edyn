@@ -11,6 +11,7 @@ public:
     virtual void export_all(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;
     virtual void export_transient(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;
     virtual void export_non_procedural(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;
+    virtual void export_by_type_id(const entt::registry &registry, entt::entity entity, entt::id_type id, std::vector<pool_snapshot> &pools) = 0;
 };
 
 template<typename... Components>
@@ -48,6 +49,12 @@ public:
 
     void export_non_procedural(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) override {
         (*insert_non_procedural_entity_components_func)(registry, entity, pools);
+    }
+
+    void export_by_type_id(const entt::registry &registry, entt::entity entity, entt::id_type id, std::vector<pool_snapshot> &pools) override {
+        const std::tuple<Components...> components;
+        ((entt::type_id<Components>().seq() == id ?
+            internal::pool_insert_select_entity_component<Components>(registry, entity, pools, components) : void(0)), ...);
     }
 };
 

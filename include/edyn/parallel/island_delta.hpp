@@ -24,12 +24,12 @@ class island_delta {
     template<typename Component>
     void _reserve_created(size_t size);
 
-    void import_created_entities(entt::registry &, entity_map &) const;
+    void import_created_entities(entt::registry &, entity_map &, bool mark_dirty) const;
     void import_destroyed_entities(entt::registry &, entity_map &) const;
 
-    void import_updated_components(entt::registry &, entity_map &) const;
-    void import_created_components(entt::registry &, entity_map &) const;
-    void import_destroyed_components(entt::registry &, entity_map &) const;
+    void import_updated_components(entt::registry &, entity_map &, bool mark_dirty) const;
+    void import_created_components(entt::registry &, entity_map &, bool mark_dirty) const;
+    void import_destroyed_components(entt::registry &, entity_map &, bool mark_dirty) const;
 
     template<typename Component, typename Func>
     void _created_for_each(Func func) const {
@@ -71,7 +71,7 @@ public:
      * Imports this delta into a registry by mapping the entities into the domain
      * of the target registry according to the provided `entity_map`.
      */
-    void import(entt::registry &, entity_map &) const;
+    void import(entt::registry &, entity_map &, bool mark_dirty = false) const;
 
     bool empty() const;
 

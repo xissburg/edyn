@@ -1,11 +1,13 @@
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
+#include "edyn/config/config.h"
+#include "edyn/util/vector.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
 
-void island_delta::import_created_entities(entt::registry &registry, entity_map &map) const {
+void island_delta::import_created_entities(entt::registry &registry, entity_map &map, bool mark_dirty) const {
     // Contact manifolds are a special case because it's necessary to check
     // whether there already is a manifold for the pair of bodies. Thus, created
     // entities which are manifolds, are handled separately where a new local
@@ -33,6 +35,10 @@ void island_delta::import_created_entities(entt::registry &registry, entity_map 
 
         auto local_entity = registry.create();
         map.insert(remote_entity, local_entity);
+
+        if (mark_dirty) {
+            registry.get_or_emplace<dirty>(local_entity).set_new();
+        }
     }
 
     if (manifold_container) {
@@ -48,8 +54,21 @@ void island_delta::import_created_entities(entt::registry &registry, entity_map 
 
             if (manifold_map.contains(local_body0, local_body1)) {
                 local_entity = manifold_map.get(local_body0, local_body1);
+
+                if (map.has_loc(local_entity)) {
+                    // Another remote entity maps into this local entity, which means
+                    // a previous manifold existed between these bodies and was deleted
+                    // in the source. Thus, just replace the old mapping with the new.
+                    auto other_remote_entity = map.locrem(local_entity);
+                    EDYN_ASSERT(vector_contains(m_destroyed_entities, other_remote_entity));
+                    map.erase_rem(other_remote_entity);
+                }
             } else {
                 local_entity = registry.create();
+
+                if (mark_dirty) {
+                    registry.get_or_emplace<dirty>(local_entity).set_new();
+                }
             }
 
             map.insert(remote_entity, local_entity);
@@ -69,35 +88,35 @@ void island_delta::import_destroyed_entities(entt::registry &registry, entity_ma
     }
 }
 
-void island_delta::import_updated_components(entt::registry &registry, entity_map &map) const {
+void island_delta::import_updated_components(entt::registry &registry, entity_map &map, bool mark_dirty) const {
     for (auto &pair : m_updated_components) {
-        pair.second->import(registry, map);
+        pair.second->import(registry, map, mark_dirty);
     }
 }
 
-void island_delta::import_created_components(entt::registry &registry, entity_map &map) const {
+void island_delta::import_created_components(entt::registry &registry, entity_map &map, bool mark_dirty) const {
     for (auto &pair : m_created_components) {
-        pair.second->import(registry, map);
+        pair.second->import(registry, map, mark_dirty);
     }
 }
 
-void island_delta::import_destroyed_components(entt::registry &registry, entity_map &map) const {
+void island_delta::import_destroyed_components(entt::registry &registry, entity_map &map, bool mark_dirty) const {
     for (auto &pair : m_destroyed_components) {
-        pair.second->import(registry, map);
+        pair.second->import(registry, map, mark_dirty);
     }
 }
 
-void island_delta::import(entt::registry &registry, entity_map &map) const {
+void island_delta::import(entt::registry &registry, entity_map &map, bool mark_dirty) const {
     m_entity_map.each([&registry, &map] (entt::entity remote_entity, entt::entity local_entity) {
         if (!map.has_rem(remote_entity) && registry.valid(local_entity)) {
             map.insert(remote_entity, local_entity);
         }
     });
 
-    import_created_entities(registry, map);
-    import_created_components(registry, map);
-    import_updated_components(registry, map);
-    import_destroyed_components(registry, map);
+    import_created_entities(registry, map, mark_dirty);
+    import_created_components(registry, map, mark_dirty);
+    import_updated_components(registry, map, mark_dirty);
+    import_destroyed_components(registry, map, mark_dirty);
     import_destroyed_entities(registry, map);
 }
 

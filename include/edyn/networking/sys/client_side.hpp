@@ -12,7 +12,7 @@ void update_networking_client(entt::registry &);
 void client_handle_packet(entt::registry &, const packet::edyn_packet &);
 
 entt::sink<void()> on_client_entity_assigned(entt::registry &);
-bool client_owns_entity(entt::registry &, entt::entity);
+bool client_owns_entity(const entt::registry &, entt::entity);
 
 }
 

@@ -5,6 +5,7 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/edyn.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
+#include "edyn/networking/packet/general_snapshot.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
@@ -155,57 +156,27 @@ void update_networking_client(entt::registry &registry) {
     ctx.extrapolation_jobs.erase(remove_it, ctx.extrapolation_jobs.end());
 
     update_non_proc_comp_state_history(registry, ctx.state_history, time);
+
+    auto dirty_view = registry.view<dirty, networked_tag>();
+
+    if (dirty_view.size_hint() > 0) {
+        auto packet = packet::general_snapshot{};
+
+        for (auto [entity, dirty] : dirty_view.each()) {
+            for (auto id : dirty.updated_indexes) {
+                ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
+            }
+        }
+
+        if (!packet.pools.empty()) {
+            ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+        }
+    }
 }
 
 static void apply_extrapolation_result(entt::registry &registry, extrapolation_completed &extr) {
     auto emap = entity_map{};
-    extr.delta.import(registry, emap);
-
-    // Must refresh entities in workers after applying state in coordinator.
-    extr.delta.updated_for_each<AABB, position, orientation, linvel, angvel>(
-        [&] (entt::entity remote_entity, auto &&comp) {
-            if (!emap.has_rem(remote_entity)) return;
-            auto local_entity = emap.remloc(remote_entity);
-
-            if (registry.valid(local_entity)) {
-                using Component = std::decay_t<decltype(comp)>;
-                edyn::refresh<Component>(registry, local_entity);
-            }
-        });
-
-    // Find matching contact manifolds for the same pair of rigid bodies or
-    // create new manifolds.
-    auto &manifold_map = registry.ctx<contact_manifold_map>();
-    for (auto &manifold : extr.manifolds) {
-        if (!emap.has_rem(manifold.body[0]) ||
-            !emap.has_rem(manifold.body[1])) {
-            continue;
-        }
-
-        manifold.body[0] = emap.remloc(manifold.body[0]);
-        manifold.body[1] = emap.remloc(manifold.body[1]);
-
-        // Find a matching manifold and replace it...
-        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
-            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
-            auto &local_manifold = registry.get<contact_manifold>(manifold_entity);
-
-            if (local_manifold.body[0] != manifold.body[0]) {
-                swap_manifold(manifold);
-            }
-            EDYN_ASSERT(local_manifold.body[0] == manifold.body[0]);
-            EDYN_ASSERT(local_manifold.body[1] == manifold.body[1]);
-            local_manifold = manifold;
-            edyn::refresh<contact_manifold>(registry, manifold_entity);
-        } else {
-            // ...or create a new one and assign a new value to it.
-            auto separation_threshold = contact_breaking_threshold * scalar(4 * 1.3);
-            auto manifold_entity = make_contact_manifold(registry,
-                                                         manifold.body[0], manifold.body[1],
-                                                         separation_threshold);
-            registry.get<contact_manifold>(manifold_entity) = manifold;
-        }
-    }
+    extr.delta.import(registry, emap, true);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -530,7 +501,7 @@ entt::sink<void()> on_client_entity_assigned(entt::registry &registry) {
     return entt::sink{ctx.client_entity_assigned_signal};
 }
 
-bool client_owns_entity(entt::registry &registry, entt::entity entity) {
+bool client_owns_entity(const entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx<client_networking_context>();
     return ctx.client_entity == registry.get<entity_owner>(entity).client_entity;
 }

@@ -12,7 +12,7 @@
 
 namespace edyn {
 
-bool client_owns_entity(entt::registry &registry, entt::entity entity);
+bool client_owns_entity(const entt::registry &registry, entt::entity entity);
 
 class client_pool_snapshot_importer {
 public:
@@ -73,7 +73,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
     static void insert_remote_to_builder(
                 const entt::registry &registry,
                 const std::vector<std::pair<entt::entity, Component>> &pairs,
-                entity_map &emap, island_delta_builder &builder) {
+                const entity_map &emap, island_delta_builder &builder) {
 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;

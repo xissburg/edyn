@@ -20,7 +20,7 @@ void register_networked_components(entt::registry &registry,
     auto non_procedural_all = non_procedural_external;
 
     if (auto *ctx = registry.try_ctx<client_networking_context>()) {
-        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(all));
+        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(all, non_procedural_all));
         ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(all, transient_all, non_procedural_all));
     }
 

@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 #include <entt/entity/registry.hpp>
+#include "edyn/comp/dirty.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/merge/merge_contact_manifold.hpp"
 #include "edyn/parallel/merge/merge_constraint.hpp"
@@ -15,7 +16,7 @@ namespace edyn {
 
 struct entity_component_container_base {
     virtual ~entity_component_container_base() {}
-    virtual void import(entt::registry &, entity_map &) = 0;
+    virtual void import(entt::registry &, entity_map &, bool mark_dirty = false) = 0;
     virtual void reserve(size_t size) = 0;
     virtual bool empty() const = 0;
     virtual void clear() = 0;
@@ -31,7 +32,7 @@ struct updated_entity_component_container: public entity_component_container_bas
         pairs.emplace_back(entity, comp);
     }
 
-    void import(entt::registry &registry, entity_map &emap) override {
+    void import(entt::registry &registry, entity_map &emap, bool mark_dirty) override {
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
             if (!emap.has_rem(remote_entity)) continue;
@@ -39,6 +40,10 @@ struct updated_entity_component_container: public entity_component_container_bas
 
             merge(pair.second, emap);
             registry.replace<Component>(local_entity, pair.second);
+
+            if (mark_dirty) {
+                registry.get_or_emplace<dirty>(local_entity).template updated<Component>();
+            }
         }
     }
 
@@ -63,7 +68,7 @@ struct created_entity_component_container: public entity_component_container_bas
         pairs.emplace_back(entity, comp);
     }
 
-    void import(entt::registry &registry, entity_map &emap) override {
+    void import(entt::registry &registry, entity_map &emap, bool mark_dirty) override {
         size_t index = 0;
 
         while (index < pairs.size()) {
@@ -93,6 +98,10 @@ struct created_entity_component_container: public entity_component_container_bas
                 registry.emplace<Component>(local_entity, pair.second);
             }
 
+            if (mark_dirty) {
+                registry.get_or_emplace<dirty>(local_entity).template created<Component>();
+            }
+
             ++index;
         }
     }
@@ -114,11 +123,15 @@ template<typename Component>
 struct destroyed_entity_component_container: public entity_component_container_base {
     std::vector<entt::entity> entities;
 
-    void import(entt::registry &registry, entity_map &map) override {
+    void import(entt::registry &registry, entity_map &map, bool mark_dirty) override {
         for (auto remote_entity : entities) {
             if (!map.has_rem(remote_entity)) continue;
             auto local_entity = map.remloc(remote_entity);
             registry.remove<Component>(local_entity);
+
+            if (mark_dirty) {
+                registry.get_or_emplace<dirty>(local_entity).template destroyed<Component>();
+            }
         }
     }
 
