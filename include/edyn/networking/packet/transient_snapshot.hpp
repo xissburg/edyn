@@ -9,7 +9,6 @@ namespace edyn::packet {
 
 struct transient_snapshot {
     std::vector<pool_snapshot> pools;
-    std::vector<uint8_t> user_data;
     std::vector<contact_manifold> manifolds;
 
     void convert_remloc(entity_map &emap) {
@@ -34,7 +33,6 @@ template<typename Archive>
 void serialize(Archive &archive, transient_snapshot &snapshot) {
     archive(snapshot.pools);
     archive(snapshot.manifolds);
-    archive(snapshot.user_data);
 }
 
 }

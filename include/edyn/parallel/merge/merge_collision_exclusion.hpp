@@ -8,7 +8,7 @@
 namespace edyn {
 
 template<> inline
-void merge(collision_exclusion &new_comp, entity_map &emap) {
+void merge(collision_exclusion &new_comp, const entity_map &emap) {
     unsigned num_entities = 0;
     auto entities = std::array<entt::entity, collision_exclusion::max_exclusions>{};
 

@@ -389,7 +389,7 @@ Contact manifolds are sent in an array separate from the other component pools, 
 
 ## Client sends data to server
 
-Clients will periodically send snapshots of its owned entities to the server. Dynamic components will be sent often in transient snapshots, which can be sent as unreliable packets. Steady components will be sent when they change in a general snapshot, which must be sent as reliable packets.
+Clients will periodically send snapshots containing all entities in the islands where their owned entities reside to the server. Dynamic components will be sent often in transient snapshots, which can be sent as unreliable packets. Steady components will be sent when they change in a general snapshot, which must be sent as reliable packets.
 
 Due to packet loss, important state updates might be missed on the server side if the component being updated is not continuous, such as firing a weapon, versus something that is continuous which wouldn't be much of a problem, such as a floating point steering input of a vehicle. As a form of prevention, the transient snapshot may contain a component state history, which is an array of pairs of timestamp and value.
 
@@ -411,9 +411,7 @@ Extrapolation jobs are launched as soon as a transient snapshot packet arrives. 
 
 The client-side networking system should prepare a registry snapshot containing all entities involved in the extrapolation and put it into the message queue of the extrapolation job. It should also send the transient snapshot to the extrapolation job. When run, the extrapolation job will initially read these messages and instantiate all entities and components with the first message, and apply the server state with the second. Then it's ready to run the extrapolation.
 
-Once it's done, it sends a registry snapshot to the coordinator containing the final state to be applied. Contact manifolds are included in a separate array for special handling where manifolds are matched by the entity pair they connect. Manifolds that match have their contents replaced and new manifolds are created for pairs that don't yet have one.
-
-After the state is merged in the main registry it must be sent to the island workers. That's done through calls to `edyn::refresh` for all updated entities and components.
+Once it's done, it sends a registry snapshot to the client-side system containing the final state to be applied. With the extrapolated state in hand, the client-side must send the updated components of all entities involved to the respective island workers. The non-procedural components can be merged right away into the main registry. The procedural components should not be merged into the main registry directly because they will be replaced immediately after by the old state which is coming from the island workers continuously and only after the island worker receives the extrapolated state they would start to be merged into the main registry with the new state, which can lead to visual glitches, especially considering the position and orientation components.
 
 In case the server had taken ownership of an entity that's owned by the client, this entity will be contained in the snapshot. In this case it is necessary to also apply all inputs during extrapolation, thus a local input history has to be kept to be used here. Input should be stored in non-procedural components which must be registered with a call to `edyn::register_networked_components`.
 

@@ -15,12 +15,12 @@ struct parent_component {
 // context of the other registry where it's being imported into.
 namespace edyn {
     template<> inline
-    void merge(custom_component &new_comp, entity_map &emap) {
+    void merge(custom_component &new_comp, const entity_map &emap) {
         new_comp.entity = emap.remloc(new_comp.entity);
     }
 
     template<> inline
-    void merge(parent_component &new_comp, entity_map &emap) {
+    void merge(parent_component &new_comp, const entity_map &emap) {
         for (auto &entity : new_comp.entity) {
             entity = emap.remloc(entity);
         }

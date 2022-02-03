@@ -1,6 +1,7 @@
 #include "edyn/networking/sys/client_side.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/edyn.hpp"
@@ -21,6 +22,7 @@
 #include "edyn/networking/util/non_proc_comp_state_history.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/tuple_util.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <set>
 
@@ -100,6 +102,31 @@ void deinit_networking_client(entt::registry &registry) {
     registry.on_destroy<entity_owner>().disconnect<&on_destroy_entity_owner>();
 }
 
+static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
+    entt::sparse_set island_entities;
+
+    for (auto entity : result.entities) {
+        if (auto *resident = registry.try_get<island_resident>(entity)) {
+            if (!island_entities.contains(resident->island_entity)) {
+                island_entities.emplace(resident->island_entity);
+            }
+        } else if (auto *resident = registry.try_get<multi_island_resident>(entity)) {
+            for (auto island_entity : resident->island_entities) {
+                if (!island_entities.contains(island_entity)) {
+                    island_entities.emplace(island_entity);
+                }
+            }
+        }
+    }
+
+    EDYN_ASSERT(!island_entities.empty());
+    auto &coordinator = registry.ctx<island_coordinator>();
+
+    for (auto island_entity : island_entities) {
+        coordinator.send_island_message<extrapolation_result>(island_entity, std::move(result));
+    }
+}
+
 void update_networking_client(entt::registry &registry) {
     auto &ctx = registry.ctx<client_networking_context>();
 
@@ -146,9 +173,10 @@ void update_networking_client(entt::registry &registry) {
     // Check if extrapolation jobs are finished and merge their results into
     // the main registry.
     auto remove_it = std::remove_if(ctx.extrapolation_jobs.begin(), ctx.extrapolation_jobs.end(),
-                                    [] (extrapolation_job_context &extr_ctx) {
+                                    [&] (extrapolation_job_context &extr_ctx) {
         if (extr_ctx.job->is_finished()) {
-            extr_ctx.m_message_queue.update();
+            auto &result = extr_ctx.job->get_result();
+            apply_extrapolation_result(registry, result);
             return true;
         }
         return false;
@@ -172,11 +200,6 @@ void update_networking_client(entt::registry &registry) {
             ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
         }
     }
-}
-
-static void apply_extrapolation_result(entt::registry &registry, extrapolation_completed &extr) {
-    auto emap = entity_map{};
-    extr.delta.import(registry, emap, true);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -379,30 +402,38 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
         return;
     }
 
-    auto &graph = registry.ctx<entity_graph>();
-
-    // Collect the node indices of all entities involved in the snapshot.
-    std::set<entity_graph::index_type> node_indices;
-    auto node_view = registry.view<graph_node>();
+    // Collect unique entities in the snapshot.
+    entt::sparse_set snapshot_entities;
 
     for (auto &pool : snapshot.pools) {
         auto pool_entities = pool.ptr->get_entities();
 
-        for (auto remote_entity : pool_entities) {
-            if (!ctx.entity_map.has_rem(remote_entity)) {
-                // Entity not present in client. Send an entity request to server.
-                ctx.request_entity_signal.publish(remote_entity);
-                continue;
+        for (auto entity : pool_entities) {
+            if (!snapshot_entities.contains(entity)) {
+                snapshot_entities.emplace(entity);
             }
+        }
+    }
 
-            auto local_entity = ctx.entity_map.remloc(remote_entity);
+    // Collect the node indices of all entities involved in the snapshot.
+    std::set<entity_graph::index_type> node_indices;
+    auto node_view = registry.view<graph_node>();
+    auto &graph = registry.ctx<entity_graph>();
 
-            if (node_view.contains(local_entity)) {
-                auto node_index = node_view.get<graph_node>(local_entity).node_index;
+    for (auto remote_entity : snapshot_entities) {
+        if (!ctx.entity_map.has_rem(remote_entity)) {
+            // Entity not present in client. Send an entity request to server.
+            ctx.request_entity_signal.publish(remote_entity);
+            continue;
+        }
 
-                if (graph.is_connecting_node(node_index)) {
-                    node_indices.insert(node_index);
-                }
+        auto local_entity = ctx.entity_map.remloc(remote_entity);
+
+        if (node_view.contains(local_entity)) {
+            auto node_index = node_view.get<graph_node>(local_entity).node_index;
+
+            if (graph.is_connecting_node(node_index)) {
+                node_indices.insert(node_index);
             }
         }
     }
@@ -432,7 +463,7 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
         [] () { // connectedComponentFunc
         });
 
-    // Include static entities.
+    // TODO: only include the necessary static entities.
     for (auto entity : registry.view<static_tag>()) {
         if (!entities.contains(entity)) {
             entities.emplace(entity);
@@ -440,36 +471,26 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     }
 
     // Create registry snapshot to send to extrapolation job.
-    auto builder = make_island_delta_builder(registry);
-    for (auto entity : entities) {
-        builder->created(entity);
-        builder->created_all(entity, registry);
-    }
+    extrapolation_input input;
+    input.extrapolation_component_pool_import_by_id_func = ctx.extrapolation_component_pool_import_by_id_func;
+    (*ctx.extrapolation_component_pool_import_func)(input.pools, registry, entities);
+    input.start_time = snapshot_time;
+    input.entities = std::move(entities);
 
     // Translate transient snapshot into client's space before sending it to
     // the extrapolation job, or else it won't be able to assimilate the
     // server-side entities with client side-entities.
-    auto translated_snapshot = snapshot;
-    translated_snapshot.convert_remloc(ctx.entity_map);
+    input.transient_snapshot = snapshot;
+    input.transient_snapshot.convert_remloc(ctx.entity_map);
 
     // Create extrapolation job and put the registry snapshot and the transient
     // snapshot into its message queue.
     auto &material_table = registry.ctx<material_mix_table>();
 
-    auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
-    auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
-
-    auto job = std::make_unique<extrapolation_job>(snapshot_time, settings, material_table,
-                                                   ctx.pool_snapshot_importer, ctx.state_history,
-                                                   message_queue_in_out(main_queue_input, isle_queue_output));
-    isle_queue_input.send<island_delta>(builder->finish());
-    isle_queue_input.send<packet::transient_snapshot>(translated_snapshot);
-    main_queue_output.sink<extrapolation_completed>().connect<&apply_extrapolation_result>(registry);
-
+    auto job = std::make_unique<extrapolation_job>(std::move(input), settings, material_table, ctx.state_history);
     job->reschedule();
 
-    ctx.extrapolation_jobs.push_back(extrapolation_job_context{std::move(job),
-                                     message_queue_in_out(isle_queue_input, main_queue_output)});
+    ctx.extrapolation_jobs.push_back(extrapolation_job_context{std::move(job)});
 }
 
 static void process_packet(entt::registry &registry, const packet::general_snapshot &snapshot) {

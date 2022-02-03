@@ -21,119 +21,100 @@
 
 namespace edyn {
 
-struct pool_snapshot_data_base {
+struct pool_snapshot_data {
     virtual std::vector<entt::entity> get_entities() const = 0;
     virtual void convert_remloc(entity_map &) = 0;
+    virtual void write(memory_output_archive &archive) = 0;
+    virtual void read(memory_input_archive &archive) = 0;
+    virtual void replace_into_registry(entt::registry &registry, entity_map &emap) = 0;
 };
 
 template<typename Component>
-struct pool_snapshot_data : public pool_snapshot_data_base {
-    std::vector<std::pair<entt::entity, Component>> pairs;
+struct pool_snapshot_data_impl : public pool_snapshot_data {
+    static constexpr auto is_empty_type = std::is_empty_v<Component>;
+    using element_type = std::conditional_t<is_empty_type, entt::entity, std::pair<entt::entity, Component>>;
+    std::vector<element_type> data;
 
     std::vector<entt::entity> get_entities() const override {
-        auto entities = std::vector<entt::entity>(pairs.size());
-        std::transform(pairs.begin(), pairs.end(), entities.begin(), [] (auto &&pair) { return pair.first; });
-        return entities;
+        if constexpr(is_empty_type) {
+            return data;
+        } else {
+            auto entities = std::vector<entt::entity>(data.size());
+            std::transform(data.begin(), data.end(), entities.begin(), [] (auto &&pair) { return pair.first; });
+            return entities;
+        }
     }
 
     void convert_remloc(entity_map &emap) override {
-        for (auto &pair : pairs) {
-            pair.first = emap.remloc(pair.first);
-            merge(pair.second, emap);
+        if constexpr(is_empty_type) {
+            for (auto &entity : data) {
+                entity = emap.remloc(entity);
+            }
+        } else {
+            for (auto &pair : data) {
+                pair.first = emap.remloc(pair.first);
+                merge(pair.second, emap);
+            }
+        }
+    }
+
+    void write(memory_output_archive &archive) override {
+        archive(data);
+    }
+
+    void read(memory_input_archive &archive) override {
+        archive(data);
+    }
+
+    void replace_into_registry(entt::registry &registry, entity_map &emap) override {
+        if constexpr(!is_empty_type) {
+            for (auto &pair : data) {
+                auto remote_entity = pair.first;
+                if (!emap.has_rem(remote_entity)) continue;
+                auto local_entity = emap.remloc(pair.first);
+                if (!registry.valid(local_entity)) continue;
+                if (!registry.all_of<Component>(local_entity)) continue;
+                auto &comp = pair.second;
+                merge(comp, emap);
+                registry.replace<Component>(local_entity, comp);
+            }
         }
     }
 };
 
 struct pool_snapshot {
     unsigned component_index;
-    std::shared_ptr<pool_snapshot_data_base> ptr;
+    std::shared_ptr<pool_snapshot_data> ptr;
 };
 
-template<typename Archive, typename Component>
-void serialize(Archive &archive, pool_snapshot_data<Component> &pool) {
-    archive(pool.pairs);
-}
-
-namespace detail {
-    template<typename Archive, typename Component>
-    constexpr auto make_serialize_pool_snapshot_base_function() {
-        return [] (Archive &archive, pool_snapshot_data_base &pool) {
-            auto &typed_pool = static_cast<pool_snapshot_data<Component> &>(pool);
-            serialize(archive, typed_pool);
-        };
-    }
-
-    template<typename Archive, typename... Component>
-    struct serialize_pool_snapshot_base_function_array {
-        using FunctionType = void(*)(Archive &, pool_snapshot_data_base &);
-        std::array<FunctionType, sizeof...(Component)> functions;
-
-        constexpr serialize_pool_snapshot_base_function_array()
-            : functions{}
-        {
-            unsigned i = 0;
-            ((functions[i++] = make_serialize_pool_snapshot_base_function<Archive, Component>()), ...);
-        }
-    };
-
-    template<typename Archive, typename... Component>
-    void serialize(Archive &archive, unsigned component_index, pool_snapshot_data_base &pool, std::tuple<Component...>) {
-        static constexpr auto func_array = detail::serialize_pool_snapshot_base_function_array<Archive, Component...>();
-        func_array.functions[component_index](archive, pool);
-    }
-}
-
-class pool_snapshot_serializer_base {
-public:
-    virtual void write(std::vector<uint8_t> &, const pool_snapshot &) const = 0;
-    virtual void read(const std::vector<uint8_t> &, pool_snapshot &) const = 0;
-};
-
-class pool_snapshot_serializer {
-public:
-    std::shared_ptr<pool_snapshot_serializer_base> ptr;
-};
-
-template<typename... Component>
-class pool_snapshot_serializer_impl : public pool_snapshot_serializer_base {
-public:
-    pool_snapshot_serializer_impl(std::tuple<Component...>) {}
-
-    std::tuple<Component...> components;
-
-    void write(std::vector<uint8_t> &data, const pool_snapshot &pool) const override {
-        auto archive = memory_output_archive(data);
-        detail::serialize(archive, pool.component_index, *pool.ptr, components);
-    }
-
-    virtual void read(const std::vector<uint8_t> &data, pool_snapshot &pool) const override {
-        visit_tuple(components, pool.component_index, [&] (auto &&c) {
+template<typename... Components>
+auto create_make_pool_snapshot_data_function([[maybe_unused]] std::tuple<Components...>) {
+    return [] (unsigned component_index) {
+        std::tuple<Components...> components;
+        auto ptr = std::unique_ptr<pool_snapshot_data>{};
+        visit_tuple(components, component_index, [&] (auto &&c) {
             using CompType = std::decay_t<decltype(c)>;
-            pool.ptr.reset(new pool_snapshot_data<CompType>);
+            ptr.reset(new pool_snapshot_data_impl<CompType>);
         });
+        return ptr;
+    };
+}
 
-        auto archive = memory_input_archive(data.data(), data.size());
-        detail::serialize(archive, pool.component_index, *pool.ptr, components);
-    }
-};
-
-static pool_snapshot_serializer g_pool_snapshot_serializer = [] () {
-    auto s = pool_snapshot_serializer{};
-    s.ptr.reset(new pool_snapshot_serializer_impl(networked_components));
-    return s;
-}();
+static std::unique_ptr<pool_snapshot_data>(*g_make_pool_snapshot_data)(unsigned) = create_make_pool_snapshot_data_function(networked_components);
 
 template<typename Archive>
 void serialize(Archive &archive, pool_snapshot &pool) {
     archive(pool.component_index);
+    std::vector<uint8_t> data;
 
     if constexpr(Archive::is_input::value) {
-        std::vector<uint8_t> data;
         archive(data);
-        g_pool_snapshot_serializer.ptr->read(data, pool);
+        auto input = memory_input_archive(data.data(), data.size());
+        pool.ptr = (*g_make_pool_snapshot_data)(pool.component_index);
+        pool.ptr->read(input);
     } else {
-        std::vector<uint8_t> data;
-        g_pool_snapshot_serializer.ptr->write(data, pool);
+        auto output = memory_output_archive(data);
+        pool.ptr->write(output);
         archive(data);
     }
 }
@@ -141,25 +122,31 @@ void serialize(Archive &archive, pool_snapshot &pool) {
 // Pool snapshot utility functions.
 namespace internal {
     template<typename Comp>
-    void pool_insert_entity_component_single(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools, unsigned index) {
+    void pool_insert_entity_component_single(const entt::registry &registry, entt::entity entity,
+                                             std::vector<pool_snapshot> &pools, unsigned component_index) {
         if (!registry.any_of<Comp>(entity)) {
             return;
         }
 
-        auto pool = std::find_if(pools.begin(), pools.end(), [index] (auto &&pool) { return pool.component_index == index; });
+        auto pool = std::find_if(pools.begin(), pools.end(),
+                                 [component_index] (auto &&pool) {
+                                     return pool.component_index == component_index;
+                                 });
 
         if (pool == pools.end()) {
-            pools.push_back(pool_snapshot{unsigned(index)});
+            pools.push_back(pool_snapshot{unsigned(component_index)});
             pool = pools.end();
             std::advance(pool, -1);
-            pool->ptr.reset(new pool_snapshot_data<Comp>);
+            pool->ptr.reset(new pool_snapshot_data_impl<Comp>);
         }
 
+        auto typed_pool = std::static_pointer_cast<pool_snapshot_data_impl<Comp>>(pool->ptr);
+
         if constexpr(std::is_empty_v<Comp>) {
-            std::static_pointer_cast<pool_snapshot_data<Comp>>(pool->ptr)->pairs.push_back(std::make_pair(entity, Comp{}));
+            typed_pool->data.push_back(entity);
         } else {
             auto &comp = registry.get<Comp>(entity);
-            std::static_pointer_cast<pool_snapshot_data<Comp>>(pool->ptr)->pairs.push_back(std::make_pair(entity, comp));
+            typed_pool->data.push_back(std::make_pair(entity, comp));
         }
     }
 

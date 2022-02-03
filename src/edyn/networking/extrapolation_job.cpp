@@ -1,5 +1,7 @@
 #include "edyn/networking/extrapolation_job.hpp"
+#include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/narrowphase.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -33,20 +35,15 @@ void extrapolation_job_func(job::data_type &data) {
     job->update();
 }
 
-extrapolation_job::extrapolation_job(double start_time,
+extrapolation_job::extrapolation_job(extrapolation_input &&input,
                                      const settings &settings,
                                      const material_mix_table &material_table,
-                                     std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer,
-                                     non_proc_comp_state_history &state_history,
-                                     message_queue_in_out message_queue)
-    : m_message_queue(message_queue)
+                                     non_proc_comp_state_history &state_history)
+    : m_input(std::move(input))
     , m_state(state::init)
-    , m_current_time(start_time)
+    , m_current_time(input.start_time)
     , m_solver(m_registry)
-    , m_pool_snapshot_importer(pool_snapshot_importer)
     , m_state_history(&state_history)
-    , m_delta_builder((*settings.make_island_delta_builder)())
-    , m_destroying_node(false)
 {
     m_registry.set<broadphase_worker>(m_registry);
     m_registry.set<narrowphase>(m_registry);
@@ -66,6 +63,64 @@ extrapolation_job::extrapolation_job(double start_time,
     archive(ctx_intptr);
 }
 
+void extrapolation_job::load_input() {
+    // Import entities.
+    for (auto remote_entity : m_input.entities) {
+        auto local_entity = m_registry.create();
+        m_entity_map.insert(remote_entity, local_entity);
+    }
+
+    // Import components.
+    for (auto &pool : m_input.pools) {
+        pool->emplace(m_registry, m_entity_map);
+    }
+
+    auto &graph = m_registry.ctx<entity_graph>();
+
+    // Create nodes for rigid bodies in entity graph.
+    auto insert_graph_node = [&] (entt::entity entity) {
+        auto non_connecting = !m_registry.any_of<procedural_tag>(entity);
+        auto node_index = graph.insert_node(entity, non_connecting);
+        m_registry.emplace<graph_node>(entity, node_index);
+    };
+
+    std::apply([&] (auto ... t) {
+        (m_registry.view<decltype(t)>().each(insert_graph_node), ...);
+    }, std::tuple<dynamic_tag, static_tag, kinematic_tag, external_tag>{});
+
+    // Create edges for constraints in entity graph.
+    auto node_view = m_registry.view<graph_node>();
+    auto insert_graph_edge = [&] (entt::entity entity, auto &&con) {
+        if (m_registry.any_of<graph_edge>(entity)) return;
+
+        auto &node0 = node_view.get<graph_node>(con.body[0]);
+        auto &node1 = node_view.get<graph_node>(con.body[1]);
+        auto edge_index = graph.insert_edge(entity, node0.node_index, node1.node_index);
+        m_registry.emplace<graph_edge>(entity, edge_index);
+    };
+
+    std::apply([&] (auto ... t) {
+        (m_registry.view<decltype(t)>().each(insert_graph_edge), ...);
+    }, constraints_tuple);
+
+    // Replace client component state by server state.
+    for (auto &pool : m_input.transient_snapshot.pools) {
+        pool.ptr->replace_into_registry(m_registry, m_entity_map);
+    }
+
+    // Apply first history state before the current time to start the simulation
+    // with the correct initial inputs.
+    if (auto *delta = m_state_history->get_first_before(m_current_time)) {
+        delta->import(m_registry, m_entity_map);
+    }
+
+    // Update calculated properties after setting initial state.
+    update_origins(m_registry);
+    update_rotated_meshes(m_registry);
+    update_aabbs(m_registry);
+    update_inertias(m_registry);
+}
+
 void extrapolation_job::init() {
     m_registry.on_destroy<graph_node>().connect<&extrapolation_job::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&extrapolation_job::on_destroy_graph_edge>(*this);
@@ -73,14 +128,10 @@ void extrapolation_job::init() {
     m_registry.on_construct<compound_shape>().connect<&extrapolation_job::on_construct_compound_shape>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&extrapolation_job::on_destroy_rotated_mesh_list>(*this);
 
-    m_message_queue.sink<island_delta>().connect<&extrapolation_job::on_island_delta>(*this);
-    m_message_queue.sink<packet::transient_snapshot>().connect<&extrapolation_job::on_transient_snapshot>(*this);
+    // Import entities and components to be extrapolated.
+    load_input();
 
-    // Process messages enqueued before the job was started. This includes
-    // the island deltas containing the initial entities that were added to
-    // this island.
-    process_messages();
-
+    // Initialize external systems.
     auto &settings = m_registry.ctx<edyn::settings>();
     if (settings.external_system_init) {
         (*settings.external_system_init)(m_registry);
@@ -109,8 +160,6 @@ void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::en
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
 
-    m_delta_builder->destroyed(entity);
-
     if (m_entity_map.has_loc(entity)) {
         m_entity_map.erase_loc(entity);
     }
@@ -121,8 +170,6 @@ void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::en
         auto &edge = registry.get<graph_edge>(entity);
         registry.ctx<entity_graph>().remove_edge(edge.edge_index);
     }
-
-    m_delta_builder->destroyed(entity);
 
     if (m_entity_map.has_loc(entity)) {
         m_entity_map.erase_loc(entity);
@@ -140,87 +187,24 @@ void extrapolation_job::on_construct_compound_shape(entt::registry &registry, en
 void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, entt::entity entity) {
     auto &rotated = registry.get<rotated_mesh_list>(entity);
     if (rotated.next != entt::null) {
-        // Cascade delete. Could lead to mega tall call stacks.
         registry.destroy(rotated.next);
     }
 }
 
-void extrapolation_job::on_island_delta(const island_delta &delta) {
-    // Import entities and components that will be taking part in this
-    // extrapolation.
-    delta.import(m_registry, m_entity_map);
-
-    for (auto remote_entity : delta.created_entities()) {
-        if (!m_entity_map.has_rem(remote_entity)) continue;
-        auto local_entity = m_entity_map.remloc(remote_entity);
-        m_delta_builder->insert_entity_mapping(remote_entity, local_entity);
-    }
-
-    auto &graph = m_registry.ctx<entity_graph>();
-    auto node_view = m_registry.view<graph_node>();
-
-    // Insert nodes in the graph for each rigid body.
-    auto insert_node = [this] (entt::entity remote_entity, auto &) {
-        insert_remote_node(remote_entity);
-    };
-
-    delta.created_for_each<dynamic_tag>(insert_node);
-    delta.created_for_each<static_tag>(insert_node);
-    delta.created_for_each<kinematic_tag>(insert_node);
-    delta.created_for_each<external_tag>(insert_node);
-
-    // Insert edges in the graph for constraints.
-    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
-
-        auto local_entity = m_entity_map.remloc(remote_entity);
-
-        if (m_registry.any_of<graph_edge>(local_entity)) return;
-
-        auto &node0 = node_view.get<graph_node>(con.body[0]);
-        auto &node1 = node_view.get<graph_node>(con.body[1]);
-        auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
-        m_registry.emplace<graph_edge>(local_entity, edge_index);
-    });
-}
-
-void extrapolation_job::on_transient_snapshot(const packet::transient_snapshot &snapshot) {
-    // Apply state received from server to be the initial state of the
-    // extrapolation.
-    std::vector<entt::entity> unknown_entities;
-
-    for (auto &pool : snapshot.pools) {
-        m_pool_snapshot_importer->import(m_registry, m_entity_map, pool, unknown_entities);
-    }
-
-    EDYN_ASSERT(unknown_entities.empty());
-
+void extrapolation_job::load_manifolds() {
     // Import manifolds later, after initial collision detection is done.
     // Existing imported manifolds from the coordinator exist with respect
     // to the client simulation state. The snapshot manifolds are with respect
-    // to the received server state.
-    m_imported_manifolds.insert(m_imported_manifolds.end(), snapshot.manifolds.begin(), snapshot.manifolds.end());
-
-    // Apply first history state before the current time to start the simulation
-    // with the correct initial inputs.
-    if (auto *delta = m_state_history->get_first_before(m_current_time)) {
-        delta->import(m_registry, m_entity_map);
-    }
-
-    update_origins(m_registry);
-    update_rotated_meshes(m_registry);
-    update_aabbs(m_registry);
-    update_inertias(m_registry);
-}
-
-void extrapolation_job::import_manifolds() {
-    if (m_imported_manifolds.empty()) {
+    // to the received server state. Thus the server state must be applied first,
+    // then after collision detection is done, corresponding local manifolds
+    // should exist.
+    if (m_input.transient_snapshot.manifolds.empty()) {
         return;
     }
 
     auto &manifold_map = m_registry.ctx<contact_manifold_map>();
 
-    for (auto &manifold : m_imported_manifolds) {
+    for (auto &manifold : m_input.transient_snapshot.manifolds) {
         if (!m_entity_map.has_rem(manifold.body[0]) ||
             !m_entity_map.has_rem(manifold.body[1])) {
             continue;
@@ -243,7 +227,7 @@ void extrapolation_job::import_manifolds() {
         }
     }
 
-    m_imported_manifolds.clear();
+    m_input.transient_snapshot.manifolds.clear();
 }
 
 void extrapolation_job::apply_history() {
@@ -259,28 +243,60 @@ void extrapolation_job::sync_and_finish() {
     // Update continuous components.
     auto &settings = m_registry.ctx<edyn::settings>();
     auto &index_source = *settings.index_source;
+    auto manifold_id = index_source.index_of<contact_manifold>();
+
+    // Collect entities per type to be updated.
+    std::map<entt::id_type, entt::sparse_set> id_entities;
+
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
             auto id = index_source.type_id_of(cont.indices[i]);
-            m_delta_builder->updated(entity, m_registry, id);
+
+            // Manifolds are handled separately.
+            if (id == manifold_id || id_entities[id].contains(entity)) continue;
+
+            id_entities[id].emplace(entity);
         }
     });
 
     m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
-        if (dirty.is_new_entity) {
-            m_delta_builder->created(entity);
-        }
+        // Only consider updated indices. Entities and components shouldn't be
+        // created during extrapolation (manifolds are an exception which is
+        // handled separately).
+        for (auto id : dirty.updated_indexes) {
+            if (id == manifold_id) continue;
 
-        m_delta_builder->created(entity, m_registry,
-            dirty.created_indexes.begin(), dirty.created_indexes.end());
-        m_delta_builder->updated(entity, m_registry,
-            dirty.updated_indexes.begin(), dirty.updated_indexes.end());
-        m_delta_builder->destroyed(entity,
-            dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
+            auto &entities = id_entities[id];
+
+            if (!entities.contains(entity)) {
+                entities.emplace(entity);
+            }
+        }
     });
 
-    auto delta = m_delta_builder->finish();
-    m_message_queue.send<extrapolation_completed>(std::move(delta), m_current_time);
+    entt::sparse_set unique_entities; // Collect all unique entities involved.
+
+    for (auto &pair : id_entities) {
+        auto id = pair.first;
+        auto &entities = pair.second;
+        (*m_input.extrapolation_component_pool_import_by_id_func)(m_result.pools, m_registry, entities, id);
+
+        for (auto entity : entities) {
+            if (!unique_entities.contains(entity)) {
+                unique_entities.emplace(entity);
+            }
+        }
+    }
+
+    m_result.entities.insert(m_result.entities.end(), unique_entities.begin(), unique_entities.end());
+
+    // Insert all manifolds into it.
+    m_registry.view<contact_manifold>().each([&] (contact_manifold &manifold) {
+        m_result.manifolds.push_back(manifold);
+    });
+
+    // Convert from extrapolation registry space into main registry space.
+    m_result.convert_locrem(m_entity_map);
 
     m_finished.store(true, std::memory_order_release);
 }
@@ -292,8 +308,6 @@ void extrapolation_job::update() {
         reschedule();
         break;
     case state::step:
-        process_messages();
-
         if (should_step()) {
             begin_step();
             if (run_broadphase()) {
@@ -346,10 +360,6 @@ void extrapolation_job::update() {
         reschedule();
         break;
     }
-}
-
-void extrapolation_job::process_messages() {
-    m_message_queue.update();
 }
 
 bool extrapolation_job::should_step() {
@@ -416,7 +426,7 @@ bool extrapolation_job::run_narrowphase() {
         return false;
     } else {
         nphase.update();
-        import_manifolds();
+        load_manifolds();
         m_state = state::solve;
         return true;
     }
@@ -426,7 +436,7 @@ void extrapolation_job::finish_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase_async);
     auto &nphase = m_registry.ctx<narrowphase>();
     nphase.finish_async_update();
-    import_manifolds();
+    load_manifolds();
     m_state = state::solve;
 }
 
@@ -506,17 +516,6 @@ void extrapolation_job::init_new_shapes() {
 
     m_new_polyhedron_shapes.clear();
     m_new_compound_shapes.clear();
-}
-
-void extrapolation_job::insert_remote_node(entt::entity remote_entity) {
-    if (!m_entity_map.has_rem(remote_entity)) return;
-
-    auto local_entity = m_entity_map.remloc(remote_entity);
-    auto non_connecting = !m_registry.any_of<procedural_tag>(local_entity);
-
-    auto &graph = m_registry.ctx<entity_graph>();
-    auto node_index = graph.insert_node(local_entity, non_connecting);
-    m_registry.emplace<graph_node>(local_entity, node_index);
 }
 
 }

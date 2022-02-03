@@ -27,10 +27,12 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/util/collision_util.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/networking/extrapolation_result.hpp"
 #include <memory>
 #include <variant>
 #include <entt/entity/registry.hpp>
@@ -106,6 +108,7 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
     m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
+    m_message_queue.sink<extrapolation_result>().connect<&island_worker::on_extrapolation_result>(*this);
 
     // Process messages enqueued before the worker was started. This includes
     // the island deltas containing the initial entities that were added to
@@ -802,6 +805,37 @@ void island_worker::on_set_material_table(const msg::set_material_table &msg) {
 void island_worker::on_set_com(const msg::set_com &msg) {
     auto entity = m_entity_map.remloc(msg.entity);
     apply_center_of_mass(m_registry, entity, msg.com);
+}
+
+void island_worker::on_extrapolation_result(const extrapolation_result &result) {
+    for (auto &pool : result.pools) {
+        pool->replace(m_registry, m_entity_map);
+    }
+
+    auto &manifold_map = m_registry.ctx<contact_manifold_map>();
+
+    for (auto manifold : result.manifolds) {
+        if (!m_entity_map.has_rem(manifold.body[0]) ||
+            !m_entity_map.has_rem(manifold.body[1])) {
+            continue;
+        }
+
+        manifold.body[0] = m_entity_map.remloc(manifold.body[0]);
+        manifold.body[1] = m_entity_map.remloc(manifold.body[1]);
+
+        // Find a matching manifold and replace it...
+        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
+            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
+            m_registry.get<contact_manifold>(manifold_entity) = manifold;
+        } else {
+            // ...or create a new one and assign a new value to it.
+            auto separation_threshold = contact_breaking_threshold * scalar(1.3);
+            auto manifold_entity = make_contact_manifold(m_registry,
+                                                         manifold.body[0], manifold.body[1],
+                                                         separation_threshold);
+            m_registry.get<contact_manifold>(manifold_entity) = manifold;
+        }
+    }
 }
 
 entity_graph::connected_components_t island_worker::split() {

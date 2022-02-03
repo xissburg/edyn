@@ -8,7 +8,7 @@ namespace edyn {
 class entity_map;
 
 template<typename Component>
-void merge(Component &new_comp, entity_map &) {}
+void merge(Component &new_comp, const entity_map &) {}
 
 }
 

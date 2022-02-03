@@ -97,6 +97,11 @@ public:
         return entt::sink{m_contact_point_destroyed_signal};
     }
 
+    template<typename Message, typename... Args>
+    void send_island_message(entt::entity island_entity, Args &&... args) {
+        m_island_ctx_map.at(island_entity)->send<Message>(std::forward<Args>(args)...);
+    }
+
 private:
     entt::registry *m_registry;
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;

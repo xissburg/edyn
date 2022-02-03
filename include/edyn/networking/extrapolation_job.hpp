@@ -1,29 +1,19 @@
 #ifndef EDYN_NETWORKING_EXTRAPOLATION_JOB_HPP
 #define EDYN_NETWORKING_EXTRAPOLATION_JOB_HPP
 
-#include "edyn/collision/contact_manifold.hpp"
+#include "edyn/networking/extrapolation_input.hpp"
+#include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/parallel/message.hpp"
-#include "edyn/collision/narrowphase.hpp"
-#include "edyn/collision/broadphase_worker.hpp"
-#include "edyn/parallel/message_queue.hpp"
 #include "edyn/util/entity_map.hpp"
-#include "edyn/parallel/island_delta.hpp"
-#include "edyn/networking/packet/transient_snapshot.hpp"
-#include "edyn/networking/context/client_networking_context.hpp"
-#include "edyn/networking/util/client_pool_snapshot_importer.hpp"
-#include <entt/entity/registry.hpp>
+#include <entt/entity/fwd.hpp>
 #include <atomic>
 
 namespace edyn {
 
-struct extrapolation_completed {
-    island_delta delta;
-    double timestamp;
-};
-
 class non_proc_comp_state_history;
+class material_mix_table;
+struct settings;
 
 void extrapolation_job_func(job::data_type &);
 
@@ -41,8 +31,9 @@ class extrapolation_job final {
         finish_step
     };
 
+    void load_input();
+    void load_manifolds();
     void init();
-    void process_messages();
     bool should_step();
     void begin_step();
     void run_solver();
@@ -52,26 +43,24 @@ class extrapolation_job final {
     void finish_narrowphase();
     void finish_step();
     void init_new_shapes();
-    void insert_remote_node(entt::entity remote_entity);
-    void import_manifolds();
     void apply_history();
     void sync_and_finish();
     void update();
 
 public:
-    extrapolation_job(double start_time, const settings &settings,
+    extrapolation_job(extrapolation_input &&input,
+                      const settings &settings,
                       const material_mix_table &material_table,
-                      std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer,
-                      non_proc_comp_state_history &state_history,
-                      message_queue_in_out message_queue);
-
-    void on_island_delta(const island_delta &delta);
-    void on_transient_snapshot(const packet::transient_snapshot &snapshot);
+                      non_proc_comp_state_history &state_history);
 
     void reschedule();
 
     bool is_finished() const {
-        return m_finished.load(std::memory_order_relaxed);
+        return m_finished.load(std::memory_order_acquire);
+    }
+
+    auto & get_result() {
+        return m_result;
     }
 
     void on_destroy_graph_node(entt::registry &, entt::entity);
@@ -86,20 +75,17 @@ private:
     entt::registry m_registry;
     entity_map m_entity_map;
     solver m_solver;
-    message_queue_in_out m_message_queue;
-    std::shared_ptr<client_pool_snapshot_importer> m_pool_snapshot_importer;
+    extrapolation_input m_input;
+    extrapolation_result m_result;
 
     state m_state;
     double m_current_time;
     unsigned m_step_count{0};
     std::atomic<bool> m_finished {false};
-
-    std::unique_ptr<island_delta_builder> m_delta_builder;
-    bool m_destroying_node;
+    bool m_destroying_node {false};
 
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
-    std::vector<contact_manifold> m_imported_manifolds;
 
     non_proc_comp_state_history *m_state_history;
 

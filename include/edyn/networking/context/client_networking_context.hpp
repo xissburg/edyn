@@ -22,10 +22,10 @@ namespace packet {
 struct pool_snapshot;
 class extrapolation_job;
 class client_pool_snapshot_importer;
+struct extrapolation_component_pool;
 
 struct extrapolation_job_context {
     std::unique_ptr<extrapolation_job> job;
-    message_queue_in_out m_message_queue;
 };
 
 struct client_networking_context {
@@ -70,6 +70,16 @@ struct client_networking_context {
 
     std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer;
     std::shared_ptr<client_pool_snapshot_exporter> pool_snapshot_exporter;
+
+    using extrapolation_component_pool_import_func_t =
+        void(std::vector<std::unique_ptr<extrapolation_component_pool>> &,
+             const entt::registry &, const entt::sparse_set &entities);
+    extrapolation_component_pool_import_func_t *extrapolation_component_pool_import_func;
+
+    using extrapolation_component_pool_import_by_id_func_t =
+        void(std::vector<std::unique_ptr<extrapolation_component_pool>> &,
+             const entt::registry &, const entt::sparse_set &entities, entt::id_type);
+    extrapolation_component_pool_import_by_id_func_t *extrapolation_component_pool_import_by_id_func;
 };
 
 }

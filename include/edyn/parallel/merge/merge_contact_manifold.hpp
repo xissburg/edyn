@@ -8,7 +8,7 @@
 namespace edyn {
 
 template<> inline
-void merge(contact_manifold &new_comp, entity_map &emap) {
+void merge(contact_manifold &new_comp, const entity_map &emap) {
     for (auto &entity : new_comp.body) {
         entity = emap.remloc(entity);
     }

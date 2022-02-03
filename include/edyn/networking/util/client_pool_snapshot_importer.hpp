@@ -49,22 +49,39 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
                 continue;
             }
 
-            if constexpr(std::is_empty_v<Component>) {
-                if (!registry.any_of<Component>(local_entity)) {
-                    registry.emplace<Component>(local_entity);
-                    registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
-                }
-            } else {
-                auto comp = pair.second;
-                merge(comp, emap);
+            auto comp = pair.second;
+            merge(comp, emap);
 
-                if (registry.any_of<Component>(local_entity)) {
-                    registry.replace<Component>(local_entity, comp);
-                    refresh<Component>(registry, local_entity);
-                } else {
-                    registry.emplace<Component>(local_entity, comp);
-                    registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
-                }
+            if (registry.any_of<Component>(local_entity)) {
+                registry.replace<Component>(local_entity, comp);
+                refresh<Component>(registry, local_entity);
+            } else {
+                registry.emplace<Component>(local_entity, comp);
+                registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
+            }
+        }
+    }
+
+    template<typename Component>
+    void import_entities(entt::registry &registry, entity_map &emap,
+                      const std::vector<entt::entity> &entities,
+                      std::vector<entt::entity> &unknown_entities) {
+        for (auto remote_entity : entities) {
+            if (!emap.has_rem(remote_entity)) {
+                unknown_entities.push_back(remote_entity);
+                continue;
+            }
+
+            auto local_entity = emap.remloc(remote_entity);
+
+            if (!registry.valid(local_entity)) {
+                emap.erase_loc(local_entity);
+                continue;
+            }
+
+            if (!registry.any_of<Component>(local_entity)) {
+                registry.emplace<Component>(local_entity);
+                registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
             }
         }
     }
@@ -120,9 +137,9 @@ public:
             for (auto &pool : pools) {
                 visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
                     using Component = std::decay_t<decltype(c)>;
-                    if constexpr(has_type<Component, std::tuple<NonProcedural...>>::value) {
-                        auto &pairs = std::static_pointer_cast<pool_snapshot_data<Component>>(pool.ptr)->pairs;
-                        insert_remote_to_builder(registry, pairs, emap, builder);
+                    if constexpr(has_type<Component, std::tuple<NonProcedural...>>::value && !std::is_empty_v<Component>) {
+                        auto &data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr)->data;
+                        insert_remote_to_builder(registry, data, emap, builder);
                     }
                 });
             }
@@ -139,8 +156,13 @@ public:
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
             using Component = std::decay_t<decltype(c)>;
-            auto &pairs = std::static_pointer_cast<pool_snapshot_data<Component>>(pool.ptr)->pairs;
-            import_pairs(registry, emap, pairs, unknown_entities);
+            auto &data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr)->data;
+
+            if constexpr(std::is_empty_v<Component>) {
+                import_entities<Component>(registry, emap, data, unknown_entities);
+            } else {
+                import_pairs<Component>(registry, emap, data, unknown_entities);
+            }
         });
     }
 

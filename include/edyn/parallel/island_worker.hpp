@@ -19,6 +19,7 @@ namespace edyn {
 struct settings;
 class island_delta;
 class island_delta_builder;
+struct extrapolation_result;
 
 void island_worker_func(job::data_type &);
 
@@ -91,6 +92,7 @@ public:
     void on_set_material_table(const msg::set_material_table &msg);
     void on_wake_up_island(const msg::wake_up_island &);
     void on_set_com(const msg::set_com &);
+    void on_extrapolation_result(const extrapolation_result &);
 
     entity_graph::connected_components_t split();
 
