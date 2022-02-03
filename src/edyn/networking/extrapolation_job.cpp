@@ -243,55 +243,48 @@ void extrapolation_job::sync_and_finish() {
     // Update continuous components.
     auto &settings = m_registry.ctx<edyn::settings>();
     auto &index_source = *settings.index_source;
-    auto manifold_id = index_source.index_of<contact_manifold>();
+    auto manifold_view = m_registry.view<contact_manifold>();
 
     // Collect entities per type to be updated.
     std::map<entt::id_type, entt::sparse_set> id_entities;
 
-    m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
-        for (size_t i = 0; i < cont.size; ++i) {
-            auto id = index_source.type_id_of(cont.indices[i]);
+    for (auto remote_entity : m_input.entities) {
+        if (!m_entity_map.has_rem(remote_entity)) continue;
 
-            // Manifolds are handled separately.
-            if (id == manifold_id || id_entities[id].contains(entity)) continue;
+        auto local_entity = m_entity_map.remloc(remote_entity);
 
-            id_entities[id].emplace(entity);
-        }
-    });
+        if (manifold_view.contains(local_entity)) continue;
 
-    m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
-        // Only consider updated indices. Entities and components shouldn't be
-        // created during extrapolation (manifolds are an exception which is
-        // handled separately).
-        for (auto id : dirty.updated_indexes) {
-            if (id == manifold_id) continue;
-
-            auto &entities = id_entities[id];
-
-            if (!entities.contains(entity)) {
-                entities.emplace(entity);
+        if (auto *cont = m_registry.try_get<continuous>(local_entity)) {
+            for (size_t i = 0; i < cont->size; ++i) {
+                auto id = index_source.type_id_of(cont->indices[i]);
+                id_entities[id].emplace(local_entity);
             }
         }
-    });
 
-    entt::sparse_set unique_entities; // Collect all unique entities involved.
+        if (auto *dirty = m_registry.try_get<edyn::dirty>(local_entity)) {
+            // Only consider updated indices. Entities and components shouldn't be
+            // created during extrapolation.
+            for (auto id : dirty->updated_indexes) {
+                auto &entities = id_entities[id];
+
+                if (!entities.contains(local_entity)) {
+                    entities.emplace(local_entity);
+                }
+            }
+        }
+
+        m_result.entities.push_back(local_entity);
+    }
 
     for (auto &pair : id_entities) {
         auto id = pair.first;
         auto &entities = pair.second;
         (*m_input.extrapolation_component_pool_import_by_id_func)(m_result.pools, m_registry, entities, id);
-
-        for (auto entity : entities) {
-            if (!unique_entities.contains(entity)) {
-                unique_entities.emplace(entity);
-            }
-        }
     }
 
-    m_result.entities.insert(m_result.entities.end(), unique_entities.begin(), unique_entities.end());
-
     // Insert all manifolds into it.
-    m_registry.view<contact_manifold>().each([&] (contact_manifold &manifold) {
+    manifold_view.each([&] (contact_manifold &manifold) {
         m_result.manifolds.push_back(manifold);
     });
 
