@@ -16,8 +16,7 @@ bool client_owns_entity(const entt::registry &registry, entt::entity entity);
 
 class client_pool_snapshot_importer {
 public:
-    virtual void import(entt::registry &, entity_map &, const pool_snapshot &,
-                        std::vector<entt::entity> &unknown_entities) = 0;
+    virtual void import(entt::registry &, const entity_map &, const pool_snapshot &) = 0;
     virtual void insert_remote_non_procedural_to_builder(
                                         const entt::registry &registry,
                                         const std::vector<pool_snapshot> &pools,
@@ -31,21 +30,18 @@ template<typename... Components>
 class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer {
 
     template<typename Component>
-    void import_pairs(entt::registry &registry, entity_map &emap,
-                      const std::vector<std::pair<entt::entity, Component>> &pairs,
-                      std::vector<entt::entity> &unknown_entities) {
+    void import_pairs(entt::registry &registry, const entity_map &emap,
+                      const std::vector<std::pair<entt::entity, Component>> &pairs) {
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
 
             if (!emap.has_rem(remote_entity)) {
-                unknown_entities.push_back(remote_entity);
                 continue;
             }
 
             auto local_entity = emap.remloc(remote_entity);
 
             if (!registry.valid(local_entity)) {
-                emap.erase_loc(local_entity);
                 continue;
             }
 
@@ -63,19 +59,16 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
     }
 
     template<typename Component>
-    void import_entities(entt::registry &registry, entity_map &emap,
-                      const std::vector<entt::entity> &entities,
-                      std::vector<entt::entity> &unknown_entities) {
+    void import_entities(entt::registry &registry, const entity_map &emap,
+                         const std::vector<entt::entity> &entities) {
         for (auto remote_entity : entities) {
             if (!emap.has_rem(remote_entity)) {
-                unknown_entities.push_back(remote_entity);
                 continue;
             }
 
             auto local_entity = emap.remloc(remote_entity);
 
             if (!registry.valid(local_entity)) {
-                emap.erase_loc(local_entity);
                 continue;
             }
 
@@ -150,8 +143,7 @@ public:
         };
     }
 
-    void import(entt::registry &registry, entity_map &emap, const pool_snapshot &pool,
-                std::vector<entt::entity> &unknown_entities) override {
+    void import(entt::registry &registry, const entity_map &emap, const pool_snapshot &pool) override {
         auto all_components = std::tuple<Components...>{};
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
@@ -159,9 +151,9 @@ public:
             auto &data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr)->data;
 
             if constexpr(std::is_empty_v<Component>) {
-                import_entities<Component>(registry, emap, data, unknown_entities);
+                import_entities<Component>(registry, emap, data);
             } else {
-                import_pairs<Component>(registry, emap, data, unknown_entities);
+                import_pairs<Component>(registry, emap, data);
             }
         });
     }
