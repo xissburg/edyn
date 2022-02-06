@@ -11,6 +11,7 @@ client_networking_context::client_networking_context()
     , pool_snapshot_exporter(new client_pool_snapshot_exporter_impl(networked_components, transient_components, {}))
     , extrapolation_component_pool_import_func(internal::make_extrapolation_component_pools_import_func(shared_components))
     , extrapolation_component_pool_import_by_id_func(internal::make_extrapolation_component_pools_import_by_id_func(shared_components))
+    , is_non_procedural_component_func([] (entt::id_type) { return false; })
 {}
 
 }

@@ -59,6 +59,7 @@ struct extrapolation_component_pool_impl : public extrapolation_component_pool {
         } else {
             for (auto &pair : data) {
                 pair.first = emap.locrem(pair.first);
+                // FIXME: merge does locrem for the contained entities, but that's rather unspecified.
                 merge(pair.second, emap);
             }
         }
@@ -66,7 +67,7 @@ struct extrapolation_component_pool_impl : public extrapolation_component_pool {
 };
 
 namespace internal {
-    using extrapolation_component_pool_vector = std::vector<std::unique_ptr<extrapolation_component_pool>>;
+    using extrapolation_component_pool_vector = std::vector<std::shared_ptr<extrapolation_component_pool>>;
 
     template<typename Component>
     void extrapolation_component_pools_import_single(extrapolation_component_pool_vector &pools,

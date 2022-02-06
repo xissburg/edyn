@@ -235,7 +235,7 @@ void extrapolation_job::apply_history() {
     auto start_time = m_current_time - settings.fixed_dt;
 
     m_state_history->each(start_time, settings.fixed_dt, [&] (island_delta &delta, double timestamp) {
-        delta.import(m_registry, m_entity_map);
+        delta.import(m_registry, m_entity_map, true);
     });
 }
 
@@ -255,10 +255,15 @@ void extrapolation_job::sync_and_finish() {
 
         if (manifold_view.contains(local_entity)) continue;
 
+        auto is_owned_entity = m_input.owned_entities.contains(remote_entity);
+
         if (auto *cont = m_registry.try_get<continuous>(local_entity)) {
             for (size_t i = 0; i < cont->size; ++i) {
                 auto id = index_source.type_id_of(cont->indices[i]);
-                id_entities[id].emplace(local_entity);
+
+                if (!is_owned_entity || !(*m_input.is_non_procedural_component_func)(id)) {
+                    id_entities[id].emplace(local_entity);
+                }
             }
         }
 
@@ -266,6 +271,10 @@ void extrapolation_job::sync_and_finish() {
             // Only consider updated indices. Entities and components shouldn't be
             // created during extrapolation.
             for (auto id : dirty->updated_indexes) {
+                if (is_owned_entity && (*m_input.is_non_procedural_component_func)(id)) {
+                    continue;
+                }
+
                 auto &entities = id_entities[id];
 
                 if (!entities.contains(local_entity)) {

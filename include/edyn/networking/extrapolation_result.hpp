@@ -11,7 +11,7 @@ namespace edyn {
 
 struct extrapolation_result {
     std::vector<entt::entity> entities;
-    std::vector<std::unique_ptr<extrapolation_component_pool>> pools;
+    std::vector<std::shared_ptr<extrapolation_component_pool>> pools;
     std::vector<contact_manifold> manifolds;
 
     void convert_locrem(const entity_map &emap) {

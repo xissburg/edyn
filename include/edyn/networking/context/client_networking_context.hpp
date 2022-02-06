@@ -4,7 +4,6 @@
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message_queue.hpp"
 #include "edyn/networking/util/non_proc_comp_state_history.hpp"
-#include "edyn/networking/util/networked_component_index_source.hpp"
 #include "edyn/networking/util/client_pool_snapshot_importer.hpp"
 #include "edyn/networking/util/client_pool_snapshot_exporter.hpp"
 #include <entt/entity/fwd.hpp>
@@ -72,14 +71,18 @@ struct client_networking_context {
     std::shared_ptr<client_pool_snapshot_exporter> pool_snapshot_exporter;
 
     using extrapolation_component_pool_import_func_t =
-        void(std::vector<std::unique_ptr<extrapolation_component_pool>> &,
+        void(std::vector<std::shared_ptr<extrapolation_component_pool>> &,
              const entt::registry &, const entt::sparse_set &entities);
     extrapolation_component_pool_import_func_t *extrapolation_component_pool_import_func;
 
     using extrapolation_component_pool_import_by_id_func_t =
-        void(std::vector<std::unique_ptr<extrapolation_component_pool>> &,
+        void(std::vector<std::shared_ptr<extrapolation_component_pool>> &,
              const entt::registry &, const entt::sparse_set &entities, entt::id_type);
     extrapolation_component_pool_import_by_id_func_t *extrapolation_component_pool_import_by_id_func;
+
+    using is_non_procedural_component_func_t =
+        bool(entt::id_type);
+    is_non_procedural_component_func_t *is_non_procedural_component_func;
 };
 
 }

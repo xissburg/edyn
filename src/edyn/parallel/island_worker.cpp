@@ -808,6 +808,8 @@ void island_worker::on_set_com(const msg::set_com &msg) {
 }
 
 void island_worker::on_extrapolation_result(const extrapolation_result &result) {
+    EDYN_ASSERT(!result.pools.empty());
+
     for (auto &pool : result.pools) {
         pool->replace(m_registry, m_entity_map);
     }

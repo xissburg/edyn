@@ -27,6 +27,9 @@ void register_networked_components(entt::registry &registry,
         ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(all, transient_all, non_procedural_all));
         ctx->extrapolation_component_pool_import_func = internal::make_extrapolation_component_pools_import_func(shared_all);
         ctx->extrapolation_component_pool_import_by_id_func = internal::make_extrapolation_component_pools_import_by_id_func(shared_all);
+        ctx->is_non_procedural_component_func = [] (entt::id_type id) {
+            return ((id == entt::type_id<NonProcedural>().seq()) || ...);
+        };
     }
 
     if (auto *ctx = registry.try_ctx<server_networking_context>()) {
@@ -43,6 +46,7 @@ inline void unregister_networked_components(entt::registry &registry) {
         ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(networked_components, transient_components, {}));
         ctx->extrapolation_component_pool_import_func = internal::make_extrapolation_component_pools_import_func(shared_components);
         ctx->extrapolation_component_pool_import_by_id_func = internal::make_extrapolation_component_pools_import_by_id_func(shared_components);
+        ctx->is_non_procedural_component_func = [] (entt::id_type) { return false; };
     }
 
     if (auto *ctx = registry.try_ctx<server_networking_context>()) {

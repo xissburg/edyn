@@ -26,12 +26,12 @@ public:
         static_assert((!std::is_empty_v<NonProcedural> && ...));
 
         insert_transient_entity_components_func = [] (const entt::registry &registry, entt::entity entity,
-                                                 std::vector<pool_snapshot> &pools) {
+                                                      std::vector<pool_snapshot> &pools) {
             const std::tuple<Components...> components;
             internal::pool_insert_select_entity_components<Transient...>(registry, entity, pools, components);
         };
         insert_non_procedural_entity_components_func = [] (const entt::registry &registry, entt::entity entity,
-                                                 std::vector<pool_snapshot> &pools) {
+                                                           std::vector<pool_snapshot> &pools) {
             const std::tuple<Components...> components;
             internal::pool_insert_select_entity_components<NonProcedural...>(registry, entity, pools, components);
         };

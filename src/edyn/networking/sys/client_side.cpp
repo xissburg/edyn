@@ -123,7 +123,7 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
     auto &coordinator = registry.ctx<island_coordinator>();
 
     for (auto island_entity : island_entities) {
-        coordinator.send_island_message<extrapolation_result>(island_entity, std::move(result));
+        coordinator.send_island_message<extrapolation_result>(island_entity, result);
     }
 }
 
@@ -243,7 +243,6 @@ static void process_packet(entt::registry &registry, const packet::entity_respon
     auto emap_packet = packet::update_entity_map{};
 
     for (auto remote_entity : res.entities) {
-
         if (ctx.entity_map.has_rem(remote_entity)) {
             continue;
         }
@@ -503,8 +502,18 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     // Create registry snapshot to send to extrapolation job.
     extrapolation_input input;
     input.extrapolation_component_pool_import_by_id_func = ctx.extrapolation_component_pool_import_by_id_func;
+    input.is_non_procedural_component_func = ctx.is_non_procedural_component_func;
     (*ctx.extrapolation_component_pool_import_func)(input.pools, registry, entities);
     input.start_time = snapshot_time;
+
+    for (auto entity : entities) {
+        if (auto *owner = registry.try_get<entity_owner>(entity);
+            owner && owner->client_entity == ctx.client_entity)
+        {
+            input.owned_entities.emplace(entity);
+        }
+    }
+
     input.entities = std::move(entities);
 
     // Translate transient snapshot into client's space before sending it to

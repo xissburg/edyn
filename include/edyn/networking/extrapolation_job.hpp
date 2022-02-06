@@ -80,7 +80,7 @@ private:
 
     state m_state;
     double m_current_time;
-    unsigned m_step_count{0};
+    unsigned m_step_count {0};
     std::atomic<bool> m_finished {false};
     bool m_destroying_node {false};
 

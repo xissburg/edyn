@@ -53,6 +53,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         } else {
             for (auto &pair : data) {
                 pair.first = emap.remloc(pair.first);
+                // FIXME: Usage of merge is wrong here because it does locrem inside.
                 merge(pair.second, emap);
             }
         }
@@ -100,7 +101,7 @@ auto create_make_pool_snapshot_data_function([[maybe_unused]] std::tuple<Compone
     };
 }
 
-static std::unique_ptr<pool_snapshot_data>(*g_make_pool_snapshot_data)(unsigned) = create_make_pool_snapshot_data_function(networked_components);
+extern std::unique_ptr<pool_snapshot_data>(*g_make_pool_snapshot_data)(unsigned);
 
 template<typename Archive>
 void serialize(Archive &archive, pool_snapshot &pool) {
