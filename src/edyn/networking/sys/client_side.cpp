@@ -106,6 +106,11 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
     entt::sparse_set island_entities;
 
     for (auto entity : result.entities) {
+        // Entity could've been destroyed while extrapolation was running.
+        if (!registry.valid(entity)) {
+            continue;
+        }
+
         if (auto *resident = registry.try_get<island_resident>(entity)) {
             if (!island_entities.contains(resident->island_entity)) {
                 island_entities.emplace(resident->island_entity);
@@ -369,7 +374,7 @@ static void collect_unknown_entities(const entt::registry &registry, entity_map 
             auto local_entity = entity_map.remloc(remote_entity);
 
             // In the unusual situation where an existing mapping is an invalid
-            // entity, erase if from the entity map and add consider it unknown.
+            // entity, erase it from the entity map and consider it unknown.
             if (!registry.valid(local_entity)) {
                 entity_map.erase_loc(local_entity);
 
