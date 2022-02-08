@@ -39,7 +39,6 @@ class island_coordinator final {
                                const std::vector<entt::entity> &new_edges);
     void split_islands();
     void split_island(entt::entity);
-    void wake_up_island(entt::entity);
     void refresh_dirty_entities();
     bool should_split_island(entt::entity source_island_entity);
     void sync();
@@ -99,7 +98,13 @@ public:
 
     template<typename Message, typename... Args>
     void send_island_message(entt::entity island_entity, Args &&... args) {
-        m_island_ctx_map.at(island_entity)->send<Message>(std::forward<Args>(args)...);
+        auto &ctx = m_island_ctx_map.at(island_entity);
+        ctx->send<Message>(std::forward<Args>(args)...);
+    }
+
+    void wake_up_island(entt::entity island_entity) {
+        auto &ctx = m_island_ctx_map.at(island_entity);
+        ctx->send<msg::wake_up_island>();
     }
 
 private:

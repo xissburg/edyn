@@ -129,6 +129,7 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
 
     for (auto island_entity : island_entities) {
         coordinator.send_island_message<extrapolation_result>(island_entity, result);
+        coordinator.wake_up_island(island_entity);
     }
 }
 
