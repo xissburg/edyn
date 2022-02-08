@@ -24,7 +24,7 @@ namespace edyn {
 
 bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
     if (registry.any_of<dynamic_tag>(entity)) {
-        //return false;
+        return false;
         auto &resident = registry.get<island_resident>(entity);
         auto &island = registry.get<edyn::island>(resident.island_entity);
         auto owned_by_this_client = false;
@@ -339,7 +339,7 @@ void update_networking_server(entt::registry &registry) {
             auto packet = packet::transient_snapshot{};
 
             for (auto entity : aabboi.entities) {
-                if (registry.any_of<static_tag, sleeping_tag>(entity)) {
+                if (registry.any_of<static_tag>(entity)) {
                     continue;
                 }
 

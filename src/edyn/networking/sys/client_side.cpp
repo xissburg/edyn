@@ -328,6 +328,10 @@ static void process_packet(entt::registry &registry, const packet::create_entity
             auto node_index = registry.ctx<entity_graph>().insert_node(local_entity, non_connecting);
             registry.emplace<graph_node>(local_entity, node_index);
         }
+
+        if (registry.any_of<procedural_tag>(local_entity)) {
+            registry.emplace<discontinuity>(local_entity);
+        }
     }
 
     for (auto remote_entity : packet.entities) {

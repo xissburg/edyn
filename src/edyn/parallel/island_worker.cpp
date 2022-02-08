@@ -33,6 +33,7 @@
 #include "edyn/util/collision_util.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/extrapolation_result.hpp"
+#include "edyn/networking/comp/discontinuity.hpp"
 #include <memory>
 #include <variant>
 #include <entt/entity/registry.hpp>
@@ -94,6 +95,12 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
 island_worker::~island_worker() = default;
 
 void island_worker::init() {
+    // Whenever position and orientation are constructed, assign the previous
+    // version as well for networking discontinuity mitigation.
+    // TODO: only assign to networked entities.
+    m_registry.on_construct<position>().connect<&entt::registry::emplace<previous_position>>();
+    m_registry.on_construct<orientation>().connect<&entt::registry::emplace<previous_orientation>>();
+
     m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_graph_node>(*this);
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
@@ -311,6 +318,11 @@ void island_worker::sync() {
         m_delta_builder->updated(entity, manifold);
     });
 
+    // Always update discontinuities since they decay in every step.
+    m_registry.view<discontinuity>().each([&] (entt::entity entity, discontinuity &dis) {
+        m_delta_builder->updated(entity, dis);
+    });
+
     // Update continuous components.
     auto &settings = m_registry.ctx<edyn::settings>();
     auto &index_source = *settings.index_source;
@@ -517,6 +529,13 @@ void island_worker::run_solver() {
     m_state = state::finish_step;
 }
 
+static void decay_discontinuities(entt::registry &registry, scalar rate) {
+    registry.view<discontinuity>().each([rate] (discontinuity &dis) {
+        dis.position_offset *= rate;
+        dis.orientation_offset = slerp(quaternion_identity, dis.orientation_offset, rate);
+    });
+}
+
 void island_worker::finish_step() {
     EDYN_ASSERT(m_state == state::finish_step);
 
@@ -548,6 +567,8 @@ void island_worker::finish_step() {
     m_delta_builder->updated(m_island_entity, tview);
 
     maybe_go_to_sleep();
+
+    decay_discontinuities(m_registry, 0.9);
 
     if (settings.external_system_post_step) {
         (*settings.external_system_post_step)(m_registry);
@@ -810,8 +831,24 @@ void island_worker::on_set_com(const msg::set_com &msg) {
 void island_worker::on_extrapolation_result(const extrapolation_result &result) {
     EDYN_ASSERT(!result.pools.empty());
 
+    // Assign current transforms to previous before importing pools into registry.
+    m_registry.view<previous_position, position>().each([] (previous_position &p_pos, position &pos) {
+        p_pos = pos;
+    });
+
+    m_registry.view<previous_orientation, orientation>().each([] (previous_orientation &p_orn, orientation &orn) {
+        p_orn = orn;
+    });
+
     for (auto &pool : result.pools) {
         pool->replace(m_registry, m_entity_map);
+    }
+
+    // Accumulate discontinuities.
+    auto discontinuity_view = m_registry.view<previous_position, position, previous_orientation, orientation, discontinuity>();
+    for (auto [entity, p_pos, pos, p_orn, orn, discontinuity] : discontinuity_view.each()) {
+        discontinuity.position_offset += p_pos - pos;
+        discontinuity.orientation_offset *= p_orn * conjugate(orn);
     }
 
     auto &manifold_map = m_registry.ctx<contact_manifold_map>();
