@@ -81,6 +81,15 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
             }
         }
     }
+
+    void insert(const entt::registry &registry, entt::entity entity) {
+        if constexpr(is_empty_type) {
+            data.push_back(entity);
+        } else {
+            auto &comp = registry.get<Component>(entity);
+            data.push_back(std::make_pair(entity, comp));
+        }
+    }
 };
 
 struct pool_snapshot {
@@ -129,6 +138,8 @@ namespace internal {
             return;
         }
 
+        using pool_snapshot_data_t = pool_snapshot_data_impl<Comp>;
+
         auto pool = std::find_if(pools.begin(), pools.end(),
                                  [component_index] (auto &&pool) {
                                      return pool.component_index == component_index;
@@ -138,39 +149,33 @@ namespace internal {
             pools.push_back(pool_snapshot{unsigned(component_index)});
             pool = pools.end();
             std::advance(pool, -1);
-            pool->ptr.reset(new pool_snapshot_data_impl<Comp>);
+            pool->ptr.reset(new pool_snapshot_data_t);
         }
 
-        auto typed_pool = std::static_pointer_cast<pool_snapshot_data_impl<Comp>>(pool->ptr);
-
-        if constexpr(std::is_empty_v<Comp>) {
-            typed_pool->data.push_back(entity);
-        } else {
-            auto &comp = registry.get<Comp>(entity);
-            typed_pool->data.push_back(std::make_pair(entity, comp));
-        }
+        auto typed_pool = std::static_pointer_cast<pool_snapshot_data_t>(pool->ptr);
+        typed_pool->insert(registry, entity);
     }
 
     template<typename... Components, typename IndexType, IndexType... Is>
     void pool_insert_entity_components_all(const entt::registry &registry, entt::entity entity,
-                                        std::vector<pool_snapshot> &pools,
-                                        [[maybe_unused]] std::tuple<Components...>,
-                                        [[maybe_unused]] std::integer_sequence<IndexType, Is...>) {
+                                           std::vector<pool_snapshot> &pools,
+                                           [[maybe_unused]] std::tuple<Components...>,
+                                           [[maybe_unused]] std::integer_sequence<IndexType, Is...>) {
         (pool_insert_entity_component_single<Components>(registry, entity, pools, Is), ...);
     }
 
     template<typename Component, typename... Components>
     void pool_insert_select_entity_component(const entt::registry &registry, entt::entity entity,
-                                            std::vector<pool_snapshot> &pools,
-                                            [[maybe_unused]] std::tuple<Components...>) {
+                                             std::vector<pool_snapshot> &pools,
+                                             [[maybe_unused]] std::tuple<Components...>) {
         constexpr auto index = index_of_v<size_t, Component, Components...>;
         pool_insert_entity_component_single<Component>(registry, entity, pools, index);
     }
 
     template<typename... SelectComponents, typename... Components>
     void pool_insert_select_entity_components(const entt::registry &registry, entt::entity entity,
-                                            std::vector<pool_snapshot> &pools,
-                                            std::tuple<Components...> components) {
+                                              std::vector<pool_snapshot> &pools,
+                                              std::tuple<Components...> components) {
         (pool_insert_select_entity_component<SelectComponents>(registry, entity, pools, components), ...);
     }
 }
