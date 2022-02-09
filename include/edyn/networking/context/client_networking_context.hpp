@@ -2,7 +2,6 @@
 #define EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 
 #include "edyn/util/entity_map.hpp"
-#include "edyn/parallel/message_queue.hpp"
 #include "edyn/networking/util/non_proc_comp_state_history.hpp"
 #include "edyn/networking/util/client_pool_snapshot_importer.hpp"
 #include "edyn/networking/util/client_pool_snapshot_exporter.hpp"
@@ -18,9 +17,7 @@ namespace packet {
     struct edyn_packet;
 }
 
-struct pool_snapshot;
 class extrapolation_job;
-class client_pool_snapshot_importer;
 struct extrapolation_component_pool;
 
 struct extrapolation_job_context {
@@ -39,11 +36,7 @@ struct client_networking_context {
     bool importing_entities {false};
 
     double last_snapshot_time {0};
-    double snapshot_rate {30};
-    double round_trip_time {0};
     double server_playout_delay {0.3};
-    bool extrapolation_enabled {true};
-    unsigned max_concurrent_extrapolations {2};
 
     std::vector<extrapolation_job_context> extrapolation_jobs;
     non_proc_comp_state_history state_history;

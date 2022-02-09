@@ -166,8 +166,10 @@ void update_networking_client(entt::registry &registry) {
     }
 
     auto time = performance_time();
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &client_settings = std::get<client_networking_settings>(settings.networking_settings);
 
-    if (time - ctx.last_snapshot_time > 1 / ctx.snapshot_rate) {
+    if (time - ctx.last_snapshot_time > 1 / client_settings.snapshot_rate) {
         auto packet = packet::transient_snapshot{};
 
         for (auto entity : ctx.owned_entities) {
@@ -416,9 +418,11 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     request_unknown_entities_in_pools(registry, snapshot.pools);
 
     auto &ctx = registry.ctx<client_networking_context>();
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &client_settings = std::get<client_networking_settings>(settings.networking_settings);
 
     // If extrapolation is not enabled, just import the snapshot immediately.
-    if (!ctx.extrapolation_enabled) {
+    if (!client_settings.extrapolation_enabled) {
         for (auto &pool : snapshot.pools) {
             ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool);
         }
@@ -427,12 +431,10 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     }
 
     const auto time = performance_time();
-    const double snapshot_time = time - (ctx.server_playout_delay + ctx.round_trip_time / 2);
+    const double snapshot_time = time - (ctx.server_playout_delay + client_settings.round_trip_time / 2);
 
     // Non-procedural component state from other clients must be added to the
     // input history beforehand.
-    auto &settings = registry.ctx<edyn::settings>();
-
     {
         auto builder = (*settings.make_island_delta_builder)();
         ctx.pool_snapshot_importer->insert_remote_non_procedural_to_builder(registry, snapshot.pools, ctx.entity_map, *builder);
@@ -443,7 +445,7 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     }
 
     // Ignore it if the number of current extrapolation jobs is at maximum.
-    if (ctx.extrapolation_jobs.size() >= ctx.max_concurrent_extrapolations) {
+    if (ctx.extrapolation_jobs.size() >= client_settings.max_concurrent_extrapolations) {
         return;
     }
 
