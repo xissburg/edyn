@@ -9,7 +9,7 @@
 #include "edyn/networking/comp/aabb_of_interest.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
-#include "edyn/networking/context/server_networking_context.hpp"
+#include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
@@ -58,7 +58,7 @@ static void on_destroy_networked_tag(entt::registry &registry, entt::entity dest
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
-    auto &ctx = registry.ctx<server_networking_context>();
+    auto &ctx = registry.ctx<server_network_context>();
     auto res = packet::entity_response{};
     auto entities = std::set<entt::entity>(req.entities.begin(), req.entities.end());
 
@@ -86,7 +86,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
-    auto &ctx = registry.ctx<server_networking_context>();
+    auto &ctx = registry.ctx<server_network_context>();
 
     for (auto &pool : snapshot.pools) {
         ctx.pool_snapshot_importer->import(registry, client_entity, pool);
@@ -94,7 +94,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::general_snapshot &snapshot) {
-    auto &ctx = registry.ctx<server_networking_context>();
+    auto &ctx = registry.ctx<server_network_context>();
 
     for (auto &pool : snapshot.pools) {
         ctx.pool_snapshot_importer->import(registry, client_entity, pool);
@@ -118,7 +118,7 @@ void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[ma
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::create_entity &packet) {
-    auto &ctx = registry.ctx<server_networking_context>();
+    auto &ctx = registry.ctx<server_network_context>();
     auto &client = registry.get<remote_client>(client_entity);
 
     // Collect entity mappings for new entities to send back to client.
@@ -246,24 +246,24 @@ static void process_packet(entt::registry &, entt::entity, const packet::client_
 static void handle_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
 
-void init_networking_server(entt::registry &registry) {
-    registry.set<server_networking_context>();
+void init_network_server(entt::registry &registry) {
+    registry.set<server_network_context>();
     registry.on_destroy<networked_tag>().connect<&on_destroy_networked_tag>();
 
     auto &settings = registry.ctx<edyn::settings>();
-    settings.networking_settings = server_networking_settings{};
+    settings.network_settings = server_network_settings{};
 }
 
-void deinit_networking_server(entt::registry &registry) {
-    registry.unset<server_networking_context>();
+void deinit_network_server(entt::registry &registry) {
+    registry.unset<server_network_context>();
     registry.on_destroy<networked_tag>().disconnect<&on_destroy_networked_tag>();
 
     auto &settings = registry.ctx<edyn::settings>();
-    settings.networking_settings = {};
+    settings.network_settings = {};
 }
 
 void server_process_packets(entt::registry &registry) {
-    auto *ctx = registry.try_ctx<server_networking_context>();
+    auto *ctx = registry.try_ctx<server_network_context>();
     if (!ctx) return;
 
     auto timestamp = performance_time();
@@ -284,8 +284,8 @@ void server_process_packets(entt::registry &registry) {
     });
 }
 
-void update_networking_server(entt::registry &registry) {
-    auto *ctx = registry.try_ctx<server_networking_context>();
+void update_network_server(entt::registry &registry) {
+    auto *ctx = registry.try_ctx<server_network_context>();
     if (!ctx) return;
 
     auto time = performance_time();
@@ -404,7 +404,7 @@ void server_make_client(entt::registry &registry, entt::entity entity) {
     registry.emplace<aabb_of_interest>(entity);
     edyn::tag_external_entity(registry, entity, false);
 
-    auto &ctx = registry.ctx<server_networking_context>();
+    auto &ctx = registry.ctx<server_network_context>();
     ctx.pending_created_clients.push_back(entity);
 }
 

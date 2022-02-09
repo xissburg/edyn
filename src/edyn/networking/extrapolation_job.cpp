@@ -10,7 +10,7 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/context/settings.hpp"
-#include "edyn/networking/context/client_networking_context.hpp"
+#include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/entity_graph.hpp"

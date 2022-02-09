@@ -24,8 +24,8 @@ struct extrapolation_job_context {
     std::unique_ptr<extrapolation_job> job;
 };
 
-struct client_networking_context {
-    client_networking_context();
+struct client_network_context {
+    client_network_context();
 
     entt::entity client_entity {entt::null};
     entt::sparse_set owned_entities;

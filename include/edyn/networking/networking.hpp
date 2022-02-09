@@ -6,8 +6,8 @@
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/networking/sys/client_side.hpp"
 #include "edyn/networking/sys/server_side.hpp"
-#include "edyn/networking/context/client_networking_context.hpp"
-#include "edyn/networking/context/server_networking_context.hpp"
+#include "edyn/networking/context/client_network_context.hpp"
+#include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include <entt/entity/fwd.hpp>
@@ -20,28 +20,28 @@ namespace edyn {
  * @param registry Data source.
  * @param rate Snapshot rate.
  */
-void set_networking_client_snapshot_rate(entt::registry &, double rate);
+void set_network_client_snapshot_rate(entt::registry &, double rate);
 
 /**
  * @brief Get client output transient snapshot rate.
  * @param registry Data source.
  * @return Snapshot rate.
  */
-double get_networking_client_snapshot_rate(entt::registry &);
+double get_network_client_snapshot_rate(entt::registry &);
 
 /**
  * @brief Set client network round-trip time (RTT).
  * @param registry Data source.
  * @param rtt The round-trip time in seconds.
  */
-void set_networking_client_round_trip_time(entt::registry &, double rtt);
+void set_network_client_round_trip_time(entt::registry &, double rtt);
 
 /**
  * @brief Get client network round-trip time (RTT).
  * @param registry Data source.
  * @return The round-trip time in seconds.
  */
-double get_networking_client_round_trip_time(entt::registry &);
+double get_network_client_round_trip_time(entt::registry &);
 
 /**
  * @brief Enable or disable client-side extrapolation.
@@ -53,21 +53,21 @@ double get_networking_client_round_trip_time(entt::registry &);
  * @param registry Data source.
  * @param enabled Whether extrapolation should be enabled.
  */
-void set_networking_client_extrapolation_enabled(entt::registry &, bool);
+void set_network_client_extrapolation_enabled(entt::registry &, bool);
 
 /**
  * @brief Toggle extrapolation enabled state.
  * @param registry Data source.
  * @return Whether extrapolation is enabled.
  */
-bool toggle_networking_client_extrapolation_enabled(entt::registry &);
+bool toggle_network_client_extrapolation_enabled(entt::registry &);
 
 /**
  * @brief Get extrapolation enabled state.
  * @param registry Data source.
  * @return Whether extrapolation is enabled.
  */
-bool get_networking_client_extrapolation_enabled(entt::registry &);
+bool get_network_client_extrapolation_enabled(entt::registry &);
 
 /**
  * @brief Set number of maximum concurrent extrapolations.
@@ -83,14 +83,14 @@ bool get_networking_client_extrapolation_enabled(entt::registry &);
  * @param registry Data source.
  * @param count Maximum number of concurrent extrapolations.
  */
-void set_networking_client_max_concurrent_extrapolations(entt::registry &, unsigned);
+void set_network_client_max_concurrent_extrapolations(entt::registry &, unsigned);
 
 /**
  * @brief Get maximum number of concurrent extrapolations.
  * @param registry Data source.
  * @return Maximum number of concurrent extrapolations.
  */
-unsigned get_networking_client_max_concurrent_extrapolations(entt::registry &);
+unsigned get_network_client_max_concurrent_extrapolations(entt::registry &);
 
 /**
  * @brief Set discontinuity decay rate, which is a value in [0, 1) that is
@@ -111,14 +111,14 @@ unsigned get_networking_client_max_concurrent_extrapolations(entt::registry &);
  * @param registry Data source.
  * @param rate Discontinuity decay rate per simulation step.
  */
-void set_networking_client_discontinuity_decay_rate(entt::registry &, scalar);
+void set_network_client_discontinuity_decay_rate(entt::registry &, scalar);
 
 /**
  * @brief Get discontinuity decay rate per simulation step.
  * @param registry Data source.
  * @return Discontinuity decay rate per simulation step.
  */
-scalar get_networking_client_discontinuity_decay_rate(entt::registry &);
+scalar get_network_client_discontinuity_decay_rate(entt::registry &);
 
 /**
  * @brief Get client packet sink. This sink must be observed and the packets
@@ -126,7 +126,7 @@ scalar get_networking_client_discontinuity_decay_rate(entt::registry &);
  * @param registry Data source.
  * @return Packet sink.
  */
-entt::sink<void(const packet::edyn_packet &)> networking_client_packet_sink(entt::registry &);
+entt::sink<void(const packet::edyn_packet &)> network_client_packet_sink(entt::registry &);
 
 }
 

@@ -6,8 +6,8 @@
 #include "edyn/comp/shared_comp.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/comp/transient_comp.hpp"
-#include "edyn/networking/context/client_networking_context.hpp"
-#include "edyn/networking/context/server_networking_context.hpp"
+#include "edyn/networking/context/client_network_context.hpp"
+#include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/extrapolation_input.hpp"
 
 namespace edyn {
@@ -22,7 +22,7 @@ void register_networked_components(entt::registry &registry,
     auto non_procedural_all = non_procedural_external;
     auto shared_all = std::tuple_cat(shared_components, external);
 
-    if (auto *ctx = registry.try_ctx<client_networking_context>()) {
+    if (auto *ctx = registry.try_ctx<client_network_context>()) {
         ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(all, non_procedural_all));
         ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(all, transient_all, non_procedural_all));
         ctx->extrapolation_component_pool_import_func = internal::make_extrapolation_component_pools_import_func(shared_all);
@@ -32,7 +32,7 @@ void register_networked_components(entt::registry &registry,
         };
     }
 
-    if (auto *ctx = registry.try_ctx<server_networking_context>()) {
+    if (auto *ctx = registry.try_ctx<server_network_context>()) {
         ctx->pool_snapshot_importer.reset(new server_pool_snapshot_importer_impl(all, non_procedural_all));
         ctx->pool_snapshot_exporter.reset(new server_pool_snapshot_exporter_impl(all, transient_all));
     }
@@ -41,7 +41,7 @@ void register_networked_components(entt::registry &registry,
 }
 
 inline void unregister_networked_components(entt::registry &registry) {
-    if (auto *ctx = registry.try_ctx<client_networking_context>()) {
+    if (auto *ctx = registry.try_ctx<client_network_context>()) {
         ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(networked_components, {}));
         ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(networked_components, transient_components, {}));
         ctx->extrapolation_component_pool_import_func = internal::make_extrapolation_component_pools_import_func(shared_components);
@@ -49,7 +49,7 @@ inline void unregister_networked_components(entt::registry &registry) {
         ctx->is_non_procedural_component_func = [] (entt::id_type) { return false; };
     }
 
-    if (auto *ctx = registry.try_ctx<server_networking_context>()) {
+    if (auto *ctx = registry.try_ctx<server_network_context>()) {
         ctx->pool_snapshot_importer.reset(new server_pool_snapshot_importer_impl(networked_components, {}));
         ctx->pool_snapshot_exporter.reset(new server_pool_snapshot_exporter_impl(networked_components, transient_components));
     }

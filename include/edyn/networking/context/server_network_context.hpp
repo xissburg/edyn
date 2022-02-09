@@ -1,5 +1,5 @@
-#ifndef EDYN_NETWORKING_SERVER_NETWORKING_CONTEXT_HPP
-#define EDYN_NETWORKING_SERVER_NETWORKING_CONTEXT_HPP
+#ifndef EDYN_NETWORKING_SERVER_NETWORK_CONTEXT_HPP
+#define EDYN_NETWORKING_SERVER_NETWORK_CONTEXT_HPP
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
@@ -9,8 +9,8 @@
 
 namespace edyn {
 
-struct server_networking_context {
-    server_networking_context();
+struct server_network_context {
+    server_network_context();
 
     std::vector<entt::entity> pending_created_clients;
 
@@ -20,4 +20,4 @@ struct server_networking_context {
 
 }
 
-#endif // EDYN_NETWORKING_SERVER_NETWORKING_CONTEXT_HPP
+#endif // EDYN_NETWORKING_SERVER_NETWORK_CONTEXT_HPP

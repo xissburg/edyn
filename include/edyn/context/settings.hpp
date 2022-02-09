@@ -9,8 +9,8 @@
 #include "edyn/parallel/make_island_delta_builder.hpp"
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/parallel/component_index_source.hpp"
-#include "edyn/networking/settings/client_networking_settings.hpp"
-#include "edyn/networking/settings/server_networking_settings.hpp"
+#include "edyn/networking/settings/client_network_settings.hpp"
+#include "edyn/networking/settings/server_network_settings.hpp"
 
 namespace edyn {
 
@@ -37,8 +37,8 @@ struct settings {
 
     std::variant<
         std::monostate,
-        client_networking_settings,
-        server_networking_settings> networking_settings;
+        client_network_settings,
+        server_network_settings> network_settings;
 };
 
 }

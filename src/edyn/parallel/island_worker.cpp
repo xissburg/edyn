@@ -113,7 +113,7 @@ void island_worker::init() {
     auto &settings = m_registry.ctx<edyn::settings>();
 
     // If this is a networked client, expect extrapolation results.
-    if (std::holds_alternative<client_networking_settings>(settings.networking_settings)) {
+    if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         m_message_queue.sink<extrapolation_result>().connect<&island_worker::on_extrapolation_result>(*this);
     }
 
@@ -289,7 +289,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
 
     auto &settings = m_registry.ctx<edyn::settings>();
 
-    if (std::holds_alternative<client_networking_settings>(settings.networking_settings)) {
+    if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         // Assign previous position and orientation components to dynamic entities
         // for client-side networking extrapolation discontinuity mitigation.
         delta.created_for_each<dynamic_tag>([&] (entt::entity remote_entity, auto &) {
@@ -582,8 +582,8 @@ void island_worker::finish_step() {
 
     maybe_go_to_sleep();
 
-    if (std::holds_alternative<client_networking_settings>(settings.networking_settings)) {
-        auto &network_settings = std::get<client_networking_settings>(settings.networking_settings);
+    if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
+        auto &network_settings = std::get<client_network_settings>(settings.network_settings);
         decay_discontinuities(m_registry, network_settings.discontinuity_decay_rate);
     }
 

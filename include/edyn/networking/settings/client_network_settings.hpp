@@ -1,10 +1,11 @@
-#ifndef EDYN_NETWORKING_SETTINGS_CLIENT_NETWORKING_SETTINGS_HPP
-#define EDYN_NETWORKING_SETTINGS_CLIENT_NETWORKING_SETTINGS_HPP
+#ifndef EDYN_NETWORKING_SETTINGS_CLIENT_NETWORK_SETTINGS_HPP
+#define EDYN_NETWORKING_SETTINGS_CLIENT_NETWORK_SETTINGS_HPP
 
 #include "edyn/math/scalar.hpp"
+
 namespace edyn {
 
-struct client_networking_settings {
+struct client_network_settings {
     double snapshot_rate {30};
     double round_trip_time {0};
     bool extrapolation_enabled {true};
@@ -18,4 +19,4 @@ struct client_networking_settings {
 
 }
 
-#endif // EDYN_NETWORKING_SETTINGS_CLIENT_NETWORKING_SETTINGS_HPP
+#endif // EDYN_NETWORKING_SETTINGS_CLIENT_NETWORK_SETTINGS_HPP

@@ -337,9 +337,9 @@ Each instance of a parallel for job increments an atomic integer with the chunk 
 
 _TODO_
 
-# Networking
+# Network
 
-The networking model follows a client-server architecture where the server is authoritative but gives the client freedom to directly set the state of the entities it owns in some situations. The goal is to synchronize the simulation on both ends, accounting for network latency and jitter.
+The network model follows a client-server architecture where the server is authoritative but gives the client freedom to directly set the state of the entities it owns in some situations. The goal is to synchronize the simulation on both ends, accounting for network latency and jitter.
 
 The server is the source of truth, containing the actual physics simulation encompassing all entities and components including extra external components used by external systems provided by the user of this library. The server has to frequently broadcast to all clients a snapshot of the dynamic components which change very often such as position and velocity. Steady components, which change casually, have to be broadcast only when updated.
 
@@ -409,7 +409,7 @@ Extrapolation is performed in a background worker thread. It is similar to an is
 
 Extrapolation jobs are launched as soon as a transient snapshot packet arrives. Multiple extrapolations can be run concurrently, but a limit has to be set to prevent excessive resource usage and a general slowdown. Thus, a maximum number of extrapolations is set (two or three) and if a transient snapshot arrives while there are already the maximum number of extrapolations running, it is discarded. Though, even if the extrapolation is rejected, the state of the non-procedural components in the transient snapshot must be inserted into the state history.
 
-The client-side networking system should prepare a registry snapshot containing all entities involved in the extrapolation and put it into the message queue of the extrapolation job. It should also send the transient snapshot to the extrapolation job. When run, the extrapolation job will initially read these messages and instantiate all entities and components with the first message, and apply the server state with the second. Then it's ready to run the extrapolation.
+The client-side network system should prepare a registry snapshot containing all entities involved in the extrapolation and put it into the message queue of the extrapolation job. It should also send the transient snapshot to the extrapolation job. When run, the extrapolation job will initially read these messages and instantiate all entities and components with the first message, and apply the server state with the second. Then it's ready to run the extrapolation.
 
 Once it's done, it sends a registry snapshot to the client-side system containing the final state to be applied. With the extrapolated state in hand, the client-side must send the updated components of all entities involved to the respective island workers. The non-procedural components can be merged right away into the main registry. The procedural components should not be merged into the main registry directly because they will be replaced immediately after by the old state which is coming from the island workers continuously and only after the island worker receives the extrapolated state they would start to be merged into the main registry with the new state, which can lead to visual glitches, especially considering the position and orientation components.
 
