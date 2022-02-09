@@ -14,7 +14,7 @@ struct extrapolation_result {
     std::vector<std::shared_ptr<extrapolation_component_pool>> pools;
     std::vector<contact_manifold> manifolds;
 
-    void convert_locrem(const entity_map &emap) {
+    void convert_locrem(entity_map &emap) {
         for (auto &entity : entities) {
             entity = emap.locrem(entity);
         }

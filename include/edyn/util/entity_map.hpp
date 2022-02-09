@@ -110,6 +110,10 @@ public:
         }
     }
 
+    void flip() {
+        std::swap(m_remloc, m_locrem);
+    }
+
 private:
     std::unordered_map<entt::entity, entt::entity> m_remloc; // Maps remote to local entities.
     std::unordered_map<entt::entity, entt::entity> m_locrem; // Maps local to remote entities.

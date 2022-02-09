@@ -10,7 +10,7 @@ namespace edyn {
 struct extrapolation_component_pool {
     virtual void emplace(entt::registry &, entity_map &) = 0;
     virtual void replace(entt::registry &, entity_map &) = 0;
-    virtual void convert_locrem(const entity_map &) = 0;
+    virtual void convert_locrem(entity_map &) = 0;
 };
 
 template<typename Component>
@@ -51,7 +51,7 @@ struct extrapolation_component_pool_impl : public extrapolation_component_pool {
         }
     }
 
-    void convert_locrem(const entity_map &emap) override {
+    void convert_locrem(entity_map &emap) override {
         if constexpr(is_empty_type) {
             for (auto &entity : data) {
                 entity = emap.locrem(entity);
@@ -59,9 +59,14 @@ struct extrapolation_component_pool_impl : public extrapolation_component_pool {
         } else {
             for (auto &pair : data) {
                 pair.first = emap.locrem(pair.first);
-                // FIXME: merge does locrem for the contained entities, but that's rather unspecified.
+            }
+
+            // `merge` maps remote to local, thus flip the entity map.
+            emap.flip();
+            for (auto &pair : data) {
                 merge(pair.second, emap);
             }
+            emap.flip();
         }
     }
 };

@@ -53,7 +53,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         } else {
             for (auto &pair : data) {
                 pair.first = emap.remloc(pair.first);
-                // FIXME: Usage of merge is wrong here because it does locrem inside.
+                // `merge` maps remote to local.
                 merge(pair.second, emap);
             }
         }
