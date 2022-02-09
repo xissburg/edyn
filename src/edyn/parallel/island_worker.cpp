@@ -95,12 +95,6 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
 island_worker::~island_worker() = default;
 
 void island_worker::init() {
-    // Whenever position and orientation are constructed, assign the previous
-    // version as well for networking discontinuity mitigation.
-    // TODO: only assign to networked entities.
-    m_registry.on_construct<position>().connect<&entt::registry::emplace<previous_position>>();
-    m_registry.on_construct<orientation>().connect<&entt::registry::emplace<previous_orientation>>();
-
     m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_graph_node>(*this);
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
@@ -115,14 +109,19 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
     m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
-    m_message_queue.sink<extrapolation_result>().connect<&island_worker::on_extrapolation_result>(*this);
+
+    auto &settings = m_registry.ctx<edyn::settings>();
+
+    // If this is a networked client, expect extrapolation results.
+    if (std::holds_alternative<client_networking_settings>(settings.networking_settings)) {
+        m_message_queue.sink<extrapolation_result>().connect<&island_worker::on_extrapolation_result>(*this);
+    }
 
     // Process messages enqueued before the worker was started. This includes
     // the island deltas containing the initial entities that were added to
     // this island.
     process_messages();
 
-    auto &settings = m_registry.ctx<edyn::settings>();
     if (settings.external_system_init) {
         (*settings.external_system_init)(m_registry);
     }
@@ -287,6 +286,20 @@ void island_worker::on_island_delta(const island_delta &delta) {
             update_aabb(m_registry, local_entity);
         }
     });
+
+    auto &settings = m_registry.ctx<edyn::settings>();
+
+    if (std::holds_alternative<client_networking_settings>(settings.networking_settings)) {
+        // Assign previous position and orientation components to dynamic entities
+        // for client-side networking extrapolation discontinuity mitigation.
+        delta.created_for_each<dynamic_tag>([&] (entt::entity remote_entity, auto &) {
+            if (!m_entity_map.has_rem(remote_entity)) return;
+
+            auto local_entity = m_entity_map.remloc(remote_entity);
+            m_registry.emplace<previous_position>(local_entity);
+            m_registry.emplace<previous_orientation>(local_entity);
+        });
+    }
 
     m_importing_delta = false;
 }
@@ -530,6 +543,7 @@ void island_worker::run_solver() {
 }
 
 static void decay_discontinuities(entt::registry &registry, scalar rate) {
+    EDYN_ASSERT(!(rate < 0) && rate < 1);
     registry.view<discontinuity>().each([rate] (discontinuity &dis) {
         dis.position_offset *= rate;
         dis.orientation_offset = slerp(quaternion_identity, dis.orientation_offset, rate);
@@ -568,7 +582,10 @@ void island_worker::finish_step() {
 
     maybe_go_to_sleep();
 
-    decay_discontinuities(m_registry, 0.9);
+    if (std::holds_alternative<client_networking_settings>(settings.networking_settings)) {
+        auto &network_settings = std::get<client_networking_settings>(settings.networking_settings);
+        decay_discontinuities(m_registry, network_settings.discontinuity_decay_rate);
+    }
 
     if (settings.external_system_post_step) {
         (*settings.external_system_post_step)(m_registry);

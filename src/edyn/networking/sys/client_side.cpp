@@ -91,6 +91,9 @@ void init_networking_client(entt::registry &registry) {
     registry.on_destroy<networked_tag>().connect<&on_destroy_networked_entity>();
     registry.on_construct<entity_owner>().connect<&on_construct_entity_owner>();
     registry.on_destroy<entity_owner>().connect<&on_destroy_entity_owner>();
+
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.networking_settings = client_networking_settings{};
 }
 
 void deinit_networking_client(entt::registry &registry) {
@@ -100,6 +103,9 @@ void deinit_networking_client(entt::registry &registry) {
     registry.on_destroy<networked_tag>().disconnect<&on_destroy_networked_entity>();
     registry.on_construct<entity_owner>().disconnect<&on_construct_entity_owner>();
     registry.on_destroy<entity_owner>().disconnect<&on_destroy_entity_owner>();
+
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.networking_settings = {};
 }
 
 static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
