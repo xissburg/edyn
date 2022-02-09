@@ -128,6 +128,16 @@ scalar get_network_client_discontinuity_decay_rate(entt::registry &);
  */
 entt::sink<void(const packet::edyn_packet &)> network_client_packet_sink(entt::registry &);
 
+/**
+ * @brief Triggered when an extrapolation job times out due to it taking more
+ * than the extrapolation time limit to complete. This will happen when the
+ * simulation to be extrapolated is quite large and/or the length of time to be
+ * extrapolated is quite long.
+ * @param registry Data source.
+ * @return Timeout warning sink.
+ */
+entt::sink<void(void)> network_client_extrapolation_timeout_sink(entt::registry &);
+
 }
 
 #endif // EDYN_NETWORKING_NETWORKING_HPP

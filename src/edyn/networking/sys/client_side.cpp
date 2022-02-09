@@ -137,6 +137,11 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
         coordinator.send_island_message<extrapolation_result>(island_entity, result);
         coordinator.wake_up_island(island_entity);
     }
+
+    if (result.terminated_early) {
+        auto &ctx = registry.ctx<client_network_context>();
+        ctx.extrapolation_timeout_signal.publish();
+    }
 }
 
 void update_network_client(entt::registry &registry) {

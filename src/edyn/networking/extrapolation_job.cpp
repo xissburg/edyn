@@ -122,6 +122,8 @@ void extrapolation_job::load_input() {
 }
 
 void extrapolation_job::init() {
+    m_start_time = performance_time();
+
     m_registry.on_destroy<graph_node>().connect<&extrapolation_job::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&extrapolation_job::on_destroy_graph_edge>(*this);
     m_registry.on_construct<polyhedron_shape>().connect<&extrapolation_job::on_construct_polyhedron_shape>(*this);
@@ -300,6 +302,9 @@ void extrapolation_job::sync_and_finish() {
     // Convert from extrapolation registry space into main registry space.
     m_result.convert_locrem(m_entity_map);
 
+    // Assign timestamp of the last step.
+    m_result.timestamp = m_current_time;
+
     m_finished.store(true, std::memory_order_release);
 }
 
@@ -366,10 +371,18 @@ void extrapolation_job::update() {
 
 bool extrapolation_job::should_step() {
     auto time = performance_time();
+
+    if (time - m_start_time > m_input.execution_time_limit) {
+        // Timeout.
+        m_result.terminated_early = true;
+        sync_and_finish();
+        return false;
+    }
+
     auto &settings = m_registry.ctx<edyn::settings>();
 
     if (m_current_time + settings.fixed_dt > time) {
-        // job is done.
+        // Job is done.
         sync_and_finish();
         return false;
     }

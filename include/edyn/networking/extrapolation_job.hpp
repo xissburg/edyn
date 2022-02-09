@@ -79,6 +79,7 @@ private:
     extrapolation_result m_result;
 
     state m_state;
+    double m_start_time;
     double m_current_time;
     unsigned m_step_count {0};
     std::atomic<bool> m_finished {false};

@@ -60,6 +60,11 @@ struct client_network_context {
         return entt::sink{client_entity_assigned_signal};
     }
 
+    entt::sigh<void(void)> extrapolation_timeout_signal;
+    auto extrapolation_timeout_sink() {
+        return entt::sink{extrapolation_timeout_signal};
+    }
+
     std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer;
     std::shared_ptr<client_pool_snapshot_exporter> pool_snapshot_exporter;
 

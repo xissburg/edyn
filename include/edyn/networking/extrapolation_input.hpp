@@ -16,6 +16,7 @@ struct extrapolation_input {
     entt::sparse_set owned_entities;
     std::vector<std::shared_ptr<extrapolation_component_pool>> pools;
     packet::transient_snapshot transient_snapshot;
+    double execution_time_limit {0.4};
 
     using extrapolation_component_pool_import_by_id_func_t =
         void(std::vector<std::shared_ptr<extrapolation_component_pool>> &,
