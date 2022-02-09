@@ -15,7 +15,6 @@
 #include "edyn/util/entity_map.hpp"
 #include "edyn/edyn.hpp"
 #include "edyn/util/vector.hpp"
-#include <entt/core/type_traits.hpp>
 #include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <set>
@@ -250,11 +249,17 @@ static void process_packet(entt::registry &, entt::entity, const packet::set_pla
 void init_networking_server(entt::registry &registry) {
     registry.set<server_networking_context>();
     registry.on_destroy<networked_tag>().connect<&on_destroy_networked_tag>();
+
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.networking_settings = server_networking_settings{};
 }
 
 void deinit_networking_server(entt::registry &registry) {
     registry.unset<server_networking_context>();
     registry.on_destroy<networked_tag>().disconnect<&on_destroy_networked_tag>();
+
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.networking_settings = {};
 }
 
 void server_process_packets(entt::registry &registry) {
