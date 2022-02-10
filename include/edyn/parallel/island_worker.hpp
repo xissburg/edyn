@@ -21,6 +21,10 @@ class island_delta;
 class island_delta_builder;
 struct extrapolation_result;
 
+namespace packet {
+    struct transient_snapshot;
+}
+
 void island_worker_func(job::data_type &);
 
 /**
@@ -93,6 +97,9 @@ public:
     void on_wake_up_island(const msg::wake_up_island &);
     void on_set_com(const msg::set_com &);
     void on_extrapolation_result(const extrapolation_result &);
+    void on_transient_snapshot(const packet::transient_snapshot &);
+
+    void import_contact_manifolds(const std::vector<contact_manifold> &manifolds);
 
     entity_graph::connected_components_t split();
 

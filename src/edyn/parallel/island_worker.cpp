@@ -34,6 +34,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
+#include "edyn/networking/packet/transient_snapshot.hpp"
 #include <memory>
 #include <variant>
 #include <entt/entity/registry.hpp>
@@ -115,6 +116,7 @@ void island_worker::init() {
     // If this is a networked client, expect extrapolation results.
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         m_message_queue.sink<extrapolation_result>().connect<&island_worker::on_extrapolation_result>(*this);
+        m_message_queue.sink<packet::transient_snapshot>().connect<&island_worker::on_transient_snapshot>(*this);
     }
 
     // Process messages enqueued before the worker was started. This includes
@@ -845,32 +847,10 @@ void island_worker::on_set_com(const msg::set_com &msg) {
     apply_center_of_mass(m_registry, entity, msg.com);
 }
 
-void island_worker::on_extrapolation_result(const extrapolation_result &result) {
-    EDYN_ASSERT(!result.pools.empty());
-
-    // Assign current transforms to previous before importing pools into registry.
-    m_registry.view<previous_position, position>().each([] (previous_position &p_pos, position &pos) {
-        p_pos = pos;
-    });
-
-    m_registry.view<previous_orientation, orientation>().each([] (previous_orientation &p_orn, orientation &orn) {
-        p_orn = orn;
-    });
-
-    for (auto &pool : result.pools) {
-        pool->replace(m_registry, m_entity_map);
-    }
-
-    // Accumulate discontinuities.
-    auto discontinuity_view = m_registry.view<previous_position, position, previous_orientation, orientation, discontinuity>();
-    for (auto [entity, p_pos, pos, p_orn, orn, discontinuity] : discontinuity_view.each()) {
-        discontinuity.position_offset += p_pos - pos;
-        discontinuity.orientation_offset *= p_orn * conjugate(orn);
-    }
-
+void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {
     auto &manifold_map = m_registry.ctx<contact_manifold_map>();
 
-    for (auto manifold : result.manifolds) {
+    for (auto manifold : manifolds) {
         if (!m_entity_map.has_rem(manifold.body[0]) ||
             !m_entity_map.has_rem(manifold.body[1])) {
             continue;
@@ -892,6 +872,52 @@ void island_worker::on_extrapolation_result(const extrapolation_result &result) 
             m_registry.get<contact_manifold>(manifold_entity) = manifold;
         }
     }
+}
+
+static void assign_previous_transforms(entt::registry &registry) {
+    registry.view<previous_position, position>().each([] (previous_position &p_pos, position &pos) {
+        p_pos = pos;
+    });
+
+    registry.view<previous_orientation, orientation>().each([] (previous_orientation &p_orn, orientation &orn) {
+        p_orn = orn;
+    });
+}
+
+static void accumulate_discontinuities(entt::registry &registry) {
+    auto discontinuity_view = registry.view<previous_position, position, previous_orientation, orientation, discontinuity>();
+
+    for (auto [entity, p_pos, pos, p_orn, orn, discontinuity] : discontinuity_view.each()) {
+        discontinuity.position_offset += p_pos - pos;
+        discontinuity.orientation_offset *= p_orn * conjugate(orn);
+    }
+}
+
+void island_worker::on_extrapolation_result(const extrapolation_result &result) {
+    EDYN_ASSERT(!result.pools.empty());
+
+    // Assign current transforms to previous before importing pools into registry.
+    assign_previous_transforms(m_registry);
+
+    for (auto &pool : result.pools) {
+        pool->replace(m_registry, m_entity_map);
+    }
+
+    accumulate_discontinuities(m_registry);
+    import_contact_manifolds(result.manifolds);
+}
+
+void island_worker::on_transient_snapshot(const packet::transient_snapshot &snapshot) {
+    EDYN_ASSERT(!snapshot.pools.empty());
+
+    assign_previous_transforms(m_registry);
+
+    for (auto &pool : snapshot.pools) {
+        pool.ptr->replace_into_registry(m_registry, m_entity_map);
+    }
+
+    accumulate_discontinuities(m_registry);
+    import_contact_manifolds(snapshot.manifolds);
 }
 
 entity_graph::connected_components_t island_worker::split() {

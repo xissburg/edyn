@@ -108,10 +108,13 @@ void deinit_network_client(entt::registry &registry) {
     settings.network_settings = {};
 }
 
-static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
+template<typename It>
+entt::sparse_set collect_islands_from_residents(entt::registry &registry, It first_entity, It last_entity) {
     entt::sparse_set island_entities;
 
-    for (auto entity : result.entities) {
+    for (auto it = first_entity; it != last_entity; ++it) {
+        auto entity = *it;
+
         // Entity could've been destroyed while extrapolation was running.
         if (!registry.valid(entity)) {
             continue;
@@ -130,6 +133,11 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
         }
     }
 
+    return island_entities;
+}
+
+static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
+    auto island_entities = collect_islands_from_residents(registry, result.entities.begin(), result.entities.end());
     EDYN_ASSERT(!island_entities.empty());
     auto &coordinator = registry.ctx<island_coordinator>();
 
@@ -426,10 +434,30 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     auto &settings = registry.ctx<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
-    // If extrapolation is not enabled, just import the snapshot immediately.
+    // If extrapolation is not enabled send the snapshot directly to the
+    // island workers. They will snap to this state and add the differences
+    // to the discontinuity components.
     if (!client_settings.extrapolation_enabled) {
+        auto snapshot_local = snapshot;
+        snapshot_local.convert_remloc(ctx.entity_map);
+
+        entt::sparse_set entities;
+
         for (auto &pool : snapshot.pools) {
-            ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool);
+            for (auto entity : pool.ptr->get_entities()) {
+                if (!entities.contains(entity)) {
+                    entities.emplace(entity);
+                }
+            }
+        }
+
+        auto island_entities = collect_islands_from_residents(registry, entities.begin(), entities.end());
+        EDYN_ASSERT(!island_entities.empty());
+        auto &coordinator = registry.ctx<island_coordinator>();
+
+        for (auto island_entity : island_entities) {
+            coordinator.send_island_message<packet::transient_snapshot>(island_entity, snapshot_local);
+            coordinator.wake_up_island(island_entity);
         }
 
         return;

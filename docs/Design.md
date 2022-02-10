@@ -417,6 +417,8 @@ The server snapshot will usually contain a single island. If the extrapolation i
 
 Extrapolation will introduce visible errors and disturbances when the extrapolated result doesn't match the previous local state very closely. A discontinuity error is calculated before the components are replaced by the extrapolated version and that error is accumulated in a `edyn::discontinuity` component which is added to the `edyn::present_position` and `edyn::present_orientation` to smooth out these errors. The discontinuity decays towards zero over time.
 
+Users that don't interact with the simulation do not need extrapolation (i.e. spectators).
+
 ## Extrapolation level-of-detail
 
 The appearance of the simulation of entities that are further away from the user might not need to have the same level of detail as the entities that are nearby. Thus, it can be beneficial to not extrapolate the state of entities that are far away. Entities and their islands are considered for extrapolation based on their overall distance to the center of the AABB of interest, a.k.a. point of interest, around of which three zones exist:
