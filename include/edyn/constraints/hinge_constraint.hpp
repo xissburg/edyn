@@ -88,6 +88,19 @@ void prepare_constraints<hinge_constraint>(entt::registry &, row_cache &, scalar
 template<>
 bool solve_position_constraints<hinge_constraint>(entt::registry &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, hinge_constraint &c) {
+    archive(c.body);
+    archive(c.pivot);
+    archive(c.frame);
+    archive(c.angle_min, c.angle_max, c.limit_restitution);
+    archive(c.bump_stop_angle, c.bump_stop_stiffness);
+    archive(c.friction_torque);
+    archive(c.rest_angle, c.stiffness, c.damping);
+    archive(c.angle);
+    archive(c.impulse);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_HINGE_CONSTRAINT_HPP
