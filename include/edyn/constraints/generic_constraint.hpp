@@ -44,8 +44,19 @@ struct generic_constraint : public constraint_base {
     std::array<linear_dof, 3> linear_dofs;
     std::array<angular_dof, 3> angular_dofs;
 
-    static constexpr auto num_rows = 15;
+    static constexpr auto num_rows = 24;
     std::array<scalar, num_rows> impulse {make_array<num_rows, scalar>(0)};
+
+    void reset_angles(const quaternion &ornA, const quaternion &ornB);
+    void reset_angle(size_t index, const quaternion &ornA, const quaternion &ornB);
+
+    scalar relative_angle(size_t index, const quaternion &ornA, const quaternion &ornB) const ;
+
+    scalar relative_angle(size_t index,
+                          const quaternion &ornA, const quaternion &ornB,
+                          const vector3 &axisA, const vector3 &axisB) const;
+
+    void update_angle(size_t index, scalar new_angle);
 };
 
 template<>

@@ -20,6 +20,49 @@
 
 namespace edyn {
 
+void generic_constraint::reset_angles(const quaternion &ornA, const quaternion &ornB) {
+    for (size_t i = 0; i < 3; ++i) {
+        reset_angle(i, ornA, ornB);
+    }
+}
+
+void generic_constraint::reset_angle(size_t index, const quaternion &ornA, const quaternion &ornB) {
+    angular_dofs[index].current_angle = relative_angle(index, ornA, ornB);
+}
+
+scalar generic_constraint::relative_angle(size_t index, const quaternion &ornA, const quaternion &ornB) const {
+    auto axisA = rotate(ornA, frame[0].column(index));
+    auto axisB = rotate(ornB, frame[1].column(index));
+    return relative_angle(index, ornA, ornB, axisA, axisB);
+}
+
+scalar generic_constraint::relative_angle(size_t index,
+                                          const quaternion &ornA, const quaternion &ornB,
+                                          const vector3 &axisA, const vector3 &axisB) const {
+    // Quaternion which rotates the axis of B so it's parallel to the
+    // the axis of A.
+    auto arc_quat = shortest_arc(axisB, axisA);
+
+    // Transform a non-axial vector in the frame of B onto A's space so
+    // the angular error can be calculated.
+    auto index1 = (index + 1) % 3;
+    auto index2 = (index + 2) % 3;
+    auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, frame[1].column(index1));
+    return std::atan2(dot(angle_axisB, frame[0].column(index2)),
+                      dot(angle_axisB, frame[0].column(index1)));
+}
+
+void generic_constraint::update_angle(size_t index, scalar new_angle) {
+    auto &dof = angular_dofs[index];
+    auto previous_angle = normalize_angle(dof.current_angle);
+    // Find shortest path from previous angle to current in
+    // the [-π, π] range.
+    auto angle_delta0 = new_angle - previous_angle;
+    auto angle_delta1 = angle_delta0 + pi2 * to_sign(angle_delta0 < 0);
+    auto angle_delta = std::abs(angle_delta0) < std::abs(angle_delta1) ? angle_delta0 : angle_delta1;
+    dof.current_angle += angle_delta;
+}
+
 template<>
 void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation,
@@ -42,7 +85,6 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
         auto rB = pivotB - posB;
 
         auto pivot_offset = pivotB - pivotA;
-        constexpr auto I = matrix3x3_identity;
         auto row_idx = size_t{};
 
         // Linear.
@@ -187,27 +229,128 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
                 continue;
             }
 
+            auto axisA = rotate(ornA, con.frame[0].column(i));
+            auto axisB = rotate(ornB, con.frame[1].column(i));
+            auto J = std::array<vector3, 4>{vector3_zero, axisA, vector3_zero, -axisB};
+
             auto &row = cache.rows.emplace_back();
-            auto axis = rotate(ornA, I.row[i]);
-            auto n = rotate(ornA, I.row[(i+1)%3]);
-            auto m = rotate(ornB, I.row[(i+2)%3]);
-            auto error = dot(n, m);
-
-            row.J = {vector3_zero, axis, vector3_zero, -axis};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = large_scalar;
-
+            row.J = J;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = con.impulse[row_idx++];
 
+            auto angle = con.relative_angle(i, ornA, ornB, axisA, axisB);
+            con.update_angle(i, angle);
+
+            auto has_limit = dof.angle_min < dof.angle_max;
             auto options = constraint_row_options{};
-            options.error = error / dt;
+
+            if (has_limit) {
+
+                auto limit_error = scalar{};
+                auto mid_angle = (dof.angle_min + dof.angle_max) / scalar(2);
+
+                if (dof.current_angle < mid_angle) {
+                    limit_error = dof.angle_min - dof.current_angle;
+                    row.lower_limit = -large_scalar;
+                    row.upper_limit = 0;
+                } else {
+                    limit_error = dof.angle_max - dof.current_angle;
+                    row.lower_limit = 0;
+                    row.upper_limit = large_scalar;
+                }
+
+                options.error = limit_error / dt;
+                options.restitution = dof.limit_restitution;
+            } else {
+                auto error = -dof.current_angle;
+                options.error = error / dt;
+                row.lower_limit = -large_scalar;
+                row.upper_limit = large_scalar;
+            }
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
+
+            // Angular bump stops.
+            if (has_limit && dof.bump_stop_stiffness > 0 && dof.bump_stop_angle > 0) {
+                auto bump_stop_deflection = scalar{0};
+                auto bump_stop_min = dof.angle_min + dof.bump_stop_angle;
+                auto bump_stop_max = dof.angle_max - dof.bump_stop_angle;
+
+                if (dof.current_angle < bump_stop_min) {
+                    bump_stop_deflection = dof.current_angle - bump_stop_min;
+                } else if (dof.current_angle > bump_stop_max) {
+                    bump_stop_deflection = dof.current_angle - bump_stop_max;
+                }
+
+                auto &row = cache.rows.emplace_back();
+                row.J = J;
+                row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+                row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+                row.dvA = &dvA; row.dwA = &dwA;
+                row.dvB = &dvB; row.dwB = &dwB;
+                row.impulse = con.impulse[row_idx++];
+
+                auto spring_force = dof.bump_stop_stiffness * bump_stop_deflection;
+                auto spring_impulse = spring_force * dt;
+                row.lower_limit = std::min(spring_impulse, scalar(0));
+                row.upper_limit = std::max(scalar(0), spring_impulse);
+
+                auto options = constraint_row_options{};
+                options.error = -bump_stop_deflection / dt;
+
+                prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+                warm_start(row);
+            }
+
+            // Angular spring.
+            if (has_limit && dof.spring_stiffness > 0) {
+                auto &row = cache.rows.emplace_back();
+                row.J = J;
+                row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+                row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+                row.dvA = &dvA; row.dwA = &dwA;
+                row.dvB = &dvB; row.dwB = &dwB;
+                row.impulse = con.impulse[row_idx++];
+
+                auto deflection = dof.current_angle - dof.rest_angle;
+                auto spring_torque = dof.spring_stiffness * deflection;
+                auto spring_impulse = spring_torque * dt;
+                row.lower_limit = std::min(spring_impulse, scalar(0));
+                row.upper_limit = std::max(scalar(0), spring_impulse);
+
+                auto options = constraint_row_options{};
+                options.error = -deflection / dt;
+
+                prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+                warm_start(row);
+            }
+
+            if (has_limit && (dof.friction_torque > 0 || dof.damping > 0)) {
+                auto &row = cache.rows.emplace_back();
+                row.J = J;
+                row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+                row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+                row.dvA = &dvA; row.dwA = &dwA;
+                row.dvB = &dvB; row.dwB = &dwB;
+                row.impulse = con.impulse[row_idx++];
+
+                auto friction_impulse = dof.friction_torque * dt;
+
+                if (dof.damping > 0) {
+                    auto relvel = dot(angvelA, axisA) - dot(angvelB, axisB);
+                    friction_impulse += std::abs(relvel) * dof.damping * dt;
+                }
+
+                row.lower_limit = -friction_impulse;
+                row.upper_limit = friction_impulse;
+
+                prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
+                warm_start(row);
+            }
         }
 
         cache.con_num_rows.push_back(row_idx);
