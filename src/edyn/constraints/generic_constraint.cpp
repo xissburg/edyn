@@ -199,7 +199,7 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
                 dof.current_angle = std::atan2(dot(angle_axisB, con.frame[0].column(2)),
                                                dot(angle_axisB, con.frame[0].column(1)));
             } else {
-                auto axisB_x = rotate(conjugate(ornA) * ornB, con.frame[1].column(0));
+                auto axisB_x = (rotate(conjugate(ornA) * ornB, con.frame[1].column(0))) * con.frame[0];
                 dof.current_angle = std::atan2(i == 1 ? -axisB_x.z : axisB_x.y, axisB_x.x);
             }
 
