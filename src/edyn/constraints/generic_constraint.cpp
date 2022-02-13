@@ -231,10 +231,7 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
                         row.upper_limit = large_scalar;
                     }
 
-                    //if (dof.current_angle > dof.angle_min && dof.current_angle < dof.angle_max) {
-                        options.error = limit_error / dt;
-                    //}
-
+                    options.error = limit_error / dt;
                     options.restitution = dof.limit_restitution;
                 } else {
                     options.error = -dof.current_angle / dt;
@@ -386,41 +383,6 @@ bool solve_position_constraints<generic_constraint>(entt::registry &registry, sc
             auto basisB = to_matrix3x3(ornB);
             inv_IB = basisB * inv_IB * transpose(basisB);
         }
-
-        /* for (int i = 0; i < 3; ++i) {
-            auto &dof = con.angular_dofs[i];
-
-            if (!dof.limit_enabled) {
-                continue;
-            }
-
-            auto axisA = rotate(ornA, con.frame[0].column(i));
-            auto axisB = i == 0 ? rotate(ornB, con.frame[1].column(i)) : axisA;
-            auto error = scalar{};
-
-            if (dof.current_angle < dof.angle_min) {
-                error = dof.angle_min - dof.current_angle;
-            } else if (dof.current_angle > dof.angle_max) {
-                error = dof.angle_max - dof.current_angle;
-            }
-
-            auto J = std::array<vector3, 4>{vector3_zero, axisA, vector3_zero, -axisB};
-            auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
-            auto correction = -error * scalar(0.2) * eff_mass;
-
-            ornA += quaternion_derivative(ornA, inv_IA * J[1] * correction);
-            ornB += quaternion_derivative(ornB, inv_IB * J[3] * correction);
-            ornA = normalize(ornA);
-            ornB = normalize(ornB);
-
-            angular_error = std::max(std::abs(error), angular_error);
-
-            auto basisA = to_matrix3x3(ornA);
-            inv_IA = basisA * inv_IA * transpose(basisA);
-
-            auto basisB = to_matrix3x3(ornB);
-            inv_IB = basisB * inv_IB * transpose(basisB);
-        } */
     });
 
     if (linear_error < scalar(0.005) && angular_error < to_radians(2)) {
