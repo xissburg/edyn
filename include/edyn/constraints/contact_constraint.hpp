@@ -65,11 +65,6 @@ void iterate_constraints<contact_constraint>(entt::registry &, row_cache &, scal
 template<>
 bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt);
 
-template<typename Archive>
-void serialize(Archive &archive, contact_constraint &c) {
-    archive(c.body);
-}
-
 }
 
 #endif // EDYN_CONSTRAINTS_CONTACT_CONSTRAINT_HPP

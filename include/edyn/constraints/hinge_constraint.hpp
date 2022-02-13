@@ -82,20 +82,6 @@ struct hinge_constraint : public constraint_base {
     void reset_angle(const quaternion &ornA, const quaternion &ornB);
 };
 
-template<typename Archive>
-void serialize(Archive &archive, hinge_constraint &c) {
-    archive(c.body);
-    archive(c.pivot);
-    archive(c.frame);
-    archive(c.angle_min, c.angle_max, c.limit_restitution);
-    archive(c.bump_stop_angle, c.bump_stop_stiffness);
-    archive(c.friction_torque);
-    archive(c.rest_angle, c.stiffness);
-    archive(c.damping);
-    archive(c.angle);
-    archive(c.impulse);
-}
-
 template<>
 void prepare_constraints<hinge_constraint>(entt::registry &, row_cache &, scalar dt);
 

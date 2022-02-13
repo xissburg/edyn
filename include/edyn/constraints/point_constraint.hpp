@@ -33,14 +33,6 @@ void serialize(Archive &archive, point_constraint &c) {
 template<>
 void prepare_constraints<point_constraint>(entt::registry &, row_cache &, scalar dt);
 
-template<typename Archive>
-void serialize(Archive &archive, point_constraint &c) {
-    archive(c.body);
-    archive(c.pivot);
-    archive(c.friction_torque);
-    archive(c.impulse);
-}
-
 }
 
 #endif // EDYN_CONSTRAINTS_POINT_CONSTRAINT_HPP
