@@ -26,6 +26,13 @@ void serialize(Archive &archive, distance_constraint &c) {
 template<>
 void prepare_constraints<distance_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, distance_constraint &c) {
+    archive(c.body);
+    archive(c.pivot);
+    archive(c.distance);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_DISTANCE_CONSTRAINT

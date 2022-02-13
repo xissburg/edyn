@@ -120,12 +120,12 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
             if (has_limit) {
                 con.update_angle(angle);
 
-                auto limit_error = scalar{0};
-                const auto halfway_limit = (con.twist_min + con.twist_max) / scalar(2);
+                auto limit_error = scalar{};
+                const auto mid_angle = (con.twist_min + con.twist_max) / scalar(2);
 
                 // Set constraint limits according to which is the closer
                 // angular limit.
-                if (con.twist_angle < halfway_limit) {
+                if (con.twist_angle < mid_angle) {
                     limit_error = con.twist_min - con.twist_angle;
                     row.lower_limit = -large_scalar;
                     row.upper_limit = 0;

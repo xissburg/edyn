@@ -59,7 +59,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
         const auto rA_skew = skew_matrix(rA);
         const auto rB_skew = skew_matrix(rB);
         constexpr auto I = matrix3x3_identity;
-        const auto row_start_index = cache.rows.size();
+        auto row_idx = size_t{};
 
         // Make the position of pivot points match, akin to a `point_constraint`.
         for (int i = 0; i < 3; ++i) {
@@ -73,7 +73,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[i];
+            row.impulse = con.impulse[row_idx++];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -94,7 +94,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[3];
+            row.impulse = con.impulse[row_idx++];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -110,7 +110,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[4];
+            row.impulse = con.impulse[row_idx++];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -145,7 +145,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[5];
+            row.impulse = con.impulse[row_idx++];
 
             auto limit_error = scalar{0};
             auto halfway_limit = (con.angle_min + con.angle_max) / scalar(2);
@@ -187,7 +187,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
                     row.inv_mB = inv_mB; row.inv_IB = inv_IB;
                     row.dvA = &dvA; row.dwA = &dwA;
                     row.dvB = &dvB; row.dwB = &dwB;
-                    row.impulse = con.impulse[6];
+                    row.impulse = con.impulse[row_idx++];
 
                     auto spring_force = con.bump_stop_stiffness * bump_stop_deflection;
                     auto spring_impulse = spring_force * dt;
@@ -210,7 +210,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[7];
+            row.impulse = con.impulse[row_idx++];
 
             auto deflection = con.angle - con.rest_angle;
             auto spring_force = con.stiffness * deflection;
@@ -234,7 +234,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[8];
+            row.impulse = con.impulse[row_idx++];
 
             auto friction_impulse = con.friction_torque * dt;
 
@@ -250,8 +250,7 @@ void prepare_constraints<hinge_constraint>(entt::registry &registry, row_cache &
             warm_start(row);
         }
 
-        auto num_rows = cache.rows.size() - row_start_index;
-        cache.con_num_rows.push_back(num_rows);
+        cache.con_num_rows.push_back(row_idx);
     });
 }
 

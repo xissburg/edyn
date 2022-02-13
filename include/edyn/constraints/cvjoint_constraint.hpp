@@ -24,10 +24,11 @@ struct cvjoint_constraint : public constraint_base {
     // calculate the relative angle between frames.
     std::array<matrix3x3, 2> frame{matrix3x3_identity, matrix3x3_identity};
 
-    // Twist angular limits. `angle_min` must be smaller than `angle_max`.
-    // The twist angle is calculated by rotating body B's frame onto A's space
-    // so that their x axes coincide, and then the angle between the y axis of
-    // the transformed B's frame with respect to the A's y axis is calculated.
+    // Twist angular limits, in radians. `twist_min` must be smaller than
+    // `twist_max`. The twist angle is calculated by rotating body B's frame
+    // onto A's space so that their x axes coincide, and then the angle
+    // between the y axis of the transformed B's frame with respect to the A's
+    // y axis is calculated.
     scalar twist_min{}, twist_max{};
 
     // Angular limit restitution.

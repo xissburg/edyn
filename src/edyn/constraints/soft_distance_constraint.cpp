@@ -93,7 +93,7 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
                           dot(row.J[1], angvelA) +
                           dot(row.J[2], linvelB) +
                           dot(row.J[3], angvelB);
-            con.m_relspd = relspd;
+            con.relspd = relspd;
             auto damping_force = con.damping * relspd;
             auto damping_impulse = damping_force * dt;
             auto impulse = std::abs(damping_impulse);
@@ -128,7 +128,7 @@ void iterate_constraints<soft_distance_constraint>(entt::registry &registry, row
                             dot(damping_row.J[2], *damping_row.dvB) +
                             dot(damping_row.J[3], *damping_row.dwB);
 
-        auto relspd = con.m_relspd + delta_relspd;
+        auto relspd = con.relspd + delta_relspd;
 
         auto damping_force = con.damping * relspd;
         auto damping_impulse = damping_force * dt;
