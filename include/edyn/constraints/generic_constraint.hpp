@@ -13,7 +13,7 @@ namespace edyn {
 
 struct generic_constraint : public constraint_base {
     struct linear_dof {
-        bool enabled {true};
+        bool limit_enabled {true};
         scalar offset_min{};
         scalar offset_max{};
         scalar limit_restitution{};
@@ -26,7 +26,7 @@ struct generic_constraint : public constraint_base {
     };
 
     struct angular_dof {
-        bool enabled {true};
+        bool limit_enabled {true};
         scalar angle_min{};
         scalar angle_max{};
         scalar limit_restitution{};
@@ -46,17 +46,6 @@ struct generic_constraint : public constraint_base {
 
     static constexpr auto num_rows = 24;
     std::array<scalar, num_rows> impulse {make_array<num_rows, scalar>(0)};
-
-    void reset_angles(const quaternion &ornA, const quaternion &ornB);
-    void reset_angle(size_t index, const quaternion &ornA, const quaternion &ornB);
-
-    scalar relative_angle(size_t index, const quaternion &ornA, const quaternion &ornB) const ;
-
-    scalar relative_angle(size_t index,
-                          const quaternion &ornA, const quaternion &ornB,
-                          const vector3 &axisA, const vector3 &axisB) const;
-
-    void update_angle(size_t index, scalar new_angle);
 };
 
 template<>
@@ -67,7 +56,7 @@ bool solve_position_constraints<generic_constraint>(entt::registry &, scalar dt)
 
 template<typename Archive>
 void serialize(Archive &archive, generic_constraint::linear_dof &dof) {
-    archive(dof.enabled);
+    archive(dof.limit_enabled);
     archive(dof.offset_min, dof.offset_max);
     archive(dof.limit_restitution);
     archive(dof.bump_stop_length, dof.bump_stop_stiffness);
@@ -78,7 +67,7 @@ void serialize(Archive &archive, generic_constraint::linear_dof &dof) {
 
 template<typename Archive>
 void serialize(Archive &archive, generic_constraint::angular_dof &dof) {
-    archive(dof.enabled);
+    archive(dof.limit_enabled);
     archive(dof.angle_min, dof.angle_max);
     archive(dof.limit_restitution);
     archive(dof.bump_stop_angle, dof.bump_stop_stiffness);

@@ -1,9 +1,6 @@
 #include "edyn/constraints/generic_constraint.hpp"
+#include "edyn/config/config.h"
 #include "edyn/constraints/constraint_row.hpp"
-#include "edyn/math/constants.hpp"
-#include "edyn/math/math.hpp"
-#include "edyn/math/matrix3x3.hpp"
-#include "edyn/math/transform.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/mass.hpp"
@@ -15,53 +12,16 @@
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/math/constants.hpp"
+#include "edyn/math/math.hpp"
+#include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/quaternion.hpp"
+#include "edyn/math/transform.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
-
-void generic_constraint::reset_angles(const quaternion &ornA, const quaternion &ornB) {
-    for (size_t i = 0; i < 3; ++i) {
-        reset_angle(i, ornA, ornB);
-    }
-}
-
-void generic_constraint::reset_angle(size_t index, const quaternion &ornA, const quaternion &ornB) {
-    angular_dofs[index].current_angle = relative_angle(index, ornA, ornB);
-}
-
-scalar generic_constraint::relative_angle(size_t index, const quaternion &ornA, const quaternion &ornB) const {
-    auto axisA = rotate(ornA, frame[0].column(index));
-    auto axisB = rotate(ornB, frame[1].column(index));
-    return relative_angle(index, ornA, ornB, axisA, axisB);
-}
-
-scalar generic_constraint::relative_angle(size_t index,
-                                          const quaternion &ornA, const quaternion &ornB,
-                                          const vector3 &axisA, const vector3 &axisB) const {
-    // Quaternion which rotates the axis of B so it's parallel to the
-    // the axis of A.
-    auto arc_quat = shortest_arc(axisB, axisA);
-
-    // Transform a non-axial vector in the frame of B onto A's space so
-    // the angular error can be calculated.
-    auto index1 = (index + 1) % 3;
-    auto index2 = (index + 2) % 3;
-    auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, frame[1].column(index1));
-    return std::atan2(dot(angle_axisB, frame[0].column(index2)),
-                      dot(angle_axisB, frame[0].column(index1)));
-}
-
-void generic_constraint::update_angle(size_t index, scalar new_angle) {
-    auto &dof = angular_dofs[index];
-    auto previous_angle = normalize_angle(dof.current_angle);
-    // Find shortest path from previous angle to current in
-    // the [-π, π] range.
-    auto angle_delta0 = new_angle - previous_angle;
-    auto angle_delta1 = angle_delta0 + pi2 * to_sign(angle_delta0 < 0);
-    auto angle_delta = std::abs(angle_delta0) < std::abs(angle_delta1) ? angle_delta0 : angle_delta1;
-    dof.current_angle += angle_delta;
-}
 
 template<>
 void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
@@ -89,60 +49,59 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
 
         // Linear.
         for (int i = 0; i < 3; ++i) {
-            const auto &dof = con.linear_dofs[i];
-
-            if (!dof.enabled) {
-                continue;
-            }
+            auto &dof = con.linear_dofs[i];
 
             auto axisA = rotate(ornA, con.frame[0].column(i));
             auto J = std::array<vector3, 4>{axisA, cross(rA, axisA), -axisA, -cross(rB, axisA)};
 
-            auto &row = cache.rows.emplace_back();
-            row.J = J;
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
-
-            auto options = constraint_row_options{};
-
-            auto has_limit = dof.offset_min < dof.offset_max;
+            auto non_zero_limit = dof.offset_min < dof.offset_max;
             auto offset_proj = dot(pivot_offset, axisA);
 
-            if (has_limit) {
-                auto limit_error = scalar{};
-                auto mid_point = (dof.offset_min + dof.offset_max) / scalar(2);
+            if (dof.limit_enabled) {
+                EDYN_ASSERT(!(dof.offset_min > dof.offset_max));
 
-                if (offset_proj < mid_point) {
-                    limit_error = dof.offset_min - offset_proj;
-                    row.lower_limit = -large_scalar;
-                    row.upper_limit = 0;
+                auto &row = cache.rows.emplace_back();
+                row.J = J;
+                row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+                row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+                row.dvA = &dvA; row.dwA = &dwA;
+                row.dvB = &dvB; row.dwB = &dwB;
+                row.impulse = con.impulse[row_idx++];
+                auto options = constraint_row_options{};
+
+                if (non_zero_limit) {
+                    auto limit_error = scalar{};
+                    auto mid_point = (dof.offset_min + dof.offset_max) / scalar(2);
+
+                    if (offset_proj < mid_point) {
+                        limit_error = dof.offset_min - offset_proj;
+                        row.lower_limit = -large_scalar;
+                        row.upper_limit = 0;
+                    } else {
+                        limit_error = dof.offset_max - offset_proj;
+                        row.lower_limit = 0;
+                        row.upper_limit = large_scalar;
+                    }
+
+                    // Only assign error if the limits haven't been violated. The
+                    // position constraints will fix angular limit errors later.
+                    if (offset_proj > dof.offset_min && offset_proj < dof.offset_max) {
+                        options.error = limit_error / dt;
+                    }
+
+                    options.restitution = dof.limit_restitution;
+                    options.erp = 0.9;
                 } else {
-                    limit_error = dof.offset_max - offset_proj;
-                    row.lower_limit = 0;
+                    row.lower_limit = -large_scalar;
                     row.upper_limit = large_scalar;
                 }
 
-                // Only assign error if the limits haven't been violated. The
-                // position constraints will fix angular limit errors later.
-                if (offset_proj > dof.offset_min && offset_proj < dof.offset_max) {
-                    options.error = limit_error / dt;
-                }
-
-                options.restitution = dof.limit_restitution;
-                options.erp = 0.9;
-            } else {
-                row.lower_limit = -large_scalar;
-                row.upper_limit = large_scalar;
+                prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+                warm_start(row);
             }
 
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-
             // Linear bump stops.
-            if (has_limit && dof.bump_stop_stiffness > 0 && dof.bump_stop_length > 0) {
+            if (dof.limit_enabled && non_zero_limit && dof.bump_stop_stiffness > 0 && dof.bump_stop_length > 0) {
                 auto bump_stop_deflection = scalar{};
                 auto bump_stop_min = dof.offset_min + dof.bump_stop_length;
                 auto bump_stop_max = dof.offset_max - dof.bump_stop_length;
@@ -223,59 +182,72 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
 
         // Angular.
         for (int i = 0; i < 3; ++i) {
-            const auto &dof = con.angular_dofs[i];
-
-            if (!dof.enabled) {
-                continue;
-            }
+            auto &dof = con.angular_dofs[i];
+            auto non_zero_limit = dof.angle_min < dof.angle_max;
 
             auto axisA = rotate(ornA, con.frame[0].column(i));
-            auto axisB = rotate(ornB, con.frame[1].column(i));
+            auto axisB = i == 0 ? rotate(ornB, con.frame[1].column(i)) : axisA;
+
+            if (i == 0) {
+                // Quaternion which rotates the axis of B so it's parallel to the
+                // the axis of A.
+                auto arc_quat = shortest_arc(axisB, axisA);
+
+                // Transform a non-axial vector in the frame of B onto A's space so
+                // the angular error can be calculated.
+                auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, con.frame[1].column(1));
+                dof.current_angle = std::atan2(dot(angle_axisB, con.frame[0].column(2)),
+                                               dot(angle_axisB, con.frame[0].column(1)));
+            } else {
+                auto axisB_x = rotate(conjugate(ornA) * ornB, con.frame[1].column(0));
+                dof.current_angle = std::atan2(i == 1 ? -axisB_x.z : axisB_x.y, axisB_x.x);
+            }
+
             auto J = std::array<vector3, 4>{vector3_zero, axisA, vector3_zero, -axisB};
 
-            auto &row = cache.rows.emplace_back();
-            row.J = J;
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+            if (dof.limit_enabled) {
+                EDYN_ASSERT(!(dof.angle_min > dof.angle_max));
 
-            auto angle = con.relative_angle(i, ornA, ornB, axisA, axisB);
-            con.update_angle(i, angle);
+                auto &row = cache.rows.emplace_back();
+                row.J = J;
+                row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+                row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+                row.dvA = &dvA; row.dwA = &dwA;
+                row.dvB = &dvB; row.dwB = &dwB;
+                row.impulse = con.impulse[row_idx++];
+                auto options = constraint_row_options{};
 
-            auto has_limit = dof.angle_min < dof.angle_max;
-            auto options = constraint_row_options{};
+                if (non_zero_limit) {
+                    auto limit_error = scalar{};
+                    auto mid_angle = (dof.angle_min + dof.angle_max) / scalar(2);
 
-            if (has_limit) {
+                    if (dof.current_angle < mid_angle) {
+                        limit_error = dof.angle_min - dof.current_angle;
+                        row.lower_limit = -large_scalar;
+                        row.upper_limit = 0;
+                    } else {
+                        limit_error = dof.angle_max - dof.current_angle;
+                        row.lower_limit = 0;
+                        row.upper_limit = large_scalar;
+                    }
 
-                auto limit_error = scalar{};
-                auto mid_angle = (dof.angle_min + dof.angle_max) / scalar(2);
+                    //if (dof.current_angle > dof.angle_min && dof.current_angle < dof.angle_max) {
+                        options.error = limit_error / dt;
+                    //}
 
-                if (dof.current_angle < mid_angle) {
-                    limit_error = dof.angle_min - dof.current_angle;
-                    row.lower_limit = -large_scalar;
-                    row.upper_limit = 0;
+                    options.restitution = dof.limit_restitution;
                 } else {
-                    limit_error = dof.angle_max - dof.current_angle;
-                    row.lower_limit = 0;
+                    options.error = -dof.current_angle / dt;
+                    row.lower_limit = -large_scalar;
                     row.upper_limit = large_scalar;
                 }
 
-                options.error = limit_error / dt;
-                options.restitution = dof.limit_restitution;
-            } else {
-                auto error = -dof.current_angle;
-                options.error = error / dt;
-                row.lower_limit = -large_scalar;
-                row.upper_limit = large_scalar;
+                prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+                warm_start(row);
             }
 
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-
             // Angular bump stops.
-            if (has_limit && dof.bump_stop_stiffness > 0 && dof.bump_stop_angle > 0) {
+            if (dof.limit_enabled && non_zero_limit && dof.bump_stop_stiffness > 0 && dof.bump_stop_angle > 0) {
                 auto bump_stop_deflection = scalar{0};
                 auto bump_stop_min = dof.angle_min + dof.bump_stop_angle;
                 auto bump_stop_max = dof.angle_max - dof.bump_stop_angle;
@@ -307,7 +279,7 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
             }
 
             // Angular spring.
-            if (has_limit && dof.spring_stiffness > 0) {
+            if (dof.spring_stiffness > 0) {
                 auto &row = cache.rows.emplace_back();
                 row.J = J;
                 row.inv_mA = inv_mA; row.inv_IA = inv_IA;
@@ -329,7 +301,7 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
                 warm_start(row);
             }
 
-            if (has_limit && (dof.friction_torque > 0 || dof.damping > 0)) {
+            if (dof.friction_torque > 0 || dof.damping > 0) {
                 auto &row = cache.rows.emplace_back();
                 row.J = J;
                 row.inv_mA = inv_mA; row.inv_IA = inv_IA;
@@ -377,9 +349,9 @@ bool solve_position_constraints<generic_constraint>(entt::registry &registry, sc
         auto pivot_offset = pivotB - pivotA;
 
         for (int i = 0; i < 3; ++i) {
-            const auto &dof = con.linear_dofs[i];
+            auto &dof = con.linear_dofs[i];
 
-            if (!dof.enabled) {
+            if (!dof.limit_enabled) {
                 continue;
             }
 
@@ -397,7 +369,7 @@ bool solve_position_constraints<generic_constraint>(entt::registry &registry, sc
             auto rB = pivotB - posB;
             auto J = std::array<vector3, 4>{axisA, cross(rA, axisA), -axisA, -cross(rB, axisA)};
             auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
-            auto correction = error * eff_mass;
+            auto correction = error * eff_mass * 0.2;
 
             posA += inv_mA * J[0] * correction;
             posB += inv_mB * J[2] * correction;
@@ -414,6 +386,41 @@ bool solve_position_constraints<generic_constraint>(entt::registry &registry, sc
             auto basisB = to_matrix3x3(ornB);
             inv_IB = basisB * inv_IB * transpose(basisB);
         }
+
+        /* for (int i = 0; i < 3; ++i) {
+            auto &dof = con.angular_dofs[i];
+
+            if (!dof.limit_enabled) {
+                continue;
+            }
+
+            auto axisA = rotate(ornA, con.frame[0].column(i));
+            auto axisB = i == 0 ? rotate(ornB, con.frame[1].column(i)) : axisA;
+            auto error = scalar{};
+
+            if (dof.current_angle < dof.angle_min) {
+                error = dof.angle_min - dof.current_angle;
+            } else if (dof.current_angle > dof.angle_max) {
+                error = dof.angle_max - dof.current_angle;
+            }
+
+            auto J = std::array<vector3, 4>{vector3_zero, axisA, vector3_zero, -axisB};
+            auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
+            auto correction = -error * scalar(0.2) * eff_mass;
+
+            ornA += quaternion_derivative(ornA, inv_IA * J[1] * correction);
+            ornB += quaternion_derivative(ornB, inv_IB * J[3] * correction);
+            ornA = normalize(ornA);
+            ornB = normalize(ornB);
+
+            angular_error = std::max(std::abs(error), angular_error);
+
+            auto basisA = to_matrix3x3(ornA);
+            inv_IA = basisA * inv_IA * transpose(basisA);
+
+            auto basisB = to_matrix3x3(ornB);
+            inv_IB = basisB * inv_IB * transpose(basisB);
+        } */
     });
 
     if (linear_error < scalar(0.005) && angular_error < to_radians(2)) {
