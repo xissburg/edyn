@@ -112,6 +112,14 @@ void set_external_system_functions(entt::registry &registry,
     registry.ctx<island_coordinator>().settings_changed();
 }
 
+void remove_external_systems(entt::registry &registry) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.external_system_init = nullptr;
+    settings.external_system_pre_step = nullptr;
+    settings.external_system_post_step = nullptr;
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
 void tag_external_entity(entt::registry &registry, entt::entity entity, bool procedural) {
     if (procedural) {
         registry.emplace<edyn::procedural_tag>(entity);

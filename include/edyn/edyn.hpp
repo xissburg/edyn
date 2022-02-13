@@ -203,6 +203,12 @@ void set_external_system_functions(entt::registry &registry,
                                    external_system_func_t post_step_func);
 
 /**
+ * @brief Remove all external system functions.
+ * @param registry Data source.
+ */
+void remove_external_systems(entt::registry &registry);
+
+/**
  * @brief Assigns an `external_tag` to this entity and inserts it as a node
  * into the entity graph.
  * This makes it possible to tie this entity and its components to another
