@@ -11,7 +11,7 @@ namespace edyn {
  * @brief Specifies a set of component types that the island worker must send
  * back to the coordinator after every step of the simulation.
  * @remark The types are stored as the index of the component in the current
- * `component_source_index` as to make them stable among different machines to
+ * `component_index_source` as to make them stable among different machines to
  * allow this component to be shared between client and server in a networked
  * simulation.
  */

@@ -53,7 +53,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
                 refresh<Component>(registry, local_entity);
             } else {
                 registry.emplace<Component>(local_entity, comp);
-                registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
+                registry.get_or_emplace<dirty>(local_entity).template created<Component>();
             }
         }
     }
@@ -74,7 +74,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
 
             if (!registry.any_of<Component>(local_entity)) {
                 registry.emplace<Component>(local_entity);
-                registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
+                registry.get_or_emplace<dirty>(local_entity).template created<Component>();
             }
         }
     }

@@ -2,6 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/networking/packet/client_created.hpp"
+#include "edyn/networking/packet/general_snapshot.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
@@ -22,9 +23,7 @@
 namespace edyn {
 
 bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
-    if (registry.any_of<dynamic_tag>(entity)) {
-        return false;
-
+    if (registry.any_of<procedural_tag>(entity)) {
         auto &resident = registry.get<island_resident>(entity);
         auto &island = registry.get<edyn::island>(resident.island_entity);
         auto owned_by_this_client = false;
@@ -285,8 +284,7 @@ void server_process_packets(entt::registry &registry) {
 }
 
 void update_network_server(entt::registry &registry) {
-    auto *ctx = registry.try_ctx<server_network_context>();
-    if (!ctx) return;
+    auto &ctx = registry.ctx<server_network_context>();
 
     auto time = performance_time();
 
@@ -320,15 +318,12 @@ void update_network_server(entt::registry &registry) {
             auto packet = packet::create_entity{};
 
             for (auto entity : aabboi.create_entities) {
-                if (auto *owner = registry.try_get<entity_owner>(entity);
-                    owner == nullptr || owner->client_entity != client_entity) {
-                    packet.entities.push_back(entity);
-                }
+                packet.entities.push_back(entity);
             }
 
             if (!packet.entities.empty()) {
                 for (auto entity : packet.entities) {
-                    ctx->pool_snapshot_exporter->export_all(registry, entity, packet.pools);
+                    ctx.pool_snapshot_exporter->export_all(registry, entity, packet.pools);
                 }
 
                 std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
@@ -364,7 +359,7 @@ void update_network_server(entt::registry &registry) {
 
                 // Only include entities which are in islands not fully owned by the client.
                 if (!is_fully_owned_by_client(registry, client_entity, entity)) {
-                    ctx->pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
+                    ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
                 }
             }
 
@@ -374,15 +369,36 @@ void update_network_server(entt::registry &registry) {
                 client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
             }
         }
+
+        if (!aabboi.entities.empty()) {
+            // Share dirty entity updates.
+            auto packet = packet::general_snapshot{};
+
+            for (auto entity : aabboi.entities) {
+                if (!registry.all_of<networked_tag>(entity)) {
+                    continue;
+                }
+
+                if (auto *dirty = registry.try_get<edyn::dirty>(entity)) {
+                    for (auto id : dirty->updated_indexes) {
+                        ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
+                    }
+                }
+            }
+
+            if (!packet.pools.empty()) {
+                client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+            }
+        }
     });
 
-    for (auto client_entity : ctx->pending_created_clients) {
+    for (auto client_entity : ctx.pending_created_clients) {
         auto &client = registry.get<remote_client>(client_entity);
         auto packet = packet::client_created{client_entity};
         client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 
-    ctx->pending_created_clients.clear();
+    ctx.pending_created_clients.clear();
 
     // Send out accumulated changes to clients.
     registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {

@@ -18,6 +18,7 @@
 #include "edyn/parallel/merge/merge_constraint.hpp"
 #include "edyn/parallel/merge/merge_tree_view.hpp"
 #include "edyn/parallel/merge/merge_collision_exclusion.hpp"
+#include "edyn/parallel/merge/merge_entity_owner.hpp"
 
 namespace edyn {
 

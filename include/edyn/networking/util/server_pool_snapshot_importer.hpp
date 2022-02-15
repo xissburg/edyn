@@ -50,13 +50,14 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             auto comp = pair.second;
             merge(comp, client.entity_map);
+            auto &dirty = registry.get_or_emplace<edyn::dirty>(local_entity);
 
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);
-                refresh<Component>(registry, local_entity);
+                dirty.template updated<Component>();
             } else {
                 registry.emplace<Component>(local_entity, comp);
-                registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
+                dirty.template created<Component>();
             }
         }
     }
@@ -89,7 +90,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             if (!registry.any_of<Component>(local_entity)) {
                 registry.emplace<Component>(local_entity);
-                registry.emplace_or_replace<dirty>(local_entity).template created<Component>();
+                registry.get_or_emplace<dirty>(local_entity).template created<Component>();
             }
         }
     }
