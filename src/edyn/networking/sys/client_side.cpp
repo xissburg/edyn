@@ -213,6 +213,7 @@ void update_network_client(entt::registry &registry) {
 
     update_non_proc_comp_state_history(registry, ctx.state_history, time);
 
+    // Share dirty networked entities using a general snapshot.
     auto dirty_view = registry.view<dirty, networked_tag>();
 
     if (dirty_view.size_hint() > 0) {
@@ -228,6 +229,23 @@ void update_network_client(entt::registry &registry) {
             ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
         }
     }
+
+    // Insert components marked as dirty during snapshot import into the regular
+    // dirty component. This is done separately to avoid having the components
+    // marked as dirty during snapshot import being sent back to the server
+    // in the code above.
+    for (auto [entity, network_dirty] : registry.view<network_dirty>().each()) {
+        if (!dirty_view.contains(entity)) {
+            registry.emplace<dirty>(entity);
+        }
+
+        auto &dirty = dirty_view.get<edyn::dirty>(entity);
+        dirty.created_indexes.insert(network_dirty.created_indexes.begin(), network_dirty.created_indexes.end());
+        dirty.updated_indexes.insert(network_dirty.updated_indexes.begin(), network_dirty.updated_indexes.end());
+        dirty.destroyed_indexes.insert(network_dirty.destroyed_indexes.begin(), network_dirty.destroyed_indexes.end());
+    }
+
+    registry.clear<network_dirty>();
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {

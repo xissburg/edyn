@@ -3,8 +3,8 @@
 
 #include <entt/entity/registry.hpp>
 #include <type_traits>
-#include "edyn/comp/dirty.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/edyn.hpp"
 
@@ -53,7 +53,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             auto comp = pair.second;
             merge(comp, client.entity_map);
-            auto &dirty = registry.get_or_emplace<edyn::dirty>(local_entity);
+            auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
 
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);
@@ -96,7 +96,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             if (!registry.any_of<Component>(local_entity)) {
                 registry.emplace<Component>(local_entity);
-                registry.get_or_emplace<dirty>(local_entity).template created<Component>();
+                registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
             }
         }
     }

@@ -3,7 +3,7 @@
 
 #include <entt/entity/registry.hpp>
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/comp/dirty.hpp"
+#include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/sys/client_side.hpp"
 #include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
@@ -48,7 +48,11 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
             auto comp = pair.second;
             merge(comp, emap);
 
-            auto &dirty = registry.get_or_emplace<edyn::dirty>(local_entity);
+            // Mark as dirty using `network_dirty` to avoid having these
+            // components being sent back to the server later on in
+            // `client_side` when dirty components are put into a
+            // `general_snapshot` and dispatched to the server.
+            auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
 
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);
@@ -76,7 +80,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
 
             if (!registry.any_of<Component>(local_entity)) {
                 registry.emplace<Component>(local_entity);
-                registry.get_or_emplace<dirty>(local_entity).template created<Component>();
+                registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
             }
         }
     }

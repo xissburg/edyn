@@ -398,6 +398,17 @@ void update_network_server(entt::registry &registry) {
                         ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
                     }
                 }
+
+                if (auto *network_dirty = registry.try_get<edyn::network_dirty>(entity)) {
+                    for (auto id : network_dirty->updated_indexes) {
+                        ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
+                    }
+
+                    auto &dirty = registry.get_or_emplace<edyn::dirty>(entity);
+                    dirty.created_indexes.insert(network_dirty->created_indexes.begin(), network_dirty->created_indexes.end());
+                    dirty.updated_indexes.insert(network_dirty->updated_indexes.begin(), network_dirty->updated_indexes.end());
+                    dirty.destroyed_indexes.insert(network_dirty->destroyed_indexes.begin(), network_dirty->destroyed_indexes.end());
+                }
             }
 
             if (!packet.pools.empty()) {
@@ -405,6 +416,8 @@ void update_network_server(entt::registry &registry) {
             }
         }
     });
+
+    registry.clear<network_dirty>();
 
     for (auto client_entity : ctx.pending_created_clients) {
         auto &client = registry.get<remote_client>(client_entity);
