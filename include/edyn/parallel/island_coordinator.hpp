@@ -127,20 +127,25 @@ private:
 template<typename... Component>
 void island_coordinator::refresh(entt::entity entity) {
     static_assert(sizeof...(Component) > 0);
+    auto &index_source = m_registry->ctx<settings>().index_source;
 
     if (m_registry->any_of<island_resident>(entity)) {
         auto &resident = m_registry->get<island_resident>(entity);
 
         if (resident.island_entity != entt::null) {
             auto &ctx = m_island_ctx_map.at(resident.island_entity);
-            ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
+            ((index_source->index_of<Component>() != SIZE_MAX ?
+                ctx->m_delta_builder->updated<Component>(entity, *m_registry) :
+                void(0)), ...);
         }
     } else if (m_registry->any_of<multi_island_resident>(entity)) {
         auto &resident = m_registry->get<multi_island_resident>(entity);
 
         for (auto island_entity : resident.island_entities) {
             auto &ctx = m_island_ctx_map.at(island_entity);
-            ctx->m_delta_builder->updated<Component...>(entity, *m_registry);
+            ((index_source->index_of<Component>() != SIZE_MAX ?
+                ctx->m_delta_builder->updated<Component>(entity, *m_registry) :
+                void(0)), ...);
         }
     }
 }
