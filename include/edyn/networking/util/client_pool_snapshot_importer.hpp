@@ -48,12 +48,14 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
             auto comp = pair.second;
             merge(comp, emap);
 
+            auto &dirty = registry.get_or_emplace<edyn::dirty>(local_entity);
+
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);
-                refresh<Component>(registry, local_entity);
+                dirty.template updated<Component>();
             } else {
                 registry.emplace<Component>(local_entity, comp);
-                registry.get_or_emplace<dirty>(local_entity).template created<Component>();
+                dirty.template created<Component>();
             }
         }
     }

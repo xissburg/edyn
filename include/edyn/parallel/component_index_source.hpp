@@ -47,7 +47,6 @@ struct component_index_source_impl : public component_index_source {
         auto idx = SIZE_MAX;
         ((entt::type_id<Component>().seq() == id ?
             (idx = edyn::index_of<size_t, Component, components_tuple_t>::value) : (size_t)0), ...);
-        EDYN_ASSERT(idx != SIZE_MAX);
         return idx;
     }
 

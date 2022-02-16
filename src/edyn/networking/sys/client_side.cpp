@@ -164,6 +164,7 @@ void update_network_client(entt::registry &registry) {
             registry.emplace<entity_owner>(entity, ctx.client_entity);
         }
 
+        // Sort components to ensure order of construction.
         std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
             return lhs.component_index < rhs.component_index;
         });

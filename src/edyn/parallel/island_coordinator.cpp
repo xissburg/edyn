@@ -541,6 +541,19 @@ void island_coordinator::refresh_dirty_entities() {
     auto dirty_view = m_registry->view<dirty>();
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
+    auto &index_source = m_registry->ctx<settings>().index_source;
+
+    // Do not share components which are not present in the shared components
+    // list.
+    auto remove_unshared = [index_source] (dirty::id_set_t &set) {
+        for (auto it = set.begin(); it != set.end();) {
+            if (index_source->index_of_id(*it) == SIZE_MAX) {
+                it = set.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    };
 
     auto refresh = [this] (entt::entity entity, dirty &dirty, entt::entity island_entity) {
         if (!m_island_ctx_map.count(island_entity)) {
@@ -563,6 +576,10 @@ void island_coordinator::refresh_dirty_entities() {
     };
 
     dirty_view.each([&] (entt::entity entity, dirty &dirty) {
+        remove_unshared(dirty.created_indexes);
+        remove_unshared(dirty.updated_indexes);
+        remove_unshared(dirty.destroyed_indexes);
+
         if (resident_view.contains(entity)) {
             refresh(entity, dirty, resident_view.get<island_resident>(entity).island_entity);
         } else if (multi_resident_view.contains(entity)) {

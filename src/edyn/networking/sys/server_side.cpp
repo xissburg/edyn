@@ -88,7 +88,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &ctx = registry.ctx<server_network_context>();
 
     for (auto &pool : snapshot.pools) {
-        ctx.pool_snapshot_importer->import(registry, client_entity, pool);
+        ctx.pool_snapshot_importer->import(registry, client_entity, pool, true);
     }
 }
 
@@ -96,7 +96,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &ctx = registry.ctx<server_network_context>();
 
     for (auto &pool : snapshot.pools) {
-        ctx.pool_snapshot_importer->import(registry, client_entity, pool);
+        ctx.pool_snapshot_importer->import(registry, client_entity, pool, true);
     }
 }
 
@@ -139,12 +139,22 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         client.packet_signal.publish(client_entity, packet::edyn_packet{emap_packet});
     }
 
+    // Must not check ownership because entities are being created for the the
+    // client thus all entities are already assumed to be owned by the client.
+    // Also, checking ownership at this point would fail since nodes and edges
+    // haven't yet been created and islands haven't been assigned.
+    constexpr auto check_ownership = false;
+
     for (auto &pool : packet.pools) {
-        ctx.pool_snapshot_importer->import(registry, client_entity, pool);
+        ctx.pool_snapshot_importer->import(registry, client_entity, pool, check_ownership);
     }
+
+    // Insert all entities in AABB-of-interest and assign networked tags.
+    auto &aabboi = registry.get<aabb_of_interest>(client_entity);
 
     for (auto remote_entity : packet.entities) {
         auto local_entity = client.entity_map.remloc(remote_entity);
+        aabboi.entities.emplace(local_entity);
 
         if (!registry.all_of<networked_tag>(local_entity)) {
             registry.emplace<networked_tag>(local_entity);
@@ -262,9 +272,6 @@ void deinit_network_server(entt::registry &registry) {
 }
 
 void server_process_packets(entt::registry &registry) {
-    auto *ctx = registry.try_ctx<server_network_context>();
-    if (!ctx) return;
-
     auto timestamp = performance_time();
 
     registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
@@ -326,6 +333,7 @@ void update_network_server(entt::registry &registry) {
                     ctx.pool_snapshot_exporter->export_all(registry, entity, packet.pools);
                 }
 
+                // Sort components to ensure order of construction.
                 std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
                     return lhs.component_index < rhs.component_index;
                 });
@@ -379,6 +387,12 @@ void update_network_server(entt::registry &registry) {
                     continue;
                 }
 
+                // Ignore entities owned by client.
+                if (auto *owner = registry.try_get<entity_owner>(entity);
+                    owner != nullptr && owner->client_entity == client_entity) {
+                    continue;
+                }
+
                 if (auto *dirty = registry.try_get<edyn::dirty>(entity)) {
                     for (auto id : dirty->updated_indexes) {
                         ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
@@ -418,7 +432,6 @@ void server_handle_packet(entt::registry &registry, entt::entity client_entity, 
 void server_make_client(entt::registry &registry, entt::entity entity) {
     registry.emplace<remote_client>(entity);
     registry.emplace<aabb_of_interest>(entity);
-    edyn::tag_external_entity(registry, entity, false);
 
     auto &ctx = registry.ctx<server_network_context>();
     ctx.pending_created_clients.push_back(entity);
