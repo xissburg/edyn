@@ -290,134 +290,8 @@ void server_process_packets(entt::registry &registry) {
     });
 }
 
-void update_network_server(entt::registry &registry) {
+static void publish_pending_created_clients(entt::registry &registry) {
     auto &ctx = registry.ctx<server_network_context>();
-
-    auto time = performance_time();
-
-    server_process_packets(registry);
-
-    update_aabbs_of_interest(registry);
-
-    auto view = registry.view<remote_client, aabb_of_interest>();
-    view.each([&] (entt::entity client_entity, remote_client &client, aabb_of_interest &aabboi) {
-        if (!aabboi.destroy_entities.empty()) {
-            auto packet = packet::destroy_entity{};
-
-            for (auto entity : aabboi.destroy_entities) {
-                if (!registry.valid(entity)) {
-                    packet.entities.push_back(entity);
-                    continue;
-                }
-
-                // Ignore entities owned by client.
-                if (auto *owner = registry.try_get<entity_owner>(entity);
-                    owner == nullptr || owner->client_entity != client_entity) {
-                    packet.entities.push_back(entity);
-                }
-            }
-
-            client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
-            aabboi.destroy_entities.clear();
-        }
-
-        if (!aabboi.create_entities.empty()) {
-            auto packet = packet::create_entity{};
-
-            for (auto entity : aabboi.create_entities) {
-                packet.entities.push_back(entity);
-            }
-
-            if (!packet.entities.empty()) {
-                for (auto entity : packet.entities) {
-                    ctx.pool_snapshot_exporter->export_all(registry, entity, packet.pools);
-                }
-
-                // Sort components to ensure order of construction.
-                std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
-                    return lhs.component_index < rhs.component_index;
-                });
-
-                client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
-            }
-
-            aabboi.create_entities.clear();
-        }
-
-        if (time - client.last_snapshot_time > 1 / client.snapshot_rate) {
-            auto packet = packet::transient_snapshot{};
-
-            for (auto entity : aabboi.entities) {
-                if (registry.any_of<sleeping_tag, static_tag>(entity)) {
-                    continue;
-                }
-
-                if (auto *manifold = registry.try_get<contact_manifold>(entity)) {
-                    if (!is_fully_owned_by_client(registry, client_entity, manifold->body[0]) ||
-                        !is_fully_owned_by_client(registry, client_entity, manifold->body[1]))
-                    {
-                        packet.manifolds.push_back(*manifold);
-                    }
-                    continue;
-                }
-
-                if (!registry.all_of<networked_tag>(entity)) {
-                    continue;
-                }
-
-                // Only include entities which are in islands not fully owned by the client.
-                if (!is_fully_owned_by_client(registry, client_entity, entity)) {
-                    ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
-                }
-            }
-
-            client.last_snapshot_time = time;
-
-            if (!packet.pools.empty()) {
-                client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
-            }
-        }
-
-        if (!aabboi.entities.empty()) {
-            // Share dirty entity updates.
-            auto packet = packet::general_snapshot{};
-
-            for (auto entity : aabboi.entities) {
-                if (!registry.all_of<networked_tag>(entity)) {
-                    continue;
-                }
-
-                // Ignore entities owned by client.
-                if (auto *owner = registry.try_get<entity_owner>(entity);
-                    owner != nullptr && owner->client_entity == client_entity) {
-                    continue;
-                }
-
-                if (auto *dirty = registry.try_get<edyn::dirty>(entity)) {
-                    for (auto id : dirty->updated_indexes) {
-                        ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
-                    }
-                }
-
-                if (auto *network_dirty = registry.try_get<edyn::network_dirty>(entity)) {
-                    for (auto id : network_dirty->updated_indexes) {
-                        ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
-                    }
-
-                    auto &dirty = registry.get_or_emplace<edyn::dirty>(entity);
-                    dirty.created_indexes.insert(network_dirty->created_indexes.begin(), network_dirty->created_indexes.end());
-                    dirty.updated_indexes.insert(network_dirty->updated_indexes.begin(), network_dirty->updated_indexes.end());
-                    dirty.destroyed_indexes.insert(network_dirty->destroyed_indexes.begin(), network_dirty->destroyed_indexes.end());
-                }
-            }
-
-            if (!packet.pools.empty()) {
-                client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
-            }
-        }
-    });
-
-    registry.clear<network_dirty>();
 
     for (auto client_entity : ctx.pending_created_clients) {
         auto &client = registry.get<remote_client>(client_entity);
@@ -426,7 +300,9 @@ void update_network_server(entt::registry &registry) {
     }
 
     ctx.pending_created_clients.clear();
+}
 
+static void publish_client_current_snapshots(entt::registry &registry) {
     // Send out accumulated changes to clients.
     registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
         if (client.current_snapshot.pools.empty()) return;
@@ -434,6 +310,196 @@ void update_network_server(entt::registry &registry) {
         client.packet_signal.publish(client_entity, packet);
         EDYN_ASSERT(client.current_snapshot.pools.empty());
     });
+}
+
+static void process_aabb_of_interest_destroyed_entities(entt::registry &registry,
+                                                        entt::entity client_entity,
+                                                        remote_client &client,
+                                                        aabb_of_interest &aabboi) {
+    if (aabboi.destroy_entities.empty()) {
+        return;
+    }
+
+    // Notify client of entities that have been removed from its AABB-of-interest.
+    auto owner_view = registry.view<entity_owner>();
+    auto packet = packet::destroy_entity{};
+
+    for (auto entity : aabboi.destroy_entities) {
+        // Ignore entities owned by client.
+        if (!registry.valid(entity) ||
+            !owner_view.contains(entity) ||
+            std::get<0>(owner_view.get(entity)).client_entity != client_entity)
+        {
+            packet.entities.push_back(entity);
+
+            // Must not forget to remove entity from client's entity map. Would be
+            // a problem later when this entity comes back into the AABB-of-interest,
+            // which would cause a new entity mapping to be created, which would lead
+            // to an assertion failure since a mapping would already exist.
+            if (client.entity_map.has_loc(entity)) {
+                client.entity_map.erase_loc(entity);
+            }
+        }
+    }
+
+    aabboi.destroy_entities.clear();
+
+    if (!packet.entities.empty()) {
+        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+    }
+}
+
+static void process_aabb_of_interest_created_entities(entt::registry &registry,
+                                                      entt::entity client_entity,
+                                                      remote_client &client,
+                                                      aabb_of_interest &aabboi) {
+    if (aabboi.create_entities.empty()) {
+        return;
+    }
+
+    auto owner_view = registry.view<entity_owner>();
+    auto packet = packet::create_entity{};
+
+    for (auto entity : aabboi.create_entities) {
+        // Ignore entities owned by client, since these entities must be
+        // persistent in the client-side.
+        if (!owner_view.contains(entity) ||
+            std::get<0>(owner_view.get(entity)).client_entity != client_entity)
+        {
+            packet.entities.push_back(entity);
+        }
+    }
+
+    if (!packet.entities.empty()) {
+        auto &ctx = registry.ctx<server_network_context>();
+
+        for (auto entity : packet.entities) {
+            ctx.pool_snapshot_exporter->export_all(registry, entity, packet.pools);
+        }
+
+        // Sort components to ensure order of construction on the other end.
+        std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+            return lhs.component_index < rhs.component_index;
+        });
+
+        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+    }
+
+    aabboi.create_entities.clear();
+}
+
+static void maybe_publish_client_transient_snapshot(entt::registry &registry,
+                                                    entt::entity client_entity,
+                                                    remote_client &client,
+                                                    aabb_of_interest &aabboi) {
+    auto time = performance_time();
+
+    if (time - client.last_snapshot_time < 1 / client.snapshot_rate) {
+        return;
+    }
+
+    auto &ctx = registry.ctx<server_network_context>();
+    auto packet = packet::transient_snapshot{};
+
+    for (auto entity : aabboi.entities) {
+        if (registry.any_of<sleeping_tag, static_tag>(entity)) {
+            continue;
+        }
+
+        if (auto *manifold = registry.try_get<contact_manifold>(entity)) {
+            if (!is_fully_owned_by_client(registry, client_entity, manifold->body[0]) ||
+                !is_fully_owned_by_client(registry, client_entity, manifold->body[1]))
+            {
+                packet.manifolds.push_back(*manifold);
+            }
+            continue;
+        }
+
+        if (!registry.all_of<networked_tag>(entity)) {
+            continue;
+        }
+
+        // Only include entities which are in islands not fully owned by the client
+        // since the server allows the client to have full control over entities in
+        // the islands where there are no other clients present.
+        if (!is_fully_owned_by_client(registry, client_entity, entity)) {
+            ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
+        }
+    }
+
+    client.last_snapshot_time = time;
+
+    if (!packet.pools.empty()) {
+        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+    }
+}
+
+static void publish_client_dirty_components(entt::registry &registry,
+                                            entt::entity client_entity,
+                                            remote_client &client,
+                                            aabb_of_interest &aabboi) {
+    // Share dirty entity updates.
+    auto packet = packet::general_snapshot{};
+    auto &ctx = registry.ctx<server_network_context>();
+
+    for (auto entity : aabboi.entities) {
+        if (!registry.all_of<networked_tag>(entity)) {
+            continue;
+        }
+
+        // Add dirty components to snapshot, including for entities
+        // owned by the destination client. This does not include components
+        // marked as dirty during import of other snapshots since
+        // `network_dirty` is used in `server_pool_snapshot_importer` instead.
+        // This ensures the server will not relay back changes requested by
+        // the client via these snapshot packets.
+        if (auto *dirty = registry.try_get<edyn::dirty>(entity)) {
+            for (auto id : dirty->updated_indexes) {
+                ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
+            }
+        }
+    }
+
+    if (!packet.pools.empty()) {
+        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+    }
+}
+
+static void merge_network_dirty_into_dirty(entt::registry &registry, aabb_of_interest &aabboi) {
+    // Merge components marked as dirty during network import (i.e.
+    // `ctx.pool_snapshot_importer->import(...)`) into the regular dirty
+    // components so these changes will be pushed into the respective
+    // island workers.
+    for (auto entity : aabboi.entities) {
+        if (!registry.all_of<networked_tag>(entity)) {
+            continue;
+        }
+
+        if (auto *network_dirty = registry.try_get<edyn::network_dirty>(entity)) {
+            registry.get_or_emplace<edyn::dirty>(entity).merge(*network_dirty);
+        }
+    }
+}
+
+static void process_aabbs_of_interest(entt::registry &registry) {
+    for (auto [client_entity, client, aabboi] : registry.view<remote_client, aabb_of_interest>().each()) {
+        process_aabb_of_interest_destroyed_entities(registry, client_entity, client, aabboi);
+        process_aabb_of_interest_created_entities(registry, client_entity, client, aabboi);
+        maybe_publish_client_transient_snapshot(registry, client_entity, client, aabboi);
+        publish_client_dirty_components(registry, client_entity, client, aabboi);
+        merge_network_dirty_into_dirty(registry, aabboi);
+    }
+}
+
+void update_network_server(entt::registry &registry) {
+    server_process_packets(registry);
+    update_aabbs_of_interest(registry);
+    process_aabbs_of_interest(registry);
+    publish_pending_created_clients(registry);
+    publish_client_current_snapshots(registry);
+
+    // Clear dirty after processing.
+    registry.clear<network_dirty>();
 }
 
 void server_handle_packet(entt::registry &registry, entt::entity client_entity, const packet::edyn_packet &packet) {
@@ -446,6 +512,10 @@ void server_make_client(entt::registry &registry, entt::entity entity) {
     registry.emplace<remote_client>(entity);
     registry.emplace<aabb_of_interest>(entity);
 
+    // `client_created` packets aren't published here at client construction
+    // because at this point the caller wouldn't have a chance to receive the
+    // packet as a signal in client's packet sink. Thus, this packet is
+    // published later on a call to `update_network_server`.
     auto &ctx = registry.ctx<server_network_context>();
     ctx.pending_created_clients.push_back(entity);
 }
@@ -460,6 +530,31 @@ void server_set_client_latency(entt::registry &registry, entt::entity client_ent
     auto &client = registry.get<remote_client>(client_entity);
     client.latency = latency;
     client.playout_delay = latency * 1.2;
+}
+
+void server_assign_ownership_to_client(entt::registry &registry, entt::entity client_entity, std::vector<entt::entity> &entities) {
+    auto &ctx = registry.ctx<server_network_context>();
+    auto &client = registry.get<edyn::remote_client>(client_entity);
+    client.owned_entities.insert(client.owned_entities.end(), entities.begin(), entities.end());
+
+    for (auto entity : entities) {
+        registry.emplace<edyn::entity_owner>(entity, client_entity);
+        registry.emplace<edyn::networked_tag>(entity);
+    }
+
+    auto packet = edyn::packet::create_entity{};
+    packet.entities = std::move(entities);
+
+    for (auto entity : packet.entities) {
+        ctx.pool_snapshot_exporter->export_all(registry, entity, packet.pools);
+    }
+
+    // Sort components to ensure order of construction.
+    std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+        return lhs.component_index < rhs.component_index;
+    });
+
+    client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
 }
 
 }

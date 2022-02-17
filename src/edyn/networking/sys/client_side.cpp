@@ -239,10 +239,7 @@ void update_network_client(entt::registry &registry) {
             registry.emplace<dirty>(entity);
         }
 
-        auto &dirty = dirty_view.get<edyn::dirty>(entity);
-        dirty.created_indexes.insert(network_dirty.created_indexes.begin(), network_dirty.created_indexes.end());
-        dirty.updated_indexes.insert(network_dirty.updated_indexes.begin(), network_dirty.updated_indexes.end());
-        dirty.destroyed_indexes.insert(network_dirty.destroyed_indexes.begin(), network_dirty.destroyed_indexes.end());
+        dirty_view.get<edyn::dirty>(entity).merge(network_dirty);
     }
 
     registry.clear<network_dirty>();
