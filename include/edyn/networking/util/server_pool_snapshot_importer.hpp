@@ -40,6 +40,9 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
                 continue;
             }
 
+            // TODO: must accept components of all entities contained in the
+            // island that is temporarily owned by the client. The island is
+            // owned by the client if he/she is the only client in that island.
             if (check_ownership) {
                 // If this is a procedural component and the entity is not fully owned
                 // by the client, the update must not be applied, because in this case

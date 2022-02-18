@@ -67,7 +67,6 @@ void on_destroy_entity_owner(entt::registry &registry, entt::entity entity) {
 }
 
 static void update_non_proc_comp_state_history(entt::registry &registry,
-                                               non_proc_comp_state_history &state_history,
                                                double timestamp) {
     // Insert select non-procedural components into history only for entities
     // owned by the local client.
@@ -80,7 +79,7 @@ static void update_non_proc_comp_state_history(entt::registry &registry,
     }
 
     if (!builder->empty()) {
-        state_history.emplace(builder->finish(), timestamp);
+        ctx.state_history.emplace(builder->finish(), timestamp);
     }
 }
 
@@ -136,6 +135,66 @@ entt::sparse_set collect_islands_from_residents(entt::registry &registry, It fir
     return island_entities;
 }
 
+static void process_created_networked_entities(entt::registry &registry) {
+    auto &ctx = registry.ctx<client_network_context>();
+
+    if (ctx.created_entities.empty()) {
+        return;
+    }
+
+    packet::create_entity packet;
+    packet.entities = ctx.created_entities;
+
+    for (auto entity : ctx.created_entities) {
+        ctx.pool_snapshot_exporter->export_all(registry, entity, packet.pools);
+        registry.emplace<entity_owner>(entity, ctx.client_entity);
+    }
+
+    // Sort components to ensure order of construction.
+    std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+        return lhs.component_index < rhs.component_index;
+    });
+
+    ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+    ctx.created_entities.clear();
+}
+
+static void process_destroyed_networked_entities(entt::registry &registry) {
+    auto &ctx = registry.ctx<client_network_context>();
+
+    if (ctx.destroyed_entities.empty()) {
+        return;
+    }
+
+    packet::destroy_entity packet;
+    packet.entities = std::move(ctx.destroyed_entities);
+    ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+}
+
+static void maybe_publish_transient_snapshot(entt::registry &registry, double time) {
+    auto &ctx = registry.ctx<client_network_context>();
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+
+    if (time - ctx.last_snapshot_time < 1 / client_settings.snapshot_rate) {
+        return;
+    }
+
+    ctx.last_snapshot_time = time;
+
+    auto packet = packet::transient_snapshot{};
+
+    // TODO: include entire island where owned entities reside.
+    for (auto entity : ctx.owned_entities) {
+        EDYN_ASSERT(registry.all_of<networked_tag>(entity));
+        ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
+    }
+
+    if (!packet.pools.empty()) {
+        ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+    }
+}
+
 static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
     auto island_entities = collect_islands_from_residents(registry, result.entities.begin(), result.entities.end());
     EDYN_ASSERT(!island_entities.empty());
@@ -152,51 +211,8 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
     }
 }
 
-void update_network_client(entt::registry &registry) {
+static void process_finished_extrapolation_jobs(entt::registry &registry) {
     auto &ctx = registry.ctx<client_network_context>();
-
-    if (!ctx.created_entities.empty()) {
-        packet::create_entity packet;
-        packet.entities = ctx.created_entities;
-
-        for (auto entity : ctx.created_entities) {
-            ctx.pool_snapshot_exporter->export_all(registry, entity, packet.pools);
-            registry.emplace<entity_owner>(entity, ctx.client_entity);
-        }
-
-        // Sort components to ensure order of construction.
-        std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
-            return lhs.component_index < rhs.component_index;
-        });
-
-        ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
-        ctx.created_entities.clear();
-    }
-
-    if (!ctx.destroyed_entities.empty()) {
-        packet::destroy_entity packet;
-        packet.entities = std::move(ctx.destroyed_entities);
-        ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
-    }
-
-    auto time = performance_time();
-    auto &settings = registry.ctx<edyn::settings>();
-    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
-
-    if (time - ctx.last_snapshot_time > 1 / client_settings.snapshot_rate) {
-        auto packet = packet::transient_snapshot{};
-
-        for (auto entity : ctx.owned_entities) {
-            EDYN_ASSERT(registry.all_of<networked_tag>(entity));
-            ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
-        }
-
-        ctx.last_snapshot_time = time;
-
-        if (!packet.pools.empty()) {
-            ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
-        }
-    }
 
     // Check if extrapolation jobs are finished and merge their results into
     // the main registry.
@@ -210,30 +226,37 @@ void update_network_client(entt::registry &registry) {
         return false;
     });
     ctx.extrapolation_jobs.erase(remove_it, ctx.extrapolation_jobs.end());
+}
 
-    update_non_proc_comp_state_history(registry, ctx.state_history, time);
-
+static void publish_dirty_components(entt::registry &registry) {
     // Share dirty networked entities using a general snapshot.
     auto dirty_view = registry.view<dirty, networked_tag>();
 
-    if (dirty_view.size_hint() > 0) {
-        auto packet = packet::general_snapshot{};
+    if (dirty_view.size_hint() == 0) {
+        return;
+    }
 
-        for (auto [entity, dirty] : dirty_view.each()) {
-            for (auto id : dirty.updated_indexes) {
-                ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
-            }
-        }
+    auto &ctx = registry.ctx<client_network_context>();
+    auto packet = packet::general_snapshot{};
 
-        if (!packet.pools.empty()) {
-            ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+    for (auto [entity, dirty] : dirty_view.each()) {
+        for (auto id : dirty.updated_indexes) {
+            ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
         }
     }
+
+    if (!packet.pools.empty()) {
+        ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+    }
+}
+
+static void merge_network_dirty_into_dirty(entt::registry &registry) {
+    auto dirty_view = registry.view<dirty>();
 
     // Insert components marked as dirty during snapshot import into the regular
     // dirty component. This is done separately to avoid having the components
     // marked as dirty during snapshot import being sent back to the server
-    // in the code above.
+    // in `publish_dirty_components`.
     for (auto [entity, network_dirty] : registry.view<network_dirty>().each()) {
         if (!dirty_view.contains(entity)) {
             registry.emplace<dirty>(entity);
@@ -243,6 +266,18 @@ void update_network_client(entt::registry &registry) {
     }
 
     registry.clear<network_dirty>();
+}
+
+void update_network_client(entt::registry &registry) {
+    auto time = performance_time();
+
+    process_created_networked_entities(registry);
+    process_destroyed_networked_entities(registry);
+    maybe_publish_transient_snapshot(registry, time);
+    process_finished_extrapolation_jobs(registry);
+    update_non_proc_comp_state_history(registry, time);
+    publish_dirty_components(registry);
+    merge_network_dirty_into_dirty(registry);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
