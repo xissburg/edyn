@@ -86,7 +86,7 @@ void extrapolation_job::load_input() {
 
     std::apply([&] (auto ... t) {
         (m_registry.view<decltype(t)>().each(insert_graph_node), ...);
-    }, std::tuple<dynamic_tag, static_tag, kinematic_tag, external_tag>{});
+    }, std::tuple<rigidbody_tag, external_tag>{});
 
     // Create edges for constraints in entity graph.
     auto node_view = m_registry.view<graph_node>();

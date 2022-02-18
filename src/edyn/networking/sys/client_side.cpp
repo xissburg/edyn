@@ -372,7 +372,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
             registry.emplace<graph_node>(local_entity, node_index);
         }
 
-        if (registry.any_of<procedural_tag>(local_entity)) {
+        if (registry.any_of<rigidbody_tag, procedural_tag>(local_entity)) {
             registry.emplace<discontinuity>(local_entity);
         }
     }

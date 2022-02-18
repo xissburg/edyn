@@ -227,10 +227,7 @@ void island_worker::on_island_delta(const island_delta &delta) {
         insert_remote_node(remote_entity);
     };
 
-    delta.created_for_each<dynamic_tag>(insert_node);
-    delta.created_for_each<static_tag>(insert_node);
-    delta.created_for_each<kinematic_tag>(insert_node);
-    delta.created_for_each<external_tag>(insert_node);
+    delta.created_for_each<rigidbody_tag, external_tag>(insert_node);
 
     // Insert edges in the graph for constraints.
     delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
