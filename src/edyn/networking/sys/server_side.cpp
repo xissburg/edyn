@@ -23,27 +23,57 @@
 namespace edyn {
 
 bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
-    if (registry.any_of<procedural_tag>(entity)) {
-        auto &resident = registry.get<island_resident>(entity);
-        auto &island = registry.get<edyn::island>(resident.island_entity);
-        auto owned_by_this_client = false;
-        auto owned_by_another_client = false;
-
-        for (auto node : island.nodes) {
-            if (auto *owner = registry.try_get<entity_owner>(node)) {
-                if (owner->client_entity == client_entity) {
-                    owned_by_this_client = true;
-                } else {
-                    owned_by_another_client = true;
-                }
-            }
-        }
-
-        return owned_by_this_client && !owned_by_another_client;
+    if (!registry.any_of<procedural_tag>(entity)) {
+        // Non-procedural entities are always owned by the client.
+        return registry.all_of<entity_owner>(entity) &&
+               registry.get<entity_owner>(entity).client_entity == client_entity;
     }
 
-    return registry.all_of<entity_owner>(entity) &&
-           registry.get<entity_owner>(entity).client_entity == client_entity;
+    // The client has ownership of their entities if they're the only client in
+    // the island where the entity resides. They're also granted temporary
+    // ownership of all other entities in that island.
+    auto owner_view = registry.view<entity_owner>();
+    auto &resident = registry.get<island_resident>(entity);
+    auto &island = registry.get<edyn::island>(resident.island_entity);
+    auto contains_entity_owned_by_this_client = false;
+    auto contains_entity_owned_by_another_client = false;
+
+    // Returns whether loop should continue. It should stop if the island
+    // contains an entity owned by another client.
+    auto check_entity = [&] (entt::entity entity) {
+        if (!owner_view.contains(entity)) {
+            return true;
+        }
+
+        auto [owner] = owner_view.get(entity);
+        if (owner.client_entity == client_entity) {
+            // There's at least one entity owned by this client.
+            contains_entity_owned_by_this_client = true;
+            return true;
+        } else {
+            // There is another client present in this island.
+            contains_entity_owned_by_another_client = true;
+            return false;
+        }
+    };
+
+    for (auto entity : island.nodes) {
+        if (!check_entity(entity)) {
+            break;
+        }
+    }
+
+    if (contains_entity_owned_by_another_client) {
+        return false;
+    }
+
+    for (auto entity : island.edges) {
+        if (!check_entity(entity)) {
+            break;
+        }
+    }
+
+    return contains_entity_owned_by_this_client && !contains_entity_owned_by_another_client;
 }
 
 static void on_destroy_networked_tag(entt::registry &registry, entt::entity destroyed_entity) {
@@ -392,6 +422,8 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
         return;
     }
 
+    client.last_snapshot_time = time;
+
     auto &ctx = registry.ctx<server_network_context>();
     auto packet = packet::transient_snapshot{};
 
@@ -421,8 +453,6 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
         }
     }
 
-    client.last_snapshot_time = time;
-
     if (!packet.pools.empty()) {
         client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
@@ -437,7 +467,6 @@ static void publish_client_dirty_components(entt::registry &registry,
     auto &ctx = registry.ctx<server_network_context>();
     auto dirty_view = registry.view<dirty>();
     auto network_dirty_view = registry.view<network_dirty>();
-    auto owner_view = registry.view<entity_owner>();
 
     for (auto entity : aabboi.entities) {
         if (!registry.all_of<networked_tag>(entity)) {
@@ -459,10 +488,7 @@ static void publish_client_dirty_components(entt::registry &registry,
         // only include updates for those not owned by this client, since that
         // would cause the state that was set by the client to be sent back to
         // the client itself.
-        auto owned_by_client = owner_view.contains(entity) &&
-            std::get<0>(owner_view.get(entity)).client_entity == client_entity;
-
-        if (network_dirty_view.contains(entity) && !owned_by_client) {
+        if (network_dirty_view.contains(entity) && !is_fully_owned_by_client(registry, client_entity, entity)) {
             auto [dirty] = network_dirty_view.get(entity);
             for (auto id : dirty.updated_indexes) {
                 ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
