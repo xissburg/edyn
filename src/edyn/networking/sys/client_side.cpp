@@ -120,7 +120,7 @@ entt::sparse_set collect_islands_from_residents(entt::registry &registry, It fir
         }
 
         if (auto *resident = registry.try_get<island_resident>(entity)) {
-            if (!island_entities.contains(resident->island_entity)) {
+            if (resident->island_entity != entt::null && !island_entities.contains(resident->island_entity)) {
                 island_entities.emplace(resident->island_entity);
             }
         } else if (auto *resident = registry.try_get<multi_island_resident>(entity)) {
@@ -182,12 +182,36 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
 
     ctx.last_snapshot_time = time;
 
+    // Include transient components of all entities in the islands that contain
+    // an entity owned by this client, excluding entities that are owned by
+    // other clients.
     auto packet = packet::transient_snapshot{};
 
-    // TODO: include entire island where owned entities reside.
-    for (auto entity : ctx.owned_entities) {
-        EDYN_ASSERT(registry.all_of<networked_tag>(entity));
-        ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
+    auto island_entities = collect_islands_from_residents(registry, ctx.owned_entities.begin(), ctx.owned_entities.end());
+    auto island_view = registry.view<island>();
+    auto networked_view = registry.view<networked_tag>();
+    auto owner_view = registry.view<entity_owner>();
+
+    auto export_transient = [&] (entt::entity entity) {
+        auto is_owned_by_another_client =
+            owner_view.contains(entity) &&
+            std::get<0>(owner_view.get(entity)).client_entity != ctx.client_entity;
+
+        if (networked_view.contains(entity) && !is_owned_by_another_client) {
+            ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
+        }
+    };
+
+    for (auto island_entity : island_entities) {
+        auto [island] = island_view.get(island_entity);
+
+        for (auto entity : island.nodes) {
+            export_transient(entity);
+        }
+
+        for (auto entity : island.edges) {
+            export_transient(entity);
+        }
     }
 
     if (!packet.pools.empty()) {
