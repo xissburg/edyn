@@ -58,7 +58,8 @@ TEST(entity_graph_test, test_connected_components) {
 
     graph.remove_edge(edge_index01_0);
 
-    graph.visit_edges(node_index0, node_index1, [&] (entt::entity edge_entity) {
+    graph.visit_edges(node_index0, node_index1, [&] (auto edge_index) {
+        auto edge_entity = graph.edge_entity(edge_index);
         ASSERT_EQ(edge_entity, edge_entity01_1);
     });
 }

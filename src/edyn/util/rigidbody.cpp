@@ -270,7 +270,9 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
     auto &node = registry.get<graph_node>(entity);
     auto &material_table = registry.ctx<material_mix_table>();
 
-    graph.visit_edges(node.node_index, [&] (auto edge_entity) {
+    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+        auto edge_entity = graph.edge_entity(edge_index);
+
         if (!manifold_view.contains(edge_entity)) {
             return;
         }

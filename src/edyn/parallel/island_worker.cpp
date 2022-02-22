@@ -152,7 +152,8 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
 
     m_destroying_node = true;
 
-    graph.visit_edges(node.node_index, [&] (entt::entity edge_entity) {
+    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+        auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
     });
 

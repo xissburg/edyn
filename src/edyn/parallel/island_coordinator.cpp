@@ -76,7 +76,8 @@ void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::e
     // direct `entity_graph::remove_all_edges` will be used instead.
     registry.on_destroy<graph_edge>().disconnect<&island_coordinator::on_destroy_graph_edge>(*this);
 
-    graph.visit_edges(node.node_index, [&] (entt::entity edge_entity) {
+    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+        auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
     });
 
@@ -266,7 +267,9 @@ void island_coordinator::init_new_nodes_and_edges() {
             bool continue_visiting = false;
 
             // Visit neighbor if it contains an edge that is not in an island yet.
-            graph.visit_edges(node_index, [&] (entt::entity edge_entity) {
+            graph.visit_edges(node_index, [&] (auto edge_index) {
+                auto edge_entity = graph.edge_entity(edge_index);
+
                 if (resident_view.get<island_resident>(edge_entity).island_entity == entt::null) {
                     continue_visiting = true;
                 }
