@@ -84,6 +84,14 @@ namespace internal {
             return;
         }
 
+        // Check if view contains any of the given entities.
+        auto any_it = std::find_if(entities.begin(), entities.end(),
+                                   [view] (auto entity) { return view.contains(entity); });
+
+        if (any_it == entities.end()) {
+            return;
+        }
+
         auto pool = std::make_unique<extrapolation_component_pool_impl<Component>>();
         pool->data.reserve(entities.size());
 
