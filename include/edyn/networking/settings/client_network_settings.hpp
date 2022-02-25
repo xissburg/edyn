@@ -14,7 +14,7 @@ struct client_network_settings {
     // The discontinuity error will be multiplied by this value after every
     // step. That means this value is sensitive to the fixed delta time since
     // a lower delta time means higher step rate, thus faster decay.
-    scalar discontinuity_decay_rate {scalar(0.8)};
+    scalar discontinuity_decay_rate {scalar(0.9)};
 };
 
 }

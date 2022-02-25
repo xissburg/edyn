@@ -12,11 +12,12 @@ void update_aabbs_of_interest(entt::registry &registry) {
     auto owner_view = registry.view<entity_owner>();
 
     auto view = registry.view<aabb_of_interest>();
-    view.each([&] (aabb_of_interest &aabb_of) {
+    view.each([&] (aabb_of_interest &aabboi) {
         entt::sparse_set contained_entities;
 
+        aabboi.island_entities.clear();
         // Collect entities of islands which intersect the AABB of interest.
-        bphase.query_islands(aabb_of.aabb, [&] (entt::entity island_entity) {
+        bphase.query_islands(aabboi.aabb, [&] (entt::entity island_entity) {
             auto &island = registry.get<edyn::island>(island_entity);
 
             for (auto entity : island.nodes) {
@@ -30,9 +31,13 @@ void update_aabbs_of_interest(entt::registry &registry) {
                     contained_entities.emplace(entity);
                 }
             }
+
+            if (!aabboi.island_entities.contains(island_entity)) {
+                aabboi.island_entities.emplace(island_entity);
+            }
         });
 
-        bphase.query_non_procedural(aabb_of.aabb, [&] (entt::entity np_entity) {
+        bphase.query_non_procedural(aabboi.aabb, [&] (entt::entity np_entity) {
             if (!contained_entities.contains(np_entity)) {
                 contained_entities.emplace(np_entity);
             }
@@ -54,21 +59,21 @@ void update_aabbs_of_interest(entt::registry &registry) {
         contained_entities.insert(client_entities.begin(), client_entities.end());
 
         // Calculate which entities have entered and exited the AABB of interest.
-        for (auto entity : aabb_of.entities) {
+        for (auto entity : aabboi.entities) {
             if (!contained_entities.contains(entity)) {
-                aabb_of.destroy_entities.push_back(entity);
+                aabboi.destroy_entities.push_back(entity);
             }
         }
 
         for (auto entity : contained_entities) {
-            if (!aabb_of.entities.contains(entity)) {
-                aabb_of.create_entities.push_back(entity);
+            if (!aabboi.entities.contains(entity)) {
+                aabboi.create_entities.push_back(entity);
             }
         }
 
         // Assign the current set of entities which are in an island that
         // intersects the AABB of interest.
-        aabb_of.entities = std::move(contained_entities);
+        aabboi.entities = std::move(contained_entities);
     });
 }
 

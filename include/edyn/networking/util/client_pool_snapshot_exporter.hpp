@@ -10,7 +10,7 @@ class client_pool_snapshot_exporter {
 public:
     virtual void export_all(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;
     virtual void export_transient(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;
-    virtual void export_non_procedural(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;
+    virtual void export_input(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;
     virtual void export_by_type_id(const entt::registry &registry, entt::entity entity, entt::id_type id, std::vector<pool_snapshot> &pools) = 0;
 };
 
@@ -19,21 +19,21 @@ class client_pool_snapshot_exporter_impl : public client_pool_snapshot_exporter 
 public:
     using insert_entity_components_func_t = void(const entt::registry &, entt::entity, std::vector<pool_snapshot> &);
     insert_entity_components_func_t *insert_transient_entity_components_func;
-    insert_entity_components_func_t *insert_non_procedural_entity_components_func;
+    insert_entity_components_func_t *insert_input_entity_components_func;
 
-    template<typename... Transient, typename... NonProcedural>
-    client_pool_snapshot_exporter_impl(std::tuple<Components...>, std::tuple<Transient...>, std::tuple<NonProcedural...>) {
-        static_assert((!std::is_empty_v<NonProcedural> && ...));
+    template<typename... Transient, typename... Input>
+    client_pool_snapshot_exporter_impl(std::tuple<Components...>, std::tuple<Transient...>, std::tuple<Input...>) {
+        static_assert((!std::is_empty_v<Input> && ...));
 
         insert_transient_entity_components_func = [] (const entt::registry &registry, entt::entity entity,
                                                       std::vector<pool_snapshot> &pools) {
             const std::tuple<Components...> components;
             internal::pool_insert_select_entity_components<Transient...>(registry, entity, pools, components);
         };
-        insert_non_procedural_entity_components_func = [] (const entt::registry &registry, entt::entity entity,
+        insert_input_entity_components_func = [] (const entt::registry &registry, entt::entity entity,
                                                            std::vector<pool_snapshot> &pools) {
             const std::tuple<Components...> components;
-            internal::pool_insert_select_entity_components<NonProcedural...>(registry, entity, pools, components);
+            internal::pool_insert_select_entity_components<Input...>(registry, entity, pools, components);
         };
     }
 
@@ -47,8 +47,8 @@ public:
         (*insert_transient_entity_components_func)(registry, entity, pools);
     }
 
-    void export_non_procedural(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) override {
-        (*insert_non_procedural_entity_components_func)(registry, entity, pools);
+    void export_input(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) override {
+        (*insert_input_entity_components_func)(registry, entity, pools);
     }
 
     void export_by_type_id(const entt::registry &registry, entt::entity entity, entt::id_type id, std::vector<pool_snapshot> &pools) override {

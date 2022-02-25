@@ -23,60 +23,58 @@
 
 namespace edyn {
 
-bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
+static void update_island_entity_owners(entt::registry &registry) {
     // The client has ownership of their entities if they're the only client in
     // the island where the entity resides. They're also granted temporary
     // ownership of all other entities in that island.
     auto owner_view = registry.view<entity_owner>();
-    auto contains_entity_owned_by_this_client = false;
-    auto contains_entity_owned_by_another_client = false;
 
-    // Returns whether loop should continue. It should stop if the island
-    // contains an entity owned by another client.
-    auto check_entity = [&] (entt::entity entity) {
-        if (!owner_view.contains(entity)) {
-            return true;
-        }
+    for (auto [island_entity, island, island_owner] : registry.view<island, entity_owner>().each()) {
+        // Set island owner to null and find out whether it can have a single owner.
+        island_owner.client_entity = entt::null;
 
-        auto [owner] = owner_view.get(entity);
-        if (owner.client_entity == client_entity) {
-            // There's at least one entity owned by this client.
-            contains_entity_owned_by_this_client = true;
-            return true;
-        } else {
-            // There is another client present in this island.
-            contains_entity_owned_by_another_client = true;
-            return false;
-        }
-    };
+        for (auto it = island.nodes.begin(); it != island.edges.end(); ++it) {
+            if (it == island.nodes.end()) {
+                it = island.edges.begin();
+            }
 
-    auto check_island = [&] (entt::entity island_entity) {
-        auto &island = registry.get<edyn::island>(island_entity);
+            auto entity = *it;
 
-        for (auto entity : island.nodes) {
-            if (!check_entity(entity)) {
+            if (!owner_view.contains(entity)) {
+                continue;
+            }
+
+            auto [owner] = owner_view.get(entity);
+
+            if (owner.client_entity == entt::null) {
+                continue;
+            }
+
+            if (island_owner.client_entity == entt::null) {
+                // Island is not owned by any client yet, thus assign this
+                // client as the owner.
+                island_owner.client_entity = owner.client_entity;
+            } else if (island_owner.client_entity != owner.client_entity) {
+                // Island contains more than one client in it, thus it cannot
+                // be owned by either.
+                island_owner.client_entity = entt::null;
                 break;
             }
         }
+    }
+}
 
-        if (contains_entity_owned_by_another_client) {
-            return false;
-        }
-
-        for (auto entity : island.edges) {
-            if (!check_entity(entity)) {
-                break;
-            }
-        }
-
-        return contains_entity_owned_by_this_client && !contains_entity_owned_by_another_client;
-    };
+bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
+    auto owner_view = registry.view<entity_owner>();
 
     if (auto *resident = registry.try_get<island_resident>(entity)) {
-        return check_island(resident->island_entity);
+        auto [island_owner] = owner_view.get(resident->island_entity);
+        return island_owner.client_entity == client_entity;
     } else if (auto *resident = registry.try_get<multi_island_resident>(entity)) {
         for (auto island_entity : resident->island_entities) {
-            if (!check_island(island_entity)) {
+            auto [island_owner] = owner_view.get(island_entity);
+
+            if (island_owner.client_entity != client_entity) {
                 return false;
             }
         }
@@ -293,6 +291,8 @@ static void process_packet(entt::registry &, entt::entity, const packet::set_pla
 void init_network_server(entt::registry &registry) {
     registry.set<server_network_context>();
     registry.on_destroy<networked_tag>().connect<&on_destroy_networked_tag>();
+    // Assign an entity owner to every island created.
+    registry.on_construct<island>().connect<&entt::registry::emplace<entity_owner>>();
 
     auto &settings = registry.ctx<edyn::settings>();
     settings.network_settings = server_network_settings{};
@@ -301,6 +301,7 @@ void init_network_server(entt::registry &registry) {
 void deinit_network_server(entt::registry &registry) {
     registry.unset<server_network_context>();
     registry.on_destroy<networked_tag>().disconnect<&on_destroy_networked_tag>();
+    registry.on_construct<island>().disconnect<&entt::registry::emplace<entity_owner>>();
 
     auto &settings = registry.ctx<edyn::settings>();
     settings.network_settings = {};
@@ -460,9 +461,7 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
         // since the server allows the client to have full control over entities in
         // the islands where there are no other clients present.
         if (!is_fully_owned_by_client(registry, client_entity, entity)) {
-            // TODO: Do not export transient non-procedural components owned by the
-            // destination client.
-            ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
+            ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools, client_entity);
         }
     }
 
@@ -492,21 +491,18 @@ static void publish_client_dirty_components(entt::registry &registry,
         // `network_dirty` is used in `server_pool_snapshot_importer` instead.
         if (dirty_view.contains(entity)) {
             auto [dirty] = dirty_view.get(entity);
-            for (auto id : dirty.updated_indexes) {
-                ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
-            }
+            ctx.pool_snapshot_exporter->export_dirty_steady(registry, entity, dirty, packet.pools, client_entity);
         }
 
         // For the components that were marked dirty during a snapshot import,
         // only include updates for those not owned by this client, since that
         // would cause the state that was set by the client to be sent back to
         // the client itself.
-        // TODO: do it only for non-procedural components.
+        // TODO: ignore transient components since they should be synchronized
+        // via transient snapshots.
         if (network_dirty_view.contains(entity) && !is_fully_owned_by_client(registry, client_entity, entity)) {
             auto [dirty] = network_dirty_view.get(entity);
-            for (auto id : dirty.updated_indexes) {
-                ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet.pools);
-            }
+            ctx.pool_snapshot_exporter->export_dirty_steady(registry, entity, dirty, packet.pools, client_entity);
         }
     }
 
@@ -539,6 +535,7 @@ static void process_aabbs_of_interest(entt::registry &registry) {
 
 void update_network_server(entt::registry &registry) {
     server_process_packets(registry);
+    update_island_entity_owners(registry);
     update_aabbs_of_interest(registry);
     process_aabbs_of_interest(registry);
     publish_pending_created_clients(registry);

@@ -40,16 +40,14 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
                 continue;
             }
 
-            // TODO: must accept components of all entities contained in the
-            // island that is temporarily owned by the client. The island is
-            // owned by the client if he/she is the only client in that island.
             if (check_ownership) {
-                // If this is a procedural component and the entity is not fully owned
-                // by the client, the update must not be applied, because in this case
-                // the server is in control of the procedural state.
-                auto is_procedural = m_is_procedural_component[entt::type_id<Component>().seq()];
+                // If the entity is not fully owned by the client, the update must
+                // not be applied, because in this case the server is in control of
+                // the procedural state. Input components are one exception because
+                // they must always be applied.
+                auto is_input = m_is_input_component[entt::type_id<Component>().seq()];
 
-                if (is_procedural && !is_fully_owned_by_client(registry, client_entity, local_entity)) {
+                if (!is_input && !is_fully_owned_by_client(registry, client_entity, local_entity)) {
                     continue;
                 }
             }
@@ -87,12 +85,9 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
             }
 
             if (check_ownership) {
-                // If this is a procedural component and the entity is not fully owned
-                // by the client, the update must not be applied, because in this case
-                // the server is in control of the procedural state.
-                auto is_procedural = m_is_procedural_component[entt::type_id<Component>().seq()];
+                auto is_input = m_is_input_component.at(entt::type_id<Component>().seq());
 
-                if (is_procedural && !is_fully_owned_by_client(registry, client_entity, local_entity)) {
+                if (!is_input && !is_fully_owned_by_client(registry, client_entity, local_entity)) {
                     continue;
                 }
             }
@@ -105,12 +100,11 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
     }
 
 public:
-    template<typename... NonProcedural>
+    template<typename... Input>
     server_pool_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>,
-                                       [[maybe_unused]] std::tuple<NonProcedural...>) {
-        static_assert((!std::is_empty_v<NonProcedural> && ...));
-
-        ((m_is_procedural_component[entt::type_id<Components>().seq()] = !has_type<Components, std::tuple<NonProcedural...>>::value), ...);
+                                       [[maybe_unused]] std::tuple<Input...>) {
+        static_assert((!std::is_empty_v<Input> && ...));
+        ((m_is_input_component[entt::type_id<Components>().seq()] = has_type<Components, std::tuple<Input...>>::value), ...);
     }
 
     void import(entt::registry &registry, entt::entity client_entity, const pool_snapshot &pool, bool check_ownership) override {
@@ -129,7 +123,7 @@ public:
     }
 
 private:
-    std::map<entt::id_type, bool> m_is_procedural_component;
+    std::map<entt::id_type, bool> m_is_input_component;
 };
 
 }

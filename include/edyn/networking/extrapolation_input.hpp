@@ -23,8 +23,8 @@ struct extrapolation_input {
              const entt::registry &, const entt::sparse_set &entities, entt::id_type);
     extrapolation_component_pool_import_by_id_func_t *extrapolation_component_pool_import_by_id_func {nullptr};
 
-    using is_non_procedural_component_func_t = bool(entt::id_type);
-    is_non_procedural_component_func_t *is_non_procedural_component_func;
+    using is_input_component_func_t = bool(entt::id_type);
+    is_input_component_func_t *is_input_component_func;
 };
 
 }

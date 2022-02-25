@@ -17,13 +17,12 @@ bool client_owns_entity(const entt::registry &registry, entt::entity entity);
 class client_pool_snapshot_importer {
 public:
     virtual void import(entt::registry &, const entity_map &, const pool_snapshot &) = 0;
-    virtual void insert_remote_non_procedural_to_builder(
-                                        const entt::registry &registry,
-                                        const std::vector<pool_snapshot> &pools,
-                                        const entity_map &emap,
-                                        island_delta_builder &builder) = 0;
-    virtual void insert_non_procedural_to_builder(const entt::registry &, entt::entity,
-                                                  island_delta_builder &) = 0;
+    virtual void insert_remote_input_to_builder(const entt::registry &registry,
+                                                const std::vector<pool_snapshot> &pools,
+                                                const entity_map &emap,
+                                                island_delta_builder &builder) = 0;
+    virtual void insert_local_input_to_builder(const entt::registry &, entt::entity,
+                                               island_delta_builder &) = 0;
 };
 
 template<typename... Components>
@@ -100,6 +99,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
 
             auto local_entity = emap.remloc(remote_entity);
 
+            // Must not set local client input.
             if (!client_owns_entity(registry, local_entity)) {
                 builder.updated(local_entity, pair.second);
             }
@@ -114,29 +114,29 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
     }
 
 public:
-    using insert_remote_np_to_builder_func_t =
+    using insert_remote_input_to_builder_func_t =
         void(const entt::registry &, const std::vector<pool_snapshot> &pools,
              const entity_map &emap, island_delta_builder &builder);
-    insert_remote_np_to_builder_func_t *insert_remote_np_to_builder_func;
+    insert_remote_input_to_builder_func_t *insert_remote_input_to_builder_func;
 
-    using insert_to_builder_func_t = void(const entt::registry &registry,
-                                          entt::entity entity,
-                                          island_delta_builder &builder);
-    insert_to_builder_func_t *insert_to_builder_func;
+    using insert_local_input_builder_func_t = void(const entt::registry &registry,
+                                                   entt::entity entity,
+                                                   island_delta_builder &builder);
+    insert_local_input_builder_func_t *insert_local_input_builder_func;
 
-    template<typename... NonProcedural>
+    template<typename... Input>
     client_pool_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>,
-                                       [[maybe_unused]] std::tuple<NonProcedural...>) {
-        static_assert((!std::is_empty_v<NonProcedural> && ...));
+                                       [[maybe_unused]] std::tuple<Input...>) {
+        static_assert((!std::is_empty_v<Input> && ...));
 
-        insert_remote_np_to_builder_func = [] (const entt::registry &registry, const std::vector<pool_snapshot> &pools,
-                                               const entity_map &emap, island_delta_builder &builder) {
+        insert_remote_input_to_builder_func = [] (const entt::registry &registry, const std::vector<pool_snapshot> &pools,
+                                                  const entity_map &emap, island_delta_builder &builder) {
             auto all_components = std::tuple<Components...>{};
 
             for (auto &pool : pools) {
                 visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
                     using Component = std::decay_t<decltype(c)>;
-                    if constexpr(has_type<Component, std::tuple<NonProcedural...>>::value && !std::is_empty_v<Component>) {
+                    if constexpr(has_type<Component, std::tuple<Input...>>::value && !std::is_empty_v<Component>) {
                         auto &data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr)->data;
                         insert_remote_to_builder(registry, data, emap, builder);
                     }
@@ -144,8 +144,8 @@ public:
             }
         };
 
-        insert_to_builder_func = [] (const entt::registry &registry, entt::entity entity, island_delta_builder &builder) {
-            (insert_to_builder<NonProcedural>(registry, entity, builder), ...);
+        insert_local_input_builder_func = [] (const entt::registry &registry, entt::entity entity, island_delta_builder &builder) {
+            (insert_to_builder<Input>(registry, entity, builder), ...);
         };
     }
 
@@ -164,17 +164,16 @@ public:
         });
     }
 
-    void insert_remote_non_procedural_to_builder(
-                                        const entt::registry &registry,
+    void insert_remote_input_to_builder(const entt::registry &registry,
                                         const std::vector<pool_snapshot> &pools,
                                         const entity_map &emap,
                                         island_delta_builder &builder) override {
-        insert_remote_np_to_builder_func(registry, pools, emap, builder);
+        insert_remote_input_to_builder_func(registry, pools, emap, builder);
     }
 
-    void insert_non_procedural_to_builder(const entt::registry &registry, entt::entity entity,
-                                          island_delta_builder &builder) override {
-        insert_to_builder_func(registry, entity, builder);
+    void insert_local_input_to_builder(const entt::registry &registry, entt::entity entity,
+                                       island_delta_builder &builder) override {
+        insert_local_input_builder_func(registry, entity, builder);
     }
 };
 

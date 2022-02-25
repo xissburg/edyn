@@ -337,7 +337,7 @@ Each instance of a parallel for job increments an atomic integer with the chunk 
 
 _TODO_
 
-# Network
+# Networking
 
 The network model follows a client-server architecture where the server is authoritative but gives the client freedom to directly set the state of the entities it owns in some situations. The goal is to synchronize the simulation on both ends, accounting for network latency and jitter.
 
@@ -346,6 +346,14 @@ The server is the source of truth, containing the actual physics simulation enco
 The server also receives data from the clients, which can be commands to be applied to the entities owned by that client and also component state to be set onto the entities in the server, which the server will have to decide whether to apply them or not.
 
 When receiving data from the server, the received state will be in the past due to network latency, thus the client must _extrapolate_ it before merging it onto the local simulation.
+
+Transient components are considered to change often thus they are exchanged between client and server every few times per second. The client will send `transient_snapshot` packets containing the transient components of all entities located in the islands where the entities owned by this client reside. The server will send `transient_snapshot` packets containing the transient components of all entities in the client's AABB of interest.
+
+Components can be procedural or non-procedural. Procedural components have their state calculated by the physics simulation or an external system. That means entities that contain one or more procedural components cannot be present in multiple islands, as their state must be calculated in a single worker. If an entity has no procedural components it can be in multiple islands.
+
+The server being authoritative, will normally have control over the procedural state, however it allows the client to set the procedural state of all entities in an island if it is the only client present in that island as this makes it unecessary for the server to send the transient state of all entities in that island for that client and thus the client doesn't have to extrapolate it either. Obviously, the server must keep an eye on the data the client is sending as cheating could be significant in this case.
+
+If there are multiple clients in an island, the procedural state sent by the clients must be rejected (only non-procedural is applied) as that would lead to conflict and desynchronization. In that case, the server sends transient snapshots to all clients in the island containing the procedural and transient state of all components, which in turn will have to extrapolate the received snapshot and conciliate with the local simulation.
 
 ## Server receives data from client
 

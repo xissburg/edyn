@@ -66,16 +66,15 @@ void on_destroy_entity_owner(entt::registry &registry, entt::entity entity) {
     }
 }
 
-static void update_non_proc_comp_state_history(entt::registry &registry,
-                                               double timestamp) {
-    // Insert select non-procedural components into history only for entities
-    // owned by the local client.
+static void update_input_history(entt::registry &registry, double timestamp) {
+    // Insert input components into history only for entities owned by the
+    // local client.
     auto &settings = registry.ctx<edyn::settings>();
     auto builder = (*settings.make_island_delta_builder)();
     auto &ctx = registry.ctx<client_network_context>();
 
     for (auto entity : ctx.owned_entities) {
-        ctx.pool_snapshot_importer->insert_non_procedural_to_builder(registry, entity, *builder);
+        ctx.pool_snapshot_importer->insert_local_input_to_builder(registry, entity, *builder);
     }
 
     if (!builder->empty()) {
@@ -299,7 +298,7 @@ void update_network_client(entt::registry &registry) {
     process_destroyed_networked_entities(registry);
     maybe_publish_transient_snapshot(registry, time);
     process_finished_extrapolation_jobs(registry);
-    update_non_proc_comp_state_history(registry, time);
+    update_input_history(registry, time);
     publish_dirty_components(registry);
     merge_network_dirty_into_dirty(registry);
 }
@@ -506,12 +505,12 @@ static bool request_unknown_entities_in_pools(entt::registry &registry,
     return false;
 }
 
-static void insert_non_procedural_to_state_history(entt::registry &registry, const std::vector<pool_snapshot> &pools, double time) {
+static void insert_input_to_state_history(entt::registry &registry, const std::vector<pool_snapshot> &pools, double time) {
     auto &settings = registry.ctx<edyn::settings>();
     auto builder = (*settings.make_island_delta_builder)();
 
     auto &ctx = registry.ctx<client_network_context>();
-    ctx.pool_snapshot_importer->insert_remote_non_procedural_to_builder(registry, pools, ctx.entity_map, *builder);
+    ctx.pool_snapshot_importer->insert_remote_input_to_builder(registry, pools, ctx.entity_map, *builder);
 
     if (!builder->empty()) {
         ctx.state_history.emplace(builder->finish(), time);
@@ -561,10 +560,9 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     const auto time = performance_time();
     const double snapshot_time = time - (ctx.server_playout_delay + client_settings.round_trip_time / 2);
 
-    // Non-procedural component state from other clients must be always added
-    // to the state history. The server won't send non-procedural components
-    // of entities owned by this client.
-    insert_non_procedural_to_state_history(registry, snapshot.pools, snapshot_time);
+    // Input from other clients must be always added to the state history.
+    // The server won't send input components of entities owned by this client.
+    insert_input_to_state_history(registry, snapshot.pools, snapshot_time);
 
     // If extrapolation is not enabled send the snapshot directly to the
     // island workers. They will snap to this state and add the differences
@@ -633,7 +631,7 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     // Create registry snapshot to send to extrapolation job.
     extrapolation_input input;
     input.extrapolation_component_pool_import_by_id_func = ctx.extrapolation_component_pool_import_by_id_func;
-    input.is_non_procedural_component_func = ctx.is_non_procedural_component_func;
+    input.is_input_component_func = ctx.is_input_component_func;
     (*ctx.extrapolation_component_pool_import_func)(input.pools, registry, entities);
     input.start_time = snapshot_time;
 
@@ -665,7 +663,7 @@ static void process_packet(entt::registry &registry, const packet::general_snaps
     auto &ctx = registry.ctx<client_network_context>();
     const double snapshot_time = time - (ctx.server_playout_delay + client_settings.round_trip_time / 2);
 
-    insert_non_procedural_to_state_history(registry, snapshot.pools, snapshot_time);
+    insert_input_to_state_history(registry, snapshot.pools, snapshot_time);
 
     request_unknown_entities_in_pools(registry, snapshot.pools);
 

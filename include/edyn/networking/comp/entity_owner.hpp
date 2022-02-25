@@ -2,6 +2,7 @@
 #define EDYN_NETWORKING_ENTITY_OWNER_HPP
 
 #include <entt/entity/fwd.hpp>
+#include <entt/entity/entity.hpp>
 
 namespace edyn {
 
@@ -9,7 +10,7 @@ namespace edyn {
  * @brief Component assigned to entities that are owned by a remote client.
  */
 struct entity_owner {
-    entt::entity client_entity;
+    entt::entity client_entity {entt::null};
 };
 
 template<typename Archive>

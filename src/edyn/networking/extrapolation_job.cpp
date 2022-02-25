@@ -264,7 +264,7 @@ void extrapolation_job::sync_and_finish() {
             for (size_t i = 0; i < cont->size; ++i) {
                 auto id = index_source.type_id_of(cont->indices[i]);
 
-                if (!is_owned_entity || !(*m_input.is_non_procedural_component_func)(id)) {
+                if (!is_owned_entity || !(*m_input.is_input_component_func)(id)) {
                     id_entities[id].emplace(local_entity);
                 }
             }
@@ -274,7 +274,7 @@ void extrapolation_job::sync_and_finish() {
             // Only consider updated indices. Entities and components shouldn't be
             // created during extrapolation.
             for (auto id : dirty->updated_indexes) {
-                if (is_owned_entity && (*m_input.is_non_procedural_component_func)(id)) {
+                if (is_owned_entity && (*m_input.is_input_component_func)(id)) {
                     continue;
                 }
 
