@@ -16,6 +16,7 @@
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/edyn.hpp"
+#include "edyn/util/island_util.hpp"
 #include "edyn/util/vector.hpp"
 #include <entt/entity/registry.hpp>
 #include <algorithm>
@@ -125,9 +126,50 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<server_network_context>();
+    auto &client = registry.get<remote_client>(client_entity);
+    auto snapshot_local = packet::transient_snapshot{};
 
     for (auto &pool : snapshot.pools) {
-        ctx.pool_snapshot_importer->import(registry, client_entity, pool, true);
+        auto pool_local = ctx.pool_snapshot_importer->transform_to_local(registry, client_entity, pool, true);
+
+        if (!pool_local.ptr->empty()) {
+            // Import input components directly into the main registry.
+            ctx.pool_snapshot_importer->import_input_local(registry, client_entity, pool_local);
+            // Pools will be sent to island workers for state application into
+            // their registries.
+            snapshot_local.pools.push_back(pool_local);
+        }
+    }
+
+    // Convert manifolds into local entity space.
+    for (auto &manifold : snapshot.manifolds) {
+        if (!client.entity_map.has_rem(manifold.body[0]) ||
+            !client.entity_map.has_rem(manifold.body[1]))
+        {
+            continue;
+        }
+
+        auto manifold_local = manifold;
+        manifold_local.body[0] = client.entity_map.remloc(manifold.body[0]);
+        manifold_local.body[1] = client.entity_map.remloc(manifold.body[1]);
+        snapshot_local.manifolds.push_back(manifold_local);
+    }
+
+    if (snapshot_local.pools.empty() && snapshot_local.manifolds.empty()) {
+        return;
+    }
+
+    // Get islands of all entities contained in transient snapshot and send the
+    // snapshot to them. They will import the pre-processed state into their
+    // registries. Later, these components will be updated in the main registry
+    // via a registry snapshot.
+    auto entities = snapshot_local.get_entities();
+    auto island_entities = collect_islands_from_residents(registry, entities.begin(), entities.end());
+    auto &coordinator = registry.ctx<island_coordinator>();
+
+    for (auto island_entity : island_entities) {
+        coordinator.send_island_message<packet::transient_snapshot>(island_entity, snapshot_local);
+        coordinator.wake_up_island(island_entity);
     }
 }
 

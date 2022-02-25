@@ -11,6 +11,20 @@ struct transient_snapshot {
     std::vector<pool_snapshot> pools;
     std::vector<contact_manifold> manifolds;
 
+    auto get_entities() const {
+        entt::sparse_set entities;
+
+        for (auto &pool : pools) {
+            for (auto entity : pool.ptr->get_entities()) {
+                if (!entities.contains(entity)) {
+                    entities.emplace(entity);
+                }
+            }
+        }
+
+        return entities;
+    }
+
     void convert_remloc(entity_map &emap) {
         for (auto &pool : pools) {
             pool.ptr->convert_remloc(emap);

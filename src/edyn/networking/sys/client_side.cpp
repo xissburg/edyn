@@ -22,6 +22,7 @@
 #include "edyn/networking/extrapolation_job.hpp"
 #include "edyn/networking/util/non_proc_comp_state_history.hpp"
 #include "edyn/time/time.hpp"
+#include "edyn/util/island_util.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <set>
@@ -106,34 +107,6 @@ void deinit_network_client(entt::registry &registry) {
     settings.network_settings = {};
 }
 
-template<typename It>
-entt::sparse_set collect_islands_from_residents(entt::registry &registry, It first_entity, It last_entity) {
-    entt::sparse_set island_entities;
-
-    for (auto it = first_entity; it != last_entity; ++it) {
-        auto entity = *it;
-
-        // Entity could've been destroyed while extrapolation was running.
-        if (!registry.valid(entity)) {
-            continue;
-        }
-
-        if (auto *resident = registry.try_get<island_resident>(entity)) {
-            if (resident->island_entity != entt::null && !island_entities.contains(resident->island_entity)) {
-                island_entities.emplace(resident->island_entity);
-            }
-        } else if (auto *resident = registry.try_get<multi_island_resident>(entity)) {
-            for (auto island_entity : resident->island_entities) {
-                if (!island_entities.contains(island_entity)) {
-                    island_entities.emplace(island_entity);
-                }
-            }
-        }
-    }
-
-    return island_entities;
-}
-
 static void process_created_networked_entities(entt::registry &registry) {
     auto &ctx = registry.ctx<client_network_context>();
 
@@ -190,6 +163,7 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
     auto island_view = registry.view<island>();
     auto networked_view = registry.view<networked_tag>();
     auto owner_view = registry.view<entity_owner>();
+    auto manifold_view = registry.view<contact_manifold>();
 
     auto export_transient = [&] (entt::entity entity) {
         auto is_owned_by_another_client =
@@ -209,7 +183,11 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
         }
 
         for (auto entity : island.edges) {
-            export_transient(entity);
+            if (manifold_view.contains(entity)) {
+                packet.manifolds.push_back(std::get<0>(manifold_view.get(entity)));
+            } else {
+                export_transient(entity);
+            }
         }
     }
 
@@ -219,6 +197,11 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
 }
 
 static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
+    // Entities could've been destroyed while extrapolation was running.
+    auto invalid_it = std::remove_if(result.entities.begin(), result.entities.end(),
+                                     [&] (auto entity) { return !registry.valid(entity); });
+    result.entities.erase(invalid_it, result.entities.end());
+
     auto island_entities = collect_islands_from_residents(registry, result.entities.begin(), result.entities.end());
     EDYN_ASSERT(!island_entities.empty());
     auto &coordinator = registry.ctx<island_coordinator>();
@@ -517,20 +500,6 @@ static void insert_input_to_state_history(entt::registry &registry, const std::v
     }
 }
 
-static entt::sparse_set get_entities_in_transient_snapshot(const packet::transient_snapshot &snapshot) {
-    entt::sparse_set entities;
-
-    for (auto &pool : snapshot.pools) {
-        for (auto entity : pool.ptr->get_entities()) {
-            if (!entities.contains(entity)) {
-                entities.emplace(entity);
-            }
-        }
-    }
-
-    return entities;
-}
-
 static void snap_to_transient_snapshot(entt::registry &registry, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<client_network_context>();
 
@@ -539,7 +508,7 @@ static void snap_to_transient_snapshot(entt::registry &registry, const packet::t
 
     // Collect all entities present in snapshot and find islands where they
     // reside and finally send the snapshot to the island workers.
-    auto entities = get_entities_in_transient_snapshot(snapshot_local);
+    auto entities = snapshot_local.get_entities();
     auto island_entities = collect_islands_from_residents(registry, entities.begin(), entities.end());
     EDYN_ASSERT(!island_entities.empty());
     auto &coordinator = registry.ctx<island_coordinator>();
@@ -595,7 +564,7 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     // Collect all entities to be included in extrapolation, that is, basically
     // all entities in the transient snapshot packet and the edges connecting
     // them.
-    auto snapshot_entities = get_entities_in_transient_snapshot(snapshot_local);
+    auto snapshot_entities = snapshot_local.get_entities();
     auto entities = entt::sparse_set{};
     auto node_view = registry.view<graph_node>();
     auto &graph = registry.ctx<entity_graph>();

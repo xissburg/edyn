@@ -28,6 +28,7 @@ struct pool_snapshot_data {
     virtual void write(memory_output_archive &archive) = 0;
     virtual void read(memory_input_archive &archive) = 0;
     virtual void replace_into_registry(entt::registry &registry, entity_map &emap) = 0;
+    virtual bool empty() const = 0;
 };
 
 template<typename Component>
@@ -90,6 +91,10 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
             auto &comp = registry.get<Component>(entity);
             data.push_back(std::make_pair(entity, comp));
         }
+    }
+
+    virtual bool empty() const override {
+        return data.empty();
     }
 };
 
