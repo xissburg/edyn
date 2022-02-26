@@ -570,8 +570,9 @@ static void calculate_client_playout_delay(entt::registry &registry,
         biggest_latency = std::max(other_client.latency, biggest_latency);
     }
 
-    auto &settings = registry.ctx<server_network_settings>();
-    client.playout_delay = biggest_latency * settings.playout_delay_multiplier;
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &server_settings = std::get<server_network_settings>(settings.network_settings);
+    client.playout_delay = biggest_latency * server_settings.playout_delay_multiplier;
 }
 
 static void merge_network_dirty_into_dirty(entt::registry &registry) {
