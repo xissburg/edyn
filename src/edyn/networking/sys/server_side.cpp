@@ -86,16 +86,6 @@ bool is_fully_owned_by_client(const entt::registry &registry, entt::entity clien
     return true;
 }
 
-static void on_destroy_networked_tag(entt::registry &registry, entt::entity destroyed_entity) {
-    auto view = registry.view<aabb_of_interest>();
-    view.each([&] (aabb_of_interest &aabboi) {
-        if (aabboi.entities.contains(destroyed_entity)) {
-            aabboi.destroy_entities.push_back(destroyed_entity);
-            aabboi.entities.remove(destroyed_entity);
-        }
-    });
-}
-
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
     auto &ctx = registry.ctx<server_network_context>();
     auto res = packet::entity_response{};
@@ -332,7 +322,6 @@ static void process_packet(entt::registry &, entt::entity, const packet::set_pla
 
 void init_network_server(entt::registry &registry) {
     registry.set<server_network_context>();
-    registry.on_destroy<networked_tag>().connect<&on_destroy_networked_tag>();
     // Assign an entity owner to every island created.
     registry.on_construct<island>().connect<&entt::registry::emplace<entity_owner>>();
 
@@ -342,14 +331,13 @@ void init_network_server(entt::registry &registry) {
 
 void deinit_network_server(entt::registry &registry) {
     registry.unset<server_network_context>();
-    registry.on_destroy<networked_tag>().disconnect<&on_destroy_networked_tag>();
     registry.on_construct<island>().disconnect<&entt::registry::emplace<entity_owner>>();
 
     auto &settings = registry.ctx<edyn::settings>();
     settings.network_settings = {};
 }
 
-void server_process_packets(entt::registry &registry) {
+static void server_process_packets(entt::registry &registry) {
     auto timestamp = performance_time();
 
     registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
