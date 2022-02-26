@@ -553,6 +553,27 @@ static void publish_client_dirty_components(entt::registry &registry,
     }
 }
 
+static void calculate_client_playout_delay(entt::registry &registry,
+                                           remote_client &client,
+                                           aabb_of_interest &aabboi) {
+    auto owner_view = registry.view<entity_owner>();
+    auto client_view = registry.view<remote_client>();
+    auto biggest_latency = client.latency;
+
+    for (auto entity : aabboi.entities) {
+        if (!owner_view.contains(entity)) {
+            continue;
+        }
+
+        auto [owner] = owner_view.get(entity);
+        auto [other_client] = client_view.get(owner.client_entity);
+        biggest_latency = std::max(other_client.latency, biggest_latency);
+    }
+
+    auto &settings = registry.ctx<server_network_settings>();
+    client.playout_delay = biggest_latency * settings.playout_delay_multiplier;
+}
+
 static void merge_network_dirty_into_dirty(entt::registry &registry) {
     // Merge components marked as dirty during network import (i.e.
     // `ctx.pool_snapshot_importer->import(...)`) into the regular dirty
@@ -572,6 +593,7 @@ static void process_aabbs_of_interest(entt::registry &registry) {
         process_aabb_of_interest_created_entities(registry, client_entity, client, aabboi);
         maybe_publish_client_transient_snapshot(registry, client_entity, client, aabboi);
         publish_client_dirty_components(registry, client_entity, client, aabboi);
+        calculate_client_playout_delay(registry, client, aabboi);
     }
 }
 
@@ -612,7 +634,6 @@ entt::entity server_make_client(entt::registry &registry) {
 void server_set_client_latency(entt::registry &registry, entt::entity client_entity, double latency) {
     auto &client = registry.get<remote_client>(client_entity);
     client.latency = latency;
-    client.playout_delay = latency * 1.2;
 }
 
 void server_assign_ownership_to_client(entt::registry &registry, entt::entity client_entity, std::vector<entt::entity> &entities) {

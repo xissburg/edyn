@@ -31,10 +31,10 @@ struct remote_client {
     edyn::entity_map entity_map;
 
     // Client latency in ms.
-    double latency {0};
+    double latency {};
 
     // The delay in ms applied to packet processing.
-    double playout_delay {0};
+    double playout_delay {};
 
     // List of packets pending processing.
     std::vector<client_packet> packet_queue;
