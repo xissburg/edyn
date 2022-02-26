@@ -637,18 +637,21 @@ void server_set_client_latency(entt::registry &registry, entt::entity client_ent
     client.latency = latency;
 }
 
-void server_assign_ownership_to_client(entt::registry &registry, entt::entity client_entity, std::vector<entt::entity> &entities) {
+void server_notify_created_entities(entt::registry &registry,
+                                    entt::entity client_entity,
+                                    const std::vector<entt::entity> &entities) {
     auto &ctx = registry.ctx<server_network_context>();
     auto &client = registry.get<edyn::remote_client>(client_entity);
-    client.owned_entities.insert(client.owned_entities.end(), entities.begin(), entities.end());
 
+#ifdef EDYN_DEBUG
+    // Ensure all entities are networked.
     for (auto entity : entities) {
-        registry.emplace<edyn::entity_owner>(entity, client_entity);
-        registry.emplace<edyn::networked_tag>(entity);
+        EDYN_ASSERT(registry.all_of<networked_tag>(entity));
     }
+#endif
 
     auto packet = edyn::packet::create_entity{};
-    packet.entities = std::move(entities);
+    packet.entities = entities;
 
     for (auto entity : packet.entities) {
         ctx.pool_snapshot_exporter->export_all(registry, entity, packet.pools);

@@ -16,9 +16,27 @@ void server_handle_packet(entt::registry &, entt::entity client_entity, const pa
 void server_make_client(entt::registry &, entt::entity);
 entt::entity server_make_client(entt::registry &);
 
+/**
+ * @brief Set client latency, which is often calculated as half the
+ * round-trip time.
+ * @param registry Data source.
+ * @param client_entity The client to assign the latency to.
+ * @param latency The latency in ms.
+ */
 void server_set_client_latency(entt::registry &, entt::entity client_entity, double latency);
 
-void server_assign_ownership_to_client(entt::registry &registry, entt::entity client_entity, std::vector<entt::entity> &entities);
+/**
+ * @brief Notify client of created entities. Usually called after the server
+ * creates entities for the client. It's unnecessary otherwise, since the
+ * server uses the AABB of interest to notify clients of entities that have
+ * entered or left their AABB of interest.
+ * @param registry Data source.
+ * @param client_entity The client to be notified.
+ * @param entities The new entities.
+ */
+void server_notify_created_entities(entt::registry &registry,
+                                    entt::entity client_entity,
+                                    const std::vector<entt::entity> &entities);
 
 }
 
