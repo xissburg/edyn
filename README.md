@@ -53,6 +53,12 @@ After running `cmake ..`, the _Edyn.sln_ solution should be in the _build_ direc
 
 When linking your application against _Edyn_ you'll also have to link `winmm.lib` because of the `timeGetTime()` function.
 
+## Integration
+
+To use _Edyn_ in your project you'll have to link it with `libEdyn` (or `libEdyn_d` for debug builds) which can be found in `edyn/build/lib/` after it's built. On Linux, you'll also have to link `pthread`. On Windows, you'll additionally have to link `winmm.lib`. 
+
+The paths to `edyn/include` and  `edyn/build/include` must be added to your include paths.
+
 # The ECS approach
 
 Typical physics engines will offer explicit means to create objects such as rigid bodies, whereas in _Edyn_ object creation is implicit due to the entity-component design. A rigid body is created from the bottom up, by associating its parts to a single entity, such as:
