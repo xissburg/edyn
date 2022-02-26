@@ -608,7 +608,7 @@ void update_network_server(entt::registry &registry) {
     merge_network_dirty_into_dirty(registry);
 }
 
-void server_handle_packet(entt::registry &registry, entt::entity client_entity, const packet::edyn_packet &packet) {
+void server_receive_packet(entt::registry &registry, entt::entity client_entity, const packet::edyn_packet &packet) {
     std::visit([&] (auto &&decoded_packet) {
         handle_packet(registry, client_entity, decoded_packet);
     }, packet.var);
