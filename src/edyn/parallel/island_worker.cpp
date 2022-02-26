@@ -111,12 +111,13 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
 
+    m_message_queue.sink<packet::transient_snapshot>().connect<&island_worker::on_transient_snapshot>(*this);
+
     auto &settings = m_registry.ctx<edyn::settings>();
 
     // If this is a networked client, expect extrapolation results.
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         m_message_queue.sink<extrapolation_result>().connect<&island_worker::on_extrapolation_result>(*this);
-        m_message_queue.sink<packet::transient_snapshot>().connect<&island_worker::on_transient_snapshot>(*this);
     }
 
     // Process messages enqueued before the worker was started. This includes
