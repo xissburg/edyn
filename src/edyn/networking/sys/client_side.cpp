@@ -203,7 +203,6 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
     result.entities.erase(invalid_it, result.entities.end());
 
     auto island_entities = collect_islands_from_residents(registry, result.entities.begin(), result.entities.end());
-    EDYN_ASSERT(!island_entities.empty());
     auto &coordinator = registry.ctx<island_coordinator>();
 
     for (auto island_entity : island_entities) {
@@ -510,7 +509,6 @@ static void snap_to_transient_snapshot(entt::registry &registry, const packet::t
     // reside and finally send the snapshot to the island workers.
     auto entities = snapshot_local.get_entities();
     auto island_entities = collect_islands_from_residents(registry, entities.begin(), entities.end());
-    EDYN_ASSERT(!island_entities.empty());
     auto &coordinator = registry.ctx<island_coordinator>();
 
     for (auto island_entity : island_entities) {
@@ -527,16 +525,25 @@ static void process_packet(entt::registry &registry, const packet::transient_sna
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     const auto time = performance_time();
-    const double snapshot_time = time - (ctx.server_playout_delay + client_settings.round_trip_time / 2);
+    const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
+    const double snapshot_time = time - client_server_time_difference;
 
     // Input from other clients must be always added to the state history.
     // The server won't send input components of entities owned by this client.
     insert_input_to_state_history(registry, snapshot.pools, snapshot_time);
 
-    // If extrapolation is not enabled send the snapshot directly to the
-    // island workers. They will snap to this state and add the differences
-    // to the discontinuity components.
-    if (!client_settings.extrapolation_enabled) {
+    // Snap simulation to server state if the amount of time to be extrapolated
+    // is smaller than the fixed delta time, which would cause the extrapolation
+    // job to perform no physics steps anyways, within a certain threshold (if
+    // the time difference nearly equals fixed dt, it is possible it would
+    // perform a single step since time will have passed until the job starts
+    // running).
+    auto needs_extrapolation = client_server_time_difference > settings.fixed_dt;
+
+    // If extrapolation is not enabled or not needed send the snapshot directly
+    // to the island workers. They will snap to this state and add the
+    // differences to the discontinuity components.
+    if (!needs_extrapolation || !client_settings.extrapolation_enabled) {
         snap_to_transient_snapshot(registry, snapshot);
         return;
     }
