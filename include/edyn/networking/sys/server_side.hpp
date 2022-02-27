@@ -55,13 +55,13 @@ void server_make_client(entt::registry &, entt::entity);
 entt::entity server_make_client(entt::registry &);
 
 /**
- * @brief Set client latency, which is often calculated as half the
- * round-trip time.
+ * @brief Set client round-trip time. Latency will be calculated as half this
+ * value.
  * @param registry Data source.
  * @param client_entity The client to assign the latency to.
- * @param latency The latency in ms.
+ * @param rtt The RTT in ms.
  */
-void server_set_client_latency(entt::registry &, entt::entity client_entity, double latency);
+void server_set_client_round_trip_time(entt::registry &, entt::entity client_entity, double rtt);
 
 /**
  * @brief Notify client of created entities. Usually called after the server

@@ -628,9 +628,9 @@ entt::entity server_make_client(entt::registry &registry) {
     return entity;
 }
 
-void server_set_client_latency(entt::registry &registry, entt::entity client_entity, double latency) {
+void server_set_client_round_trip_time(entt::registry &registry, entt::entity client_entity, double rtt) {
     auto &client = registry.get<remote_client>(client_entity);
-    client.latency = latency;
+    client.latency = rtt / 2;
 }
 
 void server_notify_created_entities(entt::registry &registry,
