@@ -542,6 +542,7 @@ static void publish_client_dirty_components(entt::registry &registry,
 }
 
 static void calculate_client_playout_delay(entt::registry &registry,
+                                           entt::entity client_entity,
                                            remote_client &client,
                                            aabb_of_interest &aabboi) {
     auto owner_view = registry.view<entity_owner>();
@@ -560,7 +561,14 @@ static void calculate_client_playout_delay(entt::registry &registry,
 
     auto &settings = registry.ctx<edyn::settings>();
     auto &server_settings = std::get<server_network_settings>(settings.network_settings);
-    client.playout_delay = biggest_latency * server_settings.playout_delay_multiplier;
+    auto playout_delay = biggest_latency * server_settings.playout_delay_multiplier;
+
+    if (playout_delay != client.playout_delay) {
+        client.playout_delay = playout_delay;
+
+        auto packet = edyn::packet::set_playout_delay{playout_delay};
+        client.packet_signal.publish(client_entity, edyn::packet::edyn_packet{packet});
+    }
 }
 
 static void merge_network_dirty_into_dirty(entt::registry &registry) {
@@ -582,7 +590,7 @@ static void process_aabbs_of_interest(entt::registry &registry) {
         process_aabb_of_interest_created_entities(registry, client_entity, client, aabboi);
         maybe_publish_client_transient_snapshot(registry, client_entity, client, aabboi);
         publish_client_dirty_components(registry, client_entity, client, aabboi);
-        calculate_client_playout_delay(registry, client, aabboi);
+        calculate_client_playout_delay(registry, client_entity, client, aabboi);
     }
 }
 
