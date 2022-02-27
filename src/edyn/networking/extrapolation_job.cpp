@@ -108,11 +108,11 @@ void extrapolation_job::load_input() {
         pool.ptr->replace_into_registry(m_registry, m_entity_map);
     }
 
-    // Apply first history state before the current time to start the simulation
+    // Apply all inputs before the current time to start the simulation
     // with the correct initial inputs.
-    if (auto *delta = m_state_history->get_first_before(m_current_time)) {
-        delta->import(m_registry, m_entity_map);
-    }
+    m_state_history->until(m_current_time, [&] (island_delta &delta, double timestamp) {
+        delta.import(m_registry, m_entity_map, true);
+    });
 
     // Update calculated properties after setting initial state.
     update_origins(m_registry);
@@ -248,7 +248,8 @@ void extrapolation_job::sync_and_finish() {
     auto &index_source = *settings.index_source;
     auto manifold_view = m_registry.view<contact_manifold>();
 
-    // Collect entities per type to be updated.
+    // Collect entities per type to be updated, including only components that
+    // have changed, i.e. continuous and dirty components.
     std::map<entt::id_type, entt::sparse_set> id_entities;
 
     for (auto remote_entity : m_input.entities) {
@@ -256,8 +257,12 @@ void extrapolation_job::sync_and_finish() {
 
         auto local_entity = m_entity_map.remloc(remote_entity);
 
+        // Manifolds are shared separately.
         if (manifold_view.contains(local_entity)) continue;
 
+        // Do not include input components of entities owned by the client,
+        // since that would cause the latest user inputs to be replaced.
+        // Note that the remote entity is used.
         auto is_owned_entity = m_input.owned_entities.contains(remote_entity);
 
         if (auto *cont = m_registry.try_get<continuous>(local_entity)) {
@@ -294,6 +299,8 @@ void extrapolation_job::sync_and_finish() {
         auto &entities = pair.second;
         (*m_input.extrapolation_component_pool_import_by_id_func)(m_result.pools, m_registry, entities, id);
     }
+
+    EDYN_ASSERT(!m_result.pools.empty());
 
     // Insert all manifolds into it.
     manifold_view.each([&] (contact_manifold &manifold) {

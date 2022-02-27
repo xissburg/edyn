@@ -50,15 +50,17 @@ public:
         }
     }
 
-    const island_delta * get_first_before(double time) const {
+    template<typename Func>
+    void until(double time, Func func) {
         std::lock_guard lock(mutex);
 
-        for (auto it = history.rbegin(); it != history.rend(); ++it) {
-            if (it->timestamp < time) {
-                return &it->delta;
+        for (auto &elem : history) {
+            if (elem.timestamp >= time) {
+                break;
             }
+
+            func(elem.delta, elem.timestamp);
         }
-        return nullptr;
     }
 
 private:
