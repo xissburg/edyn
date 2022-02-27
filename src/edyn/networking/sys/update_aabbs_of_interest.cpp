@@ -1,4 +1,5 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/networking/comp/aabb_of_interest.hpp"
 #include "edyn/collision/broadphase_main.hpp"
 #include "edyn/comp/island.hpp"
@@ -10,6 +11,7 @@ namespace edyn {
 void update_aabbs_of_interest(entt::registry &registry) {
     auto &bphase = registry.ctx<broadphase_main>();
     auto owner_view = registry.view<entity_owner>();
+    auto manifold_view = registry.view<contact_manifold>();
 
     auto view = registry.view<aabb_of_interest>();
     view.each([&] (aabb_of_interest &aabboi) {
@@ -27,6 +29,11 @@ void update_aabbs_of_interest(entt::registry &registry) {
             }
 
             for (auto entity : island.edges) {
+                // Ignore contact manifolds.
+                if (manifold_view.contains(entity)) {
+                    continue;
+                }
+
                 if (!contained_entities.contains(entity)) {
                     contained_entities.emplace(entity);
                 }
