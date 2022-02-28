@@ -2,7 +2,7 @@
 #define EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 
 #include "edyn/util/entity_map.hpp"
-#include "edyn/networking/util/non_proc_comp_state_history.hpp"
+#include "edyn/networking/util/comp_state_history.hpp"
 #include "edyn/networking/util/client_pool_snapshot_importer.hpp"
 #include "edyn/networking/util/client_pool_snapshot_exporter.hpp"
 #include <entt/entity/fwd.hpp>
@@ -39,7 +39,7 @@ struct client_network_context {
     double server_playout_delay {0.3};
 
     std::vector<extrapolation_job_context> extrapolation_jobs;
-    non_proc_comp_state_history state_history;
+    std::shared_ptr<comp_state_history> state_history;
 
     using request_entity_func_t = void(entt::entity);
     entt::sigh<request_entity_func_t> request_entity_signal;

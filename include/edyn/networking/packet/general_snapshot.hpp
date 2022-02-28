@@ -8,6 +8,12 @@ namespace edyn::packet {
 
 struct general_snapshot {
     std::vector<pool_snapshot> pools;
+
+    void convert_remloc(entity_map &emap) {
+        for (auto &pool : pools) {
+            pool.ptr->convert_remloc(emap);
+        }
+    }
 };
 
 template<typename Archive>

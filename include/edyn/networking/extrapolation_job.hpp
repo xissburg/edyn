@@ -7,11 +7,12 @@
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/util/entity_map.hpp"
 #include <entt/entity/fwd.hpp>
+#include <memory>
 #include <atomic>
 
 namespace edyn {
 
-class non_proc_comp_state_history;
+class comp_state_history;
 class material_mix_table;
 struct settings;
 
@@ -51,7 +52,7 @@ public:
     extrapolation_job(extrapolation_input &&input,
                       const settings &settings,
                       const material_mix_table &material_table,
-                      non_proc_comp_state_history &state_history);
+                      std::shared_ptr<comp_state_history> state_history);
 
     void reschedule();
 
@@ -88,7 +89,7 @@ private:
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
 
-    non_proc_comp_state_history *m_state_history;
+    std::shared_ptr<comp_state_history> m_state_history;
 
     job m_this_job;
 };

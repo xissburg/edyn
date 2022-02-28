@@ -22,13 +22,14 @@ void register_networked_components(entt::registry &registry,
     auto shared_all = std::tuple_cat(shared_components, external);
 
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
-        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(all, input));
+        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(all));
         ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(all, transient_all, input));
         ctx->extrapolation_component_pool_import_func = internal::make_extrapolation_component_pools_import_func(shared_all);
         ctx->extrapolation_component_pool_import_by_id_func = internal::make_extrapolation_component_pools_import_by_id_func(shared_all);
         ctx->is_input_component_func = [] (entt::id_type id) {
             return ((id == entt::type_id<Input>().seq()) || ...);
         };
+        ctx->state_history = std::make_shared<comp_state_history_impl<Input...>>();
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
@@ -41,11 +42,12 @@ void register_networked_components(entt::registry &registry,
 
 inline void unregister_networked_components(entt::registry &registry) {
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
-        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(networked_components, {}));
+        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(networked_components));
         ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(networked_components, transient_components, {}));
         ctx->extrapolation_component_pool_import_func = internal::make_extrapolation_component_pools_import_func(shared_components);
         ctx->extrapolation_component_pool_import_by_id_func = internal::make_extrapolation_component_pools_import_by_id_func(shared_components);
         ctx->is_input_component_func = [] (entt::id_type) { return false; };
+        ctx->state_history = std::make_shared<comp_state_history>();
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {

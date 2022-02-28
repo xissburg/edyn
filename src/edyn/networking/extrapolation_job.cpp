@@ -38,12 +38,12 @@ void extrapolation_job_func(job::data_type &data) {
 extrapolation_job::extrapolation_job(extrapolation_input &&input,
                                      const settings &settings,
                                      const material_mix_table &material_table,
-                                     non_proc_comp_state_history &state_history)
+                                     std::shared_ptr<comp_state_history> state_history)
     : m_input(std::move(input))
     , m_state(state::init)
     , m_current_time(input.start_time)
     , m_solver(m_registry)
-    , m_state_history(&state_history)
+    , m_state_history(state_history)
 {
     m_registry.set<broadphase_worker>(m_registry);
     m_registry.set<narrowphase>(m_registry);
@@ -110,8 +110,8 @@ void extrapolation_job::load_input() {
 
     // Apply all inputs before the current time to start the simulation
     // with the correct initial inputs.
-    m_state_history->until(m_current_time, [&] (island_delta &delta, double timestamp) {
-        delta.import(m_registry, m_entity_map, true);
+    m_state_history->until(m_current_time, [&] (auto &&element) {
+        element.import(m_registry, m_entity_map, true);
     });
 
     // Update calculated properties after setting initial state.
@@ -237,8 +237,8 @@ void extrapolation_job::apply_history() {
     auto &settings = m_registry.ctx<edyn::settings>();
     auto start_time = m_current_time - settings.fixed_dt;
 
-    m_state_history->each(start_time, settings.fixed_dt, [&] (island_delta &delta, double timestamp) {
-        delta.import(m_registry, m_entity_map, true);
+    m_state_history->each(start_time, settings.fixed_dt, [&] (auto &&element) {
+        element.import(m_registry, m_entity_map, true);
     });
 }
 

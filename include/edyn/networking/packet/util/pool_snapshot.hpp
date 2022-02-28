@@ -19,6 +19,7 @@
 #include "edyn/parallel/merge/merge_tree_view.hpp"
 #include "edyn/parallel/merge/merge_collision_exclusion.hpp"
 #include "edyn/parallel/merge/merge_entity_owner.hpp"
+#include "edyn/parallel/entity_component_container.hpp"
 
 namespace edyn {
 
@@ -27,8 +28,9 @@ struct pool_snapshot_data {
     virtual void convert_remloc(entity_map &) = 0;
     virtual void write(memory_output_archive &archive) = 0;
     virtual void read(memory_input_archive &archive) = 0;
-    virtual void replace_into_registry(entt::registry &registry, entity_map &emap) = 0;
+    virtual void replace_into_registry(entt::registry &registry, const entity_map &emap) = 0;
     virtual bool empty() const = 0;
+    virtual entt::id_type get_type_id() const = 0;
 };
 
 template<typename Component>
@@ -69,7 +71,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         archive(data);
     }
 
-    void replace_into_registry(entt::registry &registry, entity_map &emap) override {
+    void replace_into_registry(entt::registry &registry, const entity_map &emap) override {
         if constexpr(!is_empty_type) {
             for (auto &pair : data) {
                 auto remote_entity = pair.first;
@@ -93,8 +95,12 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         }
     }
 
-    virtual bool empty() const override {
+    bool empty() const override {
         return data.empty();
+    }
+
+    entt::id_type get_type_id() const override {
+        return entt::type_id<Component>().seq();
     }
 };
 
