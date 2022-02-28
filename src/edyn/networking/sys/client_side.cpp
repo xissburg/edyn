@@ -69,8 +69,6 @@ void on_destroy_entity_owner(entt::registry &registry, entt::entity entity) {
 static void update_input_history(entt::registry &registry, double timestamp) {
     // Insert input components into history only for entities owned by the
     // local client.
-    auto &settings = registry.ctx<edyn::settings>();
-    auto builder = (*settings.make_island_delta_builder)();
     auto &ctx = registry.ctx<client_network_context>();
     ctx.state_history->emplace(registry, ctx.owned_entities, timestamp);
 }

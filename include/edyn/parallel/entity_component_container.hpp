@@ -35,7 +35,11 @@ struct updated_entity_component_container: public entity_component_container_bas
     void import(entt::registry &registry, entity_map &emap, bool mark_dirty) const override {
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
-            if (!emap.has_rem(remote_entity)) continue;
+
+            if (!emap.has_rem(remote_entity)) {
+                continue;
+            }
+
             auto local_entity = emap.remloc(remote_entity);
             auto comp = pair.second;
 
@@ -70,14 +74,10 @@ struct created_entity_component_container: public entity_component_container_bas
     }
 
     void import(entt::registry &registry, entity_map &emap, bool mark_dirty) const override {
-        size_t index = 0;
-
-        while (index < pairs.size()) {
-            auto &pair = pairs[index];
+        for (auto &pair : pairs) {
             auto remote_entity = pair.first;
 
             if (!emap.has_rem(remote_entity)) {
-                ++index;
                 continue;
             }
 
@@ -98,8 +98,6 @@ struct created_entity_component_container: public entity_component_container_bas
             if (mark_dirty) {
                 registry.get_or_emplace<dirty>(local_entity).template created<Component>();
             }
-
-            ++index;
         }
     }
 

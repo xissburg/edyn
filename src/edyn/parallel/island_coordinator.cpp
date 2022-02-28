@@ -643,8 +643,8 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
 
         if (m_registry->any_of<graph_edge>(local_entity)) return;
 
-        auto &node0 = node_view.get<graph_node>(con.body[0]);
-        auto &node1 = node_view.get<graph_node>(con.body[1]);
+        auto &node0 = node_view.get<graph_node>(source_ctx->m_entity_map.remloc(con.body[0]));
+        auto &node1 = node_view.get<graph_node>(source_ctx->m_entity_map.remloc(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry->emplace<graph_edge>(local_entity, edge_index);
         m_registry->emplace<island_resident>(local_entity, source_island_entity);
