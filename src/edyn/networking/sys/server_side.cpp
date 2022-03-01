@@ -118,13 +118,15 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &ctx = registry.ctx<server_network_context>();
     auto &client = registry.get<remote_client>(client_entity);
     auto snapshot_local = packet::transient_snapshot{};
+    const bool check_ownership = true;
+    const bool mark_dirty = false;
 
     for (auto &pool : snapshot.pools) {
-        auto pool_local = ctx.pool_snapshot_importer->transform_to_local(registry, client_entity, pool, true);
+        auto pool_local = ctx.pool_snapshot_importer->transform_to_local(registry, client_entity, pool, check_ownership);
 
         if (!pool_local.ptr->empty()) {
             // Import input components directly into the main registry.
-            ctx.pool_snapshot_importer->import_input_local(registry, client_entity, pool_local);
+            ctx.pool_snapshot_importer->import_input_local(registry, client_entity, pool_local, mark_dirty);
             // Pools will be sent to island workers for state application into
             // their registries.
             snapshot_local.pools.push_back(pool_local);
@@ -165,9 +167,11 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::general_snapshot &snapshot) {
     auto &ctx = registry.ctx<server_network_context>();
+    const bool check_ownership = true;
+    const bool mark_dirty = true;
 
     for (auto &pool : snapshot.pools) {
-        ctx.pool_snapshot_importer->import(registry, client_entity, pool, true);
+        ctx.pool_snapshot_importer->import(registry, client_entity, pool, check_ownership, mark_dirty);
     }
 }
 
@@ -215,10 +219,15 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // client thus all entities are already assumed to be owned by the client.
     // Also, checking ownership at this point would fail since nodes and edges
     // haven't yet been created and islands haven't been assigned.
-    constexpr auto check_ownership = false;
+    const bool check_ownership = false;
+
+    // Do not mark components as dirty because they will already be sent with
+    // the new entities to island workers thus marking them as dirty would
+    // cause them to be created twice in the worker.
+    const bool mark_dirty = false;
 
     for (auto &pool : packet.pools) {
-        ctx.pool_snapshot_importer->import(registry, client_entity, pool, check_ownership);
+        ctx.pool_snapshot_importer->import(registry, client_entity, pool, check_ownership, mark_dirty);
     }
 
     // Create nodes and edges in entity graph and assign networked tags.

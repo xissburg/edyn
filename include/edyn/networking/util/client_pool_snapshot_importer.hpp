@@ -15,8 +15,8 @@ bool client_owns_entity(const entt::registry &registry, entt::entity entity);
 
 class client_pool_snapshot_importer {
 public:
-    virtual void import(entt::registry &, const entity_map &, const pool_snapshot &) = 0;
-    virtual void import_local(entt::registry &, const pool_snapshot &) = 0;
+    virtual void import(entt::registry &, const entity_map &, const pool_snapshot &, bool mark_dirty) = 0;
+    virtual void import_local(entt::registry &, const pool_snapshot &, bool mark_dirty) = 0;
 };
 
 template<typename... Components>
@@ -24,7 +24,8 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
 
     template<typename Component>
     void import_pairs(entt::registry &registry, const entity_map &emap,
-                      const std::vector<std::pair<entt::entity, Component>> &pairs) {
+                      const std::vector<std::pair<entt::entity, Component>> &pairs,
+                      bool mark_dirty) {
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
 
@@ -41,25 +42,31 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
             auto comp = pair.second;
             merge(comp, emap);
 
-            // Mark as dirty using `network_dirty` to avoid having these
-            // components being sent back to the server later on in
-            // `client_side` when dirty components are put into a
-            // `general_snapshot` and dispatched to the server.
-            auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
+            if (mark_dirty) {
+                // Mark as dirty using `network_dirty` to avoid having these
+                // components being sent back to the server later on in
+                // `client_side` when dirty components are put into a
+                // `general_snapshot` and dispatched to the server.
+                auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
+
+                if (registry.any_of<Component>(local_entity)) {
+                    dirty.template updated<Component>();
+                } else {
+                    dirty.template created<Component>();
+                }
+            }
 
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);
-                dirty.template updated<Component>();
             } else {
                 registry.emplace<Component>(local_entity, comp);
-                dirty.template created<Component>();
             }
         }
     }
 
     template<typename Component>
     void import_entities(entt::registry &registry, const entity_map &emap,
-                         const std::vector<entt::entity> &entities) {
+                         const std::vector<entt::entity> &entities, bool mark_dirty) {
         for (auto remote_entity : entities) {
             if (!emap.has_rem(remote_entity)) {
                 continue;
@@ -73,13 +80,18 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
 
             if (!registry.any_of<Component>(local_entity)) {
                 registry.emplace<Component>(local_entity);
-                registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
+
+                if (mark_dirty) {
+                    registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
+                }
             }
         }
     }
 
     template<typename Component>
-    void import_pairs_local(entt::registry &registry, const std::vector<std::pair<entt::entity, Component>> &pairs) {
+    void import_pairs_local(entt::registry &registry,
+                            const std::vector<std::pair<entt::entity, Component>> &pairs,
+                            bool mark_dirty) {
         for (auto &pair : pairs) {
             auto local_entity = pair.first;
 
@@ -89,24 +101,28 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
 
             auto &comp = pair.second;
 
-            // Mark as dirty using `network_dirty` to avoid having these
-            // components being sent back to the server later on in
-            // `client_side` when dirty components are put into a
-            // `general_snapshot` and dispatched to the server.
-            auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
+            if (mark_dirty) {
+                auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
+
+                if (registry.any_of<Component>(local_entity)) {
+                    dirty.template updated<Component>();
+                } else {
+                    dirty.template created<Component>();
+                }
+            }
 
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);
-                dirty.template updated<Component>();
             } else {
                 registry.emplace<Component>(local_entity, comp);
-                dirty.template created<Component>();
             }
         }
     }
 
     template<typename Component>
-    void import_entities_local(entt::registry &registry, const std::vector<entt::entity> &entities) {
+    void import_entities_local(entt::registry &registry,
+                               const std::vector<entt::entity> &entities,
+                               bool mark_dirty) {
         for (auto local_entity : entities) {
             if (!registry.valid(local_entity)) {
                 continue;
@@ -114,7 +130,10 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
 
             if (!registry.any_of<Component>(local_entity)) {
                 registry.emplace<Component>(local_entity);
-                registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
+
+                if (mark_dirty) {
+                    registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
+                }
             }
         }
     }
@@ -122,7 +141,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
 public:
     client_pool_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>) {}
 
-    void import(entt::registry &registry, const entity_map &emap, const pool_snapshot &pool) override {
+    void import(entt::registry &registry, const entity_map &emap, const pool_snapshot &pool, bool mark_dirty) override {
         auto all_components = std::tuple<Components...>{};
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
@@ -130,14 +149,14 @@ public:
             auto &data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr)->data;
 
             if constexpr(std::is_empty_v<Component>) {
-                import_entities<Component>(registry, emap, data);
+                import_entities<Component>(registry, emap, data, mark_dirty);
             } else {
-                import_pairs<Component>(registry, emap, data);
+                import_pairs<Component>(registry, emap, data, mark_dirty);
             }
         });
     }
 
-    void import_local(entt::registry &registry, const pool_snapshot &pool) override {
+    void import_local(entt::registry &registry, const pool_snapshot &pool, bool mark_dirty) override {
         auto all_components = std::tuple<Components...>{};
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
@@ -145,9 +164,9 @@ public:
             auto &data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr)->data;
 
             if constexpr(std::is_empty_v<Component>) {
-                import_entities_local<Component>(registry, data);
+                import_entities_local<Component>(registry, data, mark_dirty);
             } else {
-                import_pairs_local<Component>(registry, data);
+                import_pairs_local<Component>(registry, data, mark_dirty);
             }
         });
     }

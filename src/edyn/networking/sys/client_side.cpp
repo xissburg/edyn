@@ -71,6 +71,15 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     // local client.
     auto &ctx = registry.ctx<client_network_context>();
     ctx.state_history->emplace(registry, ctx.owned_entities, timestamp);
+
+    // Erase all inputs until the current time minus the client-server time
+    // difference plus some leeway because this is the amount of time the
+    // transient snapshots will be extrapolated forward thus requiring the
+    // inputs from that point in time onwards.
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+    const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
+    ctx.state_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
 }
 
 void init_network_client(entt::registry &registry) {
@@ -325,8 +334,14 @@ static void process_packet(entt::registry &registry, const packet::entity_respon
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
     }
 
+    // Do not mark as dirty during import as it would cause components to be
+    // emplaced twice in an island worker since these are newly created
+    // entities which will already be fully instantiated with all components
+    // in an island worker.
+    const bool mark_dirty = false;
+
     for (auto &pool : res.pools) {
-        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool);
+        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool, mark_dirty);
     }
 
     for (auto remote_entity : res.entities) {
@@ -379,8 +394,10 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
     // ... assign components later so that entity references will be available
     // to be mapped into the local registry.
+    const bool mark_dirty = false;
+
     for (auto &pool : packet.pools) {
-        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool);
+        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool, mark_dirty);
     }
 
     for (auto remote_entity : packet.entities) {
@@ -630,9 +647,10 @@ static void process_packet(entt::registry &registry, packet::general_snapshot &s
 
     snapshot.convert_remloc(ctx.entity_map);
     insert_input_to_state_history(registry, snapshot.pools, snapshot_time);
+    const bool mark_dirty = true;
 
     for (auto &pool : snapshot.pools) {
-        ctx.pool_snapshot_importer->import_local(registry, pool);
+        ctx.pool_snapshot_importer->import_local(registry, pool, mark_dirty);
     }
 }
 

@@ -1,13 +1,13 @@
 #ifndef EDYN_NETWORKING_COMP_STATE_HISTORY_HPP
 #define EDYN_NETWORKING_COMP_STATE_HISTORY_HPP
 
-#include <deque>
-#include <entt/core/type_info.hpp>
-#include <entt/entity/fwd.hpp>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <type_traits>
+#include <vector>
+#include <entt/core/type_info.hpp>
+#include <entt/entity/fwd.hpp>
 #include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/make_island_delta_builder.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
@@ -15,6 +15,11 @@
 namespace edyn {
 
 class comp_state_history {
+    auto first_after(double timestamp) {
+        return std::find_if(history.begin(), history.end(),
+                            [timestamp] (auto &&elem) { return elem.timestamp > timestamp; });
+    }
+
 public:
     using container_type = std::map<entt::id_type, std::unique_ptr<entity_component_container_base>>;
 
@@ -39,11 +44,7 @@ public:
 
     template<typename DataSource>
     void emplace(const DataSource &source, const entt::sparse_set &entities, double timestamp) {
-        std::lock_guard lock(mutex);
-
-        // Sorted insertion.
-        auto it = std::find_if(history.begin(), history.end(),
-                               [timestamp] (auto &&elem) { return elem.timestamp > timestamp; });
+        // Insert input components of given entities from data source into container.
         auto container = container_type{};
         take_snapshot(source, entities, container);
 
@@ -51,11 +52,16 @@ public:
             return;
         }
 
+        // Sorted insertion.
+        std::lock_guard lock(mutex);
+        auto it = first_after(timestamp);
         history.insert(it, {std::move(container), timestamp});
+    }
 
-        if (history.size() > max_size) {
-            history.pop_front();
-        }
+    void erase_until(double timestamp) {
+        std::lock_guard lock(mutex);
+        auto it = first_after(timestamp);
+        history.erase(history.begin(), it);
     }
 
     template<typename Func>
@@ -87,8 +93,7 @@ public:
     }
 
 protected:
-    std::deque<element> history;
-    size_t max_size {100};
+    std::vector<element> history;
     mutable std::mutex mutex;
 };
 

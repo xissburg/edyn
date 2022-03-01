@@ -18,11 +18,11 @@ public:
     // resides is not fully owned by the given client, the update won't be applied.
     // Input components of entities owned by the client are always applied.
     virtual void import(entt::registry &registry, entt::entity client_entity,
-                        const pool_snapshot &pool, bool check_ownership) = 0;
+                        const pool_snapshot &pool, bool check_ownership, bool mark_dirty) = 0;
 
     // Import input components of a pool containing local entities.
     virtual void import_input_local(entt::registry &registry, entt::entity client_entity,
-                                    const pool_snapshot &pool) = 0;
+                                    const pool_snapshot &pool, bool mark_dirty) = 0;
 
     // Transform entities from remote to local using the remote client entity map.
     virtual pool_snapshot transform_to_local(entt::registry &registry, entt::entity client_entity,
@@ -56,7 +56,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
     template<typename Component>
     void import_pairs(entt::registry &registry, entt::entity client_entity,
                       const std::vector<std::pair<entt::entity, Component>> &pairs,
-                      bool check_ownership) {
+                      bool check_ownership, bool mark_dirty) {
         auto &client = registry.get<remote_client>(client_entity);
 
         for (auto &pair : pairs) {
@@ -79,14 +79,21 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             auto comp = pair.second;
             merge(comp, client.entity_map);
-            auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
+
+            if (mark_dirty) {
+                auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
+
+                if (registry.any_of<Component>(local_entity)) {
+                    dirty.template updated<Component>();
+                } else {
+                    dirty.template created<Component>();
+                }
+            }
 
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);
-                dirty.template updated<Component>();
             } else {
                 registry.emplace<Component>(local_entity, comp);
-                dirty.template created<Component>();
             }
         }
     }
@@ -94,7 +101,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
     template<typename Component>
     void import_entities(entt::registry &registry, entt::entity client_entity,
                          const std::vector<entt::entity> &entities,
-                         bool check_ownership) {
+                         bool check_ownership, bool mark_dirty) {
         auto &client = registry.get<remote_client>(client_entity);
 
         for (auto remote_entity : entities) {
@@ -115,14 +122,18 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             if (!registry.any_of<Component>(local_entity)) {
                 registry.emplace<Component>(local_entity);
-                registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
+
+                if (mark_dirty) {
+                    registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
+                }
             }
         }
     }
 
     template<typename Component>
     void import_input_pairs_local(entt::registry &registry, entt::entity client_entity,
-                                  const std::vector<std::pair<entt::entity, Component>> &pairs) {
+                                  const std::vector<std::pair<entt::entity, Component>> &pairs,
+                                  bool mark_dirty) {
         auto owner_view = registry.view<entity_owner>();
 
         for (auto &pair : pairs) {
@@ -135,21 +146,29 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
             }
 
             auto &comp = pair.second;
-            auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
+
+            if (mark_dirty) {
+                auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
+
+                if (registry.any_of<Component>(local_entity)) {
+                    dirty.template updated<Component>();
+                } else {
+                    dirty.template created<Component>();
+                }
+            }
 
             if (registry.any_of<Component>(local_entity)) {
                 registry.replace<Component>(local_entity, comp);
-                dirty.template updated<Component>();
             } else {
                 registry.emplace<Component>(local_entity, comp);
-                dirty.template created<Component>();
             }
         }
     }
 
     template<typename Component>
     void import_input_entities_local(entt::registry &registry, entt::entity client_entity,
-                                     const std::vector<entt::entity> &entities) {
+                                     const std::vector<entt::entity> &entities,
+                                     bool mark_dirty) {
         auto owner_view = registry.view<entity_owner>();
 
         for (auto local_entity : entities) {
@@ -161,7 +180,10 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             if (!registry.any_of<Component>(local_entity)) {
                 registry.emplace<Component>(local_entity);
-                registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
+
+                if (mark_dirty) {
+                    registry.get_or_emplace<network_dirty>(local_entity).template created<Component>();
+                }
             }
         }
     }
@@ -239,7 +261,7 @@ public:
     }
 
     void import(entt::registry &registry, entt::entity client_entity,
-                const pool_snapshot &pool, bool check_ownership) override {
+                const pool_snapshot &pool, bool check_ownership, bool mark_dirty) override {
         const std::tuple<Components...> all_components;
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
@@ -247,15 +269,15 @@ public:
             auto &data = std::static_pointer_cast<pool_snapshot_data_impl<CompType>>(pool.ptr)->data;
 
             if constexpr(std::is_empty_v<CompType>) {
-                import_entities<CompType>(registry, client_entity, data, check_ownership);
+                import_entities<CompType>(registry, client_entity, data, check_ownership, mark_dirty);
             } else {
-                import_pairs<CompType>(registry, client_entity, data, check_ownership);
+                import_pairs<CompType>(registry, client_entity, data, check_ownership, mark_dirty);
             }
         });
     }
 
     void import_input_local(entt::registry &registry, entt::entity client_entity,
-                            const pool_snapshot &pool) override {
+                            const pool_snapshot &pool, bool mark_dirty) override {
         const std::tuple<Components...> all_components;
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
@@ -268,9 +290,9 @@ public:
             auto &data = std::static_pointer_cast<pool_snapshot_data_impl<CompType>>(pool.ptr)->data;
 
             if constexpr(std::is_empty_v<CompType>) {
-                import_input_entities_local<CompType>(registry, client_entity, data);
+                import_input_entities_local<CompType>(registry, client_entity, data, mark_dirty);
             } else {
-                import_input_pairs_local<CompType>(registry, client_entity, data);
+                import_input_pairs_local<CompType>(registry, client_entity, data, mark_dirty);
             }
         });
     }
