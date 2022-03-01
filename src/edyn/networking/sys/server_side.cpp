@@ -536,9 +536,8 @@ static void publish_client_dirty_components(entt::registry &registry,
         // For the components that were marked dirty during a snapshot import,
         // only include updates for those not owned by this client, since that
         // would cause the state that was set by the client to be sent back to
-        // the client itself.
-        // TODO: ignore transient components since they should be synchronized
-        // via transient snapshots.
+        // the client itself. Transient components are ignored since they're
+        // frequently updated via transient snapshots.
         if (network_dirty_view.contains(entity) && !is_fully_owned_by_client(registry, client_entity, entity)) {
             auto [dirty] = network_dirty_view.get(entity);
             ctx.pool_snapshot_exporter->export_dirty_steady(registry, entity, dirty, packet.pools, client_entity);

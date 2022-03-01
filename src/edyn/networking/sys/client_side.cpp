@@ -601,7 +601,10 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
         }
     }
 
-    // TODO: only include the necessary static entities.
+    // TODO: only include the necessary static entities. Could extrapolate the
+    // position by twice their velocity and calculate a sweep AABB (union of
+    // initial and extrapolated AABB) and query the non-procedural broadphase
+    // tree to obtain the relevant static and kinematic entities.
     for (auto entity : registry.view<static_tag>()) {
         if (!entities.contains(entity)) {
             entities.emplace(entity);
