@@ -36,8 +36,8 @@ class server_pool_snapshot_exporter_impl : public server_pool_snapshot_exporter 
     using insert_entity_components_func_t = void(const entt::registry &, entt::entity, std::vector<pool_snapshot> &, entt::entity);
     insert_entity_components_func_t *insert_transient_entity_components_func;
 
-    using should_export_transient_by_type_id_func_t = bool(const entt::registry &, entt::entity, entt::id_type, entt::entity);
-    should_export_transient_by_type_id_func_t *should_export_transient_by_type_id;
+    using should_export_steady_by_type_id_func_t = bool(const entt::registry &, entt::entity, entt::id_type, entt::entity);
+    should_export_steady_by_type_id_func_t *should_export_steady_by_type_id;
 
 public:
     template<typename... Transient, typename... Input>
@@ -54,8 +54,8 @@ public:
             }
         };
 
-        should_export_transient_by_type_id = [] (const entt::registry &registry, entt::entity entity,
-                                                 entt::id_type id, entt::entity dest_client_entity) {
+        should_export_steady_by_type_id = [] (const entt::registry &registry, entt::entity entity,
+                                              entt::id_type id, entt::entity dest_client_entity) {
             auto is_transient = ((entt::type_seq<Transient>::value() == id) || ...);
 
             if (auto *owner = registry.try_get<entity_owner>(entity); owner && owner->client_entity == dest_client_entity) {
@@ -89,7 +89,7 @@ public:
     void export_dirty_steady(const entt::registry &registry, entt::entity entity, const dirty &dirty,
                              std::vector<pool_snapshot> &pools, entt::entity dest_client_entity) override {
         for (auto id : dirty.updated_indexes) {
-            if ((*should_export_transient_by_type_id)(registry, entity, id, dest_client_entity)) {
+            if ((*should_export_steady_by_type_id)(registry, entity, id, dest_client_entity)) {
                 export_by_type_id(registry, entity, id, pools);
             }
         }
