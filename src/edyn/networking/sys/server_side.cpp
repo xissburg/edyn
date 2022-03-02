@@ -87,16 +87,59 @@ bool is_fully_owned_by_client(const entt::registry &registry, entt::entity clien
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
-    auto &ctx = registry.ctx<server_network_context>();
-    auto res = packet::entity_response{};
-    auto entities = std::set<entt::entity>(req.entities.begin(), req.entities.end());
+    entt::sparse_set valid_entities;
 
-    for (auto entity : entities) {
-        if (!registry.valid(entity)) {
-            continue;
+    for (auto entity : req.entities) {
+        if (registry.valid(entity) && !valid_entities.contains(entity)) {
+            valid_entities.emplace(entity);
+        }
+    }
+
+    // Send back all entities in all islands associated with the request
+    // entities. This is necessary because otherwise the response could be
+    // incomplete, e.g. dependent entities won't be sent which will result
+    // in an import failure on the other end.
+    auto island_entities = collect_islands_from_residents(registry, valid_entities.begin(), valid_entities.end());
+    auto island_view = registry.view<island>();
+    auto networked_view = registry.view<networked_tag>();
+    entt::sparse_set all_entities;
+
+    for (auto island_entity : island_entities) {
+        auto [island] = island_view.get(island_entity);
+
+        for (auto entity : island.nodes) {
+            if (!all_entities.contains(entity) && networked_view.contains(entity)) {
+                all_entities.emplace(entity);
+            }
         }
 
-        res.entities.push_back(entity);
+        for (auto entity : island.edges) {
+            if (!all_entities.contains(entity) && networked_view.contains(entity)) {
+                all_entities.emplace(entity);
+            }
+        }
+    }
+
+    // Include client entities of all entity owners.
+    entt::sparse_set client_entities;
+    auto owner_view = registry.view<entity_owner>();
+
+    for (auto entity : all_entities) {
+        if (owner_view.contains(entity)) {
+            auto [owner] = owner_view.get(entity);
+
+            if (!client_entities.contains(owner.client_entity)) {
+                client_entities.emplace(owner.client_entity);
+            }
+        }
+    }
+
+    auto &ctx = registry.ctx<server_network_context>();
+    auto res = packet::entity_response{};
+    res.entities.insert(res.entities.end(), all_entities.begin(), all_entities.end());
+    res.entities.insert(res.entities.end(), client_entities.begin(), client_entities.end());
+
+    for (auto entity : res.entities) {
         ctx.pool_snapshot_exporter->export_all(registry, entity, res.pools);
     }
 
@@ -111,7 +154,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_response &res) {
-
+    // TODO: import requested entities.
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {

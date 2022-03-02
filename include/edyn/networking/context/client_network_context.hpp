@@ -35,6 +35,10 @@ struct client_network_context {
     std::vector<entt::entity> destroyed_entities;
     bool importing_entities {false};
 
+    // Set of entities requested via `packet::entity_request`. Note that these
+    // are entities in the server's registry space.
+    entt::sparse_set requested_entities;
+
     double last_snapshot_time {0};
     double server_playout_delay {0.3};
 

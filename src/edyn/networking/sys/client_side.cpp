@@ -315,45 +315,7 @@ static void process_packet(entt::registry &registry, const packet::update_entity
 }
 
 static void process_packet(entt::registry &registry, const packet::entity_request &req) {
-
-}
-
-static void process_packet(entt::registry &registry, const packet::entity_response &res) {
-    auto &ctx = registry.ctx<client_network_context>();
-    ctx.importing_entities = true;
-
-    auto emap_packet = packet::update_entity_map{};
-
-    for (auto remote_entity : res.entities) {
-        if (ctx.entity_map.has_rem(remote_entity)) {
-            continue;
-        }
-
-        auto local_entity = registry.create();
-        ctx.entity_map.insert(remote_entity, local_entity);
-        emap_packet.pairs.emplace_back(remote_entity, local_entity);
-    }
-
-    // Do not mark as dirty during import as it would cause components to be
-    // emplaced twice in an island worker since these are newly created
-    // entities which will already be fully instantiated with all components
-    // in an island worker.
-    const bool mark_dirty = false;
-
-    for (auto &pool : res.pools) {
-        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool, mark_dirty);
-    }
-
-    for (auto remote_entity : res.entities) {
-        auto local_entity = ctx.entity_map.remloc(remote_entity);
-        registry.emplace<networked_tag>(local_entity);
-    }
-
-    ctx.importing_entities = false;
-
-    if (!emap_packet.pairs.empty()) {
-        ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
-    }
+    // TODO: send response.
 }
 
 template<typename T>
@@ -372,15 +334,16 @@ void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[ma
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
 }
 
-static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
+static void import_remote_pools(entt::registry &registry,
+                                const std::vector<entt::entity> &entities,
+                                const std::vector<pool_snapshot> &pools) {
     auto &ctx = registry.ctx<client_network_context>();
-    ctx.importing_entities = true;
 
     // Collect new entity mappings to send back to server.
     auto emap_packet = packet::update_entity_map{};
 
     // Create entities first...
-    for (auto remote_entity : packet.entities) {
+    for (auto remote_entity : entities) {
         if (ctx.entity_map.has_rem(remote_entity)) continue;
 
         auto local_entity = registry.create();
@@ -394,13 +357,18 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
     // ... assign components later so that entity references will be available
     // to be mapped into the local registry.
+
+    // Do not mark as dirty during import as it would cause components to be
+    // emplaced twice in an island worker since these are newly created
+    // entities which will already be fully instantiated with all components
+    // in an island worker.
     const bool mark_dirty = false;
 
-    for (auto &pool : packet.pools) {
+    for (auto &pool : pools) {
         ctx.pool_snapshot_importer->import(registry, ctx.entity_map, pool, mark_dirty);
     }
 
-    for (auto remote_entity : packet.entities) {
+    for (auto remote_entity : entities) {
         auto local_entity = ctx.entity_map.remloc(remote_entity);
 
         if (!registry.all_of<networked_tag>(local_entity)) {
@@ -409,7 +377,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
     }
 
     // Create nodes and edges in entity graph.
-    for (auto remote_entity : packet.entities) {
+    for (auto remote_entity : entities) {
         auto local_entity = ctx.entity_map.remloc(remote_entity);
 
         if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&
@@ -419,16 +387,36 @@ static void process_packet(entt::registry &registry, const packet::create_entity
             registry.emplace<graph_node>(local_entity, node_index);
         }
 
-        if (registry.any_of<rigidbody_tag, procedural_tag>(local_entity)) {
+        if (registry.any_of<rigidbody_tag, procedural_tag>(local_entity)&&
+            !registry.all_of<discontinuity>(local_entity)) {
             registry.emplace<discontinuity>(local_entity);
         }
     }
 
-    for (auto remote_entity : packet.entities) {
+    for (auto remote_entity : entities) {
         auto local_entity = ctx.entity_map.remloc(remote_entity);
         maybe_create_graph_edge(registry, local_entity, constraints_tuple);
     }
+}
 
+static void process_packet(entt::registry &registry, const packet::entity_response &res) {
+    auto &ctx = registry.ctx<client_network_context>();
+    ctx.importing_entities = true;
+    import_remote_pools(registry, res.entities, res.pools);
+    ctx.importing_entities = false;
+
+    // Remove received entities from the set of requested entities.
+    for (auto remote_entity : res.entities) {
+        if (ctx.requested_entities.contains(remote_entity)) {
+            ctx.requested_entities.erase(remote_entity);
+        }
+    }
+}
+
+static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
+    auto &ctx = registry.ctx<client_network_context>();
+    ctx.importing_entities = true;
+    import_remote_pools(registry, packet.entities, packet.pools);
     ctx.importing_entities = false;
 }
 
@@ -450,18 +438,20 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
     ctx.importing_entities = false;
 }
 
-static void collect_unknown_entities(const entt::registry &registry, entity_map &entity_map,
+static void collect_unknown_entities(entt::registry &registry,
                                      const std::vector<entt::entity> &remote_entities,
                                      entt::sparse_set &unknown_entities) {
+    auto &ctx = registry.ctx<client_network_context>();
+
     // Find remote entities that have no local counterpart.
     for (auto remote_entity : remote_entities) {
-        if (entity_map.has_rem(remote_entity)) {
-            auto local_entity = entity_map.remloc(remote_entity);
+        if (ctx.entity_map.has_rem(remote_entity)) {
+            auto local_entity = ctx.entity_map.remloc(remote_entity);
 
             // In the unusual situation where an existing mapping is an invalid
             // entity, erase it from the entity map and consider it unknown.
             if (!registry.valid(local_entity)) {
-                entity_map.erase_loc(local_entity);
+                ctx.entity_map.erase_loc(local_entity);
 
                 if (!unknown_entities.contains(remote_entity)) {
                     unknown_entities.emplace(remote_entity);
@@ -475,23 +465,32 @@ static void collect_unknown_entities(const entt::registry &registry, entity_map 
 
 static bool request_unknown_entities_in_pools(entt::registry &registry,
                                               const std::vector<pool_snapshot> &pools) {
-    auto &ctx = registry.ctx<client_network_context>();
     entt::sparse_set unknown_entities;
 
     for (auto &pool : pools) {
-        collect_unknown_entities(registry, ctx.entity_map, pool.ptr->get_entities(), unknown_entities);
+        collect_unknown_entities(registry, pool.ptr->get_entities(), unknown_entities);
     }
 
-    if (!unknown_entities.empty()) {
-        // Request unknown entities.
-        // TODO: prevent the same entity from being requested repeatedly.
+    auto contains_unknown = !unknown_entities.empty();
+
+    if (contains_unknown) {
+        // Request unknown entities that haven't yet been requested.
+        auto &ctx = registry.ctx<client_network_context>();
         auto req = packet::entity_request{};
-        req.entities.insert(req.entities.end(), unknown_entities.begin(), unknown_entities.end());
-        ctx.packet_signal.publish(packet::edyn_packet{std::move(req)});
-        return true;
+
+        for (auto entity : unknown_entities) {
+            if (!ctx.requested_entities.contains(entity)) {
+                ctx.requested_entities.emplace(entity);
+                req.entities.push_back(entity);
+            }
+        }
+
+        if (!req.entities.empty()) {
+            ctx.packet_signal.publish(packet::edyn_packet{std::move(req)});
+        }
     }
 
-    return false;
+    return contains_unknown;
 }
 
 static void insert_input_to_state_history(entt::registry &registry, const std::vector<pool_snapshot> &pools, double time) {
@@ -524,6 +523,15 @@ static void snap_to_transient_snapshot(entt::registry &registry, const packet::t
 
 static void process_packet(entt::registry &registry, packet::transient_snapshot &snapshot) {
     auto contains_unknown_entities = request_unknown_entities_in_pools(registry, snapshot.pools);
+
+    if (contains_unknown_entities) {
+        // Do not perform extrapolation if it contains unknown entities as the
+        // result would not make much sense if all parts are not involved. Wait
+        // until the entity request is completed and then extrapolations will
+        // be performed normally again. This should not happen very often.
+        return;
+    }
+
     auto &ctx = registry.ctx<client_network_context>();
 
     // Translate transient snapshot into client's space so entities in the
@@ -556,14 +564,6 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
     // differences to the discontinuity components.
     if (!needs_extrapolation || !client_settings.extrapolation_enabled) {
         snap_to_transient_snapshot(registry, snapshot);
-        return;
-    }
-
-    if (contains_unknown_entities) {
-        // Do not perform extrapolation if it contains unknown entities as the
-        // result would not make much sense if all parts are not involved. Wait
-        // until the entity request is completed and then extrapolations will
-        // be performed normally again. This should not happen very often.
         return;
     }
 
