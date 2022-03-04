@@ -916,7 +916,6 @@ void island_worker::on_transient_snapshot(const packet::transient_snapshot &snap
     }
 
     accumulate_discontinuities(m_registry);
-    import_contact_manifolds(snapshot.manifolds);
 }
 
 entity_graph::connected_components_t island_worker::split() {

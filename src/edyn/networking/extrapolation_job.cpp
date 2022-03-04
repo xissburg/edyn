@@ -194,45 +194,6 @@ void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, e
     }
 }
 
-void extrapolation_job::load_manifolds() {
-    // Import manifolds later, after initial collision detection is done.
-    // Existing imported manifolds from the coordinator exist with respect
-    // to the client simulation state. The snapshot manifolds are with respect
-    // to the received server state. Thus the server state must be applied first,
-    // then after collision detection is done, corresponding local manifolds
-    // should exist.
-    if (m_input.transient_snapshot.manifolds.empty()) {
-        return;
-    }
-
-    auto &manifold_map = m_registry.ctx<contact_manifold_map>();
-
-    for (auto &manifold : m_input.transient_snapshot.manifolds) {
-        if (!m_entity_map.has_rem(manifold.body[0]) ||
-            !m_entity_map.has_rem(manifold.body[1])) {
-            continue;
-        }
-
-        manifold.body[0] = m_entity_map.remloc(manifold.body[0]);
-        manifold.body[1] = m_entity_map.remloc(manifold.body[1]);
-
-        // Find a matching manifold and replace it...
-        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
-            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
-            m_registry.get<contact_manifold>(manifold_entity) = manifold;
-        } else {
-            // ...or create a new one and assign a new value to it.
-            auto separation_threshold = contact_breaking_threshold * scalar(1.3);
-            auto manifold_entity = make_contact_manifold(m_registry,
-                                                         manifold.body[0], manifold.body[1],
-                                                         separation_threshold);
-            m_registry.get<contact_manifold>(manifold_entity) = manifold;
-        }
-    }
-
-    m_input.transient_snapshot.manifolds.clear();
-}
-
 void extrapolation_job::apply_history() {
     auto &settings = m_registry.ctx<edyn::settings>();
     auto start_time = m_current_time - settings.fixed_dt;
@@ -449,7 +410,6 @@ bool extrapolation_job::run_narrowphase() {
         return false;
     } else {
         nphase.update();
-        load_manifolds();
         m_state = state::solve;
         return true;
     }
@@ -459,7 +419,6 @@ void extrapolation_job::finish_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase_async);
     auto &nphase = m_registry.ctx<narrowphase>();
     nphase.finish_async_update();
-    load_manifolds();
     m_state = state::solve;
 }
 

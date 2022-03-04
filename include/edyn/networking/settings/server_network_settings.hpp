@@ -9,8 +9,6 @@ struct server_network_settings {
     // value, which should be greater than 1, to ensure that all client
     // input will be applied with correct relative timing.
     double playout_delay_multiplier {1.2};
-
-    bool sync_manifolds {false};
 };
 
 }

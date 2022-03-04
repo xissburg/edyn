@@ -1,5 +1,4 @@
 #include "edyn/networking/sys/server_side.hpp"
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/networking/packet/client_created.hpp"
@@ -159,7 +158,6 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<server_network_context>();
-    auto &client = registry.get<remote_client>(client_entity);
     auto snapshot_local = packet::transient_snapshot{};
     const bool check_ownership = true;
     const bool mark_dirty = false;
@@ -176,21 +174,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         }
     }
 
-    // Convert manifolds into local entity space.
-    for (auto &manifold : snapshot.manifolds) {
-        if (!client.entity_map.has_rem(manifold.body[0]) ||
-            !client.entity_map.has_rem(manifold.body[1]))
-        {
-            continue;
-        }
-
-        auto manifold_local = manifold;
-        manifold_local.body[0] = client.entity_map.remloc(manifold.body[0]);
-        manifold_local.body[1] = client.entity_map.remloc(manifold.body[1]);
-        snapshot_local.manifolds.push_back(manifold_local);
-    }
-
-    if (snapshot_local.pools.empty() && snapshot_local.manifolds.empty()) {
+    if (snapshot_local.pools.empty()) {
         return;
     }
 
@@ -519,27 +503,10 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
     client.last_snapshot_time = time;
 
     auto &ctx = registry.ctx<server_network_context>();
-    auto &settings = registry.ctx<edyn::settings>();
-    auto &server_settings = std::get<server_network_settings>(settings.network_settings);
-    auto manifold_view = registry.view<contact_manifold>();
     auto packet = packet::transient_snapshot{};
 
     for (auto entity : aabboi.entities) {
         if (registry.any_of<sleeping_tag, static_tag>(entity)) {
-            continue;
-        }
-
-        if (manifold_view.contains(entity)) {
-            if (server_settings.sync_manifolds) {
-                auto [manifold] = manifold_view.get(entity);
-
-                if (!is_fully_owned_by_client(registry, client_entity, manifold.body[0]) ||
-                    !is_fully_owned_by_client(registry, client_entity, manifold.body[1]))
-                {
-                    packet.manifolds.push_back(manifold);
-                }
-            }
-
             continue;
         }
 

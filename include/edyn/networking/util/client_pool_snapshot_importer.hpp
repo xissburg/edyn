@@ -2,7 +2,6 @@
 #define EDYN_NETWORKING_UTIL_CLIENT_POOL_SNAPSHOT_IMPORTER_HPP
 
 #include <entt/entity/registry.hpp>
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/sys/client_side.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"

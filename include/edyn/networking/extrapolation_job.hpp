@@ -33,7 +33,6 @@ class extrapolation_job final {
     };
 
     void load_input();
-    void load_manifolds();
     void init();
     bool should_step();
     void begin_step();

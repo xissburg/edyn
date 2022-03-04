@@ -1,6 +1,4 @@
 #include "edyn/networking/sys/client_side.hpp"
-#include "edyn/collision/contact_manifold.hpp"
-#include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
@@ -162,14 +160,17 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
     auto island_view = registry.view<island>();
     auto networked_view = registry.view<networked_tag>();
     auto owner_view = registry.view<entity_owner>();
-    auto manifold_view = registry.view<contact_manifold>();
 
     auto export_transient = [&] (entt::entity entity) {
+        if (!networked_view.contains(entity)) {
+            return;
+        }
+
         auto is_owned_by_another_client =
             owner_view.contains(entity) &&
             std::get<0>(owner_view.get(entity)).client_entity != ctx.client_entity;
 
-        if (networked_view.contains(entity) && !is_owned_by_another_client) {
+        if (!is_owned_by_another_client) {
             ctx.pool_snapshot_exporter->export_transient(registry, entity, packet.pools);
         }
     };
@@ -182,13 +183,7 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
         }
 
         for (auto entity : island.edges) {
-            if (manifold_view.contains(entity)) {
-                if (client_settings.sync_manifolds) {
-                    packet.manifolds.push_back(std::get<0>(manifold_view.get(entity)));
-                }
-            } else {
-                export_transient(entity);
-            }
+            export_transient(entity);
         }
     }
 
