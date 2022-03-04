@@ -183,7 +183,9 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
 
         for (auto entity : island.edges) {
             if (manifold_view.contains(entity)) {
-                packet.manifolds.push_back(std::get<0>(manifold_view.get(entity)));
+                if (client_settings.sync_manifolds) {
+                    packet.manifolds.push_back(std::get<0>(manifold_view.get(entity)));
+                }
             } else {
                 export_transient(entity);
             }

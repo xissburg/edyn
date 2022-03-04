@@ -519,6 +519,9 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
     client.last_snapshot_time = time;
 
     auto &ctx = registry.ctx<server_network_context>();
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &server_settings = std::get<server_network_settings>(settings.network_settings);
+    auto manifold_view = registry.view<contact_manifold>();
     auto packet = packet::transient_snapshot{};
 
     for (auto entity : aabboi.entities) {
@@ -526,12 +529,17 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
             continue;
         }
 
-        if (auto *manifold = registry.try_get<contact_manifold>(entity)) {
-            if (!is_fully_owned_by_client(registry, client_entity, manifold->body[0]) ||
-                !is_fully_owned_by_client(registry, client_entity, manifold->body[1]))
-            {
-                packet.manifolds.push_back(*manifold);
+        if (manifold_view.contains(entity)) {
+            if (server_settings.sync_manifolds) {
+                auto [manifold] = manifold_view.get(entity);
+
+                if (!is_fully_owned_by_client(registry, client_entity, manifold.body[0]) ||
+                    !is_fully_owned_by_client(registry, client_entity, manifold.body[1]))
+                {
+                    packet.manifolds.push_back(manifold);
+                }
             }
+
             continue;
         }
 
