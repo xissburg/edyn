@@ -292,6 +292,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::destroy_entity &packet) {
     auto &client = registry.get<remote_client>(client_entity);
+    auto &aabboi = registry.get<aabb_of_interest>(client_entity);
 
     for (auto remote_entity : packet.entities) {
         if (client.entity_map.has_rem(remote_entity)) {
@@ -304,6 +305,12 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
                     registry.destroy(local_entity);
                     client.entity_map.erase_rem(remote_entity);
                     vector_erase(client.owned_entities, local_entity);
+
+                    // Remove from AABB of interest of owner to prevent notifying
+                    // the requester itself of destruction of these entities.
+                    if (aabboi.entities.contains(local_entity)) {
+                        aabboi.entities.erase(local_entity);
+                    }
                 }
             }
         }
