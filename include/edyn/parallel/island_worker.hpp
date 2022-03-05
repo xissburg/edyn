@@ -96,8 +96,8 @@ public:
     void on_set_material_table(const msg::set_material_table &msg);
     void on_wake_up_island(const msg::wake_up_island &);
     void on_set_com(const msg::set_com &);
+    void on_apply_network_pools(const msg::apply_network_pools &);
     void on_extrapolation_result(const extrapolation_result &);
-    void on_transient_snapshot(const packet::transient_snapshot &);
 
     void import_contact_manifolds(const std::vector<contact_manifold> &manifolds);
 

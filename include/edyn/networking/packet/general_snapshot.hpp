@@ -7,6 +7,7 @@
 namespace edyn::packet {
 
 struct general_snapshot {
+    double timestamp;
     std::vector<pool_snapshot> pools;
 
     void convert_remloc(entity_map &emap) {
@@ -18,6 +19,7 @@ struct general_snapshot {
 
 template<typename Archive>
 void serialize(Archive &archive, general_snapshot &snapshot) {
+    archive(snapshot.timestamp);
     archive(snapshot.pools);
 }
 

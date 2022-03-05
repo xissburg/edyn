@@ -36,7 +36,7 @@ void update_network_server(entt::registry &);
  * @param client_entity Client who sent the packet.
  * @param packet Incoming packet.
  */
-void server_receive_packet(entt::registry &, entt::entity client_entity, const packet::edyn_packet &);
+void server_receive_packet(entt::registry &, entt::entity client_entity, packet::edyn_packet &);
 
 /**
  * @brief Create a new client. Must be called when a connection is established
@@ -59,7 +59,7 @@ entt::entity server_make_client(entt::registry &);
  * value.
  * @param registry Data source.
  * @param client_entity The client to assign the latency to.
- * @param rtt The RTT in ms.
+ * @param rtt The RTT in seconds.
  */
 void server_set_client_round_trip_time(entt::registry &, entt::entity client_entity, double rtt);
 

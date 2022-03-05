@@ -7,6 +7,7 @@
 namespace edyn::packet {
 
 struct transient_snapshot {
+    double timestamp;
     std::vector<pool_snapshot> pools;
 
     auto get_entities() const {
@@ -32,6 +33,7 @@ struct transient_snapshot {
 
 template<typename Archive>
 void serialize(Archive &archive, transient_snapshot &snapshot) {
+    archive(snapshot.timestamp);
     archive(snapshot.pools);
 }
 

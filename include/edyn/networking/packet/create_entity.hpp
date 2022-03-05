@@ -7,12 +7,14 @@
 namespace edyn::packet {
 
 struct create_entity {
+    double timestamp;
     std::vector<entt::entity> entities;
     std::vector<pool_snapshot> pools;
 };
 
 template<typename Archive>
 void serialize(Archive &archive, create_entity &packet) {
+    archive(packet.timestamp);
     archive(packet.entities);
     archive(packet.pools);
 }

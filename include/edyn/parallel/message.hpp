@@ -4,6 +4,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/networking/packet/util/pool_snapshot.hpp"
 
 namespace edyn::msg {
 
@@ -28,6 +29,10 @@ struct split_island {};
 struct set_com {
     entt::entity entity;
     vector3 com;
+};
+
+struct apply_network_pools {
+    std::vector<pool_snapshot> pools;
 };
 
 }

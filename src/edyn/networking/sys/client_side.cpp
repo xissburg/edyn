@@ -659,7 +659,17 @@ static void process_packet(entt::registry &registry, packet::set_playout_delay &
     ctx.server_playout_delay = delay.value;
 }
 
-void client_handle_packet(entt::registry &registry, packet::edyn_packet &packet) {
+static void process_packet(entt::registry &registry, const packet::time_request &) {
+    auto res = packet::time_response{performance_time()};
+    auto &ctx = registry.ctx<client_network_context>();
+    ctx.packet_signal.publish(packet::edyn_packet{res});
+}
+
+static void process_packet(entt::registry &registry, const packet::time_response &res) {
+
+}
+
+void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
     std::visit([&] (auto &&inner_packet) {
         process_packet(registry, inner_packet);
     }, packet.var);

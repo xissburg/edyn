@@ -12,6 +12,7 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/edyn.hpp"
@@ -158,7 +159,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<server_network_context>();
-    auto snapshot_local = packet::transient_snapshot{};
+    auto msg = msg::apply_network_pools{};
     const bool check_ownership = true;
     const bool mark_dirty = false;
 
@@ -170,11 +171,11 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
             ctx.pool_snapshot_importer->import_input_local(registry, client_entity, pool_local, mark_dirty);
             // Pools will be sent to island workers for state application into
             // their registries.
-            snapshot_local.pools.push_back(pool_local);
+            msg.pools.push_back(std::move(pool_local));
         }
     }
 
-    if (snapshot_local.pools.empty()) {
+    if (msg.pools.empty()) {
         return;
     }
 
@@ -182,12 +183,21 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // snapshot to them. They will import the pre-processed state into their
     // registries. Later, these components will be updated in the main registry
     // via a registry snapshot.
-    auto entities = snapshot_local.get_entities();
+    entt::sparse_set entities;
+
+    for (auto &pool : msg.pools) {
+        for (auto entity : pool.ptr->get_entities()) {
+            if (!entities.contains(entity)) {
+                entities.emplace(entity);
+            }
+        }
+    }
+
     auto island_entities = collect_islands_from_residents(registry, entities.begin(), entities.end());
     auto &coordinator = registry.ctx<island_coordinator>();
 
     for (auto island_entity : island_entities) {
-        coordinator.send_island_message<packet::transient_snapshot>(island_entity, snapshot_local);
+        coordinator.send_island_message<msg::apply_network_pools>(island_entity, msg);
         coordinator.wake_up_island(island_entity);
     }
 }
@@ -310,51 +320,24 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     }
 }
 
-static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_request &req) {
-    process_packet(registry, client_entity, req);
-}
-
-static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::entity_response &res) {
-    process_packet(registry, client_entity, res);
-}
-
-static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
-    auto &client = registry.get<remote_client>(client_entity);
-    auto timestamp = performance_time() - client.latency;
-    auto packet = client_packet{packet::edyn_packet{snapshot}, timestamp};
-    client.packet_queue.push_back(packet);
-}
-
-static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::general_snapshot &snapshot) {
-    auto &client = registry.get<remote_client>(client_entity);
-    auto timestamp = performance_time() - client.latency;
-    auto packet = client_packet{packet::edyn_packet{snapshot}, timestamp};
-    client.packet_queue.push_back(packet);
-}
-
-static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::create_entity &create) {
-    auto &client = registry.get<remote_client>(client_entity);
-    auto timestamp = performance_time() - client.latency;
-    auto packet = client_packet{packet::edyn_packet{create}, timestamp};
-    client.packet_queue.push_back(packet);
-}
-
-static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::destroy_entity &destroy) {
-    auto &client = registry.get<remote_client>(client_entity);
-    auto timestamp = performance_time() - client.latency;
-    auto packet = client_packet{packet::edyn_packet{destroy}, timestamp};
-    client.packet_queue.push_back(packet);
-}
-
-static void handle_packet(entt::registry &registry, entt::entity client_entity, const packet::update_entity_map &packet) {
-    process_packet(registry, client_entity, packet);
-}
-
-static void handle_packet(entt::registry &, entt::entity, const packet::client_created &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
-
-static void handle_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
+
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_request &) {
+    auto res = packet::time_response{performance_time()};
+    auto &client = registry.get<remote_client>(client_entity);
+    client.packet_signal.publish(client_entity, packet::edyn_packet{res});
+}
+
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_response &res) {
+    auto &client = registry.get<remote_client>(client_entity);
+
+    if (!client.is_calculating_time_delta) {
+        return;
+    }
+
+
+}
 
 void init_network_server(entt::registry &registry) {
     registry.set<server_network_context>();
@@ -373,22 +356,33 @@ void deinit_network_server(entt::registry &registry) {
     settings.network_settings = {};
 }
 
-static void server_process_packets(entt::registry &registry) {
+static void server_process_timed_packets(entt::registry &registry) {
     auto timestamp = performance_time();
 
     registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
-        auto first = client.packet_queue.begin();
-        auto last = std::find_if(first, client.packet_queue.end(), [&] (auto &&packet) {
-            return packet.arrival_timestamp > timestamp - client.playout_delay;
-        });
+        auto it = client.packet_queue.begin();
 
-        for (auto it = first; it != last; ++it) {
-            std::visit([&] (auto &&decoded_packet) {
-                process_packet(registry, client_entity, decoded_packet);
-            }, it->packet.var);
+        for (; it != client.packet_queue.end(); ++it) {
+            bool done = false;
+
+            std::visit([&] (auto &&packet) {
+                using PacketType = std::decay_t<decltype(packet)>;
+
+                if constexpr(has_type<PacketType, packet::timed_packets_tuple_t>::value) {
+                    if (packet.timestamp > timestamp) {
+                        done = true;
+                    } else {
+                        process_packet(registry, client_entity, packet);
+                    }
+                }
+            }, it->var);
+
+            if (done) {
+                break;
+            }
         }
 
-        client.packet_queue.erase(first, last);
+        client.packet_queue.erase(client.packet_queue.begin(), it);
     });
 }
 
@@ -621,7 +615,7 @@ static void process_aabbs_of_interest(entt::registry &registry) {
 }
 
 void update_network_server(entt::registry &registry) {
-    server_process_packets(registry);
+    server_process_timed_packets(registry);
     update_island_entity_owners(registry);
     update_aabbs_of_interest(registry);
     process_aabbs_of_interest(registry);
@@ -630,9 +624,23 @@ void update_network_server(entt::registry &registry) {
     merge_network_dirty_into_dirty(registry);
 }
 
-void server_receive_packet(entt::registry &registry, entt::entity client_entity, const packet::edyn_packet &packet) {
+template<typename T>
+void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&packet) {
+    auto &client = registry.get<remote_client>(client_entity);
+    packet.timestamp = performance_time() - client.time_delta;
+    client.packet_queue.emplace_back(packet::edyn_packet{std::move(packet)});
+}
+
+void server_receive_packet(entt::registry &registry, entt::entity client_entity, packet::edyn_packet &packet) {
     std::visit([&] (auto &&decoded_packet) {
-        handle_packet(registry, client_entity, decoded_packet);
+        using PacketType = std::decay_t<decltype(decoded_packet)>;
+        // If it's a timed packet, enqueue for later execution. Process
+        // immediately otherwise.
+        if constexpr(has_type<PacketType, packet::timed_packets_tuple_t>::value) {
+            enqueue_packet(registry, client_entity, decoded_packet);
+        } else {
+            process_packet(registry, client_entity, decoded_packet);
+        }
     }, packet.var);
 }
 

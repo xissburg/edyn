@@ -6,11 +6,13 @@
 namespace edyn::packet {
 
 struct update_entity_map {
+    double timestamp;
     entity_pair_vector pairs; // [local -> remote]
 };
 
 template<typename Archive>
 void serialize(Archive &archive, update_entity_map &map) {
+    archive(map.timestamp);
     archive(map.pairs);
 }
 

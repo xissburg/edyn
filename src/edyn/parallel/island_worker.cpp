@@ -110,8 +110,7 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
     m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
-
-    m_message_queue.sink<packet::transient_snapshot>().connect<&island_worker::on_transient_snapshot>(*this);
+    m_message_queue.sink<msg::apply_network_pools>().connect<&island_worker::on_apply_network_pools>(*this);
 
     auto &settings = m_registry.ctx<edyn::settings>();
 
@@ -906,12 +905,12 @@ void island_worker::on_extrapolation_result(const extrapolation_result &result) 
     import_contact_manifolds(result.manifolds);
 }
 
-void island_worker::on_transient_snapshot(const packet::transient_snapshot &snapshot) {
-    EDYN_ASSERT(!snapshot.pools.empty());
+void island_worker::on_apply_network_pools(const msg::apply_network_pools &msg) {
+    EDYN_ASSERT(!msg.pools.empty());
 
     assign_previous_transforms(m_registry);
 
-    for (auto &pool : snapshot.pools) {
+    for (auto &pool : msg.pools) {
         pool.ptr->replace_into_registry(m_registry, m_entity_map);
     }
 

@@ -7,11 +7,13 @@
 namespace edyn::packet {
 
 struct destroy_entity {
+    double timestamp;
     std::vector<entt::entity> entities;
 };
 
 template<typename Archive>
 void serialize(Archive &archive, destroy_entity &packet) {
+    archive(packet.timestamp);
     archive(packet.entities);
 }
 

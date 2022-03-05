@@ -5,7 +5,7 @@
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
 #include "edyn/util/entity_map.hpp"
-#include "edyn/networking/comp/client_packet.hpp"
+#include "edyn/networking/packet/edyn_packet.hpp"
 
 namespace edyn {
 
@@ -30,14 +30,19 @@ struct remote_client {
     // Maps entities between the client registry and the server registry.
     edyn::entity_map entity_map;
 
-    // Client latency in ms.
+    // Client latency in seconds.
     double latency {};
 
-    // The delay in ms applied to packet processing.
+    // The delay in seconds applied to packet processing.
     double playout_delay {};
 
-    // List of packets pending processing.
-    std::vector<client_packet> packet_queue;
+    // Difference between local server time and remote client time.
+    double time_delta {};
+
+    bool is_calculating_time_delta {false};
+
+    // List of delayed packets pending processing.
+    std::vector<packet::edyn_packet> packet_queue;
 
     // Timestamp of the last transient snapshot that was sent.
     double last_snapshot_time {0};
