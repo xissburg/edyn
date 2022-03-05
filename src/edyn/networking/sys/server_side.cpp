@@ -157,44 +157,28 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // TODO: import requested entities.
 }
 
-static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::transient_snapshot &snapshot) {
+static void process_packet(entt::registry &registry, entt::entity client_entity, packet::transient_snapshot &snapshot) {
     auto &ctx = registry.ctx<server_network_context>();
-    auto msg = msg::apply_network_pools{};
     const bool check_ownership = true;
     const bool mark_dirty = false;
 
+    // Transform snapshot entities into local registry space.
     for (auto &pool : snapshot.pools) {
-        auto pool_local = ctx.pool_snapshot_importer->transform_to_local(registry, client_entity, pool, check_ownership);
+        ctx.pool_snapshot_importer->transform_to_local(registry, client_entity, pool, check_ownership);
 
-        if (!pool_local.ptr->empty()) {
-            // Import input components directly into the main registry.
-            ctx.pool_snapshot_importer->import_input_local(registry, client_entity, pool_local, mark_dirty);
-            // Pools will be sent to island workers for state application into
-            // their registries.
-            msg.pools.push_back(std::move(pool_local));
-        }
-    }
-
-    if (msg.pools.empty()) {
-        return;
+        // If this pool holds input components, import them directly into
+        // the main registry.
+        ctx.pool_snapshot_importer->import_input_local(registry, client_entity, pool, mark_dirty);
     }
 
     // Get islands of all entities contained in transient snapshot and send the
     // snapshot to them. They will import the pre-processed state into their
     // registries. Later, these components will be updated in the main registry
     // via a registry snapshot.
-    entt::sparse_set entities;
-
-    for (auto &pool : msg.pools) {
-        for (auto entity : pool.ptr->get_entities()) {
-            if (!entities.contains(entity)) {
-                entities.emplace(entity);
-            }
-        }
-    }
-
+    auto entities = snapshot.get_entities();
     auto island_entities = collect_islands_from_residents(registry, entities.begin(), entities.end());
     auto &coordinator = registry.ctx<island_coordinator>();
+    auto msg = msg::apply_network_pools{std::move(snapshot.pools)};
 
     for (auto island_entity : island_entities) {
         coordinator.send_island_message<msg::apply_network_pools>(island_entity, msg);

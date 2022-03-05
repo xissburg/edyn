@@ -24,9 +24,9 @@ public:
     virtual void import_input_local(entt::registry &registry, entt::entity client_entity,
                                     const pool_snapshot &pool, bool mark_dirty) = 0;
 
-    // Transform entities from remote to local using the remote client entity map.
-    virtual pool_snapshot transform_to_local(entt::registry &registry, entt::entity client_entity,
-                                             const pool_snapshot &pool, bool check_ownership) = 0;
+    // Transform entities from remote to local using the remote client's entity map.
+    virtual void transform_to_local(entt::registry &registry, entt::entity client_entity,
+                                    pool_snapshot &pool, bool check_ownership) = 0;
 };
 
 template<typename... Components>
@@ -189,17 +189,22 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
     }
 
     template<typename Component>
-    std::vector<std::pair<entt::entity, Component>>
-    transform_pairs_to_local(entt::registry &registry, entt::entity client_entity,
-                             const std::vector<std::pair<entt::entity, Component>> &pairs,
-                             bool check_ownership) {
+    void transform_pairs_to_local(entt::registry &registry, entt::entity client_entity,
+                                  std::vector<std::pair<entt::entity, Component>> &pairs,
+                                  bool check_ownership) {
         auto &client = registry.get<remote_client>(client_entity);
-        std::vector<std::pair<entt::entity, Component>> result;
 
-        for (auto &pair : pairs) {
-            auto remote_entity = pair.first;
+        auto assign_value_of_last_and_pop_back = [&pairs] (auto &it) {
+            *it = pairs.back();
+            pairs.pop_back();
+        };
+
+        for (auto it = pairs.begin(); it != pairs.end();) {
+            auto &pair = *it;
+            auto &remote_entity = pair.first;
 
             if (!client.entity_map.has_rem(remote_entity)) {
+                assign_value_of_last_and_pop_back(it);
                 continue;
             }
 
@@ -207,31 +212,37 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             if (!registry.valid(local_entity)) {
                 client.entity_map.erase_loc(local_entity);
+                assign_value_of_last_and_pop_back(it);
                 continue;
             }
 
             if (check_ownership && !is_owned_by_client<Component>(registry, client_entity, local_entity)) {
+                assign_value_of_last_and_pop_back(it);
                 continue;
             }
 
-            auto comp = pair.second;
+            remote_entity = local_entity;
+            auto &comp = pair.second;
             merge(comp, client.entity_map);
-            result.emplace_back(local_entity, comp);
+            ++it;
         }
-
-        return result;
     }
 
     template<typename Component>
-    std::vector<entt::entity>
-    transform_entities_to_local(entt::registry &registry, entt::entity client_entity,
-                                const std::vector<entt::entity> &entities,
-                                bool check_ownership) {
+    void transform_entities_to_local(entt::registry &registry, entt::entity client_entity,
+                                     std::vector<entt::entity> &entities, bool check_ownership) {
         auto &client = registry.get<remote_client>(client_entity);
-        std::vector<entt::entity> result;
 
-        for (auto remote_entity : entities) {
+        auto assign_value_of_last_and_pop_back = [&entities] (auto &it) {
+            *it = entities.back();
+            entities.pop_back();
+        };
+
+        for (auto it = entities.begin(); it != entities.end();) {
+            auto &remote_entity = *it;
+
             if (!client.entity_map.has_rem(remote_entity)) {
+                assign_value_of_last_and_pop_back(it);
                 continue;
             }
 
@@ -239,17 +250,18 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             if (!registry.valid(local_entity)) {
                 client.entity_map.erase_loc(local_entity);
+                assign_value_of_last_and_pop_back(it);
                 continue;
             }
 
             if (check_ownership && !is_owned_by_client<Component>(registry, client_entity, local_entity)) {
+                assign_value_of_last_and_pop_back(it);
                 continue;
             }
 
-            result.push_back(local_entity);
+            remote_entity = local_entity;
+            ++it;
         }
-
-        return result;
     }
 
 public:
@@ -297,26 +309,20 @@ public:
         });
     }
 
-    pool_snapshot transform_to_local(entt::registry &registry, entt::entity client_entity,
-                                     const pool_snapshot &pool, bool check_ownership) override {
+    void transform_to_local(entt::registry &registry, entt::entity client_entity,
+                            pool_snapshot &pool, bool check_ownership) override {
         const std::tuple<Components...> all_components;
-        auto result = pool_snapshot{pool.component_index};
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
             using CompType = std::decay_t<decltype(c)>;
             auto &data = std::static_pointer_cast<pool_snapshot_data_impl<CompType>>(pool.ptr)->data;
-            auto ptr = std::make_shared<pool_snapshot_data_impl<CompType>>();
 
             if constexpr(std::is_empty_v<CompType>) {
-                ptr->data = transform_entities_to_local<CompType>(registry, client_entity, data, check_ownership);
+                transform_entities_to_local<CompType>(registry, client_entity, data, check_ownership);
             } else {
-                ptr->data = transform_pairs_to_local<CompType>(registry, client_entity, data, check_ownership);
+                transform_pairs_to_local<CompType>(registry, client_entity, data, check_ownership);
             }
-
-            result.ptr = ptr;
         });
-
-        return result;
     }
 
 private:
