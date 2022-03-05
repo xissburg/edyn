@@ -104,7 +104,7 @@ void deinit_network_client(entt::registry &registry) {
     settings.network_settings = {};
 }
 
-static void process_created_networked_entities(entt::registry &registry) {
+static void process_created_networked_entities(entt::registry &registry, double time) {
     auto &ctx = registry.ctx<client_network_context>();
 
     if (ctx.created_entities.empty()) {
@@ -112,6 +112,7 @@ static void process_created_networked_entities(entt::registry &registry) {
     }
 
     packet::create_entity packet;
+    packet.timestamp = time;
     packet.entities = ctx.created_entities;
 
     for (auto entity : ctx.created_entities) {
@@ -128,7 +129,7 @@ static void process_created_networked_entities(entt::registry &registry) {
     ctx.created_entities.clear();
 }
 
-static void process_destroyed_networked_entities(entt::registry &registry) {
+static void process_destroyed_networked_entities(entt::registry &registry, double time) {
     auto &ctx = registry.ctx<client_network_context>();
 
     if (ctx.destroyed_entities.empty()) {
@@ -136,6 +137,7 @@ static void process_destroyed_networked_entities(entt::registry &registry) {
     }
 
     packet::destroy_entity packet;
+    packet.timestamp = time;
     packet.entities = std::move(ctx.destroyed_entities);
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
 }
@@ -155,6 +157,7 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
     // an entity owned by this client, excluding entities that are owned by
     // other clients.
     auto packet = packet::transient_snapshot{};
+    packet.timestamp = time;
 
     auto island_entities = collect_islands_from_residents(registry, ctx.owned_entities.begin(), ctx.owned_entities.end());
     auto island_view = registry.view<island>();
@@ -229,7 +232,7 @@ static void process_finished_extrapolation_jobs(entt::registry &registry) {
     ctx.extrapolation_jobs.erase(remove_it, ctx.extrapolation_jobs.end());
 }
 
-static void publish_dirty_components(entt::registry &registry) {
+static void publish_dirty_components(entt::registry &registry, double time) {
     // Share dirty networked entities using a general snapshot.
     auto dirty_view = registry.view<dirty, networked_tag>();
 
@@ -239,6 +242,7 @@ static void publish_dirty_components(entt::registry &registry) {
 
     auto &ctx = registry.ctx<client_network_context>();
     auto packet = packet::general_snapshot{};
+    packet.timestamp = time;
 
     for (auto [entity, dirty] : dirty_view.each()) {
         for (auto id : dirty.updated_indexes) {
@@ -272,12 +276,12 @@ static void merge_network_dirty_into_dirty(entt::registry &registry) {
 void update_network_client(entt::registry &registry) {
     auto time = performance_time();
 
-    process_created_networked_entities(registry);
-    process_destroyed_networked_entities(registry);
+    process_created_networked_entities(registry, time);
+    process_destroyed_networked_entities(registry, time);
     maybe_publish_transient_snapshot(registry, time);
     process_finished_extrapolation_jobs(registry);
     update_input_history(registry, time);
-    publish_dirty_components(registry);
+    publish_dirty_components(registry, time);
     merge_network_dirty_into_dirty(registry);
 }
 
@@ -505,15 +509,18 @@ static void insert_input_to_state_history(entt::registry &registry, const std::v
     ctx.state_history->emplace(pools, entities, time);
 }
 
-static void snap_to_transient_snapshot(entt::registry &registry, const packet::transient_snapshot &snapshot) {
+static void snap_to_transient_snapshot(entt::registry &registry, packet::transient_snapshot &snapshot) {
     // Collect all entities present in snapshot and find islands where they
     // reside and finally send the snapshot to the island workers.
     auto entities = snapshot.get_entities();
     auto island_entities = collect_islands_from_residents(registry, entities.begin(), entities.end());
     auto &coordinator = registry.ctx<island_coordinator>();
 
+    auto msg = msg::apply_network_pools{};
+    msg.pools = std::move(snapshot.pools);
+
     for (auto island_entity : island_entities) {
-        coordinator.send_island_message<packet::transient_snapshot>(island_entity, snapshot);
+        coordinator.send_island_message<msg::apply_network_pools>(island_entity, msg);
         coordinator.wake_up_island(island_entity);
     }
 }
