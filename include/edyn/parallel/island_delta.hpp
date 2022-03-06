@@ -33,7 +33,7 @@ class island_delta {
 
     template<typename Component, typename Func>
     void _created_for_each(Func func) const {
-        auto id = entt::type_id<Component>().seq();
+        auto id = entt::type_index<Component>();
 
         if (m_created_components.count(id) == 0) return;
 
@@ -47,7 +47,7 @@ class island_delta {
 
     template<typename Component, typename Func>
     void _updated_for_each(Func func) const {
-        auto id = entt::type_id<Component>().seq();
+        auto id = entt::type_index<Component>();
 
         if (m_updated_components.count(id) == 0) return;
 

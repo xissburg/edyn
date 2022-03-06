@@ -17,7 +17,7 @@ void update_presentation(entt::registry &registry, double time) {
     auto exclude = entt::exclude<sleeping_tag, disabled_tag>;
     auto linear_view = registry.view<position, linvel, present_position, island_resident, procedural_tag>(exclude);
     auto angular_view = registry.view<orientation, angvel, present_orientation, island_resident, procedural_tag>(exclude);
-    auto fixed_dt = registry.ctx<settings>().fixed_dt;
+    auto fixed_dt = registry.ctx().at<settings>().fixed_dt;
 
     linear_view.each([&] (position &pos, linvel &vel, present_position &pre, island_resident &resident) {
         EDYN_ASSERT(registry.valid(resident.island_entity));

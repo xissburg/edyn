@@ -2,6 +2,7 @@
 #define EDYN_SERIALIZATION_PAGED_TRIANGLE_MESH_S11N_HPP
 
 #include <type_traits>
+#include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/shapes/paged_triangle_mesh.hpp"
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
 #include "edyn/serialization/file_archive.hpp"
@@ -116,8 +117,8 @@ public:
 
     void load(size_t index) override;
 
-    virtual entt::sink<loaded_mesh_func_t> on_load_sink() override {
-        return entt::sink {m_loaded_signal};
+    virtual entt::sink<entt::sigh<loaded_mesh_func_t>> on_load_sink() override {
+        return entt::sink<entt::sigh<loaded_mesh_func_t>> {m_loaded_signal};
     }
 
     friend void serialize(paged_triangle_mesh_file_input_archive &archive,

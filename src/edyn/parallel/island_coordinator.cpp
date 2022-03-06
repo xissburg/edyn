@@ -70,7 +70,7 @@ void island_coordinator::on_construct_graph_edge(entt::registry &registry, entt:
 
 void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
 
     // Prevent edges from being removed in `on_destroy_graph_edge`. The more
     // direct `entity_graph::remove_all_edges` will be used instead.
@@ -88,7 +88,7 @@ void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::e
 
 void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
     auto &edge = registry.get<graph_edge>(entity);
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
     graph.remove_edge(edge.edge_index);
 }
 
@@ -175,7 +175,7 @@ void island_coordinator::init_new_nodes_and_edges() {
 
     if (m_new_graph_nodes.empty() && m_new_graph_edges.empty()) return;
 
-    auto &graph = m_registry->ctx<entity_graph>();
+    auto &graph = m_registry->ctx().at<entity_graph>();
     auto node_view = m_registry->view<graph_node>();
     auto edge_view = m_registry->view<graph_edge>();
     std::set<entity_graph::index_type> procedural_node_indices;
@@ -299,7 +299,7 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
     auto &resident = m_registry->get<multi_island_resident>(node_entity);
 
     // Add new non-procedural entity to islands of neighboring procedural entities.
-    m_registry->ctx<entity_graph>().visit_neighbors(node.node_index, [&] (entt::entity other) {
+    m_registry->ctx().at<entity_graph>().visit_neighbors(node.node_index, [&] (entt::entity other) {
         if (!procedural_view.contains(other)) return;
 
         auto &other_resident = resident_view.get<island_resident>(other);
@@ -333,8 +333,8 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping,
     // `update` function which reschedules itself to be run over and over again.
     // After the `finish` function is called on it (when the island is destroyed),
     // it will be deallocated on the next run.
-    auto &settings = m_registry->ctx<edyn::settings>();
-    auto &material_table = m_registry->ctx<edyn::material_mix_table>();
+    auto &settings = m_registry->ctx().at<edyn::settings>();
+    auto &material_table = m_registry->ctx().at<edyn::material_mix_table>();
     auto *worker = new island_worker(island_entity, settings, material_table,
                                      message_queue_in_out(main_queue_input, isle_queue_output));
 
@@ -594,7 +594,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     auto &island = m_registry->get<edyn::island>(source_island_entity);
 
     // Insert nodes in the graph for each rigid body.
-    auto &graph = m_registry->ctx<entity_graph>();
+    auto &graph = m_registry->ctx().at<entity_graph>();
     auto insert_node = [&] (entt::entity remote_entity, auto &) {
         if (!source_ctx->m_entity_map.has_rem(remote_entity)) return;
 
@@ -802,7 +802,7 @@ void island_coordinator::step_simulation() {
 }
 
 void island_coordinator::settings_changed() {
-    auto &settings = m_registry->ctx<edyn::settings>();
+    auto &settings = m_registry->ctx().at<edyn::settings>();
 
     for (auto &pair : m_island_ctx_map) {
         auto &ctx = pair.second;
@@ -811,7 +811,7 @@ void island_coordinator::settings_changed() {
 }
 
 void island_coordinator::material_table_changed() {
-    auto &material_table = m_registry->ctx<material_mix_table>();
+    auto &material_table = m_registry->ctx().at<material_mix_table>();
 
     for (auto &pair : m_island_ctx_map) {
         auto &ctx = pair.second;

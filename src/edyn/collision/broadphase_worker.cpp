@@ -80,7 +80,7 @@ void destroy_separated_manifolds(entt::registry &registry) {
 void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity entity,
                                      const AABB &offset_aabb) {
     auto aabb_view = m_registry->view<AABB>();
-    auto &settings = m_registry->ctx<edyn::settings>();
+    auto &settings = m_registry->ctx().at<edyn::settings>();
 
     tree.query(offset_aabb, [&] (tree_node_id_t id) {
         auto &node = tree.get_node(id);
@@ -99,7 +99,7 @@ void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity enti
 void broadphase_worker::collide_tree_async(const dynamic_tree &tree, entt::entity entity,
                                            const AABB &offset_aabb, size_t result_index) {
     auto aabb_view = m_registry->view<AABB>();
-    auto &settings = m_registry->ctx<edyn::settings>();
+    auto &settings = m_registry->ctx().at<edyn::settings>();
 
     tree.query(offset_aabb, [&] (tree_node_id_t id) {
         auto &node = tree.get_node(id);

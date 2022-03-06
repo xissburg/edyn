@@ -221,7 +221,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     // select the one that has the highest velocity.
     // Traversal is done over connecting nodes, thus ignore non-connecting nodes
     // (i.e. static and kinematic rigid bodies).
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
     entity_graph::index_type start_node_index;
 
     if (length_sqr(body_view.get<linvel>(fastest_manifold.body[0])) >
@@ -274,7 +274,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 }
 
 void solve_restitution(entt::registry &registry, scalar dt) {
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
 
     for (unsigned i = 0; i < settings.num_restitution_iterations; ++i) {
         if (solve_restitution_iteration(registry, dt, settings.num_individual_restitution_iterations)) {

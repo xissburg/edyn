@@ -20,7 +20,7 @@ class island_delta_builder {
     template<typename Component>
     void _created(entt::entity entity, const Component &component) {
         using container_type = created_entity_component_container<Component>;
-        const auto id = entt::type_id<Component>().seq();
+        const auto id = entt::type_index<Component>();
 
         if (m_delta.m_created_components.count(id) == 0) {
             m_delta.m_created_components[id].reset(new container_type());
@@ -35,7 +35,7 @@ class island_delta_builder {
     template<typename Component, std::enable_if_t<!std::is_empty_v<Component>, bool> = true>
     void _updated(entt::entity entity, const Component &component) {
         using container_type = updated_entity_component_container<Component>;
-        const auto id = entt::type_id<Component>().seq();
+        const auto id = entt::type_index<Component>();
 
         if (m_delta.m_updated_components.count(id) == 0) {
             m_delta.m_updated_components[id].reset(new container_type());
@@ -48,7 +48,7 @@ class island_delta_builder {
     template<typename Component>
     void _destroyed(entt::entity entity) {
         using container_type = destroyed_entity_component_container<Component>;
-        const auto id = entt::type_id<Component>().seq();
+        const auto id = entt::type_index<Component>();
 
         if (m_delta.m_destroyed_components.count(id) == 0) {
             m_delta.m_destroyed_components[id].reset(new container_type());
@@ -309,7 +309,7 @@ void island_delta_builder::reserve_created(size_t size) {
 template<typename Component>
 void island_delta_builder::_reserve_created(size_t size) {
     using container_type = created_entity_component_container<Component>;
-    const auto id = entt::type_id<Component>().seq();
+    const auto id = entt::type_index<Component>();
 
     if (m_delta.m_created_components.count(id) == 0) {
         m_delta.m_created_components[id].reset(new container_type());
@@ -343,7 +343,7 @@ public:
     }
 
     void created(entt::entity entity, entt::registry &registry, entt::id_type id) override {
-        ((entt::type_id<Component>().seq() == id ?
+        ((entt::type_index<Component>() == id ?
             island_delta_builder::created<Component>(entity, registry) : (void)0), ...);
     }
 
@@ -353,7 +353,7 @@ public:
     }
 
     void updated(entt::entity entity, entt::registry &registry, entt::id_type id) override {
-        ((entt::type_id<Component>().seq() == id ?
+        ((entt::type_index<Component>() == id ?
             island_delta_builder::updated<Component>(entity, registry) : (void)0), ...);
     }
 
@@ -363,7 +363,7 @@ public:
     }
 
     void destroyed(entt::entity entity, entt::id_type id) override {
-        ((entt::type_id<Component>().seq() == id ?
+        ((entt::type_index<Component>() == id ?
             island_delta_builder::destroyed<Component>(entity) : (void)0), ...);
     }
 };

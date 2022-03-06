@@ -32,7 +32,7 @@ struct map_to_tuple_of_views;
 // types in the given tuple.
 template<typename... Ts>
 struct map_to_tuple_of_views<std::tuple<Ts...>> {
-    using type = std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...>;
+    using type = std::tuple<entt::basic_view<entt::entity, entt::get_t<Ts>, entt::exclude_t<>>...>;
 };
 
 }

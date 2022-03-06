@@ -45,7 +45,7 @@ struct component_index_source_impl : public component_index_source {
 
     size_t index_of_id(entt::id_type id) const override {
         auto idx = SIZE_MAX;
-        ((entt::type_id<Component>().seq() == id ?
+        ((entt::type_index<Component>() == id ?
             (idx = edyn::index_of<size_t, Component, components_tuple_t>::value) : (size_t)0), ...);
         EDYN_ASSERT(idx != SIZE_MAX);
         return idx;
@@ -55,7 +55,7 @@ struct component_index_source_impl : public component_index_source {
         auto id = entt::id_type{};
         auto tuple = components_tuple_t{};
         visit_tuple(tuple, index, [&] (auto &&c) {
-            id = entt::type_id<std::decay_t<decltype(c)>>().seq();
+            id = entt::type_index<std::decay_t<decltype(c)>>();
         });
         return id;
     }

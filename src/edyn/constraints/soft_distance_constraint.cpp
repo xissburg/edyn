@@ -31,7 +31,7 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
     auto origin_view = registry.view<origin>();
 
     size_t start_idx = cache.rows.size();
-    registry.ctx_or_set<row_start_index_soft_distance_constraint>().value = start_idx;
+    registry.ctx().emplace<row_start_index_soft_distance_constraint>().value = start_idx;
 
     con_view.each([&] (soft_distance_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
@@ -118,7 +118,7 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
 template<>
 void iterate_constraints<soft_distance_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto con_view = registry.view<soft_distance_constraint>(entt::exclude_t<disabled_tag>{});
-    auto row_idx = registry.ctx<row_start_index_soft_distance_constraint>().value;
+    auto row_idx = registry.ctx().at<row_start_index_soft_distance_constraint>().value;
 
     con_view.each([&] (soft_distance_constraint &con) {
         // Adjust damping row limits to account for velocity changes during iterations.

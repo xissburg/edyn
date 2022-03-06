@@ -7,7 +7,7 @@
 namespace edyn {
 
 std::unique_ptr<island_delta_builder> make_island_delta_builder(entt::registry &registry) {
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
     EDYN_ASSERT(settings.make_island_delta_builder != nullptr);
     return (*settings.make_island_delta_builder)();
 }

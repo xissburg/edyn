@@ -67,7 +67,7 @@ private:
     // CUD: Create, Update, Delete.
     template<typename... Ts>
     dirty & cud(id_set_t dirty:: *member) {
-        ((this->*member).insert(entt::type_id<Ts>().seq()), ...);
+        ((this->*member).insert(entt::type_index<Ts>()), ...);
         return *this;
     }
 };

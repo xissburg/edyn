@@ -76,7 +76,7 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
     auto mesh_shape_view = m_registry->view<mesh_shape>();
     auto paged_mesh_shape_view = m_registry->view<paged_mesh_shape>();
     auto views_tuple = get_tuple_of_shape_views(*m_registry);
-    auto dt = m_registry->ctx<settings>().fixed_dt;
+    auto dt = m_registry->ctx().at<settings>().fixed_dt;
 
     for (auto it = begin; it != end; ++it) {
         entt::entity manifold_entity = *it;

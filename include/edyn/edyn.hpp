@@ -117,14 +117,14 @@ void step_simulation(entt::registry &registry);
  */
 template<typename Component>
 size_t get_component_index(entt::registry &registry) {
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
     return settings.index_source->index_of<Component>();
 }
 
 /*! @copydoc get_component_index */
 template<typename... Component>
 auto get_component_indices(entt::registry &registry) {
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
     return settings.index_source->indices_of<Component...>();
 }
 
@@ -139,7 +139,7 @@ auto get_component_indices(entt::registry &registry) {
  */
 template<typename... Component>
 void register_external_components(entt::registry &registry) {
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
 
     settings.make_island_delta_builder = [] () {
         auto external = std::tuple<Component...>{};
@@ -152,7 +152,7 @@ void register_external_components(entt::registry &registry) {
     auto all_components = std::tuple_cat(shared_components, external);
     settings.index_source.reset(new component_index_source_impl(all_components));
 
-    registry.ctx<island_coordinator>().settings_changed();
+    registry.ctx().at<island_coordinator>().settings_changed();
 }
 
 template<typename... Component>
@@ -238,7 +238,8 @@ void set_should_collide(entt::registry &registry, should_collide_func_t func);
  */
 template<typename... Component>
 void refresh(entt::registry &registry, entt::entity entity) {
-    if (auto *coordinator = registry.try_ctx<island_coordinator>(); coordinator) {
+    auto* coordinator = registry.ctx().find<island_coordinator>();
+    if (coordinator) {
         coordinator->refresh<Component...>(entity);
     }
 }
@@ -276,7 +277,7 @@ entt::entity get_manifold_entity(const entt::registry &registry, entity_pair ent
  * @param registry Data source.
  * @return Sink to observe contact started events.
  */
-entt::sink<void(entt::entity)> on_contact_started(entt::registry &);
+entt::sink<entt::sigh<void(entt::entity)>> on_contact_started(entt::registry &);
 
 /**
  * @brief Signal triggered when a contact ends.
@@ -286,7 +287,7 @@ entt::sink<void(entt::entity)> on_contact_started(entt::registry &);
  * @param registry Data source.
  * @return Sink to observe contact ended events.
  */
-entt::sink<void(entt::entity)> on_contact_ended(entt::registry &);
+entt::sink<entt::sigh<void(entt::entity)>> on_contact_ended(entt::registry &);
 
 /**
  * @brief Signal triggered when a contact point is created.
@@ -296,7 +297,7 @@ entt::sink<void(entt::entity)> on_contact_ended(entt::registry &);
  * @param registry Data source.
  * @return Sink to observe contact point creation events.
  */
-entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_point_created(entt::registry &);
+entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>> on_contact_point_created(entt::registry &);
 
 /**
  * @brief Signal triggered when a contact point is destroyed.
@@ -306,7 +307,7 @@ entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_poi
  * @param registry Data source.
  * @return Sink to observe contact point destruction events.
  */
-entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_point_destroyed(entt::registry &);
+entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>> on_contact_point_destroyed(entt::registry &);
 
 /**
  * @brief Visit all edges of a node in the entity graph. This can be used to
@@ -321,7 +322,7 @@ entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_poi
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
     auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
     graph.visit_edges(node.node_index, func);
 }
 

@@ -12,7 +12,7 @@ narrowphase::narrowphase(entt::registry &reg)
 {}
 
 bool narrowphase::parallelizable() const {
-    return m_registry->size<contact_manifold>() > 1;
+    return m_registry->storage<contact_manifold>().size() > 1;
 }
 
 void narrowphase::clear_contact_manifold_events() {
@@ -47,7 +47,7 @@ void narrowphase::update_async(job &completion_job) {
     auto mesh_shape_view = m_registry->view<mesh_shape>();
     auto paged_mesh_shape_view = m_registry->view<paged_mesh_shape>();
     auto shapes_views_tuple = get_tuple_of_shape_views(*m_registry);
-    auto dt = m_registry->ctx<settings>().fixed_dt;
+    auto dt = m_registry->ctx().at<settings>().fixed_dt;
 
     // Resize result collection vectors to allocate one slot for each iteration
     // of the parallel_for.

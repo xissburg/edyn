@@ -18,7 +18,7 @@ namespace detail {
     */
     template<typename VisitorType, typename ViewsTupleType, typename T>
     constexpr auto make_visit_function() {
-        using ViewType = entt::basic_view<entt::entity, entt::exclude_t<>, T>;
+        using ViewType = entt::basic_view<entt::entity, entt::get_t<T>, entt::exclude_t<>>;
         return [] (entt::entity entity, const ViewsTupleType &views_tuple, VisitorType visitor) {
             visitor(std::get<ViewType>(views_tuple).template get<T>(entity));
         };
@@ -29,7 +29,7 @@ namespace detail {
     */
     template<typename VisitorType, typename... Ts>
     struct visit_function_array {
-        using ViewsTupleType = std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...>;
+        using ViewsTupleType = std::tuple<entt::basic_view<entt::entity, entt::get_t<Ts>, entt::exclude_t<>>...>;
         using VisitFuncType = void(*)(entt::entity, const ViewsTupleType &, VisitorType);
         std::array<VisitFuncType, sizeof...(Ts)> functions;
 
@@ -62,7 +62,7 @@ namespace detail {
  */
 template<typename... Ts, typename IndexType, typename VisitorType>
 void visit_component(IndexType index, entt::entity entity,
-                     const std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...> &views_tuple,
+                     const std::tuple<entt::basic_view<entt::entity, entt::get_t<Ts>, entt::exclude_t<>>...> &views_tuple,
                      VisitorType visitor) {
     constexpr auto table = detail::visitor_table<VisitorType, Ts...>{};
     table.array.functions[index](entity, views_tuple, visitor);
@@ -71,7 +71,7 @@ void visit_component(IndexType index, entt::entity entity,
 /*! @copydoc visit_component */
 template<typename... Ts, typename IndexType, typename VisitorType>
 void visit_component(std::tuple<Ts...>, IndexType index, entt::entity entity,
-                     const std::tuple<entt::basic_view<entt::entity, entt::exclude_t<>, Ts>...> &views_tuple,
+                     const std::tuple<entt::basic_view<entt::entity, entt::get_t<Ts>, entt::exclude_t<>>...> &views_tuple,
                      VisitorType visitor) {
     visit_component<Ts...>(index, entity, views_tuple, visitor);
 }

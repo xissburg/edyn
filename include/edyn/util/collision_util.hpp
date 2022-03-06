@@ -23,10 +23,10 @@ namespace edyn {
  */
 void update_contact_distances(entt::registry &registry);
 
-using orientation_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, orientation>;
-using material_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, material>;
-using mesh_shape_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, mesh_shape>;
-using paged_mesh_shape_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, paged_mesh_shape>;
+using orientation_view_t = entt::basic_view<entt::entity, entt::get_t<orientation>, entt::exclude_t<>>;
+using material_view_t = entt::basic_view<entt::entity, entt::get_t<material>, entt::exclude_t<>>;
+using mesh_shape_view_t = entt::basic_view<entt::entity, entt::get_t<mesh_shape>, entt::exclude_t<>>;
+using paged_mesh_shape_view_t = entt::basic_view<entt::entity, entt::get_t<paged_mesh_shape>, entt::exclude_t<>>;
 
 /**
  * Merges a `collision_point` onto a `contact_point`. It needs the material and
@@ -88,10 +88,10 @@ bool maybe_remove_point(contact_manifold &manifold,
 void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity,
                            contact_manifold::contact_id_type pt_id);
 
-using detect_collision_body_view_t = entt::basic_view<entt::entity, entt::exclude_t<>,
-                                     AABB, shape_index, position, orientation>;
+using detect_collision_body_view_t = entt::basic_view<entt::entity, entt::get_t<
+    AABB, shape_index, position, orientation>, entt::exclude_t<>>;
 
-using origin_view_t = entt::basic_view<entt::entity, entt::exclude_t<>, origin>;
+using origin_view_t = entt::basic_view<entt::entity, entt::get_t<origin>, entt::exclude_t<>>;
 
 /**
  * Detects collision between two bodies and adds closest points to the given
