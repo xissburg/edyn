@@ -1,12 +1,18 @@
 #ifndef EDYN_NETWORKING_PACKET_TIME_REQUEST_HPP
 #define EDYN_NETWORKING_PACKET_TIME_REQUEST_HPP
 
+#include <cstdint>
+
 namespace edyn::packet {
 
-struct time_request {};
+struct time_request {
+    uint32_t id;
+};
 
 template<typename Archive>
-void serialize(Archive &, time_request &) {}
+void serialize(Archive &archive, time_request &req) {
+    archive(req.id);
+}
 
 }
 

@@ -3,6 +3,7 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/edyn.hpp"
+#include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
@@ -273,9 +274,20 @@ static void merge_network_dirty_into_dirty(entt::registry &registry) {
     registry.clear<network_dirty>();
 }
 
+static void client_update_clock_sync(entt::registry &registry, double time) {
+    auto &ctx = registry.ctx<client_network_context>();
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+
+    update_clock_sync(ctx.clock_sync, time, client_settings.round_trip_time, [&] (packet::edyn_packet &&packet) {
+        ctx.packet_signal.publish(packet);
+    });
+}
+
 void update_network_client(entt::registry &registry) {
     auto time = performance_time();
 
+    client_update_clock_sync(registry, time);
     process_created_networked_entities(registry, time);
     process_destroyed_networked_entities(registry, time);
     maybe_publish_transient_snapshot(registry, time);
@@ -299,6 +311,7 @@ static void process_packet(entt::registry &registry, const packet::client_create
     ctx.entity_map.insert(remote_entity, local_entity);
 
     auto emap_packet = packet::update_entity_map{};
+    emap_packet.timestamp = performance_time();
     emap_packet.pairs.emplace_back(remote_entity, local_entity);
     ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
 
@@ -342,6 +355,7 @@ static void import_remote_pools(entt::registry &registry,
 
     // Collect new entity mappings to send back to server.
     auto emap_packet = packet::update_entity_map{};
+    emap_packet.timestamp = performance_time();
 
     // Create entities first...
     for (auto remote_entity : entities) {
@@ -537,6 +551,8 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
     }
 
     auto &ctx = registry.ctx<client_network_context>();
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     // Translate transient snapshot into client's space so entities in the
     // snapshot will make sense in this registry. This same snapshot will
@@ -544,12 +560,15 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
     // main registry space.
     snapshot.convert_remloc(ctx.entity_map);
 
-    auto &settings = registry.ctx<edyn::settings>();
-    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
-
     const auto time = performance_time();
-    const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
-    const double snapshot_time = time - client_server_time_difference;
+    double snapshot_time;
+
+    if (ctx.clock_sync.count > 0) {
+        snapshot_time = snapshot.timestamp + ctx.clock_sync.time_delta - ctx.server_playout_delay;
+    } else {
+        const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
+        snapshot_time = time - client_server_time_difference;
+    }
 
     // Input from other clients must be always added to the state history.
     // The server won't send input components of entities owned by this client.
@@ -561,7 +580,7 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
     // the time difference nearly equals fixed dt, it is possible it would
     // perform a single step since time will have passed until the job starts
     // running).
-    auto needs_extrapolation = client_server_time_difference > settings.fixed_dt;
+    auto needs_extrapolation = time - snapshot_time > settings.fixed_dt;
 
     // If extrapolation is not enabled or not needed send the snapshot directly
     // to the island workers. They will snap to this state and add the
@@ -666,14 +685,18 @@ static void process_packet(entt::registry &registry, packet::set_playout_delay &
     ctx.server_playout_delay = delay.value;
 }
 
-static void process_packet(entt::registry &registry, const packet::time_request &) {
-    auto res = packet::time_response{performance_time()};
+static void process_packet(entt::registry &registry, const packet::time_request &req) {
+    auto res = packet::time_response{req.id, performance_time()};
     auto &ctx = registry.ctx<client_network_context>();
     ctx.packet_signal.publish(packet::edyn_packet{res});
 }
 
 static void process_packet(entt::registry &registry, const packet::time_response &res) {
+    auto &ctx = registry.ctx<client_network_context>();
 
+    clock_sync_process_time_response(ctx.clock_sync, res, [&] (packet::edyn_packet &&packet) {
+        ctx.packet_signal.publish(packet);
+    });
 }
 
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {

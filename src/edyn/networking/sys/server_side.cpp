@@ -218,6 +218,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
     // Collect entity mappings for new entities to send back to client.
     auto emap_packet = packet::update_entity_map{};
+    emap_packet.timestamp = performance_time();
 
     // Create entities first import pools later since components might contain
     // entities which have to be mapped from remote to local.
@@ -314,8 +315,8 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
 
-static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_request &) {
-    auto res = packet::time_response{performance_time()};
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_request &req) {
+    auto res = packet::time_response{req.id, performance_time()};
     auto &client = registry.get<remote_client>(client_entity);
     client.packet_signal.publish(client_entity, packet::edyn_packet{res});
 }
@@ -323,11 +324,9 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_response &res) {
     auto &client = registry.get<remote_client>(client_entity);
 
-    if (!client.is_calculating_time_delta) {
-        return;
-    }
-
-
+    clock_sync_process_time_response(client.clock_sync, res, [&] (packet::edyn_packet &&packet) {
+        client.packet_signal.publish(client_entity, packet);
+    });
 }
 
 void init_network_server(entt::registry &registry) {
@@ -347,30 +346,22 @@ void deinit_network_server(entt::registry &registry) {
     settings.network_settings = {};
 }
 
-static void server_process_timed_packets(entt::registry &registry) {
-    auto timestamp = performance_time();
-
+static void server_process_timed_packets(entt::registry &registry, double time) {
     registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
         auto it = client.packet_queue.begin();
 
         for (; it != client.packet_queue.end(); ++it) {
-            bool done = false;
+            if (it->timestamp > time) {
+                break;
+            }
 
             std::visit([&] (auto &&packet) {
                 using PacketType = std::decay_t<decltype(packet)>;
 
                 if constexpr(has_type<PacketType, packet::timed_packets_tuple_t>::value) {
-                    if (packet.timestamp > timestamp) {
-                        done = true;
-                    } else {
-                        process_packet(registry, client_entity, packet);
-                    }
+                    process_packet(registry, client_entity, packet);
                 }
-            }, it->var);
-
-            if (done) {
-                break;
-            }
+            }, it->packet.var);
         }
 
         client.packet_queue.erase(client.packet_queue.begin(), it);
@@ -402,7 +393,8 @@ static void publish_client_current_snapshots(entt::registry &registry) {
 static void process_aabb_of_interest_destroyed_entities(entt::registry &registry,
                                                         entt::entity client_entity,
                                                         remote_client &client,
-                                                        aabb_of_interest &aabboi) {
+                                                        aabb_of_interest &aabboi,
+                                                        double time) {
     if (aabboi.destroy_entities.empty()) {
         return;
     }
@@ -410,6 +402,7 @@ static void process_aabb_of_interest_destroyed_entities(entt::registry &registry
     // Notify client of entities that have been removed from its AABB-of-interest.
     auto owner_view = registry.view<entity_owner>();
     auto packet = packet::destroy_entity{};
+    packet.timestamp = time;
 
     for (auto entity : aabboi.destroy_entities) {
         // Ignore entities owned by client.
@@ -439,13 +432,15 @@ static void process_aabb_of_interest_destroyed_entities(entt::registry &registry
 static void process_aabb_of_interest_created_entities(entt::registry &registry,
                                                       entt::entity client_entity,
                                                       remote_client &client,
-                                                      aabb_of_interest &aabboi) {
+                                                      aabb_of_interest &aabboi,
+                                                      double time) {
     if (aabboi.create_entities.empty()) {
         return;
     }
 
     auto owner_view = registry.view<entity_owner>();
     auto packet = packet::create_entity{};
+    packet.timestamp = time;
 
     for (auto entity : aabboi.create_entities) {
         // Ignore entities owned by client, since these entities must be
@@ -478,9 +473,8 @@ static void process_aabb_of_interest_created_entities(entt::registry &registry,
 static void maybe_publish_client_transient_snapshot(entt::registry &registry,
                                                     entt::entity client_entity,
                                                     remote_client &client,
-                                                    aabb_of_interest &aabboi) {
-    auto time = performance_time();
-
+                                                    aabb_of_interest &aabboi,
+                                                    double time) {
     if (time - client.last_snapshot_time < 1 / client.snapshot_rate) {
         return;
     }
@@ -489,6 +483,7 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
 
     auto &ctx = registry.ctx<server_network_context>();
     auto packet = packet::transient_snapshot{};
+    packet.timestamp = time;
 
     for (auto entity : aabboi.entities) {
         if (registry.any_of<sleeping_tag, static_tag>(entity)) {
@@ -515,9 +510,12 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
 static void publish_client_dirty_components(entt::registry &registry,
                                             entt::entity client_entity,
                                             remote_client &client,
-                                            aabb_of_interest &aabboi) {
+                                            aabb_of_interest &aabboi,
+                                            double time) {
     // Share dirty entity updates.
     auto packet = packet::general_snapshot{};
+    packet.timestamp = time;
+
     auto &ctx = registry.ctx<server_network_context>();
     auto dirty_view = registry.view<dirty>();
     auto network_dirty_view = registry.view<network_dirty>();
@@ -558,7 +556,7 @@ static void calculate_client_playout_delay(entt::registry &registry,
                                            aabb_of_interest &aabboi) {
     auto owner_view = registry.view<entity_owner>();
     auto client_view = registry.view<remote_client>();
-    auto biggest_latency = client.latency;
+    auto biggest_rtt = client.round_trip_time;
 
     for (auto entity : aabboi.entities) {
         if (!owner_view.contains(entity)) {
@@ -567,14 +565,16 @@ static void calculate_client_playout_delay(entt::registry &registry,
 
         auto [owner] = owner_view.get(entity);
         auto [other_client] = client_view.get(owner.client_entity);
-        biggest_latency = std::max(other_client.latency, biggest_latency);
+        biggest_rtt = std::max(other_client.round_trip_time, biggest_rtt);
     }
 
     auto &settings = registry.ctx<edyn::settings>();
     auto &server_settings = std::get<server_network_settings>(settings.network_settings);
+    auto biggest_latency = biggest_rtt / 2;
     auto playout_delay = biggest_latency * server_settings.playout_delay_multiplier;
 
-    if (playout_delay != client.playout_delay) {
+    // Update playout delay if the difference is of significance.
+    if (std::abs(playout_delay - client.playout_delay) > 0.002) {
         client.playout_delay = playout_delay;
 
         auto packet = edyn::packet::set_playout_delay{playout_delay};
@@ -595,21 +595,31 @@ static void merge_network_dirty_into_dirty(entt::registry &registry) {
     registry.clear<network_dirty>();
 }
 
-static void process_aabbs_of_interest(entt::registry &registry) {
+static void process_aabbs_of_interest(entt::registry &registry, double time) {
     for (auto [client_entity, client, aabboi] : registry.view<remote_client, aabb_of_interest>().each()) {
-        process_aabb_of_interest_destroyed_entities(registry, client_entity, client, aabboi);
-        process_aabb_of_interest_created_entities(registry, client_entity, client, aabboi);
-        maybe_publish_client_transient_snapshot(registry, client_entity, client, aabboi);
-        publish_client_dirty_components(registry, client_entity, client, aabboi);
+        process_aabb_of_interest_destroyed_entities(registry, client_entity, client, aabboi, time);
+        process_aabb_of_interest_created_entities(registry, client_entity, client, aabboi, time);
+        maybe_publish_client_transient_snapshot(registry, client_entity, client, aabboi, time);
+        publish_client_dirty_components(registry, client_entity, client, aabboi, time);
         calculate_client_playout_delay(registry, client_entity, client, aabboi);
     }
 }
 
+static void server_update_clock_sync(entt::registry &registry, double time) {
+    registry.view<remote_client>().each([time] (auto client_entity, remote_client &client) {
+        update_clock_sync(client.clock_sync, time, client.round_trip_time, [&] (packet::edyn_packet &&packet) {
+            client.packet_signal.publish(client_entity, packet);
+        });
+    });
+}
+
 void update_network_server(entt::registry &registry) {
-    server_process_timed_packets(registry);
+    auto time = performance_time();
+    server_update_clock_sync(registry, time);
+    server_process_timed_packets(registry, time);
     update_island_entity_owners(registry);
     update_aabbs_of_interest(registry);
-    process_aabbs_of_interest(registry);
+    process_aabbs_of_interest(registry, time);
     publish_pending_created_clients(registry);
     publish_client_current_snapshots(registry);
     merge_network_dirty_into_dirty(registry);
@@ -618,8 +628,17 @@ void update_network_server(entt::registry &registry) {
 template<typename T>
 void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&packet) {
     auto &client = registry.get<remote_client>(client_entity);
-    packet.timestamp = performance_time() - client.time_delta;
-    client.packet_queue.emplace_back(packet::edyn_packet{std::move(packet)});
+    double packet_timestamp;
+
+    if (client.clock_sync.count > 0) {
+        packet_timestamp = packet.timestamp + client.clock_sync.time_delta;
+    } else {
+        packet_timestamp = performance_time() - client.round_trip_time / 2;
+    }
+
+    auto insert_it = std::find_if(client.packet_queue.begin(), client.packet_queue.end(),
+                                  [packet_timestamp] (auto &&p) { return p.timestamp > packet_timestamp; });
+    client.packet_queue.insert(insert_it, timed_packet{packet_timestamp, packet::edyn_packet{std::move(packet)}});
 }
 
 void server_receive_packet(entt::registry &registry, entt::entity client_entity, packet::edyn_packet &packet) {
@@ -655,7 +674,7 @@ entt::entity server_make_client(entt::registry &registry) {
 
 void server_set_client_round_trip_time(entt::registry &registry, entt::entity client_entity, double rtt) {
     auto &client = registry.get<remote_client>(client_entity);
-    client.latency = rtt / 2;
+    client.round_trip_time = rtt;
 }
 
 void server_notify_created_entities(entt::registry &registry,
@@ -672,6 +691,7 @@ void server_notify_created_entities(entt::registry &registry,
 #endif
 
     auto packet = edyn::packet::create_entity{};
+    packet.timestamp = performance_time();
     packet.entities = entities;
 
     for (auto entity : packet.entities) {

@@ -5,10 +5,12 @@
 #include "edyn/networking/util/comp_state_history.hpp"
 #include "edyn/networking/util/client_pool_snapshot_importer.hpp"
 #include "edyn/networking/util/client_pool_snapshot_exporter.hpp"
+#include "edyn/networking/util/clock_sync.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/sparse_set.hpp>
 #include <entt/signal/sigh.hpp>
+#include <cstdint>
 #include <memory>
 
 namespace edyn {
@@ -85,6 +87,8 @@ struct client_network_context {
     using is_input_component_func_t =
         bool(entt::id_type);
     is_input_component_func_t *is_input_component_func;
+
+    clock_sync_data clock_sync;
 };
 
 }

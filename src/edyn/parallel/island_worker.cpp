@@ -665,7 +665,7 @@ void island_worker::reschedule_later() {
     auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
     if (reschedule_count > 0) return;
 
-    // If the timestamp of the current registry state is more that `m_fixed_dt`
+    // If the timestamp of the current registry state is more than `m_fixed_dt`
     // before the current time, schedule it to run at a later time.
     auto time = performance_time();
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
