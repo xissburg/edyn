@@ -40,9 +40,35 @@ using timed_packets_tuple_t = std::tuple<
     packet::update_entity_map
 >;
 
+using unreliable_packets_tuple_t = std::tuple<
+    packet::transient_snapshot,
+    packet::time_request,
+    packet::time_response
+>;
+
 template<typename Archive>
 void serialize(Archive &archive, edyn_packet &packet) {
     archive(packet.var);
+}
+
+}
+
+namespace edyn {
+
+/**
+ * @brief Determine whether a packet should be sent reliably, thus having its
+ * delivery guaranteed. Otherwise, packet loss is acceptable and reliabily is
+ * not necessary.
+ * @param packet The Edyn packet.
+ * @return True if the packet delivery must be guaranteed.
+ */
+inline bool should_send_reliably(const packet::edyn_packet &packet) {
+    bool result;
+    std::visit([&result] (auto &&inner_packet) {
+        using PacketType = std::decay_t<decltype(inner_packet)>;
+        result = !has_type<PacketType, packet::unreliable_packets_tuple_t>::value;
+    }, packet.var);
+    return result;
 }
 
 }
