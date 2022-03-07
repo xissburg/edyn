@@ -12,8 +12,8 @@ namespace edyn {
  * usually through constraints.
  */
 struct island {
-    entt::sparse_set nodes;
-    entt::sparse_set edges;
+    entt::sparse_set nodes {};
+    entt::sparse_set edges {};
 };
 
 /**
