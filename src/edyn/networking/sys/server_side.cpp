@@ -629,11 +629,12 @@ template<typename T>
 void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&packet) {
     auto &client = registry.get<remote_client>(client_entity);
     double packet_timestamp;
+    auto time = performance_time();
 
     if (client.clock_sync.count > 0) {
-        packet_timestamp = packet.timestamp + client.clock_sync.time_delta;
+        packet_timestamp = std::min(packet.timestamp + client.clock_sync.time_delta, time);
     } else {
-        packet_timestamp = performance_time() - client.round_trip_time / 2;
+        packet_timestamp = time - client.round_trip_time / 2;
     }
 
     auto insert_it = std::find_if(client.packet_queue.begin(), client.packet_queue.end(),
