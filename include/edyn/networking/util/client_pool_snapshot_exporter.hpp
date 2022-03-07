@@ -8,6 +8,7 @@ namespace edyn {
 
 class client_pool_snapshot_exporter {
 public:
+    virtual ~client_pool_snapshot_exporter() = default;
     virtual void export_all(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;
     virtual void export_transient(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;
     virtual void export_input(const entt::registry &registry, entt::entity entity, std::vector<pool_snapshot> &pools) = 0;

@@ -13,11 +13,11 @@ struct aabb_of_interest {
     AABB aabb {vector3_one * -500, vector3_one * 500};
 
     // Islands whose AABB intersects this AABB of interest.
-    entt::sparse_set island_entities;
+    entt::sparse_set island_entities {};
 
     // Entities in the islands above, including nodes and edges. This is used
     // as a way to tell which entities have entered and exited the AABB.
-    entt::sparse_set entities;
+    entt::sparse_set entities {};
 
     // Entities that entered and exited the AABB in the last update. These
     // containers are for temporary data storage in the AABB of interest update

@@ -21,6 +21,8 @@ class comp_state_history {
     }
 
 public:
+    virtual ~comp_state_history() = default;
+
     using container_type = std::map<entt::id_type, std::unique_ptr<entity_component_container_base>>;
 
     struct element {

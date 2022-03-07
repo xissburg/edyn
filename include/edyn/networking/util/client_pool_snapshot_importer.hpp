@@ -14,6 +14,7 @@ bool client_owns_entity(const entt::registry &registry, entt::entity entity);
 
 class client_pool_snapshot_importer {
 public:
+    virtual ~client_pool_snapshot_importer() = default;
     virtual void import(entt::registry &, const entity_map &, const pool_snapshot &, bool mark_dirty) = 0;
     virtual void import_local(entt::registry &, const pool_snapshot &, bool mark_dirty) = 0;
 };

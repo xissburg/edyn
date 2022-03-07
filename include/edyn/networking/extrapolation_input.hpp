@@ -12,8 +12,8 @@ namespace edyn {
 
 struct extrapolation_input {
     double start_time;
-    entt::sparse_set entities;
-    entt::sparse_set owned_entities;
+    entt::sparse_set entities {};
+    entt::sparse_set owned_entities {};
     std::vector<std::shared_ptr<extrapolation_component_pool>> pools;
     packet::transient_snapshot transient_snapshot;
     double execution_time_limit {0.4};

@@ -8,6 +8,7 @@
 namespace edyn {
 
 struct extrapolation_component_pool {
+    virtual ~extrapolation_component_pool() = default;
     virtual void emplace(entt::registry &, entity_map &) = 0;
     virtual void replace(entt::registry &, entity_map &) = 0;
     virtual void convert_locrem(entity_map &) = 0;

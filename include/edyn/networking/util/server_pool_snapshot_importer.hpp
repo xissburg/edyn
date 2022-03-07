@@ -14,6 +14,8 @@ bool is_fully_owned_by_client(const entt::registry &registry, entt::entity clien
 
 class server_pool_snapshot_importer {
 public:
+    virtual ~server_pool_snapshot_importer() = default;
+
     // Import components in pool into registry. If the island where the entity
     // resides is not fully owned by the given client, the update won't be applied.
     // Input components of entities owned by the client are always applied.

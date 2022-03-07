@@ -30,7 +30,7 @@ struct client_network_context {
     client_network_context();
 
     entt::entity client_entity {entt::null};
-    entt::sparse_set owned_entities;
+    entt::sparse_set owned_entities {};
 
     edyn::entity_map entity_map;
     std::vector<entt::entity> created_entities;
@@ -39,7 +39,7 @@ struct client_network_context {
 
     // Set of entities requested via `packet::entity_request`. Note that these
     // are entities in the server's registry space.
-    entt::sparse_set requested_entities;
+    entt::sparse_set requested_entities {};
 
     double last_snapshot_time {0};
     double server_playout_delay {0.3};

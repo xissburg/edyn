@@ -24,6 +24,7 @@
 namespace edyn {
 
 struct pool_snapshot_data {
+    virtual ~pool_snapshot_data() = default;
     virtual std::vector<entt::entity> get_entities() const = 0;
     virtual void convert_remloc(entity_map &) = 0;
     virtual void write(memory_output_archive &archive) = 0;
@@ -38,6 +39,8 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
     static constexpr auto is_empty_type = std::is_empty_v<Component>;
     using element_type = std::conditional_t<is_empty_type, entt::entity, std::pair<entt::entity, Component>>;
     std::vector<element_type> data;
+
+    virtual ~pool_snapshot_data_impl() = default;
 
     std::vector<entt::entity> get_entities() const override {
         if constexpr(is_empty_type) {
