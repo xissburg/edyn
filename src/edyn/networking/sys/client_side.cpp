@@ -669,7 +669,15 @@ static void process_packet(entt::registry &registry, packet::general_snapshot &s
     auto &settings = registry.ctx<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
     auto &ctx = registry.ctx<client_network_context>();
-    const double snapshot_time = time - (ctx.server_playout_delay + client_settings.round_trip_time / 2);
+
+    double snapshot_time;
+
+    if (ctx.clock_sync.count > 0) {
+        snapshot_time = snapshot.timestamp + ctx.clock_sync.time_delta - ctx.server_playout_delay;
+    } else {
+        const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
+        snapshot_time = time - client_server_time_difference;
+    }
 
     snapshot.convert_remloc(ctx.entity_map);
     insert_input_to_state_history(registry, snapshot.pools, snapshot_time);
