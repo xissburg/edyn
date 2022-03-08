@@ -409,8 +409,8 @@ void set_solver_individual_restitution_iterations(entt::registry &registry, unsi
  * @param material_id1 ID of another material (could be equal to material_id0).
  * @param material Material info.
  */
-void insert_material_mixing(entt::registry &registry, unsigned material_id0,
-                            unsigned material_id1, const material_base &material);
+void insert_material_mixing(entt::registry &registry, material::id_type material_id0,
+                            material::id_type material_id1, const material_base &material);
 
 }
 

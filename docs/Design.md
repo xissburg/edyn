@@ -359,7 +359,7 @@ If there are multiple clients in an island, the procedural state sent by the cli
 
 To tell which point in time the state contained in a packet refers to, it is not enough to simply subtract the latency from the local time, because packets are not delivered at the exact same rate they're sent due to network jitter, e.g. one end might send 1 packet every 10ms and the other end might receive none of these packets in a span of over 100ms and then suddenly receive 10 packets at once. Instead, it is required that the packet contains the timestamp of the source at the time the packet was sent and the destination needs to have a time delta which when added to the packet timestamp results in the corresponding local time. The difference between the local time and the calculated packet local timestamp must not be smaller than the latency (within a threshold). The age of the packet can now be calculated and then its data can be inserted in the right place in the playout delay buffer in the server and in the client it can be extrapolated for the right amount of time.
 
-To calculate the time delta, a process involving a sequence of time requests is made, where `edyn::packet::time_req` and `edyn::packet::time_res` are exchanged as unreliable packets. For each `time_req` received, a `time_res` must be sent containing the local timestamp.
+To calculate the time delta, a process involving a sequence of time requests is made, where `edyn::packet::time_req` and `edyn::packet::time_res` are exchanged as unreliable packets. For each `time_req` received, a `time_res` must be sent containing the local timestamp. A `time_req` contains a random int id which must be sent back in the `time_res`. This ensures responses are matched to a request and prevents handling of responses which were not requested. These packets must be sent unreliably via UDP, so the id allows correct handling of lost packets since when a request is sent again because the response is taking too long to come, the stored id is updated, thus if the response arrives too late, it will be ignored.
 
 First, a `time_req` is sent from A to B, as an unreliable packet. The time it was sent is stored as `tr0`. If no response is received within the avarage RTT plus some margin, it is sent again. When B gets the time request, it replies with a `time_res` containing its local timestamp. Upon receiving the time response, A takes note of B's timestamp `tB0` and sends a time request again at time `tr1`, to which B should respond with another time response, just like before. When A gets the second time response it stores the current time in `tr2` and the second timestamp in `tB1`. If A fails to get a timely response for the second `time_res`, the process has to start again. Now A has all the data that's needed to do the first time delta calculation.
 
@@ -368,6 +368,8 @@ Considering the latency as the average of the request-response delay, i.e. `lat 
 These steps should be repeated a couple of times (e.g. 5 times) and the final value of `dtA2B` should be the average of the intermediate ones.
 
 This process should be repeated once in a while to account for clock drift.
+
+This is done both in the client and server, independently.
 
 ## Server receives data from client
 

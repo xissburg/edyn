@@ -2,6 +2,7 @@
 #define EDYN_COMP_COLLISION_EXCLUSION_HPP
 
 #include <array>
+#include <cstdint>
 #include <entt/entity/fwd.hpp>
 
 namespace edyn {
@@ -12,8 +13,8 @@ namespace edyn {
  * array will be ignored.
  */
 struct collision_exclusion {
-    static constexpr unsigned max_exclusions = 16;
-    unsigned num_entities {0};
+    static constexpr uint8_t max_exclusions = 16;
+    uint8_t num_entities {0};
     std::array<entt::entity, max_exclusions> entity;
 };
 

@@ -1,7 +1,7 @@
 #ifndef EDYN_COMP_SHAPE_INDEX_HPP
 #define EDYN_COMP_SHAPE_INDEX_HPP
 
-#include <cstddef>
+#include <cstdint>
 
 namespace edyn {
 
@@ -11,7 +11,8 @@ namespace edyn {
  * indices must be generated using `get_shape_index`.
  */
 struct shape_index {
-    size_t value;
+    using index_type = uint8_t;
+    index_type value;
 };
 
 }

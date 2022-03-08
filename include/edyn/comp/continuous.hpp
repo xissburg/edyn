@@ -4,6 +4,7 @@
 #include "edyn/config/config.h"
 #include <array>
 #include <cstddef>
+#include <cstdint>
 
 namespace edyn {
 
@@ -16,16 +17,18 @@ namespace edyn {
  * simulation.
  */
 struct continuous {
-    static constexpr size_t max_size = 16;
-    std::array<size_t, max_size> indices;
-    size_t size {0};
+    using index_type = uint16_t;
+    using size_type = uint8_t;
+    static constexpr size_type max_size = 16;
+    std::array<index_type, max_size> indices;
+    size_type size {0};
 
     /**
      * @brief Inserts a component index to be marked as continuous. The index
      * must be obtained via `edyn::get_component_index<Component>()`.
      * @param index Component index.
      */
-    void insert(size_t index) {
+    void insert(index_type index) {
         indices[size++] = index;
         EDYN_ASSERT(size <= max_size);
     }
@@ -36,7 +39,7 @@ struct continuous {
      * @param indices Component indices.
      */
     template<size_t N>
-    void insert(const std::array<size_t, N> &indices) {
+    void insert(const std::array<index_type, N> &indices) {
         for (auto i : indices) {
             insert(i);
         }
@@ -47,8 +50,8 @@ struct continuous {
      * obtained via `edyn::get_component_index<Component>()`.
      * @param index Component index.
      */
-    void remove(size_t index) {
-        for (size_t i = 0; i < size; ++i) {
+    void remove(index_type index) {
+        for (size_type i = 0; i < size; ++i) {
             if (indices[i] == index) {
                 indices[i] = indices[--size];
                 break;

@@ -16,19 +16,19 @@ namespace edyn {
 struct component_index_source {
     virtual ~component_index_source() = default;
 
-    template<typename Component>
-    size_t index_of() const {
+    template<typename Component, typename IndexType = size_t>
+    IndexType index_of() const {
         if constexpr(has_type<Component, shared_components_t>::value) {
-            return tuple_index_of<Component>(shared_components);
+            return tuple_index_of<Component, IndexType>(shared_components);
         } else {
             // Get external component index by `entt::type_index`.
-            return index_of_id(entt::type_id<Component>().seq());
+            return static_cast<IndexType>(index_of_id(entt::type_id<Component>().seq()));
         }
     }
 
-    template<typename... Component>
+    template<typename IndexType, typename... Component>
     auto indices_of() const {
-        return std::array<size_t, sizeof...(Component)>{index_of<Component>()...};
+        return std::array<IndexType, sizeof...(Component)>{index_of<Component, IndexType>()...};
     }
 
     virtual size_t index_of_id(entt::id_type id) const = 0;

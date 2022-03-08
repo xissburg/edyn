@@ -24,7 +24,7 @@ struct contact_manifold {
     scalar separation_threshold;
 
     // Number of contact points in this manifold.
-    unsigned num_points {0};
+    uint8_t num_points {0};
 
     // Ids/indices of contact points in this manifold. Only the entries at
     // indices up to `num_points - 1` are valid.
