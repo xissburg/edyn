@@ -19,7 +19,7 @@ namespace edyn {
 template<typename Archive>
 void serialize(Archive &archive, std::string& str) {
     using size_type = uint16_t;
-    size_type size = std::max(str.size(), static_cast<size_t>(std::numeric_limits<size_type>::max()));
+    size_type size = std::min(str.size(), static_cast<size_t>(std::numeric_limits<size_type>::max()));
     archive(size);
     str.resize(size);
 
@@ -31,7 +31,7 @@ void serialize(Archive &archive, std::string& str) {
 template<typename Archive, typename T>
 void serialize(Archive &archive, std::vector<T> &vector) {
     using size_type = uint16_t;
-    size_type size = std::max(vector.size(), static_cast<size_t>(std::numeric_limits<size_type>::max()));
+    size_type size = std::min(vector.size(), static_cast<size_t>(std::numeric_limits<size_type>::max()));
     archive(size);
     vector.resize(size);
 
@@ -43,7 +43,7 @@ void serialize(Archive &archive, std::vector<T> &vector) {
 template<typename Archive>
 void serialize(Archive &archive, std::vector<bool> &vector) {
     using size_type = uint16_t;
-    size_type size = std::max(vector.size(), static_cast<size_t>(std::numeric_limits<size_type>::max()));
+    size_type size = std::min(vector.size(), static_cast<size_t>(std::numeric_limits<size_type>::max()));
     archive(size);
     vector.resize(size);
 
