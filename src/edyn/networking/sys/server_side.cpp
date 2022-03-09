@@ -12,6 +12,7 @@
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
+#include "edyn/networking/util/process_update_entity_map_packet.hpp"
 #include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
@@ -304,12 +305,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::update_entity_map &packet) {
     auto &client = registry.get<remote_client>(client_entity);
-
-    for (auto &pair : packet.pairs) {
-        auto local_entity = pair.first;
-        auto remote_entity = pair.second;
-        client.entity_map.insert(remote_entity, local_entity);
-    }
+    process_update_entity_map_packet(registry, packet, client.entity_map);
 }
 
 static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}

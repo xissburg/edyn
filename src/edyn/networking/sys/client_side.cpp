@@ -4,6 +4,7 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/edyn.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
+#include "edyn/networking/util/process_update_entity_map_packet.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
@@ -21,7 +22,6 @@
 #include "edyn/networking/extrapolation_job.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
-#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <set>
 
@@ -316,14 +316,9 @@ static void process_packet(entt::registry &registry, const packet::client_create
     ctx.importing_entities = false;
 }
 
-static void process_packet(entt::registry &registry, const packet::update_entity_map &emap) {
+static void process_packet(entt::registry &registry, const packet::update_entity_map &packet) {
     auto &ctx = registry.ctx<client_network_context>();
-
-    for (auto &pair : emap.pairs) {
-        auto local_entity = pair.first;
-        auto remote_entity = pair.second;
-        ctx.entity_map.insert(remote_entity, local_entity);
-    }
+    process_update_entity_map_packet(registry, packet, ctx.entity_map);
 }
 
 static void process_packet(entt::registry &registry, const packet::entity_request &req) {

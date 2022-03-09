@@ -120,6 +120,7 @@ add_library(Edyn
     src/edyn/networking/extrapolation_job.cpp
     src/edyn/networking/packet/util/pool_snapshot.cpp
     src/edyn/networking/util/clock_sync.cpp
+    src/edyn/networking/util/process_update_entity_map_packet.cpp
     src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
     src/edyn/time/common/time.cpp
