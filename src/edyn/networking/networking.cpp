@@ -95,4 +95,9 @@ entt::sink<void(void)> network_client_extrapolation_timeout_sink(entt::registry 
     return ctx.extrapolation_timeout_sink();
 }
 
+entt::sink<void(entt::entity, const packet::edyn_packet &)> network_server_packet_sink(entt::registry &registry) {
+    auto &ctx = registry.ctx<server_network_context>();
+    return ctx.packet_sink();
+}
+
 }

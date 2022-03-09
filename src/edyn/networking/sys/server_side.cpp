@@ -2,6 +2,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/networking/packet/client_created.hpp"
+#include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/packet/general_snapshot.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
@@ -148,8 +149,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
             return lhs.component_index < rhs.component_index;
         });
 
-        auto &client = registry.get<remote_client>(client_entity);
-        client.packet_signal.publish(client_entity, packet::edyn_packet{res});
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{res});
     }
 }
 
@@ -234,7 +234,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     }
 
     if (!emap_packet.pairs.empty()) {
-        client.packet_signal.publish(client_entity, packet::edyn_packet{emap_packet});
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{emap_packet});
     }
 
     // Must not check ownership because entities are being created for the the
@@ -317,16 +317,14 @@ static void process_packet(entt::registry &, entt::entity, const packet::set_pla
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_request &req) {
     auto res = packet::time_response{req.id, performance_time()};
-    auto &client = registry.get<remote_client>(client_entity);
-    client.packet_signal.publish(client_entity, packet::edyn_packet{res});
+    auto &ctx = registry.ctx<server_network_context>();
+    ctx.packet_signal.publish(client_entity, packet::edyn_packet{res});
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_response &res) {
     auto &client = registry.get<remote_client>(client_entity);
 
-    clock_sync_process_time_response(client.clock_sync, res, [&] (packet::edyn_packet &&packet) {
-        client.packet_signal.publish(client_entity, packet);
-    });
+    clock_sync_process_time_response(client.clock_sync, res);
 }
 
 void init_network_server(entt::registry &registry) {
@@ -372,20 +370,21 @@ static void publish_pending_created_clients(entt::registry &registry) {
     auto &ctx = registry.ctx<server_network_context>();
 
     for (auto client_entity : ctx.pending_created_clients) {
-        auto &client = registry.get<remote_client>(client_entity);
         auto packet = packet::client_created{client_entity};
-        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 
     ctx.pending_created_clients.clear();
 }
 
 static void publish_client_current_snapshots(entt::registry &registry) {
+    auto &ctx = registry.ctx<server_network_context>();
+
     // Send out accumulated changes to clients.
     registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
         if (client.current_snapshot.pools.empty()) return;
         auto packet = packet::edyn_packet{std::move(client.current_snapshot)};
-        client.packet_signal.publish(client_entity, packet);
+        ctx.packet_signal.publish(client_entity, packet);
         EDYN_ASSERT(client.current_snapshot.pools.empty());
     });
 }
@@ -425,7 +424,8 @@ static void process_aabb_of_interest_destroyed_entities(entt::registry &registry
     aabboi.destroy_entities.clear();
 
     if (!packet.entities.empty()) {
-        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+        auto &ctx = registry.ctx<server_network_context>();
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 }
 
@@ -464,7 +464,7 @@ static void process_aabb_of_interest_created_entities(entt::registry &registry,
             return lhs.component_index < rhs.component_index;
         });
 
-        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 
     aabboi.create_entities.clear();
@@ -503,7 +503,7 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
     }
 
     if (!packet.pools.empty()) {
-        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 }
 
@@ -546,7 +546,7 @@ static void publish_client_dirty_components(entt::registry &registry,
     }
 
     if (!packet.pools.empty()) {
-        client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 }
 
@@ -578,7 +578,8 @@ static void calculate_client_playout_delay(entt::registry &registry,
         client.playout_delay = playout_delay;
 
         auto packet = edyn::packet::set_playout_delay{playout_delay};
-        client.packet_signal.publish(client_entity, edyn::packet::edyn_packet{packet});
+        auto &ctx = registry.ctx<server_network_context>();
+        ctx.packet_signal.publish(client_entity, edyn::packet::edyn_packet{packet});
     }
 }
 
@@ -606,11 +607,9 @@ static void process_aabbs_of_interest(entt::registry &registry, double time) {
 }
 
 static void server_update_clock_sync(entt::registry &registry, double time) {
-    registry.view<remote_client>().each([time] (auto client_entity, remote_client &client) {
-        update_clock_sync(client.clock_sync, time, client.round_trip_time, [&] (packet::edyn_packet &&packet) {
-            client.packet_signal.publish(client_entity, packet);
-        });
-    });
+    for (auto [client_entity, client] : registry.view<remote_client>().each()) {
+        update_clock_sync(client.clock_sync, time, client.round_trip_time);
+    };
 }
 
 void update_network_server(entt::registry &registry) {
@@ -655,15 +654,32 @@ void server_receive_packet(entt::registry &registry, entt::entity client_entity,
     }, packet.var);
 }
 
+// Local struct to be connected to the clock sync send packet signal. This is
+// necessary so the client entity can be passed to the context packet signal.
+struct client_packet_signal_wrapper {
+    server_network_context *ctx;
+    entt::entity client_entity;
+
+    void publish(const packet::edyn_packet &packet) {
+        ctx->packet_signal.publish(client_entity, packet);
+    }
+};
+
 void server_make_client(entt::registry &registry, entt::entity entity) {
-    registry.emplace<remote_client>(entity);
+    auto &ctx = registry.ctx<server_network_context>();
+
+    auto &client = registry.emplace<remote_client>(entity);
     registry.emplace<aabb_of_interest>(entity);
+
+    // Assign packet signal wrapper as a component since the `entt::delegate`
+    // stores a reference to the `value_or_instance` parameter.
+    auto &wrapper = registry.emplace<client_packet_signal_wrapper>(entity, &ctx, entity);
+    client.clock_sync.send_packet.connect<&client_packet_signal_wrapper::publish>(wrapper);
 
     // `client_created` packets aren't published here at client construction
     // because at this point the caller wouldn't have a chance to receive the
     // packet as a signal in client's packet sink. Thus, this packet is
     // published later on a call to `update_network_server`.
-    auto &ctx = registry.ctx<server_network_context>();
     ctx.pending_created_clients.push_back(entity);
 }
 
@@ -682,7 +698,6 @@ void server_notify_created_entities(entt::registry &registry,
                                     entt::entity client_entity,
                                     const std::vector<entt::entity> &entities) {
     auto &ctx = registry.ctx<server_network_context>();
-    auto &client = registry.get<edyn::remote_client>(client_entity);
 
 #ifdef EDYN_DEBUG
     // Ensure all entities are networked.
@@ -704,7 +719,7 @@ void server_notify_created_entities(entt::registry &registry,
         return lhs.component_index < rhs.component_index;
     });
 
-    client.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+    ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
 }
 
 }

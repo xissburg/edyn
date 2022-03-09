@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/networking/util/server_pool_snapshot_importer.hpp"
 #include "edyn/networking/util/server_pool_snapshot_exporter.hpp"
@@ -16,6 +17,14 @@ struct server_network_context {
 
     std::shared_ptr<server_pool_snapshot_importer> pool_snapshot_importer;
     std::shared_ptr<server_pool_snapshot_exporter> pool_snapshot_exporter;
+
+    // Packet signals contain the client entity and the packet.
+    using packet_observer_func_t = void(entt::entity, const packet::edyn_packet &);
+    entt::sigh<packet_observer_func_t> packet_signal;
+
+    auto packet_sink() {
+        return entt::sink{packet_signal};
+    }
 };
 
 }

@@ -12,6 +12,8 @@ client_network_context::client_network_context()
     , extrapolation_component_pool_import_by_id_func(internal::make_extrapolation_component_pools_import_by_id_func(shared_components))
     , is_input_component_func([] (entt::id_type) { return false; })
     , state_history(std::make_shared<comp_state_history>())
-{}
+{
+    clock_sync.send_packet.connect<&entt::sigh<packet_observer_func_t>::publish>(packet_signal);
+}
 
 }

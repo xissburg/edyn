@@ -279,9 +279,7 @@ static void client_update_clock_sync(entt::registry &registry, double time) {
     auto &settings = registry.ctx<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
-    update_clock_sync(ctx.clock_sync, time, client_settings.round_trip_time, [&] (packet::edyn_packet &&packet) {
-        ctx.packet_signal.publish(packet);
-    });
+    update_clock_sync(ctx.clock_sync, time, client_settings.round_trip_time);
 }
 
 void update_network_client(entt::registry &registry) {
@@ -701,10 +699,7 @@ static void process_packet(entt::registry &registry, const packet::time_request 
 
 static void process_packet(entt::registry &registry, const packet::time_response &res) {
     auto &ctx = registry.ctx<client_network_context>();
-
-    clock_sync_process_time_response(ctx.clock_sync, res, [&] (packet::edyn_packet &&packet) {
-        ctx.packet_signal.publish(packet);
-    });
+    clock_sync_process_time_response(ctx.clock_sync, res);
 }
 
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {

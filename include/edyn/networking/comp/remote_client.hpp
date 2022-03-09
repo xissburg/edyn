@@ -3,7 +3,6 @@
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
-#include <entt/signal/sigh.hpp>
 #include "edyn/util/entity_map.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/util/clock_sync.hpp"
@@ -19,17 +18,6 @@ struct timed_packet {
  * @brief Stores data pertaining to a remote client in the server side.
  */
 struct remote_client {
-    using packet_observer_func_t = void(entt::entity, const packet::edyn_packet &);
-
-    // Triggered every time the server needs to send a packet to a client.
-    // Users of Edyn must observe this signal and send the packet data over
-    // the network using their mechanism of choice.
-    entt::sigh<packet_observer_func_t> packet_signal;
-
-    auto packet_sink() {
-        return entt::sink{packet_signal};
-    }
-
     // List of entities owned by this client.
     std::vector<entt::entity> owned_entities;
 

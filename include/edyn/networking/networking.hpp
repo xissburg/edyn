@@ -138,6 +138,15 @@ entt::sink<void(const packet::edyn_packet &)> network_client_packet_sink(entt::r
  */
 entt::sink<void(void)> network_client_extrapolation_timeout_sink(entt::registry &);
 
+/**
+ * @brief Get server packet sink. This sink must be observed and the packets
+ * that are published into it should be sent over the network immediately.
+ * @param registry Data source.
+ * @return Packet sink where the observers take the client entity and packet
+ * as arguments.
+ */
+entt::sink<void(entt::entity, const packet::edyn_packet &)> network_server_packet_sink(entt::registry &);
+
 }
 
 #endif // EDYN_NETWORKING_NETWORKING_HPP
