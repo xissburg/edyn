@@ -132,10 +132,21 @@ if(UNIX)
     )
 endif()
 
+if(UNIX AND NOT APPLE)
+     target_link_libraries(Edyn
+         PUBLIC
+             pthread
+     )
+ endif()
+
 if(WIN32)
     target_sources(Edyn PRIVATE
         src/edyn/time/windows/time.cpp
     )
+    target_link_libraries(Edyn
+         PUBLIC
+             winmm
+     )
 endif()
 
 target_include_directories(Edyn
