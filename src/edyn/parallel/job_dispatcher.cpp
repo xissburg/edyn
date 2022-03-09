@@ -69,6 +69,11 @@ bool job_dispatcher::running() const {
 void job_dispatcher::async(const job &j) {
     EDYN_ASSERT(!m_workers.empty());
 
+    if (m_workers.size() == 1) {
+        m_workers.begin()->second->push_job(j);
+        return;
+    }
+
     auto best_id = std::thread::id();
     auto min_num_jobs = SIZE_MAX;
     auto start = m_start.fetch_add(std::memory_order_relaxed) % m_workers.size();
