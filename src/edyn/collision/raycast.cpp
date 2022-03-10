@@ -34,7 +34,7 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
         auto ctx = raycast_context{pos, orn, p0, p1};
 
         visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
-            auto res = raycast(shape, ctx);
+            auto res = shape_raycast(shape, ctx);
 
             if (res.fraction < result.fraction) {
                 result = res;
@@ -64,7 +64,7 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
     return {result, hit_entity};
 }
 
-shape_raycast_result raycast(const box_shape &box, const raycast_context &ctx) {
+shape_raycast_result shape_raycast(const box_shape &box, const raycast_context &ctx) {
     // Reference: Real-Time Collision Detection - Christer Ericson,
     // Section 5.3.3 - Intersecting Ray or Segment Against Box.
     auto p0 = to_object_space(ctx.p0, ctx.pos, ctx.orn);
@@ -117,7 +117,7 @@ shape_raycast_result raycast(const box_shape &box, const raycast_context &ctx) {
     return result;
 }
 
-shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_context &ctx) {
+shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast_context &ctx) {
     scalar u;
     auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
                                                    cylinder.radius, cylinder.half_length, u);
@@ -187,7 +187,7 @@ shape_raycast_result raycast(const cylinder_shape &cylinder, const raycast_conte
     return result;
 }
 
-shape_raycast_result raycast(const sphere_shape &sphere, const raycast_context &ctx) {
+shape_raycast_result shape_raycast(const sphere_shape &sphere, const raycast_context &ctx) {
     scalar t;
 
     if (!intersect_ray_sphere(ctx.p0, ctx.p1, ctx.pos, sphere.radius, t)) {
@@ -202,7 +202,7 @@ shape_raycast_result raycast(const sphere_shape &sphere, const raycast_context &
     return result;
 }
 
-shape_raycast_result raycast(const capsule_shape &capsule, const raycast_context &ctx) {
+shape_raycast_result shape_raycast(const capsule_shape &capsule, const raycast_context &ctx) {
     scalar u;
     auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
                                                    capsule.radius, capsule.half_length, u);
@@ -262,7 +262,7 @@ shape_raycast_result raycast(const capsule_shape &capsule, const raycast_context
     return intersect_hemisphere(hemi_idx);
 }
 
-shape_raycast_result raycast(const polyhedron_shape &poly, const raycast_context &ctx) {
+shape_raycast_result shape_raycast(const polyhedron_shape &poly, const raycast_context &ctx) {
     // Reference: Real-Time Collision Detection - Christer Ericson,
     // Section 5.3.8 - Intersecting Ray or Segment Against Convex Polyhedron.
     auto p0 = to_object_space(ctx.p0, ctx.pos, ctx.orn);
@@ -325,7 +325,7 @@ shape_raycast_result raycast(const polyhedron_shape &poly, const raycast_context
     return result;
 }
 
-shape_raycast_result raycast(const compound_shape &compound, const raycast_context &ctx) {
+shape_raycast_result shape_raycast(const compound_shape &compound, const raycast_context &ctx) {
     auto p0 = to_object_space(ctx.p0, ctx.pos, ctx.orn);
     auto p1 = to_object_space(ctx.p1, ctx.pos, ctx.orn);
     shape_raycast_result result;
@@ -337,7 +337,7 @@ shape_raycast_result raycast(const compound_shape &compound, const raycast_conte
         child_ctx.p1 = p1;
         child_ctx.pos = node.position;
         child_ctx.orn = node.orientation;
-        auto child_result = raycast(shape, child_ctx);
+        auto child_result = shape_raycast(shape, child_ctx);
 
         if (child_result.fraction < result.fraction) {
             result.fraction = child_result.fraction;
@@ -358,7 +358,7 @@ shape_raycast_result raycast(const compound_shape &compound, const raycast_conte
     return result;
 }
 
-shape_raycast_result raycast(const plane_shape &plane, const raycast_context &ctx) {
+shape_raycast_result shape_raycast(const plane_shape &plane, const raycast_context &ctx) {
     auto c = plane.normal * plane.constant;
     auto d = dot(ctx.p1 - ctx.p0, plane.normal);
     auto e = dot(c - ctx.p0, plane.normal);
@@ -382,7 +382,7 @@ shape_raycast_result raycast(const plane_shape &plane, const raycast_context &ct
     }
 }
 
-shape_raycast_result raycast(const mesh_shape &mesh, const raycast_context &ctx) {
+shape_raycast_result shape_raycast(const mesh_shape &mesh, const raycast_context &ctx) {
     auto &trimesh = mesh.trimesh;
     shape_raycast_result result;
 
@@ -405,7 +405,7 @@ shape_raycast_result raycast(const mesh_shape &mesh, const raycast_context &ctx)
     return result;
 }
 
-shape_raycast_result raycast(const paged_mesh_shape &paged_mesh, const raycast_context &ctx) {
+shape_raycast_result shape_raycast(const paged_mesh_shape &paged_mesh, const raycast_context &ctx) {
     shape_raycast_result result;
 
     paged_mesh.trimesh->raycast_cached(ctx.p0, ctx.p1, [&] (auto submesh_idx, auto tri_idx) {
