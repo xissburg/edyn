@@ -345,7 +345,7 @@ static void server_process_timed_packets(entt::registry &registry, double time) 
         auto it = client.packet_queue.begin();
 
         for (; it != client.packet_queue.end(); ++it) {
-            if (it->timestamp > time) {
+            if (it->timestamp > time - client.playout_delay) {
                 break;
             }
 
@@ -633,6 +633,7 @@ void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&pa
         packet_timestamp = time - client.round_trip_time / 2;
     }
 
+    // Sorted insertion.
     auto insert_it = std::find_if(client.packet_queue.begin(), client.packet_queue.end(),
                                   [packet_timestamp] (auto &&p) { return p.timestamp > packet_timestamp; });
     client.packet_queue.insert(insert_it, timed_packet{packet_timestamp, packet::edyn_packet{std::move(packet)}});
