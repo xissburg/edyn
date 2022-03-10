@@ -126,7 +126,6 @@ endif()
 if(UNIX AND NOT APPLE)
     target_link_libraries(Edyn
         PUBLIC
-            dl
             pthread
     )
 endif()
