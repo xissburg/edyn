@@ -627,7 +627,7 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
         }
     }
 
-    // Create registry snapshot to send to extrapolation job.
+    // Create input to send to extrapolation job.
     extrapolation_input input;
     input.extrapolation_component_pool_import_by_id_func = ctx.extrapolation_component_pool_import_by_id_func;
     input.is_input_component_func = ctx.is_input_component_func;
