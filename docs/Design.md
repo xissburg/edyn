@@ -345,7 +345,9 @@ The network model follows a client-server architecture with an authoritative ser
 
 In the server side, each client has an AABB of interest, which determines which entities the server will send to that client. As entities come in and out of this AABB, the server will notify the client. When an entity comes in, the server will send a full description of this entity, i.e. send all its components. When it goes out, it just sends the entity id. Upon receiving these packets, the client will create or destroy corresponding entities locally.
 
-In the client side, all entities owned by the client will have their state included in the packet sent to the server regularly. This state includes user inputs (which are going to be external components registered by the user of this library) and procedural simulation state such as transforms and positions. The latter are sent because the server will apply procedural state from the client in certain situations.
+In the client side, all entities owned by the client will have their state included in the packet sent to the server regularly. This state includes user inputs (which are going to be external components registered by the user of this library) and procedural simulation state such as transforms and velocities. The latter are sent because the server will apply procedural state from the client in certain situations.
+
+Rigid body state is never sent in isolation, the entire island where a relevant body resides must be shared because it functions as one unit of simulation, since the state of all rigid bodies in an island affects each other.
 
 When a local entity is created to correspond with a remote entity, an entity mapping is created, i.e. a pair of associative containers store the remote-to-local and local-to-remote entity mappings, which is used to find out which entity a remote packet is referring to. All packets are sent with local entities and upon receiving them, they have to be mapped into the local registry space using the entity map. When new entity mappings are created, they have to be sent back to the source, so it knows into which entity their entities have been mapped, so that when it receives a packet containing that remote entity, it can be mapped to local.
 
@@ -353,17 +355,39 @@ Components that contain entities must have them mapped to local as well when imp
 
 Entity-component data is organized in a series of (entity, array of component) pairs, where the array of components is a series of (component id, component data), where the component id is an index in the tuple of networked components, which has to be the same in clients and server.
 
+Certain components are termed _transient_, which are considered to change often thus are exchanged between client and server every few times per second (e.g. rigid body transforms and velocities). The client will send `transient_snapshot` packets containing the transient components of all entities located in the islands where the entities owned by this client reside. The server will send `transient_snapshot` packets containing the transient components of all entities in the client's AABB of interest.
+
+The user can register external components and additionally tag them as _inputs_, which are components that will be handled differently by the server. The state of input components is always accepted by the server, as long as the client setting it owns the target entity. The state of these components must be then broadcasted to other clients when they change, so they know what the other client is doing.
+
+Transient snapshots don't need to be reliably delivered. They contain temporary component state which varies continuously over time and losing packets should not affect the result greatly. General snapshots are used to deliver steady state changes and should be delivered reliably.
+
+## Playout delay
+
 Due to network jitter, the state received from clients cannot be applied immediately on the server, or else the timing of user actions will not match thus resulting in different behavior, which can lead to significant disparities over time. For that reason, a _playout delay buffer_ is employed, which simply stores packets received from the client for later execution. Each packet comes with a remote timestamp which has to be transformed into local time using a time delta calculated by the [clock synchronization](#clock-synchronization) process. This means the values in the packet represent the state of the components at that point in time. To apply the state of all packets with the same relative time, they're queued up sorted by timestamp, and in every server update, all packets that have a timestamp that's before the current time minus the playout delay are processed. That means, as long as the playout delay is greater than the latency plus some change, all packets should be processed with the same relative timing.
 
-When receiving data from the server, the received state will be in the past due to network latency and the playout delay, thus the client must _extrapolate_ it before merging it onto the local simulation. The remote timestamp of the packet is converted into a local timestamp and the entities present in the packet have all their components assembled together and given to an [extrapolation job](#client-side-extrapolation) which runs a separate simulation on the background starting at the calculated local time until the current time is reached and then it gives back the final state as a result which can be applied onto the actual simulation.
+This means the server simulation runs _in the past_ with respect to the client, as the client state is applied with a delay.
 
-Certain components are termed _transient_, which are considered to change often thus are exchanged between client and server every few times per second. The client will send `transient_snapshot` packets containing the transient components of all entities located in the islands where the entities owned by this client reside. The server will send `transient_snapshot` packets containing the transient components of all entities in the client's AABB of interest.
+The playout delay of a client must be greater than the biggest latency among all clients present in its AABB of interest. This ensures the time of all clients will be in accordance.
 
-The server being authoritative, will normally have control over the procedural state, however it allows the client to set the procedural state of all entities in an island if it is the only client present in that island as this makes it unecessary for the server to send the transient state of all entities in that island for that client and thus the client doesn't have to extrapolate it either. Obviously, the server must keep an eye on the data the client is sending as cheating could be significant in this case.
+## Unreliable inputs
 
-If there are multiple clients in an island, the state sent by the clients must be rejected (with exception of inputs) as that would lead to conflict. In that case, the server sends transient snapshots to all clients in the island, which in turn will have to extrapolate the received snapshot and conciliate with the local simulation.
+Due to packet loss, important state updates might be missed on the server side if the component being updated is not continuous, such as firing a weapon, versus something that is continuous which wouldn't be much of a problem, such as a floating point steering input of a vehicle. As a form of prevention, the transient snapshot may contain a component state history, which is an array of pairs of timestamp and value.
 
-Packets might contain invalid data, especially when it comes to packets received from clients, which may contain literally anything, since hackers will attempt to tamper with them. For that reason, packet validation is necessary. A validation function exists for every component type which will check if the data makes sense. They will for example, check if floating point values are valid and within range, if entities are valid, etc. If validation of any component fails, the whole packet is rejected.
+The server will keep a state history for these components and will merge new received state into the history and replace duplicate elements, to maintain it as a list of states sorted by timestamp. When applying client state from the playout delay buffer, it will go over every state change since the last update and apply them individually, thus going over all values that have been set between two updates.
+
+## Temporary ownership
+
+Despite being authoritative, the server allows clients to set the procedural state (i.e. transforms and velocities) of all entities in the islands where entities owned by the client reside, unless there is one or more entities owned by another client also present in that island. This is called _temporary ownership_ of entities not officially owned by any client.
+
+For example, if a vehicle owned by client A is touching a rigid body not owned by any client (e.g. a prop), the client will send the procedural state of that body to the server in addition to the state of the vehicle, and the server will accept and apply the state. Now, if another vehicle owned by client B were to be touching the same rigid body, the server will stop accepting the procedural state of all entities in that island for both clients. Only inputs will be accepted and applied. This allows clients to experience a better simulation most of the time since it is common for a client to be alone in an island and when that's the case, there's no interference coming from the server since the server will not send the procedural state of these entities back to the client, which also means no extrapolation will be done.
+
+The incoming procedural state must be verified by the server, since it could've been tampered with by the client. Positional changes must be within the limits of what would make sense given the logic of the simulation. Velocities must also make sense.
+
+Temporary ownership is optional and can be disabled if security must not be traded with client-side simulation quality.
+
+## Packet validation
+
+Packets might contain invalid data, especially when it comes to packets received from clients, which may contain literally anything, since hackers will attempt to tamper with them. For that reason, packet validation is necessary. A validation function exists for every component type which will check if the data makes sense. They will for example, check if floating point values are valid (e.g. not a `NaN` or `Inf`) and within range, if entities are valid, etc. If validation of any component fails, the whole packet is rejected. Values can also be transformed in the validation function, such as clamping a value within the valid range.
 
 ## Clock synchronization
 
@@ -383,7 +407,19 @@ This is done both in the client and server, independently.
 
 ## Client-side extrapolation
 
+When receiving data from the server, the received state will be in the past due to network latency and playout delay, thus the client must _extrapolate_ it before merging it onto the local simulation. The remote timestamp of the packet is converted into a local timestamp and the entities present in the packet have all their components assembled together and given to an extrapolation job which runs a separate simulation on the background starting at the calculated local time and going until the current time and then it gives back the final state as a result which can be applied onto the local simulation.
 
+Besides all entities present in the transient snapshot, the edges connecting them in the entity graph are also included in the extrapolation. That's necessary or else constraints between these entities would be ignored since constraints are usually not present in the transient snapshot.
+
+The extrapolated result is likely to not match the local simulation. To avoid having objects move suddenly when the extrapolation result is applied, a _discontinuity_ factor is calculated and it decays over time. The discontinuity holds a position and orientation offset, which are calculated as the difference between the current state and the extrapolated state. This offset is then added to the present position and orientation to generate a smooth decay towards the extrapolated state. Offsets are accumulated in the same discontinuity as new extrapolation results are applied.
+
+An input history is needed during extrapolation so that user inputs (especially the local user's input) can be replayed during extrapolation. A snapshot of input components of entities owned by the client is taken in every update and added to the list of inputs. Input components from other clients are also added to the list as they arrive. They're assigned a timestamp which will allow the extrapolation job to replay them with the same timing. Since the extrapolation happens while the simulation is still running, just giving the current list of inputs to the extrapolation job might not be enough, as it would miss new inputs applied after the job starts, which may cause significant differences in the result. Thus, a shared thread-safe input history is used.
+
+Multiple extrapolation jobs can run concurrently. In order to avoid excessive resource usage, a limit is set. If a transient snapshot arrives while there are already the maximum number of extrapolations running, it is discarded. Though, even if the extrapolation is rejected, the state of the input components in the snapshot must be inserted into the state history.
+
+Starting at the estimated transient snapshot timestamp, an attempt is made to extrapolate until the current time, which is a moving target. It is possible that the time it takes to run one simulation step is greater than the fixed delta time, which means that the extrapolation would never finish, since after each step is completed, the current time has moved further away than the simulation delta time. Thus, an execution time limit is set for each extrapolation job and it should be terminated early in case that duration is reached. The extrapolation result will be applied eitherway.
+
+Users that don't interact with the simulation do not need extrapolation (i.e. spectators).
 
 ## Extrapolation level-of-detail
 
@@ -394,78 +430,6 @@ The appearance of the simulation of entities that are further away from the user
 2. Snapping zone: islands in this zone have the state of their entities snapped to the values in the transient snapshot. Discontinuities are calculated to smooth out visual disturbances.
 
 3. No simulation zone: entities in this zone have simulation disabled (i.e. `edyn::disabled_tag` is assigned to them). The state from the transient snapshot is applied directly and the velocity is used to do a basic linear extrapolation of the transforms over time. Discontinuities are again used to smooth out the snapping effect.
-
-## Server receives data from client
-
-The server expects users to send the dynamic state of the entities the client owns frequently. This state will be applied to the server registry at the right time if the client has permission do so at the moment.
-
-The server simulation runs in the past with respect to the client. This allows the state received from the client to be applied at the right time in the server despite network jitter. More precisely, the state received from the client is accumulated in a _jitter buffer_ (aka _playout delay buffer_) and is applied onto the server registry when the time comes. Ideally, the client states are applied on the server side exactly at the same rate they're applied in the client side, thus leading to the same result on both ends.
-
-If the length of the jitter buffer in units of time is smaller than the client's latency, it will happen that the client state will be applied as soon as it arrives in the server because in that case it should have been applied before it had arrived in the server (which is obviously not possible). That means, the amount of time in the past the server simulation must run has to be bigger than half the maximum RTT among all clients being considered. The jitter buffer length of a client should be a value greater than the greatest latency of all clients in its AABB of interest in order to keep the simulation of all clients in this range running at the same point in time.
-
-If the jitter buffer is too long, that means a bigger problem for the clients because the data they'll get from the server will be older and they'll have to extrapolate more to bring it to the current time which is more costly and errors in prediction are increased. More on extrapolation on the next sections.
-
-The concept of _ownership_ is key to decentralized control and conflict resolution in the server simulation. Dynamic entities can have an owning client, which means that the client has exclusive control over that entity and can directly modify its components. The entities permanently owned by a client are usually the ones created by it or created for it. Those are the entities that are directly controlled by the client, such as a character or a vehicle.
-
-The client will send snapshots of its owned entities to the server which will verify these and possibly apply them to its simulation. In the case where there are no other entities owned by another client in the same group, the snapshot will go through a verification process where the components are compared to their current value and they're checked for hacking attempts where the values would be unrealistic. These components will be discarded.
-
-This direct state application means that the client can run the simulation locally without the need to apply and extrapolate state from the server most of the time (for the entities owned by the client). Extrapolation is only necessary when there are other entities owned by another client in the same island. While the entities are owned by the client, the server will not include them in the transient snapshots. Once the server takes ownership, these entities will be included which signals to the client that its own entities must now be included in the extrapolation.
-
-The client has temporary ownership of all entities in its island, except when an entity owned by another client is also in this island, where in this case the server takes ownership of all entities to avoid conflicting simulation results. In other words, an island can only be owned by one client at a time. If two clients try to take ownership of the same island, the server intervenes and takes ownership to itself, which means it will stop applying state provided by the clients and will start sending the state of the entities owned by the client as well in the transient snapshots.
-
-The client will send state updates to the server for all entities in its island so that the temporarily owned entities will also be synchronized without disrupting the local client simulation. The same is true on the server-side: all entities in the island where the client's entities are located are either sent in a transient snapshot or not. Rigid body state is never sent in isolation, the entire island where it resides must be shared because it functions as one unit of simulation, since the state of all rigid bodies in an island affect each other.
-
-In the case where the server takes ownership of an island, none of the physics components in the client snapshots will be accepted, with the exception of the components that have been tagged as _non-procedural_, which are treated as user input and thus should always be applied.
-
-The components that are applied into the server regardless of entity ownership status are labeled _non-procedural_, as their state is not calculated by any logic, instead they're manually controlled by the user, such as input. Since the client cannot be trusted, a validation function can be provided to check the data in the incoming component, and either edit it (e.g. clamp values to keep them in range) or discard it in case it contains invalid state (e.g. values out of range or a `NaN`). The server must also share the values of non-procedural components with other clients, except the client which owns the entities. These values are useful in the client side as a form of state history to be applied during extrapolation.
-
-## Server sends data to client
-
-The server will periodically capture snapshots of relevant islands and send them out to clients. Which islands will be sent and how often is determined by the client's _AABB of interest_, which is an AABB the server can use to query its broadphase tree to determine which islands to send.
-
-These packets contain all transient components of the entities of one or more islands in the AABB of interest. These are the components which change often during the simulation. Components marked as non-procedural are also included, except for entities that are owned by the destination client.
-
-A _snapshot rate decay_ can be configured so that islands that are closer to the center of the AABB of interest are sent more often than those in the periphery.
-
-Extra AABBs of interest are necessary in case the user has the ability to operate a free-look camera and move around to see the world somewhere else.
-
-Transient snapshots don't need to be reliably delivered. They contain temporary component state which varies continuously over time and losing packets should not affect the result greatly. General snapshots are used to deliver steady state changes and should be delivered reliably.
-
-Contact manifolds are sent in an array separate from the other component pools, which will allow the client to handle them differently. Contact manifolds are not synchronized precisely like other entities, with entity mappings and such. Instead they are matched by the pair of entities that's in contact. The `edyn::contact_manifold_map` is used to find a corresponding manifold in the client side and then they can be synchronized with the remote counterpart.
-
-## Client sends data to server
-
-Clients will periodically send snapshots containing all entities in the islands where their owned entities reside to the server. Dynamic components will be sent often in transient snapshots, which can be sent as unreliable packets. Steady components will be sent when they change in a general snapshot, which must be sent as reliable packets.
-
-Due to packet loss, important state updates might be missed on the server side if the component being updated is not continuous, such as firing a weapon, versus something that is continuous which wouldn't be much of a problem, such as a floating point steering input of a vehicle. As a form of prevention, the transient snapshot may contain a component state history, which is an array of pairs of timestamp and value.
-
-The server will keep a state history for these components and will merge new received state into the history and replace duplicate elements, to maintain it as a list of states sorted by timestamp. When applying client state from the playout delay buffer, it will go over every state change since the last update and apply them individually, thus going over all values that have been set between two updates.
-
-## Client receives data from server
-
-Snapshots sent by the server in the transient snapshot stream do not contain all components of each entity in it. These snapshots only contain the dynamic components that change very often, such as position and velocity.
-
-The client keeps an entity map which maps between local and remote entities. If an entity present in the transient snapshot is not yet in the entity map, it means the client doesn't know what that entity is and thus it must query the server. The server should respond with a snapshot containing the requested data and this can be loaded into the local registry which will instantiate the full entity and now it's ready to be properly updated.
-
-The server will notify a client whenever a new entity enters its AABB of interest, providing the state of all components. It'll also notify the client when the entity leaves. That means most times, the entity will be available locally by the time a new transient snapshot arrives.
-
-Upon receiving snapshots from the server, the client is required to extrapolate these to the future before merging them onto its local simulation since the server simulation stays in the past plus there's latency to compensate for. The timestamp of the received snapshot is estimated to be the current time minus half the RTT minus the server playout delay.
-
-Extrapolation is performed in a background worker thread. It is similar to an island worker job except that it does not run in real time, i.e. it runs the simulation steps one immediately after the other, as quickly as possible. Starting at the estimated transient snapshot timestamp, it attempts to extrapolate until the current time, which is a moving target. It is possible that the time it takes to run one simulation step is greater than the fixed delta time, which means that the extrapolation would never finish in that case, since after each step is completed, the current time has moved further away than the simulation delta time. Thus an execution time limit is set for each extrapolation job and it should be terminated early in case that duration is reached.
-
-Extrapolation jobs are launched as soon as a transient snapshot packet arrives. Multiple extrapolations can be run concurrently, but a limit has to be set to prevent excessive resource usage and a general slowdown. Thus, a maximum number of extrapolations is set (two or three) and if a transient snapshot arrives while there are already the maximum number of extrapolations running, it is discarded. Though, even if the extrapolation is rejected, the state of the non-procedural components in the transient snapshot must be inserted into the state history.
-
-The client-side network system must collect all entities in the islands which contain all entities in the transient snapshot and their components and put them into an input for the extrapolation job. It should also provide the transient snapshot to the extrapolation job. When run, the extrapolation job will instantiate all entities and components into its registry and apply the server state using the transient snapshot. Then it's ready to run the extrapolation.
-
-Once it's done, it sends a registry snapshot to the client-side system containing the final state to be applied. With the extrapolated state in hand, the client-side must send the updated components of all entities involved to the respective island workers. The island worker will store the current position and orientation of all involved entities before applying the extrapolated state so the difference can be calculated afterwards. This difference will be added to the _discontinuity_ of that entity which can be used to smooth out the sudden change in transform.
-
-In case the server had taken ownership of an entity that's owned by the client, this entity will be contained in the snapshot. In this case it is necessary to also apply all inputs during extrapolation, thus a local input history has to be kept to be used here. Input should be stored in non-procedural components which must be registered with a call to `edyn::register_networked_components`.
-
-The server snapshot will usually contain a single island. If the extrapolation is too long, the entities in it would possibly collide with an existing object from another local island and the collision would be missed or detected only when merging. A solution would be to keep a history of all objects so that islands nearby the server snapshot island can be rolled back and extrapolated with it, but that seems to be an extra amount of processing and storage to be done for little benefit. As long as the extrapolations are not too long (which usually shouldn't be), this won't be a significant problem. This might be interesting to do for the client's entities though.
-
-Extrapolation will introduce visible errors and disturbances when the extrapolated result doesn't match the previous local state very closely. A discontinuity error is calculated before the components are replaced by the extrapolated version and that error is accumulated in a `edyn::discontinuity` component which is added to the `edyn::present_position` and `edyn::present_orientation` to smooth out these errors. The discontinuity decays towards zero over time.
-
-Users that don't interact with the simulation do not need extrapolation (i.e. spectators).
 
 # Clusters
 
