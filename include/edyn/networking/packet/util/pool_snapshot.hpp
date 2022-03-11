@@ -21,7 +21,7 @@ namespace edyn {
 struct pool_snapshot_data {
     virtual ~pool_snapshot_data() = default;
     virtual std::vector<entt::entity> get_entities() const = 0;
-    virtual void convert_remloc(entt::registry &registry, entity_map &emap) = 0;
+    virtual void convert_remloc(const entt::registry &registry, entity_map &emap) = 0;
     virtual void write(memory_output_archive &archive) = 0;
     virtual void read(memory_input_archive &archive) = 0;
     virtual void replace_into_registry(entt::registry &registry, const entity_map &emap) = 0;
@@ -47,7 +47,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         }
     }
 
-    void convert_remloc(entt::registry &registry, entity_map &emap) override {
+    void convert_remloc(const entt::registry &registry, entity_map &emap) override {
         if constexpr(is_empty_type) {
             for (auto &entity : data) {
                 entity = emap.remloc(entity);

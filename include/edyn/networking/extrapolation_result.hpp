@@ -16,7 +16,7 @@ struct extrapolation_result {
     bool terminated_early {false};
     double timestamp;
 
-    void convert_locrem(entt::registry &registry, entity_map &emap) {
+    void convert_locrem(const entt::registry &registry, entity_map &emap) {
         for (auto &entity : entities) {
             entity = emap.locrem(entity);
         }

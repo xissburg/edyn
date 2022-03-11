@@ -12,7 +12,7 @@ struct extrapolation_component_pool {
     virtual ~extrapolation_component_pool() = default;
     virtual void emplace(entt::registry &, entity_map &) = 0;
     virtual void replace(entt::registry &, entity_map &) = 0;
-    virtual void convert_locrem(entt::registry &registry, entity_map &) = 0;
+    virtual void convert_locrem(const entt::registry &registry, entity_map &) = 0;
 };
 
 template<typename Component>
@@ -53,7 +53,7 @@ struct extrapolation_component_pool_impl : public extrapolation_component_pool {
         }
     }
 
-    void convert_locrem(entt::registry &registry, entity_map &emap) override {
+    void convert_locrem(const entt::registry &registry, entity_map &emap) override {
         if constexpr(is_empty_type) {
             for (auto &entity : data) {
                 entity = emap.locrem(entity);
