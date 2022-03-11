@@ -126,7 +126,6 @@ public:
         return count;
     }
 
-private:
     std::vector<tree_node> m_nodes;
     tree_node_id_t m_root;
 };

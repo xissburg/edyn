@@ -1,8 +1,10 @@
 #ifndef EDYN_COMP_COLLISION_EXCLUSION_HPP
 #define EDYN_COMP_COLLISION_EXCLUSION_HPP
 
+#include "edyn/util/array.hpp"
 #include <array>
 #include <entt/entity/fwd.hpp>
+#include <entt/entity/entity.hpp>
 
 namespace edyn {
 
@@ -13,8 +15,18 @@ namespace edyn {
  */
 struct collision_exclusion {
     static constexpr unsigned max_exclusions = 16;
-    unsigned num_entities {0};
-    std::array<entt::entity, max_exclusions> entity;
+    std::array<entt::entity, max_exclusions> entity =
+        make_array<max_exclusions>(entt::entity{entt::null});
+
+    unsigned num_entities() const {
+        unsigned i = 0;
+        for (; i < max_exclusions; ++i) {
+            if (entity[i] == entt::null) {
+                break;
+            }
+        }
+        return i;
+    }
 };
 
 }

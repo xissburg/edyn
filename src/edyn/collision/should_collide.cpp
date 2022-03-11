@@ -8,7 +8,7 @@ namespace edyn {
 static
 bool should_exclude(const entt::registry &registry, entt::entity first, entt::entity second) {
     if (auto *exclusion = registry.try_get<collision_exclusion>(first)) {
-        for (unsigned i = 0; i < exclusion->num_entities; ++i) {
+        for (unsigned i = 0; i < exclusion->num_entities(); ++i) {
             if (exclusion->entity[i] == second) {
                 return true;
             }

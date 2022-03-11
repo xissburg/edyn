@@ -44,10 +44,21 @@
 namespace edyn {
 
 /**
+ * @brief Initialization configuration.
+ */
+struct init_config {
+    bool multi_threaded {true};
+
+    // Number of worker threads to spawn. If zero, value will be taken from
+    // `std::thread::hardware_concurrency`.
+    size_t num_worker_threads {0};
+};
+
+/**
  * @brief Initializes Edyn's internals such as its thread pool and job system.
  * Call it before using Edyn.
  */
-void init();
+void init(const init_config &config = {});
 
 /**
  * @brief Undoes what was done by `init()`. Call it when Edyn is not needed anymore.

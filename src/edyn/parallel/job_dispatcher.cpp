@@ -26,7 +26,7 @@ void job_dispatcher::start() {
     auto num_threads = std::thread::hardware_concurrency();
 
     if (num_threads == 0) {
-        num_threads = 8;
+        num_threads = 2;
     }
 
     start(num_threads);

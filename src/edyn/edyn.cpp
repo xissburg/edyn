@@ -1,16 +1,47 @@
 #include "edyn/edyn.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/collision/broadphase_main.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/sys/update_presentation.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/collision/tree_view.hpp"
+#include <entt/meta/factory.hpp>
+#include <entt/core/hashed_string.hpp>
 
 namespace edyn {
 
-void init() {
+static void init_meta() {
+    using namespace entt::literals;
+
+    entt::meta<contact_manifold>().type()
+        .data<&contact_manifold::body, entt::as_ref_t>("body"_hs);
+
+    entt::meta<collision_exclusion>().type()
+        .data<&collision_exclusion::entity, entt::as_ref_t>("entity"_hs);
+
+    std::apply([&] (auto ... c) {
+        (entt::meta<decltype(c)>().type().template data<&decltype(c)::body, entt::as_ref_t>("body"_hs), ...);
+    }, constraints_tuple);
+
+    entt::meta<tree_view>().type()
+        .data<&tree_view::m_nodes, entt::as_ref_t>("nodes"_hs);
+    entt::meta<tree_view::tree_node>().type()
+        .data<&tree_view::tree_node::entity, entt::as_ref_t>("entity"_hs);
+}
+
+void init(const init_config &config) {
+    init_meta();
+
     auto &dispatcher = job_dispatcher::global();
+
     if (!dispatcher.running()) {
-        dispatcher.start();
+        if (config.num_worker_threads == 0) {
+            dispatcher.start();
+        } else {
+            dispatcher.start(config.num_worker_threads);
+        }
+
         dispatcher.assure_current_queue();
     }
 }
