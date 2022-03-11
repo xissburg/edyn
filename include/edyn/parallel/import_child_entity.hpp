@@ -10,10 +10,10 @@
 
 namespace edyn::internal {
 
-void import_child_entity_sequence(entt::registry &registry, const entity_map &emap, entt::meta_sequence_container &seq);
+void import_child_entity_sequence(const entt::registry &registry, const entity_map &emap, entt::meta_sequence_container &seq);
 
 template<typename Value>
-void import_child_entity_meta(entt::registry &registry, const entity_map &emap, const entt::meta_type &meta_type, Value &value) {
+void import_child_entity_meta(const entt::registry &registry, const entity_map &emap, const entt::meta_type &meta_type, Value &value) {
     auto range = meta_type.data();
 
     for (entt::meta_data data : range) {
@@ -56,7 +56,7 @@ void import_child_entity_meta(entt::registry &registry, const entity_map &emap, 
 }
 
 template<typename Component>
-void import_child_entity(entt::registry &registry, const entity_map &emap, Component &component) {
+void import_child_entity(const entt::registry &registry, const entity_map &emap, Component &component) {
     if (auto meta_type = entt::resolve<Component>(); meta_type) {
         import_child_entity_meta(registry, emap, meta_type, component);
     }
