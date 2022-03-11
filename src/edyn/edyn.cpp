@@ -2,6 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/collision/broadphase_main.hpp"
+#include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/sys/update_presentation.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
@@ -28,6 +29,9 @@ static void init_meta() {
         .data<&tree_view::m_nodes, entt::as_ref_t>("nodes"_hs);
     entt::meta<tree_view::tree_node>().type()
         .data<&tree_view::tree_node::entity, entt::as_ref_t>("entity"_hs);
+
+    entt::meta<entity_owner>().type()
+        .data<&entity_owner::client_entity, entt::as_ref_t>("client_entity"_hs);
 }
 
 void init(const init_config &config) {
