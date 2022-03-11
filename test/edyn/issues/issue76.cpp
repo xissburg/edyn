@@ -1,4 +1,5 @@
 #include "../common/common.hpp"
+#include "edyn/edyn.hpp"
 
 TEST(issue_test, test_issue_76) {
 	// https://github.com/xissburg/edyn/issues/76
@@ -17,4 +18,6 @@ TEST(issue_test, test_issue_76) {
 
 	auto entity2 = edyn::make_rigidbody(registry, floor_def);
 	edyn::update(registry);
+	edyn::detach(registry);
+	edyn::deinit();
 }

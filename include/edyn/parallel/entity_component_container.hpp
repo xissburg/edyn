@@ -6,11 +6,8 @@
 #include <utility>
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/dirty.hpp"
-#include "edyn/parallel/merge/merge_component.hpp"
-#include "edyn/parallel/merge/merge_contact_manifold.hpp"
-#include "edyn/parallel/merge/merge_constraint.hpp"
-#include "edyn/parallel/merge/merge_tree_view.hpp"
-#include "edyn/parallel/merge/merge_collision_exclusion.hpp"
+#include "edyn/util/entity_map.hpp"
+#include "edyn/parallel/import_child_entity.hpp"
 
 namespace edyn {
 
@@ -25,7 +22,7 @@ struct entity_component_container_base {
 // Only enable the updated component container for non-empty components since
 // it doesn't make sense to update empty components because they have no data.
 template<typename Component, std::enable_if_t<!std::is_empty_v<Component>, bool> = true>
-struct updated_entity_component_container: public entity_component_container_base {
+struct updated_entity_component_container : public entity_component_container_base {
     std::vector<std::pair<entt::entity, Component>> pairs;
 
     void insert(entt::entity entity, const Component &comp) {
@@ -35,15 +32,11 @@ struct updated_entity_component_container: public entity_component_container_bas
     void import(entt::registry &registry, entity_map &emap, bool mark_dirty) const override {
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
-
-            if (!emap.has_rem(remote_entity)) {
-                continue;
-            }
-
+            if (!emap.has_rem(remote_entity)) continue;
             auto local_entity = emap.remloc(remote_entity);
-            auto comp = pair.second;
 
-            merge(comp, emap);
+            auto comp = pair.second;
+            internal::import_child_entity(registry, emap, comp);
             registry.replace<Component>(local_entity, comp);
 
             if (mark_dirty) {
@@ -66,7 +59,7 @@ struct updated_entity_component_container: public entity_component_container_bas
 };
 
 template<typename Component>
-struct created_entity_component_container: public entity_component_container_base {
+struct created_entity_component_container : public entity_component_container_base {
     std::vector<std::pair<entt::entity, Component>> pairs;
 
     void insert(entt::entity entity, const Component &comp) {
@@ -91,7 +84,7 @@ struct created_entity_component_container: public entity_component_container_bas
                 registry.emplace<Component>(local_entity);
             } else {
                 auto comp = pair.second;
-                merge(comp, emap);
+                internal::import_child_entity(registry, emap, comp);
                 registry.emplace<Component>(local_entity, comp);
             }
 
@@ -115,7 +108,7 @@ struct created_entity_component_container: public entity_component_container_bas
 };
 
 template<typename Component>
-struct destroyed_entity_component_container: public entity_component_container_base {
+struct destroyed_entity_component_container : public entity_component_container_base {
     std::vector<entt::entity> entities;
 
     void import(entt::registry &registry, entity_map &map, bool mark_dirty) const override {

@@ -10,9 +10,9 @@ struct general_snapshot {
     double timestamp;
     std::vector<pool_snapshot> pools;
 
-    void convert_remloc(entity_map &emap) {
+    void convert_remloc(entt::registry &registry, entity_map &emap) {
         for (auto &pool : pools) {
-            pool.ptr->convert_remloc(emap);
+            pool.ptr->convert_remloc(registry, emap);
         }
     }
 };

@@ -4,7 +4,6 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/sys/client_side.hpp"
-#include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/edyn.hpp"
 
@@ -40,7 +39,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
             }
 
             auto comp = pair.second;
-            merge(comp, emap);
+            internal::import_child_entity(registry, emap, comp);
 
             if (mark_dirty) {
                 // Mark as dirty using `network_dirty` to avoid having these

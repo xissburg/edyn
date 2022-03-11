@@ -13,20 +13,15 @@
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/util/tuple_util.hpp"
-#include "edyn/parallel/merge/merge_component.hpp"
-#include "edyn/parallel/merge/merge_contact_manifold.hpp"
-#include "edyn/parallel/merge/merge_constraint.hpp"
-#include "edyn/parallel/merge/merge_tree_view.hpp"
-#include "edyn/parallel/merge/merge_collision_exclusion.hpp"
-#include "edyn/parallel/merge/merge_entity_owner.hpp"
 #include "edyn/parallel/entity_component_container.hpp"
+#include "edyn/parallel/import_child_entity.hpp"
 
 namespace edyn {
 
 struct pool_snapshot_data {
     virtual ~pool_snapshot_data() = default;
     virtual std::vector<entt::entity> get_entities() const = 0;
-    virtual void convert_remloc(entity_map &) = 0;
+    virtual void convert_remloc(entt::registry &registry, entity_map &emap) = 0;
     virtual void write(memory_output_archive &archive) = 0;
     virtual void read(memory_input_archive &archive) = 0;
     virtual void replace_into_registry(entt::registry &registry, const entity_map &emap) = 0;
@@ -52,7 +47,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         }
     }
 
-    void convert_remloc(entity_map &emap) override {
+    void convert_remloc(entt::registry &registry, entity_map &emap) override {
         if constexpr(is_empty_type) {
             for (auto &entity : data) {
                 entity = emap.remloc(entity);
@@ -60,8 +55,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         } else {
             for (auto &pair : data) {
                 pair.first = emap.remloc(pair.first);
-                // `merge` maps remote to local.
-                merge(pair.second, emap);
+                internal::import_child_entity(registry, emap, pair.second);
             }
         }
     }
@@ -83,7 +77,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
                 if (!registry.valid(local_entity)) continue;
                 if (!registry.all_of<Component>(local_entity)) continue;
                 auto &comp = pair.second;
-                merge(comp, emap);
+                internal::import_child_entity(registry, emap, comp);
                 registry.replace<Component>(local_entity, comp);
             }
         }

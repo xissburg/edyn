@@ -13,7 +13,6 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
-#include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"

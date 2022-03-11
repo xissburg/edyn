@@ -110,6 +110,7 @@ add_library(Edyn
     src/edyn/parallel/island_delta_builder.cpp
     src/edyn/parallel/island_worker_context.cpp
     src/edyn/parallel/make_island_delta_builder.cpp
+    src/edyn/parallel/import_child_entity.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/networking/context/client_network_context.cpp
     src/edyn/networking/context/server_network_context.cpp
@@ -134,11 +135,11 @@ if(UNIX)
 endif()
 
 if(UNIX AND NOT APPLE)
-     target_link_libraries(Edyn
-         PUBLIC
-             pthread
-     )
- endif()
+    target_link_libraries(Edyn
+        PUBLIC
+            pthread
+    )
+endif()
 
 if(WIN32)
     target_sources(Edyn PRIVATE

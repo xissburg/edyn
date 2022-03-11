@@ -18,7 +18,6 @@
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
-#include "edyn/parallel/merge/merge_component.hpp"
 #include "edyn/networking/extrapolation_job.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
@@ -551,7 +550,7 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
     // snapshot will make sense in this registry. This same snapshot will
     // be given to the extrapolation job, thus containing entities in the
     // main registry space.
-    snapshot.convert_remloc(ctx.entity_map);
+    snapshot.convert_remloc(registry, ctx.entity_map);
 
     const auto time = performance_time();
     double snapshot_time;
@@ -672,7 +671,7 @@ static void process_packet(entt::registry &registry, packet::general_snapshot &s
         snapshot_time = time - client_server_time_difference;
     }
 
-    snapshot.convert_remloc(ctx.entity_map);
+    snapshot.convert_remloc(registry, ctx.entity_map);
     insert_input_to_state_history(registry, snapshot.pools, snapshot_time);
     const bool mark_dirty = true;
 

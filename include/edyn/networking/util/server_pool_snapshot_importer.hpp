@@ -6,6 +6,7 @@
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
+#include "edyn/parallel/import_child_entity.hpp"
 #include "edyn/edyn.hpp"
 
 namespace edyn {
@@ -80,7 +81,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
             }
 
             auto comp = pair.second;
-            merge(comp, client.entity_map);
+            internal::import_child_entity(registry, client.entity_map, comp);
 
             if (mark_dirty) {
                 auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
@@ -225,7 +226,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             remote_entity = local_entity;
             auto &comp = pair.second;
-            merge(comp, client.entity_map);
+            internal::import_child_entity(registry, client.entity_map, comp);
             ++it;
         }
     }

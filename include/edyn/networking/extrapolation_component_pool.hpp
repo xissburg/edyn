@@ -2,6 +2,7 @@
 #define EDYN_NETWORKING_EXTRAPOLATION_COMPONENT_POOL_HPP
 
 #include "edyn/util/entity_map.hpp"
+#include "edyn/parallel/import_child_entity.hpp"
 #include <entt/entity/registry.hpp>
 #include <type_traits>
 
@@ -11,7 +12,7 @@ struct extrapolation_component_pool {
     virtual ~extrapolation_component_pool() = default;
     virtual void emplace(entt::registry &, entity_map &) = 0;
     virtual void replace(entt::registry &, entity_map &) = 0;
-    virtual void convert_locrem(entity_map &) = 0;
+    virtual void convert_locrem(entt::registry &registry, entity_map &) = 0;
 };
 
 template<typename Component>
@@ -31,7 +32,7 @@ struct extrapolation_component_pool_impl : public extrapolation_component_pool {
                 auto remote_entity = pair.first;
                 auto local_entity = emap.remloc(remote_entity);
                 auto &comp = pair.second;
-                merge(comp, emap);
+                internal::import_child_entity(registry, emap, comp);
                 registry.emplace<Component>(local_entity, std::move(comp));
             }
         }
@@ -46,13 +47,13 @@ struct extrapolation_component_pool_impl : public extrapolation_component_pool {
                 if (!registry.valid(local_entity)) continue;
                 if (!registry.all_of<Component>(local_entity)) continue;
                 auto &comp = pair.second;
-                merge(comp, emap);
+                internal::import_child_entity(registry, emap, comp);
                 registry.replace<Component>(local_entity, std::move(comp));
             }
         }
     }
 
-    void convert_locrem(entity_map &emap) override {
+    void convert_locrem(entt::registry &registry, entity_map &emap) override {
         if constexpr(is_empty_type) {
             for (auto &entity : data) {
                 entity = emap.locrem(entity);
@@ -62,10 +63,10 @@ struct extrapolation_component_pool_impl : public extrapolation_component_pool {
                 pair.first = emap.locrem(pair.first);
             }
 
-            // `merge` maps remote to local, thus flip the entity map.
+            // `import_child_entity` maps remote to local, thus flip the entity map.
             emap.flip();
             for (auto &pair : data) {
-                merge(pair.second, emap);
+                internal::import_child_entity(registry, emap, pair.second);
             }
             emap.flip();
         }

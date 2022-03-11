@@ -1,6 +1,8 @@
 #include "../common/common.hpp"
 #include <tuple>
 #include <memory>
+#include <entt/meta/factory.hpp>
+#include <entt/core/hashed_string.hpp>
 
 struct custom_component {
     edyn::scalar value;
@@ -10,22 +12,6 @@ struct custom_component {
 struct parent_component {
     std::array<entt::entity, 2> entity;
 };
-
-// `custom_component` needs a custom merge function to map its entity into the
-// context of the other registry where it's being imported into.
-namespace edyn {
-    template<> inline
-    void merge(custom_component &new_comp, const entity_map &emap) {
-        new_comp.entity = emap.remloc(new_comp.entity);
-    }
-
-    template<> inline
-    void merge(parent_component &new_comp, const entity_map &emap) {
-        for (auto &entity : new_comp.entity) {
-            entity = emap.remloc(entity);
-        }
-    }
-}
 
 template<typename T, size_t N>
 bool array_contains(std::array<T, N> &arr, const T &val) {
@@ -37,6 +23,12 @@ TEST(island_delta_test, test_island_delta_export_import) {
     edyn::init();
     edyn::attach(reg0);
     edyn::register_external_components<custom_component, parent_component>(reg0);
+
+    using namespace entt::literals;
+    entt::meta<custom_component>().type()
+        .data<&custom_component::entity, entt::as_ref_t>("entity"_hs);
+    entt::meta<parent_component>().type()
+        .data<&parent_component::entity, entt::as_ref_t>("entity"_hs);
 
     auto child0 = reg0.create();
     auto child1 = reg0.create();

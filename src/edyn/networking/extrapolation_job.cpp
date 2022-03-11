@@ -269,7 +269,7 @@ void extrapolation_job::sync_and_finish() {
     });
 
     // Convert from extrapolation registry space into main registry space.
-    m_result.convert_locrem(m_entity_map);
+    m_result.convert_locrem(m_registry, m_entity_map);
 
     // Assign timestamp of the last step.
     m_result.timestamp = m_current_time;
