@@ -2,7 +2,7 @@
 
 namespace edyn::internal {
 
-void import_child_entity_sequence(entt::registry &registry, const entity_map &emap, entt::meta_sequence_container &seq) {
+void import_child_entity_sequence(const entt::registry &registry, const entity_map &emap, entt::meta_sequence_container &seq) {
     if (seq.value_type() != entt::resolve<entt::entity>()) {
         return;
     }
