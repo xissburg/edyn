@@ -11,8 +11,8 @@ void import_child_entity_sequence(const entt::registry &registry, const entity_m
         auto &entity_ref = seq[i].cast<entt::entity &>();
         auto local_entity = entt::entity{entt::null};
 
-        if (emap.has_rem(entity_ref)) {
-            local_entity = emap.remloc(entity_ref);
+        if (emap.count(entity_ref)) {
+            local_entity = emap.at(entity_ref);
 
             if (!registry.valid(local_entity)) {
                 local_entity = entt::null;

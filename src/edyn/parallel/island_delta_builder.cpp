@@ -11,17 +11,7 @@ void island_delta_builder::insert_entity_mapping(entt::entity remote_entity, ent
     // Note that this is being called from the builder and the order is reversed,
     // i.e. (local, remote). When importing, the "correct" order is used, so the
     // first entity which is the remote, refers to the local entity in this registry.
-    m_delta.m_entity_map.insert(local_entity, remote_entity);
-}
-
-bool island_delta_builder::has_rem(entt::entity remote_entity) const {
-    // Remember that remote and local are swapped in the builder.
-    return m_delta.m_entity_map.has_loc(remote_entity);
-}
-
-bool island_delta_builder::has_loc(entt::entity local_entity) const {
-    // Remember that remote and local are swapped in the builder.
-    return m_delta.m_entity_map.has_rem(local_entity);
+    m_delta.m_entity_map[local_entity] = remote_entity;
 }
 
 bool island_delta_builder::empty() const {

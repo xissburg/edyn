@@ -67,29 +67,29 @@ TEST(island_delta_test, test_island_delta_export_import) {
     // It is necessary to insert these mappings in `builder1` so when the delta
     // is exported and then imported into `reg0`, it can map the entities back.
     for (auto remote_entity : delta.created_entities()) {
-        auto local_entity = map1.remloc(remote_entity);
+        auto local_entity = map1.at(remote_entity);
         builder1->insert_entity_mapping(remote_entity, local_entity);
     }
 
-    ASSERT_TRUE(array_contains(reg1.get<parent_component>(map1.remloc(ent0)).entity, map1.remloc(child0)));
-    ASSERT_TRUE(array_contains(reg1.get<parent_component>(map1.remloc(ent0)).entity, map1.remloc(child1)));
-    ASSERT_EQ(map1.locrem(reg1.get<edyn::distance_constraint>(map1.remloc(ent1)).body[0]), child0);
-    ASSERT_SCALAR_EQ(reg1.get<edyn::distance_constraint>(map1.remloc(ent1)).distance, 6.28f);
-    ASSERT_SCALAR_EQ(reg1.get<custom_component>(map1.remloc(ent2)).value, 3.14f);
-    ASSERT_EQ(reg1.get<custom_component>(map1.remloc(ent2)).entity, map1.remloc(child0));
+    ASSERT_TRUE(array_contains(reg1.get<parent_component>(map1.at(ent0)).entity, map1.at(child0)));
+    ASSERT_TRUE(array_contains(reg1.get<parent_component>(map1.at(ent0)).entity, map1.at(child1)));
+    ASSERT_EQ(map1.at(child0), reg1.get<edyn::distance_constraint>(map1.at(ent1)).body[0]);
+    ASSERT_SCALAR_EQ(reg1.get<edyn::distance_constraint>(map1.at(ent1)).distance, 6.28f);
+    ASSERT_SCALAR_EQ(reg1.get<custom_component>(map1.at(ent2)).value, 3.14f);
+    ASSERT_EQ(reg1.get<custom_component>(map1.at(ent2)).entity, map1.at(child0));
 
     // Replace some entities in `reg1`, export it and load it into `reg0`.
-    auto &comp0 = reg1.get<parent_component>(map1.remloc(ent0));
+    auto &comp0 = reg1.get<parent_component>(map1.at(ent0));
     for (auto &entity : comp0.entity) {
-        if (entity == map1.remloc(child0)) {
-            entity = map1.remloc(ent1);
+        if (entity == map1.at(child0)) {
+            entity = map1.at(ent1);
         }
     }
-    builder1->updated(map1.remloc(ent0), comp0);
+    builder1->updated(map1.at(ent0), comp0);
 
-    auto &custom = reg1.get<custom_component>(map1.remloc(ent2));
-    custom.entity = map1.remloc(ent2);
-    builder1->updated_all(map1.remloc(ent2), reg1);
+    auto &custom = reg1.get<custom_component>(map1.at(ent2));
+    custom.entity = map1.at(ent2);
+    builder1->updated_all(map1.at(ent2), reg1);
 
     builder1->finish().import(reg0, map0);
 

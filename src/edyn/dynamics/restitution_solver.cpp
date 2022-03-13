@@ -250,7 +250,9 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     std::vector<entt::entity> manifold_entities;
 
     graph.traverse_connecting_nodes(start_node_index, [&] (auto node_index) {
-        graph.visit_edges(node_index, [&] (entt::entity edge_entity) {
+        graph.visit_edges(node_index, [&] (auto edge_index) {
+            auto edge_entity = graph.edge_entity(edge_index);
+
             if (!manifold_view.contains(edge_entity)) return;
 
             auto &manifold = manifold_view.get<contact_manifold>(edge_entity);

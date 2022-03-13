@@ -80,7 +80,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     m_registry.prepare<collision_exclusion>();
 
     m_island_entity = m_registry.create();
-    m_entity_map.insert(island_entity, m_island_entity);
+    m_entity_map[island_entity] = m_island_entity;
 
     m_this_job.func = &island_worker_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
@@ -141,12 +141,6 @@ void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::
     if (!importing && !splitting) {
         m_delta_builder->destroyed(entity);
     }
-
-    // Mapping might not yet exist if this entity was just created locally and
-    // the coordinator has not yet replied back with the main entity id.
-    if (m_entity_map.has_loc(entity)) {
-        m_entity_map.erase_loc(entity);
-    }
 }
 
 void island_worker::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
@@ -161,7 +155,8 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
 
     m_destroying_node = true;
 
-    graph.visit_edges(node.node_index, [&] (entt::entity edge_entity) {
+    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+        auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
     });
 
@@ -173,10 +168,6 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
     if (!m_importing_delta &&
         !m_splitting.load(std::memory_order_relaxed)) {
         m_delta_builder->destroyed(entity);
-    }
-
-    if (m_entity_map.has_loc(entity)) {
-        m_entity_map.erase_loc(entity);
     }
 }
 
@@ -191,10 +182,6 @@ void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity
     if (!m_importing_delta &&
         !m_splitting.load(std::memory_order_relaxed)) {
         m_delta_builder->destroyed(entity);
-    }
-
-    if (m_entity_map.has_loc(entity)) {
-        m_entity_map.erase_loc(entity);
     }
 
     m_topology_changed = true;
@@ -222,9 +209,8 @@ void island_worker::on_island_delta(const island_delta &delta) {
     delta.import(m_registry, m_entity_map);
 
     for (auto remote_entity : delta.created_entities()) {
-        if (!m_entity_map.has_rem(remote_entity)) continue;
-        if (m_delta_builder->has_rem(remote_entity)) continue;
-        auto local_entity = m_entity_map.remloc(remote_entity);
+        if (!m_entity_map.count(remote_entity)) continue;
+        auto local_entity = m_entity_map.at(remote_entity);
         m_delta_builder->insert_entity_mapping(remote_entity, local_entity);
     }
 
@@ -243,9 +229,9 @@ void island_worker::on_island_delta(const island_delta &delta) {
 
     // Insert edges in the graph for constraints.
     delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
+        if (!m_entity_map.count(remote_entity)) return;
 
-        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
 
         if (m_registry.any_of<graph_edge>(local_entity)) return;
 
@@ -258,9 +244,9 @@ void island_worker::on_island_delta(const island_delta &delta) {
     // When orientation is set manually, a few dependent components must be
     // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
     delta.updated_for_each<orientation>([&] (entt::entity remote_entity, const orientation &orn) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
+        if (!m_entity_map.count(remote_entity)) return;
 
-        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
             auto &com = m_registry.get<center_of_mass>(local_entity);
@@ -283,9 +269,9 @@ void island_worker::on_island_delta(const island_delta &delta) {
 
     // When position is set manually, the AABB and cached origin must be updated.
     delta.updated_for_each<position>([&] (entt::entity remote_entity, const position &pos) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
+        if (!m_entity_map.count(remote_entity)) return;
 
-        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
             auto &com = m_registry.get<center_of_mass>(local_entity);
@@ -731,9 +717,9 @@ void island_worker::init_new_shapes() {
 }
 
 void island_worker::insert_remote_node(entt::entity remote_entity) {
-    if (!m_entity_map.has_rem(remote_entity)) return;
+    if (!m_entity_map.count(remote_entity)) return;
 
-    auto local_entity = m_entity_map.remloc(remote_entity);
+    auto local_entity = m_entity_map.at(remote_entity);
     auto non_connecting = !m_registry.any_of<procedural_tag>(local_entity);
 
     auto &graph = m_registry.ctx<entity_graph>();
@@ -825,7 +811,7 @@ void island_worker::on_set_material_table(const msg::set_material_table &msg) {
 }
 
 void island_worker::on_set_com(const msg::set_com &msg) {
-    auto entity = m_entity_map.remloc(msg.entity);
+    auto entity = m_entity_map.at(msg.entity);
     apply_center_of_mass(m_registry, entity, msg.com);
 }
 
@@ -890,6 +876,15 @@ entity_graph::connected_components_t island_worker::split() {
 
         // All edges connecting to the destroyed nodes will be destroyed as well
         // in `on_destroy_graph_node()`.
+    }
+
+    // Remove invalid entities from entity map.
+    for (auto it = m_entity_map.begin(); it != m_entity_map.end();) {
+        if (!m_registry.valid(it->second)) {
+            it = m_entity_map.erase(it);
+        } else {
+            ++it;
+        }
     }
 
     // Refresh island tree view after nodes are removed and send it back to

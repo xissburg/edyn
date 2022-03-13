@@ -327,7 +327,7 @@ entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_poi
  * points and contact constraints can be obtained from it.
  * @tparam Func Visitor function type.
  * @param entity Node entity.
- * @param func Vistor function with signature `void(entt::entity)`.
+ * @param func Vistor function with signature `void(index_type)`.
  */
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {

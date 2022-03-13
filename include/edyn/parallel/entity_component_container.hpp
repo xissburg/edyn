@@ -12,7 +12,7 @@ namespace edyn {
 
 struct entity_component_container_base {
     virtual ~entity_component_container_base() {}
-    virtual void import(entt::registry &, entity_map &) = 0;
+    virtual void import(entt::registry &, const entity_map &) = 0;
     virtual void reserve(size_t size) = 0;
     virtual bool empty() const = 0;
     virtual void clear() = 0;
@@ -28,11 +28,11 @@ struct updated_entity_component_container : public entity_component_container_ba
         pairs.emplace_back(entity, comp);
     }
 
-    void import(entt::registry &registry, entity_map &emap) override {
+    void import(entt::registry &registry, const entity_map &emap) override {
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
-            if (!emap.has_rem(remote_entity)) continue;
-            auto local_entity = emap.remloc(remote_entity);
+            if (!emap.count(remote_entity)) continue;
+            auto local_entity = emap.at(remote_entity);
 
             internal::import_child_entity(registry, emap, pair.second);
             registry.replace<Component>(local_entity, pair.second);
@@ -60,19 +60,19 @@ struct created_entity_component_container : public entity_component_container_ba
         pairs.emplace_back(entity, comp);
     }
 
-    void import(entt::registry &registry, entity_map &emap) override {
+    void import(entt::registry &registry, const entity_map &emap) override {
         size_t index = 0;
 
         while (index < pairs.size()) {
             auto &pair = pairs[index];
             auto remote_entity = pair.first;
 
-            if (!emap.has_rem(remote_entity)) {
+            if (!emap.count(remote_entity)) {
                 ++index;
                 continue;
             }
 
-            auto local_entity = emap.remloc(remote_entity);
+            auto local_entity = emap.at(remote_entity);
 
             // If it's a duplicate, remove it from the array by swapping with last
             // and popping last. This ensures no duplicates after processing, which
@@ -111,10 +111,10 @@ template<typename Component>
 struct destroyed_entity_component_container : public entity_component_container_base {
     std::vector<entt::entity> entities;
 
-    void import(entt::registry &registry, entity_map &map) override {
+    void import(entt::registry &registry, const entity_map &map) override {
         for (auto remote_entity : entities) {
-            if (!map.has_rem(remote_entity)) continue;
-            auto local_entity = map.remloc(remote_entity);
+            if (!map.count(remote_entity)) continue;
+            auto local_entity = map.at(remote_entity);
             registry.remove<Component>(local_entity);
         }
     }
