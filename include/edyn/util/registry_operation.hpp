@@ -199,7 +199,7 @@ public:
     std::vector<entt::entity> entities;
     std::shared_ptr<component_operation> components;
 
-    void execute(entt::registry &registry, entity_map &entity_map, bool mark_dirty) const {
+    void execute(entt::registry &registry, entity_map &entity_map, bool mark_dirty = false) const {
         switch (operation) {
         case registry_op_type::create:
             execute_create(registry, entity_map, mark_dirty);
@@ -258,7 +258,7 @@ public:
 
     void execute(entt::registry &registry,
                  entity_map &entity_map,
-                 bool mark_dirty) const {
+                 bool mark_dirty = false) const {
         for (auto &op : operations) {
             op.execute(registry, entity_map, mark_dirty);
         }
@@ -356,7 +356,7 @@ class registry_operations_builder {
     }
 
     template<typename Component, typename It>
-    void insert_components(const entt::registry &registry, registry_op_type op_type, It first, It last) {
+    void insert_components(const entt::registry &registry, registry_op_type op_type, It first, It last, bool check = false) {
         EDYN_ASSERT(op_type == registry_op_type::emplace ||
                     op_type == registry_op_type::replace ||
                     op_type == registry_op_type::remove);
@@ -366,7 +366,9 @@ class registry_operations_builder {
 
         for (; first != last; ++first) {
             auto entity = *first;
-            insert_components<Component>(view, op, entity);
+            if (!check || view.contains(entity)) {
+                insert_components<Component>(view, op, entity);
+            }
         }
     }
 
@@ -396,8 +398,8 @@ public:
     }
 
     template<typename Component, typename It>
-    void emplace(const entt::registry &registry, It first, It last) {
-        insert_components<Component>(registry, registry_op_type::emplace, first, last);
+    void emplace(const entt::registry &registry, It first, It last, bool check = false) {
+        insert_components<Component>(registry, registry_op_type::emplace, first, last, check);
     }
 
     template<typename Component>
@@ -410,12 +412,13 @@ public:
     void emplace(const entt::registry &registry, entt::entity entity) {
         auto &op = find_or_create_component_operation<Component>(registry_op_type::emplace);
         auto view = registry.view<Component>();
+        EDYN_ASSERT(registry.all_of<Component>(entity));
         insert_components<Component>(view, op, entity);
     }
 
     template<typename Component, typename It>
-    void replace(const entt::registry &registry, It first, It last) {
-        insert_components<Component>(registry, registry_op_type::replace, first, last);
+    void replace(const entt::registry &registry, It first, It last, bool check = false) {
+        insert_components<Component>(registry, registry_op_type::replace, first, last, check);
     }
 
     template<typename Component>
@@ -428,12 +431,13 @@ public:
     void replace(const entt::registry &registry, entt::entity entity) {
         auto &op = find_or_create_component_operation<Component>(registry_op_type::replace);
         auto view = registry.view<Component>();
+        EDYN_ASSERT(registry.all_of<Component>(entity));
         insert_components<Component>(view, op, entity);
     }
 
     template<typename Component, typename It>
-    void remove(const entt::registry &registry, It first, It last) {
-        insert_components<Component>(registry, registry_op_type::remove, first, last);
+    void remove(const entt::registry &registry, It first, It last, bool check = false) {
+        insert_components<Component>(registry, registry_op_type::remove, first, last, check);
     }
 
     template<typename Component>
@@ -446,6 +450,7 @@ public:
     void remove(const entt::registry &registry, entt::entity entity) {
         auto &op = find_or_create_component_operation<Component>(registry_op_type::remove);
         auto view = registry.view<Component>();
+        EDYN_ASSERT(!registry.all_of<Component>(entity));
         insert_components<Component>(view, op, entity);
     }
 
@@ -480,27 +485,27 @@ template<typename... Components>
 class registry_operations_builder_impl : public registry_operations_builder {
 public:
     void emplace_all(const entt::registry &registry, const std::vector<entt::entity> &entities) override {
-        (emplace<Components>(registry, entities.begin(), entities.end()), ...);
+        (emplace<Components>(registry, entities.begin(), entities.end(), true), ...);
     }
 
     void replace_all(const entt::registry &registry, const std::vector<entt::entity> &entities) override {
-        (replace<Components>(registry, entities.begin(), entities.end()), ...);
+        (replace<Components>(registry, entities.begin(), entities.end(), true), ...);
     }
 
     void remove_all(const entt::registry &registry, const std::vector<entt::entity> &entities) override {
-        (remove<Components>(registry, entities.begin(), entities.end()), ...);
+        (remove<Components>(registry, entities.begin(), entities.end(), true), ...);
     }
 
     void emplace_all(const entt::registry &registry, entt::entity entity) override {
-        (emplace<Components>(registry, entity), ...);
+        ((registry.all_of<Components>(entity) ? emplace<Components>(registry, entity) : (void)0), ...);
     }
 
     void replace_all(const entt::registry &registry, entt::entity entity) override {
-        (replace<Components>(registry, entity), ...);
+        ((registry.all_of<Components>(entity) ? replace<Components>(registry, entity) : (void)0), ...);
     }
 
     void remove_all(const entt::registry &registry, entt::entity entity) override {
-        (remove<Components>(registry, entity), ...);
+        ((registry.all_of<Components>(entity) ? remove<Components>(registry, entity) : (void)0), ...);
     }
 
     void emplace_type_id(const entt::registry &registry, entt::entity entity, entt::id_type id) override {
