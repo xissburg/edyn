@@ -94,6 +94,7 @@ add_library(Edyn
     src/edyn/util/triangle_util.cpp
     src/edyn/util/ragdoll.cpp
     src/edyn/util/exclude_collision.cpp
+    src/edyn/util/make_reg_op_builder.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
@@ -106,10 +107,7 @@ add_library(Edyn
     src/edyn/parallel/job_queue_scheduler.cpp
     src/edyn/parallel/island_worker.cpp
     src/edyn/parallel/island_coordinator.cpp
-    src/edyn/parallel/island_delta.cpp
-    src/edyn/parallel/island_delta_builder.cpp
     src/edyn/parallel/island_worker_context.cpp
-    src/edyn/parallel/make_island_delta_builder.cpp
     src/edyn/parallel/import_child_entity.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/context/settings.cpp

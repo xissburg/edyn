@@ -1,11 +1,11 @@
 #include "edyn/context/settings.hpp"
-#include "edyn/parallel/island_delta_builder.hpp"
+#include "edyn/util/registry_operation.hpp"
 
 namespace edyn {
 
-std::unique_ptr<island_delta_builder> make_island_delta_builder_default() {
-    return std::unique_ptr<island_delta_builder>(
-        new island_delta_builder_impl(shared_components));
+std::unique_ptr<registry_operation_builder> make_reg_op_builder_default() {
+    return std::unique_ptr<registry_operation_builder>(
+        new registry_operation_builder_impl(shared_components));
 }
 
 }

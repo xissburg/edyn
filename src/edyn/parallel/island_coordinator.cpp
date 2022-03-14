@@ -11,7 +11,6 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/parallel/island_delta.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/time/time.hpp"
@@ -19,6 +18,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/util/vector.hpp"
+#include "edyn/util/registry_operation.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include <entt/entity/registry.hpp>
@@ -111,7 +111,7 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
 
     // Notify the worker of the destruction which happened in the main registry
     // first.
-    ctx->m_delta_builder->destroyed(entity);
+    ctx->m_op_builder->destroy(entity);
 
     // Manually call these on_destroy functions since they could be triggered
     // by the EnTT delegate after the island resident is destroyed and the island
@@ -131,7 +131,7 @@ void island_coordinator::on_destroy_multi_island_resident(entt::registry &regist
 
         if (!m_importing_delta)  {
             auto &ctx = m_island_ctx_map.at(island_entity);
-            ctx->m_delta_builder->destroyed(entity);
+            ctx->m_op_builder->destroy(entity);
         }
     }
 }
@@ -303,8 +303,8 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
         if (!resident.island_entities.contains(other_resident.island_entity)) {
             resident.island_entities.emplace(other_resident.island_entity);
             auto &ctx = m_island_ctx_map.at(other_resident.island_entity);
-            ctx->m_delta_builder->created(node_entity);
-            ctx->m_delta_builder->created_all(node_entity, *m_registry);
+            ctx->m_op_builder->create(node_entity);
+            ctx->m_op_builder->emplace_all(*m_registry, node_entity);
         }
     });
 }
@@ -331,7 +331,7 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping,
                                      message_queue_in_out(main_queue_input, isle_queue_output));
 
     m_island_ctx_map[island_entity] = std::make_unique<island_worker_context>(
-        island_entity, worker, (*settings.make_island_delta_builder)(),
+        island_entity, worker, (*settings.make_reg_op_builder)(),
         message_queue_in_out(isle_queue_input, main_queue_output));
 
     auto &ctx = m_island_ctx_map[island_entity];
@@ -340,22 +340,22 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping,
     // the local island entity.
     ctx->m_entity_map[worker->island_entity()] = island_entity;
 
-    // Register to receive delta.
-    ctx->island_delta_sink().connect<&island_coordinator::on_island_delta>(*this);
+    // Register to receive registry operations.
+    ctx->reg_op_sink().connect<&island_coordinator::on_island_reg_ops>(*this);
     ctx->split_island_sink().connect<&island_coordinator::on_split_island>(*this);
 
-    // Send over a delta containing this island entity to the island worker
+    // Send over an op containing this island entity to the island worker
     // before it even starts.
-    ctx->m_delta_builder->created(island_entity, isle_time);
+    ctx->m_op_builder->emplace<island_timestamp>(*m_registry, island_entity);
 
     if (sleeping) {
         m_registry->emplace<sleeping_tag>(island_entity);
-        ctx->m_delta_builder->created(island_entity, sleeping_tag{});
+        ctx->m_op_builder->emplace<sleeping_tag>(*m_registry, island_entity);
     }
 
     insert_to_island(*ctx, nodes, edges);
 
-    ctx->send<island_delta>(ctx->m_delta_builder->finish());
+    ctx->send<msg::island_reg_ops>(ctx->m_op_builder->finish());
 
     // Create tree_view for this island using the procedural node AABBs. This
     // ensures expectations will be met after this function call, or else this
@@ -402,33 +402,23 @@ void island_coordinator::insert_to_island(island_worker_context &ctx,
 
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
-    auto manifold_view = m_registry->view<contact_manifold>();
     auto procedural_view = m_registry->view<procedural_tag>();
-
-    // Calculate total number of certain kinds of entities to later reserve
-    // the expected number of components for better performance.
-
-    ctx.m_delta_builder->reserve_created(nodes.size() + edges.size());
-    ctx.m_delta_builder->reserve_created<contact_constraint>(manifold_view.size());
-    ctx.m_delta_builder->reserve_created<contact_manifold>(manifold_view.size());
-    ctx.m_delta_builder->reserve_created<position, orientation, linvel, angvel, continuous>(nodes.size());
-    ctx.m_delta_builder->reserve_created<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>(nodes.size());
     auto island_entity = ctx.island_entity();
 
     for (auto entity : nodes) {
         if (procedural_view.contains(entity)) {
             auto &resident = resident_view.get<island_resident>(entity);
             resident.island_entity = island_entity;
-            ctx.m_delta_builder->created(entity);
-            ctx.m_delta_builder->created_all(entity, *m_registry);
+            ctx.m_op_builder->create(entity);
+            ctx.m_op_builder->emplace_all(*m_registry, entity);
         } else {
             auto &resident = multi_resident_view.get<multi_island_resident>(entity);
 
             if (resident.island_entities.contains(island_entity) == 0) {
                 // Non-procedural entity is not yet in this island, thus create it.
                 resident.island_entities.emplace(island_entity);
-                ctx.m_delta_builder->created(entity);
-                ctx.m_delta_builder->created_all(entity, *m_registry);
+                ctx.m_op_builder->create(entity);
+                ctx.m_op_builder->emplace_all(*m_registry, entity);
             }
         }
     }
@@ -438,10 +428,10 @@ void island_coordinator::insert_to_island(island_worker_context &ctx,
         // `island_resident`, which refers to a single island.
         auto &resident = resident_view.get<island_resident>(entity);
         resident.island_entity = island_entity;
-        // Add new entities to the delta builder.
-        ctx.m_delta_builder->created(entity);
-        ctx.m_delta_builder->created_all(entity, *m_registry);
     }
+
+    ctx.m_op_builder->create(edges.begin(), edges.end());
+    ctx.m_op_builder->emplace_all(*m_registry, edges);
 }
 
 entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &island_entities,
@@ -540,17 +530,17 @@ void island_coordinator::refresh_dirty_entities() {
         }
 
         auto &ctx = m_island_ctx_map.at(island_entity);
-        auto &builder = ctx->m_delta_builder;
+        auto &builder = ctx->m_op_builder;
 
         if (dirty.is_new_entity) {
-            builder->created(entity);
+            builder->create(entity);
         }
 
-        builder->created(entity, *m_registry,
+        builder->emplace_type_ids(*m_registry, entity,
             dirty.created_indexes.begin(), dirty.created_indexes.end());
-        builder->updated(entity, *m_registry,
+        builder->replace_type_ids(*m_registry, entity,
             dirty.updated_indexes.begin(), dirty.updated_indexes.end());
-        builder->destroyed(entity,
+        builder->remove_type_ids(*m_registry, entity,
             dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
     };
 
@@ -568,17 +558,18 @@ void island_coordinator::refresh_dirty_entities() {
     m_registry->clear<dirty>();
 }
 
-void island_coordinator::on_island_delta(entt::entity source_island_entity, const island_delta &delta) {
+void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, const msg::island_reg_ops &msg) {
     m_importing_delta = true;
     auto &source_ctx = m_island_ctx_map.at(source_island_entity);
-    delta.import(*m_registry, source_ctx->m_entity_map);
+    msg.ops.execute(*m_registry, source_ctx->m_entity_map);
 
-    // Insert entity mappings for new entities into the current delta.
-    for (auto remote_entity : delta.created_entities()) {
-        if (!source_ctx->m_entity_map.count(remote_entity)) continue;
-        auto local_entity = source_ctx->m_entity_map.at(remote_entity);
-        source_ctx->m_delta_builder->insert_entity_mapping(remote_entity, local_entity);
-    }
+    // Insert entity mappings for new entities into the current op.
+    msg.ops.create_for_each([&] (entt::entity remote_entity) {
+        if (source_ctx->m_entity_map.count(remote_entity)) {
+            auto local_entity = source_ctx->m_entity_map.at(remote_entity);
+            source_ctx->m_op_builder->add_entity_mapping(local_entity, remote_entity);
+        }
+    });
 
     auto procedural_view = m_registry->view<procedural_tag>();
     auto node_view = m_registry->view<graph_node>();
@@ -586,7 +577,7 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
 
     // Insert nodes in the graph for each rigid body.
     auto &graph = m_registry->ctx<entity_graph>();
-    auto insert_node = [&] (entt::entity remote_entity, auto &) {
+    auto insert_node = [&] (entt::entity remote_entity) {
         if (!source_ctx->m_entity_map.count(remote_entity)) return;
 
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
@@ -604,21 +595,21 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
         island.nodes.emplace(local_entity);
     };
 
-    delta.created_for_each<dynamic_tag>(insert_node);
-    delta.created_for_each<static_tag>(insert_node);
-    delta.created_for_each<kinematic_tag>(insert_node);
-    delta.created_for_each<external_tag>(insert_node);
+    msg.ops.emplace_for_each<dynamic_tag>(insert_node);
+    msg.ops.emplace_for_each<static_tag>(insert_node);
+    msg.ops.emplace_for_each<kinematic_tag>(insert_node);
+    msg.ops.emplace_for_each<external_tag>(insert_node);
 
     // Insert edges in the graph for constraints.
-    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
+    msg.ops.emplace_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
         if (!source_ctx->m_entity_map.count(remote_entity)) return;
 
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
 
         if (m_registry->any_of<graph_edge>(local_entity)) return;
 
-        auto &node0 = node_view.get<graph_node>(con.body[0]);
-        auto &node1 = node_view.get<graph_node>(con.body[1]);
+        auto &node0 = node_view.get<graph_node>(source_ctx->m_entity_map.at(con.body[0]));
+        auto &node1 = node_view.get<graph_node>(source_ctx->m_entity_map.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry->emplace<graph_edge>(local_entity, edge_index);
         m_registry->emplace<island_resident>(local_entity, source_island_entity);
@@ -628,8 +619,8 @@ void island_coordinator::on_island_delta(entt::entity source_island_entity, cons
     m_importing_delta = false;
 
     // Generate contact events.
-    delta.updated_for_each<contact_manifold_events>([&] (entt::entity remote_entity,
-                                                         const contact_manifold_events &events) {
+    msg.ops.replace_for_each<contact_manifold_events>([&] (entt::entity remote_entity,
+                                                           const contact_manifold_events &events) {
         auto manifold_entity = source_ctx->m_entity_map.at(remote_entity);
 
         if (events.contact_started) {
@@ -746,11 +737,10 @@ void island_coordinator::sync() {
         auto island_entity = pair.first;
         auto &ctx = pair.second;
 
-        if (!ctx->delta_empty()) {
-            auto needs_wakeup = ctx->delta_needs_wakeup();
-            ctx->send_delta();
+        if (!ctx->reg_ops_empty()) {
+            ctx->send_reg_ops();
 
-            if (needs_wakeup && m_registry->any_of<sleeping_tag>(island_entity)) {
+            if (m_registry->any_of<sleeping_tag>(island_entity)) {
                 ctx->send<msg::wake_up_island>();
             }
         }

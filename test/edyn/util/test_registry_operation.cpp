@@ -48,7 +48,7 @@ TEST(test_registry_operation, test_components) {
     auto ent01 = reg0.create();
     reg0.emplace<comp_with_entity>(ent00, ent01);
 
-    auto builder = edyn::registry_operations_builder_impl{};
+    auto builder = edyn::registry_operation_builder_impl<comp_with_entity>{};
     auto ent0_arr = std::array{ent00, ent01};
     builder.create(ent0_arr.begin(), ent0_arr.end());
     builder.emplace<comp_with_entity>(reg0, ent00);
@@ -113,8 +113,8 @@ TEST(test_registry_operation, test_impl) {
     reg0.emplace<comp_with_entity>(ent00, ent01);
     reg0.emplace<another_comp>(ent01, 1.618);
 
-    edyn::registry_operations_builder *builder =
-        new edyn::registry_operations_builder_impl<comp_with_entity, another_comp>;
+    edyn::registry_operation_builder *builder =
+        new edyn::registry_operation_builder_impl<comp_with_entity, another_comp>;
 
     builder->create(ent00);
     builder->create(ent01);

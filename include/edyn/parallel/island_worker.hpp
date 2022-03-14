@@ -17,8 +17,7 @@
 namespace edyn {
 
 struct settings;
-class island_delta;
-class island_delta_builder;
+class registry_operation_builder;
 
 void island_worker_func(job::data_type &);
 
@@ -74,8 +73,6 @@ public:
         return m_island_entity;
     }
 
-    void on_island_delta(const island_delta &delta);
-
     void reschedule();
 
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
@@ -86,6 +83,7 @@ public:
     void on_construct_compound_shape(entt::registry &, entt::entity);
     void on_destroy_rotated_mesh_list(entt::registry &, entt::entity);
 
+    void on_island_reg_ops(const msg::island_reg_ops &msg);
     void on_set_paused(const msg::set_paused &msg);
     void on_step_simulation(const msg::step_simulation &msg);
     void on_set_settings(const msg::set_settings &msg);
@@ -115,7 +113,7 @@ private:
     state m_state;
     std::atomic<bool> m_splitting;
 
-    std::unique_ptr<island_delta_builder> m_delta_builder;
+    std::unique_ptr<registry_operation_builder> m_op_builder;
     bool m_importing_delta;
     bool m_destroying_node;
     bool m_topology_changed;
