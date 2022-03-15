@@ -10,7 +10,7 @@ class registry_operation_builder;
 
 /**
  * @brief Function type of a factory function that creates instances of a
- * registry delta builder implementation.
+ * registry operations builder implementation.
  */
 using make_reg_op_builder_func_t = std::unique_ptr<registry_operation_builder>(*)();
 

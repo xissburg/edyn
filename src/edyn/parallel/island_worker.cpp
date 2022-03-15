@@ -62,7 +62,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     , m_state(state::init)
     , m_solver(m_registry)
     , m_op_builder((*settings.make_reg_op_builder)())
-    , m_importing_delta(false)
+    , m_importing(false)
     , m_destroying_node(false)
     , m_topology_changed(false)
     , m_pending_split_calculation(false)
@@ -131,12 +131,12 @@ void island_worker::init() {
 }
 
 void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
-    const auto importing = m_importing_delta;
+    const auto importing = m_importing;
     const auto splitting = m_splitting.load(std::memory_order_relaxed);
 
-    // If importing, do not insert this event into the delta because the entity
+    // If importing, do not insert this event into the op because the entity
     // was already destroyed in the coordinator.
-    // If splitting, do not insert this destruction event into the delta because
+    // If splitting, do not insert this destruction event into the op because
     // the entity is not actually being destroyed, it's just being moved into
     // another island.
     if (!importing && !splitting) {
@@ -166,7 +166,7 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
 
-    if (!m_importing_delta &&
+    if (!m_importing &&
         !m_splitting.load(std::memory_order_relaxed)) {
         m_op_builder->destroy(entity);
     }
@@ -180,7 +180,7 @@ void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity
         graph.remove_edge(edge.edge_index);
     }
 
-    if (!m_importing_delta &&
+    if (!m_importing &&
         !m_splitting.load(std::memory_order_relaxed)) {
         m_op_builder->destroy(entity);
     }
@@ -206,7 +206,7 @@ void island_worker::on_destroy_rotated_mesh_list(entt::registry &registry, entt:
 
 void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     // Import components from main registry.
-    m_importing_delta = true;
+    m_importing = true;
     msg.ops.execute(m_registry, m_entity_map);
 
     msg.ops.create_for_each([&] (entt::entity remote_entity) {
@@ -286,7 +286,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
         }
     });
 
-    m_importing_delta = false;
+    m_importing = false;
 }
 
 void island_worker::on_wake_up_island(const msg::wake_up_island &) {

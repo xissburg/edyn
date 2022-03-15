@@ -114,7 +114,7 @@ private:
     std::atomic<bool> m_splitting;
 
     std::unique_ptr<registry_operation_builder> m_op_builder;
-    bool m_importing_delta;
+    bool m_importing;
     bool m_destroying_node;
     bool m_topology_changed;
     bool m_pending_split_calculation;

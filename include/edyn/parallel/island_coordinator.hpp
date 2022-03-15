@@ -108,7 +108,7 @@ private:
     std::vector<entt::entity> m_new_graph_edges;
     std::vector<entt::entity> m_islands_to_split;
 
-    bool m_importing_delta {false};
+    bool m_importing {false};
     double m_timestamp;
 };
 

@@ -48,7 +48,7 @@ island_coordinator::~island_coordinator() {
 }
 
 void island_coordinator::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
+    if (m_importing) return;
 
     m_new_graph_nodes.push_back(entity);
 
@@ -60,7 +60,7 @@ void island_coordinator::on_construct_graph_node(entt::registry &registry, entt:
 }
 
 void island_coordinator::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
-    if (m_importing_delta) return;
+    if (m_importing) return;
 
     m_new_graph_edges.push_back(entity);
     // Assuming this graph edge is a constraint or contact manifold, which
@@ -105,7 +105,7 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
         island.edges.erase(entity);
     }
 
-    if (m_importing_delta) return;
+    if (m_importing) return;
 
     auto &ctx = m_island_ctx_map.at(resident.island_entity);
 
@@ -129,7 +129,7 @@ void island_coordinator::on_destroy_multi_island_resident(entt::registry &regist
         auto &island = registry.get<edyn::island>(island_entity);
         island.nodes.erase(entity);
 
-        if (!m_importing_delta)  {
+        if (!m_importing)  {
             auto &ctx = m_island_ctx_map.at(island_entity);
             ctx->m_op_builder->destroy(entity);
         }
@@ -559,7 +559,7 @@ void island_coordinator::refresh_dirty_entities() {
 }
 
 void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, const msg::island_reg_ops &msg) {
-    m_importing_delta = true;
+    m_importing = true;
     auto &source_ctx = m_island_ctx_map.at(source_island_entity);
     msg.ops.execute(*m_registry, source_ctx->m_entity_map);
 
@@ -616,7 +616,7 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
         island.edges.emplace(local_entity);
     });
 
-    m_importing_delta = false;
+    m_importing = false;
 
     // Generate contact events.
     msg.ops.replace_for_each<contact_manifold_events>([&] (entt::entity remote_entity,
