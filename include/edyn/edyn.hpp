@@ -35,7 +35,7 @@
 #include "parallel/message_queue.hpp"
 #include "parallel/island_coordinator.hpp"
 #include "util/moment_of_inertia.hpp"
-#include "util/registry_operation.hpp"
+#include "util/registry_operation_builder.hpp"
 #include "collision/contact_manifold_map.hpp"
 #include "context/settings.hpp"
 #include "collision/raycast.hpp"

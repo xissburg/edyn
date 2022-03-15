@@ -1,5 +1,5 @@
 #include "edyn/util/make_reg_op_builder.hpp"
-#include "edyn/util/registry_operation.hpp"
+#include "edyn/util/registry_operation_builder.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/config/config.h"
 #include <entt/entity/registry.hpp>

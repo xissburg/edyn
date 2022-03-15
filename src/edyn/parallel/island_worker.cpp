@@ -31,6 +31,7 @@
 #include "edyn/util/vector.hpp"
 #include "edyn/util/collision_util.hpp"
 #include "edyn/util/registry_operation.hpp"
+#include "edyn/util/registry_operation_builder.hpp"
 #include "edyn/context/settings.hpp"
 #include <memory>
 #include <variant>
