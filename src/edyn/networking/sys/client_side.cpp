@@ -192,6 +192,7 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
 }
 
 static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
+    // Result contains entities already mapped into the main registry space.
     // Entities could've been destroyed while extrapolation was running.
     auto invalid_it = std::remove_if(result.entities.begin(), result.entities.end(),
                                      [&] (auto entity) { return !registry.valid(entity); });

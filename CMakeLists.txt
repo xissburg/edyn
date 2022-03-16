@@ -146,7 +146,7 @@ if(WIN32)
     target_link_libraries(Edyn
          PUBLIC
              winmm
-     )
+    )
 endif()
 
 target_include_directories(Edyn

@@ -123,8 +123,8 @@ class component_operation_impl : public component_operation {
     template<typename T = Component>
     typename std::enable_if_t<std::is_same_v<T, entt::entity>>
     execute_ent_map(const entt::registry &registry,
-                         const std::vector<entt::entity> &entities,
-                         entity_map &entity_map) const {
+                    const std::vector<entt::entity> &entities,
+                    entity_map &entity_map) const {
         // Component operations are cleverly used to insert entity mappings,
         // thus not requiring a separate means of doing so. Local entities
         // are inserted as components which are related directly to the
@@ -347,6 +347,11 @@ public:
     template<typename... Component, typename Func>
     void remove_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
         (for_each_comp<Component>(registry_op_type::remove, func), ...);
+    }
+
+    template<typename Func>
+    void ent_map_for_each(Func func) const {
+        for_each_comp<entt::entity>(registry_op_type::ent_map, func);
     }
 };
 

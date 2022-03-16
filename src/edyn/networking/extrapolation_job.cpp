@@ -254,6 +254,7 @@ void extrapolation_job::sync_and_finish() {
     if (m_input.should_remap) {
         entity_map remap;
 
+        // Create reverse entity map.
         for (auto [remote_entity, local_entity] : m_entity_map) {
             remap[local_entity] = remote_entity;
         }
