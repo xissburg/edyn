@@ -5,33 +5,33 @@
 #include <memory>
 #include <entt/entity/sparse_set.hpp>
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/networking/extrapolation_component_pool.hpp"
+#include "edyn/util/registry_operation.hpp"
 
 namespace edyn {
 
 struct extrapolation_result {
     std::vector<entt::entity> entities;
-    std::vector<std::shared_ptr<extrapolation_component_pool>> pools;
+    registry_operation_collection ops;
     std::vector<contact_manifold> manifolds;
     bool terminated_early {false};
     double timestamp;
 
-    void convert_locrem(const entt::registry &registry, entity_map &emap) {
+    void remap(entity_map &emap) {
         for (auto &entity : entities) {
-            entity = emap.locrem(entity);
+            entity = emap.at(entity);
         }
 
-        for (auto &pool : pools) {
-            pool->convert_locrem(registry, emap);
+        for (auto &op : ops.operations) {
+            op.remap(emap);
         }
 
         auto remove_it = std::remove_if(manifolds.begin(), manifolds.end(), [&] (contact_manifold &manifold) {
-            if (!emap.has_rem(manifold.body[0]) || !emap.has_rem(manifold.body[1])) {
+            if (!emap.count(manifold.body[0]) || !emap.count(manifold.body[1])) {
                 return true;
             }
 
-            manifold.body[0] = emap.locrem(manifold.body[0]);
-            manifold.body[1] = emap.locrem(manifold.body[1]);
+            manifold.body[0] = emap.at(manifold.body[0]);
+            manifold.body[1] = emap.at(manifold.body[1]);
             return false;
         });
         manifolds.erase(remove_it, manifolds.end());

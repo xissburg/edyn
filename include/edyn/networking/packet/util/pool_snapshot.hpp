@@ -13,8 +13,7 @@
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/util/tuple_util.hpp"
-#include "edyn/parallel/entity_component_container.hpp"
-#include "edyn/parallel/import_child_entity.hpp"
+#include "edyn/parallel/map_child_entity.hpp"
 
 namespace edyn {
 
@@ -50,12 +49,12 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
     void convert_remloc(const entt::registry &registry, entity_map &emap) override {
         if constexpr(is_empty_type) {
             for (auto &entity : data) {
-                entity = emap.remloc(entity);
+                entity = emap.at(entity);
             }
         } else {
             for (auto &pair : data) {
-                pair.first = emap.remloc(pair.first);
-                internal::import_child_entity(registry, emap, pair.second);
+                pair.first = emap.at(pair.first);
+                internal::map_child_entity(registry, emap, pair.second);
             }
         }
     }
@@ -72,12 +71,12 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         if constexpr(!is_empty_type) {
             for (auto &pair : data) {
                 auto remote_entity = pair.first;
-                if (!emap.has_rem(remote_entity)) continue;
-                auto local_entity = emap.remloc(pair.first);
+                if (!emap.count(remote_entity)) continue;
+                auto local_entity = emap.at(pair.first);
                 if (!registry.valid(local_entity)) continue;
                 if (!registry.all_of<Component>(local_entity)) continue;
                 auto &comp = pair.second;
-                internal::import_child_entity(registry, emap, comp);
+                internal::map_child_entity(registry, emap, comp);
                 registry.replace<Component>(local_entity, comp);
             }
         }

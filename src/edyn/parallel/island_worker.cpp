@@ -6,6 +6,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
+#include "edyn/math/vector3.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/shapes/compound_shape.hpp"
@@ -16,7 +17,6 @@
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
-#include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/comp/dirty.hpp"
@@ -31,6 +31,8 @@
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/util/collision_util.hpp"
+#include "edyn/util/registry_operation.hpp"
+#include "edyn/util/registry_operation_builder.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
@@ -64,8 +66,8 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     , m_splitting(false)
     , m_state(state::init)
     , m_solver(m_registry)
-    , m_delta_builder((*settings.make_island_delta_builder)())
-    , m_importing_delta(false)
+    , m_op_builder((*settings.make_reg_op_builder)())
+    , m_importing(false)
     , m_destroying_node(false)
     , m_topology_changed(false)
     , m_pending_split_calculation(false)
@@ -85,7 +87,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     m_registry.prepare<collision_exclusion>();
 
     m_island_entity = m_registry.create();
-    m_entity_map.insert(island_entity, m_island_entity);
+    m_entity_map[island_entity] = m_island_entity;
 
     m_this_job.func = &island_worker_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
@@ -103,7 +105,7 @@ void island_worker::init() {
     m_registry.on_construct<compound_shape>().connect<&island_worker::on_construct_compound_shape>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&island_worker::on_destroy_rotated_mesh_list>(*this);
 
-    m_message_queue.sink<island_delta>().connect<&island_worker::on_island_delta>(*this);
+    m_message_queue.sink<msg::island_reg_ops>().connect<&island_worker::on_island_reg_ops>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
     m_message_queue.sink<msg::wake_up_island>().connect<&island_worker::on_wake_up_island>(*this);
@@ -120,8 +122,8 @@ void island_worker::init() {
     }
 
     // Process messages enqueued before the worker was started. This includes
-    // the island deltas containing the initial entities that were added to
-    // this island.
+    // the registry operations containing the initial entities that were added
+    // to this island.
     process_messages();
 
     if (settings.external_system_init) {
@@ -162,13 +164,9 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
 
-    if (!m_importing_delta &&
+    if (!m_importing &&
         !m_splitting.load(std::memory_order_relaxed)) {
-        m_delta_builder->destroyed(entity);
-    }
-
-    if (m_entity_map.has_loc(entity)) {
-        m_entity_map.erase_loc(entity);
+        m_op_builder->destroy(entity);
     }
 }
 
@@ -180,13 +178,9 @@ void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity
         graph.remove_edge(edge.edge_index);
     }
 
-    if (!m_importing_delta &&
+    if (!m_importing &&
         !m_splitting.load(std::memory_order_relaxed)) {
-        m_delta_builder->destroyed(entity);
-    }
-
-    if (m_entity_map.has_loc(entity)) {
-        m_entity_map.erase_loc(entity);
+        m_op_builder->destroy(entity);
     }
 
     m_topology_changed = true;
@@ -208,48 +202,46 @@ void island_worker::on_destroy_rotated_mesh_list(entt::registry &registry, entt:
     }
 }
 
-void island_worker::on_island_delta(const island_delta &delta) {
+void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     // Import components from main registry.
-    m_importing_delta = true;
-    delta.import(m_registry, m_entity_map);
+    m_importing = true;
+    msg.ops.execute(m_registry, m_entity_map);
 
-    for (auto remote_entity : delta.created_entities()) {
-        if (!m_entity_map.has_rem(remote_entity)) continue;
-        if (m_delta_builder->has_rem(remote_entity)) continue;
-        auto local_entity = m_entity_map.remloc(remote_entity);
-        m_delta_builder->insert_entity_mapping(remote_entity, local_entity);
-    }
+    msg.ops.create_for_each([&] (entt::entity remote_entity) {
+        if (m_entity_map.count(remote_entity)) {
+            auto local_entity = m_entity_map.at(remote_entity);
+            m_op_builder->add_entity_mapping(local_entity, remote_entity);
+        }
+    });
 
     auto &graph = m_registry.ctx<entity_graph>();
     auto node_view = m_registry.view<graph_node>();
 
     // Insert nodes in the graph for each rigid body.
-    auto insert_node = [this] (entt::entity remote_entity, auto &) {
+    msg.ops.emplace_for_each<rigidbody_tag, external_tag>([this] (entt::entity remote_entity) {
         insert_remote_node(remote_entity);
-    };
-
-    delta.created_for_each<rigidbody_tag, external_tag>(insert_node);
+    });
 
     // Insert edges in the graph for constraints.
-    delta.created_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
+    msg.ops.emplace_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
+        if (!m_entity_map.count(remote_entity)) return;
 
-        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
 
         if (m_registry.any_of<graph_edge>(local_entity)) return;
 
-        auto &node0 = node_view.get<graph_node>(m_entity_map.remloc(con.body[0]));
-        auto &node1 = node_view.get<graph_node>(m_entity_map.remloc(con.body[1]));
+        auto &node0 = node_view.get<graph_node>(m_entity_map.at(con.body[0]));
+        auto &node1 = node_view.get<graph_node>(m_entity_map.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         m_registry.emplace<graph_edge>(local_entity, edge_index);
     });
 
     // When orientation is set manually, a few dependent components must be
     // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
-    delta.updated_for_each<orientation>([&] (entt::entity remote_entity, const orientation &orn) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
+    msg.ops.replace_for_each<orientation>([&] (entt::entity remote_entity, const orientation &orn) {
+        if (!m_entity_map.count(remote_entity)) return;
 
-        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
             auto &com = m_registry.get<center_of_mass>(local_entity);
@@ -271,10 +263,10 @@ void island_worker::on_island_delta(const island_delta &delta) {
     });
 
     // When position is set manually, the AABB and cached origin must be updated.
-    delta.updated_for_each<position>([&] (entt::entity remote_entity, const position &pos) {
-        if (!m_entity_map.has_rem(remote_entity)) return;
+    msg.ops.replace_for_each<position>([&] (entt::entity remote_entity, const position &pos) {
+        if (!m_entity_map.count(remote_entity)) return;
 
-        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
             auto &com = m_registry.get<center_of_mass>(local_entity);
@@ -292,78 +284,75 @@ void island_worker::on_island_delta(const island_delta &delta) {
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         // Assign previous position and orientation components to dynamic entities
         // for client-side networking extrapolation discontinuity mitigation.
-        delta.created_for_each<dynamic_tag>([&] (entt::entity remote_entity, auto &) {
-            if (!m_entity_map.has_rem(remote_entity)) return;
+        msg.ops.emplace_for_each<dynamic_tag>([&] (entt::entity remote_entity) {
+            if (!m_entity_map.count(remote_entity)) return;
 
-            auto local_entity = m_entity_map.remloc(remote_entity);
+            auto local_entity = m_entity_map.at(remote_entity);
             m_registry.emplace<previous_position>(local_entity);
             m_registry.emplace<previous_orientation>(local_entity);
         });
     }
 
-    m_importing_delta = false;
+    m_importing = false;
 }
 
 void island_worker::on_wake_up_island(const msg::wake_up_island &) {
     if (!m_registry.any_of<sleeping_tag>(m_island_entity)) return;
 
-    auto builder = make_island_delta_builder(m_registry);
-
     auto &isle_timestamp = m_registry.get<island_timestamp>(m_island_entity);
     isle_timestamp.value = performance_time();
-    builder->updated(m_island_entity, isle_timestamp);
 
-    m_registry.view<sleeping_tag>().each([&] (entt::entity entity) {
-        builder->destroyed<sleeping_tag>(entity);
-    });
+    auto builder = make_reg_op_builder(m_registry);
+    builder->replace<island_timestamp>(m_registry, m_island_entity);
+    builder->remove<sleeping_tag>(m_registry);
+
     m_registry.clear<sleeping_tag>();
 
-    auto delta = builder->finish();
-    m_message_queue.send<island_delta>(std::move(delta));
+    auto op = builder->finish();
+    m_message_queue.send<msg::island_reg_ops>(std::move(op));
 }
 
 void island_worker::sync() {
+    // Always update AABBs since they're needed for broad-phase in the coordinator.
+    m_op_builder->replace<AABB>(m_registry);
+
     // Updated contact points are needed when moving entities from one island to
     // another when merging/splitting in the coordinator.
     // TODO: the island worker refactor would eliminate the need to share these
     // components continuously.
-    m_registry.view<contact_manifold>().each([&] (entt::entity entity, contact_manifold &manifold) {
-        m_delta_builder->updated(entity, manifold);
-    });
+    m_op_builder->replace<contact_manifold>(m_registry);
 
     // Always update discontinuities since they decay in every step.
-    m_registry.view<discontinuity>().each([&] (entt::entity entity, discontinuity &dis) {
-        m_delta_builder->updated(entity, dis);
-    });
+    m_op_builder->replace<discontinuity>(m_registry);
 
     // Update continuous components.
     auto &settings = m_registry.ctx<edyn::settings>();
     auto &index_source = *settings.index_source;
     m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
-            m_delta_builder->updated(entity, m_registry, index_source.type_id_of(cont.indices[i]));
+            m_op_builder->replace_type_id(m_registry, entity, index_source.type_id_of(cont.indices[i]));
         }
     });
 
     sync_dirty();
 
-    auto delta = m_delta_builder->finish();
-    m_message_queue.send<island_delta>(std::move(delta));
+    auto op = m_op_builder->finish();
+    m_message_queue.send<msg::island_reg_ops>(std::move(op));
 }
 
 void island_worker::sync_dirty() {
-    // Assign dirty components to the delta builder. This can be called at
-    // any time to move the current dirty entities into the next island delta.
+    // Assign dirty components to the operation builder. This can be called at
+    // any time to move the current dirty entities into the next operation.
     m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
         if (dirty.is_new_entity) {
-            m_delta_builder->created(entity);
+            m_op_builder->create(entity);
         }
 
-        m_delta_builder->created(entity, m_registry,
+        m_op_builder->emplace_type_ids(m_registry, entity,
             dirty.created_indexes.begin(), dirty.created_indexes.end());
-        m_delta_builder->updated(entity, m_registry,
+        m_op_builder->replace_type_ids(m_registry, entity,
             dirty.updated_indexes.begin(), dirty.updated_indexes.end());
-        m_delta_builder->destroyed(entity,
+        m_op_builder->remove_type_ids(m_registry, entity,
             dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
     });
 
@@ -513,10 +502,10 @@ bool island_worker::run_narrowphase() {
         return false;
     } else {
         // Separating contact points will be destroyed in the next call. Move
-        // the dirty contact points into the island delta before that happens
+        // the dirty contact points into the current reg op before that happens
         // because the dirty component is removed as well, which would cause
         // points that were created in this step and are going to be destroyed
-        // next to be missing in the island delta.
+        // next to be missing in the registry op.
         sync_dirty();
         nphase.update();
         m_state = state::solve;
@@ -528,7 +517,7 @@ void island_worker::finish_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase_async);
     // In the asynchronous narrow-phase update, separating contact points will
     // be destroyed in the next call. Following the same logic as above, move
-    // the dirty contact points into the current island delta before that
+    // the dirty contact points into the current registry operation before that
     // happens.
     sync_dirty();
     auto &nphase = m_registry.ctx<narrowphase>();
@@ -572,13 +561,13 @@ void island_worker::finish_step() {
         isle_time.value += fixed_dt;
     }
 
-    m_delta_builder->updated<island_timestamp>(m_island_entity, isle_time);
+    m_op_builder->replace<island_timestamp>(m_registry, m_island_entity);
 
     // Update tree view.
     auto &bphase = m_registry.ctx<broadphase_worker>();
     auto tview = bphase.view();
     m_registry.replace<tree_view>(m_island_entity, tview);
-    m_delta_builder->updated(m_island_entity, tview);
+    m_op_builder->replace<tree_view>(m_registry, m_island_entity);
 
     maybe_go_to_sleep();
 
@@ -747,9 +736,9 @@ void island_worker::init_new_shapes() {
 }
 
 void island_worker::insert_remote_node(entt::entity remote_entity) {
-    if (!m_entity_map.has_rem(remote_entity)) return;
+    if (!m_entity_map.count(remote_entity)) return;
 
-    auto local_entity = m_entity_map.remloc(remote_entity);
+    auto local_entity = m_entity_map.at(remote_entity);
     auto non_connecting = !m_registry.any_of<procedural_tag>(local_entity);
 
     auto &graph = m_registry.ctx<entity_graph>();
@@ -800,23 +789,26 @@ bool island_worker::could_go_to_sleep() {
 
 void island_worker::go_to_sleep() {
     m_registry.emplace<sleeping_tag>(m_island_entity);
-    m_delta_builder->created(m_island_entity, sleeping_tag{});
+    m_op_builder->emplace<sleeping_tag>(m_registry, m_island_entity);
 
     // Assign `sleeping_tag` to all procedural entities.
-    m_registry.view<procedural_tag>().each([&] (entt::entity entity) {
-        if (auto *v = m_registry.try_get<linvel>(entity); v) {
-            *v = vector3_zero;
-            m_delta_builder->updated(entity, *v);
-        }
+    auto proc_view = m_registry.view<procedural_tag>();
+    auto vel_view = m_registry.view<linvel, angvel>();
 
-        if (auto *w = m_registry.try_get<angvel>(entity); w) {
-            *w = vector3_zero;
-            m_delta_builder->updated(entity, *w);
+    proc_view.each([&] (entt::entity entity) {
+        if (vel_view.contains(entity)) {
+            auto [linvel, angvel] = vel_view.get(entity);
+            linvel = vector3_zero;
+            angvel = vector3_zero;
         }
 
         m_registry.emplace<sleeping_tag>(entity);
-        m_delta_builder->created(entity, sleeping_tag{});
     });
+
+    auto proc_vel_view = proc_view | vel_view;
+    m_op_builder->replace<linvel>(m_registry, proc_vel_view.begin(), proc_vel_view.end());
+    m_op_builder->replace<angvel>(m_registry, proc_vel_view.begin(), proc_vel_view.end());
+    m_op_builder->emplace<sleeping_tag>(m_registry, proc_view.begin(), proc_view.end());
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {
@@ -841,7 +833,7 @@ void island_worker::on_set_material_table(const msg::set_material_table &msg) {
 }
 
 void island_worker::on_set_com(const msg::set_com &msg) {
-    auto entity = m_entity_map.remloc(msg.entity);
+    auto entity = m_entity_map.at(msg.entity);
     apply_center_of_mass(m_registry, entity, msg.com);
 }
 
@@ -849,13 +841,13 @@ void island_worker::import_contact_manifolds(const std::vector<contact_manifold>
     auto &manifold_map = m_registry.ctx<contact_manifold_map>();
 
     for (auto manifold : manifolds) {
-        if (!m_entity_map.has_rem(manifold.body[0]) ||
-            !m_entity_map.has_rem(manifold.body[1])) {
+        if (!m_entity_map.count(manifold.body[0]) ||
+            !m_entity_map.count(manifold.body[1])) {
             continue;
         }
 
-        manifold.body[0] = m_entity_map.remloc(manifold.body[0]);
-        manifold.body[1] = m_entity_map.remloc(manifold.body[1]);
+        manifold.body[0] = m_entity_map.at(manifold.body[0]);
+        manifold.body[1] = m_entity_map.at(manifold.body[1]);
 
         // Find a matching manifold and replace it...
         if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
@@ -892,14 +884,12 @@ static void accumulate_discontinuities(entt::registry &registry) {
 }
 
 void island_worker::on_extrapolation_result(const extrapolation_result &result) {
-    EDYN_ASSERT(!result.pools.empty());
+    EDYN_ASSERT(!result.ops.empty());
 
     // Assign current transforms to previous before importing pools into registry.
     assign_previous_transforms(m_registry);
 
-    for (auto &pool : result.pools) {
-        pool->replace(m_registry, m_entity_map);
-    }
+    result.ops.execute(m_registry, m_entity_map);
 
     accumulate_discontinuities(m_registry);
     import_contact_manifolds(result.manifolds);
@@ -958,9 +948,9 @@ entity_graph::connected_components_t island_worker::split() {
 
     // Process connected components that are moving out of this island.
     // Update all components of all entities that are moving out in the current
-    // island delta to ensure they're fully up to date in the coordinator and so
-    // no data will be lost when firing up new island workers which will operate
-    // on these entities.
+    // registry operation to ensure they're fully up to date in the coordinator
+    // and so no data will be lost when firing up new island workers which will
+    // operate on these entities.
     // Remove entities in the smaller connected components from this worker.
     // Non-procedural entities can be present in more than one connected component.
     // Do not remove entities that are still present in the biggest connected
@@ -971,7 +961,7 @@ entity_graph::connected_components_t island_worker::split() {
         for (auto entity : connected_component.nodes) {
             if (!vector_contains(remaining_non_procedural_entities, entity) &&
                 m_registry.valid(entity)) {
-                m_delta_builder->updated_all(entity, m_registry);
+                m_op_builder->replace_all(m_registry, entity);
                 m_registry.destroy(entity);
             }
         }
@@ -980,14 +970,23 @@ entity_graph::connected_components_t island_worker::split() {
         // in `on_destroy_graph_node()`.
     }
 
+    // Remove invalid entities from entity map.
+    for (auto it = m_entity_map.begin(); it != m_entity_map.end();) {
+        if (!m_registry.valid(it->second)) {
+            it = m_entity_map.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
     // Refresh island tree view after nodes are removed and send it back to
     // the coordinator via the message queue.
     auto &bphase = m_registry.ctx<broadphase_worker>();
     auto tview = bphase.view();
     m_registry.replace<tree_view>(m_island_entity, tview);
-    m_delta_builder->updated(m_island_entity, tview);
-    auto delta = m_delta_builder->finish();
-    m_message_queue.send<island_delta>(std::move(delta));
+    m_op_builder->replace<tree_view>(m_registry, m_island_entity);
+    auto ops = m_op_builder->finish();
+    m_message_queue.send<msg::island_reg_ops>(std::move(ops));
 
     m_splitting.store(false, std::memory_order_release);
     reschedule_now();

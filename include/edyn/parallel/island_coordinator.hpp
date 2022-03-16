@@ -7,15 +7,15 @@
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
 #include "edyn/comp/island.hpp"
-#include "edyn/parallel/island_delta.hpp"
+#include "edyn/config/config.h"
 #include "edyn/parallel/island_worker_context.hpp"
-#include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/parallel/message.hpp"
+#include "edyn/util/registry_operation.hpp"
+#include "edyn/util/registry_operation_builder.hpp"
 
 namespace edyn {
 
 class island_worker;
-class island_delta;
 
 /**
  * Manages all simulation islands. Creates and destroys island workers as necessary
@@ -57,7 +57,7 @@ public:
 
     void on_destroy_island_resident(entt::registry &, entt::entity);
     void on_destroy_multi_island_resident(entt::registry &, entt::entity);
-    void on_island_delta(entt::entity, const island_delta &);
+    void on_island_reg_ops(entt::entity, const msg::island_reg_ops &);
     void on_split_island(entt::entity, const msg::split_island &);
 
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
@@ -120,32 +120,33 @@ private:
     std::vector<entt::entity> m_new_graph_edges;
     std::vector<entt::entity> m_islands_to_split;
 
-    bool m_importing_delta {false};
+    bool m_importing {false};
     double m_timestamp;
 };
 
 template<typename... Component>
 void island_coordinator::refresh(entt::entity entity) {
     static_assert(sizeof...(Component) > 0);
+
+#ifdef EDYN_DEBUG
     auto &index_source = m_registry->ctx<settings>().index_source;
+    auto contains_unknown = ((index_source->index_of<Component>() == SIZE_MAX) || ...);
+    EDYN_ASSERT(!contains_unknown);
+#endif
 
     if (m_registry->any_of<island_resident>(entity)) {
         auto &resident = m_registry->get<island_resident>(entity);
 
         if (resident.island_entity != entt::null) {
             auto &ctx = m_island_ctx_map.at(resident.island_entity);
-            ((index_source->index_of<Component>() != SIZE_MAX ?
-                ctx->m_delta_builder->updated<Component>(entity, *m_registry) :
-                void(0)), ...);
+            (ctx->m_op_builder->replace<Component>(*m_registry, entity), ...);
         }
     } else if (m_registry->any_of<multi_island_resident>(entity)) {
         auto &resident = m_registry->get<multi_island_resident>(entity);
 
         for (auto island_entity : resident.island_entities) {
             auto &ctx = m_island_ctx_map.at(island_entity);
-            ((index_source->index_of<Component>() != SIZE_MAX ?
-                ctx->m_delta_builder->updated<Component>(entity, *m_registry) :
-                void(0)), ...);
+            (ctx->m_op_builder->replace<Component>(*m_registry, entity), ...);
         }
     }
 }

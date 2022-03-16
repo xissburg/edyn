@@ -28,18 +28,18 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
 
-            if (!emap.has_rem(remote_entity)) {
+            if (!emap.count(remote_entity)) {
                 continue;
             }
 
-            auto local_entity = emap.remloc(remote_entity);
+            auto local_entity = emap.at(remote_entity);
 
             if (!registry.valid(local_entity)) {
                 continue;
             }
 
             auto comp = pair.second;
-            internal::import_child_entity(registry, emap, comp);
+            internal::map_child_entity(registry, emap, comp);
 
             if (mark_dirty) {
                 // Mark as dirty using `network_dirty` to avoid having these
@@ -67,11 +67,11 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
     void import_entities(entt::registry &registry, const entity_map &emap,
                          const std::vector<entt::entity> &entities, bool mark_dirty) {
         for (auto remote_entity : entities) {
-            if (!emap.has_rem(remote_entity)) {
+            if (!emap.count(remote_entity)) {
                 continue;
             }
 
-            auto local_entity = emap.remloc(remote_entity);
+            auto local_entity = emap.at(remote_entity);
 
             if (!registry.valid(local_entity)) {
                 continue;

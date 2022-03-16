@@ -11,7 +11,6 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
-#include "edyn/parallel/island_delta_builder.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
@@ -64,16 +63,8 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
 }
 
 void extrapolation_job::load_input() {
-    // Import entities.
-    for (auto remote_entity : m_input.entities) {
-        auto local_entity = m_registry.create();
-        m_entity_map.insert(remote_entity, local_entity);
-    }
-
-    // Import components.
-    for (auto &pool : m_input.pools) {
-        pool->emplace(m_registry, m_entity_map);
-    }
+    // Import entities and components.
+    m_input.ops.execute(m_registry, m_entity_map);
 
     auto &graph = m_registry.ctx<entity_graph>();
 
@@ -111,7 +102,7 @@ void extrapolation_job::load_input() {
     // Apply all inputs before the current time to start the simulation
     // with the correct initial inputs.
     m_state_history->until(m_current_time, [&] (auto &&element) {
-        element.import(m_registry, m_entity_map, true);
+        element.ops.execute(m_registry, m_entity_map, true);
     });
 
     // Update calculated properties after setting initial state.
@@ -162,20 +153,12 @@ void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::en
 
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
-
-    if (m_entity_map.has_loc(entity)) {
-        m_entity_map.erase_loc(entity);
-    }
 }
 
 void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
     if (!m_destroying_node) {
         auto &edge = registry.get<graph_edge>(entity);
         registry.ctx<entity_graph>().remove_edge(edge.edge_index);
-    }
-
-    if (m_entity_map.has_loc(entity)) {
-        m_entity_map.erase_loc(entity);
     }
 }
 
@@ -199,7 +182,7 @@ void extrapolation_job::apply_history() {
     auto start_time = m_current_time - settings.fixed_dt;
 
     m_state_history->each(start_time, settings.fixed_dt, [&] (auto &&element) {
-        element.import(m_registry, m_entity_map, true);
+        element.ops.execute(m_registry, m_entity_map, true);
     });
 }
 
@@ -211,19 +194,27 @@ void extrapolation_job::sync_and_finish() {
 
     // Collect entities per type to be updated, including only components that
     // have changed, i.e. continuous and dirty components.
-    std::map<entt::id_type, entt::sparse_set> id_entities;
+    auto builder = (*settings.make_reg_op_builder)();
+
+    // Local entity mapping must not be included if the result is going to be
+    // remapped into remote space.
+    if (!m_input.should_remap) {
+        for (auto [remote_entity, local_entity] : m_entity_map) {
+            builder->add_entity_mapping(local_entity, remote_entity);
+        }
+    }
 
     for (auto remote_entity : m_input.entities) {
-        if (!m_entity_map.has_rem(remote_entity)) continue;
+        if (!m_entity_map.count(remote_entity)) continue;
 
-        auto local_entity = m_entity_map.remloc(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
 
         // Manifolds are shared separately.
         if (manifold_view.contains(local_entity)) continue;
 
         // Do not include input components of entities owned by the client,
         // since that would cause the latest user inputs to be replaced.
-        // Note that the remote entity is used.
+        // Note the use of `remote_entity` next.
         auto is_owned_entity = m_input.owned_entities.contains(remote_entity);
 
         if (auto *cont = m_registry.try_get<continuous>(local_entity)) {
@@ -231,7 +222,7 @@ void extrapolation_job::sync_and_finish() {
                 auto id = index_source.type_id_of(cont->indices[i]);
 
                 if (!is_owned_entity || !(*m_input.is_input_component_func)(id)) {
-                    id_entities[id].emplace(local_entity);
+                    builder->replace_type_id(m_registry, local_entity, id);
                 }
             }
         }
@@ -240,14 +231,8 @@ void extrapolation_job::sync_and_finish() {
             // Only consider updated indices. Entities and components shouldn't be
             // created during extrapolation.
             for (auto id : dirty->updated_indexes) {
-                if (is_owned_entity && (*m_input.is_input_component_func)(id)) {
-                    continue;
-                }
-
-                auto &entities = id_entities[id];
-
-                if (!entities.contains(local_entity)) {
-                    entities.emplace(local_entity);
+                if (!is_owned_entity || !(*m_input.is_input_component_func)(id)) {
+                    builder->replace_type_id(m_registry, local_entity, id);
                 }
             }
         }
@@ -255,24 +240,26 @@ void extrapolation_job::sync_and_finish() {
         m_result.entities.push_back(local_entity);
     }
 
-    for (auto &pair : id_entities) {
-        auto id = pair.first;
-        auto &entities = pair.second;
-        (*m_input.extrapolation_component_pool_import_by_id_func)(m_result.pools, m_registry, entities, id);
-    }
-
-    EDYN_ASSERT(!m_result.pools.empty());
+    m_result.ops = builder->finish();
+    EDYN_ASSERT(!m_result.ops.empty());
 
     // Insert all manifolds into it.
     manifold_view.each([&] (contact_manifold &manifold) {
         m_result.manifolds.push_back(manifold);
     });
 
-    // Convert from extrapolation registry space into main registry space.
-    m_result.convert_locrem(m_registry, m_entity_map);
-
     // Assign timestamp of the last step.
     m_result.timestamp = m_current_time;
+
+    if (m_input.should_remap) {
+        entity_map remap;
+
+        for (auto [remote_entity, local_entity] : m_entity_map) {
+            remap[local_entity] = remote_entity;
+        }
+
+        m_result.remap(remap);
+    }
 
     m_finished.store(true, std::memory_order_release);
 }

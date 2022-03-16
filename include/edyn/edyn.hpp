@@ -34,8 +34,8 @@
 #include "parallel/parallel_for_async.hpp"
 #include "parallel/message_queue.hpp"
 #include "parallel/island_coordinator.hpp"
-#include "parallel/island_delta_builder.hpp"
 #include "util/moment_of_inertia.hpp"
+#include "util/registry_operation_builder.hpp"
 #include "collision/contact_manifold_map.hpp"
 #include "context/settings.hpp"
 #include "collision/raycast.hpp"
@@ -152,11 +152,11 @@ template<typename... Component>
 void register_external_components(entt::registry &registry) {
     auto &settings = registry.ctx<edyn::settings>();
 
-    settings.make_island_delta_builder = [] () {
+    settings.make_reg_op_builder = [] () {
         auto external = std::tuple<Component...>{};
         auto all_components = std::tuple_cat(shared_components, external);
-        return std::unique_ptr<island_delta_builder>(
-            new island_delta_builder_impl(all_components));
+        return std::unique_ptr<registry_operation_builder>(
+            new registry_operation_builder_impl(all_components));
     };
 
     auto external = std::tuple<Component...>{};
@@ -327,7 +327,7 @@ entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_poi
  * points and contact constraints can be obtained from it.
  * @tparam Func Visitor function type.
  * @param entity Node entity.
- * @param func Vistor function with signature `void(entt::entity)`.
+ * @param func Vistor function with signature `void(index_type)`.
  */
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {

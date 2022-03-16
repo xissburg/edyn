@@ -223,13 +223,13 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // Create entities first import pools later since components might contain
     // entities which have to be mapped from remote to local.
     for (auto remote_entity : packet.entities) {
-        if (client.entity_map.has_rem(remote_entity)) continue;
+        if (client.entity_map.count(remote_entity)) continue;
 
         auto local_entity = registry.create();
         registry.emplace<entity_owner>(local_entity, client_entity);
 
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
-        client.entity_map.insert(remote_entity, local_entity);
+        client.entity_map[remote_entity] = local_entity;
         client.owned_entities.push_back(local_entity);
     }
 
@@ -254,7 +254,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
     // Create nodes and edges in entity graph and assign networked tags.
     for (auto remote_entity : packet.entities) {
-        auto local_entity = client.entity_map.remloc(remote_entity);
+        auto local_entity = client.entity_map.at(remote_entity);
 
         if (!registry.all_of<networked_tag>(local_entity)) {
             registry.emplace<networked_tag>(local_entity);
@@ -268,7 +268,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         } else {
             // If it's not a node, it might be an edge.
             for (auto remote_entity : packet.entities) {
-                auto local_entity = client.entity_map.remloc(remote_entity);
+                auto local_entity = client.entity_map.at(remote_entity);
                 maybe_create_graph_edge(registry, local_entity, constraints_tuple);
             }
         }
@@ -280,15 +280,15 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &aabboi = registry.get<aabb_of_interest>(client_entity);
 
     for (auto remote_entity : packet.entities) {
-        if (client.entity_map.has_rem(remote_entity)) {
-            auto local_entity = client.entity_map.remloc(remote_entity);
+        if (client.entity_map.count(remote_entity)) {
+            auto local_entity = client.entity_map.at(remote_entity);
 
             if (registry.valid(local_entity)) {
                 auto *owner = registry.try_get<entity_owner>(local_entity);
 
                 if (owner && owner->client_entity == client_entity) {
                     registry.destroy(local_entity);
-                    client.entity_map.erase_rem(remote_entity);
+                    client.entity_map.erase(remote_entity);
                     vector_erase(client.owned_entities, local_entity);
 
                     // Remove from AABB of interest of owner to prevent notifying
@@ -405,14 +405,6 @@ static void process_aabb_of_interest_destroyed_entities(entt::registry &registry
             std::get<0>(owner_view.get(entity)).client_entity != client_entity)
         {
             packet.entities.push_back(entity);
-
-            // Must not forget to remove entity from client's entity map. Would be
-            // a problem later when this entity comes back into the AABB-of-interest,
-            // which would cause a new entity mapping to be created, which would lead
-            // to an assertion failure since a mapping would already exist.
-            if (client.entity_map.has_loc(entity)) {
-                client.entity_map.erase_loc(entity);
-            }
         }
     }
 

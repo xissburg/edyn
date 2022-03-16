@@ -6,7 +6,7 @@
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
-#include "edyn/parallel/import_child_entity.hpp"
+#include "edyn/parallel/map_child_entity.hpp"
 #include "edyn/edyn.hpp"
 
 namespace edyn {
@@ -65,14 +65,14 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
 
-            if (!client.entity_map.has_rem(remote_entity)) {
+            if (!client.entity_map.count(remote_entity)) {
                 continue;
             }
 
-            auto local_entity = client.entity_map.remloc(remote_entity);
+            auto local_entity = client.entity_map.at(remote_entity);
 
             if (!registry.valid(local_entity)) {
-                client.entity_map.erase_loc(local_entity);
+                client.entity_map.erase(remote_entity);
                 continue;
             }
 
@@ -81,7 +81,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
             }
 
             auto comp = pair.second;
-            internal::import_child_entity(registry, client.entity_map, comp);
+            internal::map_child_entity(registry, client.entity_map, comp);
 
             if (mark_dirty) {
                 auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
@@ -108,14 +108,14 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
         auto &client = registry.get<remote_client>(client_entity);
 
         for (auto remote_entity : entities) {
-            if (!client.entity_map.has_rem(remote_entity)) {
+            if (!client.entity_map.count(remote_entity)) {
                 continue;
             }
 
-            auto local_entity = client.entity_map.remloc(remote_entity);
+            auto local_entity = client.entity_map.at(remote_entity);
 
             if (!registry.valid(local_entity)) {
-                client.entity_map.erase_loc(local_entity);
+                client.entity_map.erase(remote_entity);
                 continue;
             }
 
@@ -206,15 +206,15 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
             auto &pair = *it;
             auto &remote_entity = pair.first;
 
-            if (!client.entity_map.has_rem(remote_entity)) {
+            if (!client.entity_map.count(remote_entity)) {
                 assign_value_of_last_and_pop_back(it);
                 continue;
             }
 
-            auto local_entity = client.entity_map.remloc(remote_entity);
+            auto local_entity = client.entity_map.at(remote_entity);
 
             if (!registry.valid(local_entity)) {
-                client.entity_map.erase_loc(local_entity);
+                client.entity_map.erase(remote_entity);
                 assign_value_of_last_and_pop_back(it);
                 continue;
             }
@@ -226,7 +226,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
             remote_entity = local_entity;
             auto &comp = pair.second;
-            internal::import_child_entity(registry, client.entity_map, comp);
+            internal::map_child_entity(registry, client.entity_map, comp);
             ++it;
         }
     }
@@ -244,15 +244,15 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
         for (auto it = entities.begin(); it != entities.end();) {
             auto &remote_entity = *it;
 
-            if (!client.entity_map.has_rem(remote_entity)) {
+            if (!client.entity_map.count(remote_entity)) {
                 assign_value_of_last_and_pop_back(it);
                 continue;
             }
 
-            auto local_entity = client.entity_map.remloc(remote_entity);
+            auto local_entity = client.entity_map.at(remote_entity);
 
             if (!registry.valid(local_entity)) {
-                client.entity_map.erase_loc(local_entity);
+                client.entity_map.erase(remote_entity);
                 assign_value_of_last_and_pop_back(it);
                 continue;
             }

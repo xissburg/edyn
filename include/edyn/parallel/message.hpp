@@ -5,6 +5,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/util/registry_operation.hpp"
 
 namespace edyn::msg {
 
@@ -33,6 +34,10 @@ struct set_com {
 
 struct apply_network_pools {
     std::vector<pool_snapshot> pools;
+};
+
+struct island_reg_ops {
+    registry_operation_collection ops;
 };
 
 }

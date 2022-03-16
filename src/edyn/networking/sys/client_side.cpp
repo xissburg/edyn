@@ -39,10 +39,6 @@ void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) 
 
     if (!ctx.importing_entities) {
         ctx.destroyed_entities.push_back(entity);
-
-        if (ctx.entity_map.has_loc(entity)) {
-            ctx.entity_map.erase_loc(entity);
-        }
     }
 }
 
@@ -305,7 +301,7 @@ static void process_packet(entt::registry &registry, const packet::client_create
     EDYN_ASSERT(ctx.client_entity == entt::null);
     ctx.client_entity = local_entity;
     ctx.client_entity_assigned_signal.publish();
-    ctx.entity_map.insert(remote_entity, local_entity);
+    ctx.entity_map[remote_entity] = local_entity;
 
     auto emap_packet = packet::update_entity_map{};
     emap_packet.timestamp = performance_time();
@@ -351,10 +347,10 @@ static void import_remote_pools(entt::registry &registry,
 
     // Create entities first...
     for (auto remote_entity : entities) {
-        if (ctx.entity_map.has_rem(remote_entity)) continue;
+        if (ctx.entity_map.count(remote_entity)) continue;
 
         auto local_entity = registry.create();
-        ctx.entity_map.insert(remote_entity, local_entity);
+        ctx.entity_map[remote_entity] = local_entity;
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
     }
 
@@ -376,7 +372,7 @@ static void import_remote_pools(entt::registry &registry,
     }
 
     for (auto remote_entity : entities) {
-        auto local_entity = ctx.entity_map.remloc(remote_entity);
+        auto local_entity = ctx.entity_map.at(remote_entity);
 
         if (!registry.all_of<networked_tag>(local_entity)) {
             registry.emplace<networked_tag>(local_entity);
@@ -385,7 +381,7 @@ static void import_remote_pools(entt::registry &registry,
 
     // Create nodes and edges in entity graph.
     for (auto remote_entity : entities) {
-        auto local_entity = ctx.entity_map.remloc(remote_entity);
+        auto local_entity = ctx.entity_map.at(remote_entity);
 
         if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&
             !registry.all_of<graph_node>(local_entity)) {
@@ -401,7 +397,7 @@ static void import_remote_pools(entt::registry &registry,
     }
 
     for (auto remote_entity : entities) {
-        auto local_entity = ctx.entity_map.remloc(remote_entity);
+        auto local_entity = ctx.entity_map.at(remote_entity);
         maybe_create_graph_edge(registry, local_entity, constraints_tuple);
     }
 }
@@ -432,10 +428,10 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
     ctx.importing_entities = true;
 
     for (auto remote_entity : packet.entities) {
-        if (!ctx.entity_map.has_rem(remote_entity)) continue;
+        if (!ctx.entity_map.count(remote_entity)) continue;
 
-        auto local_entity = ctx.entity_map.remloc(remote_entity);
-        ctx.entity_map.erase_rem(remote_entity);
+        auto local_entity = ctx.entity_map.at(remote_entity);
+        ctx.entity_map.erase(remote_entity);
 
         if (registry.valid(local_entity)) {
             registry.destroy(local_entity);
@@ -452,14 +448,12 @@ static void collect_unknown_entities(entt::registry &registry,
 
     // Find remote entities that have no local counterpart.
     for (auto remote_entity : remote_entities) {
-        if (ctx.entity_map.has_rem(remote_entity)) {
-            auto local_entity = ctx.entity_map.remloc(remote_entity);
+        if (ctx.entity_map.count(remote_entity)) {
+            auto local_entity = ctx.entity_map.at(remote_entity);
 
             // In the unusual situation where an existing mapping is an invalid
-            // entity, erase it from the entity map and consider it unknown.
+            // entity, consider it unknown.
             if (!registry.valid(local_entity)) {
-                ctx.entity_map.erase_loc(local_entity);
-
                 if (!unknown_entities.contains(remote_entity)) {
                     unknown_entities.emplace(remote_entity);
                 }
@@ -628,9 +622,7 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
 
     // Create input to send to extrapolation job.
     extrapolation_input input;
-    input.extrapolation_component_pool_import_by_id_func = ctx.extrapolation_component_pool_import_by_id_func;
     input.is_input_component_func = ctx.is_input_component_func;
-    (*ctx.extrapolation_component_pool_import_func)(input.pools, registry, entities);
     input.start_time = snapshot_time;
 
     for (auto entity : entities) {
@@ -641,8 +633,14 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
         }
     }
 
+    auto builder = (*settings.make_reg_op_builder)();
+    builder->create(entities.begin(), entities.end());
+    builder->emplace_all(registry, entities);
+    input.ops = builder->finish();
+
     input.entities = std::move(entities);
     input.transient_snapshot = std::move(snapshot);
+    input.should_remap = true;
 
     // Create extrapolation job and put the registry snapshot and the transient
     // snapshot into its message queue.
