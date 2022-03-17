@@ -11,7 +11,7 @@ void import_child_entity_sequence(const entt::registry &registry, const entity_m
         auto &entity_ref = seq[i].cast<entt::entity &>();
         auto local_entity = entt::entity{entt::null};
 
-        if (emap.count(entity_ref)) {
+        if (emap.contains(entity_ref)) {
             local_entity = emap.at(entity_ref);
 
             if (!registry.valid(local_entity)) {

@@ -82,7 +82,7 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     m_registry.prepare<collision_exclusion>();
 
     m_island_entity = m_registry.create();
-    m_entity_map[island_entity] = m_island_entity;
+    m_entity_map.insert(island_entity, m_island_entity);
 
     m_this_job.func = &island_worker_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
@@ -96,7 +96,6 @@ void island_worker::init() {
     m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_graph_node>(*this);
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
-    m_registry.on_destroy<contact_manifold>().connect<&island_worker::on_destroy_contact_manifold>(*this);
     m_registry.on_construct<polyhedron_shape>().connect<&island_worker::on_construct_polyhedron_shape>(*this);
     m_registry.on_construct<compound_shape>().connect<&island_worker::on_construct_compound_shape>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&island_worker::on_destroy_rotated_mesh_list>(*this);
@@ -131,20 +130,6 @@ void island_worker::init() {
     m_state = state::step;
 }
 
-void island_worker::on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
-    const auto importing = m_importing;
-    const auto splitting = m_splitting.load(std::memory_order_relaxed);
-
-    // If importing, do not insert this event into the op because the entity
-    // was already destroyed in the coordinator.
-    // If splitting, do not insert this destruction event into the op because
-    // the entity is not actually being destroyed, it's just being moved into
-    // another island.
-    if (!importing && !splitting) {
-        m_op_builder->destroy(entity);
-    }
-}
-
 void island_worker::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
     // It is possible that a new connected component appears in the graph when
     // a new node is created.
@@ -171,6 +156,10 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
         !m_splitting.load(std::memory_order_relaxed)) {
         m_op_builder->destroy(entity);
     }
+
+    if (m_entity_map.contains_other(entity)) {
+        m_entity_map.erase_other(entity);
+    }
 }
 
 void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
@@ -181,9 +170,18 @@ void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity
         graph.remove_edge(edge.edge_index);
     }
 
+    // If importing, do not insert this event into the op because the entity
+    // was already destroyed in the coordinator.
+    // If splitting, do not insert this destruction event into the op because
+    // the entity is not actually being destroyed, it's just being moved into
+    // another island.
     if (!m_importing &&
         !m_splitting.load(std::memory_order_relaxed)) {
         m_op_builder->destroy(entity);
+    }
+
+    if (m_entity_map.contains_other(entity)) {
+        m_entity_map.erase_other(entity);
     }
 
     m_topology_changed = true;
@@ -208,13 +206,12 @@ void island_worker::on_destroy_rotated_mesh_list(entt::registry &registry, entt:
 void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     // Import components from main registry.
     m_importing = true;
+
     msg.ops.execute(m_registry, m_entity_map);
 
     msg.ops.create_for_each([&] (entt::entity remote_entity) {
-        if (m_entity_map.count(remote_entity)) {
-            auto local_entity = m_entity_map.at(remote_entity);
-            m_op_builder->add_entity_mapping(local_entity, remote_entity);
-        }
+        auto local_entity = m_entity_map.at(remote_entity);
+        m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
 
     auto &graph = m_registry.ctx<entity_graph>();
@@ -232,8 +229,6 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
 
     // Insert edges in the graph for constraints.
     msg.ops.emplace_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
-        if (!m_entity_map.count(remote_entity)) return;
-
         auto local_entity = m_entity_map.at(remote_entity);
 
         if (m_registry.any_of<graph_edge>(local_entity)) return;
@@ -247,8 +242,6 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     // When orientation is set manually, a few dependent components must be
     // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
     msg.ops.replace_for_each<orientation>([&] (entt::entity remote_entity, const orientation &orn) {
-        if (!m_entity_map.count(remote_entity)) return;
-
         auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
@@ -272,8 +265,6 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
 
     // When position is set manually, the AABB and cached origin must be updated.
     msg.ops.replace_for_each<position>([&] (entt::entity remote_entity, const position &pos) {
-        if (!m_entity_map.count(remote_entity)) return;
-
         auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
@@ -714,8 +705,6 @@ void island_worker::init_new_shapes() {
 }
 
 void island_worker::insert_remote_node(entt::entity remote_entity) {
-    if (!m_entity_map.count(remote_entity)) return;
-
     auto local_entity = m_entity_map.at(remote_entity);
     auto non_connecting = !m_registry.any_of<procedural_tag>(local_entity);
 
@@ -879,13 +868,9 @@ entity_graph::connected_components_t island_worker::split() {
     }
 
     // Remove invalid entities from entity map.
-    for (auto it = m_entity_map.begin(); it != m_entity_map.end();) {
-        if (!m_registry.valid(it->second)) {
-            it = m_entity_map.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    m_entity_map.erase_if([&] (entt::entity remote_entity, entt::entity local_entity) {
+        return !m_registry.valid(local_entity);
+    });
 
     // Refresh island tree view after nodes are removed and send it back to
     // the coordinator via the message queue.

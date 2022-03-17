@@ -23,7 +23,7 @@ void import_child_entity_meta(const entt::registry &registry, const entity_map &
             auto remote_entity = data.get(entt::meta_handle(value)).cast<entt::entity>();
             auto local_entity = entt::entity{entt::null};
 
-            if (emap.count(remote_entity)) {
+            if (emap.contains(remote_entity)) {
                 local_entity = emap.at(remote_entity);
 
                 if (!registry.valid(local_entity)) {
