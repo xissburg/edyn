@@ -24,7 +24,7 @@ void map_child_entity_meta(const entity_map &emap, const entt::meta_type &meta_t
             auto remote_entity = data.get(entt::meta_handle(value)).cast<entt::entity>();
             auto local_entity = entt::entity{entt::null};
 
-            if (emap.count(remote_entity)) {
+            if (emap.contains(remote_entity)) {
                 local_entity = emap.at(remote_entity);
             }
 

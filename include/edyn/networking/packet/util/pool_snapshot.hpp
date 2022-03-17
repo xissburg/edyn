@@ -71,7 +71,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         if constexpr(!is_empty_type) {
             for (auto &pair : data) {
                 auto remote_entity = pair.first;
-                if (!emap.count(remote_entity)) continue;
+                if (!emap.contains(remote_entity)) continue;
                 auto local_entity = emap.at(pair.first);
                 if (!registry.valid(local_entity)) continue;
                 if (!registry.all_of<Component>(local_entity)) continue;

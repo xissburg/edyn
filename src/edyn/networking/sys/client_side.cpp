@@ -302,7 +302,7 @@ static void process_packet(entt::registry &registry, const packet::client_create
     EDYN_ASSERT(ctx.client_entity == entt::null);
     ctx.client_entity = local_entity;
     ctx.client_entity_assigned_signal.publish();
-    ctx.entity_map[remote_entity] = local_entity;
+    ctx.entity_map.insert(remote_entity, local_entity);
 
     auto emap_packet = packet::update_entity_map{};
     emap_packet.timestamp = performance_time();
@@ -348,10 +348,10 @@ static void import_remote_pools(entt::registry &registry,
 
     // Create entities first...
     for (auto remote_entity : entities) {
-        if (ctx.entity_map.count(remote_entity)) continue;
+        if (ctx.entity_map.contains(remote_entity)) continue;
 
         auto local_entity = registry.create();
-        ctx.entity_map[remote_entity] = local_entity;
+        ctx.entity_map.insert(remote_entity, local_entity);
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
     }
 
@@ -429,7 +429,7 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
     ctx.importing_entities = true;
 
     for (auto remote_entity : packet.entities) {
-        if (!ctx.entity_map.count(remote_entity)) continue;
+        if (!ctx.entity_map.contains(remote_entity)) continue;
 
         auto local_entity = ctx.entity_map.at(remote_entity);
         ctx.entity_map.erase(remote_entity);
@@ -449,7 +449,7 @@ static void collect_unknown_entities(entt::registry &registry,
 
     // Find remote entities that have no local counterpart.
     for (auto remote_entity : remote_entities) {
-        if (ctx.entity_map.count(remote_entity)) {
+        if (ctx.entity_map.contains(remote_entity)) {
             auto local_entity = ctx.entity_map.at(remote_entity);
 
             // In the unusual situation where an existing mapping is an invalid

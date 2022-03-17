@@ -9,7 +9,7 @@ void process_update_entity_map_packet(const entt::registry &registry, const pack
         auto remote_entity = pair.second;
 
         if (registry.valid(local_entity)) {
-            emap[remote_entity] = local_entity;
+            emap.insert(remote_entity, local_entity);
         }
     }
 }

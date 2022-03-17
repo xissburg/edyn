@@ -223,13 +223,13 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // Create entities first import pools later since components might contain
     // entities which have to be mapped from remote to local.
     for (auto remote_entity : packet.entities) {
-        if (client.entity_map.count(remote_entity)) continue;
+        if (client.entity_map.contains(remote_entity)) continue;
 
         auto local_entity = registry.create();
         registry.emplace<entity_owner>(local_entity, client_entity);
 
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
-        client.entity_map[remote_entity] = local_entity;
+        client.entity_map.insert(remote_entity, local_entity);
         client.owned_entities.push_back(local_entity);
     }
 
@@ -280,7 +280,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &aabboi = registry.get<aabb_of_interest>(client_entity);
 
     for (auto remote_entity : packet.entities) {
-        if (client.entity_map.count(remote_entity)) {
+        if (client.entity_map.contains(remote_entity)) {
             auto local_entity = client.entity_map.at(remote_entity);
 
             if (registry.valid(local_entity)) {

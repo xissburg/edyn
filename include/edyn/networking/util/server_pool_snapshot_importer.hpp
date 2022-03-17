@@ -65,7 +65,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
 
-            if (!client.entity_map.count(remote_entity)) {
+            if (!client.entity_map.contains(remote_entity)) {
                 continue;
             }
 
@@ -108,7 +108,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
         auto &client = registry.get<remote_client>(client_entity);
 
         for (auto remote_entity : entities) {
-            if (!client.entity_map.count(remote_entity)) {
+            if (!client.entity_map.contains(remote_entity)) {
                 continue;
             }
 
@@ -206,7 +206,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
             auto &pair = *it;
             auto &remote_entity = pair.first;
 
-            if (!client.entity_map.count(remote_entity)) {
+            if (!client.entity_map.contains(remote_entity)) {
                 assign_value_of_last_and_pop_back(it);
                 continue;
             }
@@ -244,7 +244,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
         for (auto it = entities.begin(); it != entities.end();) {
             auto &remote_entity = *it;
 
-            if (!client.entity_map.count(remote_entity)) {
+            if (!client.entity_map.contains(remote_entity)) {
                 assign_value_of_last_and_pop_back(it);
                 continue;
             }

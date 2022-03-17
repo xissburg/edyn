@@ -28,7 +28,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
         for (auto &pair : pairs) {
             auto remote_entity = pair.first;
 
-            if (!emap.count(remote_entity)) {
+            if (!emap.contains(remote_entity)) {
                 continue;
             }
 
@@ -67,7 +67,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
     void import_entities(entt::registry &registry, const entity_map &emap,
                          const std::vector<entt::entity> &entities, bool mark_dirty) {
         for (auto remote_entity : entities) {
-            if (!emap.count(remote_entity)) {
+            if (!emap.contains(remote_entity)) {
                 continue;
             }
 

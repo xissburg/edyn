@@ -49,13 +49,13 @@ class component_operation_impl : public component_operation {
         for (size_t i = 0; i < entities.size(); ++i) {
             auto remote_entity = entities[i];
 
-            if (!entity_map.count(remote_entity)) {
+            if (!entity_map.contains(remote_entity)) {
                 continue;
             }
 
             auto local_entity = entity_map.at(remote_entity);
 
-            if (registry.all_of<Component>(local_entity)) {
+            if (!registry.valid(local_entity) || registry.all_of<Component>(local_entity)) {
                 continue;
             }
 
@@ -83,13 +83,13 @@ class component_operation_impl : public component_operation {
         for (size_t i = 0; i < entities.size(); ++i) {
             auto remote_entity = entities[i];
 
-            if (!entity_map.count(remote_entity)) {
+            if (!entity_map.contains(remote_entity)) {
                 continue;
             }
 
             auto local_entity = entity_map.at(remote_entity);
 
-            if (!registry.all_of<Component>(local_entity)) {
+            if (!registry.valid(local_entity) || !registry.all_of<Component>(local_entity)) {
                 continue;
             }
 
@@ -107,11 +107,16 @@ class component_operation_impl : public component_operation {
                         const std::vector<entt::entity> &entities,
                         const entity_map &entity_map, bool mark_dirty) const {
         for (auto remote_entity : entities) {
-            if (!entity_map.count(remote_entity)) {
+            if (!entity_map.contains(remote_entity)) {
                 continue;
             }
 
             auto local_entity = entity_map.at(remote_entity);
+
+            if (!registry.valid(local_entity)) {
+                continue;
+            }
+
             registry.remove<Component>(local_entity);
 
             if (mark_dirty) {
@@ -137,7 +142,7 @@ class component_operation_impl : public component_operation {
             auto local_entity = components[i];
 
             if (registry.valid(local_entity)) {
-                entity_map[remote_entity] = local_entity;
+                entity_map.insert(remote_entity, local_entity);
             }
         }
     }
@@ -191,12 +196,12 @@ class registry_operation final {
 
     void execute_create(entt::registry &registry, entity_map &entity_map, bool mark_dirty) const {
         for (auto remote_entity : entities) {
-            if (entity_map.count(remote_entity)) {
+            if (entity_map.contains(remote_entity)) {
                 continue;
             }
 
             auto local_entity = registry.create();
-            entity_map[remote_entity] = local_entity;
+            entity_map.insert(remote_entity, local_entity);
 
             if (mark_dirty) {
                 registry.get_or_emplace<dirty>(local_entity).set_new();
@@ -206,7 +211,7 @@ class registry_operation final {
 
     void execute_destroy(entt::registry &registry, entity_map &entity_map) const {
         for (auto remote_entity : entities) {
-            if (!entity_map.count(remote_entity)) {
+            if (!entity_map.contains(remote_entity)) {
                 continue;
             }
 

@@ -19,7 +19,7 @@ TEST(test_registry_operation, test_create_destroy) {
     // Should create a corresponding entity in reg1 and add it to the emap.
     opc.execute(reg1, emap);
 
-    ASSERT_TRUE(emap.count(ent0));
+    ASSERT_TRUE(emap.contains(ent0));
     auto ent1 = emap.at(ent0);
     ASSERT_TRUE(reg1.valid(ent1));
 
@@ -29,7 +29,7 @@ TEST(test_registry_operation, test_create_destroy) {
     // Should destroy entity in reg1 and remove it from emap.
     opd.execute(reg1, emap);
 
-    ASSERT_FALSE(emap.count(ent0));
+    ASSERT_FALSE(emap.contains(ent0));
     ASSERT_FALSE(reg1.valid(ent1));
 }
 
@@ -58,11 +58,11 @@ TEST(test_registry_operation, test_components) {
     auto emap = edyn::entity_map{};
     ops.execute(reg1, emap);
 
-    ASSERT_TRUE(emap.count(ent00));
+    ASSERT_TRUE(emap.contains(ent00));
     auto ent10 = emap.at(ent00);
     ASSERT_TRUE(reg1.valid(ent10));
 
-    ASSERT_TRUE(emap.count(ent01));
+    ASSERT_TRUE(emap.contains(ent01));
     auto ent11 = emap.at(ent01);
     ASSERT_TRUE(reg1.valid(ent11));
 
@@ -79,7 +79,7 @@ TEST(test_registry_operation, test_components) {
 
     ops.execute(reg1, emap);
 
-    ASSERT_TRUE(emap.count(ent02));
+    ASSERT_TRUE(emap.contains(ent02));
     auto ent12 = emap.at(ent02);
     ASSERT_TRUE(reg1.valid(ent12));
 
@@ -126,11 +126,11 @@ TEST(test_registry_operation, test_impl) {
     auto emap = edyn::entity_map{};
     ops.execute(reg1, emap);
 
-    ASSERT_TRUE(emap.count(ent00));
+    ASSERT_TRUE(emap.contains(ent00));
     auto ent10 = emap.at(ent00);
     ASSERT_TRUE(reg1.valid(ent10));
 
-    ASSERT_TRUE(emap.count(ent01));
+    ASSERT_TRUE(emap.contains(ent01));
     auto ent11 = emap.at(ent01);
     ASSERT_TRUE(reg1.valid(ent11));
 

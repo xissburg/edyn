@@ -109,6 +109,12 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
 
     auto &ctx = m_island_ctx_map.at(resident.island_entity);
 
+    // When importing delta, the entity is removed from the entity map as part
+    // of the import process. Otherwise, the removal has to be done here.
+    if (ctx->m_entity_map.contains_other(entity)) {
+        ctx->m_entity_map.erase_other(entity);
+    }
+
     // Notify the worker of the destruction which happened in the main registry
     // first.
     ctx->m_op_builder->destroy(entity);
@@ -132,6 +138,10 @@ void island_coordinator::on_destroy_multi_island_resident(entt::registry &regist
         if (!m_importing)  {
             auto &ctx = m_island_ctx_map.at(island_entity);
             ctx->m_op_builder->destroy(entity);
+
+            if (ctx->m_entity_map.contains_other(entity)) {
+                ctx->m_entity_map.erase_other(entity);
+            }
         }
     }
 }
@@ -338,7 +348,7 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping,
 
     // Insert the first entity mapping between the remote island entity and
     // the local island entity.
-    ctx->m_entity_map[worker->island_entity()] = island_entity;
+    ctx->m_entity_map.insert(worker->island_entity(), island_entity);
 
     // Register to receive registry operations.
     ctx->reg_op_sink().connect<&island_coordinator::on_island_reg_ops>(*this);
@@ -578,14 +588,13 @@ void island_coordinator::refresh_dirty_entities() {
 void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, const msg::island_reg_ops &msg) {
     m_importing = true;
     auto &source_ctx = m_island_ctx_map.at(source_island_entity);
+
     msg.ops.execute(*m_registry, source_ctx->m_entity_map);
 
     // Insert entity mappings for new entities into the current op.
     msg.ops.create_for_each([&] (entt::entity remote_entity) {
-        if (source_ctx->m_entity_map.count(remote_entity)) {
-            auto local_entity = source_ctx->m_entity_map.at(remote_entity);
-            source_ctx->m_op_builder->add_entity_mapping(local_entity, remote_entity);
-        }
+        auto local_entity = source_ctx->m_entity_map.at(remote_entity);
+        source_ctx->m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
 
     auto procedural_view = m_registry->view<procedural_tag>();
@@ -595,8 +604,6 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
     // Insert nodes in the graph for each rigid body.
     auto &graph = m_registry->ctx<entity_graph>();
     auto insert_node = [&] (entt::entity remote_entity) {
-        if (!source_ctx->m_entity_map.count(remote_entity)) return;
-
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
         auto non_connecting = !m_registry->any_of<procedural_tag>(local_entity);
         auto node_index = graph.insert_node(local_entity, non_connecting);
@@ -616,8 +623,6 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
 
     // Insert edges in the graph for constraints.
     msg.ops.emplace_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
-        if (!source_ctx->m_entity_map.count(remote_entity)) return;
-
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
 
         if (m_registry->any_of<graph_edge>(local_entity)) return;
@@ -718,6 +723,7 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
             if (procedural_view.contains(entity)) {
                 contains_procedural = true;
                 island.nodes.erase(entity);
+                ctx->m_entity_map.erase_other(entity);
             } else if (!vector_contains(remaining_non_procedural_entities, entity)) {
                 // Remove island that was split from multi-residents if they're not
                 // present in the source island. Non-procedural could be in many
@@ -730,12 +736,14 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
 
                 if (island.nodes.contains(entity)) {
                     island.nodes.erase(entity);
+                    ctx->m_entity_map.erase_other(entity);
                 }
             }
         }
 
         for (auto entity : connected.edges) {
             island.edges.erase(entity);
+            ctx->m_entity_map.erase_other(entity);
         }
 
         // Do not create a new island if this connected component does not

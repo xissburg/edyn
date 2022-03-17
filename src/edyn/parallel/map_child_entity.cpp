@@ -26,7 +26,7 @@ void map_child_entity_sequence(const entity_map &emap, entt::meta_sequence_conta
         auto &entity_ref = seq[i].cast<entt::entity &>();
         auto local_entity = entt::entity{entt::null};
 
-        if (emap.count(entity_ref)) {
+        if (emap.contains(entity_ref)) {
             local_entity = emap.at(entity_ref);
         }
 

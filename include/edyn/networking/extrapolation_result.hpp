@@ -26,7 +26,7 @@ struct extrapolation_result {
         }
 
         auto remove_it = std::remove_if(manifolds.begin(), manifolds.end(), [&] (contact_manifold &manifold) {
-            if (!emap.count(manifold.body[0]) || !emap.count(manifold.body[1])) {
+            if (!emap.contains(manifold.body[0]) || !emap.contains(manifold.body[1])) {
                 return true;
             }
 

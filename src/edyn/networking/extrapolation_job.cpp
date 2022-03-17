@@ -199,13 +199,13 @@ void extrapolation_job::sync_and_finish() {
     // Local entity mapping must not be included if the result is going to be
     // remapped into remote space.
     if (!m_input.should_remap) {
-        for (auto [remote_entity, local_entity] : m_entity_map) {
+        m_entity_map.each([&] (auto remote_entity, auto local_entity) {
             builder->add_entity_mapping(local_entity, remote_entity);
-        }
+        });
     }
 
     for (auto remote_entity : m_input.entities) {
-        if (!m_entity_map.count(remote_entity)) continue;
+        if (!m_entity_map.contains(remote_entity)) continue;
 
         auto local_entity = m_entity_map.at(remote_entity);
 
@@ -252,14 +252,8 @@ void extrapolation_job::sync_and_finish() {
     m_result.timestamp = m_current_time;
 
     if (m_input.should_remap) {
-        entity_map remap;
-
-        // Create reverse entity map.
-        for (auto [remote_entity, local_entity] : m_entity_map) {
-            remap[local_entity] = remote_entity;
-        }
-
-        m_result.remap(remap);
+        m_entity_map.swap();
+        m_result.remap(m_entity_map);
     }
 
     m_finished.store(true, std::memory_order_release);
