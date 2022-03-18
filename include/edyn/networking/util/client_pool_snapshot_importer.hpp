@@ -22,11 +22,13 @@ template<typename... Components>
 class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer {
 
     template<typename Component>
-    void import_pairs(entt::registry &registry, const entity_map &emap,
-                      const std::vector<std::pair<entt::entity, Component>> &pairs,
-                      bool mark_dirty) {
-        for (auto &pair : pairs) {
-            auto remote_entity = pair.first;
+    void import_components(entt::registry &registry, const entity_map &emap,
+                           const std::vector<entt::entity> &entities,
+                           const std::vector<Component> &components,
+                           bool mark_dirty) {
+        EDYN_ASSERT(entities.size() == components.size());
+        for (size_t i = 0; i < entities.size(); ++i) {
+            auto remote_entity = entities[i];
 
             if (!emap.contains(remote_entity)) {
                 continue;
@@ -38,7 +40,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
                 continue;
             }
 
-            auto comp = pair.second;
+            auto comp = components[i];
             internal::map_child_entity(registry, emap, comp);
 
             if (mark_dirty) {
@@ -64,8 +66,8 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
     }
 
     template<typename Component>
-    void import_entities(entt::registry &registry, const entity_map &emap,
-                         const std::vector<entt::entity> &entities, bool mark_dirty) {
+    void import_components_empty(entt::registry &registry, const entity_map &emap,
+                                 const std::vector<entt::entity> &entities, bool mark_dirty) {
         for (auto remote_entity : entities) {
             if (!emap.contains(remote_entity)) {
                 continue;
@@ -88,17 +90,20 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
     }
 
     template<typename Component>
-    void import_pairs_local(entt::registry &registry,
-                            const std::vector<std::pair<entt::entity, Component>> &pairs,
-                            bool mark_dirty) {
-        for (auto &pair : pairs) {
-            auto local_entity = pair.first;
+    void import_components_local(entt::registry &registry,
+                                 const std::vector<entt::entity> &entities,
+                                 const std::vector<Component> &components,
+                                 bool mark_dirty) {
+        EDYN_ASSERT(entities.size() == components.size());
+        for (auto ite = entities.begin(), itc = components.begin();
+             ite != entities.end() && itc != components.end(); ++ite, ++itc) {
+            auto local_entity = *ite;
 
             if (!registry.valid(local_entity)) {
                 continue;
             }
 
-            auto &comp = pair.second;
+            auto &comp = *itc;
 
             if (mark_dirty) {
                 auto &dirty = registry.get_or_emplace<network_dirty>(local_entity);
@@ -119,9 +124,9 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
     }
 
     template<typename Component>
-    void import_entities_local(entt::registry &registry,
-                               const std::vector<entt::entity> &entities,
-                               bool mark_dirty) {
+    void import_components_empty_local(entt::registry &registry,
+                                       const std::vector<entt::entity> &entities,
+                                       bool mark_dirty) {
         for (auto local_entity : entities) {
             if (!registry.valid(local_entity)) {
                 continue;
@@ -145,12 +150,12 @@ public:
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
             using Component = std::decay_t<decltype(c)>;
-            auto &data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr)->data;
+            auto data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr);
 
             if constexpr(std::is_empty_v<Component>) {
-                import_entities<Component>(registry, emap, data, mark_dirty);
+                import_components_empty<Component>(registry, emap, data->entities, mark_dirty);
             } else {
-                import_pairs<Component>(registry, emap, data, mark_dirty);
+                import_components<Component>(registry, emap, data->entities, data->components, mark_dirty);
             }
         });
     }
@@ -160,12 +165,12 @@ public:
 
         visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
             using Component = std::decay_t<decltype(c)>;
-            auto &data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr)->data;
+            auto data = std::static_pointer_cast<pool_snapshot_data_impl<Component>>(pool.ptr);
 
             if constexpr(std::is_empty_v<Component>) {
-                import_entities_local<Component>(registry, data, mark_dirty);
+                import_components_empty_local<Component>(registry, data->entities, mark_dirty);
             } else {
-                import_pairs_local<Component>(registry, data, mark_dirty);
+                import_components_local<Component>(registry, data->entities, data->components, mark_dirty);
             }
         });
     }

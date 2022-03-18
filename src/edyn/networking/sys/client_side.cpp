@@ -470,7 +470,7 @@ static bool request_unknown_entities_in_pools(entt::registry &registry,
     entt::sparse_set unknown_entities;
 
     for (auto &pool : pools) {
-        collect_unknown_entities(registry, pool.ptr->get_entities(), unknown_entities);
+        collect_unknown_entities(registry, pool.ptr->entities, unknown_entities);
     }
 
     auto contains_unknown = !unknown_entities.empty();
@@ -500,7 +500,7 @@ static void insert_input_to_state_history(entt::registry &registry, const std::v
     entt::sparse_set entities;
 
     for (auto &pool : pools) {
-        for (auto entity : pool.ptr->get_entities()) {
+        for (auto entity : pool.ptr->entities) {
             if (!entities.contains(entity) && !ctx.owned_entities.contains(entity)) {
                 entities.emplace(entity);
             }

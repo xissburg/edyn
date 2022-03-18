@@ -14,7 +14,7 @@ struct transient_snapshot {
         entt::sparse_set entities;
 
         for (auto &pool : pools) {
-            for (auto entity : pool.ptr->get_entities()) {
+            for (auto entity : pool.ptr->entities) {
                 if (!entities.contains(entity)) {
                     entities.emplace(entity);
                 }

@@ -101,7 +101,10 @@ class comp_state_history_impl : public comp_state_history {
         if constexpr(!std::is_empty_v<Component>) {
             auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
 
-            for (auto [entity, comp] : typed_pool->data) {
+            for (size_t i = 0; i < typed_pool->entities.size(); ++i) {
+                auto entity = typed_pool->entities[i];
+                auto &comp = typed_pool->components[i];
+
                 if (entities.contains(entity)) {
                     op_builder.replace(entity, comp);
                 }

@@ -18,8 +18,9 @@
 namespace edyn {
 
 struct pool_snapshot_data {
+    std::vector<entt::entity> entities;
+
     virtual ~pool_snapshot_data() = default;
-    virtual std::vector<entt::entity> get_entities() const = 0;
     virtual void convert_remloc(const entt::registry &registry, entity_map &emap) = 0;
     virtual void write(memory_output_archive &archive) = 0;
     virtual void read(memory_input_archive &archive) = 0;
@@ -31,51 +32,45 @@ struct pool_snapshot_data {
 template<typename Component>
 struct pool_snapshot_data_impl : public pool_snapshot_data {
     static constexpr auto is_empty_type = std::is_empty_v<Component>;
-    using element_type = std::conditional_t<is_empty_type, entt::entity, std::pair<entt::entity, Component>>;
-    std::vector<element_type> data;
-
-    virtual ~pool_snapshot_data_impl() = default;
-
-    std::vector<entt::entity> get_entities() const override {
-        if constexpr(is_empty_type) {
-            return data;
-        } else {
-            auto entities = std::vector<entt::entity>(data.size());
-            std::transform(data.begin(), data.end(), entities.begin(), [] (auto &&pair) { return pair.first; });
-            return entities;
-        }
-    }
+    std::vector<Component> components;
 
     void convert_remloc(const entt::registry &registry, entity_map &emap) override {
-        if constexpr(is_empty_type) {
-            for (auto &entity : data) {
-                entity = emap.at(entity);
-            }
-        } else {
-            for (auto &pair : data) {
-                pair.first = emap.at(pair.first);
-                internal::map_child_entity(registry, emap, pair.second);
+        for (auto &entity : entities) {
+            entity = emap.at(entity);
+        }
+
+        if constexpr(!is_empty_type) {
+            for (auto &comp : components) {
+                internal::map_child_entity(registry, emap, comp);
             }
         }
     }
 
     void write(memory_output_archive &archive) override {
-        archive(data);
+        archive(entities);
+        if constexpr(!is_empty_type) {
+            archive(components);
+        }
     }
 
     void read(memory_input_archive &archive) override {
-        archive(data);
+        archive(entities);
+        if constexpr(!is_empty_type) {
+            archive(components);
+        }
     }
 
     void replace_into_registry(entt::registry &registry, const entity_map &emap) override {
         if constexpr(!is_empty_type) {
-            for (auto &pair : data) {
-                auto remote_entity = pair.first;
+            EDYN_ASSERT(entities.size() == components.size());
+
+            for (size_t i = 0; i < entities.size(); ++i) {
+                auto remote_entity = entities[i];
                 if (!emap.contains(remote_entity)) continue;
-                auto local_entity = emap.at(pair.first);
+                auto local_entity = emap.at(remote_entity);
                 if (!registry.valid(local_entity)) continue;
                 if (!registry.all_of<Component>(local_entity)) continue;
-                auto &comp = pair.second;
+                auto &comp = components[i];
                 internal::map_child_entity(registry, emap, comp);
                 registry.replace<Component>(local_entity, comp);
             }
@@ -83,16 +78,15 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
     }
 
     void insert(const entt::registry &registry, entt::entity entity) {
-        if constexpr(is_empty_type) {
-            data.push_back(entity);
-        } else {
+        entities.push_back(entity);
+        if constexpr(!is_empty_type) {
             auto &comp = registry.get<Component>(entity);
-            data.push_back(std::make_pair(entity, comp));
+            components.push_back(comp);
         }
     }
 
     bool empty() const override {
-        return data.empty();
+        return entities.empty();
     }
 
     entt::id_type get_type_id() const override {
@@ -139,14 +133,14 @@ void serialize(Archive &archive, pool_snapshot &pool) {
 
 // Pool snapshot utility functions.
 namespace internal {
-    template<typename Comp>
+    template<typename Component>
     void pool_insert_entity_component_single(const entt::registry &registry, entt::entity entity,
                                              std::vector<pool_snapshot> &pools, unsigned component_index) {
-        if (!registry.any_of<Comp>(entity)) {
+        if (!registry.any_of<Component>(entity)) {
             return;
         }
 
-        using pool_snapshot_data_t = pool_snapshot_data_impl<Comp>;
+        using pool_snapshot_data_t = pool_snapshot_data_impl<Component>;
 
         auto pool = std::find_if(pools.begin(), pools.end(),
                                  [component_index] (auto &&pool) {
