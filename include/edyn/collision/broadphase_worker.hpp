@@ -6,7 +6,6 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/util/entity_pair.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
-#include "edyn/collision/contact_manifold_map.hpp"
 
 namespace edyn {
 
@@ -50,7 +49,6 @@ private:
     entt::registry *m_registry;
     dynamic_tree m_tree; // Procedural dynamic tree.
     dynamic_tree m_np_tree; // Non-procedural dynamic tree.
-    contact_manifold_map m_manifold_map;
     std::vector<entt::entity> m_new_aabb_entities;
     std::vector<entity_pair_vector> m_pair_results;
 };

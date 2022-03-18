@@ -3,6 +3,7 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/tree_resident.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -14,7 +15,6 @@ namespace edyn {
 
 broadphase_worker::broadphase_worker(entt::registry &registry)
     : m_registry(&registry)
-    , m_manifold_map(registry)
 {
     registry.on_construct<AABB>().connect<&broadphase_worker::on_construct_aabb>(*this);
     registry.on_destroy<tree_resident>().connect<&broadphase_worker::on_destroy_tree_resident>(*this);
@@ -81,12 +81,13 @@ void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity enti
                                      const AABB &offset_aabb) {
     auto aabb_view = m_registry->view<AABB>();
     auto &settings = m_registry->ctx<edyn::settings>();
+    auto &manifold_map = m_registry->ctx<contact_manifold_map>();
 
     tree.query(offset_aabb, [&] (tree_node_id_t id) {
         auto &node = tree.get_node(id);
         auto collides = (*settings.should_collide_func)(*m_registry, entity, node.entity);
 
-        if (collides && !m_manifold_map.contains(entity, node.entity)) {
+        if (collides && !manifold_map.contains(entity, node.entity)) {
             auto &other_aabb = aabb_view.get<AABB>(node.entity);
 
             if (intersect(offset_aabb, other_aabb)) {
@@ -166,9 +167,11 @@ void broadphase_worker::update_async(job &completion_job) {
 }
 
 void broadphase_worker::finish_async_update() {
+    auto &manifold_map = m_registry->ctx<contact_manifold_map>();
+
     for (auto &pairs : m_pair_results) {
         for (auto &pair : pairs) {
-            if (!m_manifold_map.contains(pair.first, pair.second)) {
+            if (!manifold_map.contains(pair.first, pair.second)) {
                 make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);
             }
         }
