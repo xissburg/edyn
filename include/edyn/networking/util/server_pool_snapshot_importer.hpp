@@ -3,7 +3,7 @@
 
 #include <entt/entity/registry.hpp>
 #include <type_traits>
-#include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/parallel/map_child_entity.hpp"

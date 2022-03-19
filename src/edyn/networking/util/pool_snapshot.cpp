@@ -1,4 +1,4 @@
-#include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/serialization/s11n.hpp"
 
 namespace edyn {

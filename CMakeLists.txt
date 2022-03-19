@@ -117,7 +117,7 @@ add_library(Edyn
     src/edyn/networking/networking.cpp
     src/edyn/networking/sys/update_aabbs_of_interest.cpp
     src/edyn/networking/extrapolation_job.cpp
-    src/edyn/networking/packet/util/pool_snapshot.cpp
+    src/edyn/networking/util/pool_snapshot.cpp
     src/edyn/networking/util/clock_sync.cpp
     src/edyn/networking/util/process_update_entity_map_packet.cpp
     src/edyn/context/settings.cpp

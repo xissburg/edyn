@@ -3,7 +3,7 @@
 
 #include "edyn/math/scalar.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
-#include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/networking/sys/client_side.hpp"
 #include "edyn/networking/sys/server_side.hpp"
 #include "edyn/networking/context/client_network_context.hpp"

@@ -8,7 +8,7 @@
 #include <vector>
 #include <entt/core/type_info.hpp>
 #include <entt/entity/fwd.hpp>
-#include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/util/registry_operation_builder.hpp"
 
 namespace edyn {

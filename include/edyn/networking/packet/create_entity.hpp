@@ -2,7 +2,7 @@
 #define EDYN_NETWORKING_PACKET_CREATE_ENTITY_HPP
 
 #include <vector>
-#include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/networking/util/pool_snapshot.hpp"
 
 namespace edyn::packet {
 

@@ -13,7 +13,7 @@
 #include "edyn/networking/packet/general_snapshot.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/packet/entity_request.hpp"
-#include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/comp/tag.hpp"

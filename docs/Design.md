@@ -429,6 +429,22 @@ The appearance of the simulation of entities that are further away from the user
 
 3. No simulation zone: entities in this zone have simulation disabled (i.e. `edyn::disabled_tag` is assigned to them). The state from the transient snapshot is applied directly and the velocity is used to do a basic linear extrapolation of the transforms over time. Discontinuities are again used to smooth out the snapping effect.
 
+## Snapshot packet serialization
+
+The snapshot packets contain an array of entities and an array of component pools. The pools are type-erased and rely on a virtual function that will do any type-specific operation such as serialization and importing the data into a registry. The pool has an array of entity indices and an array of components if the component type is not empty (according to `std::is_empty_v`). The indices are with respect to the array of entities that's included in the beginning of the packet. The array of components has a 1-to-1 relationship with the array of indices, where the i-th component is assigned to the entity in the entity array located at the index stored in the i-th element of the array of entity indices. That also means the array of entity indices and the array of components have the same size.
+
+This ensures entities are specified only once in the array of entities and the entity indices can be of much smaller data type, requiring fewer bits. Delta encoding is used to decrease the size of the packet even further, where only the first value is serialized fully, followed by a delta that can be added to the previous to get the next value. Only the entity identification bits are used (the number of bits being the value of `entt::entt_traits<entt::entity>::entity_shift`, which is 20 bits for 32-bit entity type and 32 bits for 64-bit entity type) and the entities are sorted to decrease the difference between subsequent values.
+
+Entity index arrays are also sorted, together with the components array to keep the 1-to-1 relationship.
+
+To delta-encode and array of integers, the biggest difference between subsequent values is calculated and that determines the number of bits required to store the delta. The first value is the number of elements in the array. Then comes 4 bits containing the size in bits for delta values, i.e. a maximum of 16 bits for delta values. Then comes the first value, followed by a sequence of delta values.
+
+Each component has it's serialization function with specific optimizations, such as delta encoding and quantization.
+
+Position can be limited within a range such as `[-2000, 2000]` in the X and Z axes and `[-1000, 1000]` in the Y axis and the precision can be `0.001`, which means 4M possible values in the X and Z axes and 2M values in the Y axes. That would require 22 bits for the X and Z axes and 20 bits for the Y axis, totaling 64 bits, which saves 32 bits over using 3 floats, which would total 96 bits.
+
+The user must provide serialization functions for external networked components, which can use the facilites of the `edyn::bitpack_archive` to optimize the data size.
+
 # Clusters
 
 Multiple server instances can run in different machines in the same local area network (LAN) and balance load. The principles of distributing work among all machine are similar to that of multi-threading.

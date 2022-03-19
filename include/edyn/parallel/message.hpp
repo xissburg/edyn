@@ -5,7 +5,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
-#include "edyn/networking/packet/util/pool_snapshot.hpp"
+#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/util/registry_operation.hpp"
 
 namespace edyn::msg {
