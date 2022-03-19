@@ -1,6 +1,7 @@
 #ifndef EDYN_PARALLEL_MESSAGE_HPP
 #define EDYN_PARALLEL_MESSAGE_HPP
 
+#include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
@@ -33,6 +34,7 @@ struct set_com {
 };
 
 struct apply_network_pools {
+    std::vector<entt::entity> entities;
     std::vector<pool_snapshot> pools;
 };
 

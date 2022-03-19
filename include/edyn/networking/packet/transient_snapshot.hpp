@@ -8,23 +8,14 @@ namespace edyn::packet {
 
 struct transient_snapshot {
     double timestamp;
+    std::vector<entt::entity> entities;
     std::vector<pool_snapshot> pools;
 
-    auto get_entities() const {
-        entt::sparse_set entities;
-
-        for (auto &pool : pools) {
-            for (auto entity : pool.ptr->entities) {
-                if (!entities.contains(entity)) {
-                    entities.emplace(entity);
-                }
-            }
+    void convert_remloc(const entt::registry &registry, entity_map &emap) {
+        for (auto &entity : entities) {
+            entity = emap.at(entity);
         }
 
-        return entities;
-    }
-
-    void convert_remloc(const entt::registry &registry, entity_map &emap) {
         for (auto &pool : pools) {
             pool.ptr->convert_remloc(registry, emap);
         }
@@ -34,6 +25,7 @@ struct transient_snapshot {
 template<typename Archive>
 void serialize(Archive &archive, transient_snapshot &snapshot) {
     archive(snapshot.timestamp);
+    archive(snapshot.entities);
     archive(snapshot.pools);
 }
 

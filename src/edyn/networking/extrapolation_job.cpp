@@ -96,7 +96,7 @@ void extrapolation_job::load_input() {
 
     // Replace client component state by server state.
     for (auto &pool : m_input.transient_snapshot.pools) {
-        pool.ptr->replace_into_registry(m_registry, m_entity_map);
+        pool.ptr->replace_into_registry(m_registry, m_input.transient_snapshot.entities, m_entity_map);
     }
 
     // Apply all inputs before the current time to start the simulation

@@ -905,7 +905,7 @@ void island_worker::on_apply_network_pools(const msg::apply_network_pools &msg) 
     assign_previous_transforms(m_registry);
 
     for (auto &pool : msg.pools) {
-        pool.ptr->replace_into_registry(m_registry, m_entity_map);
+        pool.ptr->replace_into_registry(m_registry, msg.entities, m_entity_map);
     }
 
     accumulate_discontinuities(m_registry);
