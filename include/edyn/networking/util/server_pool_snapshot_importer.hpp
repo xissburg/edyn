@@ -85,7 +85,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
                 continue;
             }
 
-            if constexpr(std::is_empty_v<CompType>) {
+            if constexpr(std::is_empty_v<Component>) {
                 if (!registry.any_of<Component>(local_entity)) {
                     registry.emplace<Component>(local_entity);
 
@@ -127,7 +127,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
             auto entity_index = pool.entity_indices[i];
             auto local_entity = entities[entity_index];
 
-            if (!registry.valid(entity)) {
+            if (!registry.valid(local_entity)) {
                 continue;
             }
 
@@ -184,7 +184,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
         // with last and popping.
         for (size_t i = 0; i < pool.entity_indices.size();) {
             auto entity_index = pool.entity_indices[i];
-            auto entity = entities[i];
+            auto entity = entities[entity_index];
 
             if (!registry.valid(entity)) {
                 remove(i);

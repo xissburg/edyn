@@ -26,7 +26,9 @@ protected:
     }
 
     virtual registry_operation_collection
-    take_snapshot(const std::vector<pool_snapshot> &pools, const entt::sparse_set &entities) {
+    take_snapshot(const std::vector<entt::entity> &pool_entities,
+                  const std::vector<pool_snapshot> &pools,
+                  const entt::sparse_set &entities) {
         return {};
     }
 
@@ -38,10 +40,25 @@ public:
         double timestamp;
     };
 
-    template<typename DataSource>
-    void emplace(const DataSource &source, const entt::sparse_set &entities, double timestamp) {
+    void emplace(const entt::registry &registry, const entt::sparse_set &entities, double timestamp) {
         // Insert input components of given entities from data source into container.
-        auto ops = take_snapshot(source, entities);
+        auto ops = take_snapshot(registry, entities);
+
+        if (ops.empty()) {
+            return;
+        }
+
+        // Sorted insertion.
+        std::lock_guard lock(mutex);
+        auto it = first_after(timestamp);
+        history.insert(it, {std::move(ops), timestamp});
+    }
+
+    void emplace(const std::vector<entt::entity> &pool_entities,
+                 const std::vector<pool_snapshot> &pools,
+                 const entt::sparse_set &entities, double timestamp) {
+        // Insert input components of given entities from data source into container.
+        auto ops = take_snapshot(pool_entities, pools, entities);
 
         if (ops.empty()) {
             return;
@@ -96,13 +113,15 @@ template<typename... Components>
 class comp_state_history_impl : public comp_state_history {
 
     template<typename Component>
-    void take_snapshot_single(const pool_snapshot &pool,
+    void take_snapshot_single(const std::vector<entt::entity> &pool_entities,
+                              const pool_snapshot &pool,
                               const entt::sparse_set &entities) {
         if constexpr(!std::is_empty_v<Component>) {
             auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
 
-            for (size_t i = 0; i < typed_pool->entities.size(); ++i) {
-                auto entity = typed_pool->entities[i];
+            for (size_t i = 0; i < typed_pool->entity_indices.size(); ++i) {
+                auto entity_index = typed_pool->entity_indices[i];
+                auto entity = pool_entities[entity_index];
                 auto &comp = typed_pool->components[i];
 
                 if (entities.contains(entity)) {
@@ -120,10 +139,12 @@ protected:
     }
 
     registry_operation_collection
-    take_snapshot(const std::vector<pool_snapshot> &pools, const entt::sparse_set &entities) override {
+    take_snapshot(const std::vector<entt::entity> &pool_entities,
+                  const std::vector<pool_snapshot> &pools,
+                  const entt::sparse_set &entities) override {
         for (auto &pool : pools) {
             ((entt::type_seq<Components>::value() == pool.ptr->get_type_id() ?
-                take_snapshot_single<Components>(pool, entities) :
+                take_snapshot_single<Components>(pool_entities, pool, entities) :
                 void(0)), ...);
         }
         return op_builder.finish();

@@ -512,7 +512,7 @@ static void publish_client_dirty_components(entt::registry &registry,
         return
             networked_view.contains(entity) &&
             (dirty_view.contains(entity) ||
-             network_dirty_view.contains(entity) && !is_fully_owned_by_client(registry, client_entity, entity));
+             (network_dirty_view.contains(entity) && !is_fully_owned_by_client(registry, client_entity, entity)));
     };
 
     for (auto entity : aabboi.entities) {

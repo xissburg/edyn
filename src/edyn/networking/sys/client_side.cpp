@@ -507,15 +507,13 @@ static void insert_input_to_state_history(entt::registry &registry,
     auto &ctx = registry.ctx<client_network_context>();
     entt::sparse_set unwoned_entities;
 
-    for (auto &pool : pools) {
-        for (auto entity : entities) {
-            if (!unwoned_entities.contains(entity) && !ctx.owned_entities.contains(entity)) {
-                unwoned_entities.emplace(entity);
-            }
+    for (auto entity : entities) {
+        if (!ctx.owned_entities.contains(entity) && !unwoned_entities.contains(entity)) {
+            unwoned_entities.emplace(entity);
         }
     }
 
-    ctx.state_history->emplace(pools, unwoned_entities, time);
+    ctx.state_history->emplace(entities, pools, unwoned_entities, time);
 }
 
 static void snap_to_transient_snapshot(entt::registry &registry, packet::transient_snapshot &snapshot) {
@@ -524,8 +522,7 @@ static void snap_to_transient_snapshot(entt::registry &registry, packet::transie
     auto island_entities = collect_islands_from_residents(registry, snapshot.entities.begin(), snapshot.entities.end());
     auto &coordinator = registry.ctx<island_coordinator>();
 
-    auto msg = msg::apply_network_pools{};
-    msg.pools = std::move(snapshot.pools);
+    auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
 
     for (auto island_entity : island_entities) {
         coordinator.send_island_message<msg::apply_network_pools>(island_entity, msg);
@@ -681,7 +678,7 @@ static void process_packet(entt::registry &registry, packet::general_snapshot &s
     const bool mark_dirty = true;
 
     for (auto &pool : snapshot.pools) {
-        ctx.pool_snapshot_importer->import_local(registry, pool, mark_dirty);
+        ctx.pool_snapshot_importer->import_local(registry, snapshot.entities, pool, mark_dirty);
     }
 }
 

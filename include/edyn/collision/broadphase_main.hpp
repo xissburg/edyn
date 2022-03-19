@@ -58,7 +58,6 @@ public:
     void raycast_non_procedural(vector3 p0, vector3 p1, Func func);
 
     void on_construct_tree_view(entt::registry &, entt::entity);
-    void on_construct_static_tag(entt::registry &, entt::entity);
     void on_construct_static_kinematic_tag(entt::registry &, entt::entity);
     void on_destroy_tree_resident(entt::registry &, entt::entity);
 
