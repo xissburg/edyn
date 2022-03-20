@@ -14,6 +14,11 @@ struct angvel : public vector3 {
     }
 };
 
+template<typename Archive>
+void serialize(Archive &archive, angvel &v) {
+    archive(v.x, v.y, v.z);
+}
+
 }
 
 #endif // EDYN_COMP_ANGVEL_HPP

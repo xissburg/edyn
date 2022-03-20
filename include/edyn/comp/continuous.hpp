@@ -29,8 +29,8 @@ struct continuous {
      * @param index Component index.
      */
     void insert(index_type index) {
+        EDYN_ASSERT(size < max_size);
         indices[size++] = index;
-        EDYN_ASSERT(size <= max_size);
     }
 
     /**
@@ -59,6 +59,16 @@ struct continuous {
         }
     }
 };
+
+template<typename Archive>
+void serialize(Archive &archive, continuous &c) {
+    archive(c.size);
+    EDYN_ASSERT(c.size < c.max_size);
+
+    for (unsigned i = 0; i < c.size; ++i) {
+        archive(c.indices[i]);
+    }
+}
 
 }
 

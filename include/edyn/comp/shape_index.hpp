@@ -15,6 +15,11 @@ struct shape_index {
     index_type value;
 };
 
+template<typename Archive>
+void serialize(Archive &archive, shape_index &index) {
+    archive(index.value);
+}
+
 }
 
 #endif // EDYN_COMP_SHAPE_INDEX_HPP

@@ -15,12 +15,13 @@ namespace edyn {
  * array will be ignored.
  */
 struct collision_exclusion {
-    static constexpr unsigned max_exclusions = 16;
+    using size_type = uint8_t;
+    static constexpr size_type max_exclusions = 16;
     std::array<entt::entity, max_exclusions> entity =
         make_array<max_exclusions>(entt::entity{entt::null});
 
-    unsigned num_entities() const {
-        unsigned i = 0;
+    size_type num_entities() const {
+        size_type i = 0;
         for (; i < max_exclusions; ++i) {
             if (entity[i] == entt::null) {
                 break;
@@ -29,6 +30,17 @@ struct collision_exclusion {
         return i;
     }
 };
+
+template<typename Archive>
+void serialize(Archive &archive, collision_exclusion &excl) {
+    auto num_entities = excl.num_entities();
+    archive(num_entities);
+    num_entities = std::min(num_entities, collision_exclusion::max_exclusions);
+
+    for (unsigned i = 0; i < num_entities; ++i) {
+        archive(excl.entity[i]);
+    }
+}
 
 }
 

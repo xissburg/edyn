@@ -140,6 +140,17 @@ struct rotated_mesh {
  */
 rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn = quaternion_identity);
 
+template<typename Archive>
+void serialize(Archive &archive, convex_mesh &mesh) {
+    archive(mesh.vertices);
+    archive(mesh.indices);
+    archive(mesh.faces);
+
+    if constexpr(Archive::is_input::value) {
+        mesh.initialize();
+    }
+}
+
 }
 
 #endif // EDYN_SHAPES_CONVEX_MESH_HPP

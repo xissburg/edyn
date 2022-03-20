@@ -17,6 +17,11 @@ struct mesh_shape {
     std::shared_ptr<triangle_mesh> trimesh;
 };
 
+template<typename Archive>
+void serialize(Archive &archive, mesh_shape &shape) {
+    archive(shape.trimesh);
+}
+
 }
 
 #endif // EDYN_SHAPES_MESH_SHAPE_HPP

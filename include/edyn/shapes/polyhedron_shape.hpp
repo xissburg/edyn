@@ -57,6 +57,11 @@ struct polyhedron_shape {
                      const vector3 &scale = vector3_one);
 };
 
+template<typename Archive>
+void serialize(Archive &archive, polyhedron_shape &shape) {
+    archive(shape.mesh);
+}
+
 }
 
 #endif // EDYN_SHAPES_POLYHEDRON_HPP

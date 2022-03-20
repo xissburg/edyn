@@ -69,6 +69,24 @@ struct contact_manifold {
  */
 struct contact_manifold_with_restitution {};
 
+template<typename Archive>
+void serialize(Archive &archive, contact_manifold &manifold) {
+    archive(manifold.body);
+    archive(manifold.separation_threshold);
+    archive(manifold.num_points);
+
+    for (unsigned i = 0; i < manifold.num_points; ++i) {
+        archive(manifold.ids[i]);
+    }
+
+    manifold.each_point([&] (contact_point &cp) {
+        archive(cp);
+    });
+}
+
+template<typename Archive>
+void serialize(Archive &, contact_manifold_with_restitution &) {}
+
 }
 
 

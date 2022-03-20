@@ -18,6 +18,7 @@
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/continuous.hpp"
+#include "edyn/comp/roll_direction.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 
@@ -53,6 +54,8 @@ static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple
     external_tag,
     shape_index,
     rigidbody_tag,
+    rolling_tag,
+    roll_direction,
     null_constraint,
     gravity_constraint,
     point_constraint,

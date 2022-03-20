@@ -15,6 +15,11 @@ struct linvel : public vector3 {
     }
 };
 
+template<typename Archive>
+void serialize(Archive &archive, linvel &v) {
+    archive(v.x, v.y, v.z);
+}
+
 }
 
 #endif // EDYN_COMP_VELOCITY_HPP

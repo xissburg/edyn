@@ -29,6 +29,16 @@ struct material : public material_base {
     id_type id {std::numeric_limits<id_type>::max()};
 };
 
+template<typename Archive>
+void serialize(Archive &archive, material &m) {
+    archive(m.restitution);
+    archive(m.friction);
+    archive(m.spin_friction);
+    archive(m.roll_friction);
+    archive(m.stiffness);
+    archive(m.damping);
+}
+
 }
 
 #endif // EDYN_COMP_MATERIAL_HPP

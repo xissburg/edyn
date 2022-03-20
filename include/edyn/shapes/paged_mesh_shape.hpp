@@ -17,6 +17,15 @@ struct paged_mesh_shape {
     std::shared_ptr<paged_triangle_mesh> trimesh;
 };
 
+template<typename Archive>
+void serialize(Archive &archive, paged_mesh_shape &s) {
+    if constexpr(Archive::is_output::value) {
+
+    } else {
+
+    }
+}
+
 }
 
 #endif // EDYN_SHAPES_PAGED_MESH_SHAPE_HPP

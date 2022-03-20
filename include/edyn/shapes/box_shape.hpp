@@ -268,6 +268,16 @@ constexpr size_t get_box_feature_num_vertices(box_feature feature) {
     return SIZE_MAX;
 }
 
+template<typename Archive>
+void serialize(Archive &archive, box_shape &s) {
+    archive(s.half_extents);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, box_feature &f) {
+    serialize_enum(archive, f);
+}
+
 }
 
 #endif // EDYN_SHAPES_BOX_SHAPE_HPP

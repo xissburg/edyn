@@ -12,6 +12,11 @@ struct present_position : public vector3 {
     }
 };
 
+template<typename Archive>
+void serialize(Archive &archive, present_position &v) {
+    archive(v.x, v.y, v.z);
+}
+
 }
 
 #endif // EDYN_COMP_PRESENT_POSITION_HPP

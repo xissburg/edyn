@@ -12,6 +12,11 @@ struct present_orientation : public quaternion {
     }
 };
 
+template<typename Archive>
+void serialize(Archive &archive, present_orientation &v) {
+    archive(v.x, v.y, v.z, v.w);
+}
+
 }
 
 #endif // EDYN_COMP_PRESENT_ORIENTATION_HPP

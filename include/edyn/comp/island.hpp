@@ -40,6 +40,11 @@ struct multi_island_resident {
     entt::sparse_set island_entities {};
 };
 
+template<typename Archive>
+void serialize(Archive &archive, island_timestamp &timestamp) {
+    archive(timestamp.value);
+}
+
 }
 
 #endif // EDYN_COMP_ISLAND_HPP

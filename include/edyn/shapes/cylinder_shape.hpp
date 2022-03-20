@@ -50,6 +50,17 @@ struct cylinder_shape {
                          scalar threshold) const;
 };
 
+template<typename Archive>
+void serialize(Archive &archive, cylinder_shape &s) {
+    archive(s.half_length);
+    archive(s.radius);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, cylinder_feature &f) {
+    serialize_enum(archive, f);
+}
+
 }
 
 #endif // EDYN_SHAPES_CYLINDER_SHAPE_HPP
