@@ -13,6 +13,7 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
+#include "edyn/networking/util/server_validate_packet.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
@@ -643,6 +644,11 @@ void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&pa
 void server_receive_packet(entt::registry &registry, entt::entity client_entity, packet::edyn_packet &packet) {
     std::visit([&] (auto &&decoded_packet) {
         using PacketType = std::decay_t<decltype(decoded_packet)>;
+
+        if (!server_validate_packet(registry, client_entity, decoded_packet)) {
+            return;
+        }
+
         // If it's a timed packet, enqueue for later execution. Process
         // immediately otherwise.
         if constexpr(has_type<PacketType, packet::timed_packets_tuple_t>::value) {

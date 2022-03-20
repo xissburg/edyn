@@ -14,6 +14,7 @@
 #include "edyn/util/entity_map.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/parallel/map_child_entity.hpp"
+#include "edyn/networking/util/validate_component.hpp"
 
 namespace edyn {
 
@@ -28,16 +29,15 @@ struct pool_snapshot_data {
     virtual void replace_into_registry(entt::registry &registry,
                                        const std::vector<entt::entity> &entities,
                                        const entity_map &emap) = 0;
-    virtual bool empty() const = 0;
     virtual entt::id_type get_type_id() const = 0;
-};
+    virtual bool validate(const entt::registry &registry,
+                          const std::vector<entt::entity> &pool_entities,
+                          const entity_map &emap) = 0;
 
-template<typename Archive, typename Component>
-void archive_components(Archive &archive, std::vector<Component> &components) {
-    for (auto &comp : components) {
-        archive(comp);
+    bool empty() const {
+        return entity_indices.empty();
     }
-}
+};
 
 template<typename Component>
 struct pool_snapshot_data_impl : public pool_snapshot_data {
@@ -53,7 +53,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
     }
 
     void write(memory_output_archive &archive) override {
-        index_type num_entities = static_cast<index_type>(entity_indices.size());
+        auto num_entities = static_cast<index_type>(entity_indices.size());
         archive(num_entities);
 
         for (auto &idx : entity_indices) {
@@ -147,8 +147,34 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         }
     }
 
-    bool empty() const override {
-        return entity_indices.empty();
+    bool validate(const entt::registry &registry,
+                  const std::vector<entt::entity> &pool_entities,
+                  const entity_map &emap) override {
+        for (auto idx : entity_indices) {
+            if (idx >= pool_entities.size()) {
+                return false;
+            }
+        }
+
+        if constexpr(!is_empty_type) {
+            if (entity_indices.size() != components.size()) {
+                return false;
+            }
+
+            for (size_t i = 0; i < entity_indices.size(); ++i) {
+                auto entity_index = entity_indices[i];
+                auto remote_entity = pool_entities[entity_index];
+                // Assume it has passed entity validation thus all remote
+                // entities in `pool_entities` exist in the entity map.
+                auto local_entity = emap.at(remote_entity);
+
+                if (!validate_component(registry, local_entity, components[i])) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     entt::id_type get_type_id() const override {
