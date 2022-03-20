@@ -28,8 +28,11 @@ struct pool_snapshot_data {
     virtual void replace_into_registry(entt::registry &registry,
                                        const std::vector<entt::entity> &entities,
                                        const entity_map &emap) = 0;
-    virtual bool empty() const = 0;
     virtual entt::id_type get_type_id() const = 0;
+
+    bool empty() const {
+        return entity_indices.empty();
+    }
 };
 
 template<typename Archive, typename Component>
@@ -145,10 +148,6 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
             auto [comp] = view.get(entity);
             components.push_back(comp);
         }
-    }
-
-    bool empty() const override {
-        return entity_indices.empty();
     }
 
     entt::id_type get_type_id() const override {
