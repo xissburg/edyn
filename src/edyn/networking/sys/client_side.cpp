@@ -310,7 +310,6 @@ static void process_packet(entt::registry &registry, const packet::client_create
 
     EDYN_ASSERT(ctx.client_entity == entt::null);
     ctx.client_entity = local_entity;
-    ctx.client_entity_assigned_signal.publish();
     ctx.entity_map.insert(remote_entity, local_entity);
 
     auto emap_packet = packet::update_entity_map{};
@@ -702,11 +701,6 @@ void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet
     std::visit([&] (auto &&inner_packet) {
         process_packet(registry, inner_packet);
     }, packet.var);
-}
-
-entt::sink<void()> on_client_entity_assigned(entt::registry &registry) {
-    auto &ctx = registry.ctx<client_network_context>();
-    return entt::sink{ctx.client_entity_assigned_signal};
 }
 
 bool client_owns_entity(const entt::registry &registry, entt::entity entity) {

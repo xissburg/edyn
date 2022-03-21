@@ -6,7 +6,7 @@
 namespace edyn {
 
 struct client_network_settings {
-    double snapshot_rate {30};
+    double snapshot_rate {20};
     double round_trip_time {0};
     bool extrapolation_enabled {true};
     unsigned max_concurrent_extrapolations {2};

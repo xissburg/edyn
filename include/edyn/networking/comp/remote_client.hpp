@@ -37,7 +37,7 @@ struct remote_client {
     double last_snapshot_time {0};
 
     // Rate of transient snapshots, i.e. transient snapshots sent per second.
-    double snapshot_rate {1};
+    double snapshot_rate {10};
 
     // A snapshot where changes to be reported to a client can be accumulated
     // and then consumed at the end of an update.

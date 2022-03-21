@@ -61,11 +61,6 @@ struct client_network_context {
         return entt::sink{packet_signal};
     }
 
-    entt::sigh<void(void)> client_entity_assigned_signal;
-    auto client_entity_assigned_sink() {
-        return entt::sink{client_entity_assigned_signal};
-    }
-
     entt::sigh<void(void)> extrapolation_timeout_signal;
     auto extrapolation_timeout_sink() {
         return entt::sink{extrapolation_timeout_signal};

@@ -9,8 +9,6 @@
 
 namespace edyn {
 
-bool client_owns_entity(const entt::registry &registry, entt::entity entity);
-
 class client_pool_snapshot_importer {
 public:
     virtual ~client_pool_snapshot_importer() = default;

@@ -134,8 +134,7 @@ endif()
 
 if(UNIX AND NOT APPLE)
     target_link_libraries(Edyn
-        PUBLIC
-            pthread
+        PUBLIC pthread
     )
 endif()
 
@@ -144,8 +143,7 @@ if(WIN32)
         src/edyn/time/windows/time.cpp
     )
     target_link_libraries(Edyn
-         PUBLIC
-             winmm
+        PUBLIC winmm
     )
 endif()
 
