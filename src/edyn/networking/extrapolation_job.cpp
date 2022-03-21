@@ -99,6 +99,10 @@ void extrapolation_job::load_input() {
         pool.ptr->replace_into_registry(m_registry, m_input.transient_snapshot.entities, m_entity_map);
     }
 
+    // Initialize new shapes. Basically, create rotated meshes for new
+    // imported polyhedron shapes.
+    init_new_shapes();
+
     // Apply all inputs before the current time to start the simulation
     // with the correct initial inputs.
     m_state_history->until(m_current_time, [&] (auto &&element) {
@@ -210,7 +214,7 @@ void extrapolation_job::sync_and_finish() {
         auto local_entity = m_entity_map.at(remote_entity);
 
         // Manifolds are shared separately.
-        if (manifold_view.contains(local_entity)) continue;
+        if (!m_registry.valid(local_entity) || manifold_view.contains(local_entity)) continue;
 
         // Do not include input components of entities owned by the client,
         // since that would cause the latest user inputs to be replaced.
@@ -352,10 +356,6 @@ void extrapolation_job::begin_step() {
     if (settings.external_system_pre_step) {
         (*settings.external_system_pre_step)(m_registry);
     }
-
-    // Initialize new shapes. Basically, create rotated meshes for new
-    // imported polyhedron shapes.
-    init_new_shapes();
 
     m_state = state::broadphase;
 }
