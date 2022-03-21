@@ -19,7 +19,13 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/roll_direction.hpp"
-#include "edyn/shapes/shapes.hpp"
+#include "edyn/shapes/sphere_shape.hpp"
+#include "edyn/shapes/cylinder_shape.hpp"
+#include "edyn/shapes/capsule_shape.hpp"
+#include "edyn/shapes/box_shape.hpp"
+#include "edyn/shapes/polyhedron_shape.hpp"
+#include "edyn/shapes/compound_shape.hpp"
+#include "edyn/shapes/plane_shape.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 
 namespace edyn {
@@ -27,7 +33,7 @@ namespace edyn {
 /**
  * @brief Tuple of components which are shared over the network.
  */
-static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple<
+static const auto networked_components = std::tuple_cat(std::tuple<
     AABB,
     collision_filter,
     collision_exclusion,
@@ -65,6 +71,13 @@ static const auto networked_components = std::tuple_cat(shapes_tuple, std::tuple
     generic_constraint,
     cone_constraint,
     cvjoint_constraint,
+    sphere_shape,
+    cylinder_shape,
+    capsule_shape,
+    box_shape,
+    polyhedron_shape,
+    compound_shape,
+    plane_shape,
     entity_owner
 >{});
 
