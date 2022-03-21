@@ -59,7 +59,7 @@ struct polyhedron_shape {
 
 template<typename Archive>
 void serialize(Archive &archive, polyhedron_shape &shape) {
-    archive(shape.mesh);
+    archive(*shape.mesh);
 }
 
 }

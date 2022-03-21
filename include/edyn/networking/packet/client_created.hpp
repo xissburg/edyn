@@ -5,6 +5,10 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief Sent from server to client once the client entity is created after
+ * connection is established.
+ */
 struct client_created {
     entt::entity client_entity;
 };

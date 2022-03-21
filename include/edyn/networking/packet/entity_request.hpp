@@ -6,6 +6,11 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief Request information of entities that are not yet known.
+ * An `entity_response` is expected later, containing the components of the
+ * requested entities.
+ */
 struct entity_request {
     std::vector<entt::entity> entities;
 };

@@ -6,6 +6,10 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief A snapshot of a set of entities and components. It is the reliable
+ * counterpart of `transient_snapshot`.
+ */
 struct general_snapshot {
     double timestamp;
     std::vector<entt::entity> entities;

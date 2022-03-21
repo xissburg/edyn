@@ -68,6 +68,7 @@ struct rigidbody_def {
     // Prevent this rigid body from sleeping while it barely moves.
     bool sleeping_disabled {false};
 
+    // Share this rigid body over the network.
     bool networked {false};
 
     /**

@@ -5,6 +5,9 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief A response to a time request.
+ */
 struct time_response {
     uint32_t id;
     double timestamp;

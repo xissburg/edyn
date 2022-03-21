@@ -16,6 +16,11 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief The Edyn packet which holds a payload of many internal packet types.
+ * Applications must add this packet as one of their own packet types and when
+ * a packet of this type is received, it must be fed into the Edyn engine.
+ */
 struct edyn_packet {
     std::variant<
         entity_request,

@@ -3,8 +3,15 @@
 
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector3.hpp"
+
 namespace edyn {
 
+/**
+ * @brief A discontinuity introduced by misprediction in the client-side. The
+ * offsets are added to the present position and orientation to ammeliorate
+ * visual disturbances caused by snapping the physics state to the
+ * extrapolation result.
+ */
 struct discontinuity {
     vector3 position_offset {vector3_zero};
     quaternion orientation_offset {quaternion_identity};

@@ -47,13 +47,6 @@ struct client_network_context {
     std::vector<extrapolation_job_context> extrapolation_jobs;
     std::shared_ptr<comp_state_history> state_history;
 
-    using request_entity_func_t = void(entt::entity);
-    entt::sigh<request_entity_func_t> request_entity_signal;
-
-    auto request_entity_sink() {
-        return entt::sink{request_entity_signal};
-    }
-
     using packet_observer_func_t = void(const packet::edyn_packet &);
     entt::sigh<packet_observer_func_t> packet_signal;
 

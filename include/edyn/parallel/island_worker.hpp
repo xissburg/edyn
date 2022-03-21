@@ -20,10 +20,6 @@ struct settings;
 struct extrapolation_result;
 class registry_operation_builder;
 
-namespace packet {
-    struct transient_snapshot;
-}
-
 void island_worker_func(job::data_type &);
 
 /**

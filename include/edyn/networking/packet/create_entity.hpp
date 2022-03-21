@@ -6,6 +6,9 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief A request to replicate entities and components.
+ */
 struct create_entity {
     double timestamp;
     std::vector<entt::entity> entities;

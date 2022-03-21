@@ -6,6 +6,9 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief A response to an entity request.
+ */
 struct entity_response {
     std::vector<entt::entity> entities;
     std::vector<pool_snapshot> pools;

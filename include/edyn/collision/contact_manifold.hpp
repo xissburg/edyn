@@ -84,10 +84,6 @@ void serialize(Archive &archive, contact_manifold &manifold) {
     });
 }
 
-template<typename Archive>
-void serialize(Archive &, contact_manifold_with_restitution &) {}
-
 }
-
 
 #endif // EDYN_COLLISION_CONTACT_MANIFOLD_HPP

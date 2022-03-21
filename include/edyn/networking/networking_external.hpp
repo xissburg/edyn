@@ -12,6 +12,17 @@
 
 namespace edyn {
 
+/**
+ * @brief Register external networked components.
+ * @tparam Component All external networked components.
+ * @tparam Which of the components are transient, i.e. will be sent frequently
+ * between client and server.
+ * @tparam Which of the components are input. These components are exclusively
+ * controlled by the client that owns the entity that has such component.
+ * @param registry Data source.
+ * @param transient_external Tuple of transient components.
+ * @param input Tuple of input components.
+ */
 template<typename... Component, typename... Transient, typename... Input>
 void register_networked_components(entt::registry &registry,
                                    std::tuple<Transient...> transient_external,
@@ -38,6 +49,10 @@ void register_networked_components(entt::registry &registry,
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(all);
 }
 
+/**
+ * @brief Removes previously registered external networked components.
+ * @param registry Data source.
+ */
 inline void unregister_networked_components(entt::registry &registry) {
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
         ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(networked_components));

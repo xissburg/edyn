@@ -4,7 +4,6 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/shapes/shapes.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include <entt/entity/registry.hpp>
 

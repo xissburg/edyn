@@ -5,6 +5,9 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief Time request for clock synchronization purposes.
+ */
 struct time_request {
     uint32_t id;
 };

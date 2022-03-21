@@ -1,7 +1,6 @@
 #ifndef EDYN_UTIL_REGISTRY_OPERATION_BUILDER_HPP
 #define EDYN_UTIL_REGISTRY_OPERATION_BUILDER_HPP
 
-#include <entt/entity/fwd.hpp>
 #include <vector>
 #include <memory>
 #include <entt/entity/registry.hpp>

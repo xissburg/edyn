@@ -31,11 +31,6 @@ void serialize(Archive &archive, capsule_shape &s) {
     archive(s.radius);
 }
 
-template<typename Archive>
-void serialize(Archive &archive, capsule_feature &f) {
-    serialize_enum(archive, f);
-}
-
 }
 
 #endif // EDYN_SHAPES_CAPSULE_SHAPE_HPP

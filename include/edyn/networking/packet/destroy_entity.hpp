@@ -6,6 +6,9 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief A request to destroy entities.
+ */
 struct destroy_entity {
     double timestamp;
     std::vector<entt::entity> entities;

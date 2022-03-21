@@ -5,7 +5,6 @@
 #include <limits>
 #include <vector>
 #include <cstdint>
-#include <memory>
 #include <variant>
 #include <string>
 #include <utility>
@@ -137,28 +136,6 @@ template<typename Archive, typename T, typename U>
 void serialize(Archive &archive, std::pair<T, U> &pair) {
     archive(pair.first);
     archive(pair.second);
-}
-
-template<typename Archive, typename T>
-void serialize(Archive &archive, std::unique_ptr<T> &ptr) {
-    if constexpr(Archive::is_input::value) {
-        if (!ptr) {
-            ptr.reset(new T);
-        }
-    }
-
-    archive(*ptr);
-}
-
-template<typename Archive, typename T>
-void serialize(Archive &archive, std::shared_ptr<T> &ptr) {
-    if constexpr(Archive::is_input::value) {
-        if (!ptr) {
-            ptr.reset(new T);
-        }
-    }
-
-    archive(*ptr);
 }
 
 template<typename Archive, typename T>

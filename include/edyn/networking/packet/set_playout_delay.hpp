@@ -3,6 +3,9 @@
 
 namespace edyn::packet {
 
+/**
+ * @brief Sent to clients when their playout delay changes in the server.
+ */
 struct set_playout_delay {
     double value;
 };

@@ -8,6 +8,10 @@
 
 namespace edyn {
 
+/**
+ * @brief Assigned to each client in the server side. Networked entities which
+ * intersect this AABB will be shared with the client.
+ */
 struct aabb_of_interest {
     // The AABB of interest.
     AABB aabb {vector3_one * -500, vector3_one * 500};

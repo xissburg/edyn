@@ -65,11 +65,6 @@ size_t serialization_sizeof(const triangle_mesh &tri_mesh) {
         serialization_sizeof(tri_mesh.m_restitution);
 }
 
-template<typename Archive>
-void serialize(Archive &archive, triangle_feature &f) {
-    serialize_enum(archive, f);
-}
-
 }
 
 #endif // EDYN_SERIALIZATION_TRIANGLE_MESH_S11N_HPP

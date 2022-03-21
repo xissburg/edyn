@@ -1,8 +1,6 @@
 #ifndef EDYN_COLLISION_CONTACT_NORMAL_ATTACHMENT_HPP
 #define EDYN_COLLISION_CONTACT_NORMAL_ATTACHMENT_HPP
 
-#include <type_traits>
-
 namespace edyn {
 
 /**
