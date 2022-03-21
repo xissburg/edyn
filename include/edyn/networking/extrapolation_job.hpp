@@ -42,7 +42,7 @@ class extrapolation_job final {
     bool run_narrowphase();
     void finish_narrowphase();
     void finish_step();
-    void init_new_shapes();
+    void create_rotated_meshes();
     void apply_history();
     void sync_and_finish();
     void update();
@@ -65,8 +65,6 @@ public:
 
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
-    void on_construct_polyhedron_shape(entt::registry &, entt::entity);
-    void on_construct_compound_shape(entt::registry &, entt::entity);
     void on_destroy_rotated_mesh_list(entt::registry &, entt::entity);
 
     friend void extrapolation_job_func(job::data_type &);
@@ -84,9 +82,6 @@ private:
     unsigned m_step_count {0};
     std::atomic<bool> m_finished {false};
     bool m_destroying_node {false};
-
-    std::vector<entt::entity> m_new_polyhedron_shapes;
-    std::vector<entt::entity> m_new_compound_shapes;
 
     std::shared_ptr<comp_state_history> m_state_history;
 

@@ -94,14 +94,13 @@ void extrapolation_job::load_input() {
         (m_registry.view<decltype(t)>().each(insert_graph_edge), ...);
     }, constraints_tuple);
 
+    // Create rotated meshes for new imported polyhedron shapes.
+    create_rotated_meshes();
+
     // Replace client component state by server state.
     for (auto &pool : m_input.transient_snapshot.pools) {
         pool.ptr->replace_into_registry(m_registry, m_input.transient_snapshot.entities, m_entity_map);
     }
-
-    // Initialize new shapes. Basically, create rotated meshes for new
-    // imported polyhedron shapes.
-    init_new_shapes();
 
     // Apply all inputs before the current time to start the simulation
     // with the correct initial inputs.
@@ -121,8 +120,6 @@ void extrapolation_job::init() {
 
     m_registry.on_destroy<graph_node>().connect<&extrapolation_job::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&extrapolation_job::on_destroy_graph_edge>(*this);
-    m_registry.on_construct<polyhedron_shape>().connect<&extrapolation_job::on_construct_polyhedron_shape>(*this);
-    m_registry.on_construct<compound_shape>().connect<&extrapolation_job::on_construct_compound_shape>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&extrapolation_job::on_destroy_rotated_mesh_list>(*this);
 
     // Import entities and components to be extrapolated.
@@ -164,14 +161,6 @@ void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::en
         auto &edge = registry.get<graph_edge>(entity);
         registry.ctx<entity_graph>().remove_edge(edge.edge_index);
     }
-}
-
-void extrapolation_job::on_construct_polyhedron_shape(entt::registry &registry, entt::entity entity) {
-    m_new_polyhedron_shapes.push_back(entity);
-}
-
-void extrapolation_job::on_construct_compound_shape(entt::registry &registry, entt::entity entity) {
-    m_new_compound_shapes.push_back(entity);
 }
 
 void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, entt::entity entity) {
@@ -428,28 +417,21 @@ void extrapolation_job::reschedule() {
     job_dispatcher::global().async(m_this_job);
 }
 
-void extrapolation_job::init_new_shapes() {
+void extrapolation_job::create_rotated_meshes() {
     auto orn_view = m_registry.view<orientation>();
     auto polyhedron_view = m_registry.view<polyhedron_shape>();
     auto compound_view = m_registry.view<compound_shape>();
 
-    for (auto entity : m_new_polyhedron_shapes) {
-        if (!polyhedron_view.contains(entity)) continue;
-
-        auto &polyhedron = polyhedron_view.get<polyhedron_shape>(entity);
-        // A new `rotated_mesh` is assigned to it, replacing another reference
-        // that could be already in there, thus preventing concurrent access.
-        auto rotated = make_rotated_mesh(*polyhedron.mesh, orn_view.get<orientation>(entity));
+    for (auto [entity, polyhedron] : polyhedron_view.each()) {
+        auto [orn] = orn_view.get(entity);
+        auto rotated = make_rotated_mesh(*polyhedron.mesh, orn);
         auto rotated_ptr = std::make_unique<rotated_mesh>(std::move(rotated));
         polyhedron.rotated = rotated_ptr.get();
         m_registry.emplace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr));
     }
 
-    for (auto entity : m_new_compound_shapes) {
-        if (!compound_view.contains(entity)) continue;
-
-        auto &compound = compound_view.get<compound_shape>(entity);
-        auto &orn = orn_view.get<orientation>(entity);
+    for (auto [entity, compound] : compound_view.each()) {
+        auto [orn] = orn_view.get(entity);
         auto prev_rotated_entity = entt::entity{entt::null};
 
         for (auto &node : compound.nodes) {
@@ -477,9 +459,6 @@ void extrapolation_job::init_new_shapes() {
             }
         }
     }
-
-    m_new_polyhedron_shapes.clear();
-    m_new_compound_shapes.clear();
 }
 
 }
