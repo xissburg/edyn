@@ -495,19 +495,17 @@ static bool request_unknown_entities(entt::registry &registry,
     return contains_unknown;
 }
 
-static void insert_input_to_state_history(entt::registry &registry,
-                                          const std::vector<entt::entity> &entities,
-                                          const std::vector<pool_snapshot> &pools, double time) {
+static void insert_input_to_state_history(entt::registry &registry, const registry_snapshot &snap, double time) {
     auto &ctx = registry.ctx<client_network_context>();
     entt::sparse_set unwoned_entities;
 
-    for (auto entity : entities) {
+    for (auto entity : snap.entities) {
         if (!ctx.owned_entities.contains(entity) && !unwoned_entities.contains(entity)) {
             unwoned_entities.emplace(entity);
         }
     }
 
-    ctx.state_history->emplace(entities, pools, unwoned_entities, time);
+    ctx.state_history->emplace(snap, unwoned_entities, time);
 }
 
 static void snap_to_transient_snapshot(entt::registry &registry, packet::transient_snapshot &snapshot) {
@@ -557,7 +555,7 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
 
     // Input from other clients must be always added to the state history.
     // The server won't send input components of entities owned by this client.
-    insert_input_to_state_history(registry, snapshot.entities, snapshot.pools, snapshot_time);
+    insert_input_to_state_history(registry, snapshot, snapshot_time);
 
     // Snap simulation to server state if the amount of time to be extrapolated
     // is smaller than the fixed delta time, which would cause the extrapolation
@@ -668,7 +666,7 @@ static void process_packet(entt::registry &registry, packet::general_snapshot &s
     }
 
     snapshot.convert_remloc(registry, ctx.entity_map);
-    insert_input_to_state_history(registry, snapshot.entities, snapshot.pools, snapshot_time);
+    insert_input_to_state_history(registry, snapshot, snapshot_time);
     const bool mark_dirty = true;
 
     ctx.pool_snapshot_importer->import_local(registry, snapshot, mark_dirty);

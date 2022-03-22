@@ -8,7 +8,7 @@
 #include <vector>
 #include <entt/core/type_info.hpp>
 #include <entt/entity/fwd.hpp>
-#include "edyn/networking/util/pool_snapshot.hpp"
+#include "edyn/networking/util/registry_snapshot.hpp"
 #include "edyn/util/registry_operation_builder.hpp"
 
 namespace edyn {
@@ -26,9 +26,7 @@ protected:
     }
 
     virtual registry_operation_collection
-    take_snapshot(const std::vector<entt::entity> &pool_entities,
-                  const std::vector<pool_snapshot> &pools,
-                  const entt::sparse_set &entities) {
+    take_snapshot(const registry_snapshot &snap, const entt::sparse_set &entities) {
         return {};
     }
 
@@ -40,25 +38,10 @@ public:
         double timestamp;
     };
 
-    void emplace(const entt::registry &registry, const entt::sparse_set &entities, double timestamp) {
+    template<typename DataSource>
+    void emplace(const DataSource &source, const entt::sparse_set &entities, double timestamp) {
         // Insert input components of given entities from data source into container.
-        auto ops = take_snapshot(registry, entities);
-
-        if (ops.empty()) {
-            return;
-        }
-
-        // Sorted insertion.
-        std::lock_guard lock(mutex);
-        auto it = first_after(timestamp);
-        history.insert(it, {std::move(ops), timestamp});
-    }
-
-    void emplace(const std::vector<entt::entity> &pool_entities,
-                 const std::vector<pool_snapshot> &pools,
-                 const entt::sparse_set &entities, double timestamp) {
-        // Insert input components of given entities from data source into container.
-        auto ops = take_snapshot(pool_entities, pools, entities);
+        auto ops = take_snapshot(source, entities);
 
         if (ops.empty()) {
             return;
@@ -139,12 +122,10 @@ protected:
     }
 
     registry_operation_collection
-    take_snapshot(const std::vector<entt::entity> &pool_entities,
-                  const std::vector<pool_snapshot> &pools,
-                  const entt::sparse_set &entities) override {
-        for (auto &pool : pools) {
+    take_snapshot(const registry_snapshot &snap, const entt::sparse_set &entities) override {
+        for (auto &pool : snap.pools) {
             ((entt::type_seq<Components>::value() == pool.ptr->get_type_id() ?
-                take_snapshot_single<Components>(pool_entities, pool, entities) :
+                take_snapshot_single<Components>(snap.entities, pool, entities) :
                 void(0)), ...);
         }
         return op_builder.finish();
