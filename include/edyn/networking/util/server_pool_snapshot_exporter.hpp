@@ -5,7 +5,7 @@
 #include <entt/entity/registry.hpp>
 #include <type_traits>
 #include "edyn/networking/comp/entity_owner.hpp"
-#include "edyn/networking/util/pool_snapshot.hpp"
+#include "edyn/networking/util/registry_snapshot.hpp"
 #include "edyn/comp/dirty.hpp"
 
 namespace edyn {

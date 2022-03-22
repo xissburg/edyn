@@ -1,5 +1,5 @@
 #include "edyn/networking/util/pool_snapshot.hpp"
-#include "edyn/serialization/s11n.hpp"
+#include "edyn/networking/comp/networked_comp.hpp"
 
 namespace edyn {
 

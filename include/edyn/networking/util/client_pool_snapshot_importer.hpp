@@ -4,7 +4,7 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/sys/client_side.hpp"
-#include "edyn/networking/util/pool_snapshot.hpp"
+#include "edyn/networking/util/registry_snapshot.hpp"
 #include "edyn/edyn.hpp"
 
 namespace edyn {

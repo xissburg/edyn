@@ -6,7 +6,6 @@
 #include "edyn/networking/packet/general_snapshot.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
-#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/comp/aabb_of_interest.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"

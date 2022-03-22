@@ -4,7 +4,6 @@
 #include <vector>
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
-#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/networking/util/server_pool_snapshot_importer.hpp"
 #include "edyn/networking/util/server_pool_snapshot_exporter.hpp"
 

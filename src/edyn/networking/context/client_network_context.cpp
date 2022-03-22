@@ -1,4 +1,5 @@
-#include "edyn/comp/shared_comp.hpp"
+#include "edyn/networking/comp/networked_comp.hpp"
+#include "edyn/networking/comp/transient_comp.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/comp/transient_comp.hpp"
 #include "edyn/networking/extrapolation_job.hpp"

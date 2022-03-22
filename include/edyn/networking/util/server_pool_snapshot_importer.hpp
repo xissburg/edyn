@@ -6,6 +6,7 @@
 #include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
+#include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/parallel/map_child_entity.hpp"
 #include "edyn/edyn.hpp"
 

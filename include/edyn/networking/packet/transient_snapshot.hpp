@@ -2,7 +2,7 @@
 #define EDYN_NETWORKING_PACKET_TRANSIENT_SNAPSHOT_HPP
 
 #include <vector>
-#include "edyn/networking/util/pool_snapshot.hpp"
+#include "edyn/networking/util/registry_snapshot.hpp"
 
 namespace edyn::packet {
 

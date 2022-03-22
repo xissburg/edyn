@@ -2,7 +2,7 @@
 #define EDYN_NETWORKING_UTIL_CLIENT_POOL_SNAPSHOT_EXPORTER_HPP
 
 #include <entt/entity/fwd.hpp>
-#include "edyn/networking/util/pool_snapshot.hpp"
+#include "edyn/networking/util/registry_snapshot.hpp"
 
 namespace edyn {
 
