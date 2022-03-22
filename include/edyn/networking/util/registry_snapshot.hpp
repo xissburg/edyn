@@ -46,8 +46,8 @@ namespace internal {
     }
 
     template<typename Component>
-    void pool_insert_all(const entt::registry &registry,
-                         registry_snapshot &snap, unsigned component_index) {
+    void snapshot_insert_all(const entt::registry &registry,
+                             registry_snapshot &snap, unsigned component_index) {
         auto view = registry.view<Component>();
         auto entity_has_component =
             std::find_if(
@@ -62,8 +62,8 @@ namespace internal {
     }
 
     template<typename Component>
-    void pool_insert_entity(const entt::registry &registry, entt::entity entity,
-                            registry_snapshot &snap, unsigned component_index) {
+    void snapshot_insert_entity(const entt::registry &registry, entt::entity entity,
+                                registry_snapshot &snap, unsigned component_index) {
         auto found_it = std::find(snap.entities.begin(), snap.entities.end(), entity);
 
         if (found_it != snap.entities.end() && registry.all_of<Component>(entity)) {
@@ -72,32 +72,32 @@ namespace internal {
     }
 
     template<typename Component, typename It>
-    void pool_insert_entities(const entt::registry &registry, It first, It last,
-                              registry_snapshot &snap, unsigned component_index) {
+    void snapshot_insert_entities(const entt::registry &registry, It first, It last,
+                                  registry_snapshot &snap, unsigned component_index) {
         get_pool<Component>(snap.pools, component_index)->insert(registry, first, last, snap.entities);
     }
 
     template<typename... Components, typename IndexType, IndexType... Is>
-    void pool_insert_entity_components_all(const entt::registry &registry,
-                                           registry_snapshot &snap,
-                                           [[maybe_unused]] std::tuple<Components...>,
-                                           [[maybe_unused]] std::integer_sequence<IndexType, Is...>) {
-        (pool_insert_all<Components>(registry, snap, Is), ...);
+    void snapshot_insert_entity_components_all(const entt::registry &registry,
+                                               registry_snapshot &snap,
+                                               [[maybe_unused]] std::tuple<Components...>,
+                                               [[maybe_unused]] std::integer_sequence<IndexType, Is...>) {
+        (snapshot_insert_all<Components>(registry, snap, Is), ...);
     }
 
     template<typename Component, typename... Components>
-    void pool_insert_select_entity_component(const entt::registry &registry,
-                                             registry_snapshot &snap,
-                                             [[maybe_unused]] std::tuple<Components...>) {
+    void snapshot_insert_select_entity_component(const entt::registry &registry,
+                                                 registry_snapshot &snap,
+                                                 [[maybe_unused]] std::tuple<Components...>) {
         constexpr auto index = index_of_v<size_t, Component, Components...>;
-        pool_insert_all<Component>(registry, snap, index);
+        snapshot_insert_all<Component>(registry, snap, index);
     }
 
     template<typename... SelectComponents, typename... Components>
-    void pool_insert_select_entity_components(const entt::registry &registry,
-                                              registry_snapshot &snap,
-                                              std::tuple<Components...> components) {
-        (pool_insert_select_entity_component<SelectComponents>(registry, snap, components), ...);
+    void snapshot_insert_select_entity_components(const entt::registry &registry,
+                                                  registry_snapshot &snap,
+                                                  std::tuple<Components...> components) {
+        (snapshot_insert_select_entity_component<SelectComponents>(registry, snap, components), ...);
     }
 }
 

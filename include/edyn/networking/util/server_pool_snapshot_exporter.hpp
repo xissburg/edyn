@@ -32,7 +32,7 @@ class server_pool_snapshot_exporter_impl : public server_pool_snapshot_exporter 
                                            const std::vector<entt::entity> &entities,
                                            registry_snapshot &snap) {
         if constexpr(!std::disjunction_v<std::is_same<Component, Input>...>) {
-            internal::pool_insert_entities<Component>(registry, entities.begin(), entities.end(),
+            internal::snapshot_insert_entities<Component>(registry, entities.begin(), entities.end(),
                                                       snap, index_of_v<unsigned, Component, Components...>);
         }
     };
@@ -69,7 +69,7 @@ public:
             }
 
             if (!unowned_entities.empty()) {
-                (internal::pool_insert_entities<Transient>(registry, unowned_entities.begin(), unowned_entities.end(),
+                (internal::snapshot_insert_entities<Transient>(registry, unowned_entities.begin(), unowned_entities.end(),
                                                            snap, index_of_v<unsigned, Transient, Components...>), ...);
             }
         };
@@ -93,7 +93,7 @@ public:
 
     void export_all(const entt::registry &registry, registry_snapshot &snap) override {
         const std::tuple<Components...> components;
-        internal::pool_insert_entity_components_all(registry, snap, components,
+        internal::snapshot_insert_entity_components_all(registry, snap, components,
                                                     std::make_index_sequence<sizeof...(Components)>{});
     }
 
@@ -106,7 +106,7 @@ public:
                            registry_snapshot &snap) override {
         size_t i = 0;
         ((entt::type_id<Components>().seq() == id ?
-            internal::pool_insert_entity<Components>(registry, entity, snap, i++) : (++i, void(0))), ...);
+            internal::snapshot_insert_entity<Components>(registry, entity, snap, i++) : (++i, void(0))), ...);
     }
 
     void export_dirty_steady(const entt::registry &registry,
