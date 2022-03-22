@@ -4,7 +4,6 @@
 #include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/serialization/std_s11n.hpp"
 #include "edyn/serialization/static_tree_s11n.hpp"
-#include "edyn/serialization/s11n_util.hpp"
 
 namespace edyn {
 

@@ -21,18 +21,15 @@ public:
     // resides is not fully owned by the given client, the update won't be applied.
     // Input components of entities owned by the client are always applied.
     virtual void import(entt::registry &registry, entt::entity client_entity,
-                        const std::vector<entt::entity> &entities,
-                        const pool_snapshot &pool, bool check_ownership, bool mark_dirty) = 0;
+                        const registry_snapshot &snap, bool check_ownership, bool mark_dirty) = 0;
 
     // Import input components of a pool containing local entities.
     virtual void import_input_local(entt::registry &registry, entt::entity client_entity,
-                                    const std::vector<entt::entity> &entities,
-                                    const pool_snapshot &pool, bool mark_dirty) = 0;
+                                    const registry_snapshot &snap, bool mark_dirty) = 0;
 
     // Transform contained entities from remote to local using the remote client's entity map.
     virtual void transform_to_local(entt::registry &registry, entt::entity client_entity,
-                                    const std::vector<entt::entity> &entities,
-                                    pool_snapshot &pool, bool check_ownership) = 0;
+                                    const registry_snapshot &snap, bool check_ownership) = 0;
 };
 
 template<typename... Components>
@@ -212,47 +209,48 @@ public:
     }
 
     void import(entt::registry &registry, entt::entity client_entity,
-                const std::vector<entt::entity> &entities,
-                const pool_snapshot &pool, bool check_ownership, bool mark_dirty) override {
+                const registry_snapshot &snap, bool check_ownership, bool mark_dirty) override {
         const std::tuple<Components...> all_components;
 
-        visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
-            using CompType = std::decay_t<decltype(c)>;
-            auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
-            import_components(registry, client_entity, entities, *typed_pool, check_ownership, mark_dirty);
-        });
+        for (auto &pool : snap.pools) {
+            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+                using CompType = std::decay_t<decltype(c)>;
+                auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
+                import_components(registry, client_entity, snap.entities, *typed_pool, check_ownership, mark_dirty);
+            });
+        }
     }
 
     void import_input_local(entt::registry &registry, entt::entity client_entity,
-                            const std::vector<entt::entity> &entities,
-                            const pool_snapshot &pool, bool mark_dirty) override {
+                            const registry_snapshot &snap, bool mark_dirty) override {
         const std::tuple<Components...> all_components;
 
-        visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
-            using CompType = std::decay_t<decltype(c)>;
+        for (auto &pool : snap.pools) {
+            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+                using CompType = std::decay_t<decltype(c)>;
 
-            if (!m_is_input_component.at(entt::type_id<CompType>().seq())) {
-                return;
-            }
-
-            auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
-            import_input_components_local(registry, client_entity, entities, *typed_pool, mark_dirty);
-        });
+                if (m_is_input_component.at(entt::type_id<CompType>().seq())) {
+                    auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
+                    import_input_components_local(registry, client_entity, snap.entities, *typed_pool, mark_dirty);
+                }
+            });
+        }
     }
 
     void transform_to_local(entt::registry &registry, entt::entity client_entity,
-                            const std::vector<entt::entity> &entities,
-                            pool_snapshot &pool, bool check_ownership) override {
+                            const registry_snapshot &snap, bool check_ownership) override {
         const std::tuple<Components...> all_components;
 
-        visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
-            using CompType = std::decay_t<decltype(c)>;
+        for (auto &pool : snap.pools) {
+            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+                using CompType = std::decay_t<decltype(c)>;
 
-            if constexpr(!std::is_empty_v<CompType>) {
-                auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
-                transform_components_to_local(registry, client_entity, entities, *typed_pool, check_ownership);
-            }
-        });
+                if constexpr(!std::is_empty_v<CompType>) {
+                    auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
+                    transform_components_to_local(registry, client_entity, snap.entities, *typed_pool, check_ownership);
+                }
+            });
+        }
     }
 
 private:

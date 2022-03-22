@@ -13,11 +13,9 @@ class client_pool_snapshot_importer {
 public:
     virtual ~client_pool_snapshot_importer() = default;
     virtual void import(entt::registry &registry, const entity_map &emap,
-                        const std::vector<entt::entity> &entities,
-                        const pool_snapshot &pool, bool mark_dirty) = 0;
+                        const registry_snapshot &snap, bool mark_dirty) = 0;
     virtual void import_local(entt::registry &registry,
-                        const std::vector<entt::entity> &entities,
-                        const pool_snapshot &pool, bool mark_dirty) = 0;
+                        const registry_snapshot &snap, bool mark_dirty) = 0;
 };
 
 template<typename... Components>
@@ -124,27 +122,29 @@ public:
     client_pool_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>) {}
 
     void import(entt::registry &registry, const entity_map &emap,
-                const std::vector<entt::entity> &entities,
-                const pool_snapshot &pool, bool mark_dirty) override {
+                const registry_snapshot &snap, bool mark_dirty) override {
         auto all_components = std::tuple<Components...>{};
 
-        visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
-            using Component = std::decay_t<decltype(c)>;
-            auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
-            import_components(registry, emap, entities, *typed_pool, mark_dirty);
-        });
+        for (auto &pool : snap.pools) {
+            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+                using Component = std::decay_t<decltype(c)>;
+                auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
+                import_components(registry, emap, snap.entities, *typed_pool, mark_dirty);
+            });
+        }
     }
 
     void import_local(entt::registry &registry,
-                      const std::vector<entt::entity> &entities,
-                      const pool_snapshot &pool, bool mark_dirty) override {
+                      const registry_snapshot &snap, bool mark_dirty) override {
         auto all_components = std::tuple<Components...>{};
 
-        visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
-            using Component = std::decay_t<decltype(c)>;
-            auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
-            import_components_local<Component>(registry, entities, *typed_pool, mark_dirty);
-        });
+        for (auto &pool : snap.pools) {
+            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+                using Component = std::decay_t<decltype(c)>;
+                auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
+                import_components_local<Component>(registry, snap.entities, *typed_pool, mark_dirty);
+            });
+        }
     }
 };
 

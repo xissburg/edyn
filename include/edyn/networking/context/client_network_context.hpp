@@ -20,7 +20,6 @@ namespace packet {
 }
 
 class extrapolation_job;
-struct extrapolation_component_pool;
 
 struct extrapolation_job_context {
     std::unique_ptr<extrapolation_job> job;

@@ -9,10 +9,7 @@ namespace edyn::packet {
 /**
  * @brief A response to an entity request.
  */
-struct entity_response {
-    std::vector<entt::entity> entities;
-    std::vector<pool_snapshot> pools;
-};
+struct entity_response : public registry_snapshot {};
 
 template<typename Archive>
 void serialize(Archive &archive, entity_response &res) {

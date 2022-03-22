@@ -112,7 +112,7 @@ static void process_created_networked_entities(entt::registry &registry, double 
     packet.timestamp = time;
     packet.entities = std::move(ctx.created_entities);
 
-    ctx.pool_snapshot_exporter->export_all(registry, packet.entities, packet.pools);
+    ctx.pool_snapshot_exporter->export_all(registry, packet);
 
     for (auto entity : packet.entities) {
         registry.emplace<entity_owner>(entity, ctx.client_entity);
@@ -189,7 +189,7 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
         }
     }
 
-    ctx.pool_snapshot_exporter->export_transient(registry, packet.entities, packet.pools);
+    ctx.pool_snapshot_exporter->export_transient(registry, packet);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
@@ -252,7 +252,7 @@ static void publish_dirty_components(entt::registry &registry, double time) {
 
     for (auto [entity, dirty] : dirty_view.each()) {
         for (auto id : dirty.updated_indexes) {
-            ctx.pool_snapshot_exporter->export_by_type_id(registry, packet.entities, entity, id, packet.pools);
+            ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet);
         }
     }
 
@@ -345,9 +345,7 @@ void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[ma
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
 }
 
-static void import_remote_pools(entt::registry &registry,
-                                const std::vector<entt::entity> &entities,
-                                const std::vector<pool_snapshot> &pools) {
+static void import_remote_snapshot(entt::registry &registry, const registry_snapshot &snap) {
     auto &ctx = registry.ctx<client_network_context>();
 
     // Collect new entity mappings to send back to server.
@@ -355,7 +353,7 @@ static void import_remote_pools(entt::registry &registry,
     emap_packet.timestamp = performance_time();
 
     // Create entities first...
-    for (auto remote_entity : entities) {
+    for (auto remote_entity : snap.entities) {
         if (ctx.entity_map.contains(remote_entity)) continue;
 
         auto local_entity = registry.create();
@@ -376,11 +374,9 @@ static void import_remote_pools(entt::registry &registry,
     // in an island worker.
     const bool mark_dirty = false;
 
-    for (auto &pool : pools) {
-        ctx.pool_snapshot_importer->import(registry, ctx.entity_map, entities, pool, mark_dirty);
-    }
+    ctx.pool_snapshot_importer->import(registry, ctx.entity_map, snap, mark_dirty);
 
-    for (auto remote_entity : entities) {
+    for (auto remote_entity : snap.entities) {
         auto local_entity = ctx.entity_map.at(remote_entity);
 
         if (!registry.all_of<networked_tag>(local_entity)) {
@@ -389,7 +385,7 @@ static void import_remote_pools(entt::registry &registry,
     }
 
     // Create nodes and edges in entity graph.
-    for (auto remote_entity : entities) {
+    for (auto remote_entity : snap.entities) {
         auto local_entity = ctx.entity_map.at(remote_entity);
 
         if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&
@@ -405,7 +401,7 @@ static void import_remote_pools(entt::registry &registry,
         }
     }
 
-    for (auto remote_entity : entities) {
+    for (auto remote_entity : snap.entities) {
         auto local_entity = ctx.entity_map.at(remote_entity);
         maybe_create_graph_edge(registry, local_entity, constraints_tuple);
     }
@@ -414,7 +410,7 @@ static void import_remote_pools(entt::registry &registry,
 static void process_packet(entt::registry &registry, const packet::entity_response &res) {
     auto &ctx = registry.ctx<client_network_context>();
     ctx.importing_entities = true;
-    import_remote_pools(registry, res.entities, res.pools);
+    import_remote_snapshot(registry, res);
     ctx.importing_entities = false;
 
     // Remove received entities from the set of requested entities.
@@ -428,7 +424,7 @@ static void process_packet(entt::registry &registry, const packet::entity_respon
 static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
     auto &ctx = registry.ctx<client_network_context>();
     ctx.importing_entities = true;
-    import_remote_pools(registry, packet.entities, packet.pools);
+    import_remote_snapshot(registry, packet);
     ctx.importing_entities = false;
 }
 
@@ -676,9 +672,7 @@ static void process_packet(entt::registry &registry, packet::general_snapshot &s
     insert_input_to_state_history(registry, snapshot.entities, snapshot.pools, snapshot_time);
     const bool mark_dirty = true;
 
-    for (auto &pool : snapshot.pools) {
-        ctx.pool_snapshot_importer->import_local(registry, snapshot.entities, pool, mark_dirty);
-    }
+    ctx.pool_snapshot_importer->import_local(registry, snapshot, mark_dirty);
 }
 
 static void process_packet(entt::registry &registry, packet::set_playout_delay &delay) {

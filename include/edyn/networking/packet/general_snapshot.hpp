@@ -7,23 +7,12 @@
 namespace edyn::packet {
 
 /**
- * @brief A snapshot of a set of entities and components. It is the reliable
- * counterpart of `transient_snapshot`.
+ * @brief A snapshot of a set of entities and components. It is used to share
+ * updates to steady/non-transient components. It is the reliable counterpart
+ * of `transient_snapshot`.
  */
-struct general_snapshot {
+struct general_snapshot : public registry_snapshot {
     double timestamp;
-    std::vector<entt::entity> entities;
-    std::vector<pool_snapshot> pools;
-
-    void convert_remloc(const entt::registry &registry, entity_map &emap) {
-        for (auto &entity : entities) {
-            entity = emap.at(entity);
-        }
-
-        for (auto &pool : pools) {
-            pool.ptr->convert_remloc(registry, emap);
-        }
-    }
 };
 
 template<typename Archive>

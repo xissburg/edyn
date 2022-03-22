@@ -9,10 +9,8 @@ namespace edyn::packet {
 /**
  * @brief A request to replicate entities and components.
  */
-struct create_entity {
+struct create_entity : public registry_snapshot {
     double timestamp;
-    std::vector<entt::entity> entities;
-    std::vector<pool_snapshot> pools;
 };
 
 template<typename Archive>
