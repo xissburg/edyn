@@ -29,9 +29,11 @@ template<typename... Components>
 class server_pool_snapshot_exporter_impl : public server_pool_snapshot_exporter {
     template<typename Component, typename... Input>
     static void insert_transient_non_input(const entt::registry &registry,
-                                           entt::entity entity, registry_snapshot &snap) {
+                                           const std::vector<entt::entity> &entities,
+                                           registry_snapshot &snap) {
         if constexpr(!std::disjunction_v<std::is_same<Component, Input>...>) {
-            internal::pool_insert_entity<Component>(registry, entity, snap, index_of_v<unsigned, Component, Components...>);
+            internal::pool_insert_entities<Component>(registry, entities.begin(), entities.end(),
+                                                      snap, index_of_v<unsigned, Component, Components...>);
         }
     };
 
@@ -48,16 +50,27 @@ public:
     template<typename... Transient, typename... Input>
     server_pool_snapshot_exporter_impl(std::tuple<Components...>, std::tuple<Transient...>, std::tuple<Input...>) {
         m_insert_transient_entity_components_func = [] (const entt::registry &registry,
-                                                      registry_snapshot &snap,
-                                                      entt::entity dest_client_entity) {
+                                                        registry_snapshot &snap,
+                                                        entt::entity dest_client_entity) {
             // If the entity is owned by the destination client, only insert
             // transient components which are not input.
+            std::vector<entt::entity> owned_entities, unowned_entities;
+
             for (auto entity : snap.entities) {
                 if (auto *owner = registry.try_get<entity_owner>(entity); owner && owner->client_entity == dest_client_entity) {
-                    (insert_transient_non_input<Transient, Input...>(registry, entity, snap), ...);
+                    owned_entities.push_back(entity);
                 } else {
-                    (internal::pool_insert_entity<Transient>(registry, entity, snap, index_of_v<unsigned, Transient, Components...>), ...);
+                    unowned_entities.push_back(entity);
                 }
+            }
+
+            if (!owned_entities.empty()) {
+                (insert_transient_non_input<Transient, Input...>(registry, owned_entities, snap), ...);
+            }
+
+            if (!unowned_entities.empty()) {
+                (internal::pool_insert_entities<Transient>(registry, unowned_entities.begin(), unowned_entities.end(),
+                                                           snap, index_of_v<unsigned, Transient, Components...>), ...);
             }
         };
 

@@ -119,9 +119,8 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         }
     }
 
-    void insert_single(const entt::registry &registry,
-                       const std::vector<entt::entity> &pool_entities,
-                       entt::entity entity) {
+    void insert_single(const entt::registry &registry, entt::entity entity,
+                       const std::vector<entt::entity> &pool_entities) {
         auto found_it = std::find(pool_entities.begin(), pool_entities.end(), entity);
 
         if (found_it == pool_entities.end()) {
@@ -144,9 +143,8 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
     }
 
     template<typename It>
-    void insert(const entt::registry &registry,
-                const std::vector<entt::entity> &pool_entities,
-                It first, It last) {
+    void insert(const entt::registry &registry, It first, It last,
+                const std::vector<entt::entity> &pool_entities) {
         auto view = registry.view<Component>();
 
         for (; first != last; ++first) {
@@ -247,7 +245,7 @@ namespace internal {
     }
 
     template<typename Component>
-    void pool_insert_entities(const entt::registry &registry,
+    void pool_insert_all(const entt::registry &registry,
                               registry_snapshot &snap, unsigned component_index) {
         auto view = registry.view<Component>();
         auto entity_has_component =
@@ -268,8 +266,14 @@ namespace internal {
         auto found_it = std::find(snap.entities.begin(), snap.entities.end(), entity);
 
         if (found_it != snap.entities.end() && registry.all_of<Component>(entity)) {
-            get_pool<Component>(snap.pools, component_index)->insert_single(registry, snap.entities, entity);
+            get_pool<Component>(snap.pools, component_index)->insert_single(registry, entity, snap.entities);
         }
+    }
+
+    template<typename Component, typename It>
+    void pool_insert_entities(const entt::registry &registry, It first, It last,
+                              registry_snapshot &snap, unsigned component_index) {
+        get_pool<Component>(snap.pools, component_index)->insert(registry, first, last, snap.entities);
     }
 
     template<typename... Components, typename IndexType, IndexType... Is>
@@ -277,7 +281,7 @@ namespace internal {
                                            registry_snapshot &snap,
                                            [[maybe_unused]] std::tuple<Components...>,
                                            [[maybe_unused]] std::integer_sequence<IndexType, Is...>) {
-        (pool_insert_entities<Components>(registry, snap, Is), ...);
+        (pool_insert_all<Components>(registry, snap, Is), ...);
     }
 
     template<typename Component, typename... Components>
@@ -285,7 +289,7 @@ namespace internal {
                                              registry_snapshot &snap,
                                              [[maybe_unused]] std::tuple<Components...>) {
         constexpr auto index = index_of_v<size_t, Component, Components...>;
-        pool_insert_entities<Component>(registry, snap, index);
+        pool_insert_all<Component>(registry, snap, index);
     }
 
     template<typename... SelectComponents, typename... Components>
