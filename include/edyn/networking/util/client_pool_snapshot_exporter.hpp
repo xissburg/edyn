@@ -41,7 +41,7 @@ public:
     void export_all(const entt::registry &registry, registry_snapshot &snap) override {
         const std::tuple<Components...> components;
         internal::snapshot_insert_entity_components_all(registry, snap, components,
-                                                    std::make_index_sequence<sizeof...(Components)>{});
+                                                        std::make_index_sequence<sizeof...(Components)>{});
     }
 
     void export_transient(const entt::registry &registry, registry_snapshot &snap) override {

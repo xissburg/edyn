@@ -33,7 +33,7 @@ class server_pool_snapshot_exporter_impl : public server_pool_snapshot_exporter 
                                            registry_snapshot &snap) {
         if constexpr(!std::disjunction_v<std::is_same<Component, Input>...>) {
             internal::snapshot_insert_entities<Component>(registry, entities.begin(), entities.end(),
-                                                      snap, index_of_v<unsigned, Component, Components...>);
+                                                          snap, index_of_v<unsigned, Component, Components...>);
         }
     };
 
@@ -70,7 +70,7 @@ public:
 
             if (!unowned_entities.empty()) {
                 (internal::snapshot_insert_entities<Transient>(registry, unowned_entities.begin(), unowned_entities.end(),
-                                                           snap, index_of_v<unsigned, Transient, Components...>), ...);
+                                                               snap, index_of_v<unsigned, Transient, Components...>), ...);
             }
         };
 
@@ -94,7 +94,7 @@ public:
     void export_all(const entt::registry &registry, registry_snapshot &snap) override {
         const std::tuple<Components...> components;
         internal::snapshot_insert_entity_components_all(registry, snap, components,
-                                                    std::make_index_sequence<sizeof...(Components)>{});
+                                                        std::make_index_sequence<sizeof...(Components)>{});
     }
 
     void export_transient(const entt::registry &registry, registry_snapshot &snap, entt::entity dest_client_entity) override {
