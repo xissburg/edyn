@@ -9,9 +9,17 @@ namespace edyn {
 class client_snapshot_exporter {
 public:
     virtual ~client_snapshot_exporter() = default;
+
+    // Write all networked entities and components into a snapshot.
     virtual void export_all(const entt::registry &registry, registry_snapshot &snap) = 0;
+
+    // Write all transient entities and components into a snapshot.
     virtual void export_transient(const entt::registry &registry, registry_snapshot &snap) = 0;
+
+    // Write all input entities and components into a snapshot.
     virtual void export_input(const entt::registry &registry, registry_snapshot &snap) = 0;
+
+    // Write a single entity and component by type id into a snapshot.
     virtual void export_by_type_id(const entt::registry &registry,
                                    entt::entity entity, entt::id_type id,
                                    registry_snapshot &snap) = 0;

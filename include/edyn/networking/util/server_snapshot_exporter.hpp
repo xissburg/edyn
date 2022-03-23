@@ -13,15 +13,29 @@ namespace edyn {
 class server_snapshot_exporter {
 public:
     virtual ~server_snapshot_exporter() = default;
+
+    // Write all networked entities and components into a snapshot.
     virtual void export_all(const entt::registry &registry, registry_snapshot &snap) = 0;
+
+    // Write all transient entities and components into a snapshot.
+    // Excludes input components of entities owned by the destination client,
+    // since the server must not override client input.
     virtual void export_transient(const entt::registry &registry, registry_snapshot &snap,
                                   entt::entity dest_client_entity) = 0;
+
+    // Write a single entity and component by type id into a snapshot.
     virtual void export_by_type_id(const entt::registry &registry,
                                    entt::entity entity, entt::id_type id,
                                    registry_snapshot &snap) = 0;
+
+    // Write all dirty non-transient components of an entity to a registry.
+    // Excludes input components if the entity is owned by the destination
+    // client, since the server must not override client input.
     virtual void export_dirty_steady(const entt::registry &registry,
                                      entt::entity entity, const dirty &dirty,
                                      registry_snapshot &snap, entt::entity dest_client_entity) = 0;
+
+    // Check whether an entity contains one or more transient components.
     virtual bool contains_transient(const entt::registry &registry, entt::entity entity) const = 0;
 };
 

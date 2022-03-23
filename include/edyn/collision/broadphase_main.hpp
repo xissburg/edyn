@@ -13,8 +13,6 @@
 namespace edyn {
 
 class tree_view;
-struct collision_filter;
-struct multi_island_resident;
 
 class broadphase_main {
 

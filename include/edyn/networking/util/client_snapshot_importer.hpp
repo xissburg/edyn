@@ -12,10 +12,15 @@ namespace edyn {
 class client_snapshot_importer {
 public:
     virtual ~client_snapshot_importer() = default;
+
+    // Load remote snapshot into a registry.
     virtual void import(entt::registry &registry, const entity_map &emap,
                         const registry_snapshot &snap, bool mark_dirty) = 0;
+
+    // Load a snapshot that's been mapped to local (using
+    // `registry_snapshot::convert_remloc`) into a registry.
     virtual void import_local(entt::registry &registry,
-                        const registry_snapshot &snap, bool mark_dirty) = 0;
+                              const registry_snapshot &snap, bool mark_dirty) = 0;
 };
 
 template<typename... Components>

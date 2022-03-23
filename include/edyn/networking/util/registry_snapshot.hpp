@@ -8,6 +8,14 @@
 
 namespace edyn {
 
+/**
+ * @brief Fundamental data structure for all networked data transfer containing
+ * entities and components. It contains an array of entities and an array of
+ * component pools where each pool holds an array of entity indices referring to
+ * the array of entities and, if the component type is not empty, it also
+ * contains an array of components in a 1-to-1 relationship with the entity
+ * index array.
+ */
 struct registry_snapshot {
     std::vector<entt::entity> entities;
     std::vector<pool_snapshot> pools;
