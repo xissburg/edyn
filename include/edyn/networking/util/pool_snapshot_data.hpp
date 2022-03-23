@@ -10,6 +10,7 @@
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/config/config.h"
+#include "edyn/comp/tag.hpp"
 
 namespace edyn {
 
@@ -102,7 +103,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
 
     void insert_all(const entt::registry &registry,
                     const std::vector<entt::entity> &pool_entities) {
-        auto view = registry.view<Component>();
+        auto view = registry.view<Component, networked_tag>();
 
         for (index_type idx = 0; idx < pool_entities.size(); ++idx) {
             auto entity = pool_entities[idx];
@@ -127,6 +128,8 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
             return;
         }
 
+        EDYN_ASSERT(registry.all_of<networked_tag>(entity));
+
         auto idx = std::distance(pool_entities.begin(), found_it);
         entity_indices.push_back(idx);
 
@@ -148,6 +151,8 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
             if (found_it == pool_entities.end() || !view.contains(entity)) {
                 continue;
             }
+
+            EDYN_ASSERT(registry.all_of<networked_tag>(entity));
 
             auto idx = std::distance(pool_entities.begin(), found_it);
             entity_indices.push_back(idx);

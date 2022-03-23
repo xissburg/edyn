@@ -74,7 +74,7 @@ namespace internal {
                                 registry_snapshot &snap, unsigned component_index) {
         auto found_it = std::find(snap.entities.begin(), snap.entities.end(), entity);
 
-        if (found_it != snap.entities.end() && registry.all_of<Component>(entity)) {
+        if (found_it != snap.entities.end()) {
             get_pool<Component>(snap.pools, component_index)->insert_single(registry, entity, snap.entities);
         }
     }
