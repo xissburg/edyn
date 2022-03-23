@@ -111,7 +111,7 @@ static void process_created_networked_entities(entt::registry &registry, double 
     packet.timestamp = time;
     packet.entities = std::move(ctx.created_entities);
 
-    ctx.pool_snapshot_exporter->export_all(registry, packet);
+    ctx.snapshot_exporter->export_all(registry, packet);
 
     for (auto entity : packet.entities) {
         registry.emplace<entity_owner>(entity, ctx.client_entity);
@@ -188,7 +188,7 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
         }
     }
 
-    ctx.pool_snapshot_exporter->export_transient(registry, packet);
+    ctx.snapshot_exporter->export_transient(registry, packet);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
@@ -251,7 +251,7 @@ static void publish_dirty_components(entt::registry &registry, double time) {
 
     for (auto [entity, dirty] : dirty_view.each()) {
         for (auto id : dirty.updated_indexes) {
-            ctx.pool_snapshot_exporter->export_by_type_id(registry, entity, id, packet);
+            ctx.snapshot_exporter->export_by_type_id(registry, entity, id, packet);
         }
     }
 
@@ -373,7 +373,7 @@ static void import_remote_snapshot(entt::registry &registry, const registry_snap
     // in an island worker.
     const bool mark_dirty = false;
 
-    ctx.pool_snapshot_importer->import(registry, ctx.entity_map, snap, mark_dirty);
+    ctx.snapshot_importer->import(registry, ctx.entity_map, snap, mark_dirty);
 
     for (auto remote_entity : snap.entities) {
         auto local_entity = ctx.entity_map.at(remote_entity);
@@ -669,7 +669,7 @@ static void process_packet(entt::registry &registry, packet::general_snapshot &s
     insert_input_to_state_history(registry, snapshot, snapshot_time);
     const bool mark_dirty = true;
 
-    ctx.pool_snapshot_importer->import_local(registry, snapshot, mark_dirty);
+    ctx.snapshot_importer->import_local(registry, snapshot, mark_dirty);
 }
 
 static void process_packet(entt::registry &registry, packet::set_playout_delay &delay) {

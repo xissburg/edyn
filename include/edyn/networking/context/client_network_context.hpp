@@ -3,8 +3,8 @@
 
 #include "edyn/util/entity_map.hpp"
 #include "edyn/networking/util/comp_state_history.hpp"
-#include "edyn/networking/util/client_pool_snapshot_importer.hpp"
-#include "edyn/networking/util/client_pool_snapshot_exporter.hpp"
+#include "edyn/networking/util/client_snapshot_importer.hpp"
+#include "edyn/networking/util/client_snapshot_exporter.hpp"
 #include "edyn/networking/util/clock_sync.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
@@ -58,8 +58,8 @@ struct client_network_context {
         return entt::sink{extrapolation_timeout_signal};
     }
 
-    std::shared_ptr<client_pool_snapshot_importer> pool_snapshot_importer;
-    std::shared_ptr<client_pool_snapshot_exporter> pool_snapshot_exporter;
+    std::shared_ptr<client_snapshot_importer> snapshot_importer;
+    std::shared_ptr<client_snapshot_exporter> snapshot_exporter;
 
     using is_input_component_func_t = bool(entt::id_type);
     is_input_component_func_t *is_input_component_func;

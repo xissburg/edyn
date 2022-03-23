@@ -1,5 +1,5 @@
-#ifndef EDYN_NETWORKING_UTIL_CLIENT_POOL_SNAPSHOT_IMPORTER_HPP
-#define EDYN_NETWORKING_UTIL_CLIENT_POOL_SNAPSHOT_IMPORTER_HPP
+#ifndef EDYN_NETWORKING_UTIL_CLIENT_SNAPSHOT_IMPORTER_HPP
+#define EDYN_NETWORKING_UTIL_CLIENT_SNAPSHOT_IMPORTER_HPP
 
 #include <entt/entity/registry.hpp>
 #include "edyn/networking/comp/network_dirty.hpp"
@@ -9,9 +9,9 @@
 
 namespace edyn {
 
-class client_pool_snapshot_importer {
+class client_snapshot_importer {
 public:
-    virtual ~client_pool_snapshot_importer() = default;
+    virtual ~client_snapshot_importer() = default;
     virtual void import(entt::registry &registry, const entity_map &emap,
                         const registry_snapshot &snap, bool mark_dirty) = 0;
     virtual void import_local(entt::registry &registry,
@@ -19,7 +19,7 @@ public:
 };
 
 template<typename... Components>
-class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer {
+class client_snapshot_importer_impl : public client_snapshot_importer {
 
     template<typename Component>
     void import_components(entt::registry &registry, const entity_map &emap,
@@ -119,7 +119,7 @@ class client_pool_snapshot_importer_impl : public client_pool_snapshot_importer 
     }
 
 public:
-    client_pool_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>) {}
+    client_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>) {}
 
     void import(entt::registry &registry, const entity_map &emap,
                 const registry_snapshot &snap, bool mark_dirty) override {
@@ -150,4 +150,4 @@ public:
 
 }
 
-#endif // EDYN_NETWORKING_UTIL_CLIENT_POOL_SNAPSHOT_IMPORTER_HPP
+#endif // EDYN_NETWORKING_UTIL_CLIENT_SNAPSHOT_IMPORTER_HPP

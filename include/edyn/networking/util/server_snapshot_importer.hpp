@@ -1,5 +1,5 @@
-#ifndef EDYN_NETWORKING_UTIL_SERVER_POOL_SNAPSHOT_IMPORTER_HPP
-#define EDYN_NETWORKING_UTIL_SERVER_POOL_SNAPSHOT_IMPORTER_HPP
+#ifndef EDYN_NETWORKING_UTIL_SERVER_SNAPSHOT_IMPORTER_HPP
+#define EDYN_NETWORKING_UTIL_SERVER_SNAPSHOT_IMPORTER_HPP
 
 #include <entt/entity/registry.hpp>
 #include <type_traits>
@@ -14,9 +14,9 @@ namespace edyn {
 
 bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity);
 
-class server_pool_snapshot_importer {
+class server_snapshot_importer {
 public:
-    virtual ~server_pool_snapshot_importer() = default;
+    virtual ~server_snapshot_importer() = default;
 
     // Import components in pool into registry. If the island where the entity
     // resides is not fully owned by the given client, the update won't be applied.
@@ -34,7 +34,7 @@ public:
 };
 
 template<typename... Components>
-class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer {
+class server_snapshot_importer_impl : public server_snapshot_importer {
 
     template<typename Component>
     bool is_owned_by_client(entt::registry &registry, entt::entity client_entity, entt::entity local_entity) {
@@ -203,7 +203,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
 public:
     template<typename... Input>
-    server_pool_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>,
+    server_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>,
                                        [[maybe_unused]] std::tuple<Input...>) {
         static_assert((!std::is_empty_v<Input> && ...));
         ((m_is_input_component[entt::type_id<Components>().seq()] = has_type<Components, std::tuple<Input...>>::value), ...);
@@ -260,4 +260,4 @@ private:
 
 }
 
-#endif // EDYN_NETWORKING_UTIL_SERVER_POOL_SNAPSHOT_IMPORTER_HPP
+#endif // EDYN_NETWORKING_UTIL_SERVER_SNAPSHOT_IMPORTER_HPP

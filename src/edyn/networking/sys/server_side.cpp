@@ -139,7 +139,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     res.entities.insert(res.entities.end(), all_entities.begin(), all_entities.end());
     res.entities.insert(res.entities.end(), client_entities.begin(), client_entities.end());
 
-    ctx.pool_snapshot_exporter->export_all(registry, res);
+    ctx.snapshot_exporter->export_all(registry, res);
 
     if (!res.entities.empty() && !res.pools.empty()) {
         std::sort(res.pools.begin(), res.pools.end(), [] (auto &&lhs, auto &&rhs) {
@@ -165,11 +165,11 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     }
 
     // Transform snapshot entities into local registry space.
-    ctx.pool_snapshot_importer->transform_to_local(registry, client_entity, snapshot, check_ownership);
+    ctx.snapshot_importer->transform_to_local(registry, client_entity, snapshot, check_ownership);
 
     // If this pool holds input components, import them directly into
     // the main registry.
-    ctx.pool_snapshot_importer->import_input_local(registry, client_entity, snapshot, mark_dirty);
+    ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot, mark_dirty);
 
     // Get islands of all entities contained in transient snapshot and send the
     // snapshot to them. They will import the pre-processed state into their
@@ -189,7 +189,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &ctx = registry.ctx<server_network_context>();
     const bool check_ownership = true;
     const bool mark_dirty = true;
-    ctx.pool_snapshot_importer->import(registry, client_entity, snapshot, check_ownership, mark_dirty);
+    ctx.snapshot_importer->import(registry, client_entity, snapshot, check_ownership, mark_dirty);
 }
 
 template<typename T>
@@ -243,7 +243,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // the new entities to island workers thus marking them as dirty would
     // cause them to be created twice in the worker.
     const bool mark_dirty = false;
-    ctx.pool_snapshot_importer->import(registry, client_entity, packet, check_ownership, mark_dirty);
+    ctx.snapshot_importer->import(registry, client_entity, packet, check_ownership, mark_dirty);
 
     // Create nodes and edges in entity graph and assign networked tags.
     for (auto remote_entity : packet.entities) {
@@ -434,7 +434,7 @@ static void process_aabb_of_interest_created_entities(entt::registry &registry,
 
     if (!packet.entities.empty()) {
         auto &ctx = registry.ctx<server_network_context>();
-        ctx.pool_snapshot_exporter->export_all(registry, packet);
+        ctx.snapshot_exporter->export_all(registry, packet);
 
         // Sort components to ensure order of construction on the other end.
         std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
@@ -470,7 +470,7 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
             !registry.any_of<sleeping_tag, static_tag>(entity) &&
             registry.all_of<networked_tag>(entity) &&
             !is_fully_owned_by_client(registry, client_entity, entity) &&
-            ctx.pool_snapshot_exporter->contains_transient(registry, entity);
+            ctx.snapshot_exporter->contains_transient(registry, entity);
     };
 
     for (auto entity : aabboi.entities) {
@@ -479,7 +479,7 @@ static void maybe_publish_client_transient_snapshot(entt::registry &registry,
         }
     }
 
-    ctx.pool_snapshot_exporter->export_transient(registry, packet, client_entity);
+    ctx.snapshot_exporter->export_transient(registry, packet, client_entity);
 
     if (!packet.pools.empty()) {
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
@@ -517,10 +517,10 @@ static void publish_client_dirty_components(entt::registry &registry,
         // Add dirty components to snapshot, including for entities
         // owned by the destination client. This does not include components
         // marked as dirty during import of other snapshots since
-        // `network_dirty` is used in `server_pool_snapshot_importer` instead.
+        // `network_dirty` is used in `server_snapshot_importer` instead.
         if (dirty_view.contains(entity)) {
             auto [dirty] = dirty_view.get(entity);
-            ctx.pool_snapshot_exporter->export_dirty_steady(registry, entity, dirty, packet, client_entity);
+            ctx.snapshot_exporter->export_dirty_steady(registry, entity, dirty, packet, client_entity);
         }
 
         // For the components that were marked dirty during a snapshot import,
@@ -530,7 +530,7 @@ static void publish_client_dirty_components(entt::registry &registry,
         // frequently updated via transient snapshots.
         if (network_dirty_view.contains(entity)) {
             auto [dirty] = network_dirty_view.get(entity);
-            ctx.pool_snapshot_exporter->export_dirty_steady(registry, entity, dirty, packet, client_entity);
+            ctx.snapshot_exporter->export_dirty_steady(registry, entity, dirty, packet, client_entity);
         }
     }
 
@@ -575,7 +575,7 @@ static void calculate_client_playout_delay(entt::registry &registry,
 
 static void merge_network_dirty_into_dirty(entt::registry &registry) {
     // Merge components marked as dirty during network import (i.e.
-    // `ctx.pool_snapshot_importer->import(...)`) into the regular dirty
+    // `ctx.snapshot_importer->import(...)`) into the regular dirty
     // components so these changes will be pushed into the respective
     // island workers.
     for (auto [entity, network_dirty] : registry.view<edyn::network_dirty>().each()) {
@@ -700,7 +700,7 @@ void server_notify_created_entities(entt::registry &registry,
     auto packet = edyn::packet::create_entity{};
     packet.timestamp = performance_time();
     packet.entities = entities;
-    ctx.pool_snapshot_exporter->export_all(registry, packet);
+    ctx.snapshot_exporter->export_all(registry, packet);
 
     // Sort components to ensure order of construction.
     std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {

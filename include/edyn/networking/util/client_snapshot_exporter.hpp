@@ -1,14 +1,14 @@
-#ifndef EDYN_NETWORKING_UTIL_CLIENT_POOL_SNAPSHOT_EXPORTER_HPP
-#define EDYN_NETWORKING_UTIL_CLIENT_POOL_SNAPSHOT_EXPORTER_HPP
+#ifndef EDYN_NETWORKING_UTIL_CLIENT_SNAPSHOT_EXPORTER_HPP
+#define EDYN_NETWORKING_UTIL_CLIENT_SNAPSHOT_EXPORTER_HPP
 
 #include <entt/entity/fwd.hpp>
 #include "edyn/networking/util/registry_snapshot.hpp"
 
 namespace edyn {
 
-class client_pool_snapshot_exporter {
+class client_snapshot_exporter {
 public:
-    virtual ~client_pool_snapshot_exporter() = default;
+    virtual ~client_snapshot_exporter() = default;
     virtual void export_all(const entt::registry &registry, registry_snapshot &snap) = 0;
     virtual void export_transient(const entt::registry &registry, registry_snapshot &snap) = 0;
     virtual void export_input(const entt::registry &registry, registry_snapshot &snap) = 0;
@@ -18,7 +18,7 @@ public:
 };
 
 template<typename... Components>
-class client_pool_snapshot_exporter_impl : public client_pool_snapshot_exporter {
+class client_snapshot_exporter_impl : public client_snapshot_exporter {
 
     template<unsigned... ComponentIndex>
     void export_by_type_id(const entt::registry &registry,
@@ -35,7 +35,7 @@ class client_pool_snapshot_exporter_impl : public client_pool_snapshot_exporter 
 
 public:
     template<typename... Transient, typename... Input>
-    client_pool_snapshot_exporter_impl(std::tuple<Components...>, std::tuple<Transient...>, std::tuple<Input...>) {
+    client_snapshot_exporter_impl(std::tuple<Components...>, std::tuple<Transient...>, std::tuple<Input...>) {
         static_assert((!std::is_empty_v<Input> && ...));
 
         m_insert_transient_entity_components_func = [] (const entt::registry &registry, registry_snapshot &snap) {
@@ -72,4 +72,4 @@ public:
 
 }
 
-#endif // EDYN_NETWORKING_UTIL_CLIENT_POOL_SNAPSHOT_EXPORTER_HPP
+#endif // EDYN_NETWORKING_UTIL_CLIENT_SNAPSHOT_EXPORTER_HPP

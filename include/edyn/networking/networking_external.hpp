@@ -33,8 +33,8 @@ void register_networked_components(entt::registry &registry,
     auto shared_all = std::tuple_cat(shared_components, external);
 
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
-        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(all));
-        ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(all, transient_all, input));
+        ctx->snapshot_importer.reset(new client_snapshot_importer_impl(all));
+        ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(all, transient_all, input));
         ctx->is_input_component_func = [] (entt::id_type id) {
             return ((id == entt::type_id<Input>().seq()) || ...);
         };
@@ -42,8 +42,8 @@ void register_networked_components(entt::registry &registry,
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
-        ctx->pool_snapshot_importer.reset(new server_pool_snapshot_importer_impl(all, input));
-        ctx->pool_snapshot_exporter.reset(new server_pool_snapshot_exporter_impl(all, transient_all, input));
+        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(all, input));
+        ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(all, transient_all, input));
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(all);
@@ -55,15 +55,15 @@ void register_networked_components(entt::registry &registry,
  */
 inline void unregister_networked_components(entt::registry &registry) {
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
-        ctx->pool_snapshot_importer.reset(new client_pool_snapshot_importer_impl(networked_components));
-        ctx->pool_snapshot_exporter.reset(new client_pool_snapshot_exporter_impl(networked_components, transient_components, {}));
+        ctx->snapshot_importer.reset(new client_snapshot_importer_impl(networked_components));
+        ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(networked_components, transient_components, {}));
         ctx->is_input_component_func = [] (entt::id_type) { return false; };
         ctx->state_history = std::make_shared<comp_state_history>();
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
-        ctx->pool_snapshot_importer.reset(new server_pool_snapshot_importer_impl(networked_components, {}));
-        ctx->pool_snapshot_exporter.reset(new server_pool_snapshot_exporter_impl(networked_components, transient_components, {}));
+        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(networked_components, {}));
+        ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(networked_components, transient_components, {}));
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(networked_components);

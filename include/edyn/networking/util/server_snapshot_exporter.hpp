@@ -1,5 +1,5 @@
-#ifndef EDYN_NETWORKING_UTIL_SERVER_POOL_SNAPSHOT_EXPORTER_HPP
-#define EDYN_NETWORKING_UTIL_SERVER_POOL_SNAPSHOT_EXPORTER_HPP
+#ifndef EDYN_NETWORKING_UTIL_SERVER_SNAPSHOT_EXPORTER_HPP
+#define EDYN_NETWORKING_UTIL_SERVER_SNAPSHOT_EXPORTER_HPP
 
 #include <entt/core/type_info.hpp>
 #include <entt/entity/registry.hpp>
@@ -10,9 +10,9 @@
 
 namespace edyn {
 
-class server_pool_snapshot_exporter {
+class server_snapshot_exporter {
 public:
-    virtual ~server_pool_snapshot_exporter() = default;
+    virtual ~server_snapshot_exporter() = default;
     virtual void export_all(const entt::registry &registry, registry_snapshot &snap) = 0;
     virtual void export_transient(const entt::registry &registry, registry_snapshot &snap,
                                   entt::entity dest_client_entity) = 0;
@@ -26,7 +26,7 @@ public:
 };
 
 template<typename... Components>
-class server_pool_snapshot_exporter_impl : public server_pool_snapshot_exporter {
+class server_snapshot_exporter_impl : public server_snapshot_exporter {
     template<typename Component, typename... Input>
     static void insert_transient_non_input(const entt::registry &registry,
                                            const std::vector<entt::entity> &entities,
@@ -57,7 +57,7 @@ class server_pool_snapshot_exporter_impl : public server_pool_snapshot_exporter 
 
 public:
     template<typename... Transient, typename... Input>
-    server_pool_snapshot_exporter_impl(std::tuple<Components...>, std::tuple<Transient...>, std::tuple<Input...>) {
+    server_snapshot_exporter_impl(std::tuple<Components...>, std::tuple<Transient...>, std::tuple<Input...>) {
         m_insert_transient_entity_components_func = [] (const entt::registry &registry,
                                                         registry_snapshot &snap,
                                                         entt::entity dest_client_entity) {
@@ -133,4 +133,4 @@ public:
 
 }
 
-#endif // EDYN_NETWORKING_UTIL_SERVER_POOL_SNAPSHOT_EXPORTER_HPP
+#endif // EDYN_NETWORKING_UTIL_SERVER_SNAPSHOT_EXPORTER_HPP

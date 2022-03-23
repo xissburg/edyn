@@ -6,8 +6,8 @@
 namespace edyn {
 
 server_network_context::server_network_context()
-    : pool_snapshot_importer(new server_pool_snapshot_importer_impl(networked_components, {}))
-    , pool_snapshot_exporter(new server_pool_snapshot_exporter_impl(networked_components, transient_components, {}))
+    : snapshot_importer(new server_snapshot_importer_impl(networked_components, {}))
+    , snapshot_exporter(new server_snapshot_exporter_impl(networked_components, transient_components, {}))
 {}
 
 }
