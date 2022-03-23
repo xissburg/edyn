@@ -59,14 +59,14 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
     template<typename Component>
     void import_components(entt::registry &registry, entt::entity client_entity,
-                           const std::vector<entt::entity> &entities,
+                           const std::vector<entt::entity> &pool_entities,
                            const pool_snapshot_data_impl<Component> &pool,
                            bool check_ownership, bool mark_dirty) {
         auto &client = registry.get<remote_client>(client_entity);
 
         for (size_t i = 0; i < pool.entity_indices.size(); ++i) {
             auto entity_index = pool.entity_indices[i];
-            auto remote_entity = entities[entity_index];
+            auto remote_entity = pool_entities[entity_index];
 
             if (!client.entity_map.contains(remote_entity)) {
                 continue;
@@ -116,14 +116,14 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
     template<typename Component>
     void import_input_components_local(entt::registry &registry, entt::entity client_entity,
-                                       const std::vector<entt::entity> &entities,
+                                       const std::vector<entt::entity> &pool_entities,
                                        const pool_snapshot_data_impl<Component> &pool,
                                        bool mark_dirty) {
         auto owner_view = registry.view<entity_owner>();
 
         for (size_t i = 0; i < pool.entity_indices.size(); ++i) {
             auto entity_index = pool.entity_indices[i];
-            auto local_entity = entities[entity_index];
+            auto local_entity = pool_entities[entity_index];
 
             if (!registry.valid(local_entity)) {
                 continue;
@@ -168,7 +168,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
 
     template<typename Component>
     void transform_components_to_local(entt::registry &registry, entt::entity client_entity,
-                                       const std::vector<entt::entity> &entities,
+                                       const std::vector<entt::entity> &pool_entities,
                                        pool_snapshot_data_impl<Component> &pool,
                                        bool check_ownership) {
         auto &client = registry.get<remote_client>(client_entity);
@@ -182,7 +182,7 @@ class server_pool_snapshot_importer_impl : public server_pool_snapshot_importer 
         // with last and popping.
         for (size_t i = 0; i < pool.entity_indices.size();) {
             auto entity_index = pool.entity_indices[i];
-            auto entity = entities[entity_index];
+            auto entity = pool_entities[entity_index];
 
             if (!registry.valid(entity)) {
                 remove(i);

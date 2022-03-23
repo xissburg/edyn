@@ -86,13 +86,16 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
             for (size_t i = 0; i < entity_indices.size(); ++i) {
                 auto entity_index = entity_indices[i];
                 auto remote_entity = pool_entities[entity_index];
-                if (!emap.contains(remote_entity)) continue;
-                auto local_entity = emap.at(remote_entity);
-                if (!registry.valid(local_entity)) continue;
-                if (!registry.all_of<Component>(local_entity)) continue;
-                auto &comp = components[i];
-                internal::map_child_entity(registry, emap, comp);
-                registry.replace<Component>(local_entity, comp);
+
+                if (emap.contains(remote_entity)) {
+                    auto local_entity = emap.at(remote_entity);
+
+                    if (registry.valid(local_entity) && registry.all_of<Component>(local_entity)) {
+                        auto &comp = components[i];
+                        internal::map_child_entity(registry, emap, comp);
+                        registry.replace<Component>(local_entity, comp);
+                    }
+                }
             }
         }
     }
@@ -118,14 +121,9 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
     void insert_single(const entt::registry &registry, entt::entity entity,
                        const std::vector<entt::entity> &pool_entities) {
         auto found_it = std::find(pool_entities.begin(), pool_entities.end(), entity);
-
-        if (found_it == pool_entities.end()) {
-            return;
-        }
-
         auto view = registry.view<Component>();
 
-        if (!view.contains(entity)) {
+        if (found_it == pool_entities.end() || !view.contains(entity)) {
             return;
         }
 
@@ -147,7 +145,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
             auto entity = *first;
             auto found_it = std::find(pool_entities.begin(), pool_entities.end(), entity);
 
-            if (!view.contains(entity) || found_it == pool_entities.end()) {
+            if (found_it == pool_entities.end() || !view.contains(entity)) {
                 continue;
             }
 

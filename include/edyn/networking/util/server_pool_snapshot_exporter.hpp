@@ -37,6 +37,15 @@ class server_pool_snapshot_exporter_impl : public server_pool_snapshot_exporter 
         }
     };
 
+    template<unsigned... ComponentIndex>
+    void export_by_type_id(const entt::registry &registry,
+                           entt::entity entity, entt::id_type id,
+                           registry_snapshot &snap,
+                           std::integer_sequence<unsigned, ComponentIndex...>) {
+        ((entt::type_id<Components>().seq() == id ?
+            internal::snapshot_insert_entity<Components>(registry, entity, snap, ComponentIndex) : void(0)), ...);
+    }
+
     using insert_entity_components_func_t = void(const entt::registry &, registry_snapshot &, entt::entity);
     insert_entity_components_func_t *m_insert_transient_entity_components_func;
 
@@ -104,9 +113,7 @@ public:
     void export_by_type_id(const entt::registry &registry,
                            entt::entity entity, entt::id_type id,
                            registry_snapshot &snap) override {
-        size_t i = 0;
-        ((entt::type_id<Components>().seq() == id ?
-            internal::snapshot_insert_entity<Components>(registry, entity, snap, i++) : (++i, void(0))), ...);
+        export_by_type_id(registry, entity, id, snap, std::make_integer_sequence<unsigned, sizeof...(Components)>{});
     }
 
     void export_dirty_steady(const entt::registry &registry,
