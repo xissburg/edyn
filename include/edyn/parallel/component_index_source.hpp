@@ -18,6 +18,7 @@ struct component_index_source {
 
     template<typename Component, typename IndexType = size_t>
     IndexType index_of() const {
+        static_assert(std::is_integral_v<IndexType>);
         if constexpr(has_type<Component, shared_components_t>::value) {
             return tuple_index_of<Component, IndexType>(shared_components);
         } else {

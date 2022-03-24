@@ -132,7 +132,14 @@ size_t get_component_index(entt::registry &registry) {
     return settings.index_source->index_of<Component>();
 }
 
-/*! @copydoc get_component_index */
+/**
+ * @brief Get indices of a sequence of component types among all shared
+ * components in the library. Also supports any registered external component.
+ * @tparam IndexType Desired integral index type.
+ * @tparam Component The component type.
+ * @param registry Data source.
+ * @return Component index.
+ */
 template<typename IndexType, typename... Component>
 auto get_component_indices(entt::registry &registry) {
     auto &settings = registry.ctx<edyn::settings>();
