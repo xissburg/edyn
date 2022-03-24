@@ -133,10 +133,10 @@ size_t get_component_index(entt::registry &registry) {
 }
 
 /*! @copydoc get_component_index */
-template<typename... Component>
+template<typename IndexType, typename... Component>
 auto get_component_indices(entt::registry &registry) {
     auto &settings = registry.ctx<edyn::settings>();
-    return settings.index_source->indices_of<Component...>();
+    return settings.index_source->indices_of<IndexType, Component...>();
 }
 
 /**
