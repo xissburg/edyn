@@ -149,56 +149,56 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
 
     ctx.last_snapshot_time = time;
 
-    // Include transient components of all entities in the islands that contain
-    // an entity owned by this client, excluding entities that are owned by
-    // other clients.
     auto packet = packet::transient_snapshot{};
     packet.timestamp = time;
 
-    auto island_entities = collect_islands_from_residents(registry, ctx.owned_entities.begin(), ctx.owned_entities.end());
-    auto island_view = registry.view<island>();
-    auto networked_view = registry.view<networked_tag>();
-    auto owner_view = registry.view<entity_owner>();
-
-    auto should_include_entity = [&] (entt::entity entity) {
-        if (!networked_view.contains(entity)) {
-            return false;
-        }
-
-        auto is_owned_by_another_client =
-            owner_view.contains(entity) &&
-            std::get<0>(owner_view.get(entity)).client_entity != ctx.client_entity;
-
-        if (is_owned_by_another_client) {
-            return false;
-        }
-
-        if (ctx.allow_full_ownership) {
-            return ctx.snapshot_exporter->contains_transient(registry, entity);
-        } else {
-            return ctx.snapshot_exporter->contains_transient_input(registry, entity);
-        }
-    };
-
-    for (auto island_entity : island_entities) {
-        auto [island] = island_view.get(island_entity);
-
-        for (auto entity : island.nodes) {
-            if (should_include_entity(entity)) {
-                packet.entities.push_back(entity);
-            }
-        }
-
-        for (auto entity : island.edges) {
-            if (should_include_entity(entity)) {
-                packet.entities.push_back(entity);
-            }
-        }
-    }
-
     if (ctx.allow_full_ownership) {
+        // Include transient components of all entities in the islands that
+        // contain an entity owned by this client, excluding entities that are
+        // owned by other clients.
+        auto island_entities = collect_islands_from_residents(registry, ctx.owned_entities.begin(), ctx.owned_entities.end());
+        auto island_view = registry.view<island>();
+        auto networked_view = registry.view<networked_tag>();
+        auto owner_view = registry.view<entity_owner>();
+
+        auto should_include_entity = [&] (entt::entity entity) {
+            if (!networked_view.contains(entity)) {
+                return false;
+            }
+
+            auto is_owned_by_another_client =
+                owner_view.contains(entity) &&
+                std::get<0>(owner_view.get(entity)).client_entity != ctx.client_entity;
+
+            return !is_owned_by_another_client &&
+                   ctx.snapshot_exporter->contains_transient(registry, entity);
+        };
+
+        for (auto island_entity : island_entities) {
+            auto [island] = island_view.get(island_entity);
+
+            for (auto entity : island.nodes) {
+                if (should_include_entity(entity)) {
+                    packet.entities.push_back(entity);
+                }
+            }
+
+            for (auto entity : island.edges) {
+                if (should_include_entity(entity)) {
+                    packet.entities.push_back(entity);
+                }
+            }
+        }
+
         ctx.snapshot_exporter->export_transient(registry, packet);
     } else {
+        // Only include transient input components of entities owned by this client.
+        for (auto entity : ctx.owned_entities) {
+            if (ctx.snapshot_exporter->contains_transient_input(registry, entity)) {
+                packet.entities.push_back(entity);
+            }
+        }
+
         ctx.snapshot_exporter->export_transient_input(registry, packet);
     }
 
