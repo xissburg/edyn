@@ -306,9 +306,6 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     process_update_entity_map_packet(registry, packet, client.entity_map);
 }
 
-static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
-static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
-
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_request &req) {
     auto res = packet::time_response{req.id, performance_time()};
     auto &ctx = registry.ctx<server_network_context>();
@@ -320,6 +317,10 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
     clock_sync_process_time_response(client.clock_sync, res);
 }
+
+static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::server_settings &) {}
 
 void init_network_server(entt::registry &registry) {
     registry.set<server_network_context>();
@@ -361,11 +362,21 @@ static void server_process_timed_packets(entt::registry &registry, double time) 
 }
 
 static void publish_pending_created_clients(entt::registry &registry) {
+    auto &settings = registry.ctx<edyn::settings>();
+    auto client_view = registry.view<remote_client>();
     auto &ctx = registry.ctx<server_network_context>();
 
     for (auto client_entity : ctx.pending_created_clients) {
+        if (!registry.valid(client_entity)) {
+            continue;
+        }
+
         auto packet = packet::client_created{client_entity};
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+
+        auto [client] = client_view.get(client_entity);
+        auto settings_packet = packet::server_settings(settings, client.allow_full_ownership);
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{settings_packet});
     }
 
     ctx.pending_created_clients.clear();
@@ -662,10 +673,11 @@ struct client_packet_signal_wrapper {
     }
 };
 
-void server_make_client(entt::registry &registry, entt::entity entity) {
+void server_make_client(entt::registry &registry, entt::entity entity, bool allow_full_ownership) {
     auto &ctx = registry.ctx<server_network_context>();
 
     auto &client = registry.emplace<remote_client>(entity);
+    client.allow_full_ownership = allow_full_ownership;
     registry.emplace<aabb_of_interest>(entity);
 
     // Assign packet signal wrapper as a component since the `entt::delegate`
@@ -680,9 +692,9 @@ void server_make_client(entt::registry &registry, entt::entity entity) {
     ctx.pending_created_clients.push_back(entity);
 }
 
-entt::entity server_make_client(entt::registry &registry) {
+entt::entity server_make_client(entt::registry &registry, bool allow_full_ownership) {
     auto entity = registry.create();
-    server_make_client(registry, entity);
+    server_make_client(registry, entity, allow_full_ownership);
     return entity;
 }
 

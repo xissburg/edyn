@@ -700,6 +700,20 @@ static void process_packet(entt::registry &registry, const packet::time_response
     clock_sync_process_time_response(ctx.clock_sync, res);
 }
 
+static void process_packet(entt::registry &registry, const packet::server_settings &server) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.fixed_dt = server.fixed_dt;
+    settings.gravity = server.gravity;
+    settings.num_solver_velocity_iterations = server.num_solver_velocity_iterations;
+    settings.num_solver_position_iterations = server.num_solver_position_iterations;
+    settings.num_restitution_iterations = server.num_restitution_iterations;
+    settings.num_individual_restitution_iterations = server.num_individual_restitution_iterations;
+    registry.ctx<island_coordinator>().settings_changed();
+
+    auto &ctx = registry.ctx<client_network_context>();
+    ctx.allow_full_ownership = server.allow_full_ownership;
+}
+
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
     std::visit([&] (auto &&inner_packet) {
         process_packet(registry, inner_packet);

@@ -43,16 +43,20 @@ void server_receive_packet(entt::registry &, entt::entity client_entity, packet:
  * with a new client.
  * @param registry Data source.
  * @param client_entity The entity to be used to identify the client.
+ * @param allow_full_ownership Allow client to control all components of the
+ * entities it owns.
  */
-void server_make_client(entt::registry &, entt::entity);
+void server_make_client(entt::registry &, entt::entity, bool allow_full_ownership = true);
 
 /**
  * @brief Create a new client. Must be called when a connection is established
  * with a new client.
  * @param registry Data source.
+ * @param allow_full_ownership Allow client to control all components of the
+ * entities it owns.
  * @return The created client entity which will be used to identify the client.
  */
-entt::entity server_make_client(entt::registry &);
+entt::entity server_make_client(entt::registry &, bool allow_full_ownership = true);
 
 /**
  * @brief Set client round-trip time. Latency will be calculated as half this

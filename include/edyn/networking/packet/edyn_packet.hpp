@@ -12,6 +12,7 @@
 #include "edyn/networking/packet/set_playout_delay.hpp"
 #include "edyn/networking/packet/time_request.hpp"
 #include "edyn/networking/packet/time_response.hpp"
+#include "edyn/networking/packet/server_settings.hpp"
 #include <variant>
 
 namespace edyn::packet {
@@ -33,7 +34,8 @@ struct edyn_packet {
         general_snapshot,
         set_playout_delay,
         time_request,
-        time_response
+        time_response,
+        server_settings
     > var;
 };
 
