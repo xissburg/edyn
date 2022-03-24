@@ -29,15 +29,15 @@ public:
                                     const registry_snapshot &snap, bool mark_dirty) = 0;
 
     // Transform contained entities from remote to local using the remote client's entity map.
-    virtual void transform_to_local(entt::registry &registry, entt::entity client_entity,
-                                    const registry_snapshot &snap, bool check_ownership) = 0;
+    virtual void transform_to_local(const entt::registry &registry, entt::entity client_entity,
+                                    registry_snapshot &snap, bool check_ownership) = 0;
 };
 
 template<typename... Components>
 class server_snapshot_importer_impl : public server_snapshot_importer {
 
     template<typename Component>
-    bool is_owned_by_client(entt::registry &registry, entt::entity client_entity, entt::entity local_entity) {
+    bool is_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity local_entity) {
         // If the entity is not fully owned by the client, the update must
         // not be applied, because in this case the server is in control of
         // the procedural state. Input components are one exception because
@@ -167,7 +167,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
     }
 
     template<typename Component>
-    void transform_components_to_local(entt::registry &registry, entt::entity client_entity,
+    void transform_components_to_local(const entt::registry &registry, entt::entity client_entity,
                                        const std::vector<entt::entity> &pool_entities,
                                        pool_snapshot_data_impl<Component> &pool,
                                        bool check_ownership) {
@@ -204,7 +204,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
 public:
     template<typename... Input>
     server_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>,
-                                       [[maybe_unused]] std::tuple<Input...>) {
+                                  [[maybe_unused]] std::tuple<Input...>) {
         static_assert((!std::is_empty_v<Input> && ...));
         ((m_is_input_component[entt::type_id<Components>().seq()] = has_type<Components, std::tuple<Input...>>::value), ...);
     }
@@ -238,8 +238,8 @@ public:
         }
     }
 
-    void transform_to_local(entt::registry &registry, entt::entity client_entity,
-                            const registry_snapshot &snap, bool check_ownership) override {
+    void transform_to_local(const entt::registry &registry, entt::entity client_entity,
+                            registry_snapshot &snap, bool check_ownership) override {
         const std::tuple<Components...> all_components;
 
         for (auto &pool : snap.pools) {

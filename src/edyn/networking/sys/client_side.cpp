@@ -169,7 +169,15 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
             owner_view.contains(entity) &&
             std::get<0>(owner_view.get(entity)).client_entity != ctx.client_entity;
 
-        return !is_owned_by_another_client;
+        if (is_owned_by_another_client) {
+            return false;
+        }
+
+        if (ctx.allow_full_ownership) {
+            return ctx.snapshot_exporter->contains_transient(registry, entity);
+        } else {
+            return ctx.snapshot_exporter->contains_transient_input(registry, entity);
+        }
     };
 
     for (auto island_entity : island_entities) {
@@ -188,7 +196,11 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
         }
     }
 
-    ctx.snapshot_exporter->export_transient(registry, packet);
+    if (ctx.allow_full_ownership) {
+        ctx.snapshot_exporter->export_transient(registry, packet);
+    } else {
+        ctx.snapshot_exporter->export_transient_input(registry, packet);
+    }
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});

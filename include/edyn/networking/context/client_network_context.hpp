@@ -43,6 +43,10 @@ struct client_network_context {
     double last_snapshot_time {0};
     double server_playout_delay {0.3};
 
+    // Without full ownership, the client will not send transient state to
+    // server. Only input will be sent.
+    bool allow_full_ownership {true};
+
     std::vector<extrapolation_job_context> extrapolation_jobs;
     std::shared_ptr<comp_state_history> state_history;
 

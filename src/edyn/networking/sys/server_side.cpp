@@ -66,6 +66,12 @@ static void update_island_entity_owners(entt::registry &registry) {
 }
 
 bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
+    auto &client = registry.get<remote_client>(client_entity);
+
+    if (!client.allow_full_ownership) {
+        return false;
+    }
+
     auto owner_view = registry.view<entity_owner>();
 
     if (auto *resident = registry.try_get<island_resident>(entity)) {
