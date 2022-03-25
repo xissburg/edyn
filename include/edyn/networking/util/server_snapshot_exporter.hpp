@@ -98,7 +98,7 @@ public:
         };
 
         m_should_export_steady_by_type_id = [] (const entt::registry &registry, entt::entity entity,
-                                              entt::id_type id, entt::entity dest_client_entity) {
+                                                entt::id_type id, entt::entity dest_client_entity) {
             auto is_transient = ((entt::type_seq<Transient>::value() == id) || ...);
 
             if (auto *owner = registry.try_get<entity_owner>(entity); owner && owner->client_entity == dest_client_entity) {

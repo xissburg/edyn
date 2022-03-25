@@ -5,6 +5,7 @@
 #include "edyn/util/tuple_util.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/core/type_info.hpp>
+#include <type_traits>
 
 namespace edyn {
 

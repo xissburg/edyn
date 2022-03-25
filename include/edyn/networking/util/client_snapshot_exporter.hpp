@@ -29,7 +29,13 @@ public:
 
     // Check whether an entity contains one or more transient components.
     virtual bool contains_transient(const entt::registry &registry, entt::entity entity) const = 0;
+
+    // Check whether an entity contains one or more transient components which
+    // are also input.
     virtual bool contains_transient_input(const entt::registry &registry, entt::entity entity) const = 0;
+
+    // Check whether a type is a transient component by id.
+    virtual bool is_transient(entt::id_type id) const = 0;
 };
 
 template<typename... Components>
@@ -81,6 +87,8 @@ public:
         m_contains_transient_input = [] (const entt::registry &registry, entt::entity entity) {
             return ((has_type<Transient, std::tuple<Input...>>::value && registry.any_of<Transient>(entity)) || ...);
         };
+
+        ((m_is_transient_component[entt::type_id<Components>().seq()] = has_type<Components, std::tuple<Transient...>>::value), ...);
     }
 
     void export_all(const entt::registry &registry, registry_snapshot &snap) override {
@@ -114,6 +122,17 @@ public:
     bool contains_transient_input(const entt::registry &registry, entt::entity entity) const override {
         return (*m_contains_transient_input)(registry, entity);
     }
+
+    bool is_transient(entt::id_type id) const override {
+        if (m_is_transient_component.count(id)) {
+            return m_is_transient_component.at(id);
+        }
+
+        return false;
+    }
+
+private:
+    std::map<entt::id_type, bool> m_is_transient_component;
 };
 
 }

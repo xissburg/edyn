@@ -257,13 +257,26 @@ static void publish_dirty_components(entt::registry &registry, double time) {
     auto packet = packet::general_snapshot{};
     packet.timestamp = time;
 
-    for (auto entity : dirty_view) {
-        packet.entities.push_back(entity);
-    }
-
+    // Collect all entities first. Transient components that have been marked
+    // as dirty must be ignored, since they're updated regularly via the
+    // transient snapshots.
     for (auto [entity, dirty] : dirty_view.each()) {
         for (auto id : dirty.updated_indexes) {
-            ctx.snapshot_exporter->export_by_type_id(registry, entity, id, packet);
+            if (!ctx.snapshot_exporter->is_transient(id)) {
+                packet.entities.push_back(entity);
+                break;
+            }
+        }
+    }
+
+    // Add components later because all entities involved must be known at this
+    // point so entity indices can be assigned in the registry snapshot of the
+    // packet.
+    for (auto [entity, dirty] : dirty_view.each()) {
+        for (auto id : dirty.updated_indexes) {
+            if (!ctx.snapshot_exporter->is_transient(id)) {
+                ctx.snapshot_exporter->export_by_type_id(registry, entity, id, packet);
+            }
         }
     }
 
