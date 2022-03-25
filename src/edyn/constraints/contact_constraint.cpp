@@ -87,11 +87,13 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     ctx.roll_friction_rows.clear();
 
     con_view.each([&] (entt::entity entity, contact_constraint &con, contact_manifold &manifold) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+        auto body = manifold.body;
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(body[1]);
+
+        auto originA = origin_view.contains(body[0]) ? origin_view.get<origin>(body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(body[1]) ? origin_view.get<origin>(body[1]) : static_cast<vector3>(posB);
 
         // Store initial size of the constraint row cache so the number of rows
         // for this contact constraint can be calculated at the end.
@@ -99,7 +101,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
         // Create constraint rows for each contact point.
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-            auto &cp = manifold.point[manifold.ids[pt_idx]];
+            auto &cp = manifold.get_point(pt_idx);
 
             EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
             auto normal = cp.normal;
@@ -180,8 +182,8 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                     // axis by the projection of the roll direction onto the axis,
                     // thus preventing impulses in the undesired directions.
                     for (auto j = 0; j < 2; ++j) {
-                        if (roll_dir_view.contains(con.body[j])) {
-                            auto roll_dir = rotate(ornA, roll_dir_view.get<roll_direction>(con.body[j]));
+                        if (roll_dir_view.contains(body[j])) {
+                            auto roll_dir = rotate(ornA, roll_dir_view.get<roll_direction>(body[j]));
                             axis *= dot(roll_dir, axis);
                         }
                     }
@@ -246,12 +248,10 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     for (auto entity : manifold_view) {
         auto [manifold] = manifold_view.get(entity);
 
-        for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
+        manifold.each_point([&] (contact_point &cp) {
             auto &normal_row = cache.rows[row_idx++];
             auto &friction_row_pair = ctx.friction_rows[cp_idx];
             internal::solve_friction_row_pair(friction_row_pair, normal_row);
-
-            auto &cp = manifold.point[manifold.ids[pt_idx]];
 
             if (cp.roll_friction > 0) {
                 auto &roll_row_pair = ctx.roll_friction_rows[roll_idx++];
@@ -266,7 +266,7 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
             }
 
             ++cp_idx;
-        }
+        });
 
         ++con_idx;
     }
@@ -292,8 +292,7 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
         auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-            auto &cp = manifold.point[manifold.ids[pt_idx]];
-
+            auto &cp = manifold.get_point(pt_idx);
             auto pivotA = to_world_space(cp.pivotA, originA, ornA);
             auto pivotB = to_world_space(cp.pivotB, originB, ornB);
 

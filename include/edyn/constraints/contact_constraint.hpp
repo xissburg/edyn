@@ -16,6 +16,11 @@ struct contact_constraint : public constraint_base {
 
 };
 
+template<typename Archive>
+void serialize(Archive &archive, contact_constraint &c) {
+    archive(c.body);
+}
+
 struct constraint_row;
 
 namespace internal {
@@ -59,11 +64,6 @@ void iterate_constraints<contact_constraint>(entt::registry &, row_cache &, scal
 
 template<>
 bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt);
-
-template<typename Archive>
-void serialize(Archive &archive, contact_constraint &c) {
-    archive(c.body);
-}
 
 }
 

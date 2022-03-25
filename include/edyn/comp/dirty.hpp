@@ -63,6 +63,13 @@ struct dirty {
         return *this;
     }
 
+    dirty & merge(const dirty &other) {
+        created_indexes.insert(other.created_indexes.begin(), other.created_indexes.end());
+        updated_indexes.insert(other.updated_indexes.begin(), other.updated_indexes.end());
+        destroyed_indexes.insert(other.destroyed_indexes.begin(), other.destroyed_indexes.end());
+        return *this;
+    }
+
 private:
     // CUD: Create, Update, Delete.
     template<typename... Ts>

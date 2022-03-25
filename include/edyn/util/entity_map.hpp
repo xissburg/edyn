@@ -53,6 +53,17 @@ public:
         }
     }
 
+    template<typename Func>
+    void each(Func func) const {
+        for (auto it = map.begin(); it != map.end(); ++it) {
+            func(it->first, it->second);
+        }
+    }
+
+    void swap() {
+        std::swap(map, others);
+    }
+
 private:
     std::map<entt::entity, entt::entity> map;
     std::map<entt::entity, entt::entity> others;

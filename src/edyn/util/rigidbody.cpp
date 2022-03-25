@@ -144,10 +144,14 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // components continuously.
         auto &settings = registry.ctx<edyn::settings>();
         auto &cont = registry.emplace<continuous>(entity);
-        cont.insert(settings.index_source->indices_of<position, orientation, linvel, angvel>());
+        cont.insert(settings.index_source->indices_of<continuous::index_type, position, orientation, linvel, angvel>());
+
+        if (def.shape) {
+            cont.insert(settings.index_source->index_of<AABB, continuous::index_type>());
+        }
 
         if (def.center_of_mass) {
-            cont.insert(settings.index_source->index_of<origin>());
+            cont.insert(settings.index_source->index_of<origin, continuous::index_type>());
         }
     }
 
@@ -155,6 +159,11 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<sleeping_disabled_tag>(entity);
     }
 
+    if (def.networked) {
+        registry.emplace<networked_tag>(entity);
+    }
+
+    // Insert rigid body as a node in the entity graph.
     auto non_connecting = def.kind != rigidbody_kind::rb_dynamic;
     auto node_index = registry.ctx<entity_graph>().insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);
@@ -285,10 +294,9 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
         auto combined_friction = material_mix_friction(friction, other_material.friction);
 
-        for (size_t i = 0; i < manifold.num_points; ++i) {
-            auto &cp = manifold.point[manifold.ids[i]];
+        manifold.each_point([combined_friction] (contact_point &cp) {
             cp.friction = combined_friction;
-        }
+        });
 
         refresh<contact_manifold>(registry, entity);
     });

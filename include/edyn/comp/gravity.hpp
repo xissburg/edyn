@@ -12,6 +12,11 @@ struct gravity : public vector3 {
     }
 };
 
+template<typename Archive>
+void serialize(Archive &archive, gravity &g) {
+    archive(g.x, g.y, g.z);
+}
+
 }
 
 #endif // EDYN_COMP_GRAVITY_HPP

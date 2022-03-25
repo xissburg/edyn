@@ -120,6 +120,19 @@ void compound_shape::raycast(const vector3 &p0, const vector3 &p1, Func func) co
     });
 }
 
+template<typename Archive>
+void serialize(Archive &archive, compound_shape::shape_node &node) {
+    archive(node.position);
+    archive(node.orientation);
+    archive(node.aabb);
+    archive(node.shape_var);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, compound_shape &shape) {
+    archive(shape.nodes);
+}
+
 }
 
 #endif // EDYN_SHAPES_COMPOUND_SHAPE_HPP

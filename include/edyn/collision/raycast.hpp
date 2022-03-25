@@ -141,6 +141,7 @@ struct raycast_context {
  * @param registry Data source.
  * @param p0 First point in the ray.
  * @param p1 Second point in the ray.
+ * @return Result.
  */
 raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1);
 

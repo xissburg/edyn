@@ -41,7 +41,7 @@ scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView 
     auto min_relvel = EDYN_SCALAR_MAX;
 
     for (size_t pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-        auto &cp = manifold.point[manifold.ids[pt_idx]];
+        auto &cp = manifold.get_point(pt_idx);
         auto normal = cp.normal;
         auto pivotA = to_world_space(cp.pivotA, originA, ornA);
         auto pivotB = to_world_space(cp.pivotB, originB, ornB);
@@ -127,7 +127,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             // Create constraint rows for non-penetration constraints for each
             // contact point.
             for (size_t pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-                auto &cp = manifold.point[manifold.ids[pt_idx]];
+                auto &cp = manifold.get_point(pt_idx);
 
                 auto normal = cp.normal;
                 auto pivotA = to_world_space(cp.pivotA, originA, ornA);
@@ -186,7 +186,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
 
             for (size_t pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-                auto &cp = manifold.point[manifold.ids[pt_idx]];
+                auto &cp = manifold.get_point(pt_idx);
                 auto &normal_row = normal_rows[row_idx];
                 cp.normal_restitution_impulse = normal_row.impulse;
 

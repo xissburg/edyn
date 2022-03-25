@@ -12,7 +12,7 @@ namespace edyn {
  * The three types of triangle features. Their integer value is the number of
  * vertices in that feature minus one.
  */
-enum class triangle_feature {
+enum class triangle_feature : uint8_t {
     vertex = 0,
     edge,
     face

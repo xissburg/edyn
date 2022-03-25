@@ -2,11 +2,12 @@
 #define EDYN_SHAPES_CAPSULE_SHAPE_HPP
 
 #include <array>
+#include <cstdint>
 #include "edyn/math/quaternion.hpp"
 
 namespace edyn {
 
-enum class capsule_feature {
+enum class capsule_feature : uint8_t {
     hemisphere,
     side
 };
@@ -23,6 +24,12 @@ struct capsule_shape {
         };
     }
 };
+
+template<typename Archive>
+void serialize(Archive &archive, capsule_shape &s) {
+    archive(s.half_length);
+    archive(s.radius);
+}
 
 }
 

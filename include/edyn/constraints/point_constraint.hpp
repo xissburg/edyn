@@ -22,9 +22,6 @@ struct point_constraint : public constraint_base {
     std::array<scalar, 4> impulse {make_array<4>(scalar{})};
 };
 
-template<>
-void prepare_constraints<point_constraint>(entt::registry &, row_cache &, scalar dt);
-
 template<typename Archive>
 void serialize(Archive &archive, point_constraint &c) {
     archive(c.body);
@@ -32,6 +29,9 @@ void serialize(Archive &archive, point_constraint &c) {
     archive(c.friction_torque);
     archive(c.impulse);
 }
+
+template<>
+void prepare_constraints<point_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

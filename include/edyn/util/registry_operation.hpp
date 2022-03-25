@@ -6,7 +6,7 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/dirty.hpp"
 #include "edyn/config/config.h"
-#include "edyn/parallel/import_child_entity.hpp"
+#include "edyn/parallel/map_child_entity.hpp"
 #include "edyn/util/entity_map.hpp"
 
 namespace edyn {
@@ -33,6 +33,7 @@ public:
                          const std::vector<entt::entity> &,
                          entity_map &, bool mark_dirty) const = 0;
     virtual entt::id_type get_type_id() const = 0;
+    virtual void remap(const entity_map &emap) = 0;
 };
 
 template<typename Component>
@@ -62,7 +63,7 @@ class component_operation_impl : public component_operation {
                 registry.emplace<Component>(local_entity);
             } else {
                 auto comp = components[i];
-                internal::import_child_entity(registry, entity_map, comp);
+                internal::map_child_entity(registry, entity_map, comp);
                 registry.emplace<Component>(local_entity, comp);
             }
 
@@ -93,7 +94,7 @@ class component_operation_impl : public component_operation {
             }
 
             auto comp = components[i];
-            internal::import_child_entity(registry, entity_map, comp);
+            internal::map_child_entity(registry, entity_map, comp);
             registry.replace<Component>(local_entity, comp);
 
             if (mark_dirty) {
@@ -127,8 +128,8 @@ class component_operation_impl : public component_operation {
     template<typename T = Component>
     typename std::enable_if_t<std::is_same_v<T, entt::entity>>
     execute_ent_map(const entt::registry &registry,
-                         const std::vector<entt::entity> &entities,
-                         entity_map &entity_map) const {
+                    const std::vector<entt::entity> &entities,
+                    entity_map &entity_map) const {
         // Component operations are cleverly used to insert entity mappings,
         // thus not requiring a separate means of doing so. Local entities
         // are inserted as components which are related directly to the
@@ -178,6 +179,14 @@ public:
     entt::id_type get_type_id() const override {
         return entt::type_seq<Component>::value();
     }
+
+    void remap(const entity_map &emap) override {
+        if constexpr(!is_empty_type) {
+            for (auto &comp : components) {
+                internal::map_child_entity_no_validation(emap, comp);
+            }
+        }
+    }
 };
 
 /**
@@ -218,7 +227,7 @@ class registry_operation final {
 public:
     registry_op_type operation;
     std::vector<entt::entity> entities;
-    std::unique_ptr<component_operation> components;
+    std::shared_ptr<component_operation> components;
 
     void execute(entt::registry &registry, entity_map &entity_map, bool mark_dirty = false) const {
         switch (operation) {
@@ -231,6 +240,14 @@ public:
         default:
             components->execute(registry, operation, entities, entity_map, mark_dirty);
         }
+    }
+
+    void remap(const entity_map &emap) {
+        for (auto &entity : entities) {
+            entity = emap.at(entity);
+        }
+
+        components->remap(emap);
     }
 };
 
@@ -335,6 +352,11 @@ public:
     template<typename... Component, typename Func>
     void remove_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
         (for_each_comp<Component>(registry_op_type::remove, func), ...);
+    }
+
+    template<typename Func>
+    void ent_map_for_each(Func func) const {
+        for_each_comp<entt::entity>(registry_op_type::ent_map, func);
     }
 };
 

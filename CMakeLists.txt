@@ -108,8 +108,18 @@ add_library(Edyn
     src/edyn/parallel/island_worker.cpp
     src/edyn/parallel/island_coordinator.cpp
     src/edyn/parallel/island_worker_context.cpp
-    src/edyn/parallel/import_child_entity.cpp
+    src/edyn/parallel/map_child_entity.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
+    src/edyn/networking/context/client_network_context.cpp
+    src/edyn/networking/context/server_network_context.cpp
+    src/edyn/networking/sys/server_side.cpp
+    src/edyn/networking/sys/client_side.cpp
+    src/edyn/networking/networking.cpp
+    src/edyn/networking/sys/update_aabbs_of_interest.cpp
+    src/edyn/networking/extrapolation_job.cpp
+    src/edyn/networking/util/pool_snapshot.cpp
+    src/edyn/networking/util/clock_sync.cpp
+    src/edyn/networking/util/process_update_entity_map_packet.cpp
     src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
     src/edyn/time/common/time.cpp
@@ -124,8 +134,7 @@ endif()
 
 if(UNIX AND NOT APPLE)
     target_link_libraries(Edyn
-        PUBLIC
-            pthread
+        PUBLIC pthread
     )
 endif()
 
@@ -134,8 +143,7 @@ if(WIN32)
         src/edyn/time/windows/time.cpp
     )
     target_link_libraries(Edyn
-        PUBLIC
-            winmm
+        PUBLIC winmm
     )
 endif()
 

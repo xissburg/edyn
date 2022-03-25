@@ -21,7 +21,7 @@ struct AABB {
         return (min + max) * scalar(0.5);
     }
 
-    // Returns this AABB's surface area. 
+    // Returns this AABB's surface area.
     inline scalar area() const {
         auto d = max - min;
         return scalar{2} * (d.x * d.y + d.y * d.z + d.z * d.x);
@@ -47,6 +47,12 @@ inline AABB enclosing_aabb(const AABB &b0, const AABB &b1) {
         min(b0.min, b1.min),
         max(b0.max, b1.max)
     };
+}
+
+template<typename Archive>
+void serialize(Archive &archive, AABB &aabb) {
+    archive(aabb.min);
+    archive(aabb.max);
 }
 
 }

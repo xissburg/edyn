@@ -15,6 +15,12 @@ struct gravity_constraint : public constraint_base {
     scalar impulse {scalar(0)};
 };
 
+template<typename Archive>
+void serialize(Archive &archive, gravity_constraint &con) {
+    archive(con.body);
+    archive(con.impulse);
+}
+
 template<>
 void prepare_constraints<gravity_constraint>(entt::registry &, row_cache &, scalar dt);
 

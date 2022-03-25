@@ -17,6 +17,7 @@
 namespace edyn {
 
 struct settings;
+struct extrapolation_result;
 class registry_operation_builder;
 
 void island_worker_func(job::data_type &);
@@ -89,6 +90,10 @@ public:
     void on_set_material_table(const msg::set_material_table &msg);
     void on_wake_up_island(const msg::wake_up_island &);
     void on_set_com(const msg::set_com &);
+    void on_apply_network_pools(const msg::apply_network_pools &);
+    void on_extrapolation_result(const extrapolation_result &);
+
+    void import_contact_manifolds(const std::vector<contact_manifold> &manifolds);
 
     entity_graph::connected_components_t split();
 

@@ -68,6 +68,9 @@ struct rigidbody_def {
     // Prevent this rigid body from sleeping while it barely moves.
     bool sleeping_disabled {false};
 
+    // Share this rigid body over the network.
+    bool networked {false};
+
     /**
      * @brief Assigns the default moment of inertia of the current shape
      * using the current mass.

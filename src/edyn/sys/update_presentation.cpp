@@ -8,6 +8,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/networking/comp/discontinuity.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -33,6 +34,12 @@ void update_presentation(entt::registry &registry, double time) {
         EDYN_ASSERT(!(time < isle_time.value));
         auto dt = std::min(scalar(time - fixed_dt - isle_time.value), fixed_dt);
         pre = integrate(orn, vel, dt);
+    });
+
+    auto discontinuity_view = registry.view<discontinuity, present_position, present_orientation>();
+    discontinuity_view.each([] (discontinuity &dis, present_position &p_pos, present_orientation &p_orn) {
+        p_pos += dis.position_offset;
+        p_orn = dis.orientation_offset * p_orn;
     });
 }
 

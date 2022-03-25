@@ -15,6 +15,12 @@ struct plane_shape {
     scalar constant;
 };
 
+template<typename Archive>
+void serialize(Archive &archive, plane_shape &s) {
+    archive(s.normal);
+    archive(s.constant);
+}
+
 }
 
 #endif // EDYN_SHAPES_PLANE_SHAPE_HPP

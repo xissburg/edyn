@@ -2,12 +2,15 @@
 #define EDYN_CONTEXT_SETTINGS_HPP
 
 #include <memory>
+#include <variant>
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/context/external_system.hpp"
 #include "edyn/util/make_reg_op_builder.hpp"
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/parallel/component_index_source.hpp"
+#include "edyn/networking/settings/client_network_settings.hpp"
+#include "edyn/networking/settings/server_network_settings.hpp"
 
 namespace edyn {
 
@@ -31,6 +34,11 @@ struct settings {
     external_system_func_t external_system_pre_step {nullptr};
     external_system_func_t external_system_post_step {nullptr};
     should_collide_func_t should_collide_func {&should_collide_default};
+
+    std::variant<
+        std::monostate,
+        client_network_settings,
+        server_network_settings> network_settings;
 };
 
 }

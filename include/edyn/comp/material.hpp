@@ -1,6 +1,7 @@
 #ifndef EDYN_COMP_MATERIAL_HPP
 #define EDYN_COMP_MATERIAL_HPP
 
+#include <cstdint>
 #include <limits>
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/constants.hpp"
@@ -24,9 +25,19 @@ struct material_base {
  * @brief Rigid body material component with optional identifier for material mixing.
  */
 struct material : public material_base {
-    using id_type = unsigned;
+    using id_type = uint16_t;
     id_type id {std::numeric_limits<id_type>::max()};
 };
+
+template<typename Archive>
+void serialize(Archive &archive, material &m) {
+    archive(m.restitution);
+    archive(m.friction);
+    archive(m.spin_friction);
+    archive(m.roll_friction);
+    archive(m.stiffness);
+    archive(m.damping);
+}
 
 }
 

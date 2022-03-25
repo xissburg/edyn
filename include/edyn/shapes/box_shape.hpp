@@ -10,7 +10,7 @@
 
 namespace edyn {
 
-enum class box_feature {
+enum class box_feature : uint8_t {
     vertex,
     edge,
     face
@@ -266,6 +266,11 @@ constexpr size_t get_box_feature_num_vertices(box_feature feature) {
     }
 
     return SIZE_MAX;
+}
+
+template<typename Archive>
+void serialize(Archive &archive, box_shape &s) {
+    archive(s.half_extents);
 }
 
 }

@@ -92,6 +92,7 @@ class EdynConan(ConanFile):
     def package_info(self):
         libsuffix = "_d" if self.settings.build_type == "Debug" else ""
         self.cpp_info.libs = ["Edyn" + libsuffix]
+
         if self.settings.os == "Linux":
             self.cpp_info.system_libs = ["pthread"]
         elif self.settings.os == "Windows":

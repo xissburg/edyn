@@ -149,6 +149,14 @@ public:
         insert_components<Component>(view, op, entity);
     }
 
+    template<typename Component>
+    void replace(entt::entity entity, const Component &comp) {
+        auto &op = find_or_create_component_operation<Component>(registry_op_type::replace);
+        op.entities.push_back(entity);
+        auto *components = static_cast<component_operation_impl<Component> *>(op.components.get());
+        components->components.push_back(comp);
+    }
+
     template<typename Component, typename It>
     void remove(const entt::registry &registry, It first, It last, bool check = false) {
         insert_components<Component>(registry, registry_op_type::remove, first, last, check);
@@ -171,6 +179,10 @@ public:
     virtual void emplace_all(const entt::registry &registry, const std::vector<entt::entity> &entities) = 0;
     virtual void replace_all(const entt::registry &registry, const std::vector<entt::entity> &entities) = 0;
     virtual void remove_all(const entt::registry &registry, const std::vector<entt::entity> &entities) = 0;
+
+    virtual void emplace_all(const entt::registry &registry, const entt::sparse_set &entities) = 0;
+    virtual void replace_all(const entt::registry &registry, const entt::sparse_set &entities) = 0;
+    virtual void remove_all(const entt::registry &registry, const entt::sparse_set &entities) = 0;
 
     virtual void emplace_all(const entt::registry &registry, entt::entity entity) = 0;
     virtual void replace_all(const entt::registry &registry, entt::entity entity) = 0;
@@ -241,6 +253,18 @@ public:
     }
 
     void remove_all(const entt::registry &registry, const std::vector<entt::entity> &entities) override {
+        (remove<Components>(registry, entities.begin(), entities.end(), true), ...);
+    }
+
+    void emplace_all(const entt::registry &registry, const entt::sparse_set &entities) override {
+        (emplace<Components>(registry, entities.begin(), entities.end(), true), ...);
+    }
+
+    void replace_all(const entt::registry &registry, const entt::sparse_set &entities) override {
+        (replace<Components>(registry, entities.begin(), entities.end(), true), ...);
+    }
+
+    void remove_all(const entt::registry &registry, const entt::sparse_set &entities) override {
         (remove<Components>(registry, entities.begin(), entities.end(), true), ...);
     }
 

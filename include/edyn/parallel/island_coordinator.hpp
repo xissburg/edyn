@@ -7,6 +7,7 @@
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
 #include "edyn/comp/island.hpp"
+#include "edyn/config/config.h"
 #include "edyn/parallel/island_worker_context.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/util/registry_operation.hpp"
@@ -38,7 +39,6 @@ class island_coordinator final {
                                const std::vector<entt::entity> &new_edges);
     void split_islands();
     void split_island(entt::entity);
-    void wake_up_island(entt::entity);
     void refresh_dirty_entities();
     bool should_split_island(entt::entity source_island_entity);
     void sync();
@@ -96,6 +96,17 @@ public:
         return entt::sink{m_contact_point_destroyed_signal};
     }
 
+    template<typename Message, typename... Args>
+    void send_island_message(entt::entity island_entity, Args &&... args) {
+        auto &ctx = m_island_ctx_map.at(island_entity);
+        ctx->send<Message>(std::forward<Args>(args)...);
+    }
+
+    void wake_up_island(entt::entity island_entity) {
+        auto &ctx = m_island_ctx_map.at(island_entity);
+        ctx->send<msg::wake_up_island>();
+    }
+
 private:
     entt::registry *m_registry;
     std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;
@@ -116,6 +127,12 @@ private:
 template<typename... Component>
 void island_coordinator::refresh(entt::entity entity) {
     static_assert(sizeof...(Component) > 0);
+
+#ifdef EDYN_DEBUG
+    auto &index_source = m_registry->ctx<settings>().index_source;
+    auto contains_unknown = ((index_source->index_of<Component>() == SIZE_MAX) || ...);
+    EDYN_ASSERT(!contains_unknown);
+#endif
 
     if (m_registry->any_of<island_resident>(entity)) {
         auto &resident = m_registry->get<island_resident>(entity);

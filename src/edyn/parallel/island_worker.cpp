@@ -2,7 +2,6 @@
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
-#include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
@@ -28,12 +27,16 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/collision/tree_view.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/util/collision_util.hpp"
 #include "edyn/util/registry_operation.hpp"
 #include "edyn/util/registry_operation_builder.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/networking/extrapolation_result.hpp"
+#include "edyn/networking/comp/discontinuity.hpp"
+#include "edyn/networking/packet/transient_snapshot.hpp"
 #include <memory>
 #include <variant>
 #include <entt/entity/registry.hpp>
@@ -109,13 +112,20 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
     m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
+    m_message_queue.sink<msg::apply_network_pools>().connect<&island_worker::on_apply_network_pools>(*this);
+
+    auto &settings = m_registry.ctx<edyn::settings>();
+
+    // If this is a networked client, expect extrapolation results.
+    if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
+        m_message_queue.sink<extrapolation_result>().connect<&island_worker::on_extrapolation_result>(*this);
+    }
 
     // Process messages enqueued before the worker was started. This includes
     // the registry operations containing the initial entities that were added
     // to this island.
     process_messages();
 
-    auto &settings = m_registry.ctx<edyn::settings>();
     if (settings.external_system_init) {
         (*settings.external_system_init)(m_registry);
     }
@@ -220,14 +230,9 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     auto node_view = m_registry.view<graph_node>();
 
     // Insert nodes in the graph for each rigid body.
-    auto insert_node = [this] (entt::entity remote_entity) {
+    msg.ops.emplace_for_each<rigidbody_tag, external_tag>([this] (entt::entity remote_entity) {
         insert_remote_node(remote_entity);
-    };
-
-    msg.ops.emplace_for_each<dynamic_tag>(insert_node);
-    msg.ops.emplace_for_each<static_tag>(insert_node);
-    msg.ops.emplace_for_each<kinematic_tag>(insert_node);
-    msg.ops.emplace_for_each<external_tag>(insert_node);
+    });
 
     // Insert edges in the graph for constraints.
     msg.ops.emplace_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
@@ -280,6 +285,20 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
         }
     });
 
+    auto &settings = m_registry.ctx<edyn::settings>();
+
+    if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
+        // Assign previous position and orientation components to dynamic entities
+        // for client-side networking extrapolation discontinuity mitigation.
+        msg.ops.emplace_for_each<dynamic_tag>([&] (entt::entity remote_entity) {
+            if (!m_entity_map.contains(remote_entity)) return;
+
+            auto local_entity = m_entity_map.at(remote_entity);
+            m_registry.emplace<previous_position>(local_entity);
+            m_registry.emplace<previous_orientation>(local_entity);
+        });
+    }
+
     m_importing = false;
 }
 
@@ -308,6 +327,9 @@ void island_worker::sync() {
     // TODO: the island worker refactor would eliminate the need to share these
     // components continuously.
     m_op_builder->replace<contact_manifold>(m_registry);
+
+    // Always update discontinuities since they decay in every step.
+    m_op_builder->replace<discontinuity>(m_registry);
 
     // Update continuous components.
     auto &settings = m_registry.ctx<edyn::settings>();
@@ -515,6 +537,14 @@ void island_worker::run_solver() {
     m_state = state::finish_step;
 }
 
+static void decay_discontinuities(entt::registry &registry, scalar rate) {
+    EDYN_ASSERT(!(rate < 0) && rate < 1);
+    registry.view<discontinuity>().each([rate] (discontinuity &dis) {
+        dis.position_offset *= rate;
+        dis.orientation_offset = slerp(quaternion_identity, dis.orientation_offset, rate);
+    });
+}
+
 void island_worker::finish_step() {
     EDYN_ASSERT(m_state == state::finish_step);
 
@@ -546,6 +576,11 @@ void island_worker::finish_step() {
     m_op_builder->replace<tree_view>(m_registry, m_island_entity);
 
     maybe_go_to_sleep();
+
+    if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
+        auto &network_settings = std::get<client_network_settings>(settings.network_settings);
+        decay_discontinuities(m_registry, network_settings.discontinuity_decay_rate);
+    }
 
     if (settings.external_system_post_step) {
         (*settings.external_system_post_step)(m_registry);
@@ -625,7 +660,7 @@ void island_worker::reschedule_later() {
     auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
     if (reschedule_count > 0) return;
 
-    // If the timestamp of the current registry state is more that `m_fixed_dt`
+    // If the timestamp of the current registry state is more than `m_fixed_dt`
     // before the current time, schedule it to run at a later time.
     auto time = performance_time();
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
@@ -804,6 +839,76 @@ void island_worker::on_set_material_table(const msg::set_material_table &msg) {
 void island_worker::on_set_com(const msg::set_com &msg) {
     auto entity = m_entity_map.at(msg.entity);
     apply_center_of_mass(m_registry, entity, msg.com);
+}
+
+void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {
+    auto &manifold_map = m_registry.ctx<contact_manifold_map>();
+
+    for (auto manifold : manifolds) {
+        if (!m_entity_map.contains(manifold.body[0]) ||
+            !m_entity_map.contains(manifold.body[1])) {
+            continue;
+        }
+
+        manifold.body[0] = m_entity_map.at(manifold.body[0]);
+        manifold.body[1] = m_entity_map.at(manifold.body[1]);
+
+        // Find a matching manifold and replace it...
+        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
+            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
+            m_registry.get<contact_manifold>(manifold_entity) = manifold;
+        } else {
+            // ...or create a new one and assign a new value to it.
+            auto separation_threshold = contact_breaking_threshold * scalar(1.3);
+            auto manifold_entity = make_contact_manifold(m_registry,
+                                                         manifold.body[0], manifold.body[1],
+                                                         separation_threshold);
+            m_registry.get<contact_manifold>(manifold_entity) = manifold;
+        }
+    }
+}
+
+static void assign_previous_transforms(entt::registry &registry) {
+    registry.view<previous_position, position>().each([] (previous_position &p_pos, position &pos) {
+        p_pos = pos;
+    });
+
+    registry.view<previous_orientation, orientation>().each([] (previous_orientation &p_orn, orientation &orn) {
+        p_orn = orn;
+    });
+}
+
+static void accumulate_discontinuities(entt::registry &registry) {
+    auto discontinuity_view = registry.view<previous_position, position, previous_orientation, orientation, discontinuity>();
+
+    for (auto [entity, p_pos, pos, p_orn, orn, discontinuity] : discontinuity_view.each()) {
+        discontinuity.position_offset += p_pos - pos;
+        discontinuity.orientation_offset *= p_orn * conjugate(orn);
+    }
+}
+
+void island_worker::on_extrapolation_result(const extrapolation_result &result) {
+    EDYN_ASSERT(!result.ops.empty());
+
+    // Assign current transforms to previous before importing pools into registry.
+    assign_previous_transforms(m_registry);
+
+    result.ops.execute(m_registry, m_entity_map);
+
+    accumulate_discontinuities(m_registry);
+    import_contact_manifolds(result.manifolds);
+}
+
+void island_worker::on_apply_network_pools(const msg::apply_network_pools &msg) {
+    EDYN_ASSERT(!msg.pools.empty());
+
+    assign_previous_transforms(m_registry);
+
+    for (auto &pool : msg.pools) {
+        pool.ptr->replace_into_registry(m_registry, msg.entities, m_entity_map);
+    }
+
+    accumulate_discontinuities(m_registry);
 }
 
 entity_graph::connected_components_t island_worker::split() {
