@@ -314,8 +314,17 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_response &res) {
     auto &client = registry.get<remote_client>(client_entity);
-
     clock_sync_process_time_response(client.clock_sync, res);
+}
+
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::set_aabb_of_interest &aabb) {
+    if (!(aabb.max > aabb.min)) {
+        return;
+    }
+
+    auto &aabboi = registry.get<aabb_of_interest>(client_entity);
+    aabboi.aabb.min = aabb.min;
+    aabboi.aabb.max = aabb.max;
 }
 
 static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}

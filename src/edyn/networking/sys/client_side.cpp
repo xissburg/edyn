@@ -727,6 +727,8 @@ static void process_packet(entt::registry &registry, const packet::server_settin
     ctx.allow_full_ownership = server.allow_full_ownership;
 }
 
+static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}
+
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
     std::visit([&] (auto &&inner_packet) {
         process_packet(registry, inner_packet);

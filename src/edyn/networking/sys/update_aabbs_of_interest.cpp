@@ -1,8 +1,10 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/networking/comp/aabb_of_interest.hpp"
 #include "edyn/collision/broadphase_main.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/position.hpp"
+#include "edyn/networking/comp/aabb_of_interest.hpp"
+#include "edyn/networking/comp/aabb_oi_follow.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -12,9 +14,16 @@ void update_aabbs_of_interest(entt::registry &registry) {
     auto &bphase = registry.ctx<broadphase_main>();
     auto owner_view = registry.view<entity_owner>();
     auto manifold_view = registry.view<contact_manifold>();
+    auto position_view = registry.view<position>();
 
-    auto view = registry.view<aabb_of_interest>();
-    view.each([&] (aabb_of_interest &aabboi) {
+    registry.view<aabb_of_interest, aabb_oi_follow>().each([&] (aabb_of_interest &aabboi, aabb_oi_follow &follow) {
+        auto [pos] = position_view.get(follow.entity);
+        auto half_size = (aabboi.aabb.max - aabboi.aabb.min) / 2;
+        aabboi.aabb.min = pos - half_size;
+        aabboi.aabb.max = pos + half_size;
+    });
+
+    registry.view<aabb_of_interest>().each([&] (aabb_of_interest &aabboi) {
         entt::sparse_set contained_entities;
 
         aabboi.island_entities.clear();

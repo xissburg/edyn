@@ -13,6 +13,7 @@
 #include "edyn/networking/packet/time_request.hpp"
 #include "edyn/networking/packet/time_response.hpp"
 #include "edyn/networking/packet/server_settings.hpp"
+#include "edyn/networking/packet/set_aabb_of_interest.hpp"
 #include <variant>
 
 namespace edyn::packet {
@@ -35,7 +36,8 @@ struct edyn_packet {
         set_playout_delay,
         time_request,
         time_response,
-        server_settings
+        server_settings,
+        set_aabb_of_interest
     > var;
 };
 
