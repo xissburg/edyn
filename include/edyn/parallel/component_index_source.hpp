@@ -53,11 +53,15 @@ struct component_index_source_impl : public component_index_source {
     }
 
     entt::id_type type_id_of(size_t index) const override {
-        auto id = entt::id_type{};
+        auto id = std::numeric_limits<entt::id_type>::max();
         auto tuple = components_tuple_t{};
-        visit_tuple(tuple, index, [&] (auto &&c) {
-            id = entt::type_id<std::decay_t<decltype(c)>>().seq();
-        });
+
+        if (index < std::tuple_size_v<components_tuple_t>) {
+            visit_tuple(tuple, index, [&] (auto &&c) {
+                id = entt::type_id<std::decay_t<decltype(c)>>().seq();
+            });
+        }
+
         return id;
     }
 };
