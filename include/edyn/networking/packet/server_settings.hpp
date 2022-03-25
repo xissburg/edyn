@@ -37,6 +37,7 @@ void serialize(Archive &archive, server_settings &settings) {
     archive(settings.num_solver_position_iterations);
     archive(settings.num_restitution_iterations);
     archive(settings.num_individual_restitution_iterations);
+    archive(settings.allow_full_ownership);
 }
 
 }
