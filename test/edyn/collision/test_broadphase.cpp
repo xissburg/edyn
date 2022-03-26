@@ -2,7 +2,7 @@
 
 TEST(test_broadphase, collision_filtering) {
     entt::registry registry;
-    edyn::init();
+    edyn::init({2});
     edyn::attach(registry);
 
     auto def = edyn::rigidbody_def{};

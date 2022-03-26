@@ -5,7 +5,7 @@ TEST(issue_test, test_issue_76) {
 	// https://github.com/xissburg/edyn/issues/76
 	entt::registry registry;
 
-	edyn::init();
+	edyn::init({2});
 	edyn::attach(registry);
 
 	// Create floor
