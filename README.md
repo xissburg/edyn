@@ -168,7 +168,7 @@ Following is a list containing the current major features:
 - Rigid bodies which do not collide, aka sensors.
 - Raycasting.
 - Ragdolls.
-- Collision filtering the typical group and mask bitsets and the more advanced _collision exclusion list_ for greater control.
+- Collision filtering using the typical group and mask bitsets and the more advanced _collision exclusion list_ for greater control.
 - Collision events.
 - Material ids and material properties to be used when a specific pair of materials interact.
 - Per-vertex material properties in triangle mesh shapes.
