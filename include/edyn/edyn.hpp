@@ -47,8 +47,6 @@ namespace edyn {
  * @brief Initialization configuration.
  */
 struct init_config {
-    bool multi_threaded {true};
-
     // Number of worker threads to spawn. If zero, value will be taken from
     // `std::thread::hardware_concurrency`.
     size_t num_worker_threads {0};
