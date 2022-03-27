@@ -1,5 +1,7 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold_events.hpp"
+#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/graph_edge.hpp"
@@ -8,6 +10,7 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/parallel/entity_graph.hpp"
+#include "edyn/parallel/component_index_source.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 

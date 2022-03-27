@@ -3,8 +3,14 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
+#include "edyn/constraints/constraint.hpp"
+#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/collision_filter.hpp"
+#include "edyn/comp/collision_exclusion.hpp"
+#include "edyn/comp/origin.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/config/config.h"
 #include "edyn/math/vector3.hpp"
 #include "edyn/parallel/job.hpp"
@@ -37,6 +43,7 @@
 #include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/networking/packet/transient_snapshot.hpp"
+#include "edyn/parallel/component_index_source.hpp"
 #include <memory>
 #include <variant>
 #include <entt/entity/registry.hpp>

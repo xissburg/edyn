@@ -11,6 +11,7 @@
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/collision/contact_point.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"

@@ -13,6 +13,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/collision/contact_point.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/dynamics/restitution_solver.hpp"

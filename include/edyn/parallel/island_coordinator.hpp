@@ -8,6 +8,7 @@
 #include <entt/signal/sigh.hpp>
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
+#include "edyn/parallel/component_index_source.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/util/registry_operation.hpp"

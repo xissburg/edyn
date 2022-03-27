@@ -8,6 +8,7 @@
 #include <entt/entity/fwd.hpp>
 #include <condition_variable>
 #include "edyn/parallel/job.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/parallel/message_queue.hpp"
