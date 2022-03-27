@@ -159,13 +159,14 @@ Due to its multi-threaded nature, all changes to relevant components in the main
 Following is a list containing the current major features:
 - Dynamic, static and kinematic rigid bodies.
 - Broad-phase collision detection using a dynamic bounding volume tree.
-- Narrow-phase collision detection using especialized code for each permutation of shape types. Most closest point calculation is done using SAT.
+- Narrow-phase collision detection using specialized code for each permutation of shape types. Most closest point calculation is done using SAT.
 - Closest point calculation can be done explicitly using the `edyn::collide` function and a pair of shapes, outside of a physics simulation.
 - Shapes: sphere, cylinder, capsule, box, convex polyhedron, compound, plane, concave triangle mesh, paged triangle mesh which loads chunks in the background on demand.
 - Constraints: distance, soft distance, hinge, point, gravity, generic, CV-joint, cone.
+- Hinge constraint limits beyond the `[-π, π]` range, limit restitution, bump stops, friction, damping and spring.
 - Ability to easily change the center of mass, without affecting constraint pivot points.
-- Amorphous rigid bodies.
-- Rigid bodies which do not collide, aka sensors.
+- Amorphous rigid bodies, i.e. rigid bodies without a shape which do not take part in collision detection and can be connected to other bodies via constraints.
+- Rigid bodies which do not collide yet generate collision events, aka sensors.
 - Raycasting.
 - Ragdolls.
 - Collision filtering using the typical group and mask bitsets and the more advanced _collision exclusion list_ for greater control.
@@ -175,6 +176,7 @@ Following is a list containing the current major features:
 - Internal edge collision avoidance in triangle mesh shapes using Voronoi regions.
 - Sequential impulses constraint solver.
 - Parallel simulation using islands.
+- Proper restitution propagation using a specialized restitution solver.
 - Networked physics using a client-server model. `Edyn` performs client state application in the server-side using a playout delay buffer and does extrapolation on the client-side in a background thread. It generates packets containing physics state which just needs to be sent over the network and once received in the other side it must be fed into the engine. It handles serialization, deserialization and processing of all packets.
 
 # Documentation and Support
