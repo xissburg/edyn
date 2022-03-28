@@ -108,7 +108,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         for (index_type idx = 0; idx < pool_entities.size(); ++idx) {
             auto entity = pool_entities[idx];
 
-            if (view.template contains(entity)) {
+            if (view.contains(entity)) {
                 entity_indices.push_back(idx);
 
                 if constexpr(!is_empty_type) {
