@@ -5,7 +5,6 @@
 #include <entt/meta/resolve.hpp>
 #include <entt/meta/container.hpp>
 #include <entt/entity/registry.hpp>
-#include <pstl/glue_algorithm_defs.h>
 #include "edyn/util/entity_map.hpp"
 
 namespace edyn::internal {
