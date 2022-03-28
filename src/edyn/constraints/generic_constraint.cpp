@@ -15,9 +15,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/matrix3x3.hpp"
-#include "edyn/math/quaternion.hpp"
 #include "edyn/math/transform.hpp"
-#include "edyn/math/vector3.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -180,27 +178,38 @@ void prepare_constraints<generic_constraint>(entt::registry &registry, row_cache
             }
         }
 
+        auto axisA_x = rotate(ornA, con.frame[0].column(0));
+        auto axisB_x = rotate(ornB, con.frame[1].column(0));
+
         // Angular.
         for (int i = 0; i < 3; ++i) {
             auto &dof = con.angular_dofs[i];
             auto non_zero_limit = dof.angle_min < dof.angle_max;
-
-            auto axisA = rotate(ornA, con.frame[0].column(i));
-            auto axisB = i == 0 ? rotate(ornB, con.frame[1].column(i)) : axisA;
+            vector3 axisA, axisB;
 
             if (i == 0) {
                 // Quaternion which rotates the axis of B so it's parallel to the
                 // the axis of A.
-                auto arc_quat = shortest_arc(axisB, axisA);
+                auto arc_quat = shortest_arc(axisB_x, axisA_x);
 
                 // Transform a non-axial vector in the frame of B onto A's space so
                 // the angular error can be calculated.
                 auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, con.frame[1].column(1));
                 dof.current_angle = std::atan2(dot(angle_axisB, con.frame[0].column(2)),
                                                dot(angle_axisB, con.frame[0].column(1)));
+                axisA = axisA_x;
+                axisB = axisB_x;
             } else {
-                auto axisB_x = (rotate(conjugate(ornA) * ornB, con.frame[1].column(0))) * con.frame[0];
-                dof.current_angle = std::atan2(i == 1 ? -axisB_x.z : axisB_x.y, axisB_x.x);
+                auto axisA_other = rotate(ornA, con.frame[0].column(i == 1 ? 2 : 1));
+                auto cos_angle = std::clamp(dot(axisB_x, axisA_other), scalar(-1), scalar(1));
+                dof.current_angle = half_pi - std::acos(cos_angle);
+                auto axis = cross(axisA_other, axisB_x);
+
+                if (!try_normalize(axis)) {
+                    axis = i == 1 ? vector3_z : vector3_y;
+                }
+
+                axisA = axisB = -axis;
             }
 
             auto J = std::array<vector3, 4>{vector3_zero, axisA, vector3_zero, -axisB};
