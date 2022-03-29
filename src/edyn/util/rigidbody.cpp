@@ -114,9 +114,13 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
             }
         }, *def.shape);
 
-        auto &filter = registry.emplace<collision_filter>(entity);
-        filter.group = def.collision_group;
-        filter.mask = def.collision_mask;
+        if (def.collision_group != collision_filter::all_groups ||
+            def.collision_mask != collision_filter::all_groups)
+        {
+            auto &filter = registry.emplace<collision_filter>(entity);
+            filter.group = def.collision_group;
+            filter.mask = def.collision_mask;
+        }
     }
 
     if (def.continuous_contacts) {

@@ -9,6 +9,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/comp/material.hpp"
+#include "edyn/comp/collision_filter.hpp"
 
 namespace edyn {
 
@@ -55,8 +56,8 @@ struct rigidbody_def {
     // collisions, i.e. it becomes a _sensor_.
     std::optional<edyn::material> material {edyn::material{}};
 
-    uint64_t collision_group {~0ULL};
-    uint64_t collision_mask {~0ULL};
+    uint64_t collision_group {collision_filter::all_groups};
+    uint64_t collision_mask {collision_filter::all_groups};
 
     // Mark all contacts involving this rigid body as continuous.
     bool continuous_contacts {false};
