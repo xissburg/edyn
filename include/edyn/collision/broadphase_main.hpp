@@ -57,6 +57,7 @@ public:
 
     void on_construct_tree_view(entt::registry &, entt::entity);
     void on_construct_static_kinematic_tag(entt::registry &, entt::entity);
+    void on_construct_aabb(entt::registry &, entt::entity);
     void on_destroy_tree_resident(entt::registry &, entt::entity);
 
 private:

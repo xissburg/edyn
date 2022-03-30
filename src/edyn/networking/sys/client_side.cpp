@@ -21,6 +21,7 @@
 #include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector.hpp"
+#include "edyn/util/aabb_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <set>
 
@@ -400,31 +401,64 @@ static void import_remote_snapshot(entt::registry &registry, const registry_snap
 
     ctx.snapshot_importer->import(registry, ctx.entity_map, snap, mark_dirty);
 
+    // Create nodes and edges in entity graph, assign networked tags and
+    // dependent components which are not networked.
     for (auto remote_entity : snap.entities) {
         auto local_entity = ctx.entity_map.at(remote_entity);
 
+        // Assign computed properties such as AABB and inverse mass.
+        if (registry.any_of<shape_index>(local_entity)) {
+            auto &pos = registry.get<position>(local_entity);
+            auto &orn = registry.get<orientation>(local_entity);
+
+            visit_shape(registry, local_entity, [&] (auto &&shape) {
+                auto aabb = shape_aabb(shape, pos, orn);
+                registry.emplace<AABB>(local_entity, aabb);
+            });
+        }
+
+        if (auto *mass = registry.try_get<edyn::mass>(local_entity)) {
+            EDYN_ASSERT(
+                (registry.all_of<dynamic_tag>(local_entity) && *mass > 0 && *mass < EDYN_SCALAR_MAX) ||
+                (registry.any_of<kinematic_tag, static_tag>(local_entity) && *mass == EDYN_SCALAR_MAX));
+            auto inv = registry.all_of<dynamic_tag>(local_entity) ? scalar(1) / *mass : scalar(0);
+            registry.emplace<mass_inv>(local_entity, inv);
+        }
+
+        if (auto *inertia = registry.try_get<edyn::inertia>(local_entity)) {
+            if (registry.all_of<dynamic_tag>(local_entity)) {
+                EDYN_ASSERT(*inertia != matrix3x3_zero);
+                auto I_inv = inverse_matrix_symmetric(*inertia);
+                registry.emplace<inertia_inv>(local_entity, I_inv);
+                registry.emplace<inertia_world_inv>(local_entity, I_inv);
+            } else {
+                EDYN_ASSERT(*inertia == matrix3x3_zero);
+                registry.emplace<inertia_inv>(local_entity, matrix3x3_zero);
+                registry.emplace<inertia_world_inv>(local_entity, matrix3x3_zero);
+            }
+        }
+
+        // Assign discontinuity to dynamic rigid bodies.
+        if (registry.any_of<dynamic_tag>(local_entity) && !registry.all_of<discontinuity>(local_entity)) {
+            registry.emplace<discontinuity>(local_entity);
+        }
+
+        // All remote entities must have a networked tag.
         if (!registry.all_of<networked_tag>(local_entity)) {
             registry.emplace<networked_tag>(local_entity);
         }
-    }
 
-    // Create nodes and edges in entity graph.
-    for (auto remote_entity : snap.entities) {
-        auto local_entity = ctx.entity_map.at(remote_entity);
-
+        // Assign graph node to rigid bodies and external entities.
         if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&
             !registry.all_of<graph_node>(local_entity)) {
             auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
             auto node_index = registry.ctx<entity_graph>().insert_node(local_entity, non_connecting);
             registry.emplace<graph_node>(local_entity, node_index);
         }
-
-        if (registry.any_of<rigidbody_tag, procedural_tag>(local_entity)&&
-            !registry.all_of<discontinuity>(local_entity)) {
-            registry.emplace<discontinuity>(local_entity);
-        }
     }
 
+    // Create graph edges for constraints *after* graph nodes have been created
+    // for rigid bodies above.
     for (auto remote_entity : snap.entities) {
         auto local_entity = ctx.entity_map.at(remote_entity);
         maybe_create_graph_edge(registry, local_entity, constraints_tuple);

@@ -18,6 +18,7 @@
 #include "edyn/edyn.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector.hpp"
+#include "edyn/util/aabb_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <set>
@@ -222,7 +223,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto emap_packet = packet::update_entity_map{};
     emap_packet.timestamp = performance_time();
 
-    // Create entities first import pools later since components might contain
+    // Create entities first, import pools later, since components might contain
     // entities which have to be mapped from remote to local.
     for (auto remote_entity : packet.entities) {
         if (client.entity_map.contains(remote_entity)) continue;
@@ -251,9 +252,42 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     const bool mark_dirty = false;
     ctx.snapshot_importer->import(registry, client_entity, packet, check_ownership, mark_dirty);
 
-    // Create nodes and edges in entity graph and assign networked tags.
+    // Create nodes and edges in entity graph, assign networked tags and
+    // dependent components which are not networked.
     for (auto remote_entity : packet.entities) {
         auto local_entity = client.entity_map.at(remote_entity);
+
+        // Assign computed properties such as AABB and inverse mass.
+        if (registry.any_of<shape_index>(local_entity)) {
+            auto &pos = registry.get<position>(local_entity);
+            auto &orn = registry.get<orientation>(local_entity);
+
+            visit_shape(registry, local_entity, [&] (auto &&shape) {
+                auto aabb = shape_aabb(shape, pos, orn);
+                registry.emplace<AABB>(local_entity, aabb);
+            });
+        }
+
+        if (auto *mass = registry.try_get<edyn::mass>(local_entity)) {
+            EDYN_ASSERT(
+                (registry.all_of<dynamic_tag>(local_entity) && *mass > 0 && *mass < EDYN_SCALAR_MAX) ||
+                (registry.any_of<kinematic_tag, static_tag>(local_entity) && *mass == EDYN_SCALAR_MAX));
+            auto inv = registry.all_of<dynamic_tag>(local_entity) ? scalar(1) / *mass : scalar(0);
+            registry.emplace<mass_inv>(local_entity, inv);
+        }
+
+        if (auto *inertia = registry.try_get<edyn::inertia>(local_entity)) {
+            if (registry.all_of<dynamic_tag>(local_entity)) {
+                EDYN_ASSERT(*inertia != matrix3x3_zero);
+                auto I_inv = inverse_matrix_symmetric(*inertia);
+                registry.emplace<inertia_inv>(local_entity, I_inv);
+                registry.emplace<inertia_world_inv>(local_entity, I_inv);
+            } else {
+                EDYN_ASSERT(*inertia == matrix3x3_zero);
+                registry.emplace<inertia_inv>(local_entity, matrix3x3_zero);
+                registry.emplace<inertia_world_inv>(local_entity, matrix3x3_zero);
+            }
+        }
 
         if (!registry.all_of<networked_tag>(local_entity)) {
             registry.emplace<networked_tag>(local_entity);
@@ -264,13 +298,14 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
             auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
             auto node_index = registry.ctx<entity_graph>().insert_node(local_entity, non_connecting);
             registry.emplace<graph_node>(local_entity, node_index);
-        } else {
-            // If it's not a node, it might be an edge.
-            for (auto remote_entity : packet.entities) {
-                auto local_entity = client.entity_map.at(remote_entity);
-                maybe_create_graph_edge(registry, local_entity, constraints_tuple);
-            }
         }
+    }
+
+    // Create graph edges for constraints *after* graph nodes have been created
+    // for rigid bodies above.
+    for (auto remote_entity : packet.entities) {
+        auto local_entity = client.entity_map.at(remote_entity);
+        maybe_create_graph_edge(registry, local_entity, constraints_tuple);
     }
 }
 

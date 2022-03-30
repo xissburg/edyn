@@ -1,7 +1,6 @@
 #ifndef EDYN_NETWORKING_NETWORKED_COMP_HPP
 #define EDYN_NETWORKING_NETWORKED_COMP_HPP
 
-#include "edyn/comp/aabb.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
@@ -34,17 +33,13 @@ namespace edyn {
  * @brief Tuple of components which are shared over the network.
  */
 static const auto networked_components = std::tuple_cat(std::tuple<
-    AABB,
     collision_filter,
     collision_exclusion,
     inertia,
-    inertia_inv,
-    inertia_world_inv,
     gravity,
     angvel,
     linvel,
     mass,
-    mass_inv,
     material,
     position,
     orientation,
