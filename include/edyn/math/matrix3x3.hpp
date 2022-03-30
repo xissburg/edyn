@@ -97,6 +97,16 @@ inline matrix3x3 operator-=(matrix3x3 &m, const matrix3x3 &n) {
     return m;
 }
 
+// Check if two matrices are equal.
+inline bool operator==(const matrix3x3 &m, const matrix3x3 &n) {
+    return m.row == n.row;
+}
+
+// Check if two matrices are different.
+inline bool operator!=(const matrix3x3 &m, const matrix3x3 &n) {
+    return m.row != n.row;
+}
+
 // Create a matrix with the given column vectors.
 inline matrix3x3 matrix3x3_columns(const vector3 &v0,
                                    const vector3 &v1,
