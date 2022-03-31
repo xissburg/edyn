@@ -21,7 +21,7 @@ namespace detail {
         using ViewType = entt::basic_view<entt::entity, entt::exclude_t<>, T>;
         return [] (entt::entity entity, const ViewsTupleType &views_tuple, VisitorType visitor) {
             auto &view = std::get<ViewType>(views_tuple);
-            if (view.template contains(entity)) {
+            if (view.contains(entity)) {
                 visitor(view.template get<T>(entity));
             }
         };

@@ -2,6 +2,7 @@
 #define EDYN_SERIALIZATION_MEMORY_ARCHIVE_HPP
 
 #include <cstdint>
+#include <cstddef>
 #include <type_traits>
 #include <vector>
 #include <array>
