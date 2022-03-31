@@ -23,4 +23,4 @@ jobs:
             conan config set log.print_run_commands=True
       - name: 'Create edyn package + run tests'
         run: |
-            conan create . -o edyn:enable_assert=True -o edyn:enable_sanitizer=True -o edyn:build_tests=True -o *:shared=${{ matrix.shared }} -e CONAN_RUN_TESTS=1 -tf None
+            conan create . -o edyn:enable_assert=True -o edyn:enable_sanitizer=True -o edyn:build_tests=True -o *:shared=${{ matrix.shared }} -tf None
