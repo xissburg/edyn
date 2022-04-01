@@ -56,7 +56,7 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
                            entt::entity entity, entt::id_type id,
                            registry_snapshot &snap,
                            std::integer_sequence<unsigned, ComponentIndex...>) {
-        ((entt::type_id<Components>().seq() == id ?
+        ((entt::type_index<Components>::value() == id ?
             internal::snapshot_insert_entity<Components>(registry, entity, snap, ComponentIndex) : void(0)), ...);
     }
 
@@ -99,10 +99,10 @@ public:
 
         m_should_export_steady_by_type_id = [] (const entt::registry &registry, entt::entity entity,
                                                 entt::id_type id, entt::entity dest_client_entity) {
-            auto is_transient = ((entt::type_seq<Transient>::value() == id) || ...);
+            auto is_transient = ((entt::type_index<Transient>::value() == id) || ...);
 
             if (auto *owner = registry.try_get<entity_owner>(entity); owner && owner->client_entity == dest_client_entity) {
-                auto is_input = ((entt::type_seq<Input>::value() == id) || ...);
+                auto is_input = ((entt::type_index<Input>::value() == id) || ...);
                 return !is_input && !is_transient;
             } else {
                 return !is_transient;

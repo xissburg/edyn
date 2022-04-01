@@ -125,7 +125,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
                                                               const aabb_view_t &aabb_view,
                                                               const multi_resident_view_t &resident_view,
                                                               const tree_view_view_t &tree_view_view) const {
-    auto tree_viewA = tree_view_view.get<tree_view>(island_entityA);
+    auto &tree_viewA = tree_view_view.get<tree_view>(island_entityA);
     auto island_aabb = tree_viewA.root_aabb().inset(m_aabb_offset);
     entity_pair_vector results;
 

@@ -42,7 +42,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
         // not be applied, because in this case the server is in control of
         // the procedural state. Input components are one exception because
         // they must always be applied.
-        auto is_input = m_is_input_component.at(entt::type_id<Component>().seq());
+        auto is_input = m_is_input_component.at(entt::type_index<Component>::value());
 
         if (is_input) {
             if (auto *owner = registry.try_get<entity_owner>(local_entity);
@@ -206,7 +206,7 @@ public:
     server_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>,
                                   [[maybe_unused]] std::tuple<Input...>) {
         static_assert((!std::is_empty_v<Input> && ...));
-        ((m_is_input_component[entt::type_id<Components>().seq()] = has_type<Components, std::tuple<Input...>>::value), ...);
+        ((m_is_input_component[entt::type_index<Components>::value()] = has_type<Components, std::tuple<Input...>>::value), ...);
     }
 
     void import(entt::registry &registry, entt::entity client_entity,
@@ -230,7 +230,7 @@ public:
             visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
                 using CompType = std::decay_t<decltype(c)>;
 
-                if (m_is_input_component.at(entt::type_id<CompType>().seq())) {
+                if (m_is_input_component.at(entt::type_index<CompType>::value())) {
                     auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
                     import_input_components_local(registry, client_entity, snap.entities, *typed_pool, mark_dirty);
                 }

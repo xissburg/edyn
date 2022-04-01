@@ -124,7 +124,7 @@ protected:
     registry_operation_collection
     take_snapshot(const registry_snapshot &snap, const entt::sparse_set &entities) override {
         for (auto &pool : snap.pools) {
-            ((entt::type_seq<Components>::value() == pool.ptr->get_type_id() ?
+            ((entt::type_index<Components>::value() == pool.ptr->get_type_id() ?
                 take_snapshot_single<Components>(snap.entities, pool, entities) :
                 void(0)), ...);
         }

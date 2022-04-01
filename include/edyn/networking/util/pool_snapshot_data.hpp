@@ -165,7 +165,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
     }
 
     entt::id_type get_type_id() const override {
-        return entt::type_id<Component>().seq();
+        return entt::type_index<Component>::value();
     }
 };
 

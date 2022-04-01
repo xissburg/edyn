@@ -177,7 +177,7 @@ public:
     }
 
     entt::id_type get_type_id() const override {
-        return entt::type_seq<Component>::value();
+        return entt::type_index<Component>::value();
     }
 
     void remap(const entity_map &emap) override {
@@ -255,7 +255,7 @@ class registry_operation_collection final {
 
     template<typename Component, typename Func>
     void for_each_comp(registry_op_type op_type, Func func) const {
-        auto type_id = entt::type_seq<Component>::value();
+        auto type_id = entt::type_index<Component>::value();
 
         for (auto &op : operations) {
             if (op.operation == op_type && op.components && op.components->get_type_id() == type_id) {

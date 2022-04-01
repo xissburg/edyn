@@ -53,8 +53,8 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
 
     // Avoid multi-threading issues in the `should_collide` function by
     // pre-allocating the pools required in there.
-    m_registry.prepare<collision_filter>();
-    m_registry.prepare<collision_exclusion>();
+    static_cast<void>(m_registry.storage<collision_filter>());
+    static_cast<void>(m_registry.storage<collision_exclusion>());
 
     m_this_job.func = &extrapolation_job_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());

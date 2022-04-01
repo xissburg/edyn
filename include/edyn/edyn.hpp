@@ -292,7 +292,7 @@ entt::entity get_manifold_entity(const entt::registry &registry, entity_pair ent
  * @param registry Data source.
  * @return Sink to observe contact started events.
  */
-entt::sink<void(entt::entity)> on_contact_started(entt::registry &);
+entt::sink<entt::sigh<void(entt::entity)>> on_contact_started(entt::registry &);
 
 /**
  * @brief Signal triggered when a contact ends.
@@ -302,7 +302,7 @@ entt::sink<void(entt::entity)> on_contact_started(entt::registry &);
  * @param registry Data source.
  * @return Sink to observe contact ended events.
  */
-entt::sink<void(entt::entity)> on_contact_ended(entt::registry &);
+entt::sink<entt::sigh<void(entt::entity)>> on_contact_ended(entt::registry &);
 
 /**
  * @brief Signal triggered when a contact point is created.
@@ -312,7 +312,8 @@ entt::sink<void(entt::entity)> on_contact_ended(entt::registry &);
  * @param registry Data source.
  * @return Sink to observe contact point creation events.
  */
-entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_point_created(entt::registry &);
+entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>>
+on_contact_point_created(entt::registry &);
 
 /**
  * @brief Signal triggered when a contact point is destroyed.
@@ -322,7 +323,8 @@ entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_poi
  * @param registry Data source.
  * @return Sink to observe contact point destruction events.
  */
-entt::sink<void(entt::entity, contact_manifold::contact_id_type)> on_contact_point_destroyed(entt::registry &);
+entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>>
+on_contact_point_destroyed(entt::registry &);
 
 /**
  * @brief Visit all edges of a node in the entity graph. This can be used to

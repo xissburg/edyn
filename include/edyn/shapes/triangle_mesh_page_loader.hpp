@@ -15,7 +15,7 @@ public:
     virtual void load(size_t index) = 0;
 
     using loaded_mesh_func_t = void(size_t, std::shared_ptr<triangle_mesh>);
-    virtual entt::sink<loaded_mesh_func_t> on_load_sink() = 0;
+    virtual entt::sink<entt::sigh<loaded_mesh_func_t>> on_load_sink() = 0;
 };
 
 

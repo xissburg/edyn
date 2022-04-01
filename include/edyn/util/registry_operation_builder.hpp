@@ -19,7 +19,7 @@ class registry_operation_builder {
                     op_type == registry_op_type::remove ||
                     op_type == registry_op_type::ent_map);
 
-        auto type_id = entt::type_seq<Component>::value();
+        auto type_id = entt::type_index<Component>::value();
 
         for (auto &op : operations) {
             if (op.operation == op_type && op.components && op.components->get_type_id() == type_id) {
@@ -281,15 +281,15 @@ public:
     }
 
     void emplace_type_id(const entt::registry &registry, entt::entity entity, entt::id_type id) override {
-        ((entt::type_seq<Components>::value() == id ? emplace<Components>(registry, entity) : (void)0), ...);
+        ((entt::type_index<Components>::value() == id ? emplace<Components>(registry, entity) : (void)0), ...);
     }
 
     void replace_type_id(const entt::registry &registry, entt::entity entity, entt::id_type id) override {
-        ((entt::type_seq<Components>::value() == id ? replace<Components>(registry, entity) : (void)0), ...);
+        ((entt::type_index<Components>::value() == id ? replace<Components>(registry, entity) : (void)0), ...);
     }
 
     void remove_type_id(const entt::registry &registry, entt::entity entity, entt::id_type id) override {
-        ((entt::type_seq<Components>::value() == id ? remove<Components>(registry, entity) : (void)0), ...);
+        ((entt::type_index<Components>::value() == id ? remove<Components>(registry, entity) : (void)0), ...);
     }
 };
 

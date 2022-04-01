@@ -36,7 +36,7 @@ void register_networked_components(entt::registry &registry,
         ctx->snapshot_importer.reset(new client_snapshot_importer_impl(all));
         ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(all, transient_all, input));
         ctx->is_input_component_func = [] (entt::id_type id) {
-            return ((id == entt::type_id<Input>().seq()) || ...);
+            return ((id == entt::type_index<Input>::value()) || ...);
         };
         ctx->state_history = std::make_shared<comp_state_history_impl<Input...>>();
     }
