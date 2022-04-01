@@ -180,7 +180,7 @@ target_link_options(Edyn
 )
 
 if(MSVC)
-    target_compile_options(Edyn PRIVATE /W4)
+    target_compile_options(Edyn PRIVATE /W4 /bigobj)
 else()
     target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()
