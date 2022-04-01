@@ -752,7 +752,7 @@ void server_notify_created_entities(entt::registry &registry,
                                     const std::vector<entt::entity> &entities) {
     auto &ctx = registry.ctx<server_network_context>();
 
-#ifdef EDYN_DEBUG
+#ifndef EDYN_DISABLE_ASSERT
     // Ensure all entities are networked.
     for (auto entity : entities) {
         EDYN_ASSERT(registry.all_of<networked_tag>(entity));

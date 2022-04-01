@@ -143,7 +143,7 @@ TEST(test_registry_operation, test_impl) {
     // Update component by id.
     reg0.get<another_comp>(ent01).d = 0.7071;
 
-    builder->replace_type_id(reg0, ent01, entt::type_seq<another_comp>::value());
+    builder->replace_type_id(reg0, ent01, entt::type_index<another_comp>::value());
     ops = builder->finish();
     ops.execute(reg1, emap);
 
@@ -152,7 +152,7 @@ TEST(test_registry_operation, test_impl) {
     // Remove component by id.
     reg0.remove<another_comp>(ent01);
 
-    builder->remove_type_id(reg0, ent01, entt::type_seq<another_comp>::value());
+    builder->remove_type_id(reg0, ent01, entt::type_index<another_comp>::value());
     ops = builder->finish();
     ops.execute(reg1, emap);
 

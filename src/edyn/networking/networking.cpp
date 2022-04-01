@@ -85,17 +85,17 @@ scalar get_network_client_discontinuity_decay_rate(entt::registry &registry) {
     return get_client_settings(registry).discontinuity_decay_rate;
 }
 
-entt::sink<void(const packet::edyn_packet &)> network_client_packet_sink(entt::registry &registry) {
+entt::sink<entt::sigh<void(const packet::edyn_packet &)>> network_client_packet_sink(entt::registry &registry) {
     auto &ctx = registry.ctx<client_network_context>();
     return ctx.packet_sink();
 }
 
-entt::sink<void(void)> network_client_extrapolation_timeout_sink(entt::registry &registry) {
+entt::sink<entt::sigh<void(void)>> network_client_extrapolation_timeout_sink(entt::registry &registry) {
     auto &ctx = registry.ctx<client_network_context>();
     return ctx.extrapolation_timeout_sink();
 }
 
-entt::sink<void(entt::entity, const packet::edyn_packet &)> network_server_packet_sink(entt::registry &registry) {
+entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>> network_server_packet_sink(entt::registry &registry) {
     auto &ctx = registry.ctx<server_network_context>();
     return ctx.packet_sink();
 }

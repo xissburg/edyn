@@ -46,7 +46,7 @@ class EdynConan(ConanFile):
             del self.options.fPIC
 
     def requirements(self):
-        self.requires("entt/3.8.0")
+        self.requires("entt/3.9.0")
         if self.options.build_tests:
             self.requires("gtest/1.11.0", private=True)
 

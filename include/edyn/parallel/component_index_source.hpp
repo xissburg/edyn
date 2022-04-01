@@ -24,7 +24,7 @@ struct component_index_source {
             return tuple_index_of<Component, IndexType>(shared_components);
         } else {
             // Get external component index by `entt::type_index`.
-            return static_cast<IndexType>(index_of_id(entt::type_id<Component>().seq()));
+            return static_cast<IndexType>(index_of_id(entt::type_index<Component>::value()));
         }
     }
 
@@ -47,7 +47,7 @@ struct component_index_source_impl : public component_index_source {
 
     size_t index_of_id(entt::id_type id) const override {
         auto idx = SIZE_MAX;
-        ((entt::type_id<Component>().seq() == id ?
+        ((entt::type_index<Component>::value() == id ?
             (idx = edyn::index_of<size_t, Component, components_tuple_t>::value) : (size_t)0), ...);
         return idx;
     }
@@ -58,7 +58,7 @@ struct component_index_source_impl : public component_index_source {
 
         if (index < std::tuple_size_v<components_tuple_t>) {
             visit_tuple(tuple, index, [&] (auto &&c) {
-                id = entt::type_id<std::decay_t<decltype(c)>>().seq();
+                id = entt::type_index<std::decay_t<decltype(c)>>::value();
             });
         }
 

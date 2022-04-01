@@ -90,8 +90,8 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
 
     // Avoid multi-threading issues in the `should_collide` function by
     // pre-allocating the pools required in there.
-    m_registry.prepare<collision_filter>();
-    m_registry.prepare<collision_exclusion>();
+    static_cast<void>(m_registry.storage<collision_filter>());
+    static_cast<void>(m_registry.storage<collision_exclusion>());
 
     m_island_entity = m_registry.create();
     m_entity_map.insert(island_entity, m_island_entity);

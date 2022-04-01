@@ -125,7 +125,8 @@ scalar get_network_client_discontinuity_decay_rate(entt::registry &);
  * @param registry Data source.
  * @return Packet sink.
  */
-entt::sink<void(const packet::edyn_packet &)> network_client_packet_sink(entt::registry &);
+entt::sink<entt::sigh<void(const packet::edyn_packet &)>>
+network_client_packet_sink(entt::registry &);
 
 /**
  * @brief Triggered when an extrapolation job times out due to it taking more
@@ -135,7 +136,8 @@ entt::sink<void(const packet::edyn_packet &)> network_client_packet_sink(entt::r
  * @param registry Data source.
  * @return Timeout warning sink.
  */
-entt::sink<void(void)> network_client_extrapolation_timeout_sink(entt::registry &);
+entt::sink<entt::sigh<void(void)>>
+network_client_extrapolation_timeout_sink(entt::registry &);
 
 /**
  * @brief Get server packet sink. This sink must be observed and the packets
@@ -144,7 +146,8 @@ entt::sink<void(void)> network_client_extrapolation_timeout_sink(entt::registry 
  * @return Packet sink where the observers take the client entity and packet
  * as arguments.
  */
-entt::sink<void(entt::entity, const packet::edyn_packet &)> network_server_packet_sink(entt::registry &);
+entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>>
+network_server_packet_sink(entt::registry &);
 
 }
 

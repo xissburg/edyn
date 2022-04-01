@@ -116,8 +116,8 @@ public:
 
     void load(size_t index) override;
 
-    virtual entt::sink<loaded_mesh_func_t> on_load_sink() override {
-        return entt::sink {m_loaded_signal};
+    virtual entt::sink<entt::sigh<loaded_mesh_func_t>> on_load_sink() override {
+        return {m_loaded_signal};
     }
 
     friend void serialize(paged_triangle_mesh_file_input_archive &archive,

@@ -46,7 +46,7 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
                            entt::entity entity, entt::id_type id,
                            registry_snapshot &snap,
                            std::integer_sequence<unsigned, ComponentIndex...>) {
-        ((entt::type_id<Components>().seq() == id ?
+        ((entt::type_index<Components>::value() == id ?
             internal::snapshot_insert_entity<Components>(registry, entity, snap, ComponentIndex) : void(0)), ...);
     }
 
@@ -88,7 +88,7 @@ public:
             return ((has_type<Transient, std::tuple<Input...>>::value && registry.any_of<Transient>(entity)) || ...);
         };
 
-        ((m_is_transient_component[entt::type_id<Components>().seq()] = has_type<Components, std::tuple<Transient...>>::value), ...);
+        ((m_is_transient_component[entt::type_index<Components>::value()] = has_type<Components, std::tuple<Transient...>>::value), ...);
     }
 
     void export_all(const entt::registry &registry, registry_snapshot &snap) override {
