@@ -640,6 +640,10 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
     // Generate contact events.
     msg.ops.replace_for_each<contact_manifold_events>([&] (entt::entity remote_entity,
                                                            const contact_manifold_events &events) {
+        if (!source_ctx->m_entity_map.contains(remote_entity)) {
+            return;
+        }
+
         auto manifold_entity = source_ctx->m_entity_map.at(remote_entity);
 
         if (events.contact_started) {
