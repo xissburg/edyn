@@ -114,9 +114,8 @@ static void process_created_networked_entities(entt::registry &registry, double 
 
     ctx.snapshot_exporter->export_all(registry, packet);
 
-    for (auto entity : packet.entities) {
-        registry.emplace<entity_owner>(entity, ctx.client_entity);
-    }
+    // Assign current client as owner of all created entities.
+    registry.insert(packet.entities.begin(), packet.entities.end(), entity_owner{ctx.client_entity});
 
     // Sort components to ensure order of construction.
     std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {

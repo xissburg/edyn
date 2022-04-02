@@ -804,21 +804,18 @@ void island_worker::go_to_sleep() {
 
     // Assign `sleeping_tag` to all procedural entities.
     auto proc_view = m_registry.view<procedural_tag>();
+    m_registry.insert<sleeping_tag>(proc_view.begin(), proc_view.end());
+
+    // Set velocities to absolute zero.
     auto vel_view = m_registry.view<linvel, angvel>();
+    auto vel_view_proc = vel_view | proc_view;
 
-    proc_view.each([&] (entt::entity entity) {
-        if (vel_view.contains(entity)) {
-            auto [linvel, angvel] = vel_view.get(entity);
-            linvel = vector3_zero;
-            angvel = vector3_zero;
-        }
+    for (auto [e, v, w] : vel_view_proc.each()) {
+        v = w = vector3_zero;
+    }
 
-        m_registry.emplace<sleeping_tag>(entity);
-    });
-
-    auto proc_vel_view = proc_view | vel_view;
-    m_op_builder->replace<linvel>(m_registry, proc_vel_view.begin(), proc_vel_view.end());
-    m_op_builder->replace<angvel>(m_registry, proc_vel_view.begin(), proc_vel_view.end());
+    m_op_builder->replace<linvel>(m_registry, vel_view_proc.begin(), vel_view_proc.end());
+    m_op_builder->replace<angvel>(m_registry, vel_view_proc.begin(), vel_view_proc.end());
     m_op_builder->emplace<sleeping_tag>(m_registry, proc_view.begin(), proc_view.end());
 }
 

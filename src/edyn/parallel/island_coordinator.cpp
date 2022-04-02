@@ -494,9 +494,7 @@ entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &
         }
     }
 
-    for (auto entity : all_edges) {
-        m_registry->remove<sleeping_tag>(entity);
-    }
+    m_registry->remove<sleeping_tag>(all_edges.begin(), all_edges.end());
 
     insert_to_island(island_entity, all_nodes, all_edges);
 

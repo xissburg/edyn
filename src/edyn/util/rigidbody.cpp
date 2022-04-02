@@ -184,11 +184,11 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
 }
 
 std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std::vector<rigidbody_def> &defs) {
-    std::vector<entt::entity> entities;
-    entities.reserve(defs.size());
+    std::vector<entt::entity> entities(defs.size());
+    registry.create(entities.begin(), entities.end());
 
-    for (auto &def : defs) {
-        entities.push_back(make_rigidbody(registry, def));
+    for (size_t i = 0; i < entities.size(); ++i) {
+        make_rigidbody(entities[i], registry, defs[i]);
     }
 
     auto &coordinator = registry.ctx<island_coordinator>();
