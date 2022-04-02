@@ -429,6 +429,14 @@ The appearance of the simulation of entities that are further away from the user
 
 3. No simulation zone: entities in this zone have simulation disabled (i.e. `edyn::disabled_tag` is assigned to them). The state from the transient snapshot is applied directly and the velocity is used to do a basic linear extrapolation of the transforms over time. Discontinuities are again used to smooth out the snapping effect.
 
+## Hierarchical interpolation
+
+Transforms are interpolated linearly when discontinuities are introduced and when entities fall into the _no simulation zone_.If the extent of the interpolation is significant, entities that are linked together will likely have their relative transforms diverge in noticeable ways, e.g. a vehicle made of a chassis and 4 wheels which is spinning in place will have its wheels move away from the chassis.
+
+One way to improve the quality of interpolation of linked entities, is to perform it in the space of a parent entity. In the case of a vehicle, the transform of the wheels should be converted to chassis-space for the initial and final transforms in world space, then the chassis-space transforms should be interpolated and then converted back into world space. In the case of a vehicle spinning in place, the chassis-space transform of each wheel is the same in the initial and final timestamps, thus no divergence will be observed.
+
+Entities can have a `edyn::interpolation_parent` component which refers to the parent entity and then that will be considered when performing interpolations.
+
 ## Snapshot packet serialization
 
 The snapshot packets contain an array of entities and an array of component pools. The pools are type-erased and rely on a virtual function that will do any type-specific operation such as serialization and importing the data into a registry. The pool has an array of entity indices and an array of components if the component type is not empty (according to `std::is_empty_v`). The indices are with respect to the array of entities that's included in the beginning of the packet. The array of components has a 1-to-1 relationship with the array of indices, where the i-th component is assigned to the entity in the entity array located at the index stored in the i-th element of the array of entity indices. That also means the array of entity indices and the array of components have the same size.
