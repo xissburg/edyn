@@ -13,6 +13,7 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/math/constants.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/transform.hpp"
@@ -135,9 +136,12 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                     auto vB = linvelB + cross(angvelB, rB);
                     auto relvel = vA - vB;
                     auto normal_relvel = dot(relvel, normal);
-                    auto spring_force = cp.distance * cp.stiffness;
-                    auto damper_force = normal_relvel * cp.damping;
+                    // Divide stiffness by number of points for correct force
+                    // distribution. All points have the same stiffness.
+                    auto spring_force = cp.distance * cp.stiffness / manifold.num_points;
+                    auto damper_force = normal_relvel * cp.damping / manifold.num_points;
                     normal_row.upper_limit = std::abs(spring_force + damper_force) * dt;
+                    normal_options.error = -large_scalar;
                 } else {
                     normal_row.upper_limit = large_scalar;
                 }
@@ -285,6 +289,15 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
 
     for (auto entity : manifold_view) {
         auto [manifold] = manifold_view.get(entity);
+
+        if (manifold.num_points == 0) {
+            continue;
+        }
+
+        // Ignore soft contacts.
+        if (manifold.get_point(0).stiffness < large_scalar) {
+            continue;
+        }
 
         auto [posA, ornA, inv_mA, inv_IA] = body_view.get(manifold.body[0]);
         auto [posB, ornB, inv_mB, inv_IB] = body_view.get(manifold.body[1]);
