@@ -178,7 +178,7 @@ Following is a list containing the current major features:
 - Sequential impulses constraint solver with warm-starting.
 - Proper restitution propagation using a specialized restitution solver.
 - Parallel simulation using islands.
-- Networked physics using a client-server model. `Edyn` performs client state application in the server-side using a jitter buffer and does extrapolation on the client-side in a background thread. It generates packets containing physics state which just needs to be sent over the network and once received in the other side it must be fed into the engine. It handles serialization, deserialization and processing of all packets.
+- Networked physics using a client-server model. _Edyn_ performs client state application in the server-side using a jitter buffer and does extrapolation on the client-side in a background thread. It generates packets containing physics state which just needs to be sent over the network and once received in the other side it must be fed into the engine. It handles serialization, deserialization and processing of all packets.
 
 # Documentation and Support
 
