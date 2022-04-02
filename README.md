@@ -173,11 +173,12 @@ Following is a list containing the current major features:
 - Collision events.
 - Material ids and material properties to be used when a specific pair of materials interact.
 - Per-vertex material properties in triangle mesh shapes.
+- Rolling and spinning friction.
 - Internal edge collision avoidance in triangle mesh shapes using Voronoi regions.
-- Sequential impulses constraint solver.
-- Parallel simulation using islands.
+- Sequential impulses constraint solver with warm-starting.
 - Proper restitution propagation using a specialized restitution solver.
-- Networked physics using a client-server model. `Edyn` performs client state application in the server-side using a playout delay buffer and does extrapolation on the client-side in a background thread. It generates packets containing physics state which just needs to be sent over the network and once received in the other side it must be fed into the engine. It handles serialization, deserialization and processing of all packets.
+- Parallel simulation using islands.
+- Networked physics using a client-server model. `Edyn` performs client state application in the server-side using a jitter buffer and does extrapolation on the client-side in a background thread. It generates packets containing physics state which just needs to be sent over the network and once received in the other side it must be fed into the engine. It handles serialization, deserialization and processing of all packets.
 
 # Documentation and Support
 
