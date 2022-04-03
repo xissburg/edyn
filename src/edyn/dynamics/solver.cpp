@@ -77,13 +77,13 @@ void update_impulse<null_constraint>(entt::registry &, row_cache &, size_t &, si
 // stored in traditional constraint rows.
 template<>
 void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto manifold_view = registry.view<contact_manifold>();
+    auto con_view = registry.view<contact_constraint, contact_manifold>();
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
     auto global_pt_idx = size_t(0);
     auto roll_idx = size_t(0);
 
-    for (auto entity : manifold_view) {
-        auto &manifold = manifold_view.get<contact_manifold>(entity);
+    for (auto entity : con_view) {
+        auto &manifold = con_view.get<contact_manifold>(entity);
 
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
             auto &cp = manifold.get_point(pt_idx);

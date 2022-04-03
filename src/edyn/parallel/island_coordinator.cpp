@@ -644,7 +644,9 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
 
         auto manifold_entity = source_ctx->m_entity_map.at(remote_entity);
 
-        if (events.contact_started) {
+        // Contact could have ended and started again in the same step. Do not
+        // generate event in that case.
+        if (events.contact_started && !events.contact_ended) {
             m_contact_started_signal.publish(manifold_entity);
         }
 
@@ -656,7 +658,7 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
             m_contact_point_destroyed_signal.publish(manifold_entity, events.contacts_destroyed[i]);
         }
 
-        if (events.contact_ended) {
+        if (events.contact_ended && !events.contact_started) {
             m_contact_ended_signal.publish(manifold_entity);
         }
     });
