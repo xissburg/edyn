@@ -63,33 +63,36 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     auto &dirty = registry.get_or_emplace<edyn::dirty>(manifold_entity);
     dirty.set_new().created<contact_manifold, contact_manifold_events>();
 
-    auto material_view = registry.view<material>();
-
-    if (material_view.contains(body0) && material_view.contains(body1)) {
-        auto &material0 = material_view.get<material>(body0);
-        auto &material1 = material_view.get<material>(body1);
-
-        auto &material_table = registry.ctx<material_mix_table>();
-        auto restitution = scalar(0);
-
-        if (auto *material = material_table.try_get({material0.id, material1.id})) {
-            restitution = material->restitution;
-        } else {
-            restitution = material_mix_restitution(material0.restitution, material1.restitution);
-        }
-
-        if (restitution > EDYN_EPSILON) {
-            registry.emplace<contact_manifold_with_restitution>(manifold_entity);
-            dirty.created<contact_manifold_with_restitution>();
-        }
-    }
-
     if (registry.any_of<continuous_contacts_tag>(body0) ||
         registry.any_of<continuous_contacts_tag>(body1)) {
 
         auto &settings = registry.ctx<edyn::settings>();
         registry.emplace<continuous>(manifold_entity).insert(settings.index_source->index_of<edyn::contact_manifold>());
         dirty.created<continuous>();
+    }
+
+    auto material_view = registry.view<material>();
+
+    // Only create contact constraint if bodies have material.
+    if (!material_view.contains(body0) || !material_view.contains(body1)) {
+        return;
+    }
+
+    auto &material0 = material_view.get<material>(body0);
+    auto &material1 = material_view.get<material>(body1);
+
+    auto &material_table = registry.ctx<material_mix_table>();
+    auto restitution = scalar(0);
+
+    if (auto *material = material_table.try_get({material0.id, material1.id})) {
+        restitution = material->restitution;
+    } else {
+        restitution = material_mix_restitution(material0.restitution, material1.restitution);
+    }
+
+    if (restitution > EDYN_EPSILON) {
+        registry.emplace<contact_manifold_with_restitution>(manifold_entity);
+        dirty.created<contact_manifold_with_restitution>();
     }
 
     // Assign contact constraint to manifold.
