@@ -12,7 +12,8 @@ namespace edyn {
  * usually through constraints.
  */
 struct island {
-
+    entt::sparse_set nodes {};
+    entt::sparse_set edges {};
 };
 
 /**
@@ -38,6 +39,11 @@ struct island_resident {
 struct multi_island_resident {
     entt::sparse_set island_entities {};
 };
+
+template<typename Archive>
+void serialize(Archive &archive, island_timestamp &timestamp) {
+    archive(timestamp.value);
+}
 
 }
 

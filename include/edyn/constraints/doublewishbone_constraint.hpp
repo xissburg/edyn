@@ -5,6 +5,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
@@ -16,6 +17,9 @@ struct doublewishbone_constraint : public constraint_base {
     vector3 lower_pivotB;
     scalar lower_length;
     bool steerable;
+
+    static const auto num_rows = 6;
+    std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
 };
 
 

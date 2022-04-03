@@ -42,7 +42,7 @@ struct index_of<IndexType, T, std::tuple<Ts...>> : index_of<IndexType, T, Ts...>
 /**
  * Find index of a type in a tuple.
  */
-template<typename T, typename... Ts, typename IndexType = size_t>
+template<typename T, typename IndexType = size_t, typename... Ts>
 constexpr IndexType tuple_index_of(std::tuple<Ts...>) {
     return index_of_v<IndexType, T, Ts...>;
 }
@@ -62,8 +62,79 @@ struct map_tuple<T, std::tuple<Us...>> {
  * Convert a tuple to a variant with the same types.
  */
 template<typename... Ts>
-auto tuple_to_variant(std::tuple<Ts...>) {
+constexpr auto tuple_to_variant(std::tuple<Ts...>) {
     return std::variant<Ts...>{};
+}
+
+namespace detail {
+    template<typename VisitorType, typename TupleType, typename T>
+    constexpr auto make_visit_tuple_function() {
+        return [] (TupleType &tuple, VisitorType visitor) {
+            visitor(std::get<T>(tuple));
+        };
+    }
+
+    template<typename VisitorType, typename... Ts>
+    struct visit_tuple_function_array {
+        using TupleType = std::tuple<Ts...>;
+        using VisitFuncType = void(*)(TupleType &, VisitorType);
+        std::array<VisitFuncType, sizeof...(Ts)> functions;
+
+        constexpr visit_tuple_function_array() : functions{} {
+            size_t i = 0;
+            ((functions[i++] = make_visit_tuple_function<VisitorType, TupleType, Ts>()), ...);
+        }
+    };
+
+    template<typename VisitorType, typename... Ts>
+    struct tuple_visitor_table {
+        static constexpr auto array = visit_tuple_function_array<VisitorType, Ts...>();
+    };
+
+    template<typename VisitorType, typename TupleType, typename T>
+    constexpr auto make_visit_const_tuple_function() {
+        return [] (const TupleType &tuple, VisitorType visitor) {
+            visitor(std::get<T>(tuple));
+        };
+    }
+
+    template<typename VisitorType, typename... Ts>
+    struct visit_const_tuple_function_array {
+        using TupleType = std::tuple<Ts...>;
+        using VisitFuncType = void(*)(const TupleType &, VisitorType);
+        std::array<VisitFuncType, sizeof...(Ts)> functions;
+
+        constexpr visit_const_tuple_function_array() : functions{} {
+            size_t i = 0;
+            ((functions[i++] = make_visit_const_tuple_function<VisitorType, TupleType, Ts>()), ...);
+        }
+    };
+
+    template<typename VisitorType, typename... Ts>
+    struct const_tuple_visitor_table {
+        static constexpr auto array = visit_const_tuple_function_array<VisitorType, Ts...>();
+    };
+}
+
+/**
+ * Allows access to a tuple element via a runtime index.
+ * @tparam Ts Tuple element types.
+ * @tparam IndexType Type of index.
+ * @tparam VisitorType Type of visitor function.
+ * @param tuple Tuple to be visited.
+ * @param index Index of element in tuple.
+ * @param visitor Visitor function.
+ */
+template<typename... Ts, typename IndexType, typename VisitorType>
+void visit_tuple(std::tuple<Ts...> &tuple, IndexType index, VisitorType visitor) {
+    constexpr auto table = detail::tuple_visitor_table<VisitorType, Ts...>{};
+    table.array.functions[index](tuple, visitor);
+}
+
+template<typename... Ts, typename IndexType, typename VisitorType>
+void visit_tuple(const std::tuple<Ts...> &tuple, IndexType index, VisitorType visitor) {
+    constexpr auto table = detail::const_tuple_visitor_table<VisitorType, Ts...>{};
+    table.array.functions[index](tuple, visitor);
 }
 
 }

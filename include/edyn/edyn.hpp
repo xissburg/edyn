@@ -19,10 +19,12 @@
 #include "math/geom.hpp"
 #include "time/time.hpp"
 #include "util/rigidbody.hpp"
+#include "util/ragdoll.hpp"
 #include "util/constraint_util.hpp"
 #include "util/shape_util.hpp"
 #include "util/shape_volume.hpp"
 #include "util/tuple_util.hpp"
+#include "util/exclude_collision.hpp"
 #include "collision/contact_manifold.hpp"
 #include "collision/contact_point.hpp"
 #include "shapes/create_paged_triangle_mesh.hpp"
@@ -32,8 +34,8 @@
 #include "parallel/parallel_for_async.hpp"
 #include "parallel/message_queue.hpp"
 #include "parallel/island_coordinator.hpp"
-#include "parallel/island_delta_builder.hpp"
 #include "util/moment_of_inertia.hpp"
+#include "util/registry_operation_builder.hpp"
 #include "collision/contact_manifold_map.hpp"
 #include "context/settings.hpp"
 #include "collision/raycast.hpp"
@@ -42,10 +44,19 @@
 namespace edyn {
 
 /**
+ * @brief Initialization configuration.
+ */
+struct init_config {
+    // Number of worker threads to spawn. If zero, value will be taken from
+    // `std::thread::hardware_concurrency`.
+    size_t num_worker_threads {0};
+};
+
+/**
  * @brief Initializes Edyn's internals such as its thread pool and job system.
  * Call it before using Edyn.
  */
-void init();
+void init(const init_config &config = {});
 
 /**
  * @brief Undoes what was done by `init()`. Call it when Edyn is not needed anymore.
@@ -107,19 +118,56 @@ void update(entt::registry &registry);
 void step_simulation(entt::registry &registry);
 
 /**
+ * @brief Get index of a component type among all shared components within the
+ * library. Also supports any registered external component.
+ * @tparam Component The component type.
+ * @param registry Data source.
+ * @return Component index.
+ */
+template<typename Component>
+size_t get_component_index(entt::registry &registry) {
+    auto &settings = registry.ctx<edyn::settings>();
+    return settings.index_source->index_of<Component>();
+}
+
+/**
+ * @brief Get indices of a sequence of component types among all shared
+ * components in the library. Also supports any registered external component.
+ * @tparam IndexType Desired integral index type.
+ * @tparam Component The component type.
+ * @param registry Data source.
+ * @return Component index.
+ */
+template<typename IndexType, typename... Component>
+auto get_component_indices(entt::registry &registry) {
+    auto &settings = registry.ctx<edyn::settings>();
+    return settings.index_source->indices_of<IndexType, Component...>();
+}
+
+/**
  * @brief Registers external components to be shared between island coordinator
  * and island workers.
+ * @remark If you need a component of your own to be available in an external
+ * system, it must be registered using this function. That will ensure the
+ * component is sent to the island workers and is inserted in their private
+ * registry.
  * @tparam Component External component types.
  */
 template<typename... Component>
 void register_external_components(entt::registry &registry) {
     auto &settings = registry.ctx<edyn::settings>();
-    settings.make_island_delta_builder = [] () {
+
+    settings.make_reg_op_builder = [] () {
         auto external = std::tuple<Component...>{};
         auto all_components = std::tuple_cat(shared_components, external);
-        return std::unique_ptr<island_delta_builder>(
-            new island_delta_builder_impl(all_components));
+        return std::unique_ptr<registry_operation_builder>(
+            new registry_operation_builder_impl(all_components));
     };
+
+    auto external = std::tuple<Component...>{};
+    auto all_components = std::tuple_cat(shared_components, external);
+    settings.index_source.reset(new component_index_source_impl(all_components));
+
     registry.ctx<island_coordinator>().settings_changed();
 }
 
@@ -171,6 +219,12 @@ void set_external_system_functions(entt::registry &registry,
                                    external_system_func_t post_step_func);
 
 /**
+ * @brief Remove all external system functions.
+ * @param registry Data source.
+ */
+void remove_external_systems(entt::registry &registry);
+
+/**
  * @brief Assigns an `external_tag` to this entity and inserts it as a node
  * into the entity graph.
  * This makes it possible to tie this entity and its components to another
@@ -200,7 +254,9 @@ void set_should_collide(entt::registry &registry, should_collide_func_t func);
  */
 template<typename... Component>
 void refresh(entt::registry &registry, entt::entity entity) {
-    registry.ctx<island_coordinator>().refresh<Component...>(entity);
+    if (auto *coordinator = registry.try_ctx<island_coordinator>(); coordinator) {
+        coordinator->refresh<Component...>(entity);
+    }
 }
 
 /**
@@ -229,16 +285,46 @@ entt::entity get_manifold_entity(const entt::registry &registry, entt::entity fi
 entt::entity get_manifold_entity(const entt::registry &registry, entity_pair entities);
 
 /**
- * @brief Excludes collisions between a pair of entities.
- * Use this when collision filters are not enough.
+ * @brief Signal triggered when a contact starts.
+ * A contact is considered to start when the first contact point is added to a
+ * manifold, i.e. when the number of points in a manifold becomes greater than
+ * zero.
  * @param registry Data source.
- * @param first The entity that should not collide with `second`.
- * @param second The entity that should not collide with `first`.
+ * @return Sink to observe contact started events.
  */
-void exclude_collision(entt::registry &registry, entt::entity first, entt::entity second);
+entt::sink<entt::sigh<void(entt::entity)>> on_contact_started(entt::registry &);
 
-/*! @copydoc exclude_collision */
-void exclude_collision(entt::registry &registry, entity_pair entities);
+/**
+ * @brief Signal triggered when a contact ends.
+ * A contact ends when the last point is destroyed in a contact manifold, i.e.
+ * when the number of points goes to zero, or when a manifold is destroyed due
+ * to AABB separation.
+ * @param registry Data source.
+ * @return Sink to observe contact ended events.
+ */
+entt::sink<entt::sigh<void(entt::entity)>> on_contact_ended(entt::registry &);
+
+/**
+ * @brief Signal triggered when a contact point is created.
+ * This event is also triggered right after a contact started event, for each
+ * point that the contact has started with.
+ * The signal emits the manifold entity and the contact point id in that manifold.
+ * @param registry Data source.
+ * @return Sink to observe contact point creation events.
+ */
+entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>>
+on_contact_point_created(entt::registry &);
+
+/**
+ * @brief Signal triggered when a contact point is destroyed.
+ * This event is also triggered for each contact point before a contact ended
+ * event.
+ * The signal emits the manifold entity and the contact point id in that manifold.
+ * @param registry Data source.
+ * @return Sink to observe contact point destruction events.
+ */
+entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>>
+on_contact_point_destroyed(entt::registry &);
 
 /**
  * @brief Visit all edges of a node in the entity graph. This can be used to
@@ -248,7 +334,7 @@ void exclude_collision(entt::registry &registry, entity_pair entities);
  * points and contact constraints can be obtained from it.
  * @tparam Func Visitor function type.
  * @param entity Node entity.
- * @param func Vistor function with signature `void(entt::entity)`.
+ * @param func Vistor function with signature `void(index_type)`.
  */
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
@@ -279,12 +365,6 @@ void set_gravity(entt::registry &registry, vector3 gravity);
  * @return Number of solver velocity iterations.
  */
 unsigned get_solver_velocity_iterations(const entt::registry &registry);
-
-/**
- * @brief Set the number of constraint solver velocity iterations.
- * @param registry Data source.
- * @param iterations Number of solver velocity iterations.
- */
 
 /**
  * @brief Set the number of constraint solver velocity iterations.
@@ -347,8 +427,8 @@ void set_solver_individual_restitution_iterations(entt::registry &registry, unsi
  * @param material_id1 ID of another material (could be equal to material_id0).
  * @param material Material info.
  */
-void insert_material_mixing(entt::registry &registry, unsigned material_id0,
-                            unsigned material_id1, const material_base &material);
+void insert_material_mixing(entt::registry &registry, material::id_type material_id0,
+                            material::id_type material_id1, const material_base &material);
 
 }
 

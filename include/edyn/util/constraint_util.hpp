@@ -7,13 +7,14 @@
 
 namespace edyn {
 
+struct contact_manifold;
 struct constraint_row;
 struct constraint_row_options;
 struct matrix3x3;
 
 namespace internal {
     bool pre_make_constraint(entt::entity entity, entt::registry &registry,
-                             entt::entity body0, entt::entity body1, bool is_graph_edge);
+                             entt::entity body0, entt::entity body1);
 }
 
 /**
@@ -25,15 +26,13 @@ namespace internal {
  * @param registry The `entt::registry`.
  * @param body0 First rigid body entity.
  * @param body1 Second rigid body entity.
- * @param is_graph_edge Whether this constraint should be an edge in the entity
  * graph.
  */
 template<typename T>
 T & make_constraint(entt::entity entity, entt::registry &registry,
-                    entt::entity body0, entt::entity body1,
-                    bool is_graph_edge = true) {
+                    entt::entity body0, entt::entity body1) {
 
-    auto is_new = internal::pre_make_constraint(entity, registry, body0, body1, is_graph_edge);
+    auto is_new = internal::pre_make_constraint(entity, registry, body0, body1);
     auto &con = registry.emplace<T>(entity, body0, body1);
     auto &con_dirty = registry.get_or_emplace<dirty>(entity);
     con_dirty.created<T>();
@@ -48,10 +47,9 @@ T & make_constraint(entt::entity entity, entt::registry &registry,
 /*! @copydoc make_constraint */
 template<typename T>
 auto make_constraint(entt::registry &registry,
-                     entt::entity body0, entt::entity body1,
-                     bool is_graph_edge = true) {
+                     entt::entity body0, entt::entity body1) {
     auto ent = registry.create();
-    auto &con = make_constraint<T>(ent, registry, body0, body1, is_graph_edge);
+    auto &con = make_constraint<T>(ent, registry, body0, body1);
     return std::pair<entt::entity, T &>(ent, con);
 }
 
@@ -62,6 +60,8 @@ entt::entity make_contact_manifold(entt::registry &,
 void make_contact_manifold(entt::entity contact_entity, entt::registry &,
                            entt::entity body0, entt::entity body1,
                            scalar separation_threshold);
+
+void swap_manifold(contact_manifold &manifold);
 
 scalar get_effective_mass(const constraint_row &);
 

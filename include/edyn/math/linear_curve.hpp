@@ -1,6 +1,7 @@
 #ifndef EDYN_MATH_LINEAR_CURVE_HPP
 #define EDYN_MATH_LINEAR_CURVE_HPP
 
+#include <cstddef>
 #include <vector>
 #include "edyn/math/scalar.hpp"
 

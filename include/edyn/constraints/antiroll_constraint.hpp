@@ -30,6 +30,8 @@ struct antiroll_constraint : public constraint_base {
     vector3 m_other_ctrl_arm_pivotA;
     vector3 m_other_ctrl_arm_pivotC;
     vector3 m_other_ctrl_arm_pivot;
+
+    scalar impulse;
 };
 
 template<>

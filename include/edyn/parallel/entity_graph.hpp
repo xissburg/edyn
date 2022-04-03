@@ -90,7 +90,7 @@ public:
      * @tparam Func Visitor function type.
      * @param node_index0 Index of first node.
      * @param node_index1 Index of second node.
-     * @param func Vistor function with signature `void(entt::entity)`.
+     * @param func Vistor function with signature `void(index_type)`.
      */
     template<typename Func>
     void visit_edges(index_type node_index0, index_type node_index1, Func func) const;
@@ -99,7 +99,7 @@ public:
      * @brief Visit all edges originating at a node.
      * @tparam Func Visitor function type.
      * @param node_index0 Index of node.
-     * @param func Vistor function with signature `void(entt::entity)`.
+     * @param func Vistor function with signature `void(index_type)`.
      */
     template<typename Func>
     void visit_edges(index_type node_index, Func func) const;
@@ -195,9 +195,8 @@ void entity_graph::visit_edges(index_type node_index0, index_type node_index1, F
         if (adj.node_index == node_index1) {
             auto edge_index = adj.edge_index;
             while (edge_index != null_index) {
+                func(edge_index);
                 auto &edge = m_edges[edge_index];
-                EDYN_ASSERT(edge.entity != entt::null);
-                func(edge.entity);
                 EDYN_ASSERT(edge.next != edge_index);
                 edge_index = edge.next;
             }
@@ -218,9 +217,8 @@ void entity_graph::visit_edges(index_type node_index, Func func) const {
         auto edge_index = adj.edge_index;
 
         while (edge_index != null_index) {
+            func(edge_index);
             auto &edge = m_edges[edge_index];
-            EDYN_ASSERT(edge.entity != entt::null);
-            func(edge.entity);
             EDYN_ASSERT(edge.next != edge_index);
             edge_index = edge.next;
         }

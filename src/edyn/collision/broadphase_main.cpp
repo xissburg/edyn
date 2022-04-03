@@ -22,6 +22,7 @@ broadphase_main::broadphase_main(entt::registry &registry)
     registry.on_construct<tree_view>().connect<&broadphase_main::on_construct_tree_view>(*this);
     registry.on_construct<static_tag>().connect<&broadphase_main::on_construct_static_kinematic_tag>(*this);
     registry.on_construct<kinematic_tag>().connect<&broadphase_main::on_construct_static_kinematic_tag>(*this);
+    registry.on_construct<AABB>().connect<&broadphase_main::on_construct_aabb>(*this);
     registry.on_destroy<tree_resident>().connect<&broadphase_main::on_destroy_tree_resident>(*this);
 }
 
@@ -34,11 +35,18 @@ void broadphase_main::on_construct_tree_view(entt::registry &registry, entt::ent
 }
 
 void broadphase_main::on_construct_static_kinematic_tag(entt::registry &registry, entt::entity entity) {
-    if (!registry.any_of<AABB>(entity)) return;
+    if (auto *aabb = registry.try_get<AABB>(entity)) {
+        auto id = m_np_tree.create(*aabb, entity);
+        registry.emplace<tree_resident>(entity, id, false);
+    }
+}
 
-    auto &aabb = registry.get<AABB>(entity);
-    auto id = m_np_tree.create(aabb, entity);
-    registry.emplace<tree_resident>(entity, id, false);
+void broadphase_main::on_construct_aabb(entt::registry &registry, entt::entity entity) {
+    if (registry.any_of<static_tag, kinematic_tag>(entity)) {
+        auto &aabb = registry.get<AABB>(entity);
+        auto id = m_np_tree.create(aabb, entity);
+        registry.emplace<tree_resident>(entity, id, false);
+    }
 }
 
 void broadphase_main::on_destroy_tree_resident(entt::registry &registry, entt::entity entity) {
@@ -117,7 +125,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
                                                               const aabb_view_t &aabb_view,
                                                               const multi_resident_view_t &resident_view,
                                                               const tree_view_view_t &tree_view_view) const {
-    auto tree_viewA = tree_view_view.get<tree_view>(island_entityA);
+    auto &tree_viewA = tree_view_view.get<tree_view>(island_entityA);
     auto island_aabb = tree_viewA.root_aabb().inset(m_aabb_offset);
     entity_pair_vector results;
 

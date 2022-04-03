@@ -1197,6 +1197,11 @@ bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
         }
     }
 
+    if (t < scalar(0) || t > scalar(1)) {
+        // Ray does not intersect plane.
+        return false;
+    }
+
     auto intersection = lerp(p0, p1, t);
 
     for (size_t i = 0; i < 3; ++i) {

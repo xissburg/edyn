@@ -46,7 +46,7 @@ class EdynConan(ConanFile):
             del self.options.fPIC
 
     def requirements(self):
-        self.requires("entt/3.8.0")
+        self.requires("entt/3.9.0")
         if self.options.build_tests:
             self.requires("gtest/1.11.0", private=True)
 
@@ -92,8 +92,9 @@ class EdynConan(ConanFile):
     def package_info(self):
         libsuffix = "_d" if self.settings.build_type == "Debug" else ""
         self.cpp_info.libs = ["Edyn" + libsuffix]
+
         if self.settings.os == "Linux":
-            self.cpp_info.system_libs = ["dl", "pthread"]
+            self.cpp_info.system_libs = ["pthread"]
         elif self.settings.os == "Windows":
             self.cpp_info.system_libs = ["winmm"]
 

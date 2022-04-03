@@ -29,6 +29,11 @@ struct static_tag {};
 struct procedural_tag {};
 
 /**
+ * An entity that is synchronized between client and server.
+ */
+struct networked_tag {};
+
+/**
  * An entity that is currently asleep.
  */
 struct sleeping_tag {};
@@ -64,6 +69,39 @@ struct rolling_tag {};
  * `edyn::null_constraint`.
  */
 struct external_tag {};
+
+template<typename Archive>
+void serialize(Archive &, rigidbody_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, dynamic_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, kinematic_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, static_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, procedural_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, sleeping_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, sleeping_disabled_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, disabled_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, continuous_contacts_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, rolling_tag &) {}
+
+template<typename Archive>
+void serialize(Archive &, external_tag &) {}
 
 }
 

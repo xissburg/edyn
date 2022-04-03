@@ -1,6 +1,5 @@
 #include "edyn/constraints/tirecarcass_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -25,14 +24,10 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel, delta_spin>();
     auto con_view = registry.view<tirecarcass_constraint>();
-    auto imp_view = registry.view<constraint_impulse>();
 
     con_view.each([&] (entt::entity entity, tirecarcass_constraint &con) {
-        auto [posA, ornA, angleA, linvelA, angvelA, spinA, inv_mA, inv_IA, dvA, dwA, dsA] =
-            body_view.get<position, orientation, spin_angle, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[0]);
-        auto [posB, ornB, angleB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB, dsB] =
-            body_view.get<position, orientation, spin_angle, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[1]);
-        auto &imp = imp_view.get<constraint_impulse>(entity);
+        auto [posA, ornA, angleA, linvelA, angvelA, spinA, inv_mA, inv_IA, dvA, dwA, dsA] = body_view.get(con.body[0]);
+        auto [posB, ornB, angleB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB, dsB] = body_view.get(con.body[1]);
 
         const auto axisA_x = quaternion_x(ornA);
 
@@ -64,7 +59,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -86,7 +81,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -106,7 +101,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -126,7 +121,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -149,7 +144,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             auto options = constraint_row_options{};
             options.error = error / dt;
@@ -177,7 +172,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
             row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             auto options = constraint_row_options{};
             options.error = error / dt;
@@ -205,7 +200,7 @@ void prepare_constraints<tirecarcass_constraint>(entt::registry &registry, row_c
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
             row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             prepare_row(row, {}, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
             warm_start(row);

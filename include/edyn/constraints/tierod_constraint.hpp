@@ -34,6 +34,8 @@ struct tierod_constraint : public constraint_base {
     scalar steering_arm_length;
     scalar steering_arm_angle;
 
+    scalar impulse;
+
     void update_steering_axis();
     void update_steering_arm();
 };

@@ -26,6 +26,21 @@ struct inertia_world_inv : public matrix3x3 {
     }
 };
 
+template<typename Archive>
+void serialize(Archive &archive, inertia &i) {
+    archive(i.row);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, inertia_inv &i) {
+    archive(i.row);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, inertia_world_inv &i) {
+    archive(i.row);
+}
+
 }
 
 #endif // EDYN_COMP_INERTIA_HPP

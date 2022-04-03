@@ -2,11 +2,11 @@
 #define EDYN_SERIALIZATION_MEMORY_ARCHIVE_HPP
 
 #include <cstdint>
+#include <cstddef>
 #include <type_traits>
 #include <vector>
 #include <array>
 #include <map>
-#include "edyn/config/config.h"
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/serialization/s11n_util.hpp"
 
@@ -23,6 +23,7 @@ public:
         : m_buffer(buffer)
         , m_size(size)
         , m_position(0)
+        , m_failed(false)
     {}
 
     template<typename T>
@@ -39,10 +40,20 @@ public:
         (operator()(t), ...);
     }
 
+    bool failed() const {
+        return m_failed;
+    }
+
 protected:
     template<typename T>
     void read_bytes(T &t) {
-        EDYN_ASSERT(m_position + sizeof(T) <= m_size);
+        if (m_failed) return;
+
+        if (m_position + sizeof(T) > m_size) {
+            m_failed = true;
+            return;
+        }
+
         auto* buff = reinterpret_cast<const T*>(m_buffer + m_position);
         t = *buff;
         m_position += sizeof(T);
@@ -52,6 +63,7 @@ protected:
     buffer_type m_buffer;
     const size_t m_size;
     size_t m_position;
+    bool m_failed;
 };
 
 class memory_output_archive {
@@ -61,8 +73,8 @@ public:
     using is_input = std::false_type;
     using is_output = std::true_type;
 
-    memory_output_archive(buffer_type& buffer) 
-        : m_buffer(&buffer) 
+    memory_output_archive(buffer_type& buffer)
+        : m_buffer(&buffer)
     {}
 
     template<typename T>
@@ -81,7 +93,7 @@ public:
 
 protected:
     template<typename T>
-    void write_bytes(T &t) { 
+    void write_bytes(T &t) {
         auto idx = m_buffer->size();
         m_buffer->resize(idx + sizeof(T));
         auto *dest = reinterpret_cast<T*>(&(*m_buffer)[idx]);
@@ -98,10 +110,11 @@ public:
     using is_input = std::false_type;
     using is_output = std::true_type;
 
-    fixed_memory_output_archive(buffer_type buffer, size_t size) 
+    fixed_memory_output_archive(buffer_type buffer, size_t size)
         : m_buffer(buffer)
         , m_size(size)
         , m_position(0)
+        , m_failed(false)
     {}
 
     template<typename T>
@@ -120,8 +133,14 @@ public:
 
 protected:
     template<typename T>
-    void write_bytes(T &t) { 
-        EDYN_ASSERT(m_position + sizeof(T) <= m_size);
+    void write_bytes(T &t) {
+        if (m_failed) return;
+
+        if (m_position + sizeof(T) > m_size) {
+            m_failed = true;
+            return;
+        }
+
         auto *dest = reinterpret_cast<T*>(m_buffer + m_position);
         *dest = t;
         m_position += sizeof(T);
@@ -130,6 +149,7 @@ protected:
     buffer_type m_buffer;
     size_t m_size;
     size_t m_position;
+    bool m_failed;
 };
 
 }

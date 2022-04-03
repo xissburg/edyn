@@ -66,8 +66,8 @@ using shape_feature_t = std::variant<
  * @return Index of shape type.
  */
 template<typename ShapeType>
-constexpr size_t get_shape_index() {
-    return tuple_index_of<ShapeType>(shapes_tuple);
+constexpr auto get_shape_index() {
+    return tuple_index_of<ShapeType, shape_index::index_type>(shapes_tuple);
 }
 
 /**

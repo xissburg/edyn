@@ -1,7 +1,6 @@
 #include "edyn/constraints/doublewishbone_constraint.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/constraints/constraint_row.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -28,15 +27,11 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<doublewishbone_constraint>();
-    auto imp_view = registry.view<constraint_impulse>();
     auto origin_view = registry.view<origin>();
 
     con_view.each([&] (entt::entity entity, doublewishbone_constraint &con) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
-        auto &imp = imp_view.get<constraint_impulse>(entity);
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
@@ -81,7 +76,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             auto options = constraint_row_options{};
             options.error = 0.5 * (ul2 - con.upper_length * con.upper_length) / dt;
@@ -101,7 +96,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             auto options = constraint_row_options{};
             options.error = 0.5 * (ll2 - con.lower_length * con.lower_length) / dt;
@@ -125,7 +120,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             auto options = constraint_row_options{};
             options.error = dot(ud, chassis_z) / dt;
@@ -149,7 +144,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             auto options = constraint_row_options{};
             options.error = dot(ld, chassis_z) / dt;
@@ -181,7 +176,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             auto options = constraint_row_options{};
             options.error = 0.2 * (dot(md, chassis_x) + 0.2) / dt; // be gentle
@@ -204,7 +199,7 @@ void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, ro
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = imp.values[row_idx++];
+            row.impulse = con.impulse[row_idx++];
 
             auto options = constraint_row_options{};
             options.error = dot(chassis_z, wheel_x) / dt;

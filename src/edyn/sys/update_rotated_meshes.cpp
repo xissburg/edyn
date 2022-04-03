@@ -50,7 +50,7 @@ void update_rotated_mesh(entt::entity entity, RotatedView &rotated_view, Orienta
 
     auto *rot_list_ptr = &rotated_list;
 
-    while(true) {
+    while (true) {
         // TODO: `rot_list_ptr->orientation` is often `quaternion_identity`.
         // What could be done to avoid this often unnecessary multiplication?
         update_rotated_mesh(*rot_list_ptr->rotated, *rot_list_ptr->mesh, orn * rot_list_ptr->orientation);

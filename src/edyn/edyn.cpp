@@ -1,16 +1,51 @@
 #include "edyn/edyn.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/collision/broadphase_main.hpp"
+#include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/sys/update_presentation.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/collision/tree_view.hpp"
+#include <entt/meta/factory.hpp>
+#include <entt/core/hashed_string.hpp>
 
 namespace edyn {
 
-void init() {
+static void init_meta() {
+    using namespace entt::literals;
+
+    entt::meta<contact_manifold>().type()
+        .data<&contact_manifold::body, entt::as_ref_t>("body"_hs);
+
+    entt::meta<collision_exclusion>().type()
+        .data<&collision_exclusion::entity, entt::as_ref_t>("entity"_hs);
+
+    std::apply([&] (auto ... c) {
+        (entt::meta<decltype(c)>().type().template data<&decltype(c)::body, entt::as_ref_t>("body"_hs), ...);
+    }, constraints_tuple);
+
+    entt::meta<tree_view>().type()
+        .data<&tree_view::m_nodes, entt::as_ref_t>("nodes"_hs);
+    entt::meta<tree_view::tree_node>().type()
+        .data<&tree_view::tree_node::entity, entt::as_ref_t>("entity"_hs);
+
+    entt::meta<entity_owner>().type()
+        .data<&entity_owner::client_entity, entt::as_ref_t>("client_entity"_hs);
+}
+
+void init(const init_config &config) {
+    init_meta();
+
     auto &dispatcher = job_dispatcher::global();
+
     if (!dispatcher.running()) {
-        dispatcher.start();
+        if (config.num_worker_threads == 0) {
+            dispatcher.start();
+        } else {
+            dispatcher.start(config.num_worker_threads);
+        }
+
         dispatcher.assure_current_queue();
     }
 }
@@ -81,7 +116,8 @@ void step_simulation(entt::registry &registry) {
 
 void remove_external_components(entt::registry &registry) {
     auto &settings = registry.ctx<edyn::settings>();
-    settings.make_island_delta_builder = &make_island_delta_builder_default;
+    settings.make_reg_op_builder = &make_reg_op_builder_default;
+    settings.index_source.reset(new component_index_source_impl(shared_components));
     registry.ctx<island_coordinator>().settings_changed();
 }
 
@@ -108,6 +144,14 @@ void set_external_system_functions(entt::registry &registry,
     settings.external_system_init = init_func;
     settings.external_system_pre_step = pre_step_func;
     settings.external_system_post_step = post_step_func;
+    registry.ctx<island_coordinator>().settings_changed();
+}
+
+void remove_external_systems(entt::registry &registry) {
+    auto &settings = registry.ctx<edyn::settings>();
+    settings.external_system_init = nullptr;
+    settings.external_system_pre_step = nullptr;
+    settings.external_system_post_step = nullptr;
     registry.ctx<island_coordinator>().settings_changed();
 }
 
@@ -145,20 +189,20 @@ entt::entity get_manifold_entity(const entt::registry &registry, entity_pair ent
     return manifold_map.get(entities);
 }
 
-static
-void exclude_collision_one_way(entt::registry &registry, entt::entity first, entt::entity second) {
-    auto &exclusion = registry.get_or_emplace<collision_exclusion>(first);
-    EDYN_ASSERT(exclusion.num_entities + 1 < collision_exclusion::max_exclusions);
-    exclusion.entity[exclusion.num_entities++] = second;
+entt::sink<entt::sigh<void(entt::entity)>> on_contact_started(entt::registry &registry) {
+    return registry.ctx<island_coordinator>().contact_started_sink();
 }
 
-void exclude_collision(entt::registry &registry, entt::entity first, entt::entity second) {
-    exclude_collision_one_way(registry, first, second);
-    exclude_collision_one_way(registry, second, first);
+entt::sink<entt::sigh<void(entt::entity)>> on_contact_ended(entt::registry &registry) {
+    return registry.ctx<island_coordinator>().contact_ended_sink();
 }
 
-void exclude_collision(entt::registry &registry, entity_pair entities) {
-    exclude_collision(registry, entities.first, entities.second);
+entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>> on_contact_point_created(entt::registry &registry) {
+    return registry.ctx<island_coordinator>().contact_point_created_sink();
+}
+
+entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>> on_contact_point_destroyed(entt::registry &registry) {
+    return registry.ctx<island_coordinator>().contact_point_destroyed_sink();
 }
 
 vector3 get_gravity(const entt::registry &registry) {
@@ -216,8 +260,8 @@ void set_solver_individual_restitution_iterations(entt::registry &registry, unsi
     registry.ctx<island_coordinator>().settings_changed();
 }
 
-void insert_material_mixing(entt::registry &registry, unsigned material_id0,
-                            unsigned material_id1, const material_base &material) {
+void insert_material_mixing(entt::registry &registry, material::id_type material_id0,
+                            material::id_type material_id1, const material_base &material) {
     auto &material_table = registry.ctx<material_mix_table>();
     material_table.insert({material_id0, material_id1}, material);
     registry.ctx<island_coordinator>().material_table_changed();

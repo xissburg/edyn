@@ -18,6 +18,13 @@ struct collision_feature {
     size_t part;
 };
 
+template<typename Archive>
+void serialize(Archive &archive, collision_feature &feature) {
+    archive(feature.feature);
+    archive(feature.index);
+    archive(feature.part);
+}
+
 }
 
 #endif // EDYN_COLLISION_COLLISION_FEATURE_HPP

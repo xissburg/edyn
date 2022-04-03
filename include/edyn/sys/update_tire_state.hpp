@@ -15,7 +15,6 @@
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 
 namespace edyn {
 
@@ -26,6 +25,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
     auto vel_view = registry.view<linvel, angvel>();
     auto spin_view = registry.view<spin>();
     auto origin_view = registry.view<origin>();
+    auto con_view = registry.view<contact_patch_constraint, contact_manifold>();
     auto &graph = registry.ctx<entity_graph>();
 
     ts_view.each([&] (auto entity, graph_node &node, tire_state &ts) {
@@ -38,23 +38,25 @@ void update_tire_state(entt::registry &registry, scalar dt) {
         auto spinvelA = quaternion_x(ornA) * spin_view.get<spin>(entity).s;
         auto originA = origin_view.contains(entity) ? origin_view.get<origin>(entity) : static_cast<vector3>(posA);
 
-        graph.visit_edges(node.node_index, [&] (auto edge_entity) {
-            auto *manifold = registry.try_get<contact_manifold>(edge_entity);
+        graph.visit_edges(node.node_index, [&] (auto edge_index) {
+            auto edge_entity = graph.edge_entity(edge_index);
 
-            if (!manifold) {
+            if (!con_view.contains(edge_entity)) {
                 return;
             }
 
-            EDYN_ASSERT(manifold->body[0] == entity);
-            ts.other_entity = manifold->body[1];
-            ts.num_contacts = manifold->num_points();
+            auto [contact_patch, manifold] = con_view.get(edge_entity);
+
+            EDYN_ASSERT(manifold.body[0] == entity);
+            ts.other_entity = manifold.body[1];
+            ts.num_contacts = manifold.num_points;
 
             if (ts.num_contacts == 0) {
                 return;
             }
 
-            auto [posB, ornB] = tr_view.get<position, orientation>(ts.other_entity);
-            auto [linvelB, angvelB] = vel_view.get<linvel, angvel>(ts.other_entity);
+            auto [posB, ornB] = tr_view.get(ts.other_entity);
+            auto [linvelB, angvelB] = vel_view.get(ts.other_entity);
             auto spinvelB = vector3_zero;
 
             if (spin_view.contains(ts.other_entity)) {
@@ -63,15 +65,8 @@ void update_tire_state(entt::registry &registry, scalar dt) {
 
             auto originB = origin_view.contains(ts.other_entity) ? origin_view.get<origin>(ts.other_entity) : static_cast<vector3>(posB);
 
-            for (size_t i = 0; i < manifold->num_points(); ++i) {
-                auto point_entity = manifold->point[i];
-
-                if (!registry.all_of<contact_patch_constraint>(point_entity)) {
-                    continue;
-                }
-
-                auto &contact_patch = registry.get<contact_patch_constraint>(point_entity);
-                auto &cp = registry.get<contact_point>(point_entity);
+            for (size_t i = 0; i < manifold.num_points; ++i) {
+                auto &cp = manifold.get_point(i);
 
                 auto pivotA = to_world_space(cp.pivotA, originA, ornA);
                 auto pivotB = to_world_space(cp.pivotB, originB, ornB);
@@ -105,12 +100,11 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.position = contact_patch.m_center;
                 tire_cs.lin_vel = linvel_rel;
 
-                auto &imp = registry.get<constraint_impulse>(point_entity);
                 // Add spring and damper impulses.
-                tire_cs.Fz = (imp.values[0] + imp.values[1]) / dt; // Normal spring and damper.
-                tire_cs.Fx = imp.values[2] / dt; // Longitudinal spring.
-                tire_cs.Fy = imp.values[3] / dt; // Lateral spring.
-                tire_cs.Mz = imp.values[4] / dt; // Self-aliging spring.
+                tire_cs.Fz = cp.normal_impulse / dt; // Normal spring and damper.
+                tire_cs.Fx = cp.friction_impulse[0] / dt; // Longitudinal spring.
+                tire_cs.Fy = cp.friction_impulse[1] / dt; // Lateral spring.
+                tire_cs.Mz = cp.spin_friction_impulse / dt; // Self-aliging spring.
 
                 for (size_t i = 0; i < contact_patch.m_tread_rows.size(); ++i) {
                     tire_cs.tread_rows[i].start_pos = contact_patch.m_tread_rows[i].start_pos;

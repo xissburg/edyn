@@ -34,7 +34,7 @@ quaternion shortest_arc(const vector3 &v0, const vector3 &v1) {
 
     auto s = std::sqrt((1 + d) * 2);
     auto rs = 1 / s;
-    return {c.x * rs, c.y * rs, c.z * rs, s * scalar(0.5)};
+    return normalize(quaternion{c.x * rs, c.y * rs, c.z * rs, s * scalar(0.5)});
 }
 
 scalar angle_between(const quaternion &q0, const quaternion &q1) {

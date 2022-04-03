@@ -23,6 +23,24 @@ inline scalar to_radians(scalar degrees) {
 }
 
 /**
+ * Converts torque units in Nm/degree to Nm/rad.
+ * @param Nm_per_degree Nm/degree.
+ * @return Torque in Nm/rad.
+ */
+inline scalar to_Nm_per_radian(scalar Nm_per_degree) {
+    return Nm_per_degree * to_degrees(1);
+}
+
+/**
+ * Converts torque units in Nm/rad to Nm/degree.
+ * @param Nm_per_radian Nm/rad.
+ * @return Torque in Nm/degree.
+ */
+inline scalar to_Nm_per_degree(scalar Nm_per_radian) {
+    return Nm_per_radian / to_degrees(1);
+}
+
+/**
  * @return Scalar clamped to the [0, 1] interval.
  */
 inline scalar clamp_unit(scalar s) {

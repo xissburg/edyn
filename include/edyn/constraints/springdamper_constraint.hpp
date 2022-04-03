@@ -5,6 +5,7 @@
 #include "edyn/math/linear_curve.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
@@ -59,6 +60,9 @@ struct springdamper_constraint : public constraint_base {
     scalar get_combined_spring_stiffness() const;
     vector3 get_world_ctrl_arm_pivot(entt::registry &) const;
     scalar get_damping_force(scalar speed) const;
+
+    static const auto num_rows = 3;
+    std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
 };
 
 template<>

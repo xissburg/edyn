@@ -1,7 +1,7 @@
 #ifndef EDYN_COMP_DIRTY_HPP
 #define EDYN_COMP_DIRTY_HPP
 
-#include <vector>
+#include <set>
 #include <entt/entity/fwd.hpp>
 #include <entt/core/type_info.hpp>
 
@@ -18,12 +18,11 @@ struct dirty {
     // If the entity was just created, this flag must be set.
     bool is_new_entity {false};
 
-    using id_vector_t = std::vector<entt::id_type>;
-    using entity_vector = std::vector<entt::entity>;
+    using id_set_t = std::set<entt::id_type>;
 
-    id_vector_t created_indexes;
-    id_vector_t updated_indexes;
-    id_vector_t destroyed_indexes;
+    id_set_t created_indexes;
+    id_set_t updated_indexes;
+    id_set_t destroyed_indexes;
 
     /**
      * @brief Marks the given components as created.
@@ -64,11 +63,18 @@ struct dirty {
         return *this;
     }
 
+    dirty & merge(const dirty &other) {
+        created_indexes.insert(other.created_indexes.begin(), other.created_indexes.end());
+        updated_indexes.insert(other.updated_indexes.begin(), other.updated_indexes.end());
+        destroyed_indexes.insert(other.destroyed_indexes.begin(), other.destroyed_indexes.end());
+        return *this;
+    }
+
 private:
     // CUD: Create, Update, Delete.
     template<typename... Ts>
-    dirty & cud(id_vector_t dirty:: *member) {
-        ((this->*member).push_back(entt::type_id<Ts>().seq()), ...);
+    dirty & cud(id_set_t dirty:: *member) {
+        ((this->*member).insert(entt::type_index<Ts>::value()), ...);
         return *this;
     }
 };

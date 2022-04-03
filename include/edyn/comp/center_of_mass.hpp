@@ -15,6 +15,11 @@ struct center_of_mass : public vector3 {
     }
 };
 
+template<typename Archive>
+void serialize(Archive &archive, center_of_mass &com) {
+    archive(com.x, com.y, com.z);
+}
+
 }
 
 #endif // EDYN_COMP_CENTER_OF_MASS_HPP

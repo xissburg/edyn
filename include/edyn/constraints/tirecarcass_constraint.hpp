@@ -3,6 +3,7 @@
 
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
@@ -11,6 +12,9 @@ struct tirecarcass_constraint : public constraint_base {
     scalar m_lateral_damping {40};
     scalar m_longitudinal_stiffness {2000};
     scalar m_longitudinal_damping {30};
+
+    static const auto num_rows = 7;
+    std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
 };
 
 template<>

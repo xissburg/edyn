@@ -16,6 +16,8 @@ struct spin_angle_constraint : public constraint_base {
     scalar m_damping {1e2};
     scalar m_offset_origin {0};
 
+    std::array<scalar, 2> impulse {0, 0};
+
     void set_ratio(scalar, const entt::registry &);
     scalar calculate_offset(const entt::registry &) const;
 };

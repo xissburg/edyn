@@ -3,8 +3,8 @@
 class triangle_mesh_page_loader: public edyn::triangle_mesh_page_loader_base {
 public:
     void load(size_t index) override {}
-    virtual entt::sink<loaded_mesh_func_t> on_load_sink() override {
-            return entt::sink {m_loaded_signal};
+    virtual entt::sink<entt::sigh<loaded_mesh_func_t>> on_load_sink() override {
+        return {m_loaded_signal};
     }
 
 private:
@@ -12,7 +12,7 @@ private:
 };
 
 TEST(test_paged_trimesh, voronoi_regions) {
-    edyn::init();
+    edyn::init({2});
 
     std::vector<edyn::vector3> vertices;
     std::vector<edyn::triangle_mesh::index_type> indices;
@@ -48,4 +48,6 @@ TEST(test_paged_trimesh, voronoi_regions) {
             /* Not sure what to test lol */
         }
     });
+
+	edyn::deinit();
 }

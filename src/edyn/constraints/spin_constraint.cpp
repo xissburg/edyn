@@ -1,6 +1,5 @@
 #include "edyn/constraints/spin_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/comp/position.hpp"
@@ -24,14 +23,10 @@ void prepare_constraints<spin_constraint>(entt::registry &registry, row_cache &c
                                    delta_linvel, delta_angvel>();
     auto spin_view = registry.view<spin, delta_spin>();
     auto con_view = registry.view<spin_constraint>();
-    auto imp_view = registry.view<constraint_impulse>();
 
     con_view.each([&] (entt::entity entity, spin_constraint &con) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] =
-            body_view.get<position, orientation, linvel, angvel, mass_inv, inertia_world_inv, delta_linvel, delta_angvel>(con.body[1]);
-        auto &imp = imp_view.get<constraint_impulse>(entity);
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
         auto axisA = rotate(ornA, vector3_x);
         auto axisB = rotate(ornB, vector3_x);
@@ -60,7 +55,7 @@ void prepare_constraints<spin_constraint>(entt::registry &registry, row_cache &c
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
         row.dvA = &dvA; row.dwA = &dwA;
         row.dvB = &dvB; row.dwB = &dwB;
-        row.impulse = imp.values[0];
+        row.impulse = con.impulse;
         row.use_spin[0] = con.m_use_spinA;
         row.use_spin[1] = con.m_use_spinB;
         row.spin_axis[0] = axisA;

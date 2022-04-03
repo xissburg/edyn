@@ -12,9 +12,11 @@ namespace edyn {
  * _slide_ if the torque gets above a threshold.
  */
 struct spin_constraint : public constraint_base {
-    scalar m_max_torque {scalar(0)};
+    scalar m_max_torque {};
     bool m_use_spinA {true};
     bool m_use_spinB {true};
+
+    scalar impulse {};
 };
 
 template<>

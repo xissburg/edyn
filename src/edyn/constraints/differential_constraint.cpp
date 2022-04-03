@@ -1,6 +1,5 @@
 #include "edyn/constraints/differential_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -25,15 +24,11 @@ void prepare_constraints<differential_constraint>(entt::registry &registry, row_
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel, delta_spin>();
     auto con_view = registry.view<differential_constraint>();
-    auto imp_view = registry.view<constraint_impulse>();
 
     con_view.each([&] (entt::entity entity, differential_constraint &con) {
-        auto [posA, ornA, linvelA, angvelA, spinA, inv_mA, inv_IA, dvA, dwA, dsA] =
-            body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB, dsB] =
-            body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[1]);
-        auto [posC, ornC, linvelC, angvelC, spinC, inv_mC, inv_IC, dvC, dwC, dsC] =
-            body_view.get<position, orientation, linvel, angvel, spin, mass_inv, inertia_world_inv, delta_linvel, delta_angvel, delta_spin>(con.body[2]);
+        auto [posA, ornA, linvelA, angvelA, spinA, inv_mA, inv_IA, dvA, dwA, dsA] = body_view.get(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, spinB, inv_mB, inv_IB, dvB, dwB, dsB] = body_view.get(con.body[1]);
+        auto [posC, ornC, linvelC, angvelC, spinC, inv_mC, inv_IC, dvC, dwC, dsC] = body_view.get(con.body[2]);
 
         auto axis0 = rotate(ornA, vector3_x);
         auto axis1 = rotate(ornB, vector3_x);
@@ -51,7 +46,7 @@ void prepare_constraints<differential_constraint>(entt::registry &registry, row_
         row.dvA = &dvA; row.dwA = &dwA; row.dsA = &dsA;
         row.dvB = &dvB; row.dwB = &dwB; row.dsB = &dsB;
         row.dvC = &dvC; row.dwC = &dwC; row.dsC = &dsC;
-        row.impulse = imp_view.get<constraint_impulse>(entity).values[0];
+        row.impulse = con.impulse;
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.use_spin[2] = true;

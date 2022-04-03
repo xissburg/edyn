@@ -250,7 +250,6 @@ inline size_t max_index(const vector3 &v) {
     }
 
     if (v.z > max_val) {
-        max_val = v.z;
         max_idx = 2;
     }
 

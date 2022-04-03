@@ -12,6 +12,11 @@ namespace edyn {
  */
 struct roll_direction : public vector3 {};
 
+template<typename Archive>
+void serialize(Archive &archive, roll_direction &d) {
+    archive(d.x, d.y, d.z);
+}
+
 }
 
 #endif // EDYN_COMP_ROLL_DIRECTION_HPP

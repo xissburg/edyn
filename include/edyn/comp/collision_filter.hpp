@@ -6,9 +6,16 @@
 namespace edyn {
 
 struct collision_filter {
-    uint64_t group {~0ULL};
-    uint64_t mask {~0ULL};
+    static constexpr uint64_t all_groups = ~0ull;
+    uint64_t group {all_groups};
+    uint64_t mask {all_groups};
 };
+
+template<typename Archive>
+void serialize(Archive &archive, collision_filter &c) {
+    archive(c.group);
+    archive(c.mask);
+}
 
 }
 

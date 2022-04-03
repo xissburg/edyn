@@ -78,9 +78,9 @@ struct paged_mesh_raycast_info {
 struct compound_raycast_info {
     // Index of child shape.
     size_t child_index;
-    // Raycast info for child shape. It will contain a value that corresponds
-    // to the intersected shape type.
+    // Raycast info for child shape if any extra info is available.
     std::variant<
+        std::monostate,
         box_raycast_info,
         cylinder_raycast_info,
         capsule_raycast_info,
@@ -100,6 +100,7 @@ struct shape_raycast_result {
     // Raycast details which contains a value that depends on the type of shape
     // that was hit.
     std::variant<
+        std::monostate,
         box_raycast_info,
         cylinder_raycast_info,
         capsule_raycast_info,
@@ -140,20 +141,21 @@ struct raycast_context {
  * @param registry Data source.
  * @param p0 First point in the ray.
  * @param p1 Second point in the ray.
+ * @return Result.
  */
 raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1);
 
 // Raycast functions for each shape.
 
-shape_raycast_result raycast(const box_shape &, const raycast_context &);
-shape_raycast_result raycast(const cylinder_shape &, const raycast_context &);
-shape_raycast_result raycast(const sphere_shape &, const raycast_context &);
-shape_raycast_result raycast(const capsule_shape &, const raycast_context &);
-shape_raycast_result raycast(const polyhedron_shape &, const raycast_context &);
-shape_raycast_result raycast(const compound_shape &, const raycast_context &);
-shape_raycast_result raycast(const plane_shape &, const raycast_context &);
-shape_raycast_result raycast(const mesh_shape &, const raycast_context &);
-shape_raycast_result raycast(const paged_mesh_shape &, const raycast_context &);
+shape_raycast_result shape_raycast(const box_shape &, const raycast_context &);
+shape_raycast_result shape_raycast(const cylinder_shape &, const raycast_context &);
+shape_raycast_result shape_raycast(const sphere_shape &, const raycast_context &);
+shape_raycast_result shape_raycast(const capsule_shape &, const raycast_context &);
+shape_raycast_result shape_raycast(const polyhedron_shape &, const raycast_context &);
+shape_raycast_result shape_raycast(const compound_shape &, const raycast_context &);
+shape_raycast_result shape_raycast(const plane_shape &, const raycast_context &);
+shape_raycast_result shape_raycast(const mesh_shape &, const raycast_context &);
+shape_raycast_result shape_raycast(const paged_mesh_shape &, const raycast_context &);
 
 }
 

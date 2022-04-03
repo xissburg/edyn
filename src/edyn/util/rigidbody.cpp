@@ -124,9 +124,13 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
             }
         }, *def.shape);
 
-        auto &filter = registry.emplace<collision_filter>(entity);
-        filter.group = def.collision_group;
-        filter.mask = def.collision_mask;
+        if (def.collision_group != collision_filter::all_groups ||
+            def.collision_mask != collision_filter::all_groups)
+        {
+            auto &filter = registry.emplace<collision_filter>(entity);
+            filter.group = def.collision_group;
+            filter.mask = def.collision_mask;
+        }
     }
 
     if (def.continuous_contacts) {
@@ -150,13 +154,18 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // Instruct island worker to continuously send position, orientation and
         // velocity updates back to coordinator. The velocity is needed for calculation
         // of the present position and orientation in `update_presentation`.
-        // TODO: synchronized merges would eliminate the need to share these
+        // TODO: the island worker refactor would eliminate the need to share these
         // components continuously.
+        auto &settings = registry.ctx<edyn::settings>();
         auto &cont = registry.emplace<continuous>(entity);
-        cont.insert<position, orientation, linvel, angvel>();
+        cont.insert(settings.index_source->indices_of<continuous::index_type, position, orientation, linvel, angvel>());
+
+        if (def.shape) {
+            cont.insert(settings.index_source->index_of<AABB, continuous::index_type>());
+        }
 
         if (def.center_of_mass) {
-            cont.insert<origin>();
+            cont.insert(settings.index_source->index_of<origin, continuous::index_type>());
         }
     }
 
@@ -167,9 +176,17 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     if (def.spin_enabled && def.kind == rigidbody_kind::rb_dynamic) {
         registry.emplace<spin_angle>(entity, def.spin_angle);
         registry.emplace<spin>(entity, def.spin);
-        registry.get_or_emplace<continuous>(entity).insert<spin_angle, spin>();
+
+        auto &settings = registry.ctx<edyn::settings>();
+        registry.get_or_emplace<continuous>(entity).insert(
+            settings.index_source->indices_of<continuous::index_type, spin_angle, spin>());
     }
 
+    if (def.networked) {
+        registry.emplace<networked_tag>(entity);
+    }
+
+    // Insert rigid body as a node in the entity graph.
     auto non_connecting = def.kind != rigidbody_kind::rb_dynamic;
     auto node_index = registry.ctx<entity_graph>().insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);
@@ -186,11 +203,11 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
 }
 
 std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std::vector<rigidbody_def> &defs) {
-    std::vector<entt::entity> entities;
-    entities.reserve(defs.size());
+    std::vector<entt::entity> entities(defs.size());
+    registry.create(entities.begin(), entities.end());
 
-    for (auto &def : defs) {
-        entities.push_back(make_rigidbody(registry, def));
+    for (size_t i = 0; i < entities.size(); ++i) {
+        make_rigidbody(entities[i], registry, defs[i]);
     }
 
     auto &coordinator = registry.ctx<island_coordinator>();
@@ -204,6 +221,14 @@ void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
     auto &i_inv = registry.get<inertia_world_inv>(entity);
     registry.get<linvel>(entity) += impulse * m_inv;
     registry.get<angvel>(entity) += i_inv * cross(rel_location, impulse);
+    refresh<linvel, angvel>(registry, entity);
+}
+
+void rigidbody_apply_torque_impulse(entt::registry &registry, entt::entity entity,
+                                    const vector3 &torque_impulse) {
+    auto &i_inv = registry.get<inertia_world_inv>(entity);
+    registry.get<angvel>(entity) += i_inv * torque_impulse;
+    refresh<angvel>(registry, entity);
 }
 
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
@@ -262,7 +287,6 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
     auto material_view = registry.view<material>();
     auto manifold_view = registry.view<contact_manifold>();
-    auto cp_view = registry.view<contact_point>();
 
     auto &material = material_view.get<edyn::material>(entity);
     material.friction = friction;
@@ -273,12 +297,18 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
     auto &node = registry.get<graph_node>(entity);
     auto &material_table = registry.ctx<material_mix_table>();
 
-    graph.visit_edges(node.node_index, [&] (auto edge_entity) {
+    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+        auto edge_entity = graph.edge_entity(edge_index);
+
         if (!manifold_view.contains(edge_entity)) {
             return;
         }
 
         auto &manifold = manifold_view.get<contact_manifold>(edge_entity);
+
+        if (manifold.num_points == 0) {
+            return;
+        }
 
         auto other_entity = manifold.body[0] == entity ? manifold.body[1] : manifold.body[0];
         auto &other_material = material_view.get<edyn::material>(other_entity);
@@ -290,13 +320,12 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
         }
 
         auto combined_friction = material_mix_friction(friction, other_material.friction);
-        auto num_points = manifold.num_points();
 
-        for (size_t i = 0; i < num_points; ++i) {
-            auto &cp = cp_view.get<contact_point>(manifold.point[i]);
+        manifold.each_point([combined_friction] (contact_point &cp) {
             cp.friction = combined_friction;
-            refresh<contact_point>(registry, manifold.point[i]);
-        }
+        });
+
+        refresh<contact_manifold>(registry, entity);
     });
 }
 
@@ -337,7 +366,8 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
             dirty.created<center_of_mass, edyn::origin>();
 
             if (registry.any_of<dynamic_tag>(entity)) {
-                registry.get<continuous>(entity).insert<edyn::origin>();
+                auto &settings = registry.ctx<edyn::settings>();
+                registry.get<continuous>(entity).insert(settings.index_source->index_of<edyn::origin>());
                 dirty.updated<continuous>();
             }
         }
@@ -347,7 +377,8 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
         dirty.destroyed<center_of_mass, edyn::origin>();
 
         if (registry.any_of<dynamic_tag>(entity)) {
-            registry.get<continuous>(entity).remove<edyn::origin>();
+            auto &settings = registry.ctx<edyn::settings>();
+            registry.get<continuous>(entity).remove(settings.index_source->index_of<edyn::origin>());
             dirty.updated<continuous>();
         }
     }

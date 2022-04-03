@@ -11,7 +11,7 @@ struct polyhedron_shape {
     /**
      * The convex mesh that backs this polyhedron. It's stored in a shared
      * pointer because it's expensive to copy. Shapes are copied into
-     * `island_delta`s every time islands are merged and split. This also
+     * registry operations every time islands are merged and split. This also
      * allows many rigid bodies of the same shape to exist without duplicating
      * data. It is potentially shared with multiple threads (e.g. if it is
      * associated with a static or kinematic rigid body) which makes it unsafe
@@ -56,6 +56,11 @@ struct polyhedron_shape {
                      const quaternion &orn = quaternion_identity,
                      const vector3 &scale = vector3_one);
 };
+
+template<typename Archive>
+void serialize(Archive &archive, polyhedron_shape &shape) {
+    archive(*shape.mesh);
+}
 
 }
 

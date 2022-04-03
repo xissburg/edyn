@@ -5,7 +5,7 @@ if(DEFINED PROJECT_SOURCE_DIR)
     set(Edyn_MAIN_PROJECT OFF)
 endif()
 
-project(Edyn VERSION 0.2.0 LANGUAGES CXX)
+project(Edyn VERSION 1.0.0 LANGUAGES CXX)
 
 include(CMakeDependentOption)
 
@@ -81,6 +81,8 @@ add_library(Edyn
     src/edyn/constraints/spin_angle_constraint.cpp
     src/edyn/constraints/spin_constraint.cpp
     src/edyn/constraints/tirecarcass_constraint.cpp
+    src/edyn/constraints/cvjoint_constraint.cpp
+    src/edyn/constraints/cone_constraint.cpp
     src/edyn/constraints/null_constraint.cpp
     src/edyn/constraints/gravity_constraint.cpp
     src/edyn/dynamics/solver.cpp
@@ -102,6 +104,9 @@ add_library(Edyn
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
     src/edyn/util/triangle_util.cpp
+    src/edyn/util/ragdoll.cpp
+    src/edyn/util/exclude_collision.cpp
+    src/edyn/util/make_reg_op_builder.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
@@ -114,11 +119,19 @@ add_library(Edyn
     src/edyn/parallel/job_queue_scheduler.cpp
     src/edyn/parallel/island_worker.cpp
     src/edyn/parallel/island_coordinator.cpp
-    src/edyn/parallel/island_delta.cpp
-    src/edyn/parallel/island_delta_builder.cpp
     src/edyn/parallel/island_worker_context.cpp
-    src/edyn/parallel/make_island_delta_builder.cpp
+    src/edyn/parallel/map_child_entity.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
+    src/edyn/networking/context/client_network_context.cpp
+    src/edyn/networking/context/server_network_context.cpp
+    src/edyn/networking/sys/server_side.cpp
+    src/edyn/networking/sys/client_side.cpp
+    src/edyn/networking/networking.cpp
+    src/edyn/networking/sys/update_aabbs_of_interest.cpp
+    src/edyn/networking/extrapolation_job.cpp
+    src/edyn/networking/util/pool_snapshot.cpp
+    src/edyn/networking/util/clock_sync.cpp
+    src/edyn/networking/util/process_update_entity_map_packet.cpp
     src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
     src/edyn/time/common/time.cpp
@@ -133,9 +146,7 @@ endif()
 
 if(UNIX AND NOT APPLE)
     target_link_libraries(Edyn
-        PUBLIC
-            dl
-            pthread
+        PUBLIC pthread
     )
 endif()
 
@@ -144,8 +155,7 @@ if(WIN32)
         src/edyn/time/windows/time.cpp
     )
     target_link_libraries(Edyn
-        PUBLIC
-            winmm
+        PUBLIC winmm
     )
 endif()
 
@@ -182,7 +192,7 @@ target_link_options(Edyn
 )
 
 if(MSVC)
-    target_compile_options(Edyn PRIVATE /W4)
+    target_compile_options(Edyn PRIVATE /W4 /bigobj)
 else()
     target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()

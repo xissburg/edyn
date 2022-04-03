@@ -2,11 +2,12 @@
 #define EDYN_SHAPES_CYLINDER_SHAPE_HPP
 
 #include <array>
+#include <cstdint>
 #include "edyn/math/quaternion.hpp"
 
 namespace edyn {
 
-enum class cylinder_feature {
+enum class cylinder_feature : uint8_t {
     // Either of the two cylinder caps.
     face,
     // An edge on the side wall of the cylinder.
@@ -48,6 +49,12 @@ struct cylinder_shape {
                          cylinder_feature &out_feature, size_t &out_feature_index,
                          scalar threshold) const;
 };
+
+template<typename Archive>
+void serialize(Archive &archive, cylinder_shape &s) {
+    archive(s.half_length);
+    archive(s.radius);
+}
 
 }
 

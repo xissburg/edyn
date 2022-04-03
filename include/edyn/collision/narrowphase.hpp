@@ -12,7 +12,6 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collision_result.hpp"
-#include "edyn/constraints/constraint_impulse.hpp"
 #include "edyn/util/collision_util.hpp"
 #include "edyn/context/settings.hpp"
 
@@ -27,12 +26,11 @@ class narrowphase {
     };
 
     struct contact_point_destruction_info {
-        std::array<entt::entity, max_contacts> contact_entity;
+        std::array<contact_manifold::contact_id_type, max_contacts> point_id;
         size_t count {0};
     };
 
-    void add_new_contact_point(entt::entity contact_entity,
-                               std::array<entt::entity, 2> body);
+    void clear_contact_manifold_events();
 
 public:
     narrowphase(entt::registry &);
@@ -52,20 +50,10 @@ public:
     void update_contact_manifolds(Iterator begin, Iterator end,
                                   ContactManifoldView &manifold_view);
 
-    /**
-     * @brief When new contact points are created, such as when
-     * `update_contact_manifolds` is called, contact constraints are not created
-     * immediately. This must be called to create contact constraints for new
-     * contact points. It gives the caller control over when the constraints are
-     * created.
-     */
-    void create_contact_constraints();
-
 private:
     entt::registry *m_registry;
     std::vector<contact_point_construction_info> m_cp_construction_infos;
     std::vector<contact_point_destruction_info> m_cp_destruction_infos;
-    std::vector<entt::entity> m_new_contact_points;
 };
 
 template<typename Iterator>
@@ -77,13 +65,12 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
 template<typename ContactManifoldView, typename Iterator>
 void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
                                            ContactManifoldView &manifold_view) {
+    auto events_view = m_registry->view<contact_manifold_events>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();
     auto origin_view = m_registry->view<origin>();
-    auto cp_view = m_registry->view<contact_point>();
     auto vel_view = m_registry->view<angvel>();
     auto rolling_view = m_registry->view<rolling_tag>();
-    auto imp_view = m_registry->view<constraint_impulse>();
     auto tire_view = m_registry->view<tire_material>();
     auto material_view = m_registry->view<material>();
     auto orn_view = m_registry->view<orientation>();
@@ -95,17 +82,17 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
     for (auto it = begin; it != end; ++it) {
         entt::entity manifold_entity = *it;
         auto &manifold = manifold_view.template get<contact_manifold>(manifold_entity);
+        auto &events = events_view.get<contact_manifold_events>(manifold_entity);
         collision_result result;
         detect_collision(manifold.body, result, body_view, origin_view, views_tuple);
 
-        process_collision(manifold_entity, manifold, result, cp_view, imp_view,
-                          tr_view, vel_view, rolling_view, tire_view, origin_view, orn_view,
+        process_collision(manifold_entity, manifold, events, result, tr_view, vel_view,
+                          rolling_view, tire_view, origin_view, orn_view,
                           material_view, mesh_shape_view, paged_mesh_shape_view, dt,
                           [&] (const collision_result::collision_point &rp) {
-            auto contact_entity = create_contact_point(*m_registry, manifold_entity, manifold, rp);
-            add_new_contact_point(contact_entity, manifold.body);
-        }, [&] (entt::entity contact_entity) {
-            destroy_contact_point(*m_registry, manifold_entity, contact_entity);
+            create_contact_point(*m_registry, manifold_entity, manifold, rp);
+        }, [&] (auto pt_id) {
+            destroy_contact_point(*m_registry, manifold_entity, pt_id);
         });
     }
 }

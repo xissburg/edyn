@@ -3,6 +3,7 @@
 
 #include <array>
 #include "edyn/config/config.h"
+#include "edyn/math/constants.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/quaternion.hpp"
 
@@ -94,6 +95,16 @@ inline matrix3x3 operator-=(matrix3x3 &m, const matrix3x3 &n) {
     m.row[1] -= n.row[1];
     m.row[2] -= n.row[2];
     return m;
+}
+
+// Check if two matrices are equal.
+inline bool operator==(const matrix3x3 &m, const matrix3x3 &n) {
+    return m.row == n.row;
+}
+
+// Check if two matrices are different.
+inline bool operator!=(const matrix3x3 &m, const matrix3x3 &n) {
+    return m.row != n.row;
 }
 
 // Create a matrix with the given column vectors.
@@ -237,6 +248,33 @@ inline quaternion to_quaternion(const matrix3x3 &m) {
     temp[3] = t * (m[k][j] - m[j][k]);
 
     return {temp[0], temp[1], temp[2], temp[3]};
+}
+
+// Get XYZ Euler angles from a rotation matrix.
+// Reference: Euler Angle Formulas - David Eberly, Geometric Tools
+// https://www.geometrictools.com/Documentation/EulerAngles.pdf
+inline vector3 get_euler_angles_xyz(const matrix3x3 &m) {
+    if (m[0][2] < 1) {
+        if (m[0][2] > -1) {
+            return {
+                std::atan2(-m[1][2], m[2][2]),
+                std::asin(m[0][2]),
+                std::atan2(-m[0][1], m[0][0])
+            };
+        } else {
+            return {
+                -std::atan2(m[1][0], m[1][1]),
+                -pi_half,
+                0
+            };
+        }
+    } else {
+        return {
+            std::atan2(m[1][0], m[1][1]),
+            pi_half,
+            0
+        };
+    }
 }
 
 }

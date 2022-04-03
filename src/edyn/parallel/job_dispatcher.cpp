@@ -26,7 +26,7 @@ void job_dispatcher::start() {
     auto num_threads = std::thread::hardware_concurrency();
 
     if (num_threads == 0) {
-        num_threads = 8;
+        num_threads = 2;
     }
 
     start(num_threads);
@@ -68,6 +68,11 @@ bool job_dispatcher::running() const {
 
 void job_dispatcher::async(const job &j) {
     EDYN_ASSERT(!m_workers.empty());
+
+    if (m_workers.size() == 1) {
+        m_workers.begin()->second->push_job(j);
+        return;
+    }
 
     auto best_id = std::thread::id();
     auto min_num_jobs = SIZE_MAX;

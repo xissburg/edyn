@@ -6,7 +6,6 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/util/entity_pair.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
-#include "edyn/collision/contact_manifold_map.hpp"
 
 namespace edyn {
 
@@ -17,7 +16,7 @@ class broadphase_worker {
     constexpr static auto m_aabb_offset = vector3_one * -contact_breaking_threshold;
 
     // Separation threshold for new manifolds.
-    constexpr static auto m_separation_threshold = contact_breaking_threshold * scalar(4 * 1.3);
+    constexpr static auto m_separation_threshold = contact_breaking_threshold * scalar(1.3);
 
     void init_new_aabb_entities();
 
@@ -50,7 +49,6 @@ private:
     entt::registry *m_registry;
     dynamic_tree m_tree; // Procedural dynamic tree.
     dynamic_tree m_np_tree; // Non-procedural dynamic tree.
-    contact_manifold_map m_manifold_map;
     std::vector<entt::entity> m_new_aabb_entities;
     std::vector<entity_pair_vector> m_pair_results;
 };

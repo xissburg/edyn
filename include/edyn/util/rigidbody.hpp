@@ -10,6 +10,7 @@
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/tire_material.hpp"
+#include "edyn/comp/collision_filter.hpp"
 
 namespace edyn {
 
@@ -61,8 +62,8 @@ struct rigidbody_def {
 
     bool spin_enabled {false};
 
-    uint64_t collision_group {~0ULL};
-    uint64_t collision_mask {~0ULL};
+    uint64_t collision_group {collision_filter::all_groups};
+    uint64_t collision_mask {collision_filter::all_groups};
 
     // Mark all contacts involving this rigid body as continuous.
     bool continuous_contacts {false};
@@ -73,6 +74,9 @@ struct rigidbody_def {
 
     // Prevent this rigid body from sleeping while it barely moves.
     bool sleeping_disabled {false};
+
+    // Share this rigid body over the network.
+    bool networked {false};
 
     /**
      * @brief Assigns the default moment of inertia of the current shape
@@ -121,6 +125,14 @@ std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std:
 void rigidbody_apply_impulse(entt::registry &, entt::entity,
                              const vector3 &impulse,
                              const vector3 &rel_location);
+/**
+ * @brief Applies a rotational impulse to entity.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param torque_impulse Torque impulse vector.
+ */
+void rigidbody_apply_torque_impulse(entt::registry &, entt::entity,
+                                    const vector3 &torque_impulse);
 
 void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);
 void update_kinematic_orientation(entt::registry &, entt::entity, const quaternion &, scalar dt);

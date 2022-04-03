@@ -11,6 +11,7 @@ namespace edyn {
 struct differential_constraint {
     std::array<entt::entity, 3> body {entt::null, entt::null, entt::null};
     scalar ratio;
+    scalar impulse;
 };
 
 template<>
