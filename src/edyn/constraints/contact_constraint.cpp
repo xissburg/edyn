@@ -120,7 +120,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     ctx.friction_rows.reserve(con_view.size_hint());
     ctx.roll_friction_rows.clear();
 
-    con_view.each([&] (contact_constraint &con, contact_manifold &manifold) {
+    for (auto [entity, con, manifold] : con_view.each()) {
         auto body = manifold.body;
 
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(body[0]);
@@ -286,17 +286,19 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
         auto num_rows = cache.rows.size() - row_start_index;
         cache.con_num_rows.push_back(num_rows);
-    });
+    }
 }
 
 template<>
 void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto &ctx = registry.ctx<internal::contact_constraint_context>();
     auto row_idx = ctx.row_start_index;
-    auto con_idx = size_t(0);
     auto roll_idx = size_t(0);
     auto cp_idx = size_t(0); // Global contact point index.
-    auto manifold_view = registry.view<contact_manifold>();
+
+    // Remember that not all manifolds have a contact constraint, which happens
+    // when one of the rigid bodies is a sensor, i.e. it doesn't have material.
+    auto con_view = registry.view<contact_constraint, contact_manifold>();
 
     // Solve friction rows locally using a non-standard method where the impulse
     // is limited by the length of a 2D vector to assure a friction circle.
@@ -307,8 +309,8 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     // Solving the non-penetration constraints last helps minimize penetration
     // errors because there won't be additional errors introduced by other
     // constraints.
-    for (auto entity : manifold_view) {
-        auto [manifold] = manifold_view.get(entity);
+    for (auto entity : con_view) {
+        auto &manifold = con_view.get<contact_manifold>(entity);
 
         manifold.each_point([&] (contact_point &cp) {
             auto &normal_row = cache.rows[row_idx++];
@@ -329,8 +331,6 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
 
             ++cp_idx;
         });
-
-        ++con_idx;
     }
 }
 
@@ -339,13 +339,15 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
     // Solve position constraints by applying linear and angular corrections
     // iteratively. Based on Box2D's solver:
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
-    auto manifold_view = registry.view<contact_manifold>();
+
+    // Remember that not all manifolds have a contact constraint.
+    auto con_view = registry.view<contact_constraint, contact_manifold>();
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
     auto origin_view = registry.view<origin>();
     auto min_dist = scalar(0);
 
-    for (auto entity : manifold_view) {
-        auto [manifold] = manifold_view.get(entity);
+    for (auto entity : con_view) {
+        auto &manifold = con_view.get<contact_manifold>(entity);
 
         if (manifold.num_points == 0) {
             continue;

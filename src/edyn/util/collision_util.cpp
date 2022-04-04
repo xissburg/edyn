@@ -278,6 +278,42 @@ size_t find_nearest_contact_tire(const contact_point &cp,
     return nearest_idx;
 }
 
+static void assign_material_properties(entt::registry &registry, contact_manifold &manifold, contact_point &cp) {
+    auto material_view = registry.view<material>();
+    auto [materialA] = material_view.get(manifold.body[0]);
+    auto [materialB] = material_view.get(manifold.body[1]);
+
+    auto &material_table = registry.ctx<material_mix_table>();
+
+    if (auto *material = material_table.try_get({materialA.id, materialB.id})) {
+        cp.restitution = material->restitution;
+        cp.friction = material->friction;
+        cp.roll_friction = material->roll_friction;
+        cp.spin_friction = material->spin_friction;
+        cp.stiffness = material->stiffness;
+        cp.damping = material->damping;
+    } else {
+        auto mesh_shape_view = registry.view<mesh_shape>();
+        auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
+
+        if (!try_assign_per_vertex_friction(manifold.body, cp, material_view, mesh_shape_view, paged_mesh_shape_view)) {
+            cp.friction = material_mix_friction(materialA.friction, materialB.friction);
+        }
+
+        if (!try_assign_per_vertex_restitution(manifold.body, cp, material_view, mesh_shape_view, paged_mesh_shape_view)) {
+            cp.restitution = material_mix_restitution(materialA.restitution, materialB.restitution);
+        }
+
+        cp.roll_friction = material_mix_roll_friction(materialA.roll_friction, materialB.roll_friction);
+        cp.spin_friction = material_mix_spin_friction(materialA.spin_friction, materialB.spin_friction);
+
+        if (materialA.stiffness < large_scalar || materialB.stiffness < large_scalar) {
+            cp.stiffness = material_mix_stiffness(materialA.stiffness, materialB.stiffness);
+            cp.damping = material_mix_damping(materialA.damping, materialB.damping);
+        }
+    }
+}
+
 void create_contact_point(entt::registry& registry,
                           entt::entity manifold_entity,
                           contact_manifold& manifold,
@@ -328,41 +364,12 @@ void create_contact_point(entt::registry& registry,
         cp.local_normal = vector3_zero;
     }
 
-    // Assign material properties at contact point.
-    auto material_view = registry.view<material>();
-    auto [materialA] = material_view.get(manifold.body[0]);
-    auto [materialB] = material_view.get(manifold.body[1]);
-
-    auto &material_table = registry.ctx<material_mix_table>();
-
-    if (auto *material = material_table.try_get({materialA.id, materialB.id})) {
-        cp.restitution = material->restitution;
-        cp.friction = material->friction;
-        cp.roll_friction = material->roll_friction;
-        cp.spin_friction = material->spin_friction;
-        cp.stiffness = material->stiffness;
-        cp.damping = material->damping;
-    } else {
-        auto mesh_shape_view = registry.view<mesh_shape>();
-        auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
-
-        if (!try_assign_per_vertex_friction(manifold.body, cp, material_view, mesh_shape_view, paged_mesh_shape_view)) {
-            cp.friction = material_mix_friction(materialA.friction, materialB.friction);
-        }
-
-        if (!try_assign_per_vertex_restitution(manifold.body, cp, material_view, mesh_shape_view, paged_mesh_shape_view)) {
-            cp.restitution = material_mix_restitution(materialA.restitution, materialB.restitution);
-        }
-
-        cp.roll_friction = material_mix_roll_friction(materialA.roll_friction, materialB.roll_friction);
-        cp.spin_friction = material_mix_spin_friction(materialA.spin_friction, materialB.spin_friction);
-
-        if (materialA.stiffness < large_scalar || materialB.stiffness < large_scalar) {
-            cp.stiffness = material_mix_stiffness(materialA.stiffness, materialB.stiffness);
-            cp.damping = material_mix_damping(materialA.damping, materialB.damping);
-        }
+    // Assign material properties to contact point.
+    if (registry.all_of<material>(manifold.body[0]) && registry.all_of<material>(manifold.body[1])) {
+        assign_material_properties(registry, manifold, cp);
     }
 
+    // Add contact created event.
     auto &events = registry.get<contact_manifold_events>(manifold_entity);
     events.contact_started |= is_first_contact;
     EDYN_ASSERT(events.num_contacts_created < max_contacts);

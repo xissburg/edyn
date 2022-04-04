@@ -310,6 +310,12 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
             return;
         }
 
+        // One of the bodies could be a sensor and not have a material.
+        if (!material_view.contains(manifold.body[0]) ||
+            !material_view.contains(manifold.body[1])) {
+            return;
+        }
+
         auto other_entity = manifold.body[0] == entity ? manifold.body[1] : manifold.body[0];
         auto &other_material = material_view.get<edyn::material>(other_entity);
 

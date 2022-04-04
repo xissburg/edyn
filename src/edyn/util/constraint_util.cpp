@@ -29,7 +29,6 @@ namespace internal {
             auto &edge = registry.get<graph_edge>(entity);
             auto [ent0, ent1] = registry.ctx<entity_graph>().edge_node_entities(edge.edge_index);
             EDYN_ASSERT(ent0 == body0 && ent1 == body1);
-            EDYN_ASSERT(registry.any_of<procedural_tag>(entity));
         #endif
             return false;
         }
@@ -37,11 +36,7 @@ namespace internal {
         auto node_index0 = registry.get<graph_node>(body0).node_index;
         auto node_index1 = registry.get<graph_node>(body1).node_index;
         auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
-        registry.emplace<procedural_tag>(entity);
         registry.emplace<graph_edge>(entity, edge_index);
-
-        auto &con_dirty = registry.get_or_emplace<dirty>(entity);
-        con_dirty.created<procedural_tag>();
 
         return true;
     }
@@ -86,11 +81,14 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 
     // Only create contact constraint if bodies have material.
     if (!material_view.contains(body0) || !material_view.contains(body1)) {
+        // If not, emplace a null constraint to ensure an edge will exist in
+        // the entity graph.
+        make_constraint<null_constraint>(manifold_entity, registry, body0, body1);
         return;
     }
 
-    auto [material0] = material_view.get(body0);
-    auto [material1] = material_view.get(body1);
+    auto &material0 = material_view.get<material>(body0);
+    auto &material1 = material_view.get<material>(body1);
 
     auto &material_table = registry.ctx<material_mix_table>();
     auto restitution = scalar(0);

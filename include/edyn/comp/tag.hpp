@@ -24,7 +24,8 @@ struct kinematic_tag {};
 struct static_tag {};
 
 /**
- * Procedural entity, i.e. an entity that has calculated state.
+ * Procedural entity, which is an entity that has calculated state and can only
+ * be present in a single island.
  */
 struct procedural_tag {};
 
