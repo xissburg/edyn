@@ -9,6 +9,7 @@
 #include "edyn/comp/spin.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/util/array.hpp"
 
 namespace edyn {
 
@@ -59,6 +60,9 @@ struct contact_patch_constraint : public constraint_base {
     scalar m_contact_width; // Width of contact patch.
 
     std::array<tread_row, num_tread_rows> m_tread_rows{};
+
+    static const auto num_rows = 20;
+    std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
 };
 
 void initialize_contact_patch_constraint(entt::registry &, entt::entity);

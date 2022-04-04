@@ -171,12 +171,6 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
     }
 }
 
-
-template<>
-void update_impulse<contact_patch_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    // TODO
-}
-
 void update_impulses(entt::registry &registry, row_cache &cache) {
     // Assign impulses from constraint rows back into the constraints. The rows
     // are inserted into the cache for each constraint type in the order they're

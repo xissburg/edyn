@@ -82,6 +82,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         // Store initial size of the constraint row cache so the number of rows
         // for this contact constraint can be calculated at the end.
         const auto row_start_index = cache.rows.size();
+        unsigned imp_idx = 0;
 
         // Create constraint rows for each contact point.
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
@@ -137,8 +138,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             // Setup non-penetration constraint.
             auto rA = contact_center - posA;
             auto rB = contact_center - posB;
-
-            auto first_row_idx = cache.rows.size();
+            auto normal_impulse = scalar{};
 
             // Normal spring.
             {
@@ -161,7 +161,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 row.inv_mB = inv_mB; row.inv_IB = inv_IB;
                 row.dvA = &dvA; row.dwA = &dwA;
                 row.dvB = &dvB; row.dwB = &dwB;
-                row.impulse = cp.normal_impulse;
+                row.impulse = con.impulse[imp_idx++];
+                normal_impulse += row.impulse;
 
                 prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
                 warm_start(row);
@@ -186,7 +187,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 row.inv_mB = inv_mB; row.inv_IB = inv_IB;
                 row.dvA = &dvA; row.dwA = &dwA;
                 row.dvB = &dvB; row.dwB = &dwB;
-                row.impulse = 0; // TODO
+                row.impulse = con.impulse[imp_idx++];
+                normal_impulse += row.impulse;
 
                 prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
                 warm_start(row);
@@ -230,9 +232,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto sin_contact_angle = std::sin(contact_angle);
             auto cos_contact_angle = std::cos(contact_angle);
 
-            auto &normal_spring_row = cache.rows[first_row_idx];
-            auto &normal_damping_row = cache.rows[first_row_idx + 1];
-            auto normal_force = (normal_spring_row.impulse + normal_damping_row.impulse) / dt;
+            auto normal_force = normal_impulse / dt;
 
             // Accumulate forces and errors along all bristles.
             auto lon_force = scalar(0);
@@ -581,7 +581,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 row.inv_mB = inv_mB; row.inv_IB = inv_IB;
                 row.dvA = &dvA; row.dwA = &dwA; row.dsA = delta_spinA;
                 row.dvB = &dvB; row.dwB = &dwB; row.dsB = delta_spinB;
-                row.impulse = cp.friction_impulse[0];
+                row.impulse = con.impulse[imp_idx++];
                 row.use_spin[0] = true;
                 row.use_spin[1] = true;
                 row.spin_axis[0] = axis;
@@ -608,7 +608,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 row.inv_mB = inv_mB; row.inv_IB = inv_IB;
                 row.dvA = &dvA; row.dwA = &dwA;
                 row.dvB = &dvB; row.dwB = &dwB;
-                row.impulse = cp.friction_impulse[1];
+                row.impulse = con.impulse[imp_idx++];
 
                 auto options = constraint_row_options{};
                 options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
@@ -631,7 +631,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 row.inv_mB = inv_mB; row.inv_IB = inv_IB;
                 row.dvA = &dvA; row.dwA = &dwA;
                 row.dvB = &dvB; row.dwB = &dwB;
-                row.impulse = cp.spin_friction_impulse;
+                row.impulse = con.impulse[imp_idx++];
 
                 auto options = constraint_row_options{};
                 options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
