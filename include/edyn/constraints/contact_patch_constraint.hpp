@@ -4,6 +4,7 @@
 #include <map>
 #include <array>
 #include <utility>
+#include "edyn/config/constants.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/comp/spin.hpp"
@@ -36,6 +37,28 @@ struct contact_patch_constraint : public constraint_base {
         std::array<brush_bristle, bristles_per_row> bristles;
     };
 
+    struct contact_patch {
+        std::array<tread_row, num_tread_rows> tread_rows{};
+
+        // Spin angle at contact point.
+        scalar angle {};
+        long spin_count {0};
+        bool initialized {false};
+
+        // Read-only stats.
+        vector3 lon_dir; // Longitudinal tire direction.
+        vector3 lat_dir; // Lateral tire direction.
+        vector3 pivot; // Center of pressure where forces are applied.
+        vector3 center; // Geometric center of contact patch.
+        scalar deflection {0}; // Vertical tire deflection.
+        scalar sin_camber; // Sine of camber angle.
+        scalar sliding_spd_avg; // Average of sliding speed of all bristles.
+        scalar sliding_ratio; // Percentage of bristles which are sliding.
+        scalar width; // Width of contact patch.
+    };
+
+    std::array<contact_patch, max_contacts> contact;
+
     // Tire material properties.
     scalar m_normal_stiffness {100000};
     scalar m_normal_damping {400};
@@ -44,28 +67,9 @@ struct contact_patch_constraint : public constraint_base {
     scalar m_lon_tread_stiffness {3000000};
     scalar m_lat_tread_stiffness {1800000};
 
-    // Spin angle at contact point.
-    scalar m_contact_angle;
-    long m_spin_count {0};
-
-    // Read-only stats.
-    vector3 m_lon_dir; // Longitudinal tire direction.
-    vector3 m_lat_dir; // Lateral tire direction.
-    vector3 m_pivot; // Center of pressure where forces are applied.
-    vector3 m_center; // Geometric center of contact patch.
-    scalar m_deflection {0}; // Vertical tire deflection.
-    scalar m_sin_camber; // Sine of camber angle.
-    scalar m_sliding_spd_avg; // Average of sliding speed of all bristles.
-    scalar m_sliding_ratio; // Percentage of bristles which are sliding.
-    scalar m_contact_width; // Width of contact patch.
-
-    std::array<tread_row, num_tread_rows> m_tread_rows{};
-
-    static const auto num_rows = 20;
+    static const auto num_rows = 5 * max_contacts;
     std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
 };
-
-void initialize_contact_patch_constraint(entt::registry &, entt::entity);
 
 template<>
 void prepare_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);

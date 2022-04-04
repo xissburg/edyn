@@ -67,6 +67,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
 
             for (size_t i = 0; i < manifold.num_points; ++i) {
                 auto &cp = manifold.get_point(i);
+                auto &contact = contact_patch.contact[manifold.ids[i]];
 
                 auto pivotA = to_world_space(cp.pivotA, originA, ornA);
                 auto pivotB = to_world_space(cp.pivotB, originB, ornB);
@@ -77,27 +78,27 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 auto tan_relvel = project_direction(relvel, cp.normal);
                 auto linvel_rel = project_direction(linvelA - velB, cp.normal);
                 auto linspd_rel = length(linvel_rel);
-                auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : contact_patch.m_lon_dir;
+                auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : contact.lon_dir;
 
                 auto &tire_cs = ts.contact_state[i];
-                tire_cs.vertical_deflection = contact_patch.m_deflection;
+                tire_cs.vertical_deflection = contact.deflection;
                 tire_cs.friction_coefficient = cp.friction;
-                tire_cs.sin_camber = contact_patch.m_sin_camber;
-                auto sin_slip_angle = std::clamp(dot(contact_patch.m_lat_dir, direction), scalar(-1), scalar(1));
+                tire_cs.sin_camber = contact.sin_camber;
+                auto sin_slip_angle = std::clamp(dot(contact.lat_dir, direction), scalar(-1), scalar(1));
                 tire_cs.slip_angle = std::asin(sin_slip_angle);
-                auto vx = dot(linvel_rel, contact_patch.m_lon_dir);
-                auto vsx = dot(tan_relvel, contact_patch.m_lon_dir);
+                auto vx = dot(linvel_rel, contact.lon_dir);
+                auto vsx = dot(tan_relvel, contact.lon_dir);
                 tire_cs.slip_ratio = -vsx / (to_sign(vx > 0) * std::max(std::abs(vx), scalar(0.001)));
                 tire_cs.yaw_rate = dot(angvelA, cp.normal);
-                tire_cs.slide_factor = contact_patch.m_sliding_spd_avg;
-                tire_cs.slide_ratio = contact_patch.m_sliding_ratio;
-                tire_cs.contact_patch_width = contact_patch.m_contact_width;
+                tire_cs.slide_factor = contact.sliding_spd_avg;
+                tire_cs.slide_ratio = contact.sliding_ratio;
+                tire_cs.contact_patch_width = contact.width;
                 tire_cs.contact_lifetime = cp.lifetime;
-                tire_cs.lat_dir = contact_patch.m_lat_dir;
-                tire_cs.lon_dir = contact_patch.m_lon_dir;
+                tire_cs.lat_dir = contact.lat_dir;
+                tire_cs.lon_dir = contact.lon_dir;
                 tire_cs.normal = cp.normal;
-                tire_cs.pivot = contact_patch.m_pivot;
-                tire_cs.position = contact_patch.m_center;
+                tire_cs.pivot = contact.pivot;
+                tire_cs.position = contact.center;
                 tire_cs.lin_vel = linvel_rel;
 
                 // Add spring and damper impulses.
@@ -106,12 +107,13 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.Fy = cp.friction_impulse[1] / dt; // Lateral spring.
                 tire_cs.Mz = cp.spin_friction_impulse / dt; // Self-aliging spring.
 
-                for (size_t i = 0; i < contact_patch.m_tread_rows.size(); ++i) {
-                    tire_cs.tread_rows[i].start_pos = contact_patch.m_tread_rows[i].start_pos;
-                    tire_cs.tread_rows[i].end_pos = contact_patch.m_tread_rows[i].end_pos;
+                for (size_t i = 0; i < contact.tread_rows.size(); ++i) {
+                    auto &tread_row = contact.tread_rows[i];
+                    tire_cs.tread_rows[i].start_pos = tread_row.start_pos;
+                    tire_cs.tread_rows[i].end_pos = tread_row.end_pos;
 
-                    for (size_t j = 0; j < contact_patch.m_tread_rows[i].bristles.size(); ++j) {
-                        auto &bristle = contact_patch.m_tread_rows[i].bristles[j];
+                    for (size_t j = 0; j < tread_row.bristles.size(); ++j) {
+                        auto &bristle = tread_row.bristles[j];
                         tire_cs.tread_rows[i].bristles[j] = tire_bristle_state{
                             bristle.root, bristle.tip,
                             bristle.friction, bristle.sliding_spd

@@ -13,7 +13,7 @@ struct tirecarcass_constraint : public constraint_base {
     scalar m_longitudinal_stiffness {2000};
     scalar m_longitudinal_damping {30};
 
-    static const auto num_rows = 7;
+    static const auto num_rows = 9;
     std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
 };
 

@@ -127,7 +127,6 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
         contact.m_load_sensitivity = tire->load_sensitivity;
         contact.m_lat_tread_stiffness = tire->lat_tread_stiffness;
         contact.m_lon_tread_stiffness = tire->lon_tread_stiffness;
-        initialize_contact_patch_constraint(registry, manifold_entity);
     } else {
         make_constraint<contact_constraint>(manifold_entity, registry, body0, body1);
     }
