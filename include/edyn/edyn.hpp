@@ -328,19 +328,18 @@ on_contact_point_destroyed(entt::registry &);
 
 /**
  * @brief Visit all edges of a node in the entity graph. This can be used to
- * iterate over all constraints assigned to a rigid body.
- * @remark `contact_constraint`s are not edges in the entity graph. Instead,
- * you're going to find a contact manifold in an edge graph an the contact
- * points and contact constraints can be obtained from it.
+ * iterate over all constraints assigned to a rigid body, including contacts.
  * @tparam Func Visitor function type.
  * @param entity Node entity.
- * @param func Vistor function with signature `void(index_type)`.
+ * @param func Vistor function with signature `void(entt::entity)`.
  */
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
     auto &node = registry.get<graph_node>(entity);
     auto &graph = registry.ctx<entity_graph>();
-    graph.visit_edges(node.node_index, func);
+    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+        func(graph.edge_entity(edge_index));
+    });
 }
 
 /**
