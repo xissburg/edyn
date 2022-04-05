@@ -92,7 +92,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
             // Ensure shape is valid for this type of rigid body.
             if (def.kind != rigidbody_kind::rb_static) {
-                EDYN_ASSERT((!has_type<ShapeType, std::decay_t<decltype(static_shapes_tuple)>>::value));
+                EDYN_ASSERT((!has_type<ShapeType, static_shapes_tuple_t>::value));
             }
 
             registry.emplace<ShapeType>(entity, shape);

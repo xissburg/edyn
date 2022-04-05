@@ -19,30 +19,32 @@
 namespace edyn {
 
 // Shapes that can be transformed.
-static const auto dynamic_shapes_tuple = std::tuple<
+using dynamic_shapes_tuple_t = std::tuple<
     sphere_shape,
     cylinder_shape,
     capsule_shape,
     box_shape,
     polyhedron_shape,
     compound_shape
->{};
+>;
 
 // Shapes which can't be transformed.
-static const auto static_shapes_tuple = std::tuple<
+using static_shapes_tuple_t = std::tuple<
     plane_shape,
     mesh_shape,
     paged_mesh_shape
->{};
+>;
 
 // Shapes that can roll.
-static const auto rolling_shapes_tuple = std::tuple<
+using rolling_shapes_tuple_t = std::tuple<
     sphere_shape,
     cylinder_shape,
     capsule_shape
->{};
+>;
 
-using rolling_shapes_tuple_t = std::decay_t<decltype(rolling_shapes_tuple)>;
+static const auto dynamic_shapes_tuple = dynamic_shapes_tuple_t{};
+static const auto static_shapes_tuple = static_shapes_tuple_t{};
+static const auto rolling_shapes_tuple = rolling_shapes_tuple_t{};
 
 // Tuple containing all shape types.
 static const auto shapes_tuple = std::tuple_cat(dynamic_shapes_tuple, static_shapes_tuple);
