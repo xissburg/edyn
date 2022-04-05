@@ -102,7 +102,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
             // Ensure shape is valid for this type of rigid body.
             if (def.kind != rigidbody_kind::rb_static) {
-                EDYN_ASSERT((!has_type<ShapeType, std::decay_t<decltype(static_shapes_tuple)>>::value));
+                EDYN_ASSERT((!tuple_has_type<ShapeType, static_shapes_tuple_t>::value));
             }
 
             registry.emplace<ShapeType>(entity, shape);
@@ -112,7 +112,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
             // Assign tag for rolling shapes.
             if (def.kind == rigidbody_kind::rb_dynamic) {
-                if constexpr(has_type<ShapeType, rolling_shapes_tuple_t>::value) {
+                if constexpr(tuple_has_type<ShapeType, rolling_shapes_tuple_t>::value) {
                     registry.emplace<rolling_tag>(entity);
 
                     auto roll_dir = shape_rolling_direction<ShapeType>();

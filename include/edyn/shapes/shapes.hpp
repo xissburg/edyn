@@ -19,30 +19,32 @@
 namespace edyn {
 
 // Shapes that can be transformed.
-static const auto dynamic_shapes_tuple = std::tuple<
+using dynamic_shapes_tuple_t = std::tuple<
     sphere_shape,
     cylinder_shape,
     capsule_shape,
     box_shape,
     polyhedron_shape,
     compound_shape
->{};
+>;
 
 // Shapes which can't be transformed.
-static const auto static_shapes_tuple = std::tuple<
+using static_shapes_tuple_t = std::tuple<
     plane_shape,
     mesh_shape,
     paged_mesh_shape
->{};
+>;
 
 // Shapes that can roll.
-static const auto rolling_shapes_tuple = std::tuple<
+using rolling_shapes_tuple_t = std::tuple<
     sphere_shape,
     cylinder_shape,
     capsule_shape
->{};
+>;
 
-using rolling_shapes_tuple_t = std::decay_t<decltype(rolling_shapes_tuple)>;
+static const auto dynamic_shapes_tuple = dynamic_shapes_tuple_t{};
+static const auto static_shapes_tuple = static_shapes_tuple_t{};
+static const auto rolling_shapes_tuple = rolling_shapes_tuple_t{};
 
 // Tuple containing all shape types.
 static const auto shapes_tuple = std::tuple_cat(dynamic_shapes_tuple, static_shapes_tuple);
@@ -67,7 +69,7 @@ using shape_feature_t = std::variant<
  */
 template<typename ShapeType>
 constexpr auto get_shape_index() {
-    return tuple_index_of<ShapeType, shape_index::index_type>(shapes_tuple);
+    return tuple_index_of<shape_index::index_type, ShapeType>(shapes_tuple);
 }
 
 /**
@@ -120,7 +122,7 @@ void visit_shape(entt::registry &registry, entt::entity entity, VisitorType visi
  * @return A unit vector or the zero vector if the shape can roll in any
  * direction.
  */
-template<typename ShapeType, std::enable_if_t<has_type<ShapeType, rolling_shapes_tuple_t>::value, bool> = true>
+template<typename ShapeType, std::enable_if_t<tuple_has_type<ShapeType, rolling_shapes_tuple_t>::value, bool> = true>
 constexpr vector3 shape_rolling_direction() {
     if constexpr(std::is_same_v<ShapeType, cylinder_shape>) {
         return vector3_x;

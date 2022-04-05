@@ -395,7 +395,7 @@ static void server_process_timed_packets(entt::registry &registry, double time) 
             std::visit([&] (auto &&packet) {
                 using PacketType = std::decay_t<decltype(packet)>;
 
-                if constexpr(has_type<PacketType, packet::timed_packets_tuple_t>::value) {
+                if constexpr(tuple_has_type<PacketType, packet::timed_packets_tuple_t>::value) {
                     process_packet(registry, client_entity, packet);
                 }
             }, it->packet.var);
@@ -698,7 +698,7 @@ void server_receive_packet(entt::registry &registry, entt::entity client_entity,
         using PacketType = std::decay_t<decltype(decoded_packet)>;
         // If it's a timed packet, enqueue for later execution. Process
         // immediately otherwise.
-        if constexpr(has_type<PacketType, packet::timed_packets_tuple_t>::value) {
+        if constexpr(tuple_has_type<PacketType, packet::timed_packets_tuple_t>::value) {
             enqueue_packet(registry, client_entity, decoded_packet);
         } else {
             process_packet(registry, client_entity, decoded_packet);

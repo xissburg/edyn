@@ -2,33 +2,47 @@
 #define EDYN_UTIL_TUPLE_UTIL_HPP
 
 #include <tuple>
+#include <utility>
 #include <variant>
 
 namespace edyn {
 
 /**
- * Check if a tuple contains a given type. Usage:
- * `if constexpr(has_type<T, a_tuple>::value) { ... }`
- * Reference: https://stackoverflow.com/a/41171291
+ * Check if a pack contains a given type.
  */
+template <typename T, typename... Us>
+struct has_type : std::disjunction<std::is_same<T, Us>...> {};
+
 template <typename T, typename Tuple>
-struct has_type;
+struct tuple_has_type;
 
 template <typename T, typename... Us>
-struct has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
+struct tuple_has_type<T, std::tuple<Us...>> : has_type<T, Us...> {};
 
-// Do the same for variants. TODO: maybe move this somewhere else.
+template <typename T, typename Variant>
+struct variant_has_type;
+
 template <typename T, typename... Us>
-struct has_type<T, std::variant<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
+struct variant_has_type<T, std::variant<Us...>> : has_type<T, Us...> {};
 
-template<typename IndexType, typename T, typename... Ts>
-struct index_of;
+/**
+ * Get index of type in pack.
+ */
+template<typename IndexType, typename T, typename... Us>
+struct index_of {
+private:
+    template<IndexType... Indices>
+    static constexpr IndexType index_of_func(std::integer_sequence<IndexType, Indices...>) {
+        static_assert(has_type<T, Us...>::value);
+        return ((std::is_same_v<T, Us> ? Indices : 0) + ...);
+    }
 
-template<typename IndexType, typename T, typename... Ts>
-struct index_of<IndexType, T, T, Ts...> : std::integral_constant<IndexType, 0>{};
-
-template<typename IndexType, typename T, typename U, typename... Ts>
-struct index_of<IndexType, T, U, Ts...> : std::integral_constant<IndexType, 1 + index_of<IndexType, T, Ts...>::value>{};
+public:
+    static constexpr IndexType value = []() {
+        constexpr auto indices = std::make_integer_sequence<IndexType, sizeof...(Us)>{};
+        return index_of_func(indices);
+    }();
+};
 
 template<typename IndexType, typename T, typename... Ts>
 static constexpr IndexType index_of_v = index_of<IndexType, T, Ts...>::value;
@@ -36,13 +50,16 @@ static constexpr IndexType index_of_v = index_of<IndexType, T, Ts...>::value;
 /**
  * Find index of a type in a tuple type.
  */
+template<typename IndexType, typename T, typename Tuple>
+struct tuple_type_index_of;
+
 template<typename IndexType, typename T, typename... Ts>
-struct index_of<IndexType, T, std::tuple<Ts...>> : index_of<IndexType, T, Ts...>{};
+struct tuple_type_index_of<IndexType, T, std::tuple<Ts...>> : index_of<IndexType, T, Ts...> {};
 
 /**
  * Find index of a type in a tuple.
  */
-template<typename T, typename IndexType = size_t, typename... Ts>
+template<typename IndexType, typename T, typename... Ts>
 constexpr IndexType tuple_index_of(std::tuple<Ts...>) {
     return index_of_v<IndexType, T, Ts...>;
 }

@@ -28,7 +28,7 @@ public:
 
     template<typename T>
     void operator()(T& t) {
-        if constexpr(has_type<T, archive_fundamental_types>::value) {
+        if constexpr(std::is_fundamental_v<T>) {
             read_bytes(t);
         } else {
             serialize(*this, t);
@@ -79,7 +79,7 @@ public:
 
     template<typename T>
     void operator()(T& t) {
-        if constexpr(has_type<T, archive_fundamental_types>::value) {
+        if constexpr(std::is_fundamental_v<T>) {
             write_bytes(t);
         } else {
             serialize(*this, t);
@@ -119,7 +119,7 @@ public:
 
     template<typename T>
     void operator()(T& t) {
-        if constexpr(has_type<T, archive_fundamental_types>::value) {
+        if constexpr(std::is_fundamental_v<T>) {
             write_bytes(t);
         } else {
             serialize(*this, t);

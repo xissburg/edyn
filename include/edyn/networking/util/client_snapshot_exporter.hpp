@@ -76,7 +76,7 @@ public:
 
         m_insert_transient_input_entity_components_func = [] (const entt::registry &registry, registry_snapshot &snap) {
             const std::tuple<Components...> components;
-            ((has_type<Transient, std::tuple<Input...>>::value ?
+            ((has_type<Transient, Input...>::value ?
                 internal::snapshot_insert_select_entity_component<Transient>(registry, snap, components) : (void)0), ...);
         };
 
@@ -85,10 +85,10 @@ public:
         };
 
         m_contains_transient_input = [] (const entt::registry &registry, entt::entity entity) {
-            return ((has_type<Transient, std::tuple<Input...>>::value && registry.any_of<Transient>(entity)) || ...);
+            return ((has_type<Transient, Input...>::value && registry.any_of<Transient>(entity)) || ...);
         };
 
-        ((m_is_transient_component[entt::type_index<Components>::value()] = has_type<Components, std::tuple<Transient...>>::value), ...);
+        ((m_is_transient_component[entt::type_index<Components>::value()] = has_type<Components, Transient...>::value), ...);
     }
 
     void export_all(const entt::registry &registry, registry_snapshot &snap) override {
