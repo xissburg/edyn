@@ -8,7 +8,7 @@ namespace edyn {
 
 /**
  * Check if a tuple contains a given type. Usage:
- * `if constexpr(has_type<T, a_tuple>::value) { ... }`
+ * `if constexpr(has_type<T, a_tuple_type>::value) { ... }`
  * Reference: https://stackoverflow.com/a/41171291
  */
 template <typename T, typename... Us>
