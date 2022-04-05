@@ -20,8 +20,8 @@ struct component_index_source {
     template<typename Component, typename IndexType = size_t>
     IndexType index_of() const {
         static_assert(std::is_integral_v<IndexType>);
-        if constexpr(has_type<Component, shared_components_t>::value) {
-            return tuple_index_of<Component, IndexType>(shared_components);
+        if constexpr(tuple_has_type<Component, shared_components_t>::value) {
+            return tuple_index_of<IndexType, Component>(shared_components);
         } else {
             // Get external component index by `entt::type_index`.
             return static_cast<IndexType>(index_of_id(entt::type_index<Component>::value()));
@@ -48,7 +48,7 @@ struct component_index_source_impl : public component_index_source {
     size_t index_of_id(entt::id_type id) const override {
         auto idx = SIZE_MAX;
         ((entt::type_index<Component>::value() == id ?
-            (idx = edyn::index_of<size_t, Component, components_tuple_t>::value) : (size_t)0), ...);
+            (idx = edyn::tuple_type_index_of<size_t, Component, components_tuple_t>::value) : (size_t)0), ...);
         return idx;
     }
 

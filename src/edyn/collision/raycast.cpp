@@ -347,7 +347,7 @@ shape_raycast_result shape_raycast(const compound_shape &compound, const raycast
             using child_info_var_t = decltype(info.child_info_var);
             std::visit([&] (auto &&child_info) {
                 using child_info_t = std::decay_t<decltype(child_info)>;
-                if constexpr(has_type<child_info_t, child_info_var_t>::value) {
+                if constexpr(variant_has_type<child_info_t, child_info_var_t>::value) {
                     info.child_info_var = child_info;
                 }
             }, child_result.info_var);

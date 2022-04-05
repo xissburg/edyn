@@ -69,7 +69,7 @@ using shape_feature_t = std::variant<
  */
 template<typename ShapeType>
 constexpr auto get_shape_index() {
-    return tuple_index_of<ShapeType, shape_index::index_type>(shapes_tuple);
+    return tuple_index_of<shape_index::index_type, ShapeType>(shapes_tuple);
 }
 
 /**
@@ -122,7 +122,7 @@ void visit_shape(entt::registry &registry, entt::entity entity, VisitorType visi
  * @return A unit vector or the zero vector if the shape can roll in any
  * direction.
  */
-template<typename ShapeType, std::enable_if_t<has_type<ShapeType, rolling_shapes_tuple_t>::value, bool> = true>
+template<typename ShapeType, std::enable_if_t<tuple_has_type<ShapeType, rolling_shapes_tuple_t>::value, bool> = true>
 constexpr vector3 shape_rolling_direction() {
     if constexpr(std::is_same_v<ShapeType, cylinder_shape>) {
         return vector3_x;
