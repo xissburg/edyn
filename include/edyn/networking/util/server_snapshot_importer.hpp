@@ -206,7 +206,7 @@ public:
     server_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>,
                                   [[maybe_unused]] std::tuple<Input...>) {
         static_assert((!std::is_empty_v<Input> && ...));
-        ((m_is_input_component[entt::type_index<Components>::value()] = has_type<Components, std::tuple<Input...>>::value), ...);
+        ((m_is_input_component[entt::type_index<Components>::value()] = has_type<Components, Input...>::value), ...);
     }
 
     void import(entt::registry &registry, entt::entity client_entity,
