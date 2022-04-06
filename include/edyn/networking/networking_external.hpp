@@ -3,7 +3,6 @@
 
 #include <tuple>
 #include <entt/entity/registry.hpp>
-#include "edyn/comp/shared_comp.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/comp/transient_comp.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
@@ -30,7 +29,6 @@ void register_networked_components(entt::registry &registry,
     auto external = std::tuple<Component...>{};
     auto all = std::tuple_cat(networked_components, external);
     auto transient_all = std::tuple_cat(transient_components, transient_external);
-    auto shared_all = std::tuple_cat(shared_components, external);
 
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
         ctx->snapshot_importer.reset(new client_snapshot_importer_impl(all));
