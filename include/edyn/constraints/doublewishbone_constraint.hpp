@@ -22,7 +22,6 @@ struct doublewishbone_constraint : public constraint_base {
     std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
 };
 
-
 template<>
 void prepare_constraints<doublewishbone_constraint>(entt::registry &, row_cache &, scalar dt);
 

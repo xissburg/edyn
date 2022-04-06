@@ -21,9 +21,17 @@ public:
     std::pair<scalar, scalar>& operator[](size_t i) { return points[i]; }
     const std::pair<scalar, scalar>& operator[](size_t i) const { return points[i]; }
 
+    template<typename Archive>
+    friend void serialize(Archive &, linear_curve &);
+
 protected:
     std::vector<std::pair<scalar, scalar>> points;
 };
+
+template<typename Archive>
+void serialize(Archive &archive, linear_curve &curve) {
+    archive(curve.points);
+}
 
 }
 
