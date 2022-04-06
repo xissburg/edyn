@@ -346,6 +346,8 @@ static void process_packet(entt::registry &registry, const packet::client_create
     ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
 
     ctx.importing_entities = false;
+
+    ctx.client_assigned_signal.publish(ctx.client_entity);
 }
 
 static void process_packet(entt::registry &registry, const packet::update_entity_map &packet) {

@@ -129,6 +129,15 @@ entt::sink<entt::sigh<void(const packet::edyn_packet &)>>
 network_client_packet_sink(entt::registry &);
 
 /**
+ * @brief Triggered when the client entity is set by the server and replicated
+ * locally.
+ * @param registry Data source.
+ * @return Client assignment sink.
+ */
+entt::sink<entt::sigh<void(entt::entity)>>
+network_client_assigned_sink(entt::registry &);
+
+/**
  * @brief Triggered when an extrapolation job times out due to it taking more
  * than the extrapolation time limit to complete. This will happen when the
  * simulation to be extrapolated is quite large and/or the length of time to be
