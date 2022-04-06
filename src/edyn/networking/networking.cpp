@@ -90,6 +90,11 @@ entt::sink<entt::sigh<void(const packet::edyn_packet &)>> network_client_packet_
     return ctx.packet_sink();
 }
 
+entt::sink<entt::sigh<void(entt::entity)>> network_client_assigned_sink(entt::registry &registry) {
+    auto &ctx = registry.ctx<client_network_context>();
+    return ctx.client_assigned_sink();
+}
+
 entt::sink<entt::sigh<void(void)>> network_client_extrapolation_timeout_sink(entt::registry &registry) {
     auto &ctx = registry.ctx<client_network_context>();
     return ctx.extrapolation_timeout_sink();
