@@ -131,6 +131,10 @@ public:
         }
     }
 
+    void clear() {
+        m_nodes.clear();
+    }
+
     template<typename Archive>
     friend void serialize(Archive &archive, static_tree &tree);
     friend size_t serialization_sizeof(const static_tree &tree);
