@@ -131,6 +131,11 @@ void serialize(Archive &archive, compound_shape::shape_node &node) {
 template<typename Archive>
 void serialize(Archive &archive, compound_shape &shape) {
     archive(shape.nodes);
+
+    if constexpr(Archive::is_input::value) {
+        shape.tree.clear();
+        shape.finish();
+    }
 }
 
 }
