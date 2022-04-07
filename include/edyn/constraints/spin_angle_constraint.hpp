@@ -25,6 +25,16 @@ struct spin_angle_constraint : public constraint_base {
 template<>
 void prepare_constraints<spin_angle_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, spin_angle_constraint &con) {
+    archive(con.body);
+    archive(con.m_ratio);
+    archive(con.m_stiffness);
+    archive(con.m_damping);
+    archive(con.m_offset_origin);
+    archive(con.impulse);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_SPIN_ANGLE_CONSTRAINT_HPP

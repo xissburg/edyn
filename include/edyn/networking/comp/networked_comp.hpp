@@ -8,6 +8,7 @@
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/spin.hpp"
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/tag.hpp"
@@ -18,6 +19,7 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/roll_direction.hpp"
+#include "edyn/comp/tire_material.hpp"
 #include "edyn/shapes/sphere_shape.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/capsule_shape.hpp"
@@ -41,8 +43,11 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     linvel,
     mass,
     material,
+    tire_material,
     position,
     orientation,
+    spin_angle,
+    spin,
     continuous,
     center_of_mass,
     dynamic_tag,
@@ -66,6 +71,14 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     generic_constraint,
     cone_constraint,
     cvjoint_constraint,
+    antiroll_constraint,
+    differential_constraint,
+    doublewishbone_constraint,
+    spin_angle_constraint,
+    spin_constraint,
+    springdamper_constraint,
+    tierod_constraint,
+    tirecarcass_constraint,
     sphere_shape,
     cylinder_shape,
     capsule_shape,

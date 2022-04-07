@@ -10,7 +10,6 @@
 #include "edyn/shapes/mesh_shape.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/collision/collide.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/origin.hpp"

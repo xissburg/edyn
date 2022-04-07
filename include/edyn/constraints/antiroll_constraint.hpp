@@ -37,6 +37,21 @@ struct antiroll_constraint : public constraint_base {
 template<>
 void prepare_constraints<antiroll_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, antiroll_constraint &con) {
+    archive(con.body);
+    archive(con.m_third_entity);
+    archive(con.m_stiffness);
+    archive(con.m_pivotA);
+    archive(con.m_ctrl_arm_pivotA);
+    archive(con.m_ctrl_arm_pivotB);
+    archive(con.m_ctrl_arm_pivot);
+    archive(con.m_other_ctrl_arm_pivotA);
+    archive(con.m_other_ctrl_arm_pivotC);
+    archive(con.m_other_ctrl_arm_pivot);
+    archive(con.impulse);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_ANTIROLL_CONSTRAINT_HPP

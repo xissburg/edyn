@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include "edyn/config/config.h"
 #include "edyn/shapes/convex_mesh.hpp"
 
 namespace edyn {
@@ -59,6 +60,12 @@ struct polyhedron_shape {
 
 template<typename Archive>
 void serialize(Archive &archive, polyhedron_shape &shape) {
+    if constexpr(Archive::is_input::value) {
+        shape.mesh = std::make_shared<convex_mesh>();
+    } else {
+        EDYN_ASSERT(shape.mesh);
+    }
+
     archive(*shape.mesh);
 }
 

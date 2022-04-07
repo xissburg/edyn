@@ -20,6 +20,16 @@ struct tirecarcass_constraint : public constraint_base {
 template<>
 void prepare_constraints<tirecarcass_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, tirecarcass_constraint &con) {
+    archive(con.body);
+    archive(con.m_lateral_stiffness);
+    archive(con.m_lateral_damping);
+    archive(con.m_longitudinal_stiffness);
+    archive(con.m_longitudinal_damping);
+    archive(con.impulse);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_TIRECARCASS_CONSTRAINT_HPP

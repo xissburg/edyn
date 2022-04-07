@@ -24,6 +24,17 @@ struct present_spin_angle : public scalar_comp {};
 
 struct delta_spin : public scalar_comp {};
 
+template<typename Archive>
+void serialize(Archive &archive, spin &s) {
+    archive(s.s);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, spin_angle &s) {
+    archive(s.s);
+    archive(s.count);
+}
+
 }
 
 #endif // EDYN_COMP_SPIN_HPP

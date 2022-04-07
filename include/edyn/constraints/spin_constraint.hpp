@@ -22,6 +22,15 @@ struct spin_constraint : public constraint_base {
 template<>
 void prepare_constraints<spin_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, spin_constraint &con) {
+    archive(con.body);
+    archive(con.m_max_torque);
+    archive(con.m_use_spinA);
+    archive(con.m_use_spinB);
+    archive(con.impulse);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_SPIN_CONSTRAINT_HPP

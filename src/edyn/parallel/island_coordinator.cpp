@@ -11,7 +11,6 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/parallel/island_worker.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/time/time.hpp"

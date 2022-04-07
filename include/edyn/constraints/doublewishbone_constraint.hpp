@@ -25,6 +25,19 @@ struct doublewishbone_constraint : public constraint_base {
 template<>
 void prepare_constraints<doublewishbone_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, doublewishbone_constraint &con) {
+    archive(con.body);
+    archive(con.upper_pivotA);
+    archive(con.upper_pivotB);
+    archive(con.upper_length);
+    archive(con.lower_pivotA);
+    archive(con.lower_pivotB);
+    archive(con.lower_length);
+    archive(con.steerable);
+    archive(con.impulse);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_DOUBLEWISHBONE_CONSTRAINT

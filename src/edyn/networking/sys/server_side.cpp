@@ -1,6 +1,8 @@
 #include "edyn/networking/sys/server_side.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/tire_material.hpp"
+#include "edyn/comp/tire_state.hpp"
 #include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/packet/general_snapshot.hpp"
@@ -15,7 +17,6 @@
 #include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
-#include "edyn/edyn.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/util/aabb_util.hpp"
@@ -291,6 +292,11 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
         if (!registry.all_of<networked_tag>(local_entity)) {
             registry.emplace<networked_tag>(local_entity);
+        }
+
+        // Assign tire state to tires.
+        if (registry.any_of<tire_material>(local_entity)) {
+            registry.emplace<tire_state>(local_entity);
         }
 
         if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&

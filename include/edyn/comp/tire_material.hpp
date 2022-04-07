@@ -12,6 +12,14 @@ struct tire_material {
     scalar load_sensitivity {0.05};
 };
 
+template<typename Archive>
+void serialize(Archive &archive, tire_material &mat) {
+    archive(mat.lon_tread_stiffness);
+    archive(mat.lat_tread_stiffness);
+    archive(mat.speed_sensitivity);
+    archive(mat.load_sensitivity);
+}
+
 }
 
 #endif // EDYN_COMP_TIRE_MATERIAL_HPP

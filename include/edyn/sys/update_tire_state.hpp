@@ -47,7 +47,8 @@ void update_tire_state(entt::registry &registry, scalar dt) {
 
             auto [contact_patch, manifold] = con_view.get(edge_entity);
 
-            EDYN_ASSERT(manifold.body[0] == entity);
+            EDYN_ASSERT(registry.all_of<tire_state>(manifold.body[0]));
+
             ts.other_entity = manifold.body[1];
             ts.num_contacts = manifold.num_points;
 

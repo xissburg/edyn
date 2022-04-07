@@ -17,6 +17,13 @@ struct differential_constraint {
 template<>
 void prepare_constraints<differential_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, differential_constraint &con) {
+    archive(con.body);
+    archive(con.ratio);
+    archive(con.impulse);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_DIFFERENTIAL_CONSTRAINT_HPP

@@ -1,8 +1,9 @@
 #include "edyn/networking/sys/client_side.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/tire_material.hpp"
+#include "edyn/comp/tire_state.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
-#include "edyn/edyn.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
 #include "edyn/parallel/entity_graph.hpp"
@@ -357,6 +358,7 @@ static void process_packet(entt::registry &registry, const packet::update_entity
 
 static void process_packet(entt::registry &registry, const packet::entity_request &req) {
     // TODO: send response.
+    EDYN_ASSERT(false);
 }
 
 template<typename T>
@@ -451,6 +453,11 @@ static void import_remote_snapshot(entt::registry &registry, const registry_snap
         // All remote entities must have a networked tag.
         if (!registry.all_of<networked_tag>(local_entity)) {
             registry.emplace<networked_tag>(local_entity);
+        }
+
+        // Assign tire state to tires.
+        if (registry.any_of<tire_material>(local_entity)) {
+            registry.emplace<tire_state>(local_entity);
         }
 
         // Assign graph node to rigid bodies and external entities.

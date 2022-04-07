@@ -43,6 +43,26 @@ struct tierod_constraint : public constraint_base {
 template<>
 void prepare_constraints<tierod_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, tierod_constraint &con) {
+    archive(con.body);
+    archive(con.pivotA);
+    archive(con.pivotB);
+    archive(con.pivotA_offset);
+    archive(con.rod_length);
+    archive(con.upper_pivotA);
+    archive(con.upper_pivotB);
+    archive(con.lower_pivotA);
+    archive(con.lower_pivotB);
+    archive(con.upper_length);
+    archive(con.lower_length);
+    archive(con.steering_axis);
+    archive(con.steering_arm);
+    archive(con.steering_arm_length);
+    archive(con.steering_arm_angle);
+    archive(con.impulse);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_TIEROD_CONSTRAINT_HPP

@@ -68,6 +68,41 @@ struct springdamper_constraint : public constraint_base {
 template<>
 void prepare_constraints<springdamper_constraint>(entt::registry &, row_cache &, scalar dt);
 
+template<typename Archive>
+void serialize(Archive &archive, springdamper_constraint &con) {
+    archive(con.body);
+    archive(con.m_stiffness_curve);
+    archive(con.m_pivotA);
+    archive(con.m_ctrl_arm_pivotA);
+    archive(con.m_ctrl_arm_pivotB);
+    archive(con.m_ctrl_arm_pivot);
+    archive(con.m_spring_stiffness);
+    archive(con.m_spring_rest_length);
+    archive(con.m_spring_min_length);
+    archive(con.m_spring_offset);
+    archive(con.m_second_spring_stiffness);
+    archive(con.m_second_spring_rest_length);
+    archive(con.m_second_spring_min_length);
+    archive(con.m_spring_divider_length);
+    archive(con.m_bumpstop_stiffness);
+    archive(con.m_bumpstop_rest_length);
+    archive(con.m_bumpstop_offset);
+    archive(con.m_piston_rod_length);
+    archive(con.m_damper_body_length);
+    archive(con.m_damper_body_offset);
+    archive(con.m_spring_perch_offset);
+    archive(con.m_slow_compression_damping);
+    archive(con.m_slow_rebound_damping);
+    archive(con.m_fast_compression_damping);
+    archive(con.m_fast_rebound_damping);
+    archive(con.m_compression_knee_speed);
+    archive(con.m_rebound_knee_speed);
+    archive(con.m_damping_ratio);
+    archive(con.m_spring_damper_dir);
+    archive(con.m_inclination_factor);
+    archive(con.impulse);
+}
+
 }
 
 #endif // EDYN_CONSTRAINTS_SPRINGDAMPER_CONSTRAINT_HPP
