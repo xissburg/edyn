@@ -642,33 +642,35 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
         return;
     }
 
-    // Collect all entities to be included in extrapolation, that is, basically
-    // all entities in the transient snapshot packet and the edges connecting
-    // them.
-    auto entities = entt::sparse_set{};
-    auto node_view = registry.view<graph_node>();
+    // Collect all entities to be included in extrapolation, that is, all
+    // entities that are reachable from the entities contained in the snapshot.
     auto &graph = registry.ctx<entity_graph>();
+    std::set<entity_graph::index_type> node_indices;
+    auto node_view = registry.view<graph_node>();
 
     for (auto entity : snapshot.entities) {
-        entities.emplace(entity);
-
         if (node_view.contains(entity)) {
             auto node_index = node_view.get<graph_node>(entity).node_index;
 
-            graph.visit_edges(node_index, [&] (auto edge_index) {
-                auto edge_entities = graph.edge_node_entities(edge_index);
-                auto other_entity = edge_entities.first == entity ? edge_entities.second : edge_entities.first;
-
-                if (vector_contains(snapshot.entities, other_entity)) {
-                    auto edge_entity = graph.edge_entity(edge_index);
-
-                    if (!entities.contains(edge_entity)) {
-                        entities.emplace(edge_entity);
-                    }
-                }
-            });
+            if (graph.is_connecting_node(node_index)) {
+                node_indices.insert(node_index);
+            }
         }
     }
+
+    auto entities = entt::sparse_set{};
+
+    graph.reach(
+        node_indices.begin(), node_indices.end(),
+        [&](entt::entity entity) {
+            if (!entities.contains(entity)) {
+                entities.emplace(entity);
+            }
+        }, [&](entt::entity entity) {
+            if (!entities.contains(entity)) {
+                entities.emplace(entity);
+            }
+        }, [](auto) { return true; }, []() {});
 
     // TODO: only include the necessary static entities. Could extrapolate the
     // position by twice their velocity and calculate a sweep AABB (union of
