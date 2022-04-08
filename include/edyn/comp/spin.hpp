@@ -20,7 +20,12 @@ struct spin_angle : public scalar_comp {
     long count {0}; // Number of complete spins (2π rad).
 };
 
-struct present_spin_angle : public scalar_comp {};
+struct present_spin_angle : public spin_angle {
+    present_spin_angle & operator=(const spin_angle &s) {
+        spin_angle::operator=(s);
+        return *this;
+    }
+};
 
 struct delta_spin : public scalar_comp {};
 

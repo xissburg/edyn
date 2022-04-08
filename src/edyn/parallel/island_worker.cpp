@@ -303,6 +303,10 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
             auto local_entity = m_entity_map.at(remote_entity);
             m_registry.emplace<previous_position>(local_entity);
             m_registry.emplace<previous_orientation>(local_entity);
+
+            if (m_registry.all_of<spin_angle>(local_entity)) {
+                m_registry.emplace<previous_spin_angle>(local_entity);
+            }
         });
     }
 
@@ -337,6 +341,7 @@ void island_worker::sync() {
 
     // Always update discontinuities since they decay in every step.
     m_op_builder->replace<discontinuity>(m_registry);
+    m_op_builder->replace<discontinuity_spin>(m_registry);
 
     // Update continuous components.
     auto &settings = m_registry.ctx<edyn::settings>();
@@ -549,6 +554,9 @@ static void decay_discontinuities(entt::registry &registry, scalar rate) {
     registry.view<discontinuity>().each([rate] (discontinuity &dis) {
         dis.position_offset *= rate;
         dis.orientation_offset = slerp(quaternion_identity, dis.orientation_offset, rate);
+    });
+    registry.view<discontinuity_spin>().each([rate] (discontinuity_spin &dis) {
+        dis.offset *= rate;
     });
 }
 
@@ -888,14 +896,22 @@ static void assign_previous_transforms(entt::registry &registry) {
     registry.view<previous_orientation, orientation>().each([] (previous_orientation &p_orn, orientation &orn) {
         p_orn = orn;
     });
+
+    registry.view<previous_spin_angle, spin_angle>().each([] (auto &p_spin, auto &spin) {
+        p_spin = spin;
+    });
 }
 
 static void accumulate_discontinuities(entt::registry &registry) {
     auto discontinuity_view = registry.view<previous_position, position, previous_orientation, orientation, discontinuity>();
+    for (auto [e, p_pos, pos, p_orn, orn, dis] : discontinuity_view.each()) {
+        dis.position_offset += p_pos - pos;
+        dis.orientation_offset *= p_orn * conjugate(orn);
+    }
 
-    for (auto [entity, p_pos, pos, p_orn, orn, discontinuity] : discontinuity_view.each()) {
-        discontinuity.position_offset += p_pos - pos;
-        discontinuity.orientation_offset *= p_orn * conjugate(orn);
+    auto discontinuity_spin_view = registry.view<previous_spin_angle, spin_angle, discontinuity_spin>();
+    for (auto [e, p_spin, spin, dis] : discontinuity_spin_view.each()) {
+        dis.offset += (p_spin.count - spin.count) * pi2 + p_spin.s - spin.s;
     }
 }
 

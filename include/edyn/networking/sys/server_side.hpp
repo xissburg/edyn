@@ -59,6 +59,15 @@ void server_make_client(entt::registry &, entt::entity, bool allow_full_ownershi
 entt::entity server_make_client(entt::registry &, bool allow_full_ownership = true);
 
 /**
+ * @brief Change full ownership setting for a client.
+ * @param registry Data source.
+ * @param client_entity The client.
+ * @param allow_full_ownership Allow client to control all components of the
+ * entities it owns.
+ */
+void server_set_allow_full_ownership(entt::registry &, entt::entity client_entity, bool allow_full_ownership);
+
+/**
  * @brief Set client round-trip time. Latency will be calculated as half this
  * value.
  * @param registry Data source.

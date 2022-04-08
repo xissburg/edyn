@@ -46,10 +46,14 @@ void update_presentation(entt::registry &registry, double time) {
     });
 
     auto discontinuity_view = registry.view<discontinuity, present_position, present_orientation>();
-    discontinuity_view.each([] (discontinuity &dis, present_position &p_pos, present_orientation &p_orn) {
+    for (auto [entity, dis, p_pos, p_orn] : discontinuity_view.each()) {
         p_pos += dis.position_offset;
         p_orn = dis.orientation_offset * p_orn;
-    });
+    }
+
+    for (auto [e, dis, p_spin] : registry.view<discontinuity_spin, present_spin_angle>().each()) {
+        p_spin.s += dis.offset;
+    }
 }
 
 void snap_presentation(entt::registry &registry) {

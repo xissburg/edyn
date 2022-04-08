@@ -76,7 +76,8 @@ static const auto shared_components = std::tuple_cat(std::tuple<
     rolling_tag,
     roll_direction,
     tree_view,
-    discontinuity
+    discontinuity,
+    discontinuity_spin
 >{}, constraints_tuple, shapes_tuple); // Concatenate with all shapes and constraints at the end.
 
 using shared_components_t = std::decay_t<decltype(shared_components)>;

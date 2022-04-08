@@ -5,6 +5,7 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/comp/spin.hpp"
 #include <tuple>
 
 namespace edyn {
@@ -17,7 +18,9 @@ static const auto transient_components = std::tuple<
     position,
     orientation,
     linvel,
-    angvel
+    angvel,
+    spin,
+    spin_angle
 >{};
 
 }

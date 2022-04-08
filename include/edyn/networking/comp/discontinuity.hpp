@@ -1,6 +1,7 @@
 #ifndef EDYN_NETWORKING_COMP_DISCONTINUITY_HPP
 #define EDYN_NETWORKING_COMP_DISCONTINUITY_HPP
 
+#include "edyn/comp/spin.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector3.hpp"
 
@@ -17,6 +18,10 @@ struct discontinuity {
     quaternion orientation_offset {quaternion_identity};
 };
 
+struct discontinuity_spin {
+    scalar offset {};
+};
+
 struct previous_position : public vector3 {
     previous_position & operator=(const vector3 &v) {
         vector3::operator=(v);
@@ -27,6 +32,13 @@ struct previous_position : public vector3 {
 struct previous_orientation : public quaternion {
     previous_orientation & operator=(const quaternion &q) {
         quaternion::operator=(q);
+        return *this;
+    }
+};
+
+struct previous_spin_angle : public spin_angle {
+    previous_spin_angle & operator=(const spin_angle &s) {
+        spin_angle::operator=(s);
         return *this;
     }
 };
