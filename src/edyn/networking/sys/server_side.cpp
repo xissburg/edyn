@@ -15,7 +15,6 @@
 #include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
-#include "edyn/edyn.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector.hpp"
 #include "edyn/util/aabb_util.hpp"
@@ -168,7 +167,11 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &client = registry.get<remote_client>(client_entity);
 
     for (auto &entity : snapshot.entities) {
-        entity = client.entity_map.contains(entity) ? client.entity_map.at(entity) : entt::entity{entt::null};
+        // Discard packet if it contains unknown entities.
+        if (!client.entity_map.contains(entity)) {
+            return;
+        }
+        entity = client.entity_map.at(entity);
     }
 
     // Transform snapshot entities into local registry space.
@@ -740,6 +743,11 @@ entt::entity server_make_client(entt::registry &registry, bool allow_full_owners
     auto entity = registry.create();
     server_make_client(registry, entity, allow_full_ownership);
     return entity;
+}
+
+void server_set_allow_full_ownership(entt::registry &registry, entt::entity client_entity, bool allow_full_ownership) {
+    auto &client = registry.get<remote_client>(client_entity);
+    client.allow_full_ownership = allow_full_ownership;
 }
 
 void server_set_client_round_trip_time(entt::registry &registry, entt::entity client_entity, double rtt) {
