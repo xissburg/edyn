@@ -53,7 +53,6 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     disabled_tag,
     continuous_contacts_tag,
     external_tag,
-    shape_index,
     rigidbody_tag,
     rolling_tag,
     roll_direction,
@@ -73,6 +72,7 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     polyhedron_shape,
     compound_shape,
     plane_shape,
+    shape_index,
     entity_owner
 >{});
 
