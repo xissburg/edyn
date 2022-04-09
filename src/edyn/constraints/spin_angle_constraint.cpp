@@ -92,10 +92,6 @@ void prepare_constraints<spin_angle_constraint>(entt::registry &registry, row_ca
 }
 
 void spin_angle_constraint::set_ratio(scalar ratio, const entt::registry &registry) {
-    if (ratio == m_ratio) {
-        return;
-    }
-
     m_ratio = ratio;
     m_offset_origin = calculate_offset(registry);
 }

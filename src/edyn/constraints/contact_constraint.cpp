@@ -98,6 +98,52 @@ namespace internal {
             }
         }
     }
+
+    void apply_friction_angular_impulse(scalar impulse,
+                                        contact_friction_row &row,
+                                        constraint_row &normal_row,
+                                        size_t ent_idx) {
+        auto idx_J = ent_idx * 2 + 1;
+        matrix3x3 inv_I;
+        delta_angvel *dw;
+        delta_spin *ds;
+
+        if (ent_idx == 0) {
+            inv_I = normal_row.inv_IA;
+            dw = normal_row.dwA;
+            ds = normal_row.dsA;
+        } else {
+            inv_I = normal_row.inv_IB;
+            dw = normal_row.dwB;
+            ds = normal_row.dsB;
+        }
+
+        auto delta = inv_I * row.J[idx_J] * impulse;
+
+        if (ds) {
+            // Split delta in a spin component and an angular component.
+            auto spin = dot(normal_row.spin_axis[ent_idx], delta);
+            *ds += spin;
+            // Subtract spin to obtain only angular component.
+            *dw += delta - normal_row.spin_axis[ent_idx] * spin;
+        } else {
+            *dw += delta;
+        }
+    }
+
+    void apply_friction_impulse(scalar impulse, contact_friction_row &row, constraint_row &normal_row) {
+        // Apply linear impulse.
+        *normal_row.dvA += normal_row.inv_mA * row.J[0] * impulse;
+        *normal_row.dvB += normal_row.inv_mB * row.J[2] * impulse;
+
+        // Apply angular impulse.
+        apply_friction_angular_impulse(impulse, row, normal_row, 0);
+        apply_friction_angular_impulse(impulse, row, normal_row, 1);
+    }
+
+    void warm_start_friction(contact_friction_row &row, constraint_row &normal_row) {
+        apply_friction_impulse(row.impulse, row, normal_row);
+    }
 }
 
 template<>
@@ -107,7 +153,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<contact_constraint, contact_manifold>();
     auto origin_view = registry.view<origin>();
-    auto spin_view = registry.view<spin>();
+    auto spin_view = registry.view<spin, delta_spin>();
     auto roll_dir_view = registry.view<roll_direction>();
     auto &settings = registry.ctx<edyn::settings>();
 
@@ -130,17 +176,20 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         auto spinvelB = vector3_zero;
         auto spin_axisA = vector3_zero;
         auto spin_axisB = vector3_zero;
+        delta_spin *delta_spinA = nullptr, *delta_spinB = nullptr;
 
         if (spin_view.contains(con.body[0])) {
             auto &s = spin_view.get<spin>(con.body[0]);
             spin_axisA = quaternion_x(ornA);
             spinvelA = spin_axisA * scalar(s);
+            delta_spinA = &spin_view.get<delta_spin>(con.body[0]);
         }
 
         if (spin_view.contains(con.body[1])) {
             auto &s = spin_view.get<spin>(con.body[1]);
             spin_axisB = quaternion_x(ornB);
             spinvelB = spin_axisB * scalar(s);
+            delta_spinB = &spin_view.get<delta_spin>(con.body[1]);
         }
 
         auto originA = origin_view.contains(body[0]) ? origin_view.get<origin>(body[0]) : static_cast<vector3>(posA);
@@ -166,8 +215,8 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
             normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
             normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
             normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
-            normal_row.dvA = &dvA; normal_row.dwA = &dwA;
-            normal_row.dvB = &dvB; normal_row.dwB = &dwB;
+            normal_row.dvA = &dvA; normal_row.dwA = &dwA; normal_row.dsA = delta_spinA;
+            normal_row.dvB = &dvB; normal_row.dwB = &dwB; normal_row.dsB = delta_spinB;
             normal_row.use_spin[0] = true;
             normal_row.use_spin[1] = true;
             normal_row.spin_axis[0] = spin_axisA;
@@ -221,12 +270,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                 friction_row.impulse = cp.friction_impulse[i];
                 friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
                 friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
-
-                // Warm-starting.
-                dvA += inv_mA * friction_row.J[0] * friction_row.impulse;
-                dwA += inv_IA * friction_row.J[1] * friction_row.impulse;
-                dvB += inv_mB * friction_row.J[2] * friction_row.impulse;
-                dwB += inv_IB * friction_row.J[3] * friction_row.impulse;
+                warm_start_friction(friction_row, normal_row);
             }
 
             if (cp.roll_friction > 0) {
@@ -259,10 +303,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                     }
 
                     roll_row.rhs = -get_relative_speed(roll_row.J, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
-
-                    // Warm-starting.
-                    dwA += inv_IA * roll_row.J[1] * roll_row.impulse;
-                    dwB += inv_IB * roll_row.J[3] * roll_row.impulse;
+                    warm_start_friction(roll_row, normal_row);
                 }
             }
 
@@ -271,8 +312,8 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
                 spin_row.J = {vector3_zero, normal, vector3_zero, -normal};
                 spin_row.inv_mA = inv_mA; spin_row.inv_IA = inv_IA;
                 spin_row.inv_mB = inv_mB; spin_row.inv_IB = inv_IB;
-                spin_row.dvA = &dvA; spin_row.dwA = &dwA;
-                spin_row.dvB = &dvB; spin_row.dwB = &dwB;
+                spin_row.dvA = &dvA; spin_row.dwA = &dwA; spin_row.dsA = delta_spinA;
+                spin_row.dvB = &dvB; spin_row.dwB = &dwB; spin_row.dsB = delta_spinB;
                 spin_row.use_spin[0] = true;
                 spin_row.use_spin[1] = true;
                 spin_row.spin_axis[0] = spin_axisA;
