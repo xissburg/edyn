@@ -20,9 +20,9 @@ struct dirty {
 
     using id_set_t = std::set<entt::id_type>;
 
-    id_set_t created_indexes;
-    id_set_t updated_indexes;
-    id_set_t destroyed_indexes;
+    id_set_t created_ids;
+    id_set_t updated_ids;
+    id_set_t destroyed_ids;
 
     /**
      * @brief Marks the given components as created.
@@ -31,7 +31,7 @@ struct dirty {
      */
     template<typename... Ts>
     dirty & created() {
-        return cud<Ts...>(&dirty::created_indexes);
+        return cud<Ts...>(&dirty::created_ids);
     }
 
     /**
@@ -41,7 +41,7 @@ struct dirty {
      */
     template<typename... Ts>
     dirty & updated() {
-        return cud<Ts...>(&dirty::updated_indexes);
+        return cud<Ts...>(&dirty::updated_ids);
     }
 
     /**
@@ -51,7 +51,7 @@ struct dirty {
      */
     template<typename... Ts>
     dirty & destroyed() {
-        return cud<Ts...>(&dirty::destroyed_indexes);
+        return cud<Ts...>(&dirty::destroyed_ids);
     }
 
     /**
@@ -64,9 +64,9 @@ struct dirty {
     }
 
     dirty & merge(const dirty &other) {
-        created_indexes.insert(other.created_indexes.begin(), other.created_indexes.end());
-        updated_indexes.insert(other.updated_indexes.begin(), other.updated_indexes.end());
-        destroyed_indexes.insert(other.destroyed_indexes.begin(), other.destroyed_indexes.end());
+        created_ids.insert(other.created_ids.begin(), other.created_ids.end());
+        updated_ids.insert(other.updated_ids.begin(), other.updated_ids.end());
+        destroyed_ids.insert(other.destroyed_ids.begin(), other.destroyed_ids.end());
         return *this;
     }
 

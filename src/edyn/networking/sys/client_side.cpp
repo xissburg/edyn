@@ -2,7 +2,8 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
-#include "edyn/edyn.hpp"
+#include "edyn/networking/comp/network_dirty.hpp"
+#include "edyn/networking/networking_external.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
 #include "edyn/parallel/entity_graph.hpp"
@@ -10,11 +11,9 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
-#include "edyn/networking/packet/general_snapshot.hpp"
-#include "edyn/networking/packet/transient_snapshot.hpp"
-#include "edyn/networking/packet/entity_request.hpp"
+#include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
-#include "edyn/comp/dirty.hpp"
+#include "edyn/networking/sys/update_network_dirty.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/networking/extrapolation_job.hpp"
@@ -142,7 +141,7 @@ static void process_destroyed_networked_entities(entt::registry &registry, doubl
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
 }
 
-static void maybe_publish_transient_snapshot(entt::registry &registry, double time) {
+static void maybe_publish_registry_snapshot(entt::registry &registry, double time) {
     auto &ctx = registry.ctx<client_network_context>();
     auto &settings = registry.ctx<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
@@ -153,58 +152,49 @@ static void maybe_publish_transient_snapshot(entt::registry &registry, double ti
 
     ctx.last_snapshot_time = time;
 
-    auto packet = packet::transient_snapshot{};
-    packet.timestamp = time;
+    auto network_dirty_view = registry.view<network_dirty>();
 
     if (ctx.allow_full_ownership) {
-        // Include transient components of all entities in the islands that
-        // contain an entity owned by this client, excluding entities that are
-        // owned by other clients.
+        // Include all networked entities in the islands that contain an entity
+        // owned by this client, excluding entities that are owned by other clients.
         auto island_entities = collect_islands_from_residents(registry, ctx.owned_entities.begin(), ctx.owned_entities.end());
-        auto island_view = registry.view<island>();
-        auto networked_view = registry.view<networked_tag>();
         auto owner_view = registry.view<entity_owner>();
 
-        auto should_include_entity = [&] (entt::entity entity) {
-            if (!networked_view.contains(entity)) {
-                return false;
+        for (auto [entity, n_dirty] : network_dirty_view.each()) {
+            if (!island_entities.contains(entity)) {
+                registry.remove<network_dirty>(entity);
+                continue;
             }
 
             auto is_owned_by_another_client =
                 owner_view.contains(entity) &&
                 std::get<0>(owner_view.get(entity)).client_entity != ctx.client_entity;
 
-            return !is_owned_by_another_client &&
-                   ctx.snapshot_exporter->contains_transient(registry, entity);
-        };
-
-        for (auto island_entity : island_entities) {
-            auto [island] = island_view.get(island_entity);
-
-            for (auto entity : island.nodes) {
-                if (should_include_entity(entity)) {
-                    packet.entities.push_back(entity);
-                }
-            }
-
-            for (auto entity : island.edges) {
-                if (should_include_entity(entity)) {
-                    packet.entities.push_back(entity);
-                }
+            if (is_owned_by_another_client) {
+                registry.remove<network_dirty>(entity);
             }
         }
-
-        ctx.snapshot_exporter->export_transient(registry, packet);
     } else {
-        // Only include transient input components of entities owned by this client.
-        for (auto entity : ctx.owned_entities) {
-            if (ctx.snapshot_exporter->contains_transient_input(registry, entity)) {
-                packet.entities.push_back(entity);
+        // Only include input components of entities owned by this client.
+        for (auto [entity, n_dirty] : network_dirty_view.each()) {
+            if (!ctx.owned_entities.contains(entity)) {
+                registry.remove<network_dirty>(entity);
+                continue;
+            }
+
+            n_dirty.erase_if([&](entt::id_type id) {
+                return !(*g_is_networked_input_component)(id);
+            });
+
+            if (n_dirty.empty()) {
+                registry.remove<network_dirty>(entity);
             }
         }
-
-        ctx.snapshot_exporter->export_transient_input(registry, packet);
     }
+
+    auto packet = packet::registry_snapshot{};
+    packet.timestamp = time;
+    ctx.snapshot_exporter->export_dirty(registry, packet);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
@@ -249,64 +239,6 @@ static void process_finished_extrapolation_jobs(entt::registry &registry) {
     ctx.extrapolation_jobs.erase(remove_it, ctx.extrapolation_jobs.end());
 }
 
-static void publish_dirty_components(entt::registry &registry, double time) {
-    // Share dirty networked entities using a general snapshot.
-    auto dirty_view = registry.view<dirty, networked_tag>();
-
-    if (dirty_view.size_hint() == 0) {
-        return;
-    }
-
-    auto &ctx = registry.ctx<client_network_context>();
-    auto packet = packet::general_snapshot{};
-    packet.timestamp = time;
-
-    // Collect all entities first. Transient components that have been marked
-    // as dirty must be ignored, since they're updated regularly via the
-    // transient snapshots.
-    for (auto [entity, dirty] : dirty_view.each()) {
-        for (auto id : dirty.updated_indexes) {
-            if (!ctx.snapshot_exporter->is_transient(id)) {
-                packet.entities.push_back(entity);
-                break;
-            }
-        }
-    }
-
-    // Add components later because all entities involved must be known at this
-    // point so entity indices can be assigned in the registry snapshot of the
-    // packet.
-    for (auto [entity, dirty] : dirty_view.each()) {
-        for (auto id : dirty.updated_indexes) {
-            if (!ctx.snapshot_exporter->is_transient(id)) {
-                ctx.snapshot_exporter->export_by_type_id(registry, entity, id, packet);
-            }
-        }
-    }
-
-    if (!packet.entities.empty() && !packet.pools.empty()) {
-        ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
-    }
-}
-
-static void merge_network_dirty_into_dirty(entt::registry &registry) {
-    auto dirty_view = registry.view<dirty>();
-
-    // Insert components marked as dirty during snapshot import into the regular
-    // dirty component. This is done separately to avoid having the components
-    // marked as dirty during snapshot import being sent back to the server
-    // in `publish_dirty_components`.
-    for (auto [entity, network_dirty] : registry.view<network_dirty>().each()) {
-        if (!dirty_view.contains(entity)) {
-            registry.emplace<dirty>(entity);
-        }
-
-        dirty_view.get<edyn::dirty>(entity).merge(network_dirty);
-    }
-
-    registry.clear<network_dirty>();
-}
-
 static void client_update_clock_sync(entt::registry &registry, double time) {
     auto &ctx = registry.ctx<client_network_context>();
     auto &settings = registry.ctx<edyn::settings>();
@@ -321,11 +253,10 @@ void update_network_client(entt::registry &registry) {
     client_update_clock_sync(registry, time);
     process_created_networked_entities(registry, time);
     process_destroyed_networked_entities(registry, time);
-    maybe_publish_transient_snapshot(registry, time);
+    update_network_dirty(registry, time);
+    maybe_publish_registry_snapshot(registry, time);
     process_finished_extrapolation_jobs(registry);
     update_input_history(registry, time);
-    publish_dirty_components(registry, time);
-    merge_network_dirty_into_dirty(registry);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -355,10 +286,6 @@ static void process_packet(entt::registry &registry, const packet::update_entity
     process_update_entity_map_packet(registry, packet, ctx.entity_map);
 }
 
-static void process_packet(entt::registry &registry, const packet::entity_request &req) {
-    // TODO: send response.
-}
-
 template<typename T>
 void create_graph_edge(entt::registry &registry, entt::entity entity) {
     if (registry.any_of<graph_edge>(entity)) return;
@@ -375,7 +302,7 @@ void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[ma
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
 }
 
-static void import_remote_snapshot(entt::registry &registry, const registry_snapshot &snap) {
+static void import_remote_snapshot(entt::registry &registry, const packet::registry_snapshot &snap) {
     auto &ctx = registry.ctx<client_network_context>();
 
     // Collect new entity mappings to send back to server.
@@ -397,14 +324,7 @@ static void import_remote_snapshot(entt::registry &registry, const registry_snap
 
     // ... assign components later so that entity references will be available
     // to be mapped into the local registry.
-
-    // Do not mark as dirty during import as it would cause components to be
-    // emplaced twice in an island worker since these are newly created
-    // entities which will already be fully instantiated with all components
-    // in an island worker.
-    const bool mark_dirty = false;
-
-    ctx.snapshot_importer->import(registry, ctx.entity_map, snap, mark_dirty);
+    ctx.snapshot_importer->import(registry, ctx.entity_map, snap);
 
     // Create nodes and edges in entity graph, assign networked tags and
     // dependent components which are not networked.
@@ -470,20 +390,6 @@ static void import_remote_snapshot(entt::registry &registry, const registry_snap
     }
 }
 
-static void process_packet(entt::registry &registry, const packet::entity_response &res) {
-    auto &ctx = registry.ctx<client_network_context>();
-    ctx.importing_entities = true;
-    import_remote_snapshot(registry, res);
-    ctx.importing_entities = false;
-
-    // Remove received entities from the set of requested entities.
-    for (auto remote_entity : res.entities) {
-        if (ctx.requested_entities.contains(remote_entity)) {
-            ctx.requested_entities.erase(remote_entity);
-        }
-    }
-}
-
 static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
     auto &ctx = registry.ctx<client_network_context>();
     ctx.importing_entities = true;
@@ -509,57 +415,29 @@ static void process_packet(entt::registry &registry, const packet::destroy_entit
     ctx.importing_entities = false;
 }
 
-static void collect_unknown_entities(entt::registry &registry,
-                                     const std::vector<entt::entity> &remote_entities,
-                                     entt::sparse_set &unknown_entities) {
+static bool contains_unknown_entities(entt::registry &registry,
+                                      const std::vector<entt::entity> &remote_entities) {
     auto &ctx = registry.ctx<client_network_context>();
 
     // Find remote entities that have no local counterpart.
     for (auto remote_entity : remote_entities) {
-        if (ctx.entity_map.contains(remote_entity)) {
-            auto local_entity = ctx.entity_map.at(remote_entity);
-
-            // In the unusual situation where an existing mapping is an invalid
-            // entity, consider it unknown.
-            if (!registry.valid(local_entity)) {
-                if (!unknown_entities.contains(remote_entity)) {
-                    unknown_entities.emplace(remote_entity);
-                }
-            }
-        } else if (!unknown_entities.contains(remote_entity)) {
-            unknown_entities.emplace(remote_entity);
-        }
-    }
-}
-
-static bool request_unknown_entities(entt::registry &registry,
-                                     const std::vector<entt::entity> &entities) {
-    entt::sparse_set unknown_entities;
-    collect_unknown_entities(registry, entities, unknown_entities);
-
-    auto contains_unknown = !unknown_entities.empty();
-
-    if (contains_unknown) {
-        // Request unknown entities that haven't yet been requested.
-        auto &ctx = registry.ctx<client_network_context>();
-        auto req = packet::entity_request{};
-
-        for (auto entity : unknown_entities) {
-            if (!ctx.requested_entities.contains(entity)) {
-                ctx.requested_entities.emplace(entity);
-                req.entities.push_back(entity);
-            }
+        if (!ctx.entity_map.contains(remote_entity)) {
+            return true;
         }
 
-        if (!req.entities.empty()) {
-            ctx.packet_signal.publish(packet::edyn_packet{std::move(req)});
+        // In the unusual situation where an existing mapping is an invalid
+        // entity, consider it unknown.
+        auto local_entity = ctx.entity_map.at(remote_entity);
+
+        if (!registry.valid(local_entity)) {
+            return true;
         }
     }
 
-    return contains_unknown;
+    return false;
 }
 
-static void insert_input_to_state_history(entt::registry &registry, const registry_snapshot &snap, double time) {
+static void insert_input_to_state_history(entt::registry &registry, const packet::registry_snapshot &snap, double time) {
     auto &ctx = registry.ctx<client_network_context>();
     entt::sparse_set unwoned_entities;
 
@@ -572,7 +450,7 @@ static void insert_input_to_state_history(entt::registry &registry, const regist
     ctx.state_history->emplace(snap, unwoned_entities, time);
 }
 
-static void snap_to_transient_snapshot(entt::registry &registry, packet::transient_snapshot &snapshot) {
+static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
     // Collect all entities present in snapshot and find islands where they
     // reside and finally send the snapshot to the island workers.
     auto island_entities = collect_islands_from_residents(registry, snapshot.entities.begin(), snapshot.entities.end());
@@ -586,10 +464,8 @@ static void snap_to_transient_snapshot(entt::registry &registry, packet::transie
     }
 }
 
-static void process_packet(entt::registry &registry, packet::transient_snapshot &snapshot) {
-    auto contains_unknown_entities = request_unknown_entities(registry, snapshot.entities);
-
-    if (contains_unknown_entities) {
+static void process_packet(entt::registry &registry, packet::registry_snapshot &snapshot) {
+    if (contains_unknown_entities(registry, snapshot.entities)) {
         // Do not perform extrapolation if it contains unknown entities as the
         // result would not make much sense if all parts are not involved. Wait
         // until the entity request is completed and then extrapolations will
@@ -633,7 +509,7 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
     // to the island workers. They will snap to this state and add the
     // differences to the discontinuity components.
     if (!needs_extrapolation || !client_settings.extrapolation_enabled) {
-        snap_to_transient_snapshot(registry, snapshot);
+        snap_to_registry_snapshot(registry, snapshot);
         return;
     }
 
@@ -701,7 +577,7 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
     input.ops = builder->finish();
 
     input.entities = std::move(entities);
-    input.transient_snapshot = std::move(snapshot);
+    input.snapshot = std::move(snapshot);
     input.should_remap = true;
 
     // Create extrapolation job and put the registry snapshot and the transient
@@ -712,30 +588,6 @@ static void process_packet(entt::registry &registry, packet::transient_snapshot 
     job->reschedule();
 
     ctx.extrapolation_jobs.push_back(extrapolation_job_context{std::move(job)});
-}
-
-static void process_packet(entt::registry &registry, packet::general_snapshot &snapshot) {
-    request_unknown_entities(registry, snapshot.entities);
-
-    const auto time = performance_time();
-    auto &settings = registry.ctx<edyn::settings>();
-    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
-    auto &ctx = registry.ctx<client_network_context>();
-
-    double snapshot_time;
-
-    if (ctx.clock_sync.count > 0) {
-        snapshot_time = snapshot.timestamp + ctx.clock_sync.time_delta - ctx.server_playout_delay;
-    } else {
-        const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
-        snapshot_time = time - client_server_time_difference;
-    }
-
-    snapshot.convert_remloc(registry, ctx.entity_map);
-    insert_input_to_state_history(registry, snapshot, snapshot_time);
-    const bool mark_dirty = true;
-
-    ctx.snapshot_importer->import_local(registry, snapshot, mark_dirty);
 }
 
 static void process_packet(entt::registry &registry, packet::set_playout_delay &delay) {

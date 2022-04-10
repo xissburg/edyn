@@ -98,8 +98,8 @@ void extrapolation_job::load_input() {
     create_rotated_meshes();
 
     // Replace client component state by server state.
-    for (auto &pool : m_input.transient_snapshot.pools) {
-        pool.ptr->replace_into_registry(m_registry, m_input.transient_snapshot.entities, m_entity_map);
+    for (auto &pool : m_input.snapshot.pools) {
+        pool.ptr->replace_into_registry(m_registry, m_input.snapshot.entities, m_entity_map);
     }
 
     // Apply all inputs before the current time to start the simulation
@@ -223,7 +223,7 @@ void extrapolation_job::sync_and_finish() {
         if (auto *dirty = m_registry.try_get<edyn::dirty>(local_entity)) {
             // Only consider updated indices. Entities and components shouldn't be
             // created during extrapolation.
-            for (auto id : dirty->updated_indexes) {
+            for (auto id : dirty->updated_ids) {
                 if (!is_owned_entity || !(*m_input.is_input_component_func)(id)) {
                     builder->replace_type_id(m_registry, local_entity, id);
                 }

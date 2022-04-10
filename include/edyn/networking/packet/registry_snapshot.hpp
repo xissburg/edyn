@@ -6,7 +6,7 @@
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
 
-namespace edyn {
+namespace edyn::packet {
 
 /**
  * @brief Fundamental data structure for all networked data transfer containing
@@ -17,6 +17,7 @@ namespace edyn {
  * index array.
  */
 struct registry_snapshot {
+    double timestamp;
     std::vector<entt::entity> entities;
     std::vector<pool_snapshot> pools;
 
@@ -31,6 +32,16 @@ struct registry_snapshot {
     }
 };
 
+template<typename Archive>
+void serialize(Archive &archive, registry_snapshot &snapshot) {
+    archive(snapshot.timestamp);
+    archive(snapshot.entities);
+    archive(snapshot.pools);
+}
+
+}
+
+namespace edyn {
 // Registry snapshot utility functions.
 namespace internal {
     template<typename Component>
@@ -55,7 +66,7 @@ namespace internal {
 
     template<typename Component>
     void snapshot_insert_all(const entt::registry &registry,
-                             registry_snapshot &snap, unsigned component_index) {
+                             packet::registry_snapshot &snap, unsigned component_index) {
         auto view = registry.view<Component>();
         auto entity_has_component =
             std::find_if(
@@ -71,7 +82,7 @@ namespace internal {
 
     template<typename Component>
     void snapshot_insert_entity(const entt::registry &registry, entt::entity entity,
-                                registry_snapshot &snap, unsigned component_index) {
+                                packet::registry_snapshot &snap, unsigned component_index) {
         auto found_it = std::find(snap.entities.begin(), snap.entities.end(), entity);
 
         if (found_it != snap.entities.end()) {
@@ -81,13 +92,13 @@ namespace internal {
 
     template<typename Component, typename It>
     void snapshot_insert_entities(const entt::registry &registry, It first, It last,
-                                  registry_snapshot &snap, unsigned component_index) {
+                                  packet::registry_snapshot &snap, unsigned component_index) {
         get_pool<Component>(snap.pools, component_index)->insert(registry, first, last, snap.entities);
     }
 
     template<typename... Components, typename IndexType, IndexType... Is>
     void snapshot_insert_entity_components_all(const entt::registry &registry,
-                                               registry_snapshot &snap,
+                                               packet::registry_snapshot &snap,
                                                [[maybe_unused]] std::tuple<Components...>,
                                                [[maybe_unused]] std::integer_sequence<IndexType, Is...>) {
         (snapshot_insert_all<Components>(registry, snap, Is), ...);
@@ -95,7 +106,7 @@ namespace internal {
 
     template<typename Component, typename... Components>
     void snapshot_insert_select_entity_component(const entt::registry &registry,
-                                                 registry_snapshot &snap,
+                                                 packet::registry_snapshot &snap,
                                                  [[maybe_unused]] std::tuple<Components...>) {
         constexpr auto index = index_of_v<size_t, Component, Components...>;
         snapshot_insert_all<Component>(registry, snap, index);
@@ -103,7 +114,7 @@ namespace internal {
 
     template<typename... SelectComponents, typename... Components>
     void snapshot_insert_select_entity_components(const entt::registry &registry,
-                                                  registry_snapshot &snap,
+                                                  packet::registry_snapshot &snap,
                                                   std::tuple<Components...> components) {
         (snapshot_insert_select_entity_component<SelectComponents>(registry, snap, components), ...);
     }

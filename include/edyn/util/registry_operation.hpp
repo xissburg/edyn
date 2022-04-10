@@ -260,8 +260,10 @@ class registry_operation_collection final {
         for (auto &op : operations) {
             if (op.operation == op_type && op.components && op.components->get_type_id() == type_id) {
                 if constexpr(std::is_empty_v<Component>) {
-                    for (auto entity : op.entities) {
-                        func(entity);
+                    if constexpr(std::is_invocable_v<Func, entt::entity>) {
+                        for (auto entity : op.entities) {
+                            func(entity);
+                        }
                     }
                 } else {
                     if (op_type == registry_op_type::remove) {

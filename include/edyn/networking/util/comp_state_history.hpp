@@ -8,7 +8,7 @@
 #include <vector>
 #include <entt/core/type_info.hpp>
 #include <entt/entity/fwd.hpp>
-#include "edyn/networking/util/registry_snapshot.hpp"
+#include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/util/registry_operation_builder.hpp"
 
 namespace edyn {
@@ -26,7 +26,7 @@ protected:
     }
 
     virtual registry_operation_collection
-    take_snapshot(const registry_snapshot &snap, const entt::sparse_set &entities) {
+    take_snapshot(const packet::registry_snapshot &snap, const entt::sparse_set &entities) {
         return {};
     }
 
@@ -122,7 +122,7 @@ protected:
     }
 
     registry_operation_collection
-    take_snapshot(const registry_snapshot &snap, const entt::sparse_set &entities) override {
+    take_snapshot(const packet::registry_snapshot &snap, const entt::sparse_set &entities) override {
         for (auto &pool : snap.pools) {
             ((entt::type_index<Components>::value() == pool.ptr->get_type_id() ?
                 take_snapshot_single<Components>(snap.entities, pool, entities) :

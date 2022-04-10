@@ -43,9 +43,8 @@ public:
 
     void insert(const pair_type &pair, const material_base &material) {
     #ifndef EDYN_DISABLE_ASSERT
-        constexpr auto invalid_value = std::numeric_limits<material::id_type>::max();
-        EDYN_ASSERT(pair.first != invalid_value);
-        EDYN_ASSERT(pair.second != invalid_value);
+        EDYN_ASSERT(pair.first != std::numeric_limits<material::id_type>::max());
+        EDYN_ASSERT(pair.second != std::numeric_limits<material::id_type>::max());
     #endif
         m_table[pair] = material;
     }

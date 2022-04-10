@@ -2,7 +2,7 @@
 #define EDYN_NETWORKING_EXTRAPOLATION_INPUT_HPP
 
 #include "edyn/util/entity_map.hpp"
-#include "edyn/networking/packet/transient_snapshot.hpp"
+#include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/util/registry_operation.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/sparse_set.hpp>
@@ -15,7 +15,7 @@ struct extrapolation_input {
     entt::sparse_set entities {};
     entt::sparse_set owned_entities {};
     registry_operation_collection ops;
-    packet::transient_snapshot transient_snapshot;
+    packet::registry_snapshot snapshot;
     double execution_time_limit {0.4};
     bool should_remap {true};
 

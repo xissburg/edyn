@@ -35,13 +35,13 @@ TEST(networking_test, client_export_import) {
     auto ent2 = reg0.create();
     reg0.emplace<comp>(ent2, ent0, 9.998);
 
-    auto snap = edyn::registry_snapshot{};
+    auto snap = edyn::packet::registry_snapshot{};
     snap.entities.push_back(ent0);
     snap.entities.push_back(ent1);
     snap.entities.push_back(ent2);
 
     auto components_tuple = std::tuple_cat(edyn::networked_components, std::tuple<comp>{});
-    auto exporter = edyn::client_snapshot_exporter_impl(components_tuple, {}, {});
+    auto exporter = edyn::client_snapshot_exporter_impl(components_tuple);
     exporter.export_all(reg0, snap);
 
     auto reg1 = entt::registry{};
@@ -54,7 +54,7 @@ TEST(networking_test, client_export_import) {
     }
 
     auto importer = edyn::client_snapshot_importer_impl(components_tuple);
-    importer.import(reg1, emap, snap, false);
+    importer.import(reg1, emap, snap);
 
     ASSERT_TRUE((reg1.all_of<comp>(emap.at(ent0))));
     ASSERT_TRUE((reg1.all_of<edyn::disabled_tag>(emap.at(ent1))));
