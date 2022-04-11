@@ -572,7 +572,6 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
 
     // Create input to send to extrapolation job.
     extrapolation_input input;
-    input.is_input_component_func = ctx.is_input_component_func;
     input.start_time = snapshot_time;
 
     for (auto entity : entities) {

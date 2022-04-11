@@ -26,6 +26,8 @@
 
 namespace edyn {
 
+extern bool(*g_is_networked_input_component)(entt::id_type);
+
 void extrapolation_job_func(job::data_type &data) {
     auto archive = memory_input_archive(data.data(), data.size());
     intptr_t job_intptr;
@@ -214,7 +216,7 @@ void extrapolation_job::sync_and_finish() {
             for (size_t i = 0; i < cont->size; ++i) {
                 auto id = index_source.type_id_of(cont->indices[i]);
 
-                if (!is_owned_entity || !(*m_input.is_input_component_func)(id)) {
+                if (!is_owned_entity || !(*g_is_networked_input_component)(id)) {
                     builder->replace_type_id(m_registry, local_entity, id);
                 }
             }
@@ -224,7 +226,7 @@ void extrapolation_job::sync_and_finish() {
             // Only consider updated indices. Entities and components shouldn't be
             // created during extrapolation.
             for (auto id : dirty->updated_ids) {
-                if (!is_owned_entity || !(*m_input.is_input_component_func)(id)) {
+                if (!is_owned_entity || !(*g_is_networked_input_component)(id)) {
                     builder->replace_type_id(m_registry, local_entity, id);
                 }
             }

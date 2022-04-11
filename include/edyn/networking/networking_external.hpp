@@ -2,6 +2,7 @@
 #define EDYN_NETWORKING_NETWORKING_EXTERNAL_HPP
 
 #include <tuple>
+#include <type_traits>
 #include <entt/core/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include "edyn/networking/comp/networked_comp.hpp"
@@ -17,7 +18,8 @@ namespace internal {
         return [](entt::id_type id) {
             bool result;
             std::apply([&](auto ... c) {
-                result = ((id == entt::type_index<decltype(c)>::value()) || ...);
+                result = ((id == entt::type_index<decltype(c)>::value() &&
+                           std::is_base_of_v<network_input, decltype(c)>) || ...);
             }, networked_components);
             return result;
         };
@@ -57,19 +59,18 @@ extern void(*g_mark_replaced_network_dirty)(entt::registry &, const registry_ope
  * @param registry Data source.
  * @param input Tuple of input components.
  */
-template<typename... Component, typename... Input>
-void register_networked_components(entt::registry &registry,
-                                   std::tuple<Input...> input) {
+template<typename... Component>
+void register_networked_components(entt::registry &registry) {
     auto external = std::tuple<Component...>{};
     auto all = std::tuple_cat(networked_components, external);
 
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
         ctx->snapshot_importer.reset(new client_snapshot_importer_impl(all));
         ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(all));
-        ctx->is_input_component_func = [] (entt::id_type id) {
-            return ((id == entt::type_index<Input>::value()) || ...);
-        };
-        ctx->state_history = std::make_shared<comp_state_history_impl<Input...>>();
+
+        auto input = std::tuple_cat(std::conditional_t<std::is_base_of_v<network_input, Component>,
+                                    std::tuple<Component>, std::tuple<>>{}...);
+        ctx->state_history = std::make_shared<decltype(comp_state_history_impl(input))>(input);
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
@@ -84,7 +85,7 @@ void register_networked_components(entt::registry &registry,
     };
 
     g_is_networked_input_component = [](entt::id_type id) {
-        return ((id == entt::type_index<Input>::value()) || ...);
+        return ((id == entt::type_index<Component>::value() && std::is_base_of_v<network_input, Component>) || ...);
     };
 
     g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(all);
@@ -98,7 +99,6 @@ inline void unregister_networked_components(entt::registry &registry) {
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
         ctx->snapshot_importer.reset(new client_snapshot_importer_impl(networked_components));
         ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(networked_components));
-        ctx->is_input_component_func = [] (entt::id_type) { return false; };
         ctx->state_history = std::make_shared<comp_state_history>();
     }
 
@@ -109,7 +109,6 @@ inline void unregister_networked_components(entt::registry &registry) {
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(networked_components);
     g_is_networked_component = internal::make_default_is_networked_component_func();
-    g_is_networked_input_component = [](entt::id_type id) { return false; };
     g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(networked_components);
 }
 

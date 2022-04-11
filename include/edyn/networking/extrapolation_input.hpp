@@ -18,9 +18,6 @@ struct extrapolation_input {
     packet::registry_snapshot snapshot;
     double execution_time_limit {0.4};
     bool should_remap {true};
-
-    using is_input_component_func_t = bool(entt::id_type);
-    is_input_component_func_t *is_input_component_func;
 };
 
 }

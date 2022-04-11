@@ -70,9 +70,6 @@ struct client_network_context {
     std::shared_ptr<client_snapshot_importer> snapshot_importer;
     std::shared_ptr<client_snapshot_exporter> snapshot_exporter;
 
-    using is_input_component_func_t = bool(entt::id_type);
-    is_input_component_func_t *is_input_component_func;
-
     clock_sync_data clock_sync;
 };
 

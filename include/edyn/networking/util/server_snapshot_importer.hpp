@@ -4,6 +4,7 @@
 #include <entt/entity/registry.hpp>
 #include <type_traits>
 #include "edyn/networking/comp/network_dirty.hpp"
+#include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
@@ -44,9 +45,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
         // not be applied, because in this case the server is in control of
         // the procedural state. Input components are one exception because
         // they must always be applied.
-        auto is_input = (*g_is_networked_input_component)(entt::type_index<Component>::value());
-
-        if (is_input) {
+        if constexpr(std::is_base_of_v<network_input, Component>) {
             if (auto *owner = registry.try_get<entity_owner>(local_entity);
                 owner && owner->client_entity == client_entity)
             {

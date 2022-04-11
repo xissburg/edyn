@@ -131,6 +131,9 @@ protected:
         return op_builder.finish();
     }
 
+public:
+    comp_state_history_impl([[maybe_unused]] std::tuple<Components...>) {}
+
 private:
     registry_operation_builder_impl<Components...> op_builder;
 };
