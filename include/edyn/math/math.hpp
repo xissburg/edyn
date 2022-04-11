@@ -11,14 +11,14 @@ namespace edyn {
 /**
  * @return Value of `radians` converted to degrees.
  */
-inline scalar to_degrees(scalar radians) {
+constexpr scalar to_degrees(scalar radians) noexcept {
     return radians / pi * 180;
 }
 
 /**
  * @return Value of `degress` converted to radians.
  */
-inline scalar to_radians(scalar degrees) {
+constexpr scalar to_radians(scalar degrees) noexcept {
     return degrees / 180 * pi;
 }
 
@@ -27,7 +27,7 @@ inline scalar to_radians(scalar degrees) {
  * @param Nm_per_degree Nm/degree.
  * @return Torque in Nm/rad.
  */
-inline scalar to_Nm_per_radian(scalar Nm_per_degree) {
+constexpr scalar to_Nm_per_radian(scalar Nm_per_degree) noexcept {
     return Nm_per_degree * to_degrees(1);
 }
 
@@ -36,21 +36,21 @@ inline scalar to_Nm_per_radian(scalar Nm_per_degree) {
  * @param Nm_per_radian Nm/rad.
  * @return Torque in Nm/degree.
  */
-inline scalar to_Nm_per_degree(scalar Nm_per_radian) {
+constexpr scalar to_Nm_per_degree(scalar Nm_per_radian) noexcept {
     return Nm_per_radian / to_degrees(1);
 }
 
 /**
  * @return Scalar clamped to the [0, 1] interval.
  */
-inline scalar clamp_unit(scalar s) {
+constexpr scalar clamp_unit(scalar s) noexcept {
     return std::clamp(s, scalar(0), scalar(1));
 }
 
 /**
  * @return Angle in [-π, π].
  */
-inline scalar normalize_angle(scalar s) {
+inline scalar normalize_angle(scalar s) noexcept {
     s = std::fmod(s, pi2);
 
     if (s < -pi) {
@@ -66,7 +66,7 @@ inline scalar normalize_angle(scalar s) {
  * @return Linear interpolation between `a` and `b` by scalar `s`.
  */
 template<typename T, typename Scalar>
-inline auto lerp(T a, T b, Scalar s) {
+constexpr auto lerp(T a, T b, Scalar s) noexcept {
     return a * (Scalar(1) - s) + b * s;
 }
 
@@ -74,14 +74,14 @@ inline auto lerp(T a, T b, Scalar s) {
  * @return The square of a number.
  */
 template<typename T>
-inline auto square(T a) {
+constexpr auto square(T a) noexcept {
     return a * a;
 }
 
 /**
  * @return 1 if `b` is true, -1 if `b is false.
  */
-inline auto to_sign(bool b) {
+constexpr auto to_sign(bool b) noexcept {
     return b ? scalar(1) : scalar(-1);
 }
 
@@ -91,7 +91,7 @@ inline auto to_sign(bool b) {
  * @return Average value.
  */
 template<typename T, size_t N>
-inline auto average(const std::array<T, N> &array) {
+constexpr auto average(const std::array<T, N> &array) noexcept {
     auto sum = array[0];
     for (size_t i = 1; i < N; ++i) {
         sum += array[i];

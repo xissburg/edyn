@@ -11,12 +11,12 @@ namespace edyn {
 struct vector3 {
     scalar x, y, z;
 
-    scalar& operator[](size_t i) {
+    scalar& operator[](size_t i) noexcept {
         EDYN_ASSERT(i < 3);
         return (&x)[i];
     }
 
-    scalar operator[](size_t i) const {
+    scalar operator[](size_t i) const noexcept {
         EDYN_ASSERT(i < 3);
         return (&x)[i];
     }
@@ -44,12 +44,12 @@ inline constexpr vector3 vector3_min {EDYN_SCALAR_MIN, EDYN_SCALAR_MIN, EDYN_SCA
 inline constexpr vector3 vector3_max {EDYN_SCALAR_MAX, EDYN_SCALAR_MAX, EDYN_SCALAR_MAX};
 
 // Add two vectors.
-inline vector3 operator+(const vector3 &v, const vector3 &w) {
+constexpr vector3 operator+(const vector3 &v, const vector3 &w) noexcept {
     return {v.x + w.x, v.y + w.y, v.z + w.z};
 }
 
 // Add a vector into another vector.
-inline vector3& operator+=(vector3 &v, const vector3 &w) {
+constexpr vector3& operator+=(vector3 &v, const vector3 &w) noexcept {
     v.x += w.x;
     v.y += w.y;
     v.z += w.z;
@@ -57,12 +57,12 @@ inline vector3& operator+=(vector3 &v, const vector3 &w) {
 }
 
 // Subtract two vectors.
-inline vector3 operator-(const vector3 &v, const vector3 &w) {
+constexpr vector3 operator-(const vector3 &v, const vector3 &w) noexcept {
     return {v.x - w.x, v.y - w.y, v.z - w.z};
 }
 
 // Subtract a vector from another vector.
-inline vector3& operator-=(vector3 &v, const vector3 &w) {
+constexpr vector3& operator-=(vector3 &v, const vector3 &w) noexcept {
     v.x -= w.x;
     v.y -= w.y;
     v.z -= w.z;
@@ -70,37 +70,37 @@ inline vector3& operator-=(vector3 &v, const vector3 &w) {
 }
 
 // Negation of a vector.
-inline vector3 operator-(const vector3 &v) {
+constexpr vector3 operator-(const vector3 &v) noexcept {
     return {-v.x, -v.y, -v.z};
 }
 
 // Multiply vectors component-wise.
-inline vector3 operator*(const vector3 &v, const vector3 &w) {
+constexpr vector3 operator*(const vector3 &v, const vector3 &w) noexcept {
     return {v.x * w.x, v.y * w.y, v.z * w.z};
 }
 
 // Multiply vector by scalar.
-inline constexpr vector3 operator*(const vector3& v, scalar s) {
+constexpr vector3 operator*(const vector3& v, scalar s) noexcept {
     return {v.x * s, v.y * s, v.z * s};
 }
 
 // Multiply scalar by vector.
-inline vector3 operator*(scalar s, const vector3 &v) {
+constexpr vector3 operator*(scalar s, const vector3 &v) noexcept {
     return {s * v.x, s * v.y, s * v.z};
 }
 
 // Divide vector by scalar.
-inline vector3 operator/(const vector3 &v, scalar s) {
+constexpr vector3 operator/(const vector3 &v, scalar s) noexcept {
     return {v.x / s, v.y / s, v.z / s};
 }
 
 // Divide scalar by vector.
-inline vector3 operator/(scalar s, const vector3 &v) {
+constexpr vector3 operator/(scalar s, const vector3 &v) noexcept {
     return {s / v.x, s / v.y, s / v.z};
 }
 
 // Scale a vector.
-inline vector3 & operator*=(vector3 &v, scalar s) {
+constexpr vector3& operator*=(vector3 &v, scalar s) noexcept {
     v.x *= s;
     v.y *= s;
     v.z *= s;
@@ -108,7 +108,7 @@ inline vector3 & operator*=(vector3 &v, scalar s) {
 }
 
 // Inverse-scale a vector.
-inline vector3 & operator/=(vector3 &v, scalar s) {
+constexpr vector3& operator/=(vector3 &v, scalar s) noexcept {
     auto z = scalar(1) / s;
     v.x *= z;
     v.y *= z;
@@ -117,7 +117,7 @@ inline vector3 & operator/=(vector3 &v, scalar s) {
 }
 
 // Multiply vectors component-wise and assign to the first.
-inline vector3 & operator*=(vector3 &v, const vector3 &w) {
+constexpr vector3& operator*=(vector3 &v, const vector3 &w) noexcept {
     v.x *= w.x;
     v.y *= w.y;
     v.z *= w.z;
@@ -125,42 +125,42 @@ inline vector3 & operator*=(vector3 &v, const vector3 &w) {
 }
 
 // Check if two vectors are equal.
-inline bool operator==(const vector3 &v, const vector3 &w) {
+constexpr bool operator==(const vector3 &v, const vector3 &w) noexcept {
     return v.x == w.x && v.y == w.y && v.z == w.z;
 }
 
 // Check if two vectors are different.
-inline bool operator!=(const vector3 &v, const vector3 &w) {
+constexpr bool operator!=(const vector3 &v, const vector3 &w) noexcept {
     return v.x != w.x || v.y != w.y || v.z != w.z;
 }
 
 // Check if a vector is bigger than another component-wise.
-inline bool operator>(const vector3 &v, const vector3 &w) {
+constexpr bool operator>(const vector3 &v, const vector3 &w) noexcept {
     return v.x > w.x && v.y > w.y && v.z > w.z;
 }
 
 // Check if a vector is smaller than another component-wise.
-inline bool operator<(const vector3 &v, const vector3 &w) {
+constexpr bool operator<(const vector3 &v, const vector3 &w) noexcept {
     return v.x < w.x && v.y < w.y && v.z < w.z;
 }
 
 // Check if a vector is greater than or equal to another component-wise.
-inline bool operator>=(const vector3 &v, const vector3 &w) {
+constexpr bool operator>=(const vector3 &v, const vector3 &w) noexcept {
     return v.x >= w.x && v.y >= w.y && v.z >= w.z;
 }
 
 // Check if a vector is less than or equal to another component-wise.
-inline bool operator<=(const vector3 &v, const vector3 &w) {
+constexpr bool operator<=(const vector3 &v, const vector3 &w) noexcept {
     return v.x <= w.x && v.y <= w.y && v.z <= w.z;
 }
 
 // Dot product between vectors.
-inline scalar dot(const vector3 &v, const vector3 &w) {
+constexpr scalar dot(const vector3 &v, const vector3 &w) noexcept {
     return v.x * w.x + v.y * w.y + v.z * w.z;
 }
 
 // Cross product between two vectors.
-inline vector3 cross(const vector3 &v, const vector3 &w) {
+constexpr vector3 cross(const vector3 &v, const vector3 &w) noexcept {
     return {v.y * w.z - v.z * w.y,
             v.z * w.x - v.x * w.z,
             v.x * w.y - v.y * w.x};
@@ -168,42 +168,42 @@ inline vector3 cross(const vector3 &v, const vector3 &w) {
 
 // Triple product among three vectors, i.e. the dot product of one of
 // them with the cross product of the other two.
-inline scalar triple_product(const vector3 &u,
+constexpr scalar triple_product(const vector3 &u,
                              const vector3 &v,
-                             const vector3 &w) {
+                             const vector3 &w) noexcept {
     return dot(u, cross(v, w));
 }
 
 // Square length of a vector.
-inline scalar length_sqr(const vector3 &v) {
+constexpr scalar length_sqr(const vector3 &v) noexcept {
     return dot(v, v);
 }
 
 // Length of a vector.
-inline scalar length(const vector3 &v) {
+inline scalar length(const vector3 &v) noexcept {
     return std::sqrt(length_sqr(v));
 }
 
 // Distance between two points.
-inline scalar distance(const vector3 &p0, const vector3 &p1) {
+inline scalar distance(const vector3 &p0, const vector3 &p1) noexcept {
     return length(p0 - p1);
 }
 
 // Squared distance between two points.
-inline scalar distance_sqr(const vector3 &p0, const vector3 &p1) {
+constexpr scalar distance_sqr(const vector3 &p0, const vector3 &p1) noexcept {
     return length_sqr(p0 - p1);
 }
 
 // Normalized vector (unit length). Asserts if the vector's length is zero.
-inline vector3 normalize(const vector3 &v) {
+inline vector3 normalize(const vector3 &v) noexcept {
     auto l = length(v);
     EDYN_ASSERT(l > EDYN_EPSILON);
     return v / l;
 }
 
 // Normalizes vector if it's length is greater than a threshold above zero.
-// Returns where the vector was normalized.
-inline bool try_normalize(vector3 &v) {
+// Returns true if the vector was normalized.
+inline bool try_normalize(vector3 &v) noexcept {
     auto lsqr = length_sqr(v);
 
     if (lsqr > EDYN_EPSILON) {
@@ -215,32 +215,32 @@ inline bool try_normalize(vector3 &v) {
 }
 
 // Projects direction vector `v` onto plane with normal `n`.
-inline vector3 project_direction(const vector3 &v, const vector3 &n) {
+constexpr vector3 project_direction(const vector3 &v, const vector3 &n) noexcept {
     return v - n * dot(v, n);
 }
 
 // Projects point `p` onto plane with origin `q` and normal `n`.
-inline vector3 project_plane(const vector3 &p, const vector3 &q, const vector3 &n) {
+constexpr vector3 project_plane(const vector3 &p, const vector3 &q, const vector3 &n) noexcept {
     return p - n * dot(p - q, n);
 }
 
 // Performs element-wise minimum.
-inline vector3 min(const vector3 &v, const vector3 &w) {
+constexpr vector3 min(const vector3 &v, const vector3 &w) noexcept {
     return {std::min(v.x, w.x), std::min(v.y, w.y), std::min(v.z, w.z)};
 }
 
 // Performs element-wise maximum.
-inline vector3 max(const vector3 &v, const vector3 &w) {
+constexpr vector3 max(const vector3 &v, const vector3 &w) noexcept {
     return {std::max(v.x, w.x), std::max(v.y, w.y), std::max(v.z, w.z)};
 }
 
 // Performs element-wise absolute.
-inline vector3 abs(const vector3 &v) {
+inline vector3 abs(const vector3 &v) noexcept {
     return {std::abs(v.x), std::abs(v.y), std::abs(v.z)};
 }
 
 // Returns the index of the coordinate with greatest value.
-inline size_t max_index(const vector3 &v) {
+constexpr size_t max_index(const vector3 &v) noexcept {
     auto max_val = v.x;
     size_t max_idx = 0;
 
@@ -257,7 +257,7 @@ inline size_t max_index(const vector3 &v) {
 }
 
 // Returns the index of the coordinate with greatest absolute value.
-inline size_t max_index_abs(const vector3 &v) {
+inline size_t max_index_abs(const vector3 &v) noexcept {
     return max_index(abs(v));
 }
 
