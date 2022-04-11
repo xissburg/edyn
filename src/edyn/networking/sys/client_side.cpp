@@ -159,9 +159,21 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
         // owned by this client, excluding entities that are owned by other clients.
         auto island_entities = collect_islands_from_residents(registry, ctx.owned_entities.begin(), ctx.owned_entities.end());
         auto owner_view = registry.view<entity_owner>();
+        auto island_view = registry.view<island>();
 
         for (auto [entity, n_dirty] : network_dirty_view.each()) {
-            if (!island_entities.contains(entity)) {
+            bool contained_in_island = false;
+
+            for (auto island_entity : island_entities) {
+                auto [island] = island_view.get(island_entity);
+
+                if (island.nodes.contains(entity) || island.edges.contains(entity)) {
+                    contained_in_island = true;
+                    break;
+                }
+            }
+
+            if (!contained_in_island) {
                 registry.remove<network_dirty>(entity);
                 continue;
             }
