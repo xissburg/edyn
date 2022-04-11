@@ -212,15 +212,13 @@ class comp_state_history_impl : public comp_state_history {
     }
 
 protected:
-    snapshot
-    take_snapshot(const entt::registry &registry, const entt::sparse_set &entities) override {
+    snapshot take_snapshot(const entt::registry &registry, const entt::sparse_set &entities) override {
         snapshot snapshot;
         (add_to_snapshot<Components>(snapshot, registry, entities), ...);
         return snapshot;
     }
 
-    snapshot
-    take_snapshot(const packet::registry_snapshot &snap, const entt::sparse_set &entities) override {
+    snapshot take_snapshot(const packet::registry_snapshot &snap, const entt::sparse_set &entities) override {
         snapshot snapshot;
         for (auto &pool : snap.pools) {
             ((entt::type_index<Components>::value() == pool.ptr->get_type_id() ?

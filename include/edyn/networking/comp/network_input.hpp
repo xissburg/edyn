@@ -3,6 +3,10 @@
 
 namespace edyn {
 
+/**
+ * @brief External networked components which are to be handled as input must
+ * derive from this struct.
+ */
 struct network_input {};
 
 }
