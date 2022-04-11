@@ -27,7 +27,7 @@ namespace edyn {
  * @return The squared distance between `q(t)` an `p`.
  */
 scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
-                             const vector3 &p, scalar &t, vector3 &q);
+                             const vector3 &p, scalar &t, vector3 &q) noexcept;
 
 /**
  * @brief Computes the squared distance between a point and a line.
@@ -37,7 +37,7 @@ scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
  * @return Square of distance between point and line.
  */
 scalar distance_sqr_line(const vector3 &q0, const vector3 &dir,
-                         const vector3 &p);
+                         const vector3 &p) noexcept;
 
 /**
  * @brief Computes the point in the line `q(t) = q0 + t*dir` closest
@@ -51,7 +51,7 @@ scalar distance_sqr_line(const vector3 &q0, const vector3 &dir,
  * @return The squared distance between `q(t)` an `p`.
  */
 scalar closest_point_line(const vector3 &q0, const vector3 &dir,
-                          const vector3 &p, scalar &t, vector3 &r);
+                          const vector3 &p, scalar &t, vector3 &r) noexcept;
 
 /**
  * @brief Computes the parameters for the closest points of two *non-parallel*
@@ -67,7 +67,7 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
  */
 bool closest_point_line_line(const vector3 &p1, const vector3 &q1,
                              const vector3 &p2, const vector3 &q2,
-                             scalar &s, scalar &t);
+                             scalar &s, scalar &t) noexcept;
 
 /**
  * @brief Computes the closest points `c1` and `c2` of segments
@@ -102,10 +102,10 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                                      vector3 &c1, vector3 &c2,
                                      size_t *num_points = nullptr,
                                      scalar *sp = nullptr, scalar *tp = nullptr,
-                                     vector3 *c1p = nullptr, vector3 *c2p = nullptr);
+                                     vector3 *c1p = nullptr, vector3 *c2p = nullptr) noexcept;
 
 scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius,
-                          const vector3 &p, vector3 &q);
+                          const vector3 &p, vector3 &q) noexcept;
 
 /**
  * Computes the closest points between a line `p(s) = p0 + s*(p1 - p0)` and a circle.
@@ -135,7 +135,7 @@ scalar closest_point_circle_line(
     const vector3 &p0, const vector3 &p1, size_t &num_points,
     scalar &s0, vector3 &rc0, vector3 &rl0,
     scalar &s1, vector3 &rc1, vector3 &rl1,
-    vector3 &normal, scalar threshold = support_feature_tolerance);
+    vector3 &normal, scalar threshold = support_feature_tolerance) noexcept;
 
 scalar closest_point_circle_circle(
     const vector3 &posA, const quaternion &ornA, scalar radiusA,
@@ -180,7 +180,7 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
  * @return Number of intersections.
  */
 size_t intersect_line_circle(const vector2 &p0, const vector2 &p1,
-                             scalar radius, scalar &s0, scalar &s1);
+                             scalar radius, scalar &s0, scalar &s1) noexcept;
 
 /**
  * @brief Intersect two circles in 2D.
@@ -194,14 +194,14 @@ size_t intersect_line_circle(const vector2 &p0, const vector2 &p1,
  */
 size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
                                const vector2 &posB, scalar radiusB,
-                               vector2 &res0, vector2 &res1);
+                               vector2 &res0, vector2 &res1) noexcept;
 
 vector3 support_point_circle(const vector3 &pos, const quaternion &orn,
-                             scalar radius, const vector3 &dir);
+                             scalar radius, const vector3 &dir) noexcept;
 
 template<size_t N>
-void support_point_vertices(const std::array<vector3, N> &vertices,
-                              const vector3 &dir, size_t &idx, scalar &proj) {
+constexpr void support_point_vertices(const std::array<vector3, N> &vertices,
+                              const vector3 &dir, size_t &idx, scalar &proj) noexcept {
     proj = -EDYN_SCALAR_MAX;
 
     for (size_t i = 0; i < N; ++i) {
@@ -214,7 +214,7 @@ void support_point_vertices(const std::array<vector3, N> &vertices,
     }
 }
 
-scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3);
+scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3) noexcept;
 
 enum class point_insertion_type {
     none,
@@ -233,14 +233,14 @@ insertion_point_result insertion_point_index(const vector3 *points,
                                              size_t count,
                                              size_t &num_points,
                                              const vector3 &new_point,
-                                             scalar new_point_depth);
+                                             scalar new_point_depth) noexcept;
 
-template<size_t N> inline
+template<size_t N>
 insertion_point_result insertion_point_index(const std::array<vector3, N> &points,
                                              const std::array<scalar, N> &depths,
                                              size_t &num_points,
                                              const vector3 &new_point,
-                                             scalar new_point_depth) {
+                                             scalar new_point_depth) noexcept {
     return insertion_point_index(points.data(), depths.data(), N, num_points, new_point, new_point_depth);
 }
 
@@ -252,7 +252,7 @@ insertion_point_result insertion_point_index(const std::array<vector3, N> &point
  * @return Point on the box surface closest to `p`, or `p` if `p` is contained
  *         in the box.
  */
-vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p);
+vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p) noexcept;
 
 /**
  * Finds the point closest to the internal point `p` on the surface of the
@@ -265,7 +265,7 @@ vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p);
  * @return Distance between closest points.
  */
 scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p,
-                                vector3 &closest, vector3 &normal);
+                                vector3 &closest, vector3 &normal) noexcept;
 
 /**
  * Intersect a line with an AABB in the Cartesian plane.
@@ -281,7 +281,7 @@ scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p,
  */
 size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
                            const vector2 &aabb_min, const vector2 &aabb_max,
-                           scalar &s0, scalar &s1);
+                           scalar &s0, scalar &s1) noexcept;
 
 /**
  * @brief Checks if a point lies inside the prism with base defined by a convex
@@ -296,16 +296,15 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
  */
 bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
                               const std::vector<size_t> &indices,
-                              const vector3 &normal, const vector3 &point);
+                              const vector3 &normal, const vector3 &point) noexcept;
 
 template<size_t N>
-bool point_in_polygonal_prism(const std::array<vector3, N> &vertices,
-                              const vector3 &normal, const vector3 &point) {
-    const auto count = vertices.size();
-    EDYN_ASSERT(count > 2);
+constexpr bool point_in_polygonal_prism(const std::array<vector3, N> &vertices,
+                                        const vector3 &normal, const vector3 &point) noexcept {
+    static_assert(N > 2);
 
-    for (size_t i = 0; i < count; ++i) {
-        const auto j = (i + 1) % count;
+    for (size_t i = 0; i < N; ++i) {
+        const auto j = (i + 1) % N;
         auto &v0 = vertices[i];
         auto &v1 = vertices[j];
         auto d = v1 - v0;
@@ -328,7 +327,7 @@ bool point_in_polygonal_prism(const std::array<vector3, N> &vertices,
  * @return Whether segment intersects AABB.
  */
 bool intersect_segment_aabb(vector3 p0, vector3 p1,
-                            vector3 aabb_min, vector3 aabb_max);
+                            vector3 aabb_min, vector3 aabb_max) noexcept;
 
 struct intersect_ray_cylinder_result {
     enum class kind {
@@ -353,7 +352,7 @@ struct intersect_ray_cylinder_result {
  * @param u Output intersection parameter.
  * @return Result containing intersection situation, the distance and normal.
  */
-intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u);
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) noexcept;
 
 /**
  * @brief Intersects a ray with a sphere.
@@ -365,7 +364,7 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vec
  * @param t Output intersection parameter.
  * @return Whether ray intersects sphere.
  */
-bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t);
+bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t) noexcept;
 
 /**
  * @brief Intersects a ray with a triangle.
@@ -378,7 +377,7 @@ bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, sc
  */
 bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
                                 const std::array<vector3, 3> &vertices,
-                                const vector3 &normal, scalar &t);
+                                const vector3 &normal, scalar &t) noexcept;
 
 }
 

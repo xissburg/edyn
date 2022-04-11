@@ -14,8 +14,8 @@ namespace edyn {
  * @param basis Rotation matrix in world space.
  * @return The point `p` in object space.
  */
-inline
-vector3 to_object_space(const vector3 &p, const vector3 &pos, const matrix3x3 &basis) {
+constexpr
+vector3 to_object_space(const vector3 &p, const vector3 &pos, const matrix3x3 &basis) noexcept {
     // Multiplying a vector by a matrix on the right is equivalent to multiplying
     // by the transpose of the matrix on the left, and the transpose of a rotation
     // matrix is its inverse.
@@ -29,18 +29,18 @@ vector3 to_object_space(const vector3 &p, const vector3 &pos, const matrix3x3 &b
  * @param basis Rotation matrix in world space.
  * @return The point `p` in world space.
  */
-inline
-vector3 to_world_space(const vector3 &p, const vector3 &pos, const matrix3x3 &basis) {
+constexpr
+vector3 to_world_space(const vector3 &p, const vector3 &pos, const matrix3x3 &basis) noexcept {
     return pos + basis * p;
 }
 
-inline
-vector3 to_object_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
+constexpr
+vector3 to_object_space(const vector3 &p, const vector3 &pos, const quaternion &orn) noexcept {
     return rotate(conjugate(orn), p - pos);
 }
 
-inline
-vector3 to_world_space(const vector3 &p, const vector3 &pos, const quaternion &orn) {
+constexpr
+vector3 to_world_space(const vector3 &p, const vector3 &pos, const quaternion &orn) noexcept {
     return pos + rotate(orn, p);
 }
 

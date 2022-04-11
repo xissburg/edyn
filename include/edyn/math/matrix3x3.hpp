@@ -12,25 +12,25 @@ namespace edyn {
 struct matrix3x3 {
     std::array<vector3, 3> row;
 
-    vector3 & operator[](size_t i) {
+    constexpr vector3& operator[](size_t i) noexcept {
         EDYN_ASSERT(i < 3);
         return row[i];
     }
 
-    const vector3 & operator[](size_t i) const {
+    constexpr const vector3& operator[](size_t i) const noexcept {
         EDYN_ASSERT(i < 3);
         return row[i];
     }
 
-    inline vector3 column(size_t i) const {
+    constexpr vector3 column(size_t i) const noexcept {
         return {row[0][i], row[1][i], row[2][i]};
     }
 
-    inline scalar column_dot(size_t i, const vector3 &v) const {
+    constexpr scalar column_dot(size_t i, const vector3 &v) const noexcept {
         return row[0][i] * v.x + row[1][i] * v.y + row[2][i] * v.z;
     }
 
-    inline scalar determinant() const {
+    constexpr scalar determinant() const noexcept {
         return triple_product(row[0], row[1], row[2]);
     }
 };
@@ -42,17 +42,17 @@ inline constexpr matrix3x3 matrix3x3_identity {{vector3_x, vector3_y, vector3_z}
 inline constexpr matrix3x3 matrix3x3_zero {{vector3_zero, vector3_zero, vector3_zero}};
 
 // Add two matrices.
-inline matrix3x3 operator+(const matrix3x3 &m, const matrix3x3 &n) {
+constexpr matrix3x3 operator+(const matrix3x3 &m, const matrix3x3 &n) noexcept {
     return {m.row[0] + n.row[0], m.row[1] + n.row[1], m.row[2] + n.row[2]};
 }
 
 // Subtract two matrices.
-inline matrix3x3 operator-(const matrix3x3 &m, const matrix3x3 &n) {
+constexpr matrix3x3 operator-(const matrix3x3 &m, const matrix3x3 &n) noexcept {
     return {m.row[0] - n.row[0], m.row[1] - n.row[1], m.row[2] - n.row[2]};
 }
 
 // Multiply two matrices.
-inline matrix3x3 operator*(const matrix3x3 &m, const matrix3x3 &n) {
+constexpr matrix3x3 operator*(const matrix3x3 &m, const matrix3x3 &n) noexcept {
     return {
         vector3{n.column_dot(0, m.row[0]), n.column_dot(1, m.row[0]), n.column_dot(2, m.row[0])},
         vector3{n.column_dot(0, m.row[1]), n.column_dot(1, m.row[1]), n.column_dot(2, m.row[1])},
@@ -61,28 +61,28 @@ inline matrix3x3 operator*(const matrix3x3 &m, const matrix3x3 &n) {
 }
 
 // Multiply vector by matrix.
-inline vector3 operator*(const matrix3x3 &m, const vector3 &v) {
+constexpr vector3 operator*(const matrix3x3 &m, const vector3 &v) noexcept {
     return {dot(m.row[0], v), dot(m.row[1], v), dot(m.row[2], v)};
 }
 
 // Multiply vector by matrix on the right, effectively multiplying
 // by the transpose.
-inline vector3 operator*(const vector3 &v, const matrix3x3 &m) {
+constexpr vector3 operator*(const vector3 &v, const matrix3x3 &m) noexcept {
     return {m.column_dot(0, v), m.column_dot(1, v), m.column_dot(2, v)};
 }
 
 // Multiply matrix by scalar.
-inline matrix3x3 operator*(const matrix3x3& m, scalar s) {
+constexpr matrix3x3 operator*(const matrix3x3& m, scalar s) noexcept {
     return {m[0] * s, m[1] * s, m[2] * s};
 }
 
 // Multiply scalar by matrix.
-inline matrix3x3 operator*(scalar s, const matrix3x3& m) {
+constexpr matrix3x3 operator*(scalar s, const matrix3x3& m) noexcept {
     return {s * m[0], s * m[1], s * m[2]};
 }
 
 // Add one matrix to another.
-inline matrix3x3 & operator+=(matrix3x3 &m, const matrix3x3 &n) {
+constexpr matrix3x3 & operator+=(matrix3x3 &m, const matrix3x3 &n) noexcept {
     m.row[0] += n.row[0];
     m.row[1] += n.row[1];
     m.row[2] += n.row[2];
@@ -90,7 +90,7 @@ inline matrix3x3 & operator+=(matrix3x3 &m, const matrix3x3 &n) {
 }
 
 // Subtract one matrix from another.
-inline matrix3x3 operator-=(matrix3x3 &m, const matrix3x3 &n) {
+constexpr matrix3x3 operator-=(matrix3x3 &m, const matrix3x3 &n) noexcept {
     m.row[0] -= n.row[0];
     m.row[1] -= n.row[1];
     m.row[2] -= n.row[2];
@@ -98,19 +98,19 @@ inline matrix3x3 operator-=(matrix3x3 &m, const matrix3x3 &n) {
 }
 
 // Check if two matrices are equal.
-inline bool operator==(const matrix3x3 &m, const matrix3x3 &n) {
+constexpr bool operator==(const matrix3x3 &m, const matrix3x3 &n) noexcept {
     return m.row == n.row;
 }
 
 // Check if two matrices are different.
-inline bool operator!=(const matrix3x3 &m, const matrix3x3 &n) {
+constexpr bool operator!=(const matrix3x3 &m, const matrix3x3 &n) noexcept {
     return m.row != n.row;
 }
 
 // Create a matrix with the given column vectors.
-inline matrix3x3 matrix3x3_columns(const vector3 &v0,
+constexpr matrix3x3 matrix3x3_columns(const vector3 &v0,
                                    const vector3 &v1,
-                                   const vector3 &v2) {
+                                   const vector3 &v2) noexcept {
     return {
         vector3{v0.x, v1.x, v2.x},
         vector3{v0.y, v1.y, v2.y},
@@ -119,12 +119,12 @@ inline matrix3x3 matrix3x3_columns(const vector3 &v0,
 }
 
 // Transpose of a 3x3 matrix.
-inline matrix3x3 transpose(const matrix3x3 &m) {
+constexpr matrix3x3 transpose(const matrix3x3 &m) noexcept {
     return {m.column(0), m.column(1), m.column(2)};
 }
 
 // Adjugate of a 3x3 matrix, i.e. the transpose of the cofactor matrix.
-inline matrix3x3 adjugate_matrix(const matrix3x3 &m) {
+constexpr matrix3x3 adjugate_matrix(const matrix3x3 &m) noexcept {
     // Cofactors.
     auto c0 = cross(m[1], m[2]);
     auto c1 = cross(m[2], m[0]);
@@ -134,7 +134,7 @@ inline matrix3x3 adjugate_matrix(const matrix3x3 &m) {
 }
 
 // Inverse of a 3x3 matrix or the zero matrix if `m` is non-invertible.
-inline matrix3x3 inverse_matrix(const matrix3x3 &m) {
+inline matrix3x3 inverse_matrix(const matrix3x3 &m) noexcept {
     auto det = m.determinant();
     scalar det_inv = 0;
 
@@ -146,7 +146,7 @@ inline matrix3x3 inverse_matrix(const matrix3x3 &m) {
 }
 
 // Optimized inverse for symmetric 3x3 matrices.
-inline matrix3x3 inverse_matrix_symmetric(const matrix3x3 &m) {
+constexpr matrix3x3 inverse_matrix_symmetric(const matrix3x3 &m) noexcept {
     EDYN_ASSERT(m[0][1] == m[1][0]);
     EDYN_ASSERT(m[0][2] == m[2][0]);
     EDYN_ASSERT(m[1][2] == m[2][1]);
@@ -159,7 +159,7 @@ inline matrix3x3 inverse_matrix_symmetric(const matrix3x3 &m) {
     auto a22 = m[1][1], a23 = m[1][2];
     auto a33 = m[2][2];
 
-    matrix3x3 m_inv;
+    matrix3x3 m_inv{};
 
     m_inv[0][0] = det_inv * (a22 * a33 - a23 * a23);
     m_inv[0][1] = det_inv * (a13 * a23 - a12 * a33);
@@ -177,7 +177,7 @@ inline matrix3x3 inverse_matrix_symmetric(const matrix3x3 &m) {
 }
 
 // Matrix with given vector as diagonal.
-inline matrix3x3 diagonal_matrix(const vector3 &v) {
+constexpr matrix3x3 diagonal_matrix(const vector3 &v) noexcept {
     return {
         vector3 {v.x, 0, 0},
         vector3 {0, v.y, 0},
@@ -185,12 +185,12 @@ inline matrix3x3 diagonal_matrix(const vector3 &v) {
     };
 }
 
-inline vector3 get_diagonal(const matrix3x3 &m) {
+constexpr vector3 get_diagonal(const matrix3x3 &m) noexcept {
     return {m[0][0], m[1][1], m[2][2]};
 }
 
 // Equivalent to m * diagonal_matrix(v).
-inline matrix3x3 scale_matrix(const matrix3x3 &m, const vector3 &v) {
+constexpr matrix3x3 scale_matrix(const matrix3x3 &m, const vector3 &v) noexcept {
     return {
         vector3{m.row[0].x * v.x, m.row[0].y * v.y, m.row[0].z * v.z},
         vector3{m.row[1].x * v.x, m.row[1].y * v.y, m.row[1].z * v.z},
@@ -199,7 +199,7 @@ inline matrix3x3 scale_matrix(const matrix3x3 &m, const vector3 &v) {
 }
 
 // Skew anti-symmetric matrix of a vector.
-inline matrix3x3 skew_matrix(const vector3 &v) {
+constexpr matrix3x3 skew_matrix(const vector3 &v) noexcept {
     return {
         vector3 {0, -v.z, v.y},
         vector3 {v.z, 0, -v.x},
@@ -208,7 +208,7 @@ inline matrix3x3 skew_matrix(const vector3 &v) {
 }
 
 // Converts a quaternion into a rotation matrix.
-inline matrix3x3 to_matrix3x3(const quaternion &q) {
+constexpr matrix3x3 to_matrix3x3(const quaternion &q) noexcept {
     auto d = length_sqr(q);
     auto s = 2 / d;
     auto xs = q.x * s , ys = q.y * s , zs = q.z * s ;
@@ -224,7 +224,7 @@ inline matrix3x3 to_matrix3x3(const quaternion &q) {
 }
 
 // Converts a rotation matrix into a quaternion.
-inline quaternion to_quaternion(const matrix3x3 &m) {
+inline quaternion to_quaternion(const matrix3x3 &m) noexcept {
     auto trace = m[0][0] + m[1][1] + m[2][2];
 
     if (trace > 0) {
@@ -253,7 +253,7 @@ inline quaternion to_quaternion(const matrix3x3 &m) {
 // Get XYZ Euler angles from a rotation matrix.
 // Reference: Euler Angle Formulas - David Eberly, Geometric Tools
 // https://www.geometrictools.com/Documentation/EulerAngles.pdf
-inline vector3 get_euler_angles_xyz(const matrix3x3 &m) {
+inline vector3 get_euler_angles_xyz(const matrix3x3 &m) noexcept {
     if (m[0][2] < 1) {
         if (m[0][2] > -1) {
             return {
