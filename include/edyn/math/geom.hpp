@@ -300,13 +300,11 @@ bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
 
 template<size_t N>
 constexpr bool point_in_polygonal_prism(const std::array<vector3, N> &vertices,
-                              const vector3 &normal, const vector3 &point) noexcept {
-    
-    const auto count = vertices.size();
-    static_assert(count > 2);
+                                        const vector3 &normal, const vector3 &point) noexcept {
+    static_assert(N > 2);
 
-    for (size_t i = 0; i < count; ++i) {
-        const auto j = (i + 1) % count;
+    for (size_t i = 0; i < N; ++i) {
+        const auto j = (i + 1) % N;
         auto &v0 = vertices[i];
         auto &v1 = vertices[j];
         auto d = v1 - v0;
