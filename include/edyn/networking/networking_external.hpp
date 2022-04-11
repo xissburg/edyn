@@ -23,12 +23,16 @@ namespace internal {
         };
     }
 
-    static auto make_default_mark_replaced_network_dirty_func() {
+    template<typename... Component>
+    auto make_mark_replaced_network_dirty_func([[maybe_unused]] std::tuple<Component...>) {
         return [](entt::registry &registry,
-                                       const registry_operation_collection &ops,
-                                       const entity_map &emap,
-                                       double timestamp) {
-            ops.replace_for_each(networked_components, [&](entt::entity remote_entity, const auto &c) {
+                  const registry_operation_collection &ops,
+                  const entity_map &emap, double timestamp) {
+            ops.replace_for_each<Component...>([&](entt::entity remote_entity, const auto &c) {
+                if (!emap.contains(remote_entity)) {
+                    return;
+                }
+
                 auto local_entity = emap.at(remote_entity);
 
                 if (registry.all_of<networked_tag>(local_entity)) {
@@ -69,7 +73,7 @@ void register_networked_components(entt::registry &registry,
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
-        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(all, input));
+        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(all));
         ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(all));
     }
 
@@ -83,19 +87,7 @@ void register_networked_components(entt::registry &registry,
         return ((id == entt::type_index<Input>::value()) || ...);
     };
 
-    g_mark_replaced_network_dirty = [](entt::registry &registry,
-                                       const registry_operation_collection &ops,
-                                       const entity_map &emap,
-                                       double timestamp) {
-        ops.replace_for_each<Component...>([&](entt::entity remote_entity, const auto &c) {
-            auto local_entity = emap.at(remote_entity);
-
-            if (registry.all_of<networked_tag>(local_entity)) {
-                auto &n_dirty = registry.get_or_emplace<network_dirty>(local_entity);
-                n_dirty.insert<std::decay_t<decltype(c)>>(timestamp);
-            }
-        });
-    };
+    g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(all);
 }
 
 /**
@@ -111,14 +103,14 @@ inline void unregister_networked_components(entt::registry &registry) {
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
-        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(networked_components, {}));
+        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(networked_components));
         ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(networked_components));
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(networked_components);
     g_is_networked_component = internal::make_default_is_networked_component_func();
     g_is_networked_input_component = [](entt::id_type id) { return false; };
-    g_mark_replaced_network_dirty = internal::make_default_mark_replaced_network_dirty_func();
+    g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(networked_components);
 }
 
 }

@@ -110,7 +110,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     ctx.snapshot_importer->transform_to_local(registry, client_entity, snapshot, check_ownership);
 
     // Import inputs directly into the main registry.
-    ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot);
+    ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot, performance_time());
 
     // Get islands of all entities contained in transient snapshot and send the
     // snapshot to them. They will import the pre-processed state into their
@@ -438,7 +438,7 @@ static void maybe_publish_client_registry_snapshot(entt::registry &registry,
     // the islands where there are no other clients present.
     auto should_include = [&] (entt::entity entity) {
         return
-            !registry.any_of<sleeping_tag, static_tag>(entity) &&
+            !registry.any_of<sleeping_tag>(entity) &&
             registry.all_of<networked_tag, network_dirty>(entity) &&
             !is_fully_owned_by_client(registry, client_entity, entity);
     };
@@ -586,6 +586,7 @@ entt::entity server_make_client(entt::registry &registry, bool allow_full_owners
 void server_set_allow_full_ownership(entt::registry &registry, entt::entity client_entity, bool allow_full_ownership) {
     auto &client = registry.get<remote_client>(client_entity);
     client.allow_full_ownership = allow_full_ownership;
+    // TODO notify client
 }
 
 void server_set_client_round_trip_time(entt::registry &registry, entt::entity client_entity, double rtt) {
