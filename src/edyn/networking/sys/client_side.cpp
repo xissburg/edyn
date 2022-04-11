@@ -37,11 +37,11 @@ void on_construct_networked_entity(entt::registry &registry, entt::entity entity
 void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx<client_network_context>();
 
-    if (ctx.entity_map.contains(entity)) {
-        ctx.entity_map.erase(entity);
-    }
-
     if (!ctx.importing_entities) {
+        if (ctx.entity_map.contains(entity)) {
+            ctx.entity_map.erase(entity);
+        }
+
         ctx.destroyed_entities.push_back(entity);
     }
 }
