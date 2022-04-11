@@ -33,20 +33,16 @@ struct remote_client {
     // List of delayed packets pending processing.
     std::vector<timed_packet> packet_queue;
 
-    // Timestamp of the last transient snapshot that was sent.
+    // Timestamp of the last registry snapshot that was sent.
     double last_snapshot_time {0};
 
-    // Rate of transient snapshots, i.e. transient snapshots sent per second.
+    // Rate of registry snapshots, i.e. registry snapshots sent per second.
     double snapshot_rate {10};
 
     // Whether this client will be given temporary ownership of all entities in
     // the island where entities owned by it reside, thus allowing the state of
     // those entities to be set by the client.
     bool allow_full_ownership {true};
-
-    // A snapshot where changes to be reported to a client can be accumulated
-    // and then consumed at the end of an update.
-    packet::general_snapshot current_snapshot;
 
     clock_sync_data clock_sync;
 };

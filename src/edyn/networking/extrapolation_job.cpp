@@ -26,6 +26,8 @@
 
 namespace edyn {
 
+extern bool(*g_is_networked_input_component)(entt::id_type);
+
 void extrapolation_job_func(job::data_type &data) {
     auto archive = memory_input_archive(data.data(), data.size());
     intptr_t job_intptr;
@@ -98,15 +100,13 @@ void extrapolation_job::load_input() {
     create_rotated_meshes();
 
     // Replace client component state by server state.
-    for (auto &pool : m_input.transient_snapshot.pools) {
-        pool.ptr->replace_into_registry(m_registry, m_input.transient_snapshot.entities, m_entity_map);
+    for (auto &pool : m_input.snapshot.pools) {
+        pool.ptr->replace_into_registry(m_registry, m_input.snapshot.entities, m_entity_map);
     }
 
     // Apply all inputs before the current time to start the simulation
     // with the correct initial inputs.
-    m_state_history->until(m_current_time, [&] (auto &&element) {
-        element.ops.execute(m_registry, m_entity_map, true);
-    });
+    m_state_history->import_until(m_current_time, m_registry, m_entity_map);
 
     // Update calculated properties after setting initial state.
     update_origins(m_registry);
@@ -173,10 +173,7 @@ void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, e
 void extrapolation_job::apply_history() {
     auto &settings = m_registry.ctx<edyn::settings>();
     auto start_time = m_current_time - settings.fixed_dt;
-
-    m_state_history->each(start_time, settings.fixed_dt, [&] (auto &&element) {
-        element.ops.execute(m_registry, m_entity_map, true);
-    });
+    m_state_history->import_each(start_time, settings.fixed_dt, m_registry, m_entity_map);
 }
 
 void extrapolation_job::sync_and_finish() {
@@ -214,7 +211,7 @@ void extrapolation_job::sync_and_finish() {
             for (size_t i = 0; i < cont->size; ++i) {
                 auto id = index_source.type_id_of(cont->indices[i]);
 
-                if (!is_owned_entity || !(*m_input.is_input_component_func)(id)) {
+                if (!is_owned_entity || !(*g_is_networked_input_component)(id)) {
                     builder->replace_type_id(m_registry, local_entity, id);
                 }
             }
@@ -223,8 +220,8 @@ void extrapolation_job::sync_and_finish() {
         if (auto *dirty = m_registry.try_get<edyn::dirty>(local_entity)) {
             // Only consider updated indices. Entities and components shouldn't be
             // created during extrapolation.
-            for (auto id : dirty->updated_indexes) {
-                if (!is_owned_entity || !(*m_input.is_input_component_func)(id)) {
+            for (auto id : dirty->updated_ids) {
+                if (!is_owned_entity || !(*g_is_networked_input_component)(id)) {
                     builder->replace_type_id(m_registry, local_entity, id);
                 }
             }

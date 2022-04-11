@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 #include <entt/entity/registry.hpp>
-#include "edyn/comp/dirty.hpp"
 #include "edyn/config/config.h"
 #include "edyn/parallel/map_child_entity.hpp"
 #include "edyn/util/entity_map.hpp"
@@ -30,8 +29,7 @@ class component_operation {
 public:
     virtual ~component_operation() = default;
     virtual void execute(entt::registry &, registry_op_type,
-                         const std::vector<entt::entity> &,
-                         entity_map &, bool mark_dirty) const = 0;
+                         const std::vector<entt::entity> &, entity_map &) const = 0;
     virtual entt::id_type get_type_id() const = 0;
     virtual void remap(const entity_map &emap) = 0;
 };
@@ -41,7 +39,7 @@ class component_operation_impl : public component_operation {
 
     void execute_emplace(entt::registry &registry,
                          const std::vector<entt::entity> &entities,
-                         const entity_map &entity_map, bool mark_dirty) const {
+                         const entity_map &entity_map) const {
         if constexpr(!std::is_empty_v<Component>) {
             EDYN_ASSERT(entities.size() == components.size());
         }
@@ -66,10 +64,6 @@ class component_operation_impl : public component_operation {
                 internal::map_child_entity(registry, entity_map, comp);
                 registry.emplace<Component>(local_entity, comp);
             }
-
-            if (mark_dirty) {
-                registry.get_or_emplace<dirty>(local_entity).template created<Component>();
-            }
         }
     }
 
@@ -77,7 +71,7 @@ class component_operation_impl : public component_operation {
     typename std::enable_if_t<!std::is_empty_v<T>>
     execute_replace(entt::registry &registry,
                     const std::vector<entt::entity> &entities,
-                    const entity_map &entity_map, bool mark_dirty) const {
+                    const entity_map &entity_map) const {
         EDYN_ASSERT(entities.size() == components.size());
 
         for (size_t i = 0; i < entities.size(); ++i) {
@@ -96,16 +90,12 @@ class component_operation_impl : public component_operation {
             auto comp = components[i];
             internal::map_child_entity(registry, entity_map, comp);
             registry.replace<Component>(local_entity, comp);
-
-            if (mark_dirty) {
-                registry.get_or_emplace<dirty>(local_entity).template updated<Component>();
-            }
         }
     }
 
     void execute_remove(entt::registry &registry,
                         const std::vector<entt::entity> &entities,
-                        const entity_map &entity_map, bool mark_dirty) const {
+                        const entity_map &entity_map) const {
         for (auto remote_entity : entities) {
             if (!entity_map.contains(remote_entity)) {
                 continue;
@@ -118,10 +108,6 @@ class component_operation_impl : public component_operation {
             }
 
             registry.remove<Component>(local_entity);
-
-            if (mark_dirty) {
-                registry.get_or_emplace<dirty>(local_entity).template destroyed<Component>();
-            }
         }
     }
 
@@ -153,18 +139,18 @@ public:
 
     void execute(entt::registry &registry, registry_op_type op,
                  const std::vector<entt::entity> &entities,
-                 entity_map &entity_map, bool mark_dirty) const override {
+                 entity_map &entity_map) const override {
         switch (op) {
         case registry_op_type::emplace:
-            execute_emplace(registry, entities, entity_map, mark_dirty);
+            execute_emplace(registry, entities, entity_map);
             break;
         case registry_op_type::replace:
             if constexpr(!is_empty_type) {
-                execute_replace(registry, entities, entity_map, mark_dirty);
+                execute_replace(registry, entities, entity_map);
             }
             break;
         case registry_op_type::remove:
-            execute_remove(registry, entities, entity_map, mark_dirty);
+            execute_remove(registry, entities, entity_map);
             break;
         case registry_op_type::ent_map:
             if constexpr(std::is_same_v<Component, entt::entity>) {
@@ -194,7 +180,7 @@ public:
  */
 class registry_operation final {
 
-    void execute_create(entt::registry &registry, entity_map &entity_map, bool mark_dirty) const {
+    void execute_create(entt::registry &registry, entity_map &entity_map) const {
         for (auto remote_entity : entities) {
             if (entity_map.contains(remote_entity)) {
                 continue;
@@ -202,10 +188,6 @@ class registry_operation final {
 
             auto local_entity = registry.create();
             entity_map.insert(remote_entity, local_entity);
-
-            if (mark_dirty) {
-                registry.get_or_emplace<dirty>(local_entity).set_new();
-            }
         }
     }
 
@@ -229,16 +211,16 @@ public:
     std::vector<entt::entity> entities;
     std::shared_ptr<component_operation> components;
 
-    void execute(entt::registry &registry, entity_map &entity_map, bool mark_dirty = false) const {
+    void execute(entt::registry &registry, entity_map &entity_map) const {
         switch (operation) {
         case registry_op_type::create:
-            execute_create(registry, entity_map, mark_dirty);
+            execute_create(registry, entity_map);
             break;
         case registry_op_type::destroy:
             execute_destroy(registry, entity_map);
             break;
         default:
-            components->execute(registry, operation, entities, entity_map, mark_dirty);
+            components->execute(registry, operation, entities, entity_map);
         }
     }
 
@@ -260,8 +242,10 @@ class registry_operation_collection final {
         for (auto &op : operations) {
             if (op.operation == op_type && op.components && op.components->get_type_id() == type_id) {
                 if constexpr(std::is_empty_v<Component>) {
-                    for (auto entity : op.entities) {
-                        func(entity);
+                    if constexpr(std::is_invocable_v<Func, entt::entity>) {
+                        for (auto entity : op.entities) {
+                            func(entity);
+                        }
                     }
                 } else {
                     if (op_type == registry_op_type::remove) {
@@ -297,10 +281,9 @@ public:
     std::vector<registry_operation> operations;
 
     void execute(entt::registry &registry,
-                 entity_map &entity_map,
-                 bool mark_dirty = false) const {
+                 entity_map &entity_map) const {
         for (auto &op : operations) {
-            op.execute(registry, entity_map, mark_dirty);
+            op.execute(registry, entity_map);
         }
     }
 
