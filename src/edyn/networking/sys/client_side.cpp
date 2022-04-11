@@ -450,6 +450,7 @@ static bool contains_unknown_entities(entt::registry &registry,
 }
 
 static void insert_input_to_state_history(entt::registry &registry, const packet::registry_snapshot &snap, double time) {
+    // Insert inputs of entities not owned by this client into the state history.
     auto &ctx = registry.ctx<client_network_context>();
     entt::sparse_set unwoned_entities;
 

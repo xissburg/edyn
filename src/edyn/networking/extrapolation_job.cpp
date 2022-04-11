@@ -106,9 +106,7 @@ void extrapolation_job::load_input() {
 
     // Apply all inputs before the current time to start the simulation
     // with the correct initial inputs.
-    m_state_history->until(m_current_time, [&] (auto &&element) {
-        element.ops.execute(m_registry, m_entity_map, true);
-    });
+    m_state_history->import_until(m_current_time, m_registry, m_entity_map);
 
     // Update calculated properties after setting initial state.
     update_origins(m_registry);
@@ -175,10 +173,7 @@ void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, e
 void extrapolation_job::apply_history() {
     auto &settings = m_registry.ctx<edyn::settings>();
     auto start_time = m_current_time - settings.fixed_dt;
-
-    m_state_history->each(start_time, settings.fixed_dt, [&] (auto &&element) {
-        element.ops.execute(m_registry, m_entity_map, true);
-    });
+    m_state_history->import_each(start_time, settings.fixed_dt, m_registry, m_entity_map);
 }
 
 void extrapolation_job::sync_and_finish() {
