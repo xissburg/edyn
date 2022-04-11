@@ -449,6 +449,20 @@ static bool contains_unknown_entities(entt::registry &registry,
     return false;
 }
 
+static void insert_input_to_state_history(entt::registry &registry, const packet::registry_snapshot &snap, double time) {
+    // Insert inputs of entities not owned by this client into the state history.
+    auto &ctx = registry.ctx<client_network_context>();
+    entt::sparse_set unwoned_entities;
+
+    for (auto entity : snap.entities) {
+        if (!ctx.owned_entities.contains(entity) && !unwoned_entities.contains(entity)) {
+            unwoned_entities.emplace(entity);
+        }
+    }
+
+    ctx.state_history->emplace(snap, unwoned_entities, time);
+}
+
 static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
     // Collect all entities present in snapshot and find islands where they
     // reside and finally send the snapshot to the island workers.
@@ -491,6 +505,10 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
         snapshot_time = time - client_server_time_difference;
     }
+
+    // Input from other clients must be always added to the state history.
+    // The server won't send input components of entities owned by this client.
+    insert_input_to_state_history(registry, snapshot, snapshot_time);
 
     // Snap simulation to server state if the amount of time to be extrapolated
     // is smaller than the fixed delta time, which would cause the extrapolation
