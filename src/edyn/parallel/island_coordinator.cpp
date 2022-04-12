@@ -6,6 +6,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
+#include "edyn/networking/networking_external.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/config/config.h"
@@ -558,17 +559,17 @@ void island_coordinator::refresh_dirty_entities() {
         }
 
         builder->emplace_type_ids(*m_registry, entity,
-            dirty.created_indexes.begin(), dirty.created_indexes.end());
+            dirty.created_ids.begin(), dirty.created_ids.end());
         builder->replace_type_ids(*m_registry, entity,
-            dirty.updated_indexes.begin(), dirty.updated_indexes.end());
+            dirty.updated_ids.begin(), dirty.updated_ids.end());
         builder->remove_type_ids(*m_registry, entity,
-            dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
+            dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
     };
 
     dirty_view.each([&] (entt::entity entity, dirty &dirty) {
-        remove_unshared(dirty.created_indexes);
-        remove_unshared(dirty.updated_indexes);
-        remove_unshared(dirty.destroyed_indexes);
+        remove_unshared(dirty.created_ids);
+        remove_unshared(dirty.updated_ids);
+        remove_unshared(dirty.destroyed_ids);
 
         if (resident_view.contains(entity)) {
             refresh(entity, dirty, resident_view.get<island_resident>(entity).island_entity);
@@ -585,9 +586,10 @@ void island_coordinator::refresh_dirty_entities() {
 
 void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, const msg::island_reg_ops &msg) {
     m_importing = true;
+    auto &registry = *m_registry;
     auto &source_ctx = m_island_ctx_map.at(source_island_entity);
 
-    msg.ops.execute(*m_registry, source_ctx->m_entity_map);
+    msg.ops.execute(registry, source_ctx->m_entity_map);
 
     // Insert entity mappings for new entities into the current op.
     msg.ops.create_for_each([&] (entt::entity remote_entity) {
@@ -595,22 +597,22 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
         source_ctx->m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
 
-    auto procedural_view = m_registry->view<procedural_tag>();
-    auto node_view = m_registry->view<graph_node>();
-    auto &island = m_registry->get<edyn::island>(source_island_entity);
+    auto procedural_view = registry.view<procedural_tag>();
+    auto node_view = registry.view<graph_node>();
+    auto &island = registry.get<edyn::island>(source_island_entity);
 
     // Insert nodes in the graph for each rigid body.
-    auto &graph = m_registry->ctx<entity_graph>();
+    auto &graph = registry.ctx<entity_graph>();
     auto insert_node = [&] (entt::entity remote_entity) {
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
-        auto non_connecting = !m_registry->any_of<procedural_tag>(local_entity);
+        auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
         auto node_index = graph.insert_node(local_entity, non_connecting);
-        m_registry->emplace<graph_node>(local_entity, node_index);
+        registry.emplace<graph_node>(local_entity, node_index);
 
         if (procedural_view.contains(local_entity)) {
-            m_registry->emplace<island_resident>(local_entity, source_island_entity);
+            registry.emplace<island_resident>(local_entity, source_island_entity);
         } else {
-            auto &resident = m_registry->emplace<multi_island_resident>(local_entity);
+            auto &resident = registry.emplace<multi_island_resident>(local_entity);
             resident.island_entities.emplace(source_island_entity);
         }
 
@@ -623,13 +625,13 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
     msg.ops.emplace_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
 
-        if (m_registry->any_of<graph_edge>(local_entity)) return;
+        if (registry.any_of<graph_edge>(local_entity)) return;
 
         auto &node0 = node_view.get<graph_node>(source_ctx->m_entity_map.at(con.body[0]));
         auto &node1 = node_view.get<graph_node>(source_ctx->m_entity_map.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
-        m_registry->emplace<graph_edge>(local_entity, edge_index);
-        m_registry->emplace<island_resident>(local_entity, source_island_entity);
+        registry.emplace<graph_edge>(local_entity, edge_index);
+        registry.emplace<island_resident>(local_entity, source_island_entity);
         island.edges.emplace(local_entity);
     });
 
@@ -662,6 +664,8 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
             m_contact_ended_signal.publish(manifold_entity);
         }
     });
+
+    (*g_mark_replaced_network_dirty)(registry, msg.ops, source_ctx->m_entity_map, m_timestamp);
 }
 
 void island_coordinator::on_split_island(entt::entity source_island_entity, const msg::split_island &) {

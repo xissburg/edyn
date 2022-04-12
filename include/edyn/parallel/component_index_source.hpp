@@ -21,7 +21,7 @@ struct component_index_source {
     IndexType index_of() const {
         static_assert(std::is_integral_v<IndexType>);
         if constexpr(tuple_has_type<Component, shared_components_t>::value) {
-            return tuple_index_of<IndexType, Component>(shared_components);
+            return tuple_type_index_of<IndexType, Component, shared_components_t>::value;
         } else {
             // Get external component index by `entt::type_index`.
             return static_cast<IndexType>(index_of_id(entt::type_index<Component>::value()));

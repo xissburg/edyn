@@ -42,7 +42,6 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
-#include "edyn/networking/packet/transient_snapshot.hpp"
 #include "edyn/parallel/component_index_source.hpp"
 #include <memory>
 #include <variant>
@@ -367,11 +366,11 @@ void island_worker::sync_dirty() {
         }
 
         m_op_builder->emplace_type_ids(m_registry, entity,
-            dirty.created_indexes.begin(), dirty.created_indexes.end());
+            dirty.created_ids.begin(), dirty.created_ids.end());
         m_op_builder->replace_type_ids(m_registry, entity,
-            dirty.updated_indexes.begin(), dirty.updated_indexes.end());
+            dirty.updated_ids.begin(), dirty.updated_ids.end());
         m_op_builder->remove_type_ids(m_registry, entity,
-            dirty.destroyed_indexes.begin(), dirty.destroyed_indexes.end());
+            dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
     });
 
     m_registry.clear<dirty>();

@@ -14,15 +14,17 @@
 namespace edyn {
 
 /**
- * @brief Set client output transient snapshot rate per second, i.e. every
- * 1/rate seconds a transient snapshot will be taken and sent to the server.
+ * @brief Set client output registry snapshot rate per second, i.e. every
+ * 1/rate seconds a registry snapshot will be taken and sent to the server.
+ * The snapshot will contain all relevant entities and components that have
+ * changed recently.
  * @param registry Data source.
  * @param rate Snapshot rate.
  */
 void set_network_client_snapshot_rate(entt::registry &, double rate);
 
 /**
- * @brief Get client output transient snapshot rate.
+ * @brief Get client output registry snapshot rate.
  * @param registry Data source.
  * @return Snapshot rate.
  */
@@ -44,7 +46,7 @@ double get_network_client_round_trip_time(entt::registry &);
 
 /**
  * @brief Enable or disable client-side extrapolation.
- * @remark When transient snapshots are received, due to network delay and
+ * @remark When registry snapshots are received, due to network delay and
  * server-side playout delay, the state contained in them is from an earlier
  * point in time. Thus extrapolation is needed to create an approximation of
  * what the state should be at the current time. If disabled, the state is
@@ -72,12 +74,12 @@ bool get_network_client_extrapolation_enabled(entt::registry &);
  * @brief Set number of maximum concurrent extrapolations.
  * @remark Extrapolations are run in background jobs thus never blocking the
  * current simulation. The extrapolations jobs are created and launched as soon
- * as a transient snapshot arrives from the server. If the simulation contains
+ * as a registry snapshot arrives from the server. If the simulation contains
  * many entities, the extrapolation might take a while to complete. If the rate
- * with which transient snapshots arrive is greater than the rate with which
+ * with which registry snapshots arrive is greater than the rate with which
  * extrapolation jobs finish, the number of extrapolation jobs will steadly
  * grow, leading to a vicious cycle and excessive resource consumption. Thus, a
- * hard limit is established where new transient snapshots will be ignored if
+ * hard limit is established where new registry snapshots will be ignored if
  * the number of active extrapolation jobs is greater than or equal to the limit.
  * @param registry Data source.
  * @param count Maximum number of concurrent extrapolations.

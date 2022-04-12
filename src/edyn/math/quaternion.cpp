@@ -4,7 +4,7 @@
 namespace edyn {
 
 // "Practical Parameterization of Rotations Using the Exponential Map", F. Sebastian Grassia
-quaternion integrate(const quaternion &q, const vector3 &w, scalar dt) {
+quaternion integrate(const quaternion &q, const vector3 &w, scalar dt) noexcept {
     const auto ws = length(w);
     const auto min_ws = scalar(0.001);
     constexpr auto half = scalar(0.5);
@@ -22,7 +22,7 @@ quaternion integrate(const quaternion &q, const vector3 &w, scalar dt) {
 }
 
 // Bullet Physics (btQuaternion.h), Game Programming Gems 2.10.
-quaternion shortest_arc(const vector3 &v0, const vector3 &v1) {
+quaternion shortest_arc(const vector3 &v0, const vector3 &v1) noexcept {
     auto c = cross(v0, v1);
     auto d = dot(v0, v1);
 
@@ -37,7 +37,7 @@ quaternion shortest_arc(const vector3 &v0, const vector3 &v1) {
     return normalize(quaternion{c.x * rs, c.y * rs, c.z * rs, s * scalar(0.5)});
 }
 
-scalar angle_between(const quaternion &q0, const quaternion &q1) {
+scalar angle_between(const quaternion &q0, const quaternion &q1) noexcept {
     auto s = std::sqrt(length_sqr(q0) * length_sqr(q1));
     EDYN_ASSERT(std::abs(s) > EDYN_EPSILON);
     auto d = dot(q0, q1);

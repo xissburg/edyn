@@ -9,12 +9,12 @@ namespace edyn {
 struct quaternion {
     scalar x, y, z, w;
 
-    scalar& operator[](size_t i) {
+    scalar& operator[](size_t i) noexcept {
         EDYN_ASSERT(i < 4);
         return (&x)[i];
     }
 
-    scalar operator[](size_t i) const {
+    scalar operator[](size_t i) const noexcept {
         EDYN_ASSERT(i < 4);
         return (&x)[i];
     }
@@ -23,12 +23,12 @@ struct quaternion {
 inline constexpr quaternion quaternion_identity {0, 0, 0, 1};
 
 // Add two quaternions.
-inline quaternion operator+(const quaternion& q0, const quaternion &q1) {
+constexpr quaternion operator+(const quaternion& q0, const quaternion &q1) noexcept {
     return {q0.x + q1.x, q0.y + q1.y, q0.z + q1.z, q0.w + q1.w};
 }
 
 // Add a quaternion into another quaternion.
-inline quaternion& operator+=(quaternion &q0, const quaternion &q1) {
+constexpr quaternion& operator+=(quaternion &q0, const quaternion &q1) noexcept {
     q0.x += q1.x;
     q0.y += q1.y;
     q0.z += q1.z;
@@ -37,12 +37,12 @@ inline quaternion& operator+=(quaternion &q0, const quaternion &q1) {
 }
 
 // Subtract two quaternions.
-inline quaternion operator-(const quaternion &q0, const quaternion &q1) {
+constexpr quaternion operator-(const quaternion &q0, const quaternion &q1) noexcept {
     return {q0.x - q1.x, q0.y - q1.y, q0.z - q1.z, q0.w - q1.w};
 }
 
 // Subtract a quaternion from another quaternion.
-inline quaternion& operator-=(quaternion &q0, const quaternion &q1) {
+constexpr quaternion& operator-=(quaternion &q0, const quaternion &q1) noexcept {
     q0.x -= q1.x;
     q0.y -= q1.y;
     q0.z -= q1.z;
@@ -51,27 +51,27 @@ inline quaternion& operator-=(quaternion &q0, const quaternion &q1) {
 }
 
 // Multiply quaternion by scalar.
-inline quaternion operator*(const quaternion& q, scalar s) {
+constexpr quaternion operator*(const quaternion& q, scalar s) noexcept {
     return {q.x * s, q.y * s, q.z * s, q.w * s};
 }
 
 // Multiply scalar by quaternion.
-inline quaternion operator*(scalar s, const quaternion &q) {
+constexpr quaternion operator*(scalar s, const quaternion &q) noexcept {
     return {s * q.x, s * q.y, s * q.z, s * q.w};
 }
 
 // Divide quaternion by scalar.
-inline quaternion operator/(const quaternion &q, scalar s) {
+constexpr quaternion operator/(const quaternion &q, scalar s) noexcept {
     return {q.x / s, q.y / s, q.z / s, q.w / s};
 }
 
 // Divide scalar by quaternion.
-inline quaternion operator/(scalar s, const quaternion &q) {
+constexpr quaternion operator/(scalar s, const quaternion &q) noexcept {
     return {s / q.x, s / q.y, s / q.z, s / q.w};
 }
 
 // Product of two quaternions.
-inline quaternion operator*(const quaternion &q, const quaternion &r) {
+constexpr quaternion operator*(const quaternion &q, const quaternion &r) noexcept {
     return {
         q.w * r.x + q.x * r.w + q.y * r.z - q.z * r.y,
         q.w * r.y + q.y * r.w + q.z * r.x - q.x * r.z,
@@ -80,13 +80,13 @@ inline quaternion operator*(const quaternion &q, const quaternion &r) {
     };
 }
 
-inline quaternion & operator*=(quaternion &q, const quaternion &r) {
+constexpr quaternion& operator*=(quaternion &q, const quaternion &r) noexcept {
     return q = q * r;
 }
 
 // Product of a quaternion and vector, i.e. product of a quaternion with another
 // quaternion with a zero w component.
-inline quaternion operator*(const quaternion &q, const vector3 &v) {
+constexpr quaternion operator*(const quaternion &q, const vector3 &v) noexcept {
     return {
         q.w * v.x + q.y * v.z - q.z * v.y,
         q.w * v.y + q.z * v.x - q.x * v.z,
@@ -96,7 +96,7 @@ inline quaternion operator*(const quaternion &q, const vector3 &v) {
 }
 
 // Product of a vector and a quaternion.
-inline quaternion operator*(const vector3 &v, const quaternion &q) {
+constexpr quaternion operator*(const vector3 &v, const quaternion &q) noexcept {
     return {
         v.x * q.w + v.y * q.z - v.z * q.y,
         v.y * q.w + v.z * q.x - v.x * q.z,
@@ -106,61 +106,61 @@ inline quaternion operator*(const vector3 &v, const quaternion &q) {
 }
 
 // Check if two quaternions are equal.
-inline bool operator==(const quaternion &q, const quaternion &v) {
+constexpr bool operator==(const quaternion &q, const quaternion &v) noexcept {
     return q.x == v.x && q.y == v.y && q.z == v.z && q.w == v.w;
 }
 
 // Check if two quaternions are different.
-inline bool operator!=(const quaternion &q, const quaternion &v) {
+constexpr bool operator!=(const quaternion &q, const quaternion &v) noexcept {
     return q.x != v.x || q.y != v.y || q.z != v.z || q.w != v.w;
 }
 
 // Squared length of a quaternion.
-inline scalar length_sqr(const quaternion &q) {
+constexpr scalar length_sqr(const quaternion &q) noexcept {
     return q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
 }
 
 // Length of a quaternion.
-inline scalar length(const quaternion &q) {
+inline scalar length(const quaternion &q) noexcept {
     return std::sqrt(length_sqr(q));
 }
 
-inline scalar dot(const quaternion &q0, const quaternion &q1) {
+constexpr scalar dot(const quaternion &q0, const quaternion &q1) noexcept {
     return q0.x * q1.x + q0.y * q1.y + q0.z * q1.z + q0.w * q1.w;
 }
 
 // Returns a unit-length version of the given quaternion.
-inline quaternion normalize(const quaternion &q) {
+inline quaternion normalize(const quaternion &q) noexcept {
     auto l = length(q);
     EDYN_ASSERT(l > EDYN_EPSILON);
     return q / l;
 }
 
 // Conjugate of a quaternion.
-inline quaternion conjugate(const quaternion &q) {
+constexpr quaternion conjugate(const quaternion &q) noexcept {
     return {-q.x, -q.y, -q.z, q.w};
 }
 
 // Rotate a vector by a quaternion.
-inline vector3 rotate(const quaternion &q, const vector3 &v) {
+constexpr vector3 rotate(const quaternion &q, const vector3 &v) noexcept {
     auto r = q * v * conjugate(q);
     return {r.x, r.y, r.z};
 }
 
 // Build a quaternion from an angle about and axis of rotation.
-inline quaternion quaternion_axis_angle(const vector3 &v, scalar a) {
+inline quaternion quaternion_axis_angle(const vector3 &v, scalar a) noexcept {
     auto l = length(v);
     auto s = std::sin(a * scalar(0.5)) / l;
     return {v.x * s, v.y * s, v.z * s, std::cos(a * scalar(0.5))};
 }
 
 // Get rotation angle of a quaternion.
-inline scalar quaternion_angle(const quaternion &q) {
+inline scalar quaternion_angle(const quaternion &q) noexcept {
     return std::acos(q.w) * scalar(2);
 }
 
 // Get rotation axis of a quaternion.
-inline vector3 quaternion_axis(const quaternion &q) {
+inline vector3 quaternion_axis(const quaternion &q) noexcept {
     auto s2 = scalar(1) - q.w * q.w;
 
     if (s2 > EDYN_EPSILON) {
@@ -172,22 +172,22 @@ inline vector3 quaternion_axis(const quaternion &q) {
 }
 
 // Get x-axis of the basis of a quaternion.
-inline vector3 quaternion_x(const quaternion &q) {
+inline vector3 quaternion_x(const quaternion &q) noexcept {
     return rotate(q, vector3_x);
 }
 
 // Get y-axis of the basis of a quaternion.
-inline vector3 quaternion_y(const quaternion &q) {
+inline vector3 quaternion_y(const quaternion &q) noexcept {
     return rotate(q, vector3_y);
 }
 
 // Get z-axis of the basis of a quaternion.
-inline vector3 quaternion_z(const quaternion &q) {
+inline vector3 quaternion_z(const quaternion &q) noexcept {
     return rotate(q, vector3_z);
 }
 
 // Spherical linear interpolation.
-inline quaternion slerp(const quaternion &q0, const quaternion &q1, scalar s) {
+inline quaternion slerp(const quaternion &q0, const quaternion &q1, scalar s) noexcept {
     const auto magnitude = std::sqrt(length_sqr(q0) * length_sqr(q1));
     EDYN_ASSERT(magnitude > 0);
 
@@ -215,17 +215,17 @@ inline quaternion slerp(const quaternion &q0, const quaternion &q1, scalar s) {
 }
 
 // Integrate angular velocity over time.
-quaternion integrate(const quaternion &q, const vector3 &w, scalar dt);
+quaternion integrate(const quaternion &q, const vector3 &w, scalar dt) noexcept;
 
 // Returns the shortest rotation that takes `v0` to `v1`.
-quaternion shortest_arc(const vector3 &v0, const vector3 &v1);
+quaternion shortest_arc(const vector3 &v0, const vector3 &v1) noexcept;
 
 // Returns the angle between two quaternions along the shortest path.
-scalar angle_between(const quaternion &q0, const quaternion &q1);
+scalar angle_between(const quaternion &q0, const quaternion &q1) noexcept;
 
 // Derivative of a quaternion along an axis-angle.
 // Reference: https://fgiesen.wordpress.com/2012/08/24/quaternion-differentiation/
-inline quaternion quaternion_derivative(const quaternion &q, const vector3 &w) {
+constexpr quaternion quaternion_derivative(const quaternion &q, const vector3 &w) noexcept {
     return quaternion{w.x, w.y, w.z, 0} * q * scalar(0.5);
 }
 

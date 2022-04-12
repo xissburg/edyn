@@ -9,7 +9,7 @@
 namespace edyn {
 
 scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
-                             const vector3 &p, scalar &t, vector3 &q) {
+                             const vector3 &p, scalar &t, vector3 &q) noexcept {
     auto v = q1 - q0; // Direction vector of segment `q`.
     auto w = p - q0; // Vector from initial point of segment to point `p`.
     auto a = dot(w, v);
@@ -21,7 +21,7 @@ scalar closest_point_segment(const vector3 &q0, const vector3 &q1,
 }
 
 scalar distance_sqr_line(const vector3 &q0, const vector3 &dir,
-                         const vector3 &p) {
+                         const vector3 &p) noexcept {
     auto w = p - q0;
     auto a = dot(w, dir);
     auto b = dot(dir, dir);
@@ -32,7 +32,7 @@ scalar distance_sqr_line(const vector3 &q0, const vector3 &dir,
 }
 
 scalar closest_point_line(const vector3 &q0, const vector3 &dir,
-                          const vector3 &p, scalar &t, vector3 &r) {
+                          const vector3 &p, scalar &t, vector3 &r) noexcept {
     auto w = p - q0; // Vector from initial point of line to point `p`.
     auto a = dot(w, dir);
     auto b = dot(dir, dir);
@@ -44,7 +44,7 @@ scalar closest_point_line(const vector3 &q0, const vector3 &dir,
 
 bool closest_point_line_line(const vector3 &p1, const vector3 &q1,
                              const vector3 &p2, const vector3 &q2,
-                             scalar &s, scalar &t) {
+                             scalar &s, scalar &t) noexcept {
     // Reference: Real-Time Collision Detection - Christer Ericson,
     // Section 5.1.8 - Closest Points of Two Lines
     auto d1 = q1 - p1;
@@ -75,7 +75,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                                      vector3 &c1, vector3 &c2,
                                      size_t *num_points,
                                      scalar *sp, scalar *tp,
-                                     vector3 *c1p, vector3 *c2p) {
+                                     vector3 *c1p, vector3 *c2p) noexcept {
     const auto d1 = q1 - p1; // Direction vector of segment `s1`.
     const auto d2 = q2 - p2; // Direction vector of segment `s2`.
     const auto r = p1 - p2;
@@ -169,7 +169,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
 }
 
 scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn,
-                          scalar radius, const vector3 &p, vector3 &q) {
+                          scalar radius, const vector3 &p, vector3 &q) noexcept {
     // Project point onto disc's plane.
     const auto normal = rotate(dorn, vector3_x);
     const auto ln = dot(p - dpos, normal);
@@ -190,7 +190,7 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn,
 }
 
 size_t intersect_line_circle(const vector2 &p0, const vector2 &p1,
-                             scalar radius, scalar &s0, scalar &s1) {
+                             scalar radius, scalar &s0, scalar &s1) noexcept {
     auto d = p1 - p0;
     auto dl2 = length_sqr(d);
     auto dp = dot(d, p0);
@@ -217,7 +217,7 @@ scalar closest_point_circle_line(
     const vector3 &p0, const vector3 &p1, size_t &num_points,
     scalar &s0, vector3 &rc0, vector3 &rl0,
     scalar &s1, vector3 &rc1, vector3 &rl1,
-    vector3 &normal, scalar /*threshold*/) {
+    vector3 &normal, scalar /*threshold*/) noexcept {
 
     // Line points in local disc space. The face of the disc points towards
     // the positive x-axis.
@@ -394,7 +394,7 @@ scalar closest_point_circle_line(
 
 size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
                                const vector2 &posB, scalar radiusB,
-                               vector2 &res0, vector2 &res1) {
+                               vector2 &res0, vector2 &res1) noexcept {
     // Reference: Intersection of Linear and Circular Components in 2D - David Eberly
     // https://www.geometrictools.com/Documentation/IntersectionLine2Circle2.pdf
     auto u = posB - posA;
@@ -647,7 +647,7 @@ bool intersect_aabb(const vector3 &min0, const vector3 &max0,
 }
 
 vector3 support_point_circle(const vector3 &pos, const quaternion &orn,
-                             scalar radius, const vector3 &dir) {
+                             scalar radius, const vector3 &dir) noexcept {
     auto local_dir = rotate(conjugate(orn), dir);
     // Squared length in yz plane.
     auto len_yz_sqr = local_dir.y * local_dir.y + local_dir.z * local_dir.z;
@@ -722,7 +722,7 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
     return 0;
 }
 
-scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3) {
+scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3) noexcept {
 	vector3 a[3], b[3];
 	a[0] = p0 - p1;
 	a[1] = p0 - p2;
@@ -744,7 +744,7 @@ insertion_point_result insertion_point_index(const vector3 *points,
                                              size_t &num_points,
                                              const vector3 &new_point,
                                              scalar new_point_depth,
-                                             bool use_yz) {
+                                             bool use_yz) noexcept {
     EDYN_ASSERT(num_points <= count);
     const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
 
@@ -868,7 +868,7 @@ insertion_point_result insertion_point_index(const vector3 *points,
     return {point_insertion_type::none, count};
 }
 
-vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p) {
+vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p) noexcept {
     auto closest = p;
     closest.x = std::min(half_extent.x, closest.x);
     closest.x = std::max(-half_extent.x, closest.x);
@@ -879,7 +879,7 @@ vector3 closest_point_box_outside(const vector3 &half_extent, const vector3 &p) 
     return closest;
 }
 
-scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, vector3 &closest, vector3 &normal) {
+scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, vector3 &closest, vector3 &normal) noexcept {
     EDYN_ASSERT(p >= -half_extent && p <= half_extent);
 
     auto dist = half_extent.x - p.x;
@@ -927,7 +927,7 @@ scalar closest_point_box_inside(const vector3 &half_extent, const vector3 &p, ve
 
 size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
                            const vector2 &aabb_min, const vector2 &aabb_max,
-                           scalar &s0, scalar &s1) {
+                           scalar &s0, scalar &s1) noexcept {
     size_t num_points = 0;
     auto d = p1 - p0;
     auto e = aabb_min - p0;
@@ -1023,7 +1023,7 @@ size_t intersect_line_aabb(const vector2 &p0, const vector2 &p1,
 
 bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
                               const std::vector<size_t> &indices,
-                              const vector3 &normal, const vector3 &point) {
+                              const vector3 &normal, const vector3 &point) noexcept {
     const auto count = indices.size();
     EDYN_ASSERT(count > 2);
 
@@ -1067,7 +1067,7 @@ bool point_in_polygonal_prism(const std::vector<vector3> &vertices,
 // Reference: Real-Time Collision Detection - Christer Ericson,
 // Section 5.3.3 - Intersecting Ray or Segment Against Box.
 bool intersect_segment_aabb(vector3 p0, vector3 p1,
-                            vector3 aabb_min, vector3 aabb_max) {
+                            vector3 aabb_min, vector3 aabb_max) noexcept {
     auto aabb_center = (aabb_min + aabb_max) * scalar(0.5);
     auto half_extents = aabb_max - aabb_center;
     auto midpoint = (p0 + p1) * scalar(0.5);
@@ -1106,7 +1106,7 @@ bool intersect_segment_aabb(vector3 p0, vector3 p1,
     return true;
 }
 
-intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) {
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) noexcept {
     // Let a plane be defined by the ray and the vector orthogonal to the
     // cylinder axis and the ray (i.e. their cross product). This plane cuts
     // the cylinder and their intersection is an ellipse with vertical half
@@ -1149,7 +1149,7 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vec
     return {intersect_ray_cylinder_result::kind::intersects, dist_sqr, normal};
 }
 
-bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t) {
+bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, scalar &t) noexcept {
     // Reference: Real-Time Collision Detection - Christer Ericson,
     // Section 5.3.2 - Intersecting Ray or Segment Against Sphere.
     // Substitute parametrized line function into sphere equation and
@@ -1182,7 +1182,7 @@ bool intersect_ray_sphere(vector3 p0, vector3 p1, vector3 pos, scalar radius, sc
 
 bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
                                 const std::array<vector3, 3> &vertices,
-                                const vector3 &normal, scalar &t) {
+                                const vector3 &normal, scalar &t) noexcept {
     auto d = dot(p1 - p0, normal);
     auto e = dot(vertices[0] - p0, normal);
     t = 0;

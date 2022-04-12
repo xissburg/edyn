@@ -7,11 +7,11 @@ namespace edyn {
 
 std::unique_ptr<registry_operation_builder> make_reg_op_builder_default() {
     return std::unique_ptr<registry_operation_builder>(
-        new registry_operation_builder_impl(shared_components));
+        new registry_operation_builder_impl(shared_components_t{}));
 }
 
 settings::settings()
-    : index_source(new component_index_source_impl(shared_components))
+    : index_source(new component_index_source_impl(shared_components_t{}))
 {}
 
 }
