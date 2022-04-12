@@ -122,6 +122,7 @@ private:
     std::vector<entt::entity> m_islands_to_split;
 
     bool m_importing {false};
+    bool m_splitting_island {false};
     double m_timestamp;
 };
 

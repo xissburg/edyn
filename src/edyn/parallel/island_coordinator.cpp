@@ -637,6 +637,12 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
 
     m_importing = false;
 
+    // Only do the following if this message wasn't generated during an island split,
+    // since components are not really being replaced, they're just being moved.
+    if (m_splitting_island) {
+        return;
+    }
+
     // Generate contact events.
     msg.ops.replace_for_each<contact_manifold_events>([&] (entt::entity remote_entity,
                                                            const contact_manifold_events &events) {
@@ -691,7 +697,9 @@ void island_coordinator::split_island(entt::entity split_island_entity) {
     // entities that need to have their entity mappings added and the
     // update AABB `tree_view` of this island, which removes entities that
     // have moved due to the split.
+    m_splitting_island = true;
     ctx->read_messages();
+    m_splitting_island = false;
 
     // Map entities to the coordinator space.
     for (auto &connected_component : connected_components) {
