@@ -159,13 +159,13 @@ void register_external_components(entt::registry &registry) {
 
     settings.make_reg_op_builder = [] () {
         auto external = std::tuple<Component...>{};
-        auto all_components = std::tuple_cat(shared_components, external);
+        auto all_components = std::tuple_cat(shared_components_t{}, external);
         return std::unique_ptr<registry_operation_builder>(
             new registry_operation_builder_impl(all_components));
     };
 
     auto external = std::tuple<Component...>{};
-    auto all_components = std::tuple_cat(shared_components, external);
+    auto all_components = std::tuple_cat(shared_components_t{}, external);
     settings.index_source.reset(new component_index_source_impl(all_components));
 
     registry.ctx<island_coordinator>().settings_changed();
