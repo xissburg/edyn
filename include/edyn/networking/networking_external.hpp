@@ -14,14 +14,18 @@
 namespace edyn {
 
 namespace internal {
-    static auto make_default_is_networked_component_func() {
+    template<typename... Component>
+    auto make_is_networked_component_func([[maybe_unused]] std::tuple<Component...>) {
         return [](entt::id_type id) {
-            bool result;
-            std::apply([&](auto ... c) {
-                result = ((id == entt::type_index<decltype(c)>::value() &&
-                           std::is_base_of_v<network_input, decltype(c)>) || ...);
-            }, networked_components);
-            return result;
+            return ((id == entt::type_index<Component>::value()) || ...);
+        };
+    }
+
+    template<typename... Component>
+    auto make_is_network_input_component_func([[maybe_unused]] std::tuple<Component...>) {
+        return [](entt::id_type id) {
+            return ((id == entt::type_index<Component>::value() &&
+                     std::is_base_of_v<network_input, Component>) || ...);
         };
     }
 
@@ -79,15 +83,8 @@ void register_networked_components(entt::registry &registry) {
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(all);
-
-    g_is_networked_component = [](entt::id_type id) {
-        return ((id == entt::type_index<Component>::value()) || ...);
-    };
-
-    g_is_networked_input_component = [](entt::id_type id) {
-        return ((id == entt::type_index<Component>::value() && std::is_base_of_v<network_input, Component>) || ...);
-    };
-
+    g_is_networked_component = internal::make_is_networked_component_func(all);
+    g_is_networked_input_component = internal::make_is_network_input_component_func(all);
     g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(all);
 }
 
@@ -108,7 +105,8 @@ inline void unregister_networked_components(entt::registry &registry) {
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(networked_components);
-    g_is_networked_component = internal::make_default_is_networked_component_func();
+    g_is_networked_component = internal::make_is_networked_component_func(networked_components);
+    g_is_networked_input_component = internal::make_is_network_input_component_func(networked_components);
     g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(networked_components);
 }
 
