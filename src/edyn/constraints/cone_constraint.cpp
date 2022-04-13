@@ -31,7 +31,7 @@ void prepare_constraints<cone_constraint>(entt::registry &registry, row_cache &c
     auto con_view = registry.view<cone_constraint>(entt::exclude_t<disabled_tag>{});
     auto origin_view = registry.view<origin>();
 
-    con_view.each([&] (cone_constraint &con) {
+    con_view.each([&](cone_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 

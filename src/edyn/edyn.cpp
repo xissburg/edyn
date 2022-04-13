@@ -21,7 +21,7 @@ static void init_meta() {
     entt::meta<collision_exclusion>().type()
         .data<&collision_exclusion::entity, entt::as_ref_t>("entity"_hs);
 
-    std::apply([&] (auto ... c) {
+    std::apply([&](auto ... c) {
         (entt::meta<decltype(c)>().type().template data<&decltype(c)::body, entt::as_ref_t>("body"_hs), ...);
     }, constraints_tuple);
 

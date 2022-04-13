@@ -100,7 +100,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 void swap_manifold(contact_manifold &manifold) {
     std::swap(manifold.body[0], manifold.body[1]);
 
-    manifold.each_point([] (contact_point &cp) {
+    manifold.each_point([](contact_point &cp) {
         std::swap(cp.pivotA, cp.pivotB);
         std::swap(cp.featureA, cp.featureB);
         cp.normal *= -1; // Point towards new A.

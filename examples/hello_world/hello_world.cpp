@@ -7,7 +7,7 @@ void print_entities(entt::registry& registry) {
     printf("================================\n");
 
     auto view = registry.view<const edyn::position, const edyn::linvel>();
-    view.each([] (auto ent, const auto &pos, const auto &vel) {
+    view.each([](auto ent, const auto &pos, const auto &vel) {
         printf("pos (%d): %.3f, %.3f, %.3f\n", entt::to_integral(ent), pos.x, pos.y, pos.z);
         printf("vel (%d): %.3f, %.3f, %.3f\n", entt::to_integral(ent), vel.x, vel.y, vel.z);
     });

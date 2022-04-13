@@ -61,7 +61,7 @@ namespace detail {
 class comp_state_history {
     auto first_after(double timestamp) {
         return std::find_if(history.begin(), history.end(),
-                            [timestamp] (auto &&elem) { return elem.timestamp > timestamp; });
+                            [timestamp](auto &&elem) { return elem.timestamp > timestamp; });
     }
 
 public:

@@ -79,7 +79,7 @@ void serialize(Archive &archive, contact_manifold &manifold) {
         archive(manifold.ids[i]);
     }
 
-    manifold.each_point([&] (contact_point &cp) {
+    manifold.each_point([&](contact_point &cp) {
         archive(cp);
     });
 }

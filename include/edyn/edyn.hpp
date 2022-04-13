@@ -157,7 +157,7 @@ template<typename... Component>
 void register_external_components(entt::registry &registry) {
     auto &settings = registry.ctx<edyn::settings>();
 
-    settings.make_reg_op_builder = [] () {
+    settings.make_reg_op_builder = []() {
         auto external = std::tuple<Component...>{};
         auto all_components = std::tuple_cat(shared_components_t{}, external);
         return std::unique_ptr<registry_operation_builder>(
@@ -337,7 +337,7 @@ template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
     auto &node = registry.get<graph_node>(entity);
     auto &graph = registry.ctx<entity_graph>();
-    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+    graph.visit_edges(node.node_index, [&](auto edge_index) {
         func(graph.edge_entity(edge_index));
     });
 }

@@ -88,9 +88,9 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
         process_collision(manifold_entity, manifold, events, result, tr_view, vel_view,
                           rolling_view, origin_view, orn_view, material_view,
                           mesh_shape_view, paged_mesh_shape_view, dt,
-                          [&] (const collision_result::collision_point &rp) {
+                          [&](const collision_result::collision_point &rp) {
             create_contact_point(*m_registry, manifold_entity, manifold, rp);
-        }, [&] (auto pt_id) {
+        }, [&](auto pt_id) {
             destroy_contact_point(*m_registry, manifold_entity, pt_id);
         });
     }

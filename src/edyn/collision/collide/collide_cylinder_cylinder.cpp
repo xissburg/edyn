@@ -183,7 +183,7 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
     point.featureA = {featureA, feature_indexA};
     point.featureB = {featureB, feature_indexB};
 
-    auto get_local_distance = [&] (vector3 pivotA, vector3 pivotB) {
+    auto get_local_distance = [&](vector3 pivotA, vector3 pivotB) {
         auto pivotA_world = to_world_space(pivotA, posA, ornA);
         auto pivotB_world = to_world_space(pivotB, posB, ornB);
         return dot(pivotA_world - pivotB_world, sep_axis);

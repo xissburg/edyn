@@ -20,7 +20,7 @@ void update_presentation(entt::registry &registry, double time) {
     auto angular_view = registry.view<orientation, angvel, present_orientation, island_resident, procedural_tag>(exclude);
     auto fixed_dt = registry.ctx<settings>().fixed_dt;
 
-    linear_view.each([&] (position &pos, linvel &vel, present_position &pre, island_resident &resident) {
+    linear_view.each([&](position &pos, linvel &vel, present_position &pre, island_resident &resident) {
         EDYN_ASSERT(registry.valid(resident.island_entity));
         auto &isle_time = timestamp_view.get<island_timestamp>(resident.island_entity);
         EDYN_ASSERT(!(time < isle_time.value));
@@ -28,7 +28,7 @@ void update_presentation(entt::registry &registry, double time) {
         pre = pos + vel * dt;
     });
 
-    angular_view.each([&] (orientation &orn, angvel &vel, present_orientation &pre, island_resident &resident) {
+    angular_view.each([&](orientation &orn, angvel &vel, present_orientation &pre, island_resident &resident) {
         EDYN_ASSERT(registry.valid(resident.island_entity));
         auto &isle_time = timestamp_view.get<island_timestamp>(resident.island_entity);
         EDYN_ASSERT(!(time < isle_time.value));
@@ -37,7 +37,7 @@ void update_presentation(entt::registry &registry, double time) {
     });
 
     auto discontinuity_view = registry.view<discontinuity, present_position, present_orientation>();
-    discontinuity_view.each([] (discontinuity &dis, present_position &p_pos, present_orientation &p_orn) {
+    discontinuity_view.each([](discontinuity &dis, present_position &p_pos, present_orientation &p_orn) {
         p_pos += dis.position_offset;
         p_orn = dis.orientation_offset * p_orn;
     });
@@ -45,7 +45,7 @@ void update_presentation(entt::registry &registry, double time) {
 
 void snap_presentation(entt::registry &registry) {
     auto view = registry.view<position, orientation, present_position, present_orientation>();
-    view.each([] (position &pos, orientation &orn, present_position &p_pos, present_orientation &p_orn) {
+    view.each([](position &pos, orientation &orn, present_position &p_pos, present_orientation &p_orn) {
         p_pos = pos;
         p_orn = orn;
     });

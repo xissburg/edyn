@@ -184,7 +184,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
             auto &pos = registry.get<position>(local_entity);
             auto &orn = registry.get<orientation>(local_entity);
 
-            visit_shape(registry, local_entity, [&] (auto &&shape) {
+            visit_shape(registry, local_entity, [&](auto &&shape) {
                 auto aabb = shape_aabb(shape, pos, orn);
                 registry.emplace<AABB>(local_entity, aabb);
             });
@@ -306,7 +306,7 @@ void deinit_network_server(entt::registry &registry) {
 }
 
 static void server_process_timed_packets(entt::registry &registry, double time) {
-    registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
+    registry.view<remote_client>().each([&](entt::entity client_entity, remote_client &client) {
         auto it = client.packet_queue.begin();
 
         for (; it != client.packet_queue.end(); ++it) {
@@ -314,7 +314,7 @@ static void server_process_timed_packets(entt::registry &registry, double time) 
                 break;
             }
 
-            std::visit([&] (auto &&packet) {
+            std::visit([&](auto &&packet) {
                 using PacketType = std::decay_t<decltype(packet)>;
 
                 if constexpr(tuple_has_type<PacketType, packet::timed_packets_tuple_t>::value) {
@@ -408,7 +408,7 @@ static void process_aabb_of_interest_created_entities(entt::registry &registry,
         ctx.snapshot_exporter->export_all(registry, packet);
 
         // Sort components to ensure order of construction on the other end.
-        std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+        std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
             return lhs.component_index < rhs.component_index;
         });
 
@@ -436,7 +436,7 @@ static void maybe_publish_client_registry_snapshot(entt::registry &registry,
     // Only include entities which are in islands not fully owned by the client
     // since the server allows the client to have full control over entities in
     // the islands where there are no other clients present.
-    auto should_include = [&] (entt::entity entity) {
+    auto should_include = [&](entt::entity entity) {
         return
             !registry.any_of<sleeping_tag>(entity) &&
             registry.all_of<networked_tag, network_dirty>(entity) &&
@@ -530,12 +530,12 @@ void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&pa
 
     // Sorted insertion.
     auto insert_it = std::find_if(client.packet_queue.begin(), client.packet_queue.end(),
-                                  [packet_timestamp] (auto &&p) { return p.timestamp > packet_timestamp; });
+                                  [packet_timestamp](auto &&p) { return p.timestamp > packet_timestamp; });
     client.packet_queue.insert(insert_it, timed_packet{packet_timestamp, packet::edyn_packet{std::move(packet)}});
 }
 
 void server_receive_packet(entt::registry &registry, entt::entity client_entity, packet::edyn_packet &packet) {
-    std::visit([&] (auto &&decoded_packet) {
+    std::visit([&](auto &&decoded_packet) {
         using PacketType = std::decay_t<decltype(decoded_packet)>;
         // If it's a timed packet, enqueue for later execution. Process
         // immediately otherwise.
@@ -612,7 +612,7 @@ void server_notify_created_entities(entt::registry &registry,
     ctx.snapshot_exporter->export_all(registry, packet);
 
     // Sort components to ensure order of construction.
-    std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+    std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
         return lhs.component_index < rhs.component_index;
     });
 

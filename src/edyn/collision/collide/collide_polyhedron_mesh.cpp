@@ -68,7 +68,7 @@ static void collide_polyhedron_triangle(
         }
     }
 
-    auto add_direction = [&] (vector3 dir) {
+    auto add_direction = [&](vector3 dir) {
         auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -dir);
         auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
         auto dist = proj_poly - proj_tri;
@@ -238,7 +238,7 @@ void collide(const polyhedron_shape &poly, const triangle_mesh &mesh,
     const auto inset = vector3_one * -contact_breaking_threshold;
     const auto visit_aabb = ctx.aabbA.inset(inset);
 
-    mesh.visit_triangles(visit_aabb, [&] (auto tri_idx) {
+    mesh.visit_triangles(visit_aabb, [&](auto tri_idx) {
         collide_polyhedron_triangle(poly, mesh, tri_idx, ctx, result);
     });
 }

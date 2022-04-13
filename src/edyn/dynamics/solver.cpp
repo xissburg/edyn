@@ -126,7 +126,7 @@ void update_impulses(entt::registry &registry, row_cache &cache) {
     size_t con_idx = 0;
     size_t row_idx = 0;
 
-    std::apply([&] (auto ... c) {
+    std::apply([&](auto ... c) {
         (update_impulse<decltype(c)>(registry, cache, con_idx, row_idx), ...);
     }, constraints_tuple);
 }
@@ -171,7 +171,7 @@ void solver::update(scalar dt) {
 
     // Apply constraint velocity correction.
     auto vel_view = registry.view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>();
-    vel_view.each([] (linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
+    vel_view.each([](linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
         v += dv;
         w += dw;
         dv = vector3_zero;

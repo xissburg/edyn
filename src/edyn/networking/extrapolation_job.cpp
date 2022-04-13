@@ -71,19 +71,19 @@ void extrapolation_job::load_input() {
     auto &graph = m_registry.ctx<entity_graph>();
 
     // Create nodes for rigid bodies in entity graph.
-    auto insert_graph_node = [&] (entt::entity entity) {
+    auto insert_graph_node = [&](entt::entity entity) {
         auto non_connecting = !m_registry.any_of<procedural_tag>(entity);
         auto node_index = graph.insert_node(entity, non_connecting);
         m_registry.emplace<graph_node>(entity, node_index);
     };
 
-    std::apply([&] (auto ... t) {
+    std::apply([&](auto ... t) {
         (m_registry.view<decltype(t)>().each(insert_graph_node), ...);
     }, std::tuple<rigidbody_tag, external_tag>{});
 
     // Create edges for constraints in entity graph.
     auto node_view = m_registry.view<graph_node>();
-    auto insert_graph_edge = [&] (entt::entity entity, auto &&con) {
+    auto insert_graph_edge = [&](entt::entity entity, auto &&con) {
         if (m_registry.any_of<graph_edge>(entity)) return;
 
         auto &node0 = node_view.get<graph_node>(con.body[0]);
@@ -92,7 +92,7 @@ void extrapolation_job::load_input() {
         m_registry.emplace<graph_edge>(entity, edge_index);
     };
 
-    std::apply([&] (auto ... t) {
+    std::apply([&](auto ... t) {
         (m_registry.view<decltype(t)>().each(insert_graph_edge), ...);
     }, constraints_tuple);
 
@@ -145,7 +145,7 @@ void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::en
 
     m_destroying_node = true;
 
-    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+    graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
     });
@@ -189,7 +189,7 @@ void extrapolation_job::sync_and_finish() {
     // Local entity mapping must not be included if the result is going to be
     // remapped into remote space.
     if (!m_input.should_remap) {
-        m_entity_map.each([&] (auto remote_entity, auto local_entity) {
+        m_entity_map.each([&](auto remote_entity, auto local_entity) {
             builder->add_entity_mapping(local_entity, remote_entity);
         });
     }
@@ -234,7 +234,7 @@ void extrapolation_job::sync_and_finish() {
     EDYN_ASSERT(!m_result.ops.empty());
 
     // Insert all manifolds into it.
-    manifold_view.each([&] (contact_manifold &manifold) {
+    manifold_view.each([&](contact_manifold &manifold) {
         m_result.manifolds.push_back(manifold);
     });
 

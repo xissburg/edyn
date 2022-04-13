@@ -39,7 +39,7 @@ void update_aabb(entt::registry &registry, entt::entity entity) {
     auto tr_view = registry.view<position, orientation, AABB>();
     auto origin_view = registry.view<origin>();
 
-    visit_shape(registry, entity, [&] (auto &&shape) {
+    visit_shape(registry, entity, [&](auto &&shape) {
         update_aabb(entity, shape, tr_view, origin_view);
     });
 }

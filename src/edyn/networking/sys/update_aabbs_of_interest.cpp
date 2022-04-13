@@ -16,19 +16,19 @@ void update_aabbs_of_interest(entt::registry &registry) {
     auto manifold_view = registry.view<contact_manifold>();
     auto position_view = registry.view<position>();
 
-    registry.view<aabb_of_interest, aabb_oi_follow>().each([&] (aabb_of_interest &aabboi, aabb_oi_follow &follow) {
+    registry.view<aabb_of_interest, aabb_oi_follow>().each([&](aabb_of_interest &aabboi, aabb_oi_follow &follow) {
         auto [pos] = position_view.get(follow.entity);
         auto half_size = (aabboi.aabb.max - aabboi.aabb.min) / 2;
         aabboi.aabb.min = pos - half_size;
         aabboi.aabb.max = pos + half_size;
     });
 
-    registry.view<aabb_of_interest>().each([&] (aabb_of_interest &aabboi) {
+    registry.view<aabb_of_interest>().each([&](aabb_of_interest &aabboi) {
         entt::sparse_set contained_entities;
 
         aabboi.island_entities.clear();
         // Collect entities of islands which intersect the AABB of interest.
-        bphase.query_islands(aabboi.aabb, [&] (entt::entity island_entity) {
+        bphase.query_islands(aabboi.aabb, [&](entt::entity island_entity) {
             auto &island = registry.get<edyn::island>(island_entity);
 
             for (auto entity : island.nodes) {
@@ -53,7 +53,7 @@ void update_aabbs_of_interest(entt::registry &registry) {
             }
         });
 
-        bphase.query_non_procedural(aabboi.aabb, [&] (entt::entity np_entity) {
+        bphase.query_non_procedural(aabboi.aabb, [&](entt::entity np_entity) {
             if (!contained_entities.contains(np_entity)) {
                 contained_entities.emplace(np_entity);
             }

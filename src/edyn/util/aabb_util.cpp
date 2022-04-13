@@ -215,7 +215,7 @@ AABB shape_aabb(const compound_shape &sh, const vector3 &pos, const quaternion &
 
 AABB shape_aabb(const shapes_variant_t &var, const vector3 &pos, const quaternion &orn) {
     AABB aabb;
-    std::visit([&] (auto &&shape) {
+    std::visit([&](auto &&shape) {
         aabb = shape_aabb(shape, pos, orn);
     }, var);
     return aabb;

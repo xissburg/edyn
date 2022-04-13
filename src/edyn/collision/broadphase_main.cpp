@@ -63,14 +63,14 @@ void broadphase_main::update() {
     // Update island AABBs in tree (ignore sleeping islands).
     auto exclude_sleeping = entt::exclude_t<sleeping_tag>{};
     auto tree_view_resident_view = m_registry->view<tree_view, tree_resident>(exclude_sleeping);
-    tree_view_resident_view.each([&] (tree_view &tree_view, tree_resident &node) {
+    tree_view_resident_view.each([&](tree_view &tree_view, tree_resident &node) {
         m_island_tree.move(node.id, tree_view.root_aabb());
     });
 
     // Update kinematic AABBs in tree.
     // TODO: only do this for kinematic entities that had their AABB updated.
     auto kinematic_aabb_node_view = m_registry->view<tree_resident, AABB, kinematic_tag>();
-    kinematic_aabb_node_view.each([&] (tree_resident &node, AABB &aabb) {
+    kinematic_aabb_node_view.each([&](tree_resident &node, AABB &aabb) {
         m_np_tree.move(node.id, aabb);
     });
 
@@ -94,7 +94,7 @@ void broadphase_main::update() {
     if (awake_island_entities.size() > 1) {
         m_pair_results.resize(awake_island_entities.size());
 
-        parallel_for(size_t{0}, awake_island_entities.size(), [&] (size_t index) {
+        parallel_for(size_t{0}, awake_island_entities.size(), [&](size_t index) {
             auto island_entityA = awake_island_entities[index];
             m_pair_results[index] = find_intersecting_islands(island_entityA, aabb_view, multi_resident_view, tree_view_view);
         });
@@ -131,7 +131,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
 
     // Query the dynamic tree to find other islands whose AABB intersects the
     // current island's AABB.
-    m_island_tree.query(island_aabb, [&] (tree_node_id_t idB) {
+    m_island_tree.query(island_aabb, [&](tree_node_id_t idB) {
         auto island_entityB = m_island_tree.get_node(idB).entity;
 
         if (island_entityA == island_entityB) {
@@ -147,7 +147,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(entt::entity islan
 
     // Query the non-procedural dynamic tree to find static and kinematic
     // entities that are intersecting this island.
-    m_np_tree.query(island_aabb, [&] (tree_node_id_t id_np) {
+    m_np_tree.query(island_aabb, [&](tree_node_id_t id_np) {
         auto np_entity = m_np_tree.get_node(id_np).entity;
 
         // Only proceed if the non-procedural entity is not in the island,
@@ -184,12 +184,12 @@ entity_pair_vector broadphase_main::intersect_islands_a(const tree_view &tree_vi
     // `tree_viewA` is iterated and for each node an AABB query is performed in
     // `tree_viewB`, thus for better performance `tree_viewA` should be smaller
     // than `tree_viewB`.
-    tree_viewA.each([&] (const tree_view::tree_node &nodeA) {
+    tree_viewA.each([&](const tree_view::tree_node &nodeA) {
         auto entityA = nodeA.entity;
 
         auto aabbA = aabb_view.get<AABB>(entityA).inset(m_aabb_offset);
 
-        tree_viewB.query(aabbA, [&] (tree_node_id_t idB) {
+        tree_viewB.query(aabbA, [&](tree_node_id_t idB) {
             auto entityB = tree_viewB.get_node(idB).entity;
 
             if (should_collide(entityA, entityB) && !manifold_map.contains(entityA, entityB)) {
@@ -211,7 +211,7 @@ entity_pair_vector broadphase_main::intersect_island_np(const tree_view &island_
     entity_pair_vector results;
     auto &manifold_map = m_registry->ctx<contact_manifold_map>();
 
-    island_tree.query(np_aabb, [&] (tree_node_id_t idA) {
+    island_tree.query(np_aabb, [&](tree_node_id_t idA) {
         auto entity = island_tree.get_node(idA).entity;
 
         if (should_collide(entity, np_entity) && !manifold_map.contains(entity, np_entity)) {

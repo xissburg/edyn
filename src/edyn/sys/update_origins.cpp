@@ -10,7 +10,7 @@ namespace edyn {
 
 void update_origins(entt::registry &registry) {
     registry.view<position, orientation, center_of_mass, origin>()
-        .each([] (position &pos, orientation &orn, center_of_mass &com, origin &orig) {
+        .each([](position &pos, orientation &orn, center_of_mass &com, origin &orig) {
         orig = to_world_space(-com, pos, orn);
     });
 }

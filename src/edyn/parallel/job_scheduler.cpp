@@ -35,7 +35,7 @@ void job_scheduler::schedule_after(const job &j, double delta_time) {
     auto current_time = performance_time();
     auto job_timestamp = current_time + delta_time;
 
-    auto found_it = std::find_if(m_jobs.begin(), m_jobs.end(), [job_timestamp] (const timed_job &j) {
+    auto found_it = std::find_if(m_jobs.begin(), m_jobs.end(), [job_timestamp](const timed_job &j) {
         return j.m_timestamp > job_timestamp;
     });
 
@@ -57,7 +57,7 @@ void job_scheduler::update() {
 
         if (m_jobs.empty()) {
             // Wait until there's a job available.
-            m_cv.wait(lock, [&] () { return !m_jobs.empty() || !m_running.load(std::memory_order_acquire); });
+            m_cv.wait(lock, [&]() { return !m_jobs.empty() || !m_running.load(std::memory_order_acquire); });
         } else {
             // Wait until the next job is ready.
             auto current_time = performance_time();
@@ -65,7 +65,7 @@ void job_scheduler::update() {
 
             if (time_until_next_job > 0) {
                 auto duration = std::chrono::duration<double>(time_until_next_job);
-                m_cv.wait_for(lock, duration, [&] () { return !m_running.load(std::memory_order_acquire); });
+                m_cv.wait_for(lock, duration, [&]() { return !m_running.load(std::memory_order_acquire); });
             }
         }
 

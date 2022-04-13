@@ -287,7 +287,7 @@ void collide(const compound_shape &shA, const T &shB,
     // A more precise AABB could be obtained but it would be generally more expensive.
     //auto aabbB_in_A = shape_aabb(shB, posB_in_A, ornB_in_A);
 
-    shA.visit(aabbB_in_A, [&] (auto &&sh, auto node_index) {
+    shA.visit(aabbB_in_A, [&](auto &&sh, auto node_index) {
         auto &nodeA = shA.nodes[node_index];
         // New collision context with A's world space position and orientation.
         auto child_ctx = ctx;
@@ -346,7 +346,7 @@ void collide(const T &shA, const paged_mesh_shape &shB,
     };
     auto inset_aabb = ctx.aabbA.inset(inset);
 
-    shB.trimesh->visit_submeshes(inset_aabb, [&] (size_t mesh_idx) {
+    shB.trimesh->visit_submeshes(inset_aabb, [&](size_t mesh_idx) {
         auto trimesh = shB.trimesh->get_submesh(mesh_idx);
         collision_result child_result;
         collide(shA, *trimesh, ctx, child_result);

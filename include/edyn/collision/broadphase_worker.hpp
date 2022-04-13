@@ -55,10 +55,10 @@ private:
 
 template<typename Func>
 void broadphase_worker::raycast(vector3 p0, vector3 p1, Func func) {
-    m_tree.raycast(p0, p1, [&] (tree_node_id_t id) {
+    m_tree.raycast(p0, p1, [&](tree_node_id_t id) {
         func(m_tree.get_node(id).entity);
     });
-    m_np_tree.raycast(p0, p1, [&] (tree_node_id_t id) {
+    m_np_tree.raycast(p0, p1, [&](tree_node_id_t id) {
         func(m_np_tree.get_node(id).entity);
     });
 }

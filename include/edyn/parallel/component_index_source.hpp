@@ -57,7 +57,7 @@ struct component_index_source_impl : public component_index_source {
         auto tuple = components_tuple_t{};
 
         if (index < std::tuple_size_v<components_tuple_t>) {
-            visit_tuple(tuple, index, [&] (auto &&c) {
+            visit_tuple(tuple, index, [&](auto &&c) {
                 id = entt::type_index<std::decay_t<decltype(c)>>::value();
             });
         }

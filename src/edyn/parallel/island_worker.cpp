@@ -160,7 +160,7 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
 
     m_destroying_node = true;
 
-    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+    graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
     });
@@ -227,7 +227,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
 
     msg.ops.execute(m_registry, m_entity_map);
 
-    msg.ops.create_for_each([&] (entt::entity remote_entity) {
+    msg.ops.create_for_each([&](entt::entity remote_entity) {
         auto local_entity = m_entity_map.at(remote_entity);
         m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
@@ -236,12 +236,12 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     auto node_view = m_registry.view<graph_node>();
 
     // Insert nodes in the graph for each rigid body.
-    msg.ops.emplace_for_each<rigidbody_tag, external_tag>([this] (entt::entity remote_entity) {
+    msg.ops.emplace_for_each<rigidbody_tag, external_tag>([this](entt::entity remote_entity) {
         insert_remote_node(remote_entity);
     });
 
     // Insert edges in the graph for constraints.
-    msg.ops.emplace_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
+    msg.ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
         auto local_entity = m_entity_map.at(remote_entity);
 
         if (m_registry.any_of<graph_edge>(local_entity)) return;
@@ -254,7 +254,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
 
     // When orientation is set manually, a few dependent components must be
     // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
-    msg.ops.replace_for_each<orientation>([&] (entt::entity remote_entity, const orientation &orn) {
+    msg.ops.replace_for_each<orientation>([&](entt::entity remote_entity, const orientation &orn) {
         auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
@@ -277,7 +277,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     });
 
     // When position is set manually, the AABB and cached origin must be updated.
-    msg.ops.replace_for_each<position>([&] (entt::entity remote_entity, const position &pos) {
+    msg.ops.replace_for_each<position>([&](entt::entity remote_entity, const position &pos) {
         auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
@@ -296,7 +296,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         // Assign previous position and orientation components to dynamic entities
         // for client-side networking extrapolation discontinuity mitigation.
-        msg.ops.emplace_for_each<dynamic_tag>([&] (entt::entity remote_entity) {
+        msg.ops.emplace_for_each<dynamic_tag>([&](entt::entity remote_entity) {
             if (!m_entity_map.contains(remote_entity)) return;
 
             auto local_entity = m_entity_map.at(remote_entity);
@@ -340,7 +340,7 @@ void island_worker::sync() {
     // Update continuous components.
     auto &settings = m_registry.ctx<edyn::settings>();
     auto &index_source = *settings.index_source;
-    m_registry.view<continuous>().each([&] (entt::entity entity, continuous &cont) {
+    m_registry.view<continuous>().each([&](entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
             m_op_builder->replace_type_id(m_registry, entity, index_source.type_id_of(cont.indices[i]));
         }
@@ -355,7 +355,7 @@ void island_worker::sync() {
 void island_worker::sync_dirty() {
     // Assign dirty components to the operation builder. This can be called at
     // any time to move the current dirty entities into the next operation.
-    m_registry.view<dirty>().each([&] (entt::entity entity, dirty &dirty) {
+    m_registry.view<dirty>().each([&](entt::entity entity, dirty &dirty) {
         if (dirty.is_new_entity) {
             m_op_builder->create(entity);
         }
@@ -545,7 +545,7 @@ void island_worker::run_solver() {
 
 static void decay_discontinuities(entt::registry &registry, scalar rate) {
     EDYN_ASSERT(!(rate < 0) && rate < 1);
-    registry.view<discontinuity>().each([rate] (discontinuity &dis) {
+    registry.view<discontinuity>().each([rate](discontinuity &dis) {
         dis.position_offset *= rate;
         dis.orientation_offset = slerp(quaternion_identity, dis.orientation_offset, rate);
     });
@@ -872,11 +872,11 @@ void island_worker::import_contact_manifolds(const std::vector<contact_manifold>
 }
 
 static void assign_previous_transforms(entt::registry &registry) {
-    registry.view<previous_position, position>().each([] (previous_position &p_pos, position &pos) {
+    registry.view<previous_position, position>().each([](previous_position &p_pos, position &pos) {
         p_pos = pos;
     });
 
-    registry.view<previous_orientation, orientation>().each([] (previous_orientation &p_orn, orientation &orn) {
+    registry.view<previous_orientation, orientation>().each([](previous_orientation &p_orn, orientation &orn) {
         p_orn = orn;
     });
 }
@@ -934,7 +934,7 @@ entity_graph::connected_components_t island_worker::split() {
     // Sort connected components by size. The biggest component will stay
     // in this island worker.
     std::sort(connected_components.begin(), connected_components.end(),
-        [] (auto &lhs, auto &rhs) {
+        [](auto &lhs, auto &rhs) {
             auto lsize = lhs.nodes.size() + lhs.edges.size();
             auto rsize = rhs.nodes.size() + rhs.edges.size();
             return lsize > rsize;
@@ -978,7 +978,7 @@ entity_graph::connected_components_t island_worker::split() {
     }
 
     // Remove invalid entities from entity map.
-    m_entity_map.erase_if([&] (entt::entity remote_entity, entt::entity local_entity) {
+    m_entity_map.erase_if([&](entt::entity remote_entity, entt::entity local_entity) {
         return !m_registry.valid(local_entity);
     });
 

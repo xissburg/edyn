@@ -21,7 +21,7 @@ namespace detail {
         auto split_axis_idx = max_index(aabb_size);
         auto split_pos = set_aabb.center()[split_axis_idx];
 
-        std::sort(ids_begin, ids_end, [&] (auto a, auto b) {
+        std::sort(ids_begin, ids_end, [&](auto a, auto b) {
             auto &b0 = *(aabb_begin + a);
             auto &b1 = *(aabb_begin + b);
             auto ca = b0.center();

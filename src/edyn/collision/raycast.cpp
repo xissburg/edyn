@@ -27,13 +27,13 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
     entt::entity hit_entity {entt::null};
     shape_raycast_result result;
 
-    auto raycast_shape = [&] (entt::entity entity) {
+    auto raycast_shape = [&](entt::entity entity) {
         auto sh_idx = index_view.get<shape_index>(entity);
         auto pos = origin_view.contains(entity) ? static_cast<vector3>(origin_view.get<origin>(entity)) : tr_view.get<position>(entity);
         auto orn = tr_view.get<orientation>(entity);
         auto ctx = raycast_context{pos, orn, p0, p1};
 
-        visit_shape(sh_idx, entity, shape_views_tuple, [&] (auto &&shape) {
+        visit_shape(sh_idx, entity, shape_views_tuple, [&](auto &&shape) {
             auto res = shape_raycast(shape, ctx);
 
             if (res.fraction < result.fraction) {
@@ -47,9 +47,9 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
     // Pick the available broadphase and raycast their AABB trees.
     if (registry.try_ctx<broadphase_main>() != nullptr) {
         auto &bphase = registry.ctx<broadphase_main>();
-        bphase.raycast_islands(p0, p1, [&] (entt::entity island_entity) {
+        bphase.raycast_islands(p0, p1, [&](entt::entity island_entity) {
             auto &tree_view = tree_view_view.get<edyn::tree_view>(island_entity);
-            tree_view.raycast(p0, p1, [&] (tree_node_id_t id) {
+            tree_view.raycast(p0, p1, [&](tree_node_id_t id) {
                 auto entity = tree_view.get_node(id).entity;
                 raycast_shape(entity);
             });
@@ -215,7 +215,7 @@ shape_raycast_result shape_raycast(const capsule_shape &capsule, const raycast_c
     auto cap_dir = vertices[1] - vertices[0];
     auto radius = capsule.radius;
 
-    auto intersect_hemisphere = [&] (size_t hemi_idx) -> shape_raycast_result {
+    auto intersect_hemisphere = [&](size_t hemi_idx) -> shape_raycast_result {
         if (!intersect_ray_sphere(ctx.p0, ctx.p1, vertices[hemi_idx], radius, u)) {
             return {};
         }
@@ -330,7 +330,7 @@ shape_raycast_result shape_raycast(const compound_shape &compound, const raycast
     auto p1 = to_object_space(ctx.p1, ctx.pos, ctx.orn);
     shape_raycast_result result;
 
-    compound.raycast(p0, p1, [&] (auto &&shape, auto node_index) {
+    compound.raycast(p0, p1, [&](auto &&shape, auto node_index) {
         auto &node = compound.nodes[node_index];
         auto child_ctx = raycast_context{};
         child_ctx.p0 = p0;
@@ -345,7 +345,7 @@ shape_raycast_result shape_raycast(const compound_shape &compound, const raycast
             auto info = compound_raycast_info{node_index};
             // Obtain and assign relevant child info.
             using child_info_var_t = decltype(info.child_info_var);
-            std::visit([&] (auto &&child_info) {
+            std::visit([&](auto &&child_info) {
                 using child_info_t = std::decay_t<decltype(child_info)>;
                 if constexpr(variant_has_type<child_info_t, child_info_var_t>::value) {
                     info.child_info_var = child_info;
@@ -386,7 +386,7 @@ shape_raycast_result shape_raycast(const mesh_shape &mesh, const raycast_context
     auto &trimesh = mesh.trimesh;
     shape_raycast_result result;
 
-    trimesh->raycast(ctx.p0, ctx.p1, [&] (auto tri_idx) {
+    trimesh->raycast(ctx.p0, ctx.p1, [&](auto tri_idx) {
         auto vertices = trimesh->get_triangle_vertices(tri_idx);
         auto normal = trimesh->get_triangle_normal(tri_idx);
         auto t = scalar(0);
@@ -408,7 +408,7 @@ shape_raycast_result shape_raycast(const mesh_shape &mesh, const raycast_context
 shape_raycast_result shape_raycast(const paged_mesh_shape &paged_mesh, const raycast_context &ctx) {
     shape_raycast_result result;
 
-    paged_mesh.trimesh->raycast_cached(ctx.p0, ctx.p1, [&] (auto submesh_idx, auto tri_idx) {
+    paged_mesh.trimesh->raycast_cached(ctx.p0, ctx.p1, [&](auto submesh_idx, auto tri_idx) {
         auto trimesh = paged_mesh.trimesh->get_submesh(submesh_idx);
         auto vertices = trimesh->get_triangle_vertices(tri_idx);
         auto normal = trimesh->get_triangle_normal(tri_idx);

@@ -255,7 +255,7 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
     for (auto entity : con_view) {
         auto &manifold = con_view.get<contact_manifold>(entity);
 
-        manifold.each_point([&] (contact_point &cp) {
+        manifold.each_point([&](contact_point &cp) {
             auto &normal_row = cache.rows[row_idx++];
             auto &friction_row_pair = ctx.friction_rows[cp_idx];
             internal::solve_friction_row_pair(friction_row_pair, normal_row);

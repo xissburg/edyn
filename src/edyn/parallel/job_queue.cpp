@@ -13,7 +13,7 @@ void job_queue::push(const job &j) {
 
 job job_queue::pop() {
     std::unique_lock<std::mutex> lock(m_mutex);
-    m_cv.wait(lock, [&] () {
+    m_cv.wait(lock, [&]() {
         return !m_jobs.empty();
     });
 

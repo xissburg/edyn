@@ -121,7 +121,7 @@ static void process_created_networked_entities(entt::registry &registry, double 
     registry.insert(packet.entities.begin(), packet.entities.end(), entity_owner{ctx.client_entity});
 
     // Sort components to ensure order of construction.
-    std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+    std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
         return lhs.component_index < rhs.component_index;
     });
 
@@ -217,7 +217,7 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
     // Result contains entities already mapped into the main registry space.
     // Entities could've been destroyed while extrapolation was running.
     auto invalid_it = std::remove_if(result.entities.begin(), result.entities.end(),
-                                     [&] (auto entity) { return !registry.valid(entity); });
+                                     [&](auto entity) { return !registry.valid(entity); });
     result.entities.erase(invalid_it, result.entities.end());
 
     auto island_entities = collect_islands_from_residents(registry, result.entities.begin(), result.entities.end());
@@ -240,7 +240,7 @@ static void process_finished_extrapolation_jobs(entt::registry &registry) {
     // Check if extrapolation jobs are finished and merge their results into
     // the main registry.
     auto remove_it = std::remove_if(ctx.extrapolation_jobs.begin(), ctx.extrapolation_jobs.end(),
-                                    [&] (extrapolation_job_context &extr_ctx) {
+                                    [&](extrapolation_job_context &extr_ctx) {
         if (extr_ctx.job->is_finished()) {
             auto &result = extr_ctx.job->get_result();
             apply_extrapolation_result(registry, result);
@@ -348,7 +348,7 @@ static void import_remote_snapshot(entt::registry &registry, const packet::regis
             auto &pos = registry.get<position>(local_entity);
             auto &orn = registry.get<orientation>(local_entity);
 
-            visit_shape(registry, local_entity, [&] (auto &&shape) {
+            visit_shape(registry, local_entity, [&](auto &&shape) {
                 auto aabb = shape_aabb(shape, pos, orn);
                 registry.emplace<AABB>(local_entity, aabb);
             });
@@ -635,7 +635,7 @@ static void process_packet(entt::registry &registry, const packet::server_settin
 static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}
 
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
-    std::visit([&] (auto &&inner_packet) {
+    std::visit([&](auto &&inner_packet) {
         process_packet(registry, inner_packet);
     }, packet.var);
 }

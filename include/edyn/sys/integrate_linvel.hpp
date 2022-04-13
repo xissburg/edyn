@@ -16,7 +16,7 @@ namespace edyn {
  */
 inline void integrate_linvel(entt::registry &registry, scalar dt) {
     auto view = registry.view<position, linvel, dynamic_tag>();
-    view.each([&] (position &pos, linvel &vel) {
+    view.each([&](position &pos, linvel &vel) {
         pos += vel * dt;
     });
 }

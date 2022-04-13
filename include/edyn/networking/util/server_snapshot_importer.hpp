@@ -149,7 +149,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
                                        bool check_ownership) {
         auto &client = registry.get<remote_client>(client_entity);
 
-        auto remove = [&] (size_t i) {
+        auto remove = [&](size_t i) {
             pool.entity_indices[i] = pool.entity_indices.back(), pool.entity_indices.pop_back();
             pool.components[i] = pool.components.back(), pool.components.pop_back();
         };
@@ -185,7 +185,7 @@ public:
         const std::tuple<Components...> all_components;
 
         for (auto &pool : snap.pools) {
-            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+            visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using CompType = std::decay_t<decltype(c)>;
                 auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
                 import_components(registry, client_entity, snap.entities, *typed_pool, check_ownership);
@@ -198,7 +198,7 @@ public:
         const std::tuple<Components...> all_components;
 
         for (auto &pool : snap.pools) {
-            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+            visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using CompType = std::decay_t<decltype(c)>;
 
                 if ((*g_is_networked_input_component)(entt::type_index<CompType>::value())) {
@@ -214,7 +214,7 @@ public:
         const std::tuple<Components...> all_components;
 
         for (auto &pool : snap.pools) {
-            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+            visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using CompType = std::decay_t<decltype(c)>;
 
                 if constexpr(!std::is_empty_v<CompType>) {

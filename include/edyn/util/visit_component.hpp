@@ -19,7 +19,7 @@ namespace detail {
     template<typename VisitorType, typename ViewsTupleType, typename T>
     constexpr auto make_visit_function() {
         using ViewType = entt::basic_view<entt::entity, entt::get_t<T>, entt::exclude_t<>>;
-        return [] (entt::entity entity, const ViewsTupleType &views_tuple, VisitorType visitor) {
+        return [](entt::entity entity, const ViewsTupleType &views_tuple, VisitorType visitor) {
             auto &view = std::get<ViewType>(views_tuple);
             if (view.contains(entity)) {
                 visitor(view.template get<T>(entity));
@@ -87,7 +87,7 @@ namespace detail {
     // Creates a function that invokes a visitor with a component argument.
     template<typename VisitorType, typename T>
     constexpr auto make_visit_registry_function() {
-        return [] (entt::entity entity, entt::registry &registry, VisitorType visitor) {
+        return [](entt::entity entity, entt::registry &registry, VisitorType visitor) {
             if (registry.all_of<T>(entity)) {
                 visitor(registry.get<T>(entity));
             }

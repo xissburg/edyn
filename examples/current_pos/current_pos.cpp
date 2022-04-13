@@ -14,7 +14,7 @@ void print_entities(entt::registry& registry) {
     printf("================================\n");
 
     auto view = registry.view<const edyn::position, const edyn::present_position>();
-    view.each([] (auto ent, const auto& pos, const auto& curpos) {
+    view.each([](auto ent, const auto& pos, const auto& curpos) {
         // Compare the physics position to the presentation position and notice how
         // the physics position `pos` does not change uniformly after each update.
         // The presentation position `curpos` should change linearly with dt (because

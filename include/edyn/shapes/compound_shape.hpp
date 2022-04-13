@@ -98,10 +98,10 @@ template<typename Func>
 void compound_shape::visit(const AABB &aabb, Func func) const {
     EDYN_ASSERT(!tree.empty());
 
-    tree.query(aabb, [&] (auto tree_node_idx) {
+    tree.query(aabb, [&](auto tree_node_idx) {
         auto node_id = tree.get_node(tree_node_idx).id;
         auto &node = nodes[node_id];
-        std::visit([&] (auto &&shape) {
+        std::visit([&](auto &&shape) {
             func(shape, node_id);
         }, node.shape_var);
     });
@@ -111,10 +111,10 @@ template<typename Func>
 void compound_shape::raycast(const vector3 &p0, const vector3 &p1, Func func) const {
     EDYN_ASSERT(!tree.empty());
 
-    tree.raycast(p0, p1, [&] (auto tree_node_idx) {
+    tree.raycast(p0, p1, [&](auto tree_node_idx) {
         auto node_id = tree.get_node(tree_node_idx).id;
         auto &node = nodes[node_id];
-        std::visit([&] (auto &&shape) {
+        std::visit([&](auto &&shape) {
             func(shape, node_id);
         }, node.shape_var);
     });

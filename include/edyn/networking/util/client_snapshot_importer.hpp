@@ -96,7 +96,7 @@ public:
         auto all_components = std::tuple<Components...>{};
 
         for (auto &pool : snap.pools) {
-            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+            visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using Component = std::decay_t<decltype(c)>;
                 auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
                 import_components(registry, emap, snap.entities, *typed_pool);
@@ -109,7 +109,7 @@ public:
         auto all_components = std::tuple<Components...>{};
 
         for (auto &pool : snap.pools) {
-            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+            visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using Component = std::decay_t<decltype(c)>;
                 auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
                 import_components_local<Component>(registry, snap.entities, *typed_pool);
