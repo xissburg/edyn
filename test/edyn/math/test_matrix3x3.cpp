@@ -44,3 +44,12 @@ TEST_F(matrix3x3_test, fundamental) {
         }
     }
 }
+
+TEST_F(matrix3x3_test, comparison) {
+    auto m = random_mat();
+    ASSERT_EQ(m, m);
+
+    auto n = m;
+    n[0][0] += 1;
+    ASSERT_NE(n, m);
+}

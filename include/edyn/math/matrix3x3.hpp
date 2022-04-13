@@ -106,8 +106,8 @@ constexpr bool operator==(const matrix3x3 &m, const matrix3x3 &n) noexcept {
 
 // Check if two matrices are different.
 constexpr bool operator!=(const matrix3x3 &m, const matrix3x3 &n) noexcept {
-    return m.row[0] != n.row[0] &&
-           m.row[1] != n.row[1] &&
+    return m.row[0] != n.row[0] ||
+           m.row[1] != n.row[1] ||
            m.row[2] != n.row[2];
 }
 
