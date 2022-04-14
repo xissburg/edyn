@@ -2,6 +2,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
@@ -72,7 +73,7 @@ static void update_input_history(entt::registry &registry, double timestamp) {
 
     // Erase all inputs until the current time minus the client-server time
     // difference plus some leeway because this is the amount of time the
-    // transient snapshots will be extrapolated forward thus requiring the
+    // registry snapshots will be extrapolated forward thus requiring the
     // inputs from that point in time onwards.
     auto &settings = registry.ctx<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
@@ -208,6 +209,9 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
     packet.timestamp = time;
     ctx.snapshot_exporter->export_dirty(registry, packet);
 
+    // Always include actions.
+    ctx.snapshot_exporter->export_actions(registry, packet);
+
     if (!packet.entities.empty() && !packet.pools.empty()) {
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
     }
@@ -259,6 +263,14 @@ static void client_update_clock_sync(entt::registry &registry, double time) {
     update_clock_sync(ctx.clock_sync, time, client_settings.round_trip_time);
 }
 
+static void trim_actions(entt::registry &registry, double time) {
+    // Erase old actions.
+    double action_history_max_length = 1;
+    registry.view<edyn::action_history>().each([&](action_history &history) {
+        history.erase_until(time - action_history_max_length);
+    });
+}
+
 void update_network_client(entt::registry &registry) {
     auto time = performance_time();
 
@@ -269,6 +281,7 @@ void update_network_client(entt::registry &registry) {
     maybe_publish_registry_snapshot(registry, time);
     process_finished_extrapolation_jobs(registry);
     update_input_history(registry, time);
+    trim_actions(registry, time);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -592,8 +605,6 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     input.snapshot = std::move(snapshot);
     input.should_remap = true;
 
-    // Create extrapolation job and put the registry snapshot and the transient
-    // snapshot into its message queue.
     auto &material_table = registry.ctx<material_mix_table>();
 
     auto job = std::make_unique<extrapolation_job>(std::move(input), settings, material_table, ctx.state_history);

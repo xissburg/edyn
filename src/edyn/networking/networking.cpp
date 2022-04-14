@@ -105,4 +105,9 @@ entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>> network_
     return ctx.packet_sink();
 }
 
+entt::sink<entt::sigh<void(entt::entity, const std::vector<uint8_t> &)>> network_server_action_sink(entt::registry &registry) {
+    auto &ctx = registry.ctx<server_network_context>();
+    return ctx.action_sink();
+}
+
 }

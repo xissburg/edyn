@@ -3,6 +3,7 @@
 
 #include <entt/entity/registry.hpp>
 #include <type_traits>
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
@@ -31,9 +32,15 @@ public:
     virtual void import_input_local(entt::registry &registry, entt::entity client_entity,
                                     const packet::registry_snapshot &snap, double time) = 0;
 
-    // Transform contained entities from remote to local using the remote client's entity map.
+    // Transform contained entities from remote to local using the remote
+    // client's entity map.
     virtual void transform_to_local(const entt::registry &registry, entt::entity client_entity,
                                     packet::registry_snapshot &snap, bool check_ownership) = 0;
+
+    // Merge all action_history components in the snapshot with corresponding
+    // components in the registry.
+    virtual void merge_action_history(entt::registry &registry, packet::registry_snapshot &snap,
+                                      double time_delta) = 0;
 };
 
 template<typename... Components>
@@ -222,6 +229,33 @@ public:
                     transform_components_to_local(registry, client_entity, snap.entities, *typed_pool, check_ownership);
                 }
             });
+        }
+    }
+
+    void merge_action_history(entt::registry &registry, packet::registry_snapshot &snap, double time_delta) override {
+        auto pool_it = std::find_if(snap.pools.begin(), snap.pools.end(), [](auto &&pool) {
+            constexpr auto action_history_index = index_of_v<unsigned, action_history, Components...>;
+            return pool.component_index == action_history_index;
+        });
+
+        if (pool_it == snap.pools.end()) {
+            auto *history_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool_it->ptr.get());
+
+            for (unsigned i = 0; i < history_pool->components.size(); ++i) {
+                auto idx = history_pool->entity_indices[i];
+                auto entity = snap.entities[idx];
+                auto &history = history_pool->components[i];
+                history.sort();
+
+                for (auto &entry : history.entries) {
+                    entry.timestamp += time_delta;
+                }
+
+                registry.get_or_emplace<action_history>(entity).merge(history);
+            }
+
+            *pool_it = std::move(snap.pools.back());
+            snap.pools.pop_back();
         }
     }
 };

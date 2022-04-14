@@ -1,6 +1,7 @@
 #include "edyn/networking/sys/server_side.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
@@ -112,7 +113,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // Import inputs directly into the main registry.
     ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot, performance_time());
 
-    // Get islands of all entities contained in transient snapshot and send the
+    // Get islands of all entities contained in the snapshot and send the
     // snapshot to them. They will import the pre-processed state into their
     // registries. Later, these components will be updated in the main registry
     // via registry operations.
@@ -505,6 +506,23 @@ static void server_update_clock_sync(entt::registry &registry, double time) {
     };
 }
 
+void dispatch_actions(entt::registry &registry, double time) {
+    auto &ctx = registry.ctx<server_network_context>();
+
+    for (auto [entity, history] : registry.view<action_history>().each()) {
+        auto it = history.entries.begin();
+        for (; it != history.entries.end(); ++it) {
+            if (it->timestamp > time) {
+                break;
+            }
+
+            ctx.action_signal.publish(entity, it->data);
+        }
+
+        history.entries.erase(history.entries.begin(), it);
+    }
+}
+
 void update_network_server(entt::registry &registry) {
     auto time = performance_time();
     server_update_clock_sync(registry, time);
@@ -514,6 +532,7 @@ void update_network_server(entt::registry &registry) {
     update_aabbs_of_interest(registry);
     process_aabbs_of_interest(registry, time);
     publish_pending_created_clients(registry);
+    dispatch_actions(registry, time);
 }
 
 template<typename T>
@@ -526,6 +545,19 @@ void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&pa
         packet_timestamp = std::min(packet.timestamp + client.clock_sync.time_delta, time);
     } else {
         packet_timestamp = time - client.round_trip_time / 2;
+    }
+
+    if constexpr(std::is_same_v<T, packet::registry_snapshot>) {
+        double time_delta;
+
+        if (client.clock_sync.count > 0) {
+            time_delta = client.clock_sync.time_delta;
+        } else {
+            time_delta = time - (packet.timestamp + client.round_trip_time / 2);
+        }
+
+        auto &ctx = registry.ctx<server_network_context>();
+        ctx.snapshot_importer->merge_action_history(registry, packet, time_delta);
     }
 
     // Sorted insertion.

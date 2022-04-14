@@ -2,7 +2,9 @@
 #define EDYN_NETWORKING_UTIL_CLIENT_SNAPSHOT_EXPORTER_HPP
 
 #include <entt/entity/fwd.hpp>
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
+#include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/util/tuple_util.hpp"
 
@@ -17,6 +19,10 @@ public:
 
     // Write all dirty networked entities and components into a snapshot.
     virtual void export_dirty(const entt::registry &registry, packet::registry_snapshot &snap) = 0;
+
+    void export_actions(const entt::registry &registry, packet::registry_snapshot &snap) {
+        internal::snapshot_insert_all<action_history>(registry, snap, tuple_index_of<unsigned, action_history>(networked_components));
+    }
 };
 
 template<typename... Components>
