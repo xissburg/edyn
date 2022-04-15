@@ -69,7 +69,7 @@ TEST(networking_test, comp_state_history) {
     registry2.emplace<input>(emap.at(ent0));
     registry2.emplace<input>(emap.at(ent2));
 
-    history.import_until(2, registry2, emap);
+    history.import_initial_state(registry2, emap, 2);
 
     ASSERT_EQ(registry2.get<input>(emap.at(ent0)).value, 11);
     ASSERT_EQ(registry2.get<input>(emap.at(ent2)).value, 997);
@@ -80,7 +80,7 @@ TEST(networking_test, comp_state_history) {
     ASSERT_EQ(registry2.get<input>(emap.at(ent2)).value, 1337);
 
     history.erase_until(2);
-    history.import_until(2, registry2, emap);
+    history.import_initial_state(registry2, emap, 2);
 
     ASSERT_EQ(registry2.get<input>(emap.at(ent0)).value, 0);
     ASSERT_EQ(registry2.get<input>(emap.at(ent2)).value, 1337);

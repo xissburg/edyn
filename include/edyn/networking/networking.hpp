@@ -160,9 +160,6 @@ network_client_extrapolation_timeout_sink(entt::registry &);
 entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>>
 network_server_packet_sink(entt::registry &);
 
-entt::sink<entt::sigh<void(entt::entity, const std::vector<uint8_t> &)>>
-network_server_action_sink(entt::registry &registry);
-
 }
 
 #endif // EDYN_NETWORKING_NETWORKING_HPP

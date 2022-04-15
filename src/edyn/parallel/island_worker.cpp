@@ -581,6 +581,11 @@ void island_worker::finish_step() {
     m_registry.replace<tree_view>(m_island_entity, tview);
     m_op_builder->replace<tree_view>(m_registry, m_island_entity);
 
+    // Clear actions after they've been consumed.
+    if (settings.clear_actions_func) {
+        (*settings.clear_actions_func)(m_registry);
+    }
+
     maybe_go_to_sleep();
 
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {

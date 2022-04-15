@@ -63,22 +63,24 @@ extern void(*g_mark_replaced_network_dirty)(entt::registry &, const registry_ope
  * @param registry Data source.
  * @param input Tuple of input components.
  */
-template<typename... Component>
-void register_networked_components(entt::registry &registry) {
-    auto external = std::tuple<Component...>{};
+template<typename... Components, typename... Actions>
+void register_networked_components(entt::registry &registry, std::tuple<Actions...> actions = {}) {
+    auto external = std::tuple<Components...>{};
     auto all = std::tuple_cat(networked_components, external);
 
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
         ctx->snapshot_importer.reset(new client_snapshot_importer_impl(all));
-        ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(all));
+        ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(all, actions));
 
-        auto input = std::tuple_cat(std::conditional_t<std::is_base_of_v<network_input, Component>,
-                                    std::tuple<Component>, std::tuple<>>{}...);
-        ctx->state_history = std::make_shared<decltype(comp_state_history_impl(input))>(input);
+        auto input = std::tuple_cat(std::conditional_t<std::is_base_of_v<network_input, Components>,
+                                    std::tuple<Components>, std::tuple<>>{}...);
+        auto action_lists = std::tuple<action_list<Actions>...>{};
+        auto input_all = std::tuple_cat(input, action_lists);
+        ctx->state_history = std::make_shared<decltype(comp_state_history_impl(input_all))>();
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
-        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(all));
+        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(all, actions));
         ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(all));
     }
 
@@ -95,12 +97,12 @@ void register_networked_components(entt::registry &registry) {
 inline void unregister_networked_components(entt::registry &registry) {
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
         ctx->snapshot_importer.reset(new client_snapshot_importer_impl(networked_components));
-        ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(networked_components));
+        ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(networked_components, {}));
         ctx->state_history = std::make_shared<comp_state_history>();
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
-        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(networked_components));
+        ctx->snapshot_importer.reset(new server_snapshot_importer_impl(networked_components, {}));
         ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(networked_components));
     }
 

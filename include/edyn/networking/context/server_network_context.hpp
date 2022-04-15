@@ -25,13 +25,6 @@ struct server_network_context {
     auto packet_sink() {
         return entt::sink{packet_signal};
     }
-
-    using action_observer_func_t = void(entt::entity, const std::vector<uint8_t> &);
-    entt::sigh<action_observer_func_t> action_signal;
-
-    auto action_sink() {
-        return entt::sink{action_signal};
-    }
 };
 
 }

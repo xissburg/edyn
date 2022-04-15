@@ -3,15 +3,18 @@
 
 #include <entt/entity/registry.hpp>
 #include <type_traits>
+#include "edyn/comp/dirty.hpp"
+#include "edyn/comp/action_list.hpp"
 #include "edyn/comp/merge_component.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/comp/network_input.hpp"
-#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
+#include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/parallel/map_child_entity.hpp"
+#include "edyn/serialization/memory_archive.hpp"
 
 namespace edyn {
 
@@ -41,6 +44,20 @@ public:
     // components in the registry.
     virtual void merge_action_history(entt::registry &registry, packet::registry_snapshot &snap,
                                       double time_delta) = 0;
+
+    void import_action(entt::registry &registry, entt::entity entity,
+                       action_history::action_index_type action_index,
+                       const std::vector<uint8_t> &data) {
+        if (m_import_action_func) {
+            (*m_import_action_func)(registry, entity, action_index, data);
+        }
+    }
+
+protected:
+    using import_action_func_t = void(entt::registry &, entt::entity,
+                                      action_history::action_index_type,
+                                      const std::vector<uint8_t> &);
+    import_action_func_t *m_import_action_func {nullptr};
 };
 
 template<typename... Components>
@@ -52,7 +69,8 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
         // not be applied, because in this case the server is in control of
         // the procedural state. Input components are one exception because
         // they must always be applied.
-        if constexpr(std::is_base_of_v<network_input, Component>) {
+        if constexpr(std::is_base_of_v<network_input, Component> ||
+                     std::is_base_of_v<action_history, Component>) {
             if (auto *owner = registry.try_get<entity_owner>(local_entity);
                 owner && owner->client_entity == client_entity)
             {
@@ -188,8 +206,47 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
         }
     }
 
+    template<typename Action>
+    static void import_action_single(entt::registry &registry, entt::entity entity,
+                                     const std::vector<uint8_t> &data) {
+        using ActionListType = action_list<Action>;
+        ActionListType import_list;
+        auto archive = memory_input_archive(data.data(), data.size());
+        archive(import_list);
+
+        if (archive.failed()) {
+            return;
+        }
+
+        auto &list = registry.get<ActionListType>(entity);
+        list.actions.insert(list.actions.end(), import_list.actions.begin(), import_list.actions.end());
+        registry.get_or_emplace<edyn::dirty>(entity).updated<ActionListType>();
+    }
+
+    template<typename... Actions>
+    static auto import_action(entt::registry &registry, entt::entity entity,
+                              action_history::action_index_type action_index,
+                              const std::vector<uint8_t> &data) {
+        static_assert(sizeof...(Actions) > 0);
+        if constexpr(sizeof...(Actions) == 1) {
+            (import_action_single<Actions>(registry, entity, data), ...);
+        } else {
+            auto actions = std::tuple<Actions...>{};
+            visit_tuple(actions, action_index, [&](auto &&a) {
+                using ActionType = std::decay_t<decltype(a)>;
+                import_action_single<ActionType>(registry, entity, data);
+            });
+        }
+    }
+
 public:
-    server_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>) {}
+    template<typename... Actions>
+    server_snapshot_importer_impl([[maybe_unused]] std::tuple<Components...>,
+                                  [[maybe_unused]] std::tuple<Actions...>) {
+        if constexpr(sizeof...(Actions) > 0) {
+            m_import_action_func = &import_action<Actions...>;
+        }
+    }
 
     void import(entt::registry &registry, entt::entity client_entity,
                 const packet::registry_snapshot &snap, bool check_ownership) override {
@@ -242,7 +299,7 @@ public:
             return pool.component_index == action_history_index;
         });
 
-        if (pool_it == snap.pools.end()) {
+        if (pool_it != snap.pools.end()) {
             auto *history_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool_it->ptr.get());
 
             for (unsigned i = 0; i < history_pool->components.size(); ++i) {
@@ -255,7 +312,7 @@ public:
                     entry.timestamp += time_delta;
                 }
 
-                registry.get_or_emplace<action_history>(entity).merge(history);
+                registry.get<action_history>(entity).merge(history);
             }
 
             *pool_it = std::move(snap.pools.back());

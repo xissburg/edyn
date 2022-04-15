@@ -1,6 +1,7 @@
 #ifndef EDYN_NETWORKING_COMP_ACTION_HISTORY_HPP
 #define EDYN_NETWORKING_COMP_ACTION_HISTORY_HPP
 
+#include "edyn/config/config.h"
 #include <algorithm>
 #include <limits>
 #include <vector>
@@ -8,18 +9,25 @@
 
 namespace edyn {
 
+struct action_index {
+    using value_type = uint8_t;
+    value_type value;
+};
+
 struct action_history {
     struct entry {
         double timestamp;
         std::vector<uint8_t> data;
 
         entry() = default;
-        entry(double timestamp, std::vector<uint8_t> &data)
+        entry(double timestamp, std::vector<uint8_t> &&data)
             : timestamp(timestamp)
-            , data(data)
+            , data(std::move(data))
         {}
     };
 
+    using action_index_type = uint8_t;
+    action_index_type action_index;
     std::vector<entry> entries;
 
     void erase_until(double timestamp) {
@@ -29,6 +37,8 @@ struct action_history {
     }
 
     void merge(const action_history &other) {
+        EDYN_ASSERT(action_index == other.action_index);
+
         if (entries.empty()) {
             entries = other.entries;
             return;
@@ -50,6 +60,7 @@ struct action_history {
 
 template<typename Archive>
 void serialize(Archive &archive, action_history &history) {
+    archive(history.action_index);
     using size_type = uint8_t;
     size_type size = static_cast<size_type>(std::min(history.entries.size(),
                                             static_cast<size_t>(std::numeric_limits<size_type>::max())));

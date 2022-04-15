@@ -8,6 +8,7 @@
 #include <vector>
 #include <entt/core/type_info.hpp>
 #include <entt/entity/registry.hpp>
+#include "edyn/comp/action_list.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 
@@ -19,6 +20,7 @@ namespace detail {
         virtual ~comp_state_pool() = default;
         virtual void import(entt::registry &, const entity_map &) const = 0;
         virtual bool empty() const = 0;
+        virtual entt::id_type type_id() const = 0;
     };
 
     template<typename Component>
@@ -51,6 +53,10 @@ namespace detail {
 
         void insert(entt::entity entity, const Component &comp) {
             m_data.emplace_back(entity, comp);
+        }
+
+        entt::id_type type_id() const override {
+            return entt::type_index<Component>::value();
         }
 
     private:
@@ -128,30 +134,13 @@ public:
         }
     }
 
-    template<typename Func>
-    void until(double time, Func func) const {
-        std::lock_guard lock(mutex);
-
-        for (auto &elem : history) {
-            if (elem.timestamp > time) {
-                break;
-            }
-
-            func(elem);
-        }
-    }
-
-    void import_until(double time, entt::registry &registry, const entity_map &emap) const {
-        until(time, [&](auto &&elem) {
-            elem.import(registry, emap);
-        });
-    }
-
     void import_each(double time, double length_of_time, entt::registry &registry, const entity_map &emap) const {
         each(time, length_of_time, [&](auto &&elem) {
             elem.import(registry, emap);
         });
     }
+
+    virtual void import_initial_state(entt::registry &registry, const entity_map &emap, double time) {}
 
 protected:
     std::vector<element> history;
@@ -228,9 +217,48 @@ protected:
         return snapshot;
     }
 
+    template<typename Component>
+    struct import_initial_state_single {
+        static void import(entt::registry &registry, const entity_map &emap,
+                        const std::vector<element> &history, double time) {
+            // Find history element with the greatest timestamp smaller than `time`
+            // which contains a pool of the given component type.
+            for (auto i = history.size(); i > 0; --i) {
+                auto &elem = history[i-1];
+
+                if (elem.timestamp > time) {
+                    continue;
+                }
+
+                auto pool_it = std::find_if(
+                    elem.snapshot.pools.begin(), elem.snapshot.pools.end(),
+                    [](auto &&pool) {
+                        return pool->type_id() == entt::type_index<Component>::value();
+                    });
+
+                if (pool_it != elem.snapshot.pools.end()) {
+                    (*pool_it)->import(registry, emap);
+                    break;
+                }
+            }
+        }
+    };
+
+    // Specialization to prevent action lists from being imported when loading
+    // initial state, which only applies to regular continuous inputs.
+    template<typename Action>
+    struct import_initial_state_single<action_list<Action>> {
+        static void import(entt::registry &registry, const entity_map &emap,
+                           const std::vector<element> &history, double time) {}
+    };
+
 public:
     comp_state_history_impl() = default;
     comp_state_history_impl([[maybe_unused]] std::tuple<Components...>) {}
+
+    void import_initial_state(entt::registry &registry, const entity_map &emap, double time) override {
+        (import_initial_state_single<Components>::import(registry, emap, history, time), ...);
+    }
 };
 
 }

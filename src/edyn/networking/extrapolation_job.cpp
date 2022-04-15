@@ -109,7 +109,7 @@ void extrapolation_job::load_input() {
 
     // Apply all inputs before the current time to start the simulation
     // with the correct initial inputs.
-    m_state_history->import_until(m_current_time, m_registry, m_entity_map);
+    m_state_history->import_initial_state(m_registry, m_entity_map, m_current_time);
 
     // Update calculated properties after setting initial state.
     update_origins(m_registry);
@@ -404,6 +404,11 @@ void extrapolation_job::finish_step() {
 
     auto &settings = m_registry.ctx<edyn::settings>();
     m_current_time += settings.fixed_dt;
+
+     // Clear actions after they've been consumed.
+    if (settings.clear_actions_func) {
+        (*settings.clear_actions_func)(m_registry);
+    }
 
     if (settings.external_system_post_step) {
         (*settings.external_system_post_step)(m_registry);

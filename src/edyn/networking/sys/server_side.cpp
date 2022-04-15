@@ -101,19 +101,6 @@ bool is_fully_owned_by_client(const entt::registry &registry, entt::entity clien
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, packet::registry_snapshot &snapshot) {
     auto &ctx = registry.ctx<server_network_context>();
-    auto &client = registry.get<remote_client>(client_entity);
-
-    for (auto &entity : snapshot.entities) {
-        // Discard packet if it contains unknown entities.
-        if (!client.entity_map.contains(entity)) {
-            return;
-        }
-        entity = client.entity_map.at(entity);
-    }
-
-    // Transform snapshot entities into local registry space.
-    const bool check_ownership = true;
-    ctx.snapshot_importer->transform_to_local(registry, client_entity, snapshot, check_ownership);
 
     // Import inputs directly into the main registry.
     ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot, performance_time());
@@ -521,7 +508,7 @@ void dispatch_actions(entt::registry &registry, double time) {
                 break;
             }
 
-            ctx.action_signal.publish(entity, it->data);
+            ctx.snapshot_importer->import_action(registry, entity, history.action_index, it->data);
         }
 
         history.entries.erase(history.entries.begin(), it);
@@ -541,6 +528,14 @@ void update_network_server(entt::registry &registry) {
 }
 
 template<typename T>
+void insert_packet_to_queue(remote_client &client, double timestamp, T &&packet) {
+    // Sorted insertion.
+    auto insert_it = std::find_if(client.packet_queue.begin(), client.packet_queue.end(),
+                                  [timestamp](auto &&p) { return p.timestamp > timestamp; });
+    client.packet_queue.insert(insert_it, timed_packet{timestamp, packet::edyn_packet{std::move(packet)}});
+}
+
+template<typename T>
 void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&packet) {
     auto &client = registry.get<remote_client>(client_entity);
     double packet_timestamp;
@@ -552,7 +547,7 @@ void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&pa
         packet_timestamp = time - client.round_trip_time / 2;
     }
 
-    if constexpr(std::is_same_v<T, packet::registry_snapshot>) {
+    if constexpr(std::is_same_v<std::decay_t<T>, packet::registry_snapshot>) {
         double time_delta;
 
         if (client.clock_sync.count > 0) {
@@ -562,13 +557,29 @@ void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&pa
         }
 
         auto &ctx = registry.ctx<server_network_context>();
-        ctx.snapshot_importer->merge_action_history(registry, packet, time_delta);
-    }
+        auto &client = registry.get<remote_client>(client_entity);
 
-    // Sorted insertion.
-    auto insert_it = std::find_if(client.packet_queue.begin(), client.packet_queue.end(),
-                                  [packet_timestamp](auto &&p) { return p.timestamp > packet_timestamp; });
-    client.packet_queue.insert(insert_it, timed_packet{packet_timestamp, packet::edyn_packet{std::move(packet)}});
+        for (auto &entity : packet.entities) {
+            // Discard packet if it contains unknown entities.
+            if (!client.entity_map.contains(entity)) {
+                return;
+            }
+            entity = client.entity_map.at(entity);
+        }
+
+        // Transform snapshot entities into local registry space.
+        const bool check_ownership = true;
+        ctx.snapshot_importer->transform_to_local(registry, client_entity, packet, check_ownership);
+        ctx.snapshot_importer->merge_action_history(registry, packet, time_delta);
+
+        // The action history pool is removed in the previous function call.
+        // Do not enqueue if there are no other pools in the packet.
+        if (!packet.pools.empty()) {
+            insert_packet_to_queue(client, packet_timestamp, packet);
+        }
+    } else {
+        insert_packet_to_queue(client, packet_timestamp, packet);
+    }
 }
 
 void server_receive_packet(entt::registry &registry, entt::entity client_entity, packet::edyn_packet &packet) {

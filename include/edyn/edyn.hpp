@@ -8,6 +8,7 @@
 #include "comp/graph_edge.hpp"
 #include "comp/present_position.hpp"
 #include "comp/present_orientation.hpp"
+#include "edyn/comp/action_list.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
 #include "math/vector3.hpp"
@@ -151,29 +152,39 @@ auto get_component_indices(entt::registry &registry) {
  * system, it must be registered using this function. That will ensure the
  * component is sent to the island workers and is inserted in their private
  * registry.
- * @tparam Component External component types.
+ * @tparam Components External component types.
  */
-template<typename... Component>
-void register_external_components(entt::registry &registry) {
+template<typename... Components, typename... Actions>
+void register_external_components(entt::registry &registry, std::tuple<Actions...> actions = {}) {
     auto &settings = registry.ctx<edyn::settings>();
 
     settings.make_reg_op_builder = []() {
-        auto external = std::tuple<Component...>{};
-        auto all_components = std::tuple_cat(shared_components_t{}, external);
+        auto external = std::tuple<Components...>{};
+        auto action_lists = std::tuple<action_list<Actions>...>{};
+        auto all_components = std::tuple_cat(shared_components_t{}, external, action_lists);
         return std::unique_ptr<registry_operation_builder>(
             new registry_operation_builder_impl(all_components));
     };
 
-    auto external = std::tuple<Component...>{};
-    auto all_components = std::tuple_cat(shared_components_t{}, external);
+    auto external = std::tuple<Components...>{};
+    auto action_lists = std::tuple<action_list<Actions>...>{};
+    auto all_components = std::tuple_cat(shared_components_t{}, external, action_lists);
     settings.index_source.reset(new component_index_source_impl(all_components));
+
+    if constexpr(sizeof...(Actions) > 0) {
+        settings.clear_actions_func = [](entt::registry &registry) {
+            (registry.view<action_list<Actions>>().each([] (auto &&list) { list.actions.clear(); }), ...);
+        };
+    }
 
     registry.ctx<island_coordinator>().settings_changed();
 }
 
-template<typename... Component>
-void register_external_components(entt::registry &registry, [[maybe_unused]] std::tuple<Component...>) {
-    register_external_components<Component...>(registry);
+template<typename... Component, typename... Actions>
+void register_external_components(entt::registry &registry,
+                                  [[maybe_unused]] std::tuple<Component...>,
+                                  std::tuple<Actions...> actions = {}) {
+    register_external_components<Component...>(registry, actions);
 }
 
 /**

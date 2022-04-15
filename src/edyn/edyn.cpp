@@ -107,6 +107,12 @@ void update(entt::registry &registry) {
         auto time = performance_time();
         update_presentation(registry, time);
     }
+
+    // Clear actions after they've been pushed to island workers.
+    auto &settings = registry.ctx<edyn::settings>();
+    if (settings.clear_actions_func) {
+        (*settings.clear_actions_func)(registry);
+    }
 }
 
 void step_simulation(entt::registry &registry) {
@@ -118,6 +124,7 @@ void remove_external_components(entt::registry &registry) {
     auto &settings = registry.ctx<edyn::settings>();
     settings.make_reg_op_builder = &make_reg_op_builder_default;
     settings.index_source.reset(new component_index_source_impl(shared_components_t{}));
+    settings.clear_actions_func = nullptr;
     registry.ctx<island_coordinator>().settings_changed();
 }
 
