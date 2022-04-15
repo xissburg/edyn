@@ -3,6 +3,7 @@
 
 #include <entt/entity/registry.hpp>
 #include <type_traits>
+#include "edyn/comp/merge_component.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/comp/network_input.hpp"
@@ -11,7 +12,6 @@
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/parallel/map_child_entity.hpp"
-#include "edyn/edyn.hpp"
 
 namespace edyn {
 
@@ -100,7 +100,9 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
                 internal::map_child_entity(registry, client.entity_map, comp);
 
                 if (registry.any_of<Component>(local_entity)) {
-                    registry.replace<Component>(local_entity, comp);
+                    registry.patch<Component>(local_entity, [&](auto &&current) {
+                        merge_component(current, comp);
+                    });
                 } else {
                     registry.emplace<Component>(local_entity, comp);
                 }
@@ -141,7 +143,9 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
                 auto &comp = pool.components[i];
 
                 if (registry.any_of<Component>(local_entity)) {
-                    registry.replace<Component>(local_entity, comp);
+                    registry.patch<Component>(local_entity, [&](auto &&current) {
+                        merge_component(current, comp);
+                    });
                 } else {
                     registry.emplace<Component>(local_entity, comp);
                 }

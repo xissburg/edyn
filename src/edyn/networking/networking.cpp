@@ -1,5 +1,6 @@
 #include "edyn/networking/networking.hpp"
 #include "edyn/config/config.h"
+#include "edyn/parallel/island_coordinator.hpp"
 #include <entt/entity/registry.hpp>
 #include <variant>
 
