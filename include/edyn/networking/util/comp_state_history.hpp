@@ -87,11 +87,13 @@ public:
     };
 
 protected:
-    virtual snapshot take_snapshot(const entt::registry &registry, const entt::sparse_set &entities) {
+    virtual snapshot take_snapshot(const entt::registry &registry,
+                                   const entt::sparse_set &entities) const {
         return {};
     }
 
-    virtual snapshot take_snapshot(const packet::registry_snapshot &snap, const entt::sparse_set &entities) {
+    virtual snapshot take_snapshot(const packet::registry_snapshot &snap,
+                                   const entt::sparse_set &entities) const {
         return {};
     }
 
@@ -201,13 +203,15 @@ class comp_state_history_impl : public comp_state_history {
     }
 
 protected:
-    snapshot take_snapshot(const entt::registry &registry, const entt::sparse_set &entities) override {
+    snapshot take_snapshot(const entt::registry &registry,
+                           const entt::sparse_set &entities) const override {
         snapshot snapshot;
         (add_to_snapshot<Components>(snapshot, registry, entities), ...);
         return snapshot;
     }
 
-    snapshot take_snapshot(const packet::registry_snapshot &snap, const entt::sparse_set &entities) override {
+    snapshot take_snapshot(const packet::registry_snapshot &snap,
+                           const entt::sparse_set &entities) const override {
         snapshot snapshot;
         for (auto &pool : snap.pools) {
             ((entt::type_index<Components>::value() == pool.ptr->get_type_id() ?
@@ -220,7 +224,7 @@ protected:
     template<typename Component>
     struct import_initial_state_single {
         static void import(entt::registry &registry, const entity_map &emap,
-                        const std::vector<element> &history, double time) {
+                           const std::vector<element> &history, double time) {
             // Find history element with the greatest timestamp smaller than `time`
             // which contains a pool of the given component type.
             for (auto i = history.size(); i > 0; --i) {
@@ -257,6 +261,7 @@ public:
     comp_state_history_impl([[maybe_unused]] std::tuple<Components...>) {}
 
     void import_initial_state(entt::registry &registry, const entity_map &emap, double time) override {
+        std::lock_guard lock(mutex);
         (import_initial_state_single<Components>::import(registry, emap, history, time), ...);
     }
 };
