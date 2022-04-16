@@ -274,7 +274,7 @@ static void client_update_clock_sync(entt::registry &registry, double time) {
 
 static void trim_and_insert_actions(entt::registry &registry, double time) {
     // Erase old actions.
-    double action_history_max_length = 1;
+    double action_history_max_length = 2;
     registry.view<edyn::action_history>().each([&](action_history &history) {
         history.erase_until(time - action_history_max_length);
     });

@@ -153,7 +153,8 @@ template<typename... Inputs>
 class input_state_history_impl : public input_state_history {
 
     template<typename Input>
-    static void add_to_snapshot(snapshot &snapshot, const entt::registry &registry, const entt::sparse_set &entities) {
+    static void add_to_snapshot(snapshot &snapshot, const entt::registry &registry,
+                                const entt::sparse_set &entities) {
         if constexpr(!std::is_empty_v<Input>) {
             auto view = registry.view<Input>();
             auto pool = std::unique_ptr<detail::comp_state_pool_impl<Input>>{};
@@ -177,7 +178,7 @@ class input_state_history_impl : public input_state_history {
 
     template<typename Input>
     static void add_to_snapshot(snapshot &snapshot, const std::vector<entt::entity> &pool_entities,
-                         const pool_snapshot &pool_snapshot, const entt::sparse_set &entities) {
+                                const pool_snapshot &pool_snapshot, const entt::sparse_set &entities) {
         if constexpr(!std::is_empty_v<Input>) {
             auto pool = std::unique_ptr<detail::comp_state_pool_impl<Input>>{};
             auto *typed_pool = static_cast<pool_snapshot_data_impl<Input> *>(pool_snapshot.ptr.get());

@@ -12,6 +12,7 @@
 namespace edyn {
 
 extern bool(*g_is_networked_input_component)(entt::id_type);
+extern bool(*g_is_action_list_component)(entt::id_type);
 
 class server_snapshot_exporter {
 public:
@@ -60,7 +61,7 @@ public:
                 // Do not include input components of entities owned by destination
                 // client as to not override client input on the client-side.
                 // Clients own their input.
-                if (owned_by_client && (*g_is_networked_input_component)(id)) {
+                if (owned_by_client && ((*g_is_networked_input_component)(id) || (*g_is_action_list_component)(id))) {
                     return;
                 }
 

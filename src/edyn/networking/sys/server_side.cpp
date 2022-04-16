@@ -501,12 +501,15 @@ static void server_update_clock_sync(entt::registry &registry, double time) {
 
 static void dispatch_actions(entt::registry &registry, double time) {
     auto &ctx = registry.ctx<server_network_context>();
+    auto client_view = registry.view<remote_client>();
 
     // Consume actions with a timestamp that's before the current time.
-    for (auto [entity, history] : registry.view<action_history>().each()) {
+    for (auto [entity, history, owner] : registry.view<action_history, entity_owner>().each()) {
+        auto [client] = client_view.get(owner.client_entity);
         auto it = history.entries.begin();
+
         for (; it != history.entries.end(); ++it) {
-            if (it->timestamp > time) {
+            if (it->timestamp > time - client.playout_delay) {
                 break;
             }
 
@@ -540,7 +543,7 @@ void insert_packet_to_queue(remote_client &client, double timestamp, T &&packet)
 }
 
 template<typename T>
-void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&packet, double time) {
+void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &packet, double time) {
     auto &client = registry.get<remote_client>(client_entity);
     double packet_timestamp;
 
@@ -555,7 +558,7 @@ void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&pa
 
 template<>
 void enqueue_packet<packet::registry_snapshot>(entt::registry &registry, entt::entity client_entity,
-                                               packet::registry_snapshot &&packet, double time) {
+                                               packet::registry_snapshot &packet, double time) {
     // Especialize it for registry snapshots. Transform entities to local and
     // import action history in advance.
     auto &client = registry.get<remote_client>(client_entity);

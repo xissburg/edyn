@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <entt/core/fwd.hpp>
 #include <entt/entity/registry.hpp>
+#include "edyn/comp/action_list.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
@@ -14,18 +15,25 @@
 namespace edyn {
 
 namespace internal {
-    template<typename... Component>
-    auto make_is_networked_component_func([[maybe_unused]] std::tuple<Component...>) {
+    template<typename... Components>
+    auto make_is_networked_component_func([[maybe_unused]] std::tuple<Components...>) {
         return [](entt::id_type id) {
-            return ((id == entt::type_index<Component>::value()) || ...);
+            return ((id == entt::type_index<Components>::value()) || ...);
         };
     }
 
-    template<typename... Component>
-    auto make_is_network_input_component_func([[maybe_unused]] std::tuple<Component...>) {
+    template<typename... Components>
+    auto make_is_network_input_component_func([[maybe_unused]] std::tuple<Components...>) {
         return [](entt::id_type id) {
-            return ((id == entt::type_index<Component>::value() &&
-                     std::is_base_of_v<network_input, Component>) || ...);
+            return ((id == entt::type_index<Components>::value() &&
+                     std::is_base_of_v<network_input, Components>) || ...);
+        };
+    }
+
+    template<typename... Actions>
+    auto make_is_action_list_component_func([[maybe_unused]] std::tuple<Actions...>) {
+        return [](entt::id_type id) {
+            return ((id == entt::type_index<action_list<Actions>>::value()) || ...);
         };
     }
 
@@ -52,6 +60,7 @@ namespace internal {
 
 extern bool(*g_is_networked_component)(entt::id_type);
 extern bool(*g_is_networked_input_component)(entt::id_type);
+extern bool(*g_is_action_list_component)(entt::id_type);
 extern void(*g_mark_replaced_network_dirty)(entt::registry &, const registry_operation_collection &,
                                             const entity_map &, double timestamp);
 
@@ -87,6 +96,7 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(all);
     g_is_networked_component = internal::make_is_networked_component_func(all);
     g_is_networked_input_component = internal::make_is_network_input_component_func(all);
+    g_is_action_list_component = internal::make_is_action_list_component_func(all);
     g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(all);
 }
 
@@ -109,6 +119,7 @@ inline void unregister_networked_components(entt::registry &registry) {
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(networked_components);
     g_is_networked_component = internal::make_is_networked_component_func(networked_components);
     g_is_networked_input_component = internal::make_is_network_input_component_func(networked_components);
+    g_is_action_list_component = [](entt::id_type) { return false; };
     g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(networked_components);
 }
 
