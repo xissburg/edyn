@@ -12,7 +12,7 @@
 
 namespace edyn {
 
-class comp_state_history;
+class input_state_history;
 class material_mix_table;
 struct settings;
 
@@ -51,7 +51,7 @@ public:
     extrapolation_job(extrapolation_input &&input,
                       const settings &settings,
                       const material_mix_table &material_table,
-                      std::shared_ptr<comp_state_history> state_history);
+                      std::shared_ptr<input_state_history> input_history);
 
     void reschedule();
 
@@ -83,7 +83,7 @@ private:
     std::atomic<bool> m_finished {false};
     bool m_destroying_node {false};
 
-    std::shared_ptr<comp_state_history> m_state_history;
+    std::shared_ptr<input_state_history> m_input_history;
 
     job m_this_job;
 };

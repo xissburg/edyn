@@ -1,5 +1,5 @@
-#ifndef EDYN_NETWORKING_COMP_STATE_HISTORY_HPP
-#define EDYN_NETWORKING_COMP_STATE_HISTORY_HPP
+#ifndef EDYN_NETWORKING_INPUT_STATE_HISTORY_HPP
+#define EDYN_NETWORKING_INPUT_STATE_HISTORY_HPP
 
 #include <memory>
 #include <mutex>
@@ -64,7 +64,7 @@ namespace detail {
     };
 }
 
-class comp_state_history {
+class input_state_history {
     auto first_after(double timestamp) {
         return std::find_if(history.begin(), history.end(),
                             [timestamp](auto &&elem) { return elem.timestamp > timestamp; });
@@ -98,7 +98,7 @@ protected:
     }
 
 public:
-    virtual ~comp_state_history() = default;
+    virtual ~input_state_history() = default;
 
     template<typename DataSource>
     void emplace(const DataSource &source, const entt::sparse_set &entities, double timestamp) {
@@ -149,19 +149,19 @@ protected:
     mutable std::mutex mutex;
 };
 
-template<typename... Components>
-class comp_state_history_impl : public comp_state_history {
+template<typename... Inputs>
+class input_state_history_impl : public input_state_history {
 
-    template<typename Component>
-    void add_to_snapshot(snapshot &snapshot, const entt::registry &registry, const entt::sparse_set &entities) {
-        if constexpr(!std::is_empty_v<Component>) {
-            auto view = registry.view<Component>();
-            auto pool = std::unique_ptr<detail::comp_state_pool_impl<Component>>{};
+    template<typename Input>
+    static void add_to_snapshot(snapshot &snapshot, const entt::registry &registry, const entt::sparse_set &entities) {
+        if constexpr(!std::is_empty_v<Input>) {
+            auto view = registry.view<Input>();
+            auto pool = std::unique_ptr<detail::comp_state_pool_impl<Input>>{};
 
             for (auto entity : entities) {
                 if (view.contains(entity)) {
                     if (!pool) {
-                        pool.reset(new detail::comp_state_pool_impl<Component>);
+                        pool.reset(new detail::comp_state_pool_impl<Input>);
                     }
 
                     auto [comp] = view.get(entity);
@@ -175,12 +175,12 @@ class comp_state_history_impl : public comp_state_history {
         }
     }
 
-    template<typename Component>
-    void add_to_snapshot(snapshot &snapshot, const std::vector<entt::entity> &pool_entities,
+    template<typename Input>
+    static void add_to_snapshot(snapshot &snapshot, const std::vector<entt::entity> &pool_entities,
                          const pool_snapshot &pool_snapshot, const entt::sparse_set &entities) {
-        if constexpr(!std::is_empty_v<Component>) {
-            auto pool = std::unique_ptr<detail::comp_state_pool_impl<Component>>{};
-            auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool_snapshot.ptr.get());
+        if constexpr(!std::is_empty_v<Input>) {
+            auto pool = std::unique_ptr<detail::comp_state_pool_impl<Input>>{};
+            auto *typed_pool = static_cast<pool_snapshot_data_impl<Input> *>(pool_snapshot.ptr.get());
 
             for (size_t i = 0; i < typed_pool->entity_indices.size(); ++i) {
                 auto entity_index = typed_pool->entity_indices[i];
@@ -189,7 +189,7 @@ class comp_state_history_impl : public comp_state_history {
 
                 if (entities.contains(entity)) {
                     if (!pool) {
-                        pool.reset(new detail::comp_state_pool_impl<Component>);
+                        pool.reset(new detail::comp_state_pool_impl<Input>);
                     }
 
                     pool->insert(entity, comp);
@@ -206,7 +206,7 @@ protected:
     snapshot take_snapshot(const entt::registry &registry,
                            const entt::sparse_set &entities) const override {
         snapshot snapshot;
-        (add_to_snapshot<Components>(snapshot, registry, entities), ...);
+        (add_to_snapshot<Inputs>(snapshot, registry, entities), ...);
         return snapshot;
     }
 
@@ -214,14 +214,14 @@ protected:
                            const entt::sparse_set &entities) const override {
         snapshot snapshot;
         for (auto &pool : snap.pools) {
-            ((entt::type_index<Components>::value() == pool.ptr->get_type_id() ?
-                add_to_snapshot<Components>(snapshot, snap.entities, pool, entities) :
+            ((entt::type_index<Inputs>::value() == pool.ptr->get_type_id() ?
+                add_to_snapshot<Inputs>(snapshot, snap.entities, pool, entities) :
                 (void)0), ...);
         }
         return snapshot;
     }
 
-    template<typename Component>
+    template<typename Input>
     struct import_initial_state_single {
         static void import(entt::registry &registry, const entity_map &emap,
                            const std::vector<element> &history, double time) {
@@ -237,7 +237,7 @@ protected:
                 auto pool_it = std::find_if(
                     elem.snapshot.pools.begin(), elem.snapshot.pools.end(),
                     [](auto &&pool) {
-                        return pool->type_id() == entt::type_index<Component>::value();
+                        return pool->type_id() == entt::type_index<Input>::value();
                     });
 
                 if (pool_it != elem.snapshot.pools.end()) {
@@ -257,15 +257,15 @@ protected:
     };
 
 public:
-    comp_state_history_impl() = default;
-    comp_state_history_impl([[maybe_unused]] std::tuple<Components...>) {}
+    input_state_history_impl() = default;
+    input_state_history_impl([[maybe_unused]] std::tuple<Inputs...>) {}
 
     void import_initial_state(entt::registry &registry, const entity_map &emap, double time) override {
         std::lock_guard lock(mutex);
-        (import_initial_state_single<Components>::import(registry, emap, history, time), ...);
+        (import_initial_state_single<Inputs>::import(registry, emap, history, time), ...);
     }
 };
 
 }
 
-#endif // EDYN_NETWORKING_COMP_STATE_HISTORY_HPP
+#endif // EDYN_NETWORKING_INPUT_STATE_HISTORY_HPP

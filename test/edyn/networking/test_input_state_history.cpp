@@ -2,7 +2,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/networking/networking.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
-#include "edyn/networking/util/comp_state_history.hpp"
+#include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/networking/util/pool_snapshot_data.hpp"
 
@@ -15,7 +15,7 @@ void serialize(Archive &archive, input &i) {
     archive(i.value);
 }
 
-TEST(networking_test, comp_state_history) {
+TEST(networking_test, input_state_history) {
     auto registry = entt::registry{};
 
     auto ent0 = registry.create();
@@ -36,7 +36,7 @@ TEST(networking_test, comp_state_history) {
         registry.emplace<edyn::networked_tag>(entity);
     }
 
-    auto history = edyn::comp_state_history_impl<input>();
+    auto history = edyn::input_state_history_impl<input>();
     history.emplace(registry, entities, 1);
 
     registry.get<input>(ent0).value = 11;

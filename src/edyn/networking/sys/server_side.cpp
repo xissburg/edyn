@@ -575,7 +575,8 @@ void enqueue_packet<packet::registry_snapshot>(entt::registry &registry, entt::e
         entity = client.entity_map.at(entity);
     }
 
-    // Transform snapshot entities into local registry space.
+    // Transform snapshot entities into local registry space and then import
+    // action history.
     auto &ctx = registry.ctx<server_network_context>();
     const bool check_ownership = true;
     ctx.snapshot_importer->transform_to_local(registry, client_entity, packet, check_ownership);
@@ -610,7 +611,7 @@ void server_receive_packet(entt::registry &registry, entt::entity client_entity,
     }, packet.var);
 }
 
-// Local struct to be connected to the clock sync send packet signal. This is
+// Local struct to be connected to the clock sync packet signal. This is
 // necessary so the client entity can be passed to the context packet signal.
 struct client_packet_signal_wrapper {
     server_network_context *ctx;

@@ -70,7 +70,7 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     // Insert input components into history only for entities owned by the
     // local client.
     auto &ctx = registry.ctx<client_network_context>();
-    ctx.state_history->emplace(registry, ctx.owned_entities, timestamp);
+    ctx.input_history->emplace(registry, ctx.owned_entities, timestamp);
 
     // Erase all inputs until the current time minus the client-server time
     // difference plus some leeway because this is the amount of time the
@@ -79,7 +79,7 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     auto &settings = registry.ctx<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
     const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
-    ctx.state_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
+    ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
 }
 
 void init_network_client(entt::registry &registry) {
@@ -484,7 +484,7 @@ static void insert_input_to_state_history(entt::registry &registry, const packet
         }
     }
 
-    ctx.state_history->emplace(snap, unwoned_entities, time);
+    ctx.input_history->emplace(snap, unwoned_entities, time);
 }
 
 static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
@@ -618,7 +618,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
 
     auto &material_table = registry.ctx<material_mix_table>();
 
-    auto job = std::make_unique<extrapolation_job>(std::move(input), settings, material_table, ctx.state_history);
+    auto job = std::make_unique<extrapolation_job>(std::move(input), settings, material_table, ctx.input_history);
     job->reschedule();
 
     ctx.extrapolation_jobs.push_back(extrapolation_job_context{std::move(job)});

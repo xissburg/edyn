@@ -76,7 +76,7 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
                                     std::tuple<Components>, std::tuple<>>{}...);
         auto action_lists = std::tuple<action_list<Actions>...>{};
         auto input_all = std::tuple_cat(input, action_lists);
-        ctx->state_history = std::make_shared<decltype(comp_state_history_impl(input_all))>();
+        ctx->input_history = std::make_shared<decltype(input_state_history_impl(input_all))>();
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
@@ -98,7 +98,7 @@ inline void unregister_networked_components(entt::registry &registry) {
     if (auto *ctx = registry.try_ctx<client_network_context>()) {
         ctx->snapshot_importer.reset(new client_snapshot_importer_impl(networked_components));
         ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(networked_components, {}));
-        ctx->state_history = std::make_shared<comp_state_history>();
+        ctx->input_history = std::make_shared<input_state_history>();
     }
 
     if (auto *ctx = registry.try_ctx<server_network_context>()) {
