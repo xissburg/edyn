@@ -1,0 +1,10 @@
+#ifndef EDYN_NETWORKING_COMP_NETWORK_STATE_HPP
+#define EDYN_NETWORKING_COMP_NETWORK_STATE_HPP
+
+namespace edyn {
+
+struct network_state {};
+
+}
+
+#endif // EDYN_NETWORKING_COMP_NETWORK_STATE_HPP

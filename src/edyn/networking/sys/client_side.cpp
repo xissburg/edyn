@@ -484,7 +484,9 @@ static void insert_input_to_state_history(entt::registry &registry, const packet
         }
     }
 
-    ctx.input_history->emplace(snap, unwoned_entities, time);
+    if (!unwoned_entities.empty()) {
+        ctx.input_history->emplace(snap, unwoned_entities, time);
+    }
 }
 
 static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {

@@ -471,8 +471,8 @@ static void calculate_client_playout_delay(entt::registry &registry,
     auto &settings = registry.ctx<edyn::settings>();
     auto &server_settings = std::get<server_network_settings>(settings.network_settings);
     auto biggest_latency = biggest_rtt / 2;
-    auto playout_delay = std::min(biggest_latency * server_settings.playout_delay_multiplier,
-                                  server_settings.max_playout_delay);
+    auto playout_delay = 1.0;//std::min(biggest_latency * server_settings.playout_delay_multiplier,
+                             //     server_settings.max_playout_delay);
 
     // Update playout delay if the difference is of significance.
     if (std::abs(playout_delay - client.playout_delay) > 0.002) {

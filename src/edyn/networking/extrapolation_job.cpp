@@ -27,6 +27,9 @@
 #include "edyn/time/time.hpp"
 #include <atomic>
 
+#include <iostream>
+#include <iomanip>
+
 namespace edyn {
 
 extern bool(*g_is_networked_input_component)(entt::id_type);
@@ -125,6 +128,9 @@ void extrapolation_job::init() {
     m_registry.on_destroy<graph_node>().connect<&extrapolation_job::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&extrapolation_job::on_destroy_graph_edge>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&extrapolation_job::on_destroy_rotated_mesh_list>(*this);
+
+    std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(3)
+        << "Init " << m_current_time << std::endl;
 
     // Import entities and components to be extrapolated.
     load_input();
@@ -251,6 +257,9 @@ void extrapolation_job::sync_and_finish() {
         m_entity_map.swap();
         m_result.remap(m_entity_map);
     }
+
+    std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(3)
+        << "Finish " << m_current_time << ", count " << m_step_count << std::endl;
 
     m_finished.store(true, std::memory_order_release);
 }

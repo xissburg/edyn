@@ -6,6 +6,7 @@
 #include <entt/core/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/action_list.hpp"
+#include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
@@ -96,7 +97,7 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(all);
     g_is_networked_component = internal::make_is_networked_component_func(all);
     g_is_networked_input_component = internal::make_is_network_input_component_func(all);
-    g_is_action_list_component = internal::make_is_action_list_component_func(all);
+    g_is_action_list_component = internal::make_is_action_list_component_func(actions);
     g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(all);
 }
 

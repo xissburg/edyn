@@ -173,7 +173,7 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
 
     if constexpr(sizeof...(Actions) > 0) {
         settings.clear_actions_func = [](entt::registry &registry) {
-            (registry.view<action_list<Actions>>().each([] (auto &&list) { list.actions.clear(); }), ...);
+            (registry.clear<action_list<Actions>>(), ...);
         };
     }
 

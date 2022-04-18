@@ -218,9 +218,17 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
             return;
         }
 
-        auto &list = registry.get<ActionListType>(entity);
-        list.actions.insert(list.actions.end(), import_list.actions.begin(), import_list.actions.end());
-        registry.get_or_emplace<edyn::dirty>(entity).updated<ActionListType>();
+        auto &dirty = registry.get_or_emplace<edyn::dirty>(entity);
+        auto *list = registry.try_get<ActionListType>(entity);
+
+        if (list) {
+            dirty.updated<ActionListType>();
+        } else {
+            list = &registry.emplace<ActionListType>(entity);
+            dirty.created<ActionListType>();
+        }
+
+        list->actions.insert(list->actions.end(), import_list.actions.begin(), import_list.actions.end());
     }
 
     template<typename... Actions>
