@@ -1,7 +1,9 @@
 #include "edyn/networking/sys/client_side.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
@@ -15,6 +17,7 @@
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/sys/update_network_dirty.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/networking/extrapolation_job.hpp"
 #include "edyn/time/time.hpp"
@@ -68,16 +71,16 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     // Insert input components into history only for entities owned by the
     // local client.
     auto &ctx = registry.ctx<client_network_context>();
-    ctx.state_history->emplace(registry, ctx.owned_entities, timestamp);
+    ctx.input_history->emplace(registry, ctx.owned_entities, timestamp);
 
     // Erase all inputs until the current time minus the client-server time
     // difference plus some leeway because this is the amount of time the
-    // transient snapshots will be extrapolated forward thus requiring the
+    // registry snapshots will be extrapolated forward thus requiring the
     // inputs from that point in time onwards.
     auto &settings = registry.ctx<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
     const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
-    ctx.state_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
+    ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
 }
 
 void init_network_client(entt::registry &registry) {
@@ -206,7 +209,20 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
 
     auto packet = packet::registry_snapshot{};
     packet.timestamp = time;
+    packet.entities.insert(packet.entities.end(), network_dirty_view.begin(), network_dirty_view.end());
+
+    auto history_view = registry.view<action_history>();
+
+    for (auto entity : ctx.owned_entities) {
+        if (history_view.contains(entity) && !history_view.get<action_history>(entity).entries.empty()) {
+            packet.entities.push_back(entity);
+        }
+    }
+
     ctx.snapshot_exporter->export_dirty(registry, packet);
+
+    // Always include actions.
+    ctx.snapshot_exporter->export_actions(registry, packet);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
@@ -259,6 +275,18 @@ static void client_update_clock_sync(entt::registry &registry, double time) {
     update_clock_sync(ctx.clock_sync, time, client_settings.round_trip_time);
 }
 
+static void trim_and_insert_actions(entt::registry &registry, double time) {
+    // Erase old actions.
+    double action_history_max_length = 2;
+    registry.view<action_history>().each([&](action_history &history) {
+        history.erase_until(time - action_history_max_length);
+    });
+
+    // Insert current action lists into action history.
+    auto &ctx = registry.ctx<client_network_context>();
+    ctx.snapshot_exporter->append_current_actions(registry, time);
+}
+
 void update_network_client(entt::registry &registry) {
     auto time = performance_time();
 
@@ -269,6 +297,7 @@ void update_network_client(entt::registry &registry) {
     maybe_publish_registry_snapshot(registry, time);
     process_finished_extrapolation_jobs(registry);
     update_input_history(registry, time);
+    trim_and_insert_actions(registry, time);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -277,8 +306,6 @@ static void process_packet(entt::registry &registry, const packet::client_create
 
     auto remote_entity = packet.client_entity;
     auto local_entity = registry.create();
-    edyn::tag_external_entity(registry, local_entity, false);
-
     EDYN_ASSERT(ctx.client_entity == entt::null);
     ctx.client_entity = local_entity;
     ctx.entity_map.insert(remote_entity, local_entity);
@@ -460,7 +487,9 @@ static void insert_input_to_state_history(entt::registry &registry, const packet
         }
     }
 
-    ctx.state_history->emplace(snap, unwoned_entities, time);
+    if (!unwoned_entities.empty()) {
+        ctx.input_history->emplace(snap, unwoned_entities, time);
+    }
 }
 
 static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
@@ -547,7 +576,11 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         }
     }
 
+    // Do not include manifolds as they will not make sense in the server state
+    // because rigid bodies generally will have quite different transforms
+    // compared to the client state.
     auto entities = entt::sparse_set{};
+    auto manifold_view = registry.view<contact_manifold>();
 
     graph.reach(
         node_indices.begin(), node_indices.end(),
@@ -556,7 +589,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
                 entities.emplace(entity);
             }
         }, [&](entt::entity entity) {
-            if (!entities.contains(entity)) {
+            if (!manifold_view.contains(entity) && !entities.contains(entity)) {
                 entities.emplace(entity);
             }
         }, [](auto) { return true; }, []() {});
@@ -592,11 +625,9 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     input.snapshot = std::move(snapshot);
     input.should_remap = true;
 
-    // Create extrapolation job and put the registry snapshot and the transient
-    // snapshot into its message queue.
     auto &material_table = registry.ctx<material_mix_table>();
 
-    auto job = std::make_unique<extrapolation_job>(std::move(input), settings, material_table, ctx.state_history);
+    auto job = std::make_unique<extrapolation_job>(std::move(input), settings, material_table, ctx.input_history);
     job->reschedule();
 
     ctx.extrapolation_jobs.push_back(extrapolation_job_context{std::move(job)});

@@ -6,11 +6,12 @@
 #include <vector>
 #include <utility>
 #include <entt/entity/fwd.hpp>
+#include "edyn/comp/merge_component.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/parallel/map_child_entity.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/config/config.h"
-#include "edyn/comp/tag.hpp"
 
 namespace edyn {
 
@@ -94,7 +95,9 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
                     if (registry.valid(local_entity) && registry.all_of<Component>(local_entity)) {
                         auto &comp = components[i];
                         internal::map_child_entity(registry, emap, comp);
-                        registry.replace<Component>(local_entity, comp);
+                        registry.patch<Component>(local_entity, [&](auto &&current) {
+                            merge_component(current, comp);
+                        });
                     }
                 }
             }

@@ -36,6 +36,9 @@ struct settings {
     external_system_func_t external_system_post_step {nullptr};
     should_collide_func_t should_collide_func {&should_collide_default};
 
+    using clear_actions_func_t = void(entt::registry &);
+    clear_actions_func_t *clear_actions_func {nullptr};
+
     std::variant<
         std::monostate,
         client_network_settings,

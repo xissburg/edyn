@@ -2,7 +2,7 @@
 #define EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 
 #include "edyn/util/entity_map.hpp"
-#include "edyn/networking/util/comp_state_history.hpp"
+#include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/networking/util/client_snapshot_importer.hpp"
 #include "edyn/networking/util/client_snapshot_exporter.hpp"
 #include "edyn/networking/util/clock_sync.hpp"
@@ -43,12 +43,11 @@ struct client_network_context {
     double last_snapshot_time {0};
     double server_playout_delay {0.3};
 
-    // Without full ownership, the client will not send transient state to
-    // server. Only input will be sent.
+    // Without full ownership, the client will only send input components to server.
     bool allow_full_ownership {true};
 
     std::vector<extrapolation_job_context> extrapolation_jobs;
-    std::shared_ptr<comp_state_history> state_history;
+    std::shared_ptr<input_state_history> input_history;
 
     using packet_observer_func_t = void(const packet::edyn_packet &);
     entt::sigh<packet_observer_func_t> packet_signal;

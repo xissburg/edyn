@@ -41,7 +41,7 @@ TEST(networking_test, client_export_import) {
     snap.entities.push_back(ent2);
 
     auto components_tuple = std::tuple_cat(edyn::networked_components, std::tuple<comp>{});
-    auto exporter = edyn::client_snapshot_exporter_impl(components_tuple);
+    auto exporter = edyn::client_snapshot_exporter_impl(components_tuple, {});
     exporter.export_all(reg0, snap);
 
     auto reg1 = entt::registry{};
