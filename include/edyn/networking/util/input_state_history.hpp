@@ -12,9 +12,6 @@
 #include "edyn/comp/dirty.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 
-#include <iostream>
-#include <iomanip>
-
 namespace edyn {
 
 namespace detail {
@@ -122,8 +119,6 @@ public:
         std::lock_guard lock(mutex);
         auto it = first_after(timestamp);
         history.insert(it, {std::move(snapshot), timestamp});
-        std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(3)
-            << "Emplace inputs " << timestamp << std::endl;
     }
 
     void erase_until(double timestamp) {
@@ -149,8 +144,6 @@ public:
 
     void import_each(double time, double length_of_time, entt::registry &registry, const entity_map &emap) const {
         each(time, length_of_time, [&](auto &&elem) {
-            std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(3)
-                << "Apply inputs " << elem.timestamp << std::endl;
             elem.import(registry, emap);
         });
     }

@@ -1,4 +1,5 @@
 #include "edyn/networking/sys/client_side.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
@@ -573,7 +574,11 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         }
     }
 
+    // Do not include manifolds as they will not make sense in the server state
+    // because rigid bodies generally will have quite different transforms
+    // compared to the client state.
     auto entities = entt::sparse_set{};
+    auto manifold_view = registry.view<contact_manifold>();
 
     graph.reach(
         node_indices.begin(), node_indices.end(),
@@ -582,7 +587,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
                 entities.emplace(entity);
             }
         }, [&](entt::entity entity) {
-            if (!entities.contains(entity)) {
+            if (!manifold_view.contains(entity) && !entities.contains(entity)) {
                 entities.emplace(entity);
             }
         }, [](auto) { return true; }, []() {});

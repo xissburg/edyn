@@ -38,12 +38,12 @@ namespace internal {
         };
     }
 
-    template<typename... Component>
-    auto make_mark_replaced_network_dirty_func([[maybe_unused]] std::tuple<Component...>) {
+    template<typename... Components>
+    auto make_mark_replaced_network_dirty_func([[maybe_unused]] std::tuple<Components...>) {
         return [](entt::registry &registry,
                   const registry_operation_collection &ops,
                   const entity_map &emap, double timestamp) {
-            ops.replace_for_each<Component...>([&](entt::entity remote_entity, const auto &c) {
+            ops.replace_for_each<Components...>([&](entt::entity remote_entity, const auto &c) {
                 if (!emap.contains(remote_entity)) {
                     return;
                 }
@@ -67,9 +67,10 @@ extern void(*g_mark_replaced_network_dirty)(entt::registry &, const registry_ope
 
 /**
  * @brief Register external networked components.
- * @tparam Component All external networked components.
- * @tparam Which of the components are input. These components are exclusively
- * controlled by the client that owns the entity that has such component.
+ * @tparam Components All external networked components.
+ * @tparam Actions All action types. Note that **actions are not components**.
+ * Instead, they're stored in `edyn::action_list<Action>` which is an actual
+ * component that is assigned to an entity and contains a list of actions.
  * @param registry Data source.
  * @param input Tuple of input components.
  */
@@ -120,7 +121,7 @@ inline void unregister_networked_components(entt::registry &registry) {
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(networked_components);
     g_is_networked_component = internal::make_is_networked_component_func(networked_components);
     g_is_networked_input_component = internal::make_is_network_input_component_func(networked_components);
-    g_is_action_list_component = [](entt::id_type) { return false; };
+    g_is_action_list_component = [](entt::id_type) { return false; }; // There are no native actions.
     g_mark_replaced_network_dirty = internal::make_mark_replaced_network_dirty_func(networked_components);
 }
 
