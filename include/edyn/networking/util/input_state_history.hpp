@@ -70,6 +70,10 @@ namespace detail {
     };
 }
 
+/**
+ * @brief A history of user inputs which will be applied during extrapolation.
+ * It is accessed from multiple threads so it has to be thread-safe.
+ */
 class input_state_history {
     auto first_after(double timestamp) {
         return std::find_if(history.begin(), history.end(),

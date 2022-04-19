@@ -12,6 +12,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
+#include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/util/registry_operation_builder.hpp"

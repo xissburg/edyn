@@ -559,7 +559,7 @@ void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &pac
 template<>
 void enqueue_packet<packet::registry_snapshot>(entt::registry &registry, entt::entity client_entity,
                                                packet::registry_snapshot &packet, double time) {
-    // Especialize it for registry snapshots. Transform entities to local and
+    // Specialize it for registry snapshots. Transform entities to local and
     // import action history in advance.
     auto &client = registry.get<remote_client>(client_entity);
     double time_delta;

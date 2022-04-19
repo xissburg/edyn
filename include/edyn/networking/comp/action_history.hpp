@@ -9,11 +9,9 @@
 
 namespace edyn {
 
-struct action_index {
-    using value_type = uint8_t;
-    value_type value;
-};
-
+/**
+ * @brief A timestamped history of actions performed by a user.
+ */
 struct action_history {
     struct entry {
         double timestamp;

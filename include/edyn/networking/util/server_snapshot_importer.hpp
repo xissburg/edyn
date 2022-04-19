@@ -307,25 +307,27 @@ public:
             return pool.component_index == action_history_index;
         });
 
-        if (pool_it != snap.pools.end()) {
-            auto *history_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool_it->ptr.get());
+        if (pool_it == snap.pools.end()) {
+            return;
+        }
 
-            for (unsigned i = 0; i < history_pool->components.size(); ++i) {
-                auto idx = history_pool->entity_indices[i];
-                auto entity = snap.entities[idx];
-                auto &history = history_pool->components[i];
-                history.sort();
+        auto *history_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool_it->ptr.get());
 
-                for (auto &entry : history.entries) {
-                    entry.timestamp += time_delta;
-                }
+        for (unsigned i = 0; i < history_pool->components.size(); ++i) {
+            auto idx = history_pool->entity_indices[i];
+            auto entity = snap.entities[idx];
+            auto &history = history_pool->components[i];
+            history.sort();
 
-                registry.get<action_history>(entity).merge(history);
+            for (auto &entry : history.entries) {
+                entry.timestamp += time_delta;
             }
 
-            *pool_it = std::move(snap.pools.back());
-            snap.pools.pop_back();
+            registry.get<action_history>(entity).merge(history);
         }
+
+        *pool_it = std::move(snap.pools.back());
+        snap.pools.pop_back();
     }
 };
 

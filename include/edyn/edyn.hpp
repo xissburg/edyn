@@ -153,6 +153,11 @@ auto get_component_indices(entt::registry &registry) {
  * component is sent to the island workers and is inserted in their private
  * registry.
  * @tparam Components External component types.
+ * @tparam Actions All action types. Note that **actions are not components**.
+ * Instead, they're stored in `edyn::action_list<Action>` which is an actual
+ * component that is assigned to an entity and contains a list of actions.
+ * @param registry Data source.
+ * @param actions Optional tuple of actions.
  */
 template<typename... Components, typename... Actions>
 void register_external_components(entt::registry &registry, std::tuple<Actions...> actions = {}) {
