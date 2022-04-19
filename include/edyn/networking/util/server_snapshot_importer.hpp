@@ -307,25 +307,34 @@ public:
             return pool.component_index == action_history_index;
         });
 
-        if (pool_it != snap.pools.end()) {
-            auto *history_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool_it->ptr.get());
+        if (pool_it == snap.pools.end()) {
+            return;
+        }
 
-            for (unsigned i = 0; i < history_pool->components.size(); ++i) {
-                auto idx = history_pool->entity_indices[i];
-                auto entity = snap.entities[idx];
-                auto &history = history_pool->components[i];
-                history.sort();
+        auto *history_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool_it->ptr.get());
+        auto history_view = registry.view<action_history>();
 
-                for (auto &entry : history.entries) {
-                    entry.timestamp += time_delta;
-                }
+        for (unsigned i = 0; i < history_pool->components.size(); ++i) {
+            auto idx = history_pool->entity_indices[i];
+            auto entity = snap.entities[idx];
 
-                registry.get<action_history>(entity).merge(history);
+            if (!history_view.contains(entity)) {
+                continue;
             }
 
-            *pool_it = std::move(snap.pools.back());
-            snap.pools.pop_back();
+            auto &history = history_pool->components[i];
+            history.sort();
+
+            for (auto &entry : history.entries) {
+                entry.timestamp += time_delta;
+            }
+
+            history_view.get<action_history>(entity).merge(history);
         }
+
+        // Swap with last and remove last after processing.
+        *pool_it = std::move(snap.pools.back());
+        snap.pools.pop_back();
     }
 };
 

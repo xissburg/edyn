@@ -489,6 +489,9 @@ static void insert_input_to_state_history(entt::registry &registry, const packet
 
     if (!unwoned_entities.empty()) {
         ctx.input_history->emplace(snap, unwoned_entities, time);
+
+        // Insert action lists contained in action histories of other clients
+        // present in snapshot.
     }
 }
 

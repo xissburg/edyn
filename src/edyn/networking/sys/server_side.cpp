@@ -444,6 +444,7 @@ static void maybe_publish_client_registry_snapshot(entt::registry &registry,
     }
 
     ctx.snapshot_exporter->export_dirty(registry, packet, client_entity);
+    ctx.snapshot_exporter->export_action_history(registry, packet, client_entity, time);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
