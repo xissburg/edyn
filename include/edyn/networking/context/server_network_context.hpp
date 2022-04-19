@@ -1,7 +1,6 @@
 #ifndef EDYN_NETWORKING_SERVER_NETWORK_CONTEXT_HPP
 #define EDYN_NETWORKING_SERVER_NETWORK_CONTEXT_HPP
 
-#include <cstdint>
 #include <vector>
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>

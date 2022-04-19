@@ -16,7 +16,7 @@ struct extrapolation_input {
     entt::sparse_set owned_entities {};
     registry_operation_collection ops;
     packet::registry_snapshot snapshot;
-    double execution_time_limit {99999};
+    double execution_time_limit {0.4};
     bool should_remap {true};
 };
 

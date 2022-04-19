@@ -211,8 +211,10 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
     packet.timestamp = time;
     packet.entities.insert(packet.entities.end(), network_dirty_view.begin(), network_dirty_view.end());
 
-    for (auto [entity, history] : registry.view<action_history>().each()) {
-        if (!history.entries.empty()) {
+    auto history_view = registry.view<action_history>();
+
+    for (auto entity : ctx.owned_entities) {
+        if (history_view.contains(entity) && !history_view.get<action_history>(entity).entries.empty()) {
             packet.entities.push_back(entity);
         }
     }
@@ -276,11 +278,11 @@ static void client_update_clock_sync(entt::registry &registry, double time) {
 static void trim_and_insert_actions(entt::registry &registry, double time) {
     // Erase old actions.
     double action_history_max_length = 2;
-    registry.view<edyn::action_history>().each([&](action_history &history) {
+    registry.view<action_history>().each([&](action_history &history) {
         history.erase_until(time - action_history_max_length);
     });
 
-    // Insert current actions.
+    // Insert current action lists into action history.
     auto &ctx = registry.ctx<client_network_context>();
     ctx.snapshot_exporter->append_current_actions(registry, time);
 }

@@ -32,7 +32,7 @@ struct action_history {
 
     void erase_until(double timestamp) {
         auto it = std::find_if(entries.begin(), entries.end(),
-                               [timestamp](auto &&entry) { return entry.timestamp > timestamp; });
+                               [timestamp](auto &&entry) { return entry.timestamp >= timestamp; });
         entries.erase(entries.begin(), it);
     }
 
