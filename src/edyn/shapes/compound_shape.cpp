@@ -54,13 +54,13 @@ void compound_shape::finish() {
     aabbs.reserve(nodes.size());
 
     for (auto &node : nodes) {
-        std::visit([&node] (auto &&shape) {
+        std::visit([&node](auto &&shape) {
             node.aabb = shape_aabb(shape, node.position, node.orientation);
         }, node.shape_var);
         aabbs.push_back(node.aabb);
     }
 
-    auto report_leaf = [] (static_tree::tree_node &node, auto ids_begin, auto ids_end) {
+    auto report_leaf = [](static_tree::tree_node &node, auto ids_begin, auto ids_end) {
         node.id = *ids_begin;
     };
     tree.build(aabbs.begin(), aabbs.end(), report_leaf);

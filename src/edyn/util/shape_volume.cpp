@@ -65,7 +65,7 @@ scalar shape_volume(const compound_shape &sh) {
     auto volume = scalar(0);
 
     for (auto &node : sh.nodes) {
-        std::visit([&] (auto &&s) {
+        std::visit([&](auto &&s) {
             volume += shape_volume(s);
         }, node.shape_var);
     }

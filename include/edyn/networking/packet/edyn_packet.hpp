@@ -66,7 +66,7 @@ namespace edyn {
  */
 inline bool should_send_reliably(const packet::edyn_packet &packet) {
     bool result;
-    std::visit([&result] (auto &&inner_packet) {
+    std::visit([&result](auto &&inner_packet) {
         using PacketType = std::decay_t<decltype(inner_packet)>;
         result = !tuple_has_type<PacketType, packet::unreliable_packets_tuple_t>::value;
     }, packet.var);

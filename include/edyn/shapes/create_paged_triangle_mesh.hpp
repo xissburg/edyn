@@ -41,7 +41,7 @@ struct submesh_builder {
         paged_tri_mesh.m_cache.resize(infos.size());
 
         // Create submeshes using the triangle indices stored in the `build_info`s.
-        parallel_for(size_t{0}, infos.size(), [&] (size_t idx) {
+        parallel_for(size_t{0}, infos.size(), [&](size_t idx) {
             auto &info = infos[idx];
 
             // Transform triangle indices into vertex indices.
@@ -207,7 +207,7 @@ void create_paged_triangle_mesh(
     // Calculate AABB of each triangle.
     std::vector<AABB> aabbs(num_triangles);
 
-    parallel_for(size_t{0}, num_triangles, [&] (size_t i) {
+    parallel_for(size_t{0}, num_triangles, [&](size_t i) {
         auto verts = triangle_vertices{
             *(vertex_begin + *(index_begin + (i * 3 + 0))),
             *(vertex_begin + *(index_begin + (i * 3 + 1))),

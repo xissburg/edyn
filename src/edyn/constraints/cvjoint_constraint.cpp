@@ -64,7 +64,7 @@ void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache
     auto con_view = registry.view<cvjoint_constraint>(entt::exclude_t<disabled_tag>{});
     auto origin_view = registry.view<origin>();
 
-    con_view.each([&] (cvjoint_constraint &con) {
+    con_view.each([&](cvjoint_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
@@ -314,7 +314,7 @@ bool solve_position_constraints<cvjoint_constraint>(entt::registry &registry, sc
     auto linear_error = scalar(0);
     auto angular_error = scalar(0);
 
-    con_view.each([&] (cvjoint_constraint &con) {
+    con_view.each([&](cvjoint_constraint &con) {
         auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
         auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
 

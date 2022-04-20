@@ -24,8 +24,8 @@ struct parallel_for_context {
     std::condition_variable cv;
     Function func;
 
-    parallel_for_context(IndexType first, IndexType last, IndexType step, 
-                         IndexType chunk_size, size_t num_jobs, Function func) 
+    parallel_for_context(IndexType first, IndexType last, IndexType step,
+                         IndexType chunk_size, size_t num_jobs, Function func)
         : current(first)
         , last(last)
         , step(step)
@@ -46,14 +46,14 @@ struct parallel_for_context {
         done = count == 0;
 
         // Normally, `notify_one` would be called without the lock being held.
-        // However, according to 
+        // However, according to
         // https://en.cppreference.com/w/cpp/thread/condition_variable/notify_one:
         // "Notifying while under the lock may nevertheless be necessary when precise
         // scheduling of events is required, e.g. if the waiting thread would exit
         // the program if the condition is satisfied, causing destruction of the
         // notifying thread's condition_variable."
         // If the lock would be released right here, there is a very slim chance
-        // that `wait()` would be called in the other thread right after, before 
+        // that `wait()` would be called in the other thread right after, before
         // `notify_one()` below, where the lock would be acquired and the predicate
         // would test true, causing `parallel_for` to return, thus destroying this
         // object (since it is in the stack) and then everything down from here is
@@ -103,7 +103,7 @@ void parallel_for_job_func(job::data_type &data) {
 /**
  * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
  * once for each element starting at `first` and incrementing by `step` until `last`.
- * 
+ *
  * @tparam IndexType Type of the index values.
  * @tparam Function Type of function to be invoked.
  * @param dispatcher The `edyn::job_dispatcher` where the parallel jobs will be run.
@@ -159,7 +159,7 @@ void parallel_for(job_dispatcher &dispatcher, IndexType first, IndexType last, I
  * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
  * once for each element starting at `first` and incrementing by `step` until `last`.
  * Tasks are run in the default global `edyn::job_dispatcher`.
- * 
+ *
  * @tparam IndexType Type of the index values.
  * @tparam Function Type of function to be invoked.
  * @param first Index of the first element in the range.
@@ -175,14 +175,14 @@ void parallel_for(IndexType first, IndexType last, IndexType step, Function func
 
 /**
  * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
- * once for each element` in the range. Tasks are run in the default global 
+ * once for each element` in the range. Tasks are run in the default global
  * `edyn::job_dispatcher`.
- * 
+ *
  * @tparam IndexType Type of the index values.
  * @tparam Function Type of function to be invoked.
  * @param first Index of the first element in the range.
  * @param last Index past the last element in the range.
- * @param func Function that will be called for each index in `[first, last)`. 
+ * @param func Function that will be called for each index in `[first, last)`.
  * Expected signature `void(IndexType)`.
  */
 template<typename IndexType, typename Function>
@@ -193,34 +193,34 @@ void parallel_for(IndexType first, IndexType last, Function func) {
 /**
  * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
  * once for each element` in the range.
- * 
+ *
  * @tparam Type of input iterator.
  * @tparam Function Type of function to be invoked.
  * @param dispatcher The `edyn::job_dispatcher` where the parallel jobs will be run.
  * @param first An iterator to the first element.
  * @param last An iterator past the last element.
- * @param func Function that will be called for each element `[first, last)`. 
+ * @param func Function that will be called for each element `[first, last)`.
  * Expected signature `void(Iterator)`.
  */
 template<typename Iterator, typename Function>
 void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last, Function func) {
     auto count = std::distance(first, last);
 
-    parallel_for(dispatcher, size_t{0}, static_cast<size_t>(count), size_t{1}, [&] (size_t index) {
+    parallel_for(dispatcher, size_t{0}, static_cast<size_t>(count), size_t{1}, [&](size_t index) {
         func(first + index);
     });
 }
 
 /**
  * @brief Dynamically splits the range `[first, last)` and calls `func` in parallel
- * once for each element` in the range. Tasks are run in the default global 
+ * once for each element` in the range. Tasks are run in the default global
  * `edyn::job_dispatcher`.
- * 
+ *
  * @tparam Type of input iterator.
  * @tparam Function Type of function to be invoked.
  * @param first An iterator to the first element.
  * @param last An iterator past the last element.
- * @param func Function that will be called for each element `[first, last)`. 
+ * @param func Function that will be called for each element `[first, last)`.
  * Expected signature `void(Iterator)`.
  */
 template<typename Iterator, typename Function>

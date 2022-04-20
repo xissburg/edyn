@@ -7,6 +7,7 @@
 #include "edyn/config/config.h"
 #include "edyn/parallel/map_child_entity.hpp"
 #include "edyn/util/entity_map.hpp"
+#include "edyn/comp/merge_component.hpp"
 
 namespace edyn {
 
@@ -89,7 +90,9 @@ class component_operation_impl : public component_operation {
 
             auto comp = components[i];
             internal::map_child_entity(registry, entity_map, comp);
-            registry.replace<Component>(local_entity, comp);
+            registry.patch<Component>(local_entity, [&](auto &&current) {
+                merge_component(current, comp);
+            });
         }
     }
 

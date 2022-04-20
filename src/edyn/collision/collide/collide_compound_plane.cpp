@@ -21,7 +21,7 @@ void collide(const compound_shape &shA, const plane_shape &shB,
         child_ctx.ornA *= node.orientation;
         collision_result child_result;
 
-        std::visit([&] (auto &&sh) {
+        std::visit([&](auto &&sh) {
             collide(sh, shB, child_ctx, child_result);
         }, node.shape_var);
 

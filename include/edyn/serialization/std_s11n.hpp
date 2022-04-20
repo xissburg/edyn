@@ -123,7 +123,7 @@ void serialize(Archive& archive, std::variant<Ts...>& var) {
         archive(id);
         internal::read_variant(archive, id, var);
     } else {
-        std::visit([&archive] (auto &&t) {
+        std::visit([&archive](auto &&t) {
             using T = std::decay_t<decltype(t)>;
             auto id = index_of_v<id_type, T, Ts...>;
             archive(id);

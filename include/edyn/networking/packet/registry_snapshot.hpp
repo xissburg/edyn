@@ -49,7 +49,7 @@ namespace internal {
         using pool_snapshot_data_t = pool_snapshot_data_impl<Component>;
 
         auto pool = std::find_if(pools.begin(), pools.end(),
-                                 [component_index] (auto &&pool) {
+                                 [component_index](auto &&pool) {
                                      return pool.component_index == component_index;
                                  });
 
@@ -71,7 +71,7 @@ namespace internal {
         auto entity_has_component =
             std::find_if(
                 snap.entities.begin(), snap.entities.end(),
-                [&] (auto entity) {
+                [&](auto entity) {
                     return view.contains(entity);
                 }) != snap.entities.end();
 

@@ -86,7 +86,7 @@ constexpr auto tuple_to_variant(std::tuple<Ts...>) {
 namespace detail {
     template<typename VisitorType, typename TupleType, typename T>
     constexpr auto make_visit_tuple_function() {
-        return [] (TupleType &tuple, VisitorType visitor) {
+        return [](TupleType &tuple, VisitorType visitor) {
             visitor(std::get<T>(tuple));
         };
     }
@@ -110,7 +110,7 @@ namespace detail {
 
     template<typename VisitorType, typename TupleType, typename T>
     constexpr auto make_visit_const_tuple_function() {
-        return [] (const TupleType &tuple, VisitorType visitor) {
+        return [](const TupleType &tuple, VisitorType visitor) {
             visitor(std::get<T>(tuple));
         };
     }

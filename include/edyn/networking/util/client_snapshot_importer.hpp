@@ -2,9 +2,9 @@
 #define EDYN_NETWORKING_UTIL_CLIENT_SNAPSHOT_IMPORTER_HPP
 
 #include <entt/entity/registry.hpp>
+#include "edyn/comp/merge_component.hpp"
 #include "edyn/networking/sys/client_side.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
-#include "edyn/edyn.hpp"
 
 namespace edyn {
 
@@ -52,7 +52,9 @@ class client_snapshot_importer_impl : public client_snapshot_importer {
                 internal::map_child_entity(registry, emap, comp);
 
                 if (registry.any_of<Component>(local_entity)) {
-                    registry.replace<Component>(local_entity, comp);
+                    registry.patch<Component>(local_entity, [&](auto &&current) {
+                        merge_component(current, comp);
+                    });
                 } else {
                     registry.emplace<Component>(local_entity, comp);
                 }
@@ -80,7 +82,9 @@ class client_snapshot_importer_impl : public client_snapshot_importer {
                 auto &comp = pool.components[i];
 
                 if (registry.any_of<Component>(local_entity)) {
-                    registry.replace<Component>(local_entity, comp);
+                    registry.patch<Component>(local_entity, [&](auto &&current) {
+                        merge_component(current, comp);
+                    });
                 } else {
                     registry.emplace<Component>(local_entity, comp);
                 }
@@ -96,7 +100,7 @@ public:
         auto all_components = std::tuple<Components...>{};
 
         for (auto &pool : snap.pools) {
-            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+            visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using Component = std::decay_t<decltype(c)>;
                 auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
                 import_components(registry, emap, snap.entities, *typed_pool);
@@ -109,7 +113,7 @@ public:
         auto all_components = std::tuple<Components...>{};
 
         for (auto &pool : snap.pools) {
-            visit_tuple(all_components, pool.component_index, [&] (auto &&c) {
+            visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using Component = std::decay_t<decltype(c)>;
                 auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool.ptr.get());
                 import_components_local<Component>(registry, snap.entities, *typed_pool);

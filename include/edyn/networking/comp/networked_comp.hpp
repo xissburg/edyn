@@ -27,6 +27,7 @@
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/shapes/compound_shape.hpp"
 #include "edyn/shapes/plane_shape.hpp"
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 
 namespace edyn {
@@ -86,7 +87,8 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     compound_shape,
     plane_shape,
     shape_index,
-    entity_owner
+    entity_owner,
+    action_history
 >{});
 
 using networked_components_t = std::decay_t<decltype(networked_components)>;

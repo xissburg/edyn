@@ -97,7 +97,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     }
 
     if (auto opt = def.shape) {
-        std::visit([&] (auto &&shape) {
+        std::visit([&](auto &&shape) {
             using ShapeType = std::decay_t<decltype(shape)>;
 
             // Ensure shape is valid for this type of rigid body.
@@ -250,7 +250,7 @@ void update_kinematic_orientation(entt::registry &registry, entt::entity entity,
 
 void clear_kinematic_velocities(entt::registry &registry) {
     auto view = registry.view<kinematic_tag, linvel, angvel>();
-    view.each([] (linvel &v, angvel &w) {
+    view.each([](linvel &v, angvel &w) {
         v = vector3_zero;
         w = vector3_zero;
     });
@@ -297,7 +297,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
     auto &node = registry.get<graph_node>(entity);
     auto &material_table = registry.ctx<material_mix_table>();
 
-    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+    graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
 
         if (!manifold_view.contains(edge_entity)) {
@@ -327,7 +327,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
         auto combined_friction = material_mix_friction(friction, other_material.friction);
 
-        manifold.each_point([combined_friction] (contact_point &cp) {
+        manifold.each_point([combined_friction](contact_point &cp) {
             cp.friction = combined_friction;
         });
 

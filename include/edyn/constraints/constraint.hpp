@@ -55,14 +55,14 @@ static const auto constraints_tuple = std::tuple<
 
 inline
 void prepare_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
-    std::apply([&] (auto ... c) {
+    std::apply([&](auto ... c) {
         (prepare_constraints<decltype(c)>(registry, cache, dt), ...);
     }, constraints_tuple);
 }
 
 inline
 void iterate_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
-    std::apply([&] (auto ... c) {
+    std::apply([&](auto ... c) {
         (iterate_constraints<decltype(c)>(registry, cache, dt), ...);
     }, constraints_tuple);
 }
@@ -71,7 +71,7 @@ inline
 bool solve_position_constraints(entt::registry &registry, scalar dt) {
     auto solved = false;
 
-    std::apply([&] (auto ... c) {
+    std::apply([&](auto ... c) {
         solved = (solve_position_constraints<decltype(c)>(registry, dt) && ...);
     }, constraints_tuple);
 

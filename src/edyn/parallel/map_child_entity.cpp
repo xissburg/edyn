@@ -4,7 +4,7 @@ namespace edyn::internal {
 
 static void remove_null_entities_in_sequence(entt::meta_sequence_container &seq) {
     // Move null entities to the end.
-    auto end = std::remove_if(seq.begin(), seq.end(), [] (auto &&elem) {
+    auto end = std::remove_if(seq.begin(), seq.end(), [](auto &&elem) {
         return elem.template cast<entt::entity>() == entt::null;
     });
 

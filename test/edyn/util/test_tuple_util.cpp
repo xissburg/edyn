@@ -5,7 +5,7 @@ TEST(test_tuple_util, test_visit_tuple) {
     auto tuple = std::make_tuple(std::string("str"), 3.14f, 'c', 667);
 
     for (size_t i = 0; i < std::tuple_size_v<decltype(tuple)>; ++i) {
-        edyn::visit_tuple(tuple, i, [] (auto &&value) {
+        edyn::visit_tuple(tuple, i, [](auto &&value) {
             using ValueType = std::decay_t<decltype(value)>;
             auto count = 0;
 

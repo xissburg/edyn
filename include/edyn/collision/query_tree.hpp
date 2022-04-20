@@ -36,7 +36,7 @@ void traverse_tree(const Tree &tree, NodeIdType root_id, NodeIdType null_node_id
 template<typename Tree, typename NodeIdType, typename Func>
 void query_tree(const Tree &tree, NodeIdType root_id, NodeIdType null_node_id,
                 const AABB &aabb, Func func) {
-    traverse_tree(tree, root_id, null_node_id, [&] (auto &node) {
+    traverse_tree(tree, root_id, null_node_id, [&](auto &node) {
         return intersect(node.aabb, aabb);
     }, func);
 }
@@ -44,7 +44,7 @@ void query_tree(const Tree &tree, NodeIdType root_id, NodeIdType null_node_id,
 template<typename Tree, typename NodeIdType, typename Func>
 void raycast_tree(const Tree &tree, NodeIdType root_id, NodeIdType null_node_id,
                   const vector3 &p0, const vector3 &p1, Func func) {
-    traverse_tree(tree, root_id, null_node_id, [&] (auto &node) {
+    traverse_tree(tree, root_id, null_node_id, [&](auto &node) {
         return intersect_segment_aabb(p0, p1, node.aabb.min, node.aabb.max);
     }, func);
 }

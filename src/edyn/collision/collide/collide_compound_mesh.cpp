@@ -22,7 +22,7 @@ void collide(const compound_shape &compound, const triangle_mesh &mesh,
 
         collision_result child_result;
 
-        std::visit([&] (auto &&sh) {
+        std::visit([&](auto &&sh) {
             collide(sh, mesh, child_ctx, child_result);
         }, node.shape_var);
 

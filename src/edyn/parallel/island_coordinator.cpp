@@ -77,7 +77,7 @@ void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::e
     // direct `entity_graph::remove_all_edges` will be used instead.
     registry.on_destroy<graph_edge>().disconnect<&island_coordinator::on_destroy_graph_edge>(*this);
 
-    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+    graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
     });
@@ -162,7 +162,7 @@ void island_coordinator::on_destroy_contact_manifold(entt::registry &registry, e
 
 static void entity_vector_erase_invalid(std::vector<entt::entity> &vec,
                                         const entt::registry &registry) {
-    auto predicate = [&] (entt::entity entity) {
+    auto predicate = [&](entt::entity entity) {
         return !registry.valid(entity);
     };
 
@@ -219,7 +219,7 @@ void island_coordinator::init_new_nodes_and_edges() {
 
     graph.reach(
         procedural_node_indices.begin(), procedural_node_indices.end(),
-        [&] (entt::entity entity) { // visitNodeFunc
+        [&](entt::entity entity) { // visitNodeFunc
             // Always add non-procedurals to the connected component.
             // Only add procedural if it's not in an island yet.
             auto is_procedural = procedural_view.contains(entity);
@@ -229,7 +229,7 @@ void island_coordinator::init_new_nodes_and_edges() {
                 connected_nodes.push_back(entity);
             }
         },
-        [&] (entt::entity entity) { // visitEdgeFunc
+        [&](entt::entity entity) { // visitEdgeFunc
             auto &edge_resident = resident_view.get<island_resident>(entity);
 
             if (edge_resident.island_entity == entt::null) {
@@ -242,7 +242,7 @@ void island_coordinator::init_new_nodes_and_edges() {
                 }
             }
         },
-        [&] (entity_graph::index_type node_index) { // shouldVisitFunc
+        [&](entity_graph::index_type node_index) { // shouldVisitFunc
             auto other_entity = graph.node_entity(node_index);
 
             // Collect islands involved in this connected component.
@@ -268,7 +268,7 @@ void island_coordinator::init_new_nodes_and_edges() {
             bool continue_visiting = false;
 
             // Visit neighbor if it contains an edge that is not in an island yet.
-            graph.visit_edges(node_index, [&] (auto edge_index) {
+            graph.visit_edges(node_index, [&](auto edge_index) {
                 auto edge_entity = graph.edge_entity(edge_index);
                 if (resident_view.get<island_resident>(edge_entity).island_entity == entt::null) {
                     continue_visiting = true;
@@ -277,7 +277,7 @@ void island_coordinator::init_new_nodes_and_edges() {
 
             return continue_visiting;
         },
-        [&] () { // connectedComponentFunc
+        [&]() { // connectedComponentFunc
             if (island_entities.empty()) {
                 create_island(m_timestamp, false, connected_nodes, connected_edges);
             } else if (island_entities.size() == 1) {
@@ -302,7 +302,7 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
     auto &resident = m_registry->get<multi_island_resident>(node_entity);
 
     // Add new non-procedural entity to islands of neighboring procedural entities.
-    m_registry->ctx<entity_graph>().visit_neighbors(node.node_index, [&] (entt::entity other) {
+    m_registry->ctx<entity_graph>().visit_neighbors(node.node_index, [&](entt::entity other) {
         if (!procedural_view.contains(other)) return;
 
         auto &other_resident = resident_view.get<island_resident>(other);
@@ -536,7 +536,7 @@ void island_coordinator::refresh_dirty_entities() {
 
     // Do not share components which are not present in the shared components
     // list.
-    auto remove_unshared = [index_source] (dirty::id_set_t &set) {
+    auto remove_unshared = [index_source](dirty::id_set_t &set) {
         for (auto it = set.begin(); it != set.end();) {
             if (index_source->index_of_id(*it) == SIZE_MAX) {
                 it = set.erase(it);
@@ -546,7 +546,7 @@ void island_coordinator::refresh_dirty_entities() {
         }
     };
 
-    auto refresh = [this] (entt::entity entity, dirty &dirty, entt::entity island_entity) {
+    auto refresh = [this](entt::entity entity, dirty &dirty, entt::entity island_entity) {
         if (!m_island_ctx_map.count(island_entity)) {
             return;
         }
@@ -566,7 +566,7 @@ void island_coordinator::refresh_dirty_entities() {
             dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
     };
 
-    dirty_view.each([&] (entt::entity entity, dirty &dirty) {
+    dirty_view.each([&](entt::entity entity, dirty &dirty) {
         remove_unshared(dirty.created_ids);
         remove_unshared(dirty.updated_ids);
         remove_unshared(dirty.destroyed_ids);
@@ -592,7 +592,7 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
     msg.ops.execute(registry, source_ctx->m_entity_map);
 
     // Insert entity mappings for new entities into the current op.
-    msg.ops.create_for_each([&] (entt::entity remote_entity) {
+    msg.ops.create_for_each([&](entt::entity remote_entity) {
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
         source_ctx->m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
@@ -603,7 +603,7 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
 
     // Insert nodes in the graph for each rigid body.
     auto &graph = registry.ctx<entity_graph>();
-    auto insert_node = [&] (entt::entity remote_entity) {
+    auto insert_node = [&](entt::entity remote_entity) {
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
         auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
         auto node_index = graph.insert_node(local_entity, non_connecting);
@@ -622,7 +622,7 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
     msg.ops.emplace_for_each<rigidbody_tag, external_tag>(insert_node);
 
     // Insert edges in the graph for constraints.
-    msg.ops.emplace_for_each(constraints_tuple, [&] (entt::entity remote_entity, const auto &con) {
+    msg.ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
 
         if (registry.any_of<graph_edge>(local_entity)) return;
@@ -644,7 +644,7 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
     }
 
     // Generate contact events.
-    msg.ops.replace_for_each<contact_manifold_events>([&] (entt::entity remote_entity,
+    msg.ops.replace_for_each<contact_manifold_events>([&](entt::entity remote_entity,
                                                            const contact_manifold_events &events) {
         if (!source_ctx->m_entity_map.contains(remote_entity)) {
             return;

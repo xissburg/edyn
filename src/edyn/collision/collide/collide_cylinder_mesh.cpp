@@ -26,7 +26,7 @@ void collide_cylinder_triangle(
     auto sep_axis = vector3_zero;
 
     // Check if the given direction is the best so far and set it if so.
-    auto test_direction = [&] (vector3 dir) {
+    auto test_direction = [&](vector3 dir) {
         auto projA = -cylinder.support_projection(posA, ornA, -dir);
         auto projB = get_triangle_support_projection(tri_vertices, dir);
         auto dist = projA - projB;
@@ -415,7 +415,7 @@ void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh,
     const auto inset = vector3_one * -contact_breaking_threshold;
     const auto visit_aabb = ctx.aabbA.inset(inset);
 
-    mesh.visit_triangles(visit_aabb, [&] (auto tri_idx) {
+    mesh.visit_triangles(visit_aabb, [&](auto tri_idx) {
         collide_cylinder_triangle(cylinder, mesh, tri_idx,
                                   cylinder_axis, cylinder_vertices, ctx, result);
     });

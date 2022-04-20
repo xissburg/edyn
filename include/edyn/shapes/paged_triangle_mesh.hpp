@@ -45,7 +45,7 @@ public:
      */
     template<typename Func>
     void visit_submeshes(const AABB &aabb, Func func) {
-        m_tree.query(aabb, [&] (auto tree_node_idx) {
+        m_tree.query(aabb, [&](auto tree_node_idx) {
             auto mesh_idx = m_tree.get_node(tree_node_idx).id;
             load_node_if_needed(mesh_idx);
 
@@ -86,13 +86,13 @@ public:
      */
     template<typename Func>
     void visit_triangles(const AABB &aabb, Func func) {
-        m_tree.query(aabb, [&] (auto tree_node_idx) {
+        m_tree.query(aabb, [&](auto tree_node_idx) {
             auto mesh_idx = m_tree.get_node(tree_node_idx).id;
             load_node_if_needed(mesh_idx);
             auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit_triangles(aabb, [=] (uint32_t tri_idx) {
+                trimesh->visit_triangles(aabb, [=](uint32_t tri_idx) {
                     func(mesh_idx, tri_idx);
                 });
                 mark_recent_visit(mesh_idx);
@@ -118,7 +118,7 @@ public:
             auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->visit_triangles(aabb, [=] (uint32_t tri_idx) {
+                trimesh->visit_triangles(aabb, [=](uint32_t tri_idx) {
                     func(mesh_idx, tri_idx);
                 });
             }
@@ -158,13 +158,13 @@ public:
      */
     template<typename Func>
     void raycast(const vector3 &p0, const vector3 &p1, Func func) {
-        m_tree.raycast(p0, p1, [&] (auto tree_node_idx) {
+        m_tree.raycast(p0, p1, [&](auto tree_node_idx) {
             auto mesh_idx = m_tree.get_node(tree_node_idx).id;
             load_node_if_needed(mesh_idx);
             auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->raycast(p0, p1, [=] (uint32_t tri_idx) {
+                trimesh->raycast(p0, p1, [=](uint32_t tri_idx) {
                     func(mesh_idx, tri_idx);
                 });
                 mark_recent_visit(mesh_idx);
@@ -182,12 +182,12 @@ public:
      */
     template<typename Func>
     void raycast_cached(const vector3 &p0, const vector3 &p1, Func func) const {
-        m_tree.raycast(p0, p1, [&] (auto tree_node_idx) {
+        m_tree.raycast(p0, p1, [&](auto tree_node_idx) {
             auto mesh_idx = m_tree.get_node(tree_node_idx).id;
             auto trimesh = m_cache[mesh_idx].trimesh;
 
             if (trimesh) {
-                trimesh->raycast(p0, p1, [=] (uint32_t tri_idx) {
+                trimesh->raycast(p0, p1, [=](uint32_t tri_idx) {
                     func(mesh_idx, tri_idx);
                 });
             }

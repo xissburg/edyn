@@ -26,7 +26,7 @@ void update_contact_distances(entt::registry &registry) {
     auto tr_view = registry.view<position, orientation>();
     auto origin_view = registry.view<origin>();
 
-    manifold_view.each([&] (contact_manifold &manifold) {
+    manifold_view.each([&](contact_manifold &manifold) {
         auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
         auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
         auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
@@ -447,8 +447,8 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &result
         auto shape_indexB = body_view.get<shape_index>(body[1]);
         auto ctx = collision_context{originA, ornA, aabbA, originB, ornB, aabbB, collision_threshold};
 
-        visit_shape(shape_indexA, body[0], views_tuple, [&] (auto &&shA) {
-            visit_shape(shape_indexB, body[1], views_tuple, [&] (auto &&shB) {
+        visit_shape(shape_indexA, body[0], views_tuple, [&](auto &&shA) {
+            visit_shape(shape_indexB, body[1], views_tuple, [&](auto &&shB) {
                 collide(shA, shB, ctx, result);
             });
         });

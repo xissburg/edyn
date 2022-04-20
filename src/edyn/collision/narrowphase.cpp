@@ -16,7 +16,7 @@ bool narrowphase::parallelizable() const {
 }
 
 void narrowphase::clear_contact_manifold_events() {
-    m_registry->view<contact_manifold_events>().each([] (auto &events) {
+    m_registry->view<contact_manifold_events>().each([](auto &events) {
         events = {};
     });
 }
@@ -59,7 +59,7 @@ void narrowphase::update_async(job &completion_job) {
     parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job,
             [this, body_view, tr_view, vel_view, rolling_view, tire_view, origin_view,
              manifold_view, events_view, orn_view, material_view, mesh_shape_view,
-             paged_mesh_shape_view, shapes_views_tuple, dt] (size_t index) {
+             paged_mesh_shape_view, shapes_views_tuple, dt](size_t index) {
         auto entity = manifold_view[index];
         auto [manifold] = manifold_view.get(entity);
         auto [events] = events_view.get(entity);
@@ -71,9 +71,9 @@ void narrowphase::update_async(job &completion_job) {
         process_collision(entity, manifold, events, result, tr_view, vel_view,
                           rolling_view, tire_view, origin_view, orn_view, material_view,
                           mesh_shape_view, paged_mesh_shape_view, dt,
-                          [&construction_info] (const collision_result::collision_point &rp) {
+                          [&construction_info](const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
-        }, [&destruction_info] (auto pt_id) {
+        }, [&destruction_info](auto pt_id) {
             EDYN_ASSERT(pt_id < max_contacts);
             destruction_info.point_id[destruction_info.count++] = pt_id;
         });

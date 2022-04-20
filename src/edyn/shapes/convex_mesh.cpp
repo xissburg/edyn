@@ -111,7 +111,7 @@ void convex_mesh::calculate_relevant_normals() {
     // Find unique face normals.
     for (size_t face_idx = 0; face_idx < normals.size(); ++face_idx) {
         auto &normal = normals[face_idx];
-        auto found_it = std::find_if(relevant_normals.begin(), relevant_normals.end(), [normal] (auto &&relevant) {
+        auto found_it = std::find_if(relevant_normals.begin(), relevant_normals.end(), [normal](auto &&relevant) {
             return !(dot(normal, relevant) < scalar(1) - EDYN_EPSILON);
         });
 
@@ -134,7 +134,7 @@ void convex_mesh::calculate_relevant_edges() {
         auto v1 = vertices[i1];
         auto edge = normalize(v1 - v0);
 
-        auto found_it = std::find_if(relevant_edges.begin(), relevant_edges.end(), [edge] (auto &&relevant) {
+        auto found_it = std::find_if(relevant_edges.begin(), relevant_edges.end(), [edge](auto &&relevant) {
             return !(std::abs(dot(edge, relevant)) < scalar(1) - EDYN_EPSILON);
         });
 

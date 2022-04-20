@@ -99,12 +99,16 @@ constexpr matrix3x3 operator-=(matrix3x3 &m, const matrix3x3 &n) noexcept {
 
 // Check if two matrices are equal.
 constexpr bool operator==(const matrix3x3 &m, const matrix3x3 &n) noexcept {
-    return m.row == n.row;
+    return m.row[0] == n.row[0] &&
+           m.row[1] == n.row[1] &&
+           m.row[2] == n.row[2];
 }
 
 // Check if two matrices are different.
 constexpr bool operator!=(const matrix3x3 &m, const matrix3x3 &n) noexcept {
-    return m.row != n.row;
+    return m.row[0] != n.row[0] ||
+           m.row[1] != n.row[1] ||
+           m.row[2] != n.row[2];
 }
 
 // Create a matrix with the given column vectors.
@@ -179,9 +183,9 @@ constexpr matrix3x3 inverse_matrix_symmetric(const matrix3x3 &m) noexcept {
 // Matrix with given vector as diagonal.
 constexpr matrix3x3 diagonal_matrix(const vector3 &v) noexcept {
     return {
-        vector3 {v.x, 0, 0},
-        vector3 {0, v.y, 0},
-        vector3 {0, 0, v.z}
+        vector3{v.x, 0, 0},
+        vector3{0, v.y, 0},
+        vector3{0, 0, v.z}
     };
 }
 
@@ -201,9 +205,9 @@ constexpr matrix3x3 scale_matrix(const matrix3x3 &m, const vector3 &v) noexcept 
 // Skew anti-symmetric matrix of a vector.
 constexpr matrix3x3 skew_matrix(const vector3 &v) noexcept {
     return {
-        vector3 {0, -v.z, v.y},
-        vector3 {v.z, 0, -v.x},
-        vector3 {-v.y, v.x, 0}
+        vector3{0, -v.z, v.y},
+        vector3{v.z, 0, -v.x},
+        vector3{-v.y, v.x, 0}
     };
 }
 

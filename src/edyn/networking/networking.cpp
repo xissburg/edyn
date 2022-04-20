@@ -1,5 +1,6 @@
 #include "edyn/networking/networking.hpp"
 #include "edyn/config/config.h"
+#include "edyn/parallel/island_coordinator.hpp"
 #include <entt/entity/registry.hpp>
 #include <variant>
 
@@ -21,7 +22,7 @@ void edit_client_settings(entt::registry &registry, Func func) {
 
 void set_network_client_snapshot_rate(entt::registry &registry, double rate) {
     EDYN_ASSERT(rate > 0);
-    edit_client_settings(registry, [rate] (auto &client_settings) {
+    edit_client_settings(registry, [rate](auto &client_settings) {
         client_settings.snapshot_rate = rate;
     });
 }
@@ -32,7 +33,7 @@ double get_network_client_snapshot_rate(entt::registry &registry) {
 
 void set_network_client_round_trip_time(entt::registry &registry, double rtt) {
     EDYN_ASSERT(!(rtt < 0));
-    edit_client_settings(registry, [rtt] (auto &client_settings) {
+    edit_client_settings(registry, [rtt](auto &client_settings) {
         client_settings.round_trip_time = rtt;
     });
 }
@@ -42,7 +43,7 @@ double get_network_client_round_trip_time(entt::registry &registry) {
 }
 
 void set_network_client_extrapolation_enabled(entt::registry &registry, bool enabled) {
-    edit_client_settings(registry, [enabled] (auto &client_settings) {
+    edit_client_settings(registry, [enabled](auto &client_settings) {
         client_settings.extrapolation_enabled = enabled;
     });
 }
@@ -50,7 +51,7 @@ void set_network_client_extrapolation_enabled(entt::registry &registry, bool ena
 bool toggle_network_client_extrapolation_enabled(entt::registry &registry) {
     bool enabled;
 
-    edit_client_settings(registry, [&enabled] (auto &client_settings) {
+    edit_client_settings(registry, [&enabled](auto &client_settings) {
         enabled = client_settings.extrapolation_enabled;
         enabled = !enabled;
         client_settings.extrapolation_enabled = enabled;
@@ -65,7 +66,7 @@ bool get_network_client_extrapolation_enabled(entt::registry &registry) {
 
 void set_network_client_max_concurrent_extrapolations(entt::registry &registry, unsigned count) {
     EDYN_ASSERT(count > 0);
-    edit_client_settings(registry, [count] (auto &client_settings) {
+    edit_client_settings(registry, [count](auto &client_settings) {
         client_settings.max_concurrent_extrapolations = count;
     });
 }
@@ -76,7 +77,7 @@ unsigned get_network_client_max_concurrent_extrapolations(entt::registry &regist
 
 void set_network_client_discontinuity_decay_rate(entt::registry &registry, scalar rate) {
     EDYN_ASSERT(!(rate < 0) && rate < 1);
-    edit_client_settings(registry, [rate] (auto &client_settings) {
+    edit_client_settings(registry, [rate](auto &client_settings) {
         client_settings.discontinuity_decay_rate = rate;
     });
 }

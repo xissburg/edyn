@@ -10,9 +10,13 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
+#include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/entity_graph.hpp"
+#include "edyn/util/registry_operation_builder.hpp"
+#include "edyn/parallel/component_index_source.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/sys/update_aabbs.hpp"
@@ -27,6 +31,7 @@
 namespace edyn {
 
 extern bool(*g_is_networked_input_component)(entt::id_type);
+extern bool(*g_is_action_list_component)(entt::id_type);
 
 void extrapolation_job_func(job::data_type &data) {
     auto archive = memory_input_archive(data.data(), data.size());
@@ -39,12 +44,12 @@ void extrapolation_job_func(job::data_type &data) {
 extrapolation_job::extrapolation_job(extrapolation_input &&input,
                                      const settings &settings,
                                      const material_mix_table &material_table,
-                                     std::shared_ptr<comp_state_history> state_history)
+                                     std::shared_ptr<input_state_history> input_history)
     : m_input(std::move(input))
     , m_state(state::init)
     , m_current_time(input.start_time)
     , m_solver(m_registry)
-    , m_state_history(state_history)
+    , m_input_history(input_history)
 {
     m_registry.set<broadphase_worker>(m_registry);
     m_registry.set<narrowphase>(m_registry);
@@ -71,19 +76,19 @@ void extrapolation_job::load_input() {
     auto &graph = m_registry.ctx<entity_graph>();
 
     // Create nodes for rigid bodies in entity graph.
-    auto insert_graph_node = [&] (entt::entity entity) {
+    auto insert_graph_node = [&](entt::entity entity) {
         auto non_connecting = !m_registry.any_of<procedural_tag>(entity);
         auto node_index = graph.insert_node(entity, non_connecting);
         m_registry.emplace<graph_node>(entity, node_index);
     };
 
-    std::apply([&] (auto ... t) {
+    std::apply([&](auto ... t) {
         (m_registry.view<decltype(t)>().each(insert_graph_node), ...);
     }, std::tuple<rigidbody_tag, external_tag>{});
 
     // Create edges for constraints in entity graph.
     auto node_view = m_registry.view<graph_node>();
-    auto insert_graph_edge = [&] (entt::entity entity, auto &&con) {
+    auto insert_graph_edge = [&](entt::entity entity, auto &&con) {
         if (m_registry.any_of<graph_edge>(entity)) return;
 
         auto &node0 = node_view.get<graph_node>(con.body[0]);
@@ -92,7 +97,7 @@ void extrapolation_job::load_input() {
         m_registry.emplace<graph_edge>(entity, edge_index);
     };
 
-    std::apply([&] (auto ... t) {
+    std::apply([&](auto ... t) {
         (m_registry.view<decltype(t)>().each(insert_graph_edge), ...);
     }, constraints_tuple);
 
@@ -106,7 +111,7 @@ void extrapolation_job::load_input() {
 
     // Apply all inputs before the current time to start the simulation
     // with the correct initial inputs.
-    m_state_history->import_until(m_current_time, m_registry, m_entity_map);
+    m_input_history->import_initial_state(m_registry, m_entity_map, m_current_time);
 
     // Update calculated properties after setting initial state.
     update_origins(m_registry);
@@ -145,7 +150,7 @@ void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::en
 
     m_destroying_node = true;
 
-    graph.visit_edges(node.node_index, [&] (auto edge_index) {
+    graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
     });
@@ -173,7 +178,7 @@ void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, e
 void extrapolation_job::apply_history() {
     auto &settings = m_registry.ctx<edyn::settings>();
     auto start_time = m_current_time - settings.fixed_dt;
-    m_state_history->import_each(start_time, settings.fixed_dt, m_registry, m_entity_map);
+    m_input_history->import_each(start_time, settings.fixed_dt, m_registry, m_entity_map);
 }
 
 void extrapolation_job::sync_and_finish() {
@@ -189,7 +194,7 @@ void extrapolation_job::sync_and_finish() {
     // Local entity mapping must not be included if the result is going to be
     // remapped into remote space.
     if (!m_input.should_remap) {
-        m_entity_map.each([&] (auto remote_entity, auto local_entity) {
+        m_entity_map.each([&](auto remote_entity, auto local_entity) {
             builder->add_entity_mapping(local_entity, remote_entity);
         });
     }
@@ -211,7 +216,8 @@ void extrapolation_job::sync_and_finish() {
             for (size_t i = 0; i < cont->size; ++i) {
                 auto id = index_source.type_id_of(cont->indices[i]);
 
-                if (!is_owned_entity || !(*g_is_networked_input_component)(id)) {
+                if (!is_owned_entity ||
+                    !((*g_is_networked_input_component)(id) || (*g_is_action_list_component)(id))) {
                     builder->replace_type_id(m_registry, local_entity, id);
                 }
             }
@@ -221,7 +227,8 @@ void extrapolation_job::sync_and_finish() {
             // Only consider updated indices. Entities and components shouldn't be
             // created during extrapolation.
             for (auto id : dirty->updated_ids) {
-                if (!is_owned_entity || !(*g_is_networked_input_component)(id)) {
+                if (!is_owned_entity ||
+                    !((*g_is_networked_input_component)(id) || (*g_is_action_list_component)(id))) {
                     builder->replace_type_id(m_registry, local_entity, id);
                 }
             }
@@ -234,7 +241,7 @@ void extrapolation_job::sync_and_finish() {
     EDYN_ASSERT(!m_result.ops.empty());
 
     // Insert all manifolds into it.
-    manifold_view.each([&] (contact_manifold &manifold) {
+    manifold_view.each([&](contact_manifold &manifold) {
         m_result.manifolds.push_back(manifold);
     });
 
@@ -401,6 +408,11 @@ void extrapolation_job::finish_step() {
 
     auto &settings = m_registry.ctx<edyn::settings>();
     m_current_time += settings.fixed_dt;
+
+     // Clear actions after they've been consumed.
+    if (settings.clear_actions_func) {
+        (*settings.clear_actions_func)(m_registry);
+    }
 
     if (settings.external_system_post_step) {
         (*settings.external_system_post_step)(m_registry);

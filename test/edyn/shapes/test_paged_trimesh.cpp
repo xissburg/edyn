@@ -36,7 +36,7 @@ TEST(test_paged_trimesh, voronoi_regions) {
 
     auto offset = edyn::vector3_one * 0.01f;
     auto vertex_aabb = edyn::AABB{vertices[4] - offset, vertices[4] + offset};
-    trimesh.visit_triangles(vertex_aabb, [&] (size_t mesh_idx, size_t tri_idx) {
+    trimesh.visit_triangles(vertex_aabb, [&](size_t mesh_idx, size_t tri_idx) {
         auto submesh = trimesh.get_submesh(mesh_idx);
         auto tri_vertices = submesh->get_triangle_vertices(tri_idx);
 

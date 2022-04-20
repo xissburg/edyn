@@ -24,7 +24,7 @@ struct job {
 
     static auto noop() {
         job j;
-        j.func = [] (data_type &) {};
+        j.func = [](data_type &) {};
         return j;
     }
 };

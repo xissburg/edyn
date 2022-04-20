@@ -1,8 +1,13 @@
 #include "edyn/networking/sys/server_side.hpp"
+#include "edyn/comp/graph_edge.hpp"
+#include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/position.hpp"
+#include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/tire_state.hpp"
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
@@ -15,6 +20,7 @@
 #include "edyn/networking/sys/update_network_dirty.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
+#include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/entity_map.hpp"
@@ -97,24 +103,11 @@ bool is_fully_owned_by_client(const entt::registry &registry, entt::entity clien
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, packet::registry_snapshot &snapshot) {
     auto &ctx = registry.ctx<server_network_context>();
-    auto &client = registry.get<remote_client>(client_entity);
-
-    for (auto &entity : snapshot.entities) {
-        // Discard packet if it contains unknown entities.
-        if (!client.entity_map.contains(entity)) {
-            return;
-        }
-        entity = client.entity_map.at(entity);
-    }
-
-    // Transform snapshot entities into local registry space.
-    const bool check_ownership = true;
-    ctx.snapshot_importer->transform_to_local(registry, client_entity, snapshot, check_ownership);
 
     // Import inputs directly into the main registry.
     ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot, performance_time());
 
-    // Get islands of all entities contained in transient snapshot and send the
+    // Get islands of all entities contained in the snapshot and send the
     // snapshot to them. They will import the pre-processed state into their
     // registries. Later, these components will be updated in the main registry
     // via registry operations.
@@ -144,7 +137,8 @@ void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[ma
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
 }
 
-static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::create_entity &packet) {
+static void process_packet(entt::registry &registry, entt::entity client_entity,
+                           const packet::create_entity &packet) {
     auto &ctx = registry.ctx<server_network_context>();
     auto &client = registry.get<remote_client>(client_entity);
 
@@ -186,7 +180,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
             auto &pos = registry.get<position>(local_entity);
             auto &orn = registry.get<orientation>(local_entity);
 
-            visit_shape(registry, local_entity, [&] (auto &&shape) {
+            visit_shape(registry, local_entity, [&](auto &&shape) {
                 auto aabb = shape_aabb(shape, pos, orn);
                 registry.emplace<AABB>(local_entity, aabb);
             });
@@ -313,7 +307,7 @@ void deinit_network_server(entt::registry &registry) {
 }
 
 static void server_process_timed_packets(entt::registry &registry, double time) {
-    registry.view<remote_client>().each([&] (entt::entity client_entity, remote_client &client) {
+    registry.view<remote_client>().each([&](entt::entity client_entity, remote_client &client) {
         auto it = client.packet_queue.begin();
 
         for (; it != client.packet_queue.end(); ++it) {
@@ -321,7 +315,7 @@ static void server_process_timed_packets(entt::registry &registry, double time) 
                 break;
             }
 
-            std::visit([&] (auto &&packet) {
+            std::visit([&](auto &&packet) {
                 using PacketType = std::decay_t<decltype(packet)>;
 
                 if constexpr(tuple_has_type<PacketType, packet::timed_packets_tuple_t>::value) {
@@ -415,7 +409,7 @@ static void process_aabb_of_interest_created_entities(entt::registry &registry,
         ctx.snapshot_exporter->export_all(registry, packet);
 
         // Sort components to ensure order of construction on the other end.
-        std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+        std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
             return lhs.component_index < rhs.component_index;
         });
 
@@ -443,7 +437,7 @@ static void maybe_publish_client_registry_snapshot(entt::registry &registry,
     // Only include entities which are in islands not fully owned by the client
     // since the server allows the client to have full control over entities in
     // the islands where there are no other clients present.
-    auto should_include = [&] (entt::entity entity) {
+    auto should_include = [&](entt::entity entity) {
         return
             !registry.any_of<sleeping_tag>(entity) &&
             registry.all_of<networked_tag, network_dirty>(entity) &&
@@ -512,6 +506,29 @@ static void server_update_clock_sync(entt::registry &registry, double time) {
     };
 }
 
+static void dispatch_actions(entt::registry &registry, double time) {
+    auto &ctx = registry.ctx<server_network_context>();
+    auto client_view = registry.view<remote_client>();
+
+    // Consume actions with a timestamp that's before the current time.
+    for (auto [entity, history, owner] : registry.view<action_history, entity_owner>().each()) {
+        auto [client] = client_view.get(owner.client_entity);
+        auto it = history.entries.begin();
+
+        for (; it != history.entries.end(); ++it) {
+            if (it->timestamp > time - client.playout_delay) {
+                break;
+            }
+
+            ctx.snapshot_importer->import_action(registry, entity, history.action_index, it->data);
+        }
+
+        // Erase processed actions. Note that only newer actions are inserted
+        // when remote packets arrive.
+        history.entries.erase(history.entries.begin(), it);
+    }
+}
+
 void update_network_server(entt::registry &registry) {
     auto time = performance_time();
     server_update_clock_sync(registry, time);
@@ -521,13 +538,21 @@ void update_network_server(entt::registry &registry) {
     update_aabbs_of_interest(registry);
     process_aabbs_of_interest(registry, time);
     publish_pending_created_clients(registry);
+    dispatch_actions(registry, time);
 }
 
 template<typename T>
-void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&packet) {
+void insert_packet_to_queue(remote_client &client, double timestamp, T &&packet) {
+    // Sorted insertion.
+    auto insert_it = std::find_if(client.packet_queue.begin(), client.packet_queue.end(),
+                                  [timestamp](auto &&p) { return p.timestamp > timestamp; });
+    client.packet_queue.insert(insert_it, timed_packet{timestamp, packet::edyn_packet{std::move(packet)}});
+}
+
+template<typename T>
+void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &packet, double time) {
     auto &client = registry.get<remote_client>(client_entity);
     double packet_timestamp;
-    auto time = performance_time();
 
     if (client.clock_sync.count > 0) {
         packet_timestamp = std::min(packet.timestamp + client.clock_sync.time_delta, time);
@@ -535,26 +560,68 @@ void enqueue_packet(entt::registry &registry, entt::entity client_entity, T &&pa
         packet_timestamp = time - client.round_trip_time / 2;
     }
 
-    // Sorted insertion.
-    auto insert_it = std::find_if(client.packet_queue.begin(), client.packet_queue.end(),
-                                  [packet_timestamp] (auto &&p) { return p.timestamp > packet_timestamp; });
-    client.packet_queue.insert(insert_it, timed_packet{packet_timestamp, packet::edyn_packet{std::move(packet)}});
+    insert_packet_to_queue(client, packet_timestamp, packet);
+}
+
+template<>
+void enqueue_packet<packet::registry_snapshot>(entt::registry &registry, entt::entity client_entity,
+                                               packet::registry_snapshot &packet, double time) {
+    // Specialize it for registry snapshots. Transform entities to local and
+    // import action history in advance.
+    auto &client = registry.get<remote_client>(client_entity);
+    double time_delta;
+
+    if (client.clock_sync.count > 0) {
+        time_delta = client.clock_sync.time_delta;
+    } else {
+        time_delta = time - (packet.timestamp + client.round_trip_time / 2);
+    }
+
+    for (auto &entity : packet.entities) {
+        // Discard packet if it contains unknown entities.
+        if (!client.entity_map.contains(entity)) {
+            return;
+        }
+        entity = client.entity_map.at(entity);
+    }
+
+    // Transform snapshot entities into local registry space and then import
+    // action history.
+    auto &ctx = registry.ctx<server_network_context>();
+    const bool check_ownership = true;
+    ctx.snapshot_importer->transform_to_local(registry, client_entity, packet, check_ownership);
+    ctx.snapshot_importer->merge_action_history(registry, packet, time_delta);
+
+    // The action history pool is removed from the packet after being merged.
+    // Do not enqueue if there are no other pools in the packet.
+    if (!packet.pools.empty()) {
+        double packet_timestamp;
+
+        if (client.clock_sync.count > 0) {
+            packet_timestamp = std::min(packet.timestamp + client.clock_sync.time_delta, time);
+        } else {
+            packet_timestamp = time - client.round_trip_time / 2;
+        }
+
+        insert_packet_to_queue(client, packet_timestamp, packet);
+    }
 }
 
 void server_receive_packet(entt::registry &registry, entt::entity client_entity, packet::edyn_packet &packet) {
-    std::visit([&] (auto &&decoded_packet) {
+    std::visit([&](auto &&decoded_packet) {
         using PacketType = std::decay_t<decltype(decoded_packet)>;
         // If it's a timed packet, enqueue for later execution. Process
         // immediately otherwise.
         if constexpr(tuple_has_type<PacketType, packet::timed_packets_tuple_t>::value) {
-            enqueue_packet(registry, client_entity, decoded_packet);
+            auto time = performance_time();
+            enqueue_packet(registry, client_entity, decoded_packet, time);
         } else {
             process_packet(registry, client_entity, decoded_packet);
         }
     }, packet.var);
 }
 
-// Local struct to be connected to the clock sync send packet signal. This is
+// Local struct to be connected to the clock sync packet signal. This is
 // necessary so the client entity can be passed to the context packet signal.
 struct client_packet_signal_wrapper {
     server_network_context *ctx;
@@ -619,7 +686,7 @@ void server_notify_created_entities(entt::registry &registry,
     ctx.snapshot_exporter->export_all(registry, packet);
 
     // Sort components to ensure order of construction.
-    std::sort(packet.pools.begin(), packet.pools.end(), [] (auto &&lhs, auto &&rhs) {
+    std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
         return lhs.component_index < rhs.component_index;
     });
 

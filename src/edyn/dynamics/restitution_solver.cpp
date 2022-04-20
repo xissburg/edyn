@@ -111,7 +111,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     normal_rows.reserve(10);
     friction_row_pairs.reserve(10);
 
-    auto solveManifolds = [&] (const std::vector<entt::entity> &manifold_entities) {
+    auto solveManifolds = [&](const std::vector<entt::entity> &manifold_entities) {
         normal_rows.clear();
         friction_row_pairs.clear();
 
@@ -249,8 +249,8 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     std::vector<entt::entity> manifold_entities;
 
-    graph.traverse_connecting_nodes(start_node_index, [&] (auto node_index) {
-        graph.visit_edges(node_index, [&] (auto edge_index) {
+    graph.traverse_connecting_nodes(start_node_index, [&](auto node_index) {
+        graph.visit_edges(node_index, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
 
             if (!manifold_view.contains(edge_entity)) return;

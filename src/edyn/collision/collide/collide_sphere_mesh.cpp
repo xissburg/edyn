@@ -115,7 +115,7 @@ void collide(const sphere_shape &sphere, const triangle_mesh &mesh,
     const auto inset = vector3_one * -contact_breaking_threshold;
     const auto visit_aabb = ctx.aabbA.inset(inset);
 
-    mesh.visit_triangles(visit_aabb, [&] (auto tri_idx) {
+    mesh.visit_triangles(visit_aabb, [&](auto tri_idx) {
         collide_sphere_triangle(sphere, mesh, tri_idx, ctx, result);
     });
 }
