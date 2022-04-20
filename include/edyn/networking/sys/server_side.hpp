@@ -59,6 +59,14 @@ void server_make_client(entt::registry &, entt::entity, bool allow_full_ownershi
 entt::entity server_make_client(entt::registry &, bool allow_full_ownership = true);
 
 /**
+ * @brief Destroy a client and perform and cleanup. Must be called when a client
+ * connection is ended.
+ * @param registry Data source.
+ * @param client_entity The client to be destroyed.
+ */
+void server_destroy_client(entt::registry &, entt::entity client_entity);
+
+/**
  * @brief Change full ownership setting for a client.
  * @param registry Data source.
  * @param client_entity The client.

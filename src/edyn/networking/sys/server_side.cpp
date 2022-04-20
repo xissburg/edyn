@@ -650,6 +650,18 @@ entt::entity server_make_client(entt::registry &registry, bool allow_full_owners
     return entity;
 }
 
+void server_destroy_client(entt::registry &registry, entt::entity client_entity) {
+    auto &client = registry.get<remote_client>(client_entity);
+
+    for (auto entity : client.owned_entities) {
+        if (registry.valid(entity)) {
+            registry.destroy(entity);
+        }
+    }
+
+    registry.destroy(client_entity);
+}
+
 void server_set_allow_full_ownership(entt::registry &registry, entt::entity client_entity, bool allow_full_ownership) {
     auto &client = registry.get<remote_client>(client_entity);
     client.allow_full_ownership = allow_full_ownership;
