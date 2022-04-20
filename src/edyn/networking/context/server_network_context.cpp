@@ -1,6 +1,9 @@
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/extrapolation_job.hpp"
+#include "edyn/serialization/entt_s11n.hpp"
+#include "edyn/serialization/std_s11n.hpp"
+#include "edyn/serialization/math_s11n.hpp"
 
 namespace edyn {
 

@@ -20,6 +20,7 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/networking/extrapolation_job.hpp"
+#include "edyn/serialization/std_s11n.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector.hpp"
