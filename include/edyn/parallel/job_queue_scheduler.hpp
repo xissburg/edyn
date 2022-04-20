@@ -28,14 +28,13 @@ private:
 
 template<typename Archive>
 void serialize(Archive &archive, job_queue_scheduler& scheduler) {
-
     if constexpr(Archive::is_input::value) {
         intptr_t intptr;
         archive(intptr);
         scheduler.m_queue = reinterpret_cast<job_queue *>(intptr);
     } else {
         auto intptr = reinterpret_cast<intptr_t>(scheduler.m_queue);
-        archive(intptr); 
+        archive(intptr);
     }
 }
 
