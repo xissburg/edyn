@@ -43,7 +43,7 @@ public:
     void operator()(T& t) {
         if constexpr(std::is_fundamental_v<T>) {
             read_bytes(t);
-        } else {
+        } else if constexpr(!std::is_empty_v<T>) {
             serialize(*this, t);
         }
     }
@@ -85,7 +85,7 @@ public:
     void operator()(T& t) {
         if constexpr(std::is_fundamental_v<T>) {
             write_bytes(t);
-        } else {
+        } else if constexpr(!std::is_empty_v<T>) {
             serialize(*this, t);
         }
     }
