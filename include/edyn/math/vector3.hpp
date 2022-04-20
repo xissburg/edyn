@@ -11,12 +11,12 @@ namespace edyn {
 struct vector3 {
     scalar x, y, z;
 
-    scalar& operator[](size_t i) noexcept {
+    constexpr scalar& operator[](size_t i) noexcept {
         EDYN_ASSERT(i < 3);
         return (&x)[i];
     }
 
-    scalar operator[](size_t i) const noexcept {
+    constexpr scalar operator[](size_t i) const noexcept {
         EDYN_ASSERT(i < 3);
         return (&x)[i];
     }

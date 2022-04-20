@@ -86,7 +86,7 @@ public:
     };
 
     struct element {
-        snapshot snapshot;
+        input_state_history::snapshot snapshot;
         double timestamp;
 
         void import(entt::registry &registry, const entity_map &emap) const {
