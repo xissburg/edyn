@@ -43,9 +43,9 @@ struct action_history {
         }
 
         // Only append newer entries.
-        auto last_timestamp = other.entries.back().timestamp;
+        auto last_timestamp = entries.back().timestamp;
         auto other_begin = std::find_if(other.entries.begin(), other.entries.end(),
-                                        [&](auto &&entry) { return entry.timestamp >= last_timestamp; });
+                                        [&](auto &&entry) { return entry.timestamp > last_timestamp; });
         entries.insert(entries.end(), other_begin, other.entries.end());
     }
 

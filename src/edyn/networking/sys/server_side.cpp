@@ -510,21 +510,38 @@ static void dispatch_actions(entt::registry &registry, double time) {
     auto &ctx = registry.ctx<server_network_context>();
     auto client_view = registry.view<remote_client>();
 
-    // Consume actions with a timestamp that's before the current time.
+    // Consume actions with a timestamp that's before the current execution time.
     for (auto [entity, history, owner] : registry.view<action_history, entity_owner>().each()) {
+        if (history.entries.empty()) {
+            continue;
+        }
+
         auto [client] = client_view.get(owner.client_entity);
         auto it = history.entries.begin();
 
         for (; it != history.entries.end(); ++it) {
+            if (it->timestamp <= client.last_executed_history_entry_timestamp) {
+                // Action has already been processed.
+                continue;
+            }
+
             if (it->timestamp > time - client.playout_delay) {
+                // This action and all that follow should be processed later.
                 break;
             }
 
             ctx.snapshot_importer->import_action(registry, entity, history.action_index, it->data);
         }
 
-        // Erase processed actions. Note that only newer actions are inserted
-        // when remote packets arrive.
+        // Go back to the previous action, which is the action that was last
+        // executed.
+        std::advance(it, -1);
+        client.last_executed_history_entry_timestamp = it->timestamp;
+
+        // Erase processed actions but keep last. Only newer actions are
+        // inserted when remote packets arrive so the last entry must be kept
+        // in order to have something to compare with (see
+        // `server_snapshot_importer_impl::merge_action_history`).
         history.entries.erase(history.entries.begin(), it);
     }
 }
