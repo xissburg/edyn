@@ -45,6 +45,8 @@ struct remote_client {
     bool allow_full_ownership {true};
 
     clock_sync_data clock_sync;
+
+    double last_executed_history_entry_timestamp {0};
 };
 
 }
