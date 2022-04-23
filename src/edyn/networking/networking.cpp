@@ -86,6 +86,17 @@ scalar get_network_client_discontinuity_decay_rate(entt::registry &registry) {
     return get_client_settings(registry).discontinuity_decay_rate;
 }
 
+void set_network_client_action_time_threshold(entt::registry &registry, double threshold) {
+    EDYN_ASSERT(!(threshold < 0));
+    edit_client_settings(registry, [threshold](auto &client_settings) {
+        client_settings.action_time_threshold = threshold;
+    });
+}
+
+double get_network_client_action_time_threshold(entt::registry &registry) {
+    return get_client_settings(registry).action_time_threshold;
+}
+
 entt::sink<entt::sigh<void(const packet::edyn_packet &)>> network_client_packet_sink(entt::registry &registry) {
     auto &ctx = registry.ctx<client_network_context>();
     return ctx.packet_sink();

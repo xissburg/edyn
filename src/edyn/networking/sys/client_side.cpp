@@ -80,7 +80,8 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     // inputs from that point in time onwards.
     auto &settings = registry.ctx<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
-    const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
+    const auto client_server_time_difference =
+        ctx.server_playout_delay + client_settings.round_trip_time / 2;
     ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
 }
 
@@ -161,7 +162,9 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
     if (ctx.allow_full_ownership) {
         // Include all networked entities in the islands that contain an entity
         // owned by this client, excluding entities that are owned by other clients.
-        auto island_entities = collect_islands_from_residents(registry, ctx.owned_entities.begin(), ctx.owned_entities.end());
+        auto island_entities = collect_islands_from_residents(registry,
+                                                              ctx.owned_entities.begin(),
+                                                              ctx.owned_entities.end());
         auto owner_view = registry.view<entity_owner>();
         auto island_view = registry.view<island>();
 
@@ -209,7 +212,6 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
     }
 
     auto packet = packet::registry_snapshot{};
-    packet.timestamp = time;
     packet.entities.insert(packet.entities.end(), network_dirty_view.begin(), network_dirty_view.end());
 
     auto history_view = registry.view<action_history>();
@@ -226,6 +228,24 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
     ctx.snapshot_exporter->export_actions(registry, packet);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
+        // Assign island timestamp as packet timestamp if available.
+        // Use current time otherwise.
+        auto island_entities = collect_islands_from_residents(registry,
+                                                              packet.entities.begin(),
+                                                              packet.entities.end());
+
+        if (island_entities.empty()) {
+            packet.timestamp = time;
+        } else {
+            auto timestamp_view = registry.view<island_timestamp>();
+            packet.timestamp = timestamp_view.get<island_timestamp>(*island_entities.begin()).value;
+
+            for (auto island_entity : island_entities) {
+                auto [isle_time] = timestamp_view.get(island_entity);
+                packet.timestamp = std::min(isle_time.value, packet.timestamp);
+            }
+        }
+
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
     }
 }
@@ -237,7 +257,11 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
                                      [&](auto entity) { return !registry.valid(entity); });
     result.entities.erase(invalid_it, result.entities.end());
 
-    auto island_entities = collect_islands_from_residents(registry, result.entities.begin(), result.entities.end());
+    const bool include_multi_resident = false;
+    auto island_entities = collect_islands_from_residents(registry,
+                                                          result.entities.begin(),
+                                                          result.entities.end(),
+                                                          include_multi_resident);
     auto &coordinator = registry.ctx<island_coordinator>();
 
     for (auto island_entity : island_entities) {
@@ -338,7 +362,8 @@ void create_graph_edge(entt::registry &registry, entt::entity entity) {
 }
 
 template<typename... Ts>
-void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[maybe_unused]] std::tuple<Ts...>) {
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity,
+                             [[maybe_unused]] std::tuple<Ts...>) {
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
 }
 
@@ -477,7 +502,8 @@ static bool contains_unknown_entities(entt::registry &registry,
     return false;
 }
 
-static void insert_input_to_state_history(entt::registry &registry, const packet::registry_snapshot &snap, double time) {
+static void insert_input_to_state_history(entt::registry &registry,
+                                          const packet::registry_snapshot &snap, double time) {
     // Insert inputs of entities not owned by this client into the state history.
     auto &ctx = registry.ctx<client_network_context>();
     entt::sparse_set unwoned_entities;
@@ -494,9 +520,13 @@ static void insert_input_to_state_history(entt::registry &registry, const packet
 }
 
 static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
-    // Collect all entities present in snapshot and find islands where they
-    // reside and finally send the snapshot to the island workers.
-    auto island_entities = collect_islands_from_residents(registry, snapshot.entities.begin(), snapshot.entities.end());
+    // Collect all procedural entities present in snapshot and find islands
+    // where they reside and finally send the snapshot to the island workers.
+    const bool include_multi_resident = false;
+    auto island_entities = collect_islands_from_residents(registry,
+                                                          snapshot.entities.begin(),
+                                                          snapshot.entities.end(),
+                                                          include_multi_resident);
     auto &coordinator = registry.ctx<island_coordinator>();
 
     auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
@@ -532,7 +562,8 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     if (ctx.clock_sync.count > 0) {
         snapshot_time = snapshot.timestamp + ctx.clock_sync.time_delta - ctx.server_playout_delay;
     } else {
-        const auto client_server_time_difference = ctx.server_playout_delay + client_settings.round_trip_time / 2;
+        const auto client_server_time_difference =
+            ctx.server_playout_delay + client_settings.round_trip_time / 2;
         snapshot_time = time - client_server_time_difference;
     }
 
@@ -575,6 +606,13 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
                 node_indices.insert(node_index);
             }
         }
+    }
+
+    if (node_indices.empty()) {
+        // There are no connecting nodes among all entities involved, i.e.
+        // procedural entities. Then just snap.
+        snap_to_registry_snapshot(registry, snapshot);
+        return;
     }
 
     // Do not include manifolds as they will not make sense in the server state
@@ -628,7 +666,11 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
 
     auto &material_table = registry.ctx<material_mix_table>();
 
-    auto job = std::make_unique<extrapolation_job>(std::move(input), settings, material_table, ctx.input_history);
+    // Assign latest value of action threshold before extrapolation.
+    ctx.input_history->action_time_threshold = client_settings.action_time_threshold;
+
+    auto job = std::make_unique<extrapolation_job>(std::move(input), settings,
+                                                   material_table, ctx.input_history);
     job->reschedule();
 
     ctx.extrapolation_jobs.push_back(extrapolation_job_context{std::move(job)});

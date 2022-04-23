@@ -109,7 +109,11 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // snapshot to them. They will import the pre-processed state into their
     // registries. Later, these components will be updated in the main registry
     // via registry operations.
-    auto island_entities = collect_islands_from_residents(registry, snapshot.entities.begin(), snapshot.entities.end());
+    bool include_multi_resident = true;
+    auto island_entities = collect_islands_from_residents(registry,
+                                                          snapshot.entities.begin(),
+                                                          snapshot.entities.end(),
+                                                          include_multi_resident);
     auto &coordinator = registry.ctx<island_coordinator>();
     auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
 
@@ -309,11 +313,7 @@ static void server_process_timed_packets(entt::registry &registry, double time) 
             }
 
             std::visit([&](auto &&packet) {
-                using PacketType = std::decay_t<decltype(packet)>;
-
-                if constexpr(tuple_has_type<PacketType, packet::timed_packets_tuple_t>::value) {
-                    process_packet(registry, client_entity, packet);
-                }
+                process_packet(registry, client_entity, packet);
             }, it->packet.var);
         }
 
@@ -425,7 +425,6 @@ static void maybe_publish_client_registry_snapshot(entt::registry &registry,
 
     auto &ctx = registry.ctx<server_network_context>();
     auto packet = packet::registry_snapshot{};
-    packet.timestamp = time;
 
     // Only include entities which are in islands not fully owned by the client
     // since the server allows the client to have full control over entities in
@@ -446,6 +445,24 @@ static void maybe_publish_client_registry_snapshot(entt::registry &registry,
     ctx.snapshot_exporter->export_dirty(registry, packet, client_entity);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
+        // Assign island timestamp as packet timestamp if available.
+        // Use current time otherwise.
+        auto island_entities = collect_islands_from_residents(registry,
+                                                              packet.entities.begin(),
+                                                              packet.entities.end());
+
+        if (island_entities.empty()) {
+            packet.timestamp = time;
+        } else {
+            auto timestamp_view = registry.view<island_timestamp>();
+            packet.timestamp = timestamp_view.get<island_timestamp>(*island_entities.begin()).value;
+
+            for (auto island_entity : island_entities) {
+                auto [isle_time] = timestamp_view.get(island_entity);
+                packet.timestamp = std::min(isle_time.value, packet.timestamp);
+            }
+        }
+
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 }
