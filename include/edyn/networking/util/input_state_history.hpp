@@ -86,7 +86,7 @@ public:
     };
 
     struct element {
-        snapshot snapshot;
+        input_state_history::snapshot snapshot;
         double timestamp;
 
         void import(entt::registry &registry, const entity_map &emap) const {
@@ -95,6 +95,20 @@ public:
             }
         }
     };
+
+    /**
+     * Even though the timestamp of a registry snapshot lies right after the time
+     * an action happenend, it is possible that the action wasn't still applied
+     * in the server side at the time the snapshot was generated. Perhaps the
+     * action was applied at the same time the snapshot was generated and then
+     * its effects will only become visible in the next update, which will cause
+     * a glitch on client-side extrapolation because the action will not be
+     * applied initially and the initial state does not include the effects of
+     * the action because it wasn't applied in the server at the time the
+     * snapshot was generated. All actions that happened before the snapshot
+     * time within this threshold will be applied at the start of an extrapolation.
+     */
+    double action_time_threshold{0.06};
 
 protected:
     virtual snapshot take_snapshot(const entt::registry &registry,
@@ -232,10 +246,13 @@ protected:
         return snapshot;
     }
 
+    // Import the last state of all inputs right before the extrapolation start time.
+    // This ensures correct initial input state before extrapolation begins.
     template<typename Input>
     struct import_initial_state_single {
         static void import(entt::registry &registry, const entity_map &emap,
-                           const std::vector<element> &history, double time) {
+                           const std::vector<element> &history, double time,
+                           double action_threshold) {
             // Find history element with the greatest timestamp smaller than `time`
             // which contains a pool of the given component type.
             for (auto i = history.size(); i > 0; --i) {
@@ -259,12 +276,28 @@ protected:
         }
     };
 
-    // Specialization to prevent action lists from being imported when loading
-    // initial state, which only applies to regular continuous inputs.
+    // Apply all actions that happened slightly before the extrapolation start time.
+    // This prevents glitches due to the effect of actions not yet being present
+    // in a registry snapshot due to small timing errors.
     template<typename Action>
     struct import_initial_state_single<action_list<Action>> {
         static void import(entt::registry &registry, const entity_map &emap,
-                           const std::vector<element> &history, double time) {}
+                           const std::vector<element> &history, double time,
+                           double action_threshold) {
+            for (auto &elem : history) {
+                if (elem.timestamp < time && time - elem.timestamp < action_threshold) {
+                    auto pool_it = std::find_if(
+                        elem.snapshot.pools.begin(), elem.snapshot.pools.end(),
+                        [](auto &&pool) {
+                            return pool->type_id() == entt::type_index<action_list<Action>>::value();
+                        });
+
+                    if (pool_it != elem.snapshot.pools.end()) {
+                        (*pool_it)->import(registry, emap);
+                    }
+                }
+            }
+        }
     };
 
 public:
@@ -273,7 +306,7 @@ public:
 
     void import_initial_state(entt::registry &registry, const entity_map &emap, double time) override {
         std::lock_guard lock(mutex);
-        (import_initial_state_single<Inputs>::import(registry, emap, history, time), ...);
+        (import_initial_state_single<Inputs>::import(registry, emap, history, time, action_time_threshold), ...);
     }
 };
 

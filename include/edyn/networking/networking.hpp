@@ -122,6 +122,31 @@ void set_network_client_discontinuity_decay_rate(entt::registry &, scalar);
 scalar get_network_client_discontinuity_decay_rate(entt::registry &);
 
 /**
+ * In case the timestamp of a registry snapshot lies right after the time an
+ * action happenend, it is possible that the action wasn't still applied in the
+ * server side at the time the snapshot was generated. Perhaps the action was
+ * applied at the same time the snapshot was generated and then its effects
+ * were only visible in the next update, which will cause a glitch on client-side
+ * extrapolation because the action will not be applied initially and the initial
+ * state does not include the effects of the action because it wasn't applied in
+ * the server at the time the snapshot was generated. All actions that happened
+ * before the snapshot time within this threshold will be applied at the start
+ * of an extrapolation.
+ * @param registry Data source.
+ * @param threshold Actions in the input history which lie before the registry
+ * snapshot timestamp within this threshold (specified in seconds) will be
+ * applied before the extrapolation steps start.
+ */
+void set_network_client_action_time_threshold(entt::registry &, double);
+
+/**
+ * @brief Get client-side extrapolation action threshold.
+ * @param registry Data source.
+ * @return Action threshold in seconds.
+ */
+double get_network_client_action_time_threshold(entt::registry &);
+
+/**
  * @brief Get client packet sink. This sink must be observed and the packets
  * that are published into it should be sent over the network immediately.
  * @param registry Data source.
