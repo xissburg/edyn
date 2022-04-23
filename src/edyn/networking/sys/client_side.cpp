@@ -301,14 +301,16 @@ static void client_update_clock_sync(entt::registry &registry, double time) {
 }
 
 static void trim_and_insert_actions(entt::registry &registry, double time) {
+    auto &ctx = registry.ctx<client_network_context>();
+    auto &settings = registry.ctx<edyn::settings>();
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+
     // Erase old actions.
-    double action_history_max_length = 2;
     registry.view<action_history>().each([&](action_history &history) {
-        history.erase_until(time - action_history_max_length);
+        history.erase_until(time - client_settings.action_history_max_age);
     });
 
     // Insert current action lists into action history.
-    auto &ctx = registry.ctx<client_network_context>();
     ctx.snapshot_exporter->append_current_actions(registry, time);
 }
 
