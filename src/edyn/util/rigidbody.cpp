@@ -146,7 +146,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         // of the present position and orientation in `update_presentation`.
         // TODO: the island worker refactor would eliminate the need to share these
         // components continuously.
-        auto &settings = registry.ctx<edyn::settings>();
+        auto &settings = registry.ctx().at<edyn::settings>();
         auto &cont = registry.emplace<continuous>(entity);
         cont.insert(settings.index_source->indices_of<continuous::index_type, position, orientation, linvel, angvel>());
 
@@ -169,7 +169,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     // Insert rigid body as a node in the entity graph.
     auto non_connecting = def.kind != rigidbody_kind::rb_dynamic;
-    auto node_index = registry.ctx<entity_graph>().insert_node(entity, non_connecting);
+    auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);
 
     // Always do this last to signal the completion of the construction of this
@@ -191,7 +191,7 @@ std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std:
         make_rigidbody(entities[i], registry, defs[i]);
     }
 
-    auto &coordinator = registry.ctx<island_coordinator>();
+    auto &coordinator = registry.ctx().at<island_coordinator>();
     coordinator.create_island(entities);
     return entities;
 }
@@ -270,9 +270,9 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
     refresh<edyn::material>(registry, entity);
 
     // Update friction in contact manifolds.
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
     auto &node = registry.get<graph_node>(entity);
-    auto &material_table = registry.ctx<material_mix_table>();
+    auto &material_table = registry.ctx().at<material_mix_table>();
 
     graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
@@ -313,7 +313,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 }
 
 void set_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {
-    auto &coordinator = registry.ctx<island_coordinator>();
+    auto &coordinator = registry.ctx().at<island_coordinator>();
     coordinator.set_center_of_mass(entity, com);
 }
 
@@ -349,7 +349,7 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
             dirty.created<center_of_mass, edyn::origin>();
 
             if (registry.any_of<dynamic_tag>(entity)) {
-                auto &settings = registry.ctx<edyn::settings>();
+                auto &settings = registry.ctx().at<edyn::settings>();
                 registry.get<continuous>(entity).insert(settings.index_source->index_of<edyn::origin>());
                 dirty.updated<continuous>();
             }
@@ -360,7 +360,7 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
         dirty.destroyed<center_of_mass, edyn::origin>();
 
         if (registry.any_of<dynamic_tag>(entity)) {
-            auto &settings = registry.ctx<edyn::settings>();
+            auto &settings = registry.ctx().at<edyn::settings>();
             registry.get<continuous>(entity).remove(settings.index_source->index_of<edyn::origin>());
             dirty.updated<continuous>();
         }

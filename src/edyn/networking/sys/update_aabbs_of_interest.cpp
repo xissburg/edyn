@@ -11,7 +11,7 @@
 namespace edyn {
 
 void update_aabbs_of_interest(entt::registry &registry) {
-    auto &bphase = registry.ctx<broadphase_main>();
+    auto &bphase = registry.ctx().at<broadphase_main>();
     auto owner_view = registry.view<entity_owner>();
     auto manifold_view = registry.view<contact_manifold>();
     auto position_view = registry.view<position>();

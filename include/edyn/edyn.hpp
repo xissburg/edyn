@@ -127,7 +127,7 @@ void step_simulation(entt::registry &registry);
  */
 template<typename Component>
 size_t get_component_index(entt::registry &registry) {
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
     return settings.index_source->index_of<Component>();
 }
 
@@ -141,7 +141,7 @@ size_t get_component_index(entt::registry &registry) {
  */
 template<typename IndexType, typename... Component>
 auto get_component_indices(entt::registry &registry) {
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
     return settings.index_source->indices_of<IndexType, Component...>();
 }
 
@@ -161,7 +161,7 @@ auto get_component_indices(entt::registry &registry) {
  */
 template<typename... Components, typename... Actions>
 void register_external_components(entt::registry &registry, std::tuple<Actions...> actions = {}) {
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
 
     settings.make_reg_op_builder = []() {
         auto external = std::tuple<Components...>{};
@@ -182,7 +182,7 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
         };
     }
 
-    registry.ctx<island_coordinator>().settings_changed();
+    registry.ctx().at<island_coordinator>().settings_changed();
 }
 
 template<typename... Component, typename... Actions>
@@ -270,7 +270,7 @@ void set_should_collide(entt::registry &registry, should_collide_func_t func);
  */
 template<typename... Component>
 void refresh(entt::registry &registry, entt::entity entity) {
-    if (auto *coordinator = registry.try_ctx<island_coordinator>(); coordinator) {
+    if (auto *coordinator = registry.ctx().find<island_coordinator>(); coordinator) {
         coordinator->refresh<Component...>(entity);
     }
 }
@@ -352,7 +352,7 @@ on_contact_point_destroyed(entt::registry &);
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
     auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
     graph.visit_edges(node.node_index, [&](auto edge_index) {
         func(graph.edge_entity(edge_index));
     });
