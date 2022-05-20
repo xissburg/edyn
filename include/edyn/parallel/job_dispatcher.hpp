@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_JOB_DISPATCHER_HPP
 
 #include <map>
+#include <atomic>
 #include <vector>
 #include <thread>
 #include <mutex>

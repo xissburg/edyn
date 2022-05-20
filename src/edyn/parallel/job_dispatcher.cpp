@@ -74,9 +74,12 @@ void job_dispatcher::async(const job &j) {
         return;
     }
 
+    // Find least busy worker to insert job into. Start search from a different
+    // worker each time to create a better spread. This prevents the first
+    // worker from being prioritized and getting most jobs.
     auto best_id = std::thread::id();
     auto min_num_jobs = SIZE_MAX;
-    auto start = m_start.fetch_add(std::memory_order_relaxed) % m_workers.size();
+    auto start = m_start.fetch_add(1, std::memory_order_relaxed) % m_workers.size();
     auto end = start + m_workers.size();
 
     for (size_t i = start; i < end; ++i) {
