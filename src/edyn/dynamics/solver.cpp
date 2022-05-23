@@ -78,7 +78,7 @@ void update_impulse<null_constraint>(entt::registry &, row_cache &, size_t &, si
 template<>
 void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
     auto con_view = registry.view<contact_constraint, contact_manifold>();
-    auto &ctx = registry.ctx<internal::contact_constraint_context>();
+    auto &ctx = registry.ctx().at<internal::contact_constraint_context>();
     auto global_pt_idx = size_t(0);
     auto roll_idx = size_t(0);
 
@@ -137,14 +137,14 @@ solver::solver(entt::registry &registry)
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
 
-    registry.set<internal::contact_constraint_context>();
+    registry.ctx().emplace<internal::contact_constraint_context>();
 }
 
 solver::~solver() = default;
 
 void solver::update(scalar dt) {
     auto &registry = *m_registry;
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
 
     m_row_cache.clear();
 
