@@ -4,7 +4,7 @@
 #include <array>
 #include <cstdint>
 #include "edyn/math/quaternion.hpp"
-#include "edyn/shapes/shape_axis.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 
 namespace edyn {
 
@@ -20,7 +20,7 @@ enum class cylinder_feature : uint8_t {
 struct cylinder_shape {
     scalar radius;
     scalar half_length;
-    shape_axis axis {shape_axis::x};
+    coordinate_axis axis {coordinate_axis::x};
 
     /**
      * @brief Get the world space position of the center of both cylinder
@@ -31,7 +31,7 @@ struct cylinder_shape {
      * @return An array with two positions.
      */
     auto get_vertices(const vector3 &pos, const quaternion &orn) const {
-        const auto dir = shape_axis_vector(axis, orn);
+        const auto dir = coordinate_axis_vector(axis, orn);
         return std::array<vector3, 2>{
             pos + dir * half_length,
             pos - dir * half_length

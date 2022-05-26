@@ -13,7 +13,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
     const auto &ornB = ctx.ornB;
     const auto threshold = ctx.threshold;
 
-    const auto cyl_axis = shape_axis_vector(shA.axis, ornA);
+    const auto cyl_axis = coordinate_axis_vector(shA.axis, ornA);
     const auto cyl_vertices = std::array<vector3, 2>{
         posA + cyl_axis * shA.half_length,
         posA - cyl_axis * shA.half_length

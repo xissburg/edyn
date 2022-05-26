@@ -19,8 +19,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
     const auto &posB = ctx.posB;
     const auto &ornB = ctx.ornB;
 
-    const auto axisA = shape_axis_vector(shA.axis, ornA);
-    const auto axisB = shape_axis_vector(shB.axis, ornB);
+    const auto axisA = coordinate_axis_vector(shA.axis, ornA);
+    const auto axisB = coordinate_axis_vector(shB.axis, ornB);
 
     const auto verticesA = std::array<vector3, 2>{
         posA + axisA * shA.half_length,

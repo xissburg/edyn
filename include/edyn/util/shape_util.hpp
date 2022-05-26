@@ -9,7 +9,7 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/util/triangle_util.hpp"
-#include "edyn/shapes/shape_axis.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 #include <vector>
 #include <cstdint>
 #include <string>
@@ -344,7 +344,7 @@ scalar capsule_support_projection(const std::array<vector3, 2> &vertices,
  * @param dir A direction vector (non-zero).
  * @return A support point.
  */
-vector3 cylinder_support_point(scalar radius, scalar half_length, shape_axis axis, const vector3 &dir);
+vector3 cylinder_support_point(scalar radius, scalar half_length, coordinate_axis axis, const vector3 &dir);
 
 /**
  * @brief Calculates a point that's furthest along the given direction on an
@@ -356,7 +356,7 @@ vector3 cylinder_support_point(scalar radius, scalar half_length, shape_axis axi
  * @param dir A direction vector (non-zero).
  * @return A support point.
  */
-vector3 cylinder_support_point(scalar radius, scalar half_length, shape_axis axis,
+vector3 cylinder_support_point(scalar radius, scalar half_length, coordinate_axis axis,
                                const quaternion &orn, const vector3 &dir);
 
 /**
@@ -370,7 +370,7 @@ vector3 cylinder_support_point(scalar radius, scalar half_length, shape_axis axi
  * @param dir A direction vector (non-zero).
  * @return A support point.
  */
-vector3 cylinder_support_point(scalar radius, scalar half_length, shape_axis axis,
+vector3 cylinder_support_point(scalar radius, scalar half_length, coordinate_axis axis,
                                const vector3 &pos, const quaternion &orn, const vector3 &dir);
 
 /**
@@ -384,7 +384,7 @@ vector3 cylinder_support_point(scalar radius, scalar half_length, shape_axis axi
  * @param dir A direction vector (non-zero).
  * @return The maximal projection.
  */
-scalar cylinder_support_projection(scalar radius, scalar half_length, shape_axis axis,
+scalar cylinder_support_projection(scalar radius, scalar half_length, coordinate_axis axis,
                                    const vector3 &pos, const quaternion &orn, const vector3 &dir);
 
 /**

@@ -2,7 +2,6 @@
 #define EDYN_SHAPES_SHAPES_HPP
 
 #include "edyn/shapes/plane_shape.hpp"
-#include "edyn/shapes/shape_axis.hpp"
 #include "edyn/shapes/sphere_shape.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/capsule_shape.hpp"
@@ -12,6 +11,7 @@
 #include "edyn/shapes/paged_mesh_shape.hpp"
 #include "edyn/shapes/compound_shape.hpp"
 #include "edyn/comp/shape_index.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/visit_component.hpp"
@@ -129,10 +129,14 @@ constexpr vector3 shape_rolling_direction(const ShapeType &shape) {
 }
 
 template<>
-constexpr vector3 shape_rolling_direction<cylinder_shape>(const cylinder_shape &cylinder) {
-    return shape_axis_vector(cylinder.axis);
+constexpr vector3 shape_rolling_direction<cylinder_shape>(const cylinder_shape &shape) {
+    return coordinate_axis_vector(shape.axis);
 }
 
+template<>
+constexpr vector3 shape_rolling_direction<capsule_shape>(const capsule_shape &shape) {
+    return coordinate_axis_vector(shape.axis);
+}
 
 }
 

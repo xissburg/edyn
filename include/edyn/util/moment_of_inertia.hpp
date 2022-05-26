@@ -10,7 +10,7 @@
 namespace edyn {
 
 vector3 moment_of_inertia_solid_box(scalar mass, const vector3 &extents);
-vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius, shape_axis);
+vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius, coordinate_axis);
 scalar moment_of_inertia_solid_sphere(scalar mass, scalar radius);
 scalar moment_of_inertia_hollow_sphere(scalar mass, scalar radius);
 
@@ -23,7 +23,7 @@ scalar moment_of_inertia_hollow_sphere(scalar mass, scalar radius);
  * @return Diagonal of inertia tensor.
  */
 vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius,
-                                         shape_axis axis);
+                                         coordinate_axis axis);
 
 /**
  * @brief Calculates the diagonal of the inertia tensor for a hollow cylinder.
@@ -37,7 +37,7 @@ vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius,
  */
 vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
                                           scalar inner_radius, scalar outer_radius,
-                                          shape_axis axis);
+                                          coordinate_axis axis);
 
 matrix3x3 moment_of_inertia_polyhedron(scalar mass,
                                        const std::vector<vector3> &vertices,

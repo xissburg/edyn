@@ -1,6 +1,6 @@
 #include "edyn/util/aabb_util.hpp"
-#include "edyn/shapes/shape_axis.hpp"
 #include "edyn/util/shape_util.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 #include "edyn/math/transform.hpp"
 #include <variant>
 
@@ -69,7 +69,7 @@ AABB sphere_aabb(scalar radius, const vector3 &pos) {
     };
 }
 
-AABB cylinder_aabb(scalar radius, scalar half_length, shape_axis axis, const vector3 &pos, const quaternion &orn) {
+AABB cylinder_aabb(scalar radius, scalar half_length, coordinate_axis axis, const vector3 &pos, const quaternion &orn) {
     auto ptx = cylinder_support_point(radius, half_length, axis, orn, vector3_x);
     auto pty = cylinder_support_point(radius, half_length, axis, orn, vector3_y);
     auto ptz = cylinder_support_point(radius, half_length, axis, orn, vector3_z);
@@ -78,8 +78,8 @@ AABB cylinder_aabb(scalar radius, scalar half_length, shape_axis axis, const vec
     return {pos - v, pos + v};
 }
 
-AABB capsule_aabb(scalar radius, scalar half_length, shape_axis axis, const vector3 &pos, const quaternion &orn) {
-    auto dir = shape_axis_vector(axis, orn);
+AABB capsule_aabb(scalar radius, scalar half_length, coordinate_axis axis, const vector3 &pos, const quaternion &orn) {
+    auto dir = coordinate_axis_vector(axis, orn);
     auto v = dir * half_length;
     auto p0 = pos - v;
     auto p1 = pos + v;

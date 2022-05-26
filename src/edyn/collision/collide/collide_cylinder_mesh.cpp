@@ -6,9 +6,11 @@
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/util/triangle_util.hpp"
+#include <type_traits>
 
 namespace edyn {
 
@@ -134,20 +136,6 @@ void collide_cylinder_triangle(
         return;
     }
 
-    int xyz[3];
-
-    switch (cylinder.axis) {
-    case shape_axis::x:
-        xyz[0] = 0; xyz[1] = 1; xyz[2] = 2;
-        break;
-    case shape_axis::y:
-        xyz[0] = 1; xyz[1] = 2; xyz[2] = 0;
-        break;
-    case shape_axis::z:
-        xyz[0] = 2; xyz[1] = 0; xyz[2] = 1;
-        break;
-    }
-
     cylinder_feature cyl_feature;
     size_t cyl_feature_index;
     cylinder.support_feature(posA, ornA, -sep_axis, cyl_feature, cyl_feature_index,
@@ -159,6 +147,10 @@ void collide_cylinder_triangle(
     point.featureA = {cyl_feature, cyl_feature_index};
     point.featureB = {tri_feature};
     point.featureB->index = get_triangle_mesh_feature_index(mesh, tri_idx, tri_feature, tri_feature_index);
+
+    // Index of vector element in cylinder object space that represents the
+    // cylinder axis.
+    auto cyl_ax_idx = static_cast<std::underlying_type_t<coordinate_axis>>(cylinder.axis);
 
     if (cyl_feature == cylinder_feature::face && tri_feature == triangle_feature::face) {
         size_t num_vertices_in_face = 0;
@@ -174,7 +166,7 @@ void collide_cylinder_triangle(
             if (dist_sqr > cylinder.radius * cylinder.radius) continue;
 
             point.pivotA = to_object_space(vertex, posA, ornA);
-            point.pivotA[xyz[0]] = cylinder.half_length * sign_faceA;
+            point.pivotA[cyl_ax_idx] = cylinder.half_length * sign_faceA;
             point.pivotB = vertex;
             result.maybe_add_point(point);
 
@@ -189,11 +181,14 @@ void collide_cylinder_triangle(
 
         // Add points for the cylinder cap edge perimeter inside the triangle.
         auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
+        auto cyl_ax_ortho_idx0 = (cyl_ax_idx + 1) % 3;
+        auto cyl_ax_ortho_idx1 = (cyl_ax_idx + 2) % 3;
+
         for (auto i = 0; i < 4; ++i) {
             auto j = (i + 1) % 4;
-            point.pivotA[xyz[0]] = cylinder.half_length * sign_faceA;
-            point.pivotA[xyz[1]] = cylinder.radius * multipliers[i];
-            point.pivotA[xyz[2]] = cylinder.radius * multipliers[j];
+            point.pivotA[cyl_ax_idx] = cylinder.half_length * sign_faceA;
+            point.pivotA[cyl_ax_ortho_idx0] = cylinder.radius * multipliers[i];
+            point.pivotA[cyl_ax_ortho_idx1] = cylinder.radius * multipliers[j];
             auto pivotA_world = to_world_space(point.pivotA, posA, ornA);
 
             if (!point_in_triangle(tri_vertices, tri_normal, pivotA_world)) {
@@ -222,15 +217,15 @@ void collide_cylinder_triangle(
             vector2 v0_proj, v1_proj;
 
             switch (cylinder.axis) {
-            case shape_axis::x:
+            case coordinate_axis::x:
                 v0_proj = to_vector2_zy(v0_A);
                 v1_proj = to_vector2_zy(v1_A);
                 break;
-            case shape_axis::y:
+            case coordinate_axis::y:
                 v0_proj = to_vector2_zx(v0_A);
                 v1_proj = to_vector2_zx(v1_A);
                 break;
-            case shape_axis::z:
+            case coordinate_axis::z:
                 v0_proj = to_vector2_xy(v0_A);
                 v1_proj = to_vector2_xy(v1_A);
                 break;
@@ -246,7 +241,7 @@ void collide_cylinder_triangle(
                 if (!(t > 0 && t < 1)) continue;
 
                 point.pivotA = lerp(v0_A, v1_A, t);
-                point.pivotA[xyz[0]] = cylinder.half_length * sign_faceA;
+                point.pivotA[cyl_ax_idx] = cylinder.half_length * sign_faceA;
                 point.pivotB = lerp(v0, v1, t);
                 result.maybe_add_point(point);
             }
@@ -266,15 +261,15 @@ void collide_cylinder_triangle(
         vector2 v0_proj, v1_proj;
 
         switch (cylinder.axis) {
-        case shape_axis::x:
+        case coordinate_axis::x:
             v0_proj = to_vector2_zy(v0_A);
             v1_proj = to_vector2_zy(v1_A);
             break;
-        case shape_axis::y:
+        case coordinate_axis::y:
             v0_proj = to_vector2_zx(v0_A);
             v1_proj = to_vector2_zx(v1_A);
             break;
-        case shape_axis::z:
+        case coordinate_axis::z:
             v0_proj = to_vector2_xy(v0_A);
             v1_proj = to_vector2_xy(v1_A);
             break;
@@ -290,8 +285,8 @@ void collide_cylinder_triangle(
         for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
             auto t = clamp_unit(s[pt_idx]);
             point.pivotA = lerp(v0_A, v1_A, t);
-            point.distance = (point.pivotA[xyz[0]] - pivotA_axis) * sign_faceA;
-            point.pivotA[xyz[0]] = pivotA_axis;
+            point.distance = (point.pivotA[cyl_ax_idx] - pivotA_axis) * sign_faceA;
+            point.pivotA[cyl_ax_idx] = pivotA_axis;
             point.pivotB = lerp(edge_vertices[0], edge_vertices[1], t);
             result.maybe_add_point(point);
         }
@@ -302,7 +297,7 @@ void collide_cylinder_triangle(
 
         if (dist_sqr < cylinder.radius * cylinder.radius) {
             point.pivotA = to_object_space(vertex, posA, ornA);
-            point.pivotA[xyz[0]] = cylinder.half_length * to_sign(cyl_feature_index == 0);
+            point.pivotA[cyl_ax_idx] = cylinder.half_length * to_sign(cyl_feature_index == 0);
             point.pivotB = vertex;
             point.normal_attachment = contact_normal_attachment::normal_on_A;
             result.maybe_add_point(point);
@@ -418,13 +413,13 @@ void collide_cylinder_triangle(
         quaternion rot;
 
         switch (cylinder.axis) {
-        case shape_axis::x:
+        case coordinate_axis::x:
             rot = quaternion_identity;
             break;
-        case shape_axis::y:
+        case coordinate_axis::y:
             rot = quaternion_axis_angle({0, 0, 1}, edyn::pi_half);
             break;
-        case shape_axis::z:
+        case coordinate_axis::z:
             rot = quaternion_axis_angle({0, 1, 0}, edyn::pi_half);
             break;
         }
@@ -442,13 +437,13 @@ void collide_cylinder_triangle(
         quaternion rot;
 
         switch (cylinder.axis) {
-        case shape_axis::x:
+        case coordinate_axis::x:
             rot = quaternion_identity;
             break;
-        case shape_axis::y:
+        case coordinate_axis::y:
             rot = quaternion_axis_angle({0, 0, 1}, edyn::pi_half);
             break;
-        case shape_axis::z:
+        case coordinate_axis::z:
             rot = quaternion_axis_angle({0, 1, 0}, edyn::pi_half);
             break;
         }
@@ -478,7 +473,7 @@ void collide_cylinder_triangle(
 
 void collide(const cylinder_shape &cylinder, const triangle_mesh &mesh,
              const collision_context &ctx, collision_result &result) {
-    const auto cylinder_axis = shape_axis_vector(cylinder.axis, ctx.ornA);
+    const auto cylinder_axis = coordinate_axis_vector(cylinder.axis, ctx.ornA);
     const auto cylinder_vertices = std::array<vector3, 2>{
         ctx.posA + cylinder_axis * cylinder.half_length,
         ctx.posA - cylinder_axis * cylinder.half_length
