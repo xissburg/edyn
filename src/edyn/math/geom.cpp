@@ -1083,7 +1083,10 @@ bool intersect_segment_aabb(vector3 p0, vector3 p1,
     return true;
 }
 
-intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) noexcept {
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
+                                                     vector3 pos, quaternion orn,
+                                                     scalar radius, scalar half_length,
+                                                     shape_axis axis, scalar &u) noexcept {
     // Let a plane be defined by the ray and the vector orthogonal to the
     // cylinder axis and the ray (i.e. their cross product). This plane cuts
     // the cylinder and their intersection is an ellipse with vertical half
@@ -1092,7 +1095,7 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vec
     // spanned by the cylinder axis and the ray are found. By subtracting an
     // amount from the parameter for the ray, the intersection point can be
     // found.
-    auto cyl_dir = quaternion_x(orn);
+    auto cyl_dir = shape_axis_vector(axis, orn);
     vector3 cyl_vertices[] = {
         pos + cyl_dir * half_length,
         pos - cyl_dir * half_length

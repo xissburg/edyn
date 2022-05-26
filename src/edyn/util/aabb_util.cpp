@@ -1,4 +1,5 @@
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/shapes/shape_axis.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/math/transform.hpp"
 #include <variant>
@@ -68,17 +69,18 @@ AABB sphere_aabb(scalar radius, const vector3 &pos) {
     };
 }
 
-AABB cylinder_aabb(scalar radius, scalar half_length, const vector3 &pos, const quaternion &orn) {
-    auto ptx = cylinder_support_point(radius, half_length, orn, vector3_x);
-    auto pty = cylinder_support_point(radius, half_length, orn, vector3_y);
-    auto ptz = cylinder_support_point(radius, half_length, orn, vector3_z);
+AABB cylinder_aabb(scalar radius, scalar half_length, shape_axis axis, const vector3 &pos, const quaternion &orn) {
+    auto ptx = cylinder_support_point(radius, half_length, axis, orn, vector3_x);
+    auto pty = cylinder_support_point(radius, half_length, axis, orn, vector3_y);
+    auto ptz = cylinder_support_point(radius, half_length, axis, orn, vector3_z);
     auto v = vector3 {ptx.x, pty.y, ptz.z};
 
     return {pos - v, pos + v};
 }
 
-AABB capsule_aabb(scalar radius, scalar half_length, const vector3 &pos, const quaternion &orn) {
-    auto v = rotate(orn, vector3_x * half_length);
+AABB capsule_aabb(scalar radius, scalar half_length, shape_axis axis, const vector3 &pos, const quaternion &orn) {
+    auto dir = shape_axis_vector(axis, orn);
+    auto v = dir * half_length;
     auto p0 = pos - v;
     auto p1 = pos + v;
     auto offset = vector3 {radius, radius, radius};
@@ -172,11 +174,11 @@ AABB shape_aabb(const sphere_shape &sh, const vector3 &pos, const quaternion &or
 }
 
 AABB shape_aabb(const cylinder_shape &sh, const vector3 &pos, const quaternion &orn) {
-    return cylinder_aabb(sh.radius, sh.half_length, pos, orn);
+    return cylinder_aabb(sh.radius, sh.half_length, sh.axis, pos, orn);
 }
 
 AABB shape_aabb(const capsule_shape &sh, const vector3 &pos, const quaternion &orn) {
-    return capsule_aabb(sh.radius, sh.half_length, pos, orn);
+    return capsule_aabb(sh.radius, sh.half_length, sh.axis, pos, orn);
 }
 
 AABB shape_aabb(const mesh_shape &sh, const vector3 &pos, const quaternion &orn) {

@@ -10,6 +10,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
+#include "edyn/shapes/shape_axis.hpp"
 
 namespace edyn {
 
@@ -26,7 +27,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         quaternion_z(ornB)
     };
 
-    const auto cyl_axis = quaternion_x(ornA);
+    const auto cyl_axis = shape_axis_vector(shA.axis, ornA);
     const auto cyl_vertices = std::array<vector3, 2>{
         posA + cyl_axis * shA.half_length,
         posA - cyl_axis * shA.half_length

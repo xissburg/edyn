@@ -19,7 +19,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     const auto threshold = ctx.threshold;
     const auto &meshA = *shA.mesh;
 
-    const auto cyl_axis = quaternion_x(ornB);
+    const auto cyl_axis = shape_axis_vector(shB.axis, ornB);
     const auto face_center_pos = posB + cyl_axis * shB.half_length;
     const auto face_center_neg = posB - cyl_axis * shB.half_length;
 

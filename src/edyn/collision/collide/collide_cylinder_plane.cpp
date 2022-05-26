@@ -48,7 +48,7 @@ void collide(const cylinder_shape &shA, const plane_shape &shB,
     }
     case cylinder_feature::side_edge:
     case cylinder_feature::cap_edge: {
-        auto cyl_axis = quaternion_x(ornA);
+        auto cyl_axis = shape_axis_vector(shA.axis, ornA);
         auto cyl_vertices = std::array<vector3, 2>{};
         auto num_vertices = 0;
 

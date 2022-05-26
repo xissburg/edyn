@@ -2,6 +2,7 @@
 #define EDYN_SHAPES_SHAPES_HPP
 
 #include "edyn/shapes/plane_shape.hpp"
+#include "edyn/shapes/shape_axis.hpp"
 #include "edyn/shapes/sphere_shape.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/capsule_shape.hpp"
@@ -122,14 +123,16 @@ void visit_shape(entt::registry &registry, entt::entity entity, VisitorType visi
  * @return A unit vector or the zero vector if the shape can roll in any
  * direction.
  */
-template<typename ShapeType, std::enable_if_t<tuple_has_type<ShapeType, rolling_shapes_tuple_t>::value, bool> = true>
-constexpr vector3 shape_rolling_direction() {
-    if constexpr(std::is_same_v<ShapeType, cylinder_shape>) {
-        return vector3_x;
-    }
-
+template<typename ShapeType>
+constexpr vector3 shape_rolling_direction(const ShapeType &shape) {
     return vector3_zero;
 }
+
+template<>
+constexpr vector3 shape_rolling_direction<cylinder_shape>(const cylinder_shape &cylinder) {
+    return shape_axis_vector(cylinder.axis);
+}
+
 
 }
 

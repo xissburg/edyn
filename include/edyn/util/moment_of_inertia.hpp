@@ -10,32 +10,34 @@
 namespace edyn {
 
 vector3 moment_of_inertia_solid_box(scalar mass, const vector3 &extents);
-vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius);
+vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius, shape_axis);
 scalar moment_of_inertia_solid_sphere(scalar mass, scalar radius);
 scalar moment_of_inertia_hollow_sphere(scalar mass, scalar radius);
 
 /**
- * @brief Calculates the diagonal of the inertia tensor for a solid cylinder
- * aligned with the x axis.
+ * @brief Calculates the diagonal of the inertia tensor for a solid cylinder.
  * @param mass Mass of cylinder in kilograms.
  * @param len Length of cylinder along its axis.
  * @param radius Radius of cylinder.
+ * @param axis Main axis of cylinder.
  * @return Diagonal of inertia tensor.
  */
-vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius);
+vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius,
+                                         shape_axis axis);
 
 /**
- * @brief Calculates the diagonal of the inertia tensor for a hollow cylinder
- * aligned with the x axis.
+ * @brief Calculates the diagonal of the inertia tensor for a hollow cylinder.
  * @param mass Mass of cylinder in kilograms.
  * @param len Length of cylinder along its axis.
  * @param inner_radius Inner radius of cylinder where there's no material.
  * @param outer_radius Material exists inbetween the inner and outer radii of
  * the cylinder.
+ * @param axis Main axis of cylinder.
  * @return Diagonal of inertia tensor.
  */
 vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
-                                          scalar inner_radius, scalar outer_radius);
+                                          scalar inner_radius, scalar outer_radius,
+                                          shape_axis axis);
 
 matrix3x3 moment_of_inertia_polyhedron(scalar mass,
                                        const std::vector<vector3> &vertices,

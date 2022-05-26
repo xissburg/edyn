@@ -8,6 +8,7 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/shapes/shape_axis.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
@@ -352,7 +353,10 @@ struct intersect_ray_cylinder_result {
  * @param u Output intersection parameter.
  * @return Result containing intersection situation, the distance and normal.
  */
-intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) noexcept;
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
+                                                     vector3 pos, quaternion orn,
+                                                     scalar radius, scalar half_length,
+                                                     shape_axis axis, scalar &u) noexcept;
 
 /**
  * @brief Intersects a ray with a sphere.
