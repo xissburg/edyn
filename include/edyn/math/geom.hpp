@@ -105,8 +105,18 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                                      scalar *sp = nullptr, scalar *tp = nullptr,
                                      vector3 *c1p = nullptr, vector3 *c2p = nullptr) noexcept;
 
+/**
+ * Find closest point in a disc to a given point.
+ * @param dpos Center of disc.
+ * @param dorn Orientation of disc.
+ * @param radius Radius of disc.
+ * @param axis Coordinate axis orthogonal to disc plane.
+ * @param p Query point.
+ * @param q Output for point in disc closest to `p`.
+ * @return The squared distance between `p` and `q`.
+ */
 scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius,
-                          const vector3 &p, vector3 &q) noexcept;
+                          coordinate_axis axis, const vector3 &p, vector3 &q) noexcept;
 
 /**
  * Computes the closest points between a line `p(s) = p0 + s*(p1 - p0)` and a circle.
@@ -114,6 +124,7 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
  * @param corn Orientation of circle.The face of the circle points towards the
  *             positive x-axis.
  * @param radius Circle radius.
+ * @param axis Coordinate axis orthogonal to circle plane.
  * @param p0 A point in the line.
  * @param p1 Another point in the line.
  * @param num_points Number of closest points. Can be two in case the line is
@@ -132,15 +143,15 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
  * @return The squared distance.
  */
 scalar closest_point_circle_line(
-    const vector3 &cpos, const quaternion &corn, scalar radius,
+    const vector3 &cpos, const quaternion &corn, scalar radius, coordinate_axis axis,
     const vector3 &p0, const vector3 &p1, size_t &num_points,
     scalar &s0, vector3 &rc0, vector3 &rl0,
     scalar &s1, vector3 &rc1, vector3 &rl1,
     vector3 &normal, scalar threshold = support_feature_tolerance) noexcept;
 
 scalar closest_point_circle_circle(
-    const vector3 &posA, const quaternion &ornA, scalar radiusA,
-    const vector3 &posB, const quaternion &ornB, scalar radiusB,
+    const vector3 &posA, const quaternion &ornA, scalar radiusA, coordinate_axis axisA,
+    const vector3 &posB, const quaternion &ornB, scalar radiusB, coordinate_axis axisB,
     size_t &num_points, vector3 &rA0, vector3 &rB0, vector3 &rA1, vector3 &rB1,
     vector3 &normal);
 
@@ -198,7 +209,8 @@ size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
                                vector2 &res0, vector2 &res1) noexcept;
 
 vector3 support_point_circle(const vector3 &pos, const quaternion &orn,
-                             scalar radius, const vector3 &dir) noexcept;
+                             scalar radius, coordinate_axis axis,
+                             const vector3 &dir) noexcept;
 
 template<size_t N>
 constexpr void support_point_vertices(const std::array<vector3, N> &vertices,

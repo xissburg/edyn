@@ -85,7 +85,7 @@ void collide_cylinder_triangle(
         test_direction(dir);
     }
 
-    // Cylinder cap face edges.
+    // Cylinder cap vs Triangle edges.
     for (size_t i = 0; i < 2; ++i) {
         auto circle_pos = cylinder_vertices[i];
 
@@ -98,10 +98,11 @@ void collide_cylinder_triangle(
             scalar s[2];
             vector3 closest_circle[2], closest_line[2];
             vector3 dir;
-            closest_point_circle_line(circle_pos, ornA, cylinder.radius, v0, v1, num_points,
-                                        s[0], closest_circle[0], closest_line[0],
-                                        s[1], closest_circle[1], closest_line[1],
-                                        dir, support_feature_tolerance);
+            closest_point_circle_line(circle_pos, ornA, cylinder.radius, cylinder.axis,
+                                      v0, v1, num_points,
+                                      s[0], closest_circle[0], closest_line[0],
+                                      s[1], closest_circle[1], closest_line[1],
+                                      dir, support_feature_tolerance);
 
             if (dot(posA - tri_center, dir) < 0) {
                 dir *= -1; // Make it point towards cylinder.
@@ -410,21 +411,7 @@ void collide_cylinder_triangle(
             }
         }
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::face) {
-        quaternion rot;
-
-        switch (cylinder.axis) {
-        case coordinate_axis::x:
-            rot = quaternion_identity;
-            break;
-        case coordinate_axis::y:
-            rot = quaternion_axis_angle({0, 0, 1}, edyn::pi_half);
-            break;
-        case coordinate_axis::z:
-            rot = quaternion_axis_angle({0, 1, 0}, edyn::pi_half);
-            break;
-        }
-
-        auto supportA = support_point_circle(cylinder_vertices[cyl_feature_index], ornA * rot, cylinder.radius, -sep_axis);
+        auto supportA = support_point_circle(cylinder_vertices[cyl_feature_index], ornA, cylinder.radius, cylinder.axis, -sep_axis);
 
         if (point_in_triangle(tri_vertices, tri_normal, supportA)) {
             point.pivotA = to_object_space(supportA, posA, ornA);
@@ -434,21 +421,7 @@ void collide_cylinder_triangle(
             result.maybe_add_point(point);
         }
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::edge) {
-        quaternion rot;
-
-        switch (cylinder.axis) {
-        case coordinate_axis::x:
-            rot = quaternion_identity;
-            break;
-        case coordinate_axis::y:
-            rot = quaternion_axis_angle({0, 0, 1}, edyn::pi_half);
-            break;
-        case coordinate_axis::z:
-            rot = quaternion_axis_angle({0, 1, 0}, edyn::pi_half);
-            break;
-        }
-
-        auto supportA = support_point_circle(cylinder_vertices[cyl_feature_index], ornA * rot, cylinder.radius, -sep_axis);
+        auto supportA = support_point_circle(cylinder_vertices[cyl_feature_index], ornA, cylinder.radius, cylinder.axis, -sep_axis);
         auto v0 = tri_vertices[tri_feature_index];
         auto v1 = tri_vertices[(tri_feature_index + 1) % 3];
         vector3 closest; scalar t;

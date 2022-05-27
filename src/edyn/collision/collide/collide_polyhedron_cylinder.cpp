@@ -120,7 +120,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             scalar s0, s1;
             vector3 cc0, cl0, cc1, cl1;
             vector3 dir;
-            closest_point_circle_line(face_center, ornB, shB.radius,
+            closest_point_circle_line(face_center, ornB, shB.radius, shB.axis,
                                       vertexA0, vertexA1,
                                       num_points, s0, cc0, cl0, s1, cc1, cl1,
                                       dir, support_feature_tolerance);
@@ -170,10 +170,15 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     point.distance = distance;
     point.featureB = {featureB, feature_indexB};
 
+    auto cyl_ax_idx = static_cast<std::underlying_type_t<coordinate_axis>>(shB.axis);
+    auto cyl_ax_idx_ortho0 = (cyl_ax_idx + 1) % 3;
+    auto cyl_ax_idx_ortho1 = (cyl_ax_idx + 2) % 3;
+
     switch (featureB) {
     case cylinder_feature::face: {
         size_t num_vertices_in_face = 0;
         auto sign_faceB = to_sign(feature_indexB == 0);
+        auto pivotB_axis = shB.half_length * sign_faceB;
         point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         // Check if polygon vertices are inside a cylinder cap face (by checking
@@ -187,7 +192,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
             point.pivotA = pointA;
             point.pivotB = to_object_space(pointA, posB, ornB);
-            point.pivotB.x = shB.half_length * sign_faceB;
+            point.pivotB[cyl_ax_idx] = pivotB_axis;
             result.maybe_add_point(point);
 
             ++num_vertices_in_face;
@@ -224,7 +229,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
                 point.pivotA = lerp(v0A, v1A, t);
                 point.pivotB = lerp(v0B, v1B, t);
-                point.pivotB.x = shB.half_length * sign_faceB;
+                point.pivotB[cyl_ax_idx] = pivotB_axis;
                 result.maybe_add_point(point);
 
                 ++num_edge_intersections;
@@ -235,12 +240,11 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             // Check if cylinder face center is in polygon.
             if (point_in_polygonal_prism(polygon.vertices, polygon.hull, sep_axis, posB)) {
                 auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
-                auto pivotB_x = shB.half_length * sign_faceB;
 
                 for(int i = 0; i < 4; ++i) {
-                    point.pivotB = vector3{pivotB_x,
-                                           shB.radius * multipliers[i],
-                                           shB.radius * multipliers[(i + 1) % 4]};
+                    point.pivotB[cyl_ax_idx] = pivotB_axis;
+                    point.pivotB[cyl_ax_idx_ortho0] = shB.radius * multipliers[i];
+                    point.pivotB[cyl_ax_idx_ortho1] = shB.radius * multipliers[(i + 1) % 4];
                     point.pivotA = to_world_space(point.pivotB, posB, ornB);
                     point.pivotA = project_plane(point.pivotA, polygon.origin, sep_axis);
                     result.maybe_add_point(point);
