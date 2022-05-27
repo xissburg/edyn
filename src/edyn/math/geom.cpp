@@ -365,9 +365,19 @@ scalar closest_point_circle_line(
 
         // Function q(θ) = [0, sin(θ) * r, cos(θ) * r] and its first and
         // second derivatives.
-        auto q_theta    = vector3{0,  sin_theta * radius,  cos_theta * radius};
-        auto d_q_theta  = vector3{0,  cos_theta * radius, -sin_theta * radius};
-        auto dd_q_theta = vector3{0, -sin_theta * radius, -cos_theta * radius};
+        vector3 q_theta, d_q_theta, dd_q_theta;
+
+        q_theta[axis_idx] = 0;
+        q_theta[axis_ortho_idx0] = sin_theta * radius;
+        q_theta[axis_ortho_idx1] = cos_theta * radius;
+
+        d_q_theta[axis_idx] = 0;
+        d_q_theta[axis_ortho_idx0] = cos_theta * radius;
+        d_q_theta[axis_ortho_idx1] = -sin_theta * radius;
+
+        dd_q_theta[axis_idx] = 0;
+        dd_q_theta[axis_ortho_idx0] = -sin_theta * radius;
+        dd_q_theta[axis_ortho_idx1] = -cos_theta * radius;
 
         // Function c(θ) gives the point in the line closest to q(θ).
         // First and second derivates follow.
@@ -574,7 +584,6 @@ scalar closest_point_circle_circle(
                 dirB[axis_ortho_idxB0] = dir.y;
                 dirB[axis_ortho_idxB1] = dir.x;
 
-
                 if (length_sqr(vector2{pointA[axis_ortho_idxA0], pointA[axis_ortho_idxA1]}) < radiusB * radiusB) {
                     // A contained in B, then reverse direction.
                     dirA *= -1;
@@ -611,7 +620,7 @@ scalar closest_point_circle_circle(
     // Minimizing `f(φ)` will result in the value of `φ` that gives us the closest
     // points between the two circles.
 
-    // Build ortho basis on B (in A's space).
+    // Build ortho basis of B (in A's space).
     auto ornB_in_A = conjugate(ornA) * ornB;
     vector3 u, v;
 
@@ -635,7 +644,7 @@ scalar closest_point_circle_circle(
     vector3 sup_neg = support_point_circle(posB_in_A, ornB_in_A, radiusB, axisB, -coordinate_axis_vector(axisA));
     vector3 sup = std::abs(sup_pos[axis_idxA]) < std::abs(sup_neg[axis_idxA]) ? sup_pos : sup_neg;
     auto sup_in_B = to_object_space(sup, posB_in_A, ornB_in_A);
-    auto initial_phi = std::atan2(sup_in_B[axis_ortho_idxB0], sup_in_B[axis_ortho_idxB1]);
+    auto initial_phi = std::atan2(sup_in_B[axis_ortho_idxA0], sup_in_B[axis_ortho_idxA1]);
 
     // Newton-Raphson iterations.
     auto phi = initial_phi;
@@ -649,13 +658,23 @@ scalar closest_point_circle_circle(
         auto d_p_phi = (u * -sin_phi + v * cos_phi) * radiusB;
         auto dd_p_phi = (u * -cos_phi + v * -sin_phi) * radiusB;
 
-        auto theta = std::atan2(p_phi.y, p_phi.z);
+        auto theta = std::atan2(p_phi[axis_ortho_idxA0], p_phi[axis_ortho_idxA1]);
         auto cos_theta = std::cos(theta);
         auto sin_theta = std::sin(theta);
 
-        auto q_theta = vector3{0, sin_theta * radiusA, cos_theta * radiusA};
-        auto d_q_theta = vector3{0, cos_theta * radiusA, -sin_theta * radiusA};
-        auto dd_q_theta = vector3{0, -sin_theta * radiusA, -cos_theta * radiusA};
+        vector3 q_theta, d_q_theta, dd_q_theta;
+
+        q_theta[axis_idxA] = 0;
+        q_theta[axis_ortho_idxA0] = sin_theta * radiusA;
+        q_theta[axis_ortho_idxA1] = cos_theta * radiusA;
+
+        d_q_theta[axis_idxA] = 0;
+        d_q_theta[axis_ortho_idxA0] = cos_theta * radiusA;
+        d_q_theta[axis_ortho_idxA1] = -sin_theta * radiusA;
+
+        dd_q_theta[axis_idxA] = 0;
+        dd_q_theta[axis_ortho_idxA0] = -sin_theta * radiusA;
+        dd_q_theta[axis_ortho_idxA1] = -cos_theta * radiusA;
 
         // Function d(φ) is the vector connecting the closest points.
         // First and second derivates follow.
@@ -670,6 +689,8 @@ scalar closest_point_circle_circle(
         // auto f_theta = scalar(0.5) * dot(d_phi, d_phi);
         auto d_f_phi = dot(d_phi, d_d_phi);
         auto dd_f_phi = dot(d_d_phi, d_d_phi) + dot(dd_d_phi, d_phi);
+
+        EDYN_ASSERT(dd_f_phi > 0 || dd_f_phi < 0);
 
         auto delta = d_f_phi / dd_f_phi;
         phi -= delta;
