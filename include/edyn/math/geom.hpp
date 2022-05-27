@@ -121,10 +121,10 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
 /**
  * Computes the closest points between a line `p(s) = p0 + s*(p1 - p0)` and a circle.
  * @param cpos Center of circle.
- * @param corn Orientation of circle.The face of the circle points towards the
- *             positive x-axis.
+ * @param corn Orientation of circle.
  * @param radius Circle radius.
- * @param axis Coordinate axis orthogonal to circle plane.
+ * @param axis The circle lies in one of the coordinate planes in object space.
+ * This axis is the normal of the plane.
  * @param p0 A point in the line.
  * @param p1 Another point in the line.
  * @param num_points Number of closest points. Can be two in case the line is
@@ -149,6 +149,28 @@ scalar closest_point_circle_line(
     scalar &s1, vector3 &rc1, vector3 &rl1,
     vector3 &normal, scalar threshold = support_feature_tolerance) noexcept;
 
+/**
+ * @brief Computes the closest points between two circles in 3D.
+ * The circles face the x axis in object space, thus lying in the yz plane.
+ * @param posA Position of center of circle A.
+ * @param ornA Orientation of circle A.
+ * @param radiusA Radius of circle A.
+ * @param axisA Coordinate axis normal to plane of circle A in object space.
+ * @param posB Position of center of circle B.
+ * @param ornB Orientation of circle B.
+ * @param radiusB Radius of circle B.
+ * @param axisB Coordinate axis normal to plane of circle B in object space.
+ * @param num_points Outputs number of closest points, 1 or 2.
+ * @param rA0 Outputs the first result in A.
+ * @param rB0 Outputs the first result in B.
+ * @param rA1 Outputs the second result in A.
+ * @param rB1 Outputs the second result in B.
+ * @param normal Vector pointing from the closest point of B towards a
+ * corresponding closest point on A. It is non-zero even if the points coincide,
+ * providing a vector that can be used as a minimum translation vector to
+ * separate the circles.
+ * @return Squared distance.
+ */
 scalar closest_point_circle_circle(
     const vector3 &posA, const quaternion &ornA, scalar radiusA, coordinate_axis axisA,
     const vector3 &posB, const quaternion &ornB, scalar radiusB, coordinate_axis axisB,
