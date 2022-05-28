@@ -8,6 +8,7 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector2.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 #include "edyn/util/array.hpp"
 
 namespace edyn {
@@ -104,15 +105,26 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
                                      scalar *sp = nullptr, scalar *tp = nullptr,
                                      vector3 *c1p = nullptr, vector3 *c2p = nullptr) noexcept;
 
+/**
+ * Find closest point in a disc to a given point.
+ * @param dpos Center of disc.
+ * @param dorn Orientation of disc.
+ * @param radius Radius of disc.
+ * @param axis Coordinate axis orthogonal to disc plane in object space.
+ * @param p Query point.
+ * @param q Output for point in disc closest to `p`.
+ * @return The squared distance between `p` and `q`.
+ */
 scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar radius,
-                          const vector3 &p, vector3 &q) noexcept;
+                          coordinate_axis axis, const vector3 &p, vector3 &q) noexcept;
 
 /**
  * Computes the closest points between a line `p(s) = p0 + s*(p1 - p0)` and a circle.
  * @param cpos Center of circle.
- * @param corn Orientation of circle.The face of the circle points towards the
- *             positive x-axis.
+ * @param corn Orientation of circle.
  * @param radius Circle radius.
+ * @param axis The circle lies in one of the coordinate planes in object space.
+ * This axis is the normal of the plane.
  * @param p0 A point in the line.
  * @param p1 Another point in the line.
  * @param num_points Number of closest points. Can be two in case the line is
@@ -131,15 +143,37 @@ scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn, scalar ra
  * @return The squared distance.
  */
 scalar closest_point_circle_line(
-    const vector3 &cpos, const quaternion &corn, scalar radius,
+    const vector3 &cpos, const quaternion &corn, scalar radius, coordinate_axis axis,
     const vector3 &p0, const vector3 &p1, size_t &num_points,
     scalar &s0, vector3 &rc0, vector3 &rl0,
     scalar &s1, vector3 &rc1, vector3 &rl1,
     vector3 &normal, scalar threshold = support_feature_tolerance) noexcept;
 
+/**
+ * @brief Computes the closest points between two circles in 3D.
+ * The circles face the x axis in object space, thus lying in the yz plane.
+ * @param posA Position of center of circle A.
+ * @param ornA Orientation of circle A.
+ * @param radiusA Radius of circle A.
+ * @param axisA Coordinate axis normal to plane of circle A in object space.
+ * @param posB Position of center of circle B.
+ * @param ornB Orientation of circle B.
+ * @param radiusB Radius of circle B.
+ * @param axisB Coordinate axis normal to plane of circle B in object space.
+ * @param num_points Outputs number of closest points, 1 or 2.
+ * @param rA0 Outputs the first result in A.
+ * @param rB0 Outputs the first result in B.
+ * @param rA1 Outputs the second result in A.
+ * @param rB1 Outputs the second result in B.
+ * @param normal Vector pointing from the closest point of B towards a
+ * corresponding closest point on A. It is non-zero even if the points coincide,
+ * providing a vector that can be used as a minimum translation vector to
+ * separate the circles.
+ * @return Squared distance.
+ */
 scalar closest_point_circle_circle(
-    const vector3 &posA, const quaternion &ornA, scalar radiusA,
-    const vector3 &posB, const quaternion &ornB, scalar radiusB,
+    const vector3 &posA, const quaternion &ornA, scalar radiusA, coordinate_axis axisA,
+    const vector3 &posB, const quaternion &ornB, scalar radiusB, coordinate_axis axisB,
     size_t &num_points, vector3 &rA0, vector3 &rB0, vector3 &rA1, vector3 &rB1,
     vector3 &normal);
 
@@ -197,7 +231,8 @@ size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
                                vector2 &res0, vector2 &res1) noexcept;
 
 vector3 support_point_circle(const vector3 &pos, const quaternion &orn,
-                             scalar radius, const vector3 &dir) noexcept;
+                             scalar radius, coordinate_axis axis,
+                             const vector3 &dir) noexcept;
 
 template<size_t N>
 constexpr void support_point_vertices(const std::array<vector3, N> &vertices,
@@ -352,7 +387,10 @@ struct intersect_ray_cylinder_result {
  * @param u Output intersection parameter.
  * @return Result containing intersection situation, the distance and normal.
  */
-intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) noexcept;
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
+                                                     vector3 pos, quaternion orn,
+                                                     scalar radius, scalar half_length,
+                                                     coordinate_axis axis, scalar &u) noexcept;
 
 /**
  * @brief Intersects a ray with a sphere.

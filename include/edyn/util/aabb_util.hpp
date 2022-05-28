@@ -9,8 +9,8 @@ namespace edyn {
 AABB box_aabb(const vector3 &half_extents, const vector3 &pos, const quaternion &orn);
 AABB sphere_aabb(scalar radius, const vector3 &pos);
 AABB sphere_aabb(scalar radius, const vector3 &pos, const quaternion &orn);
-AABB cylinder_aabb(scalar radius, scalar half_length, const vector3 &pos, const quaternion &orn);
-AABB capsule_aabb(scalar radius, scalar half_length, const vector3 &pos, const quaternion &orn);
+AABB cylinder_aabb(scalar radius, scalar half_length, coordinate_axis axis, const vector3 &pos, const quaternion &orn);
+AABB capsule_aabb(scalar radius, scalar half_length, coordinate_axis axis, const vector3 &pos, const quaternion &orn);
 
 /**
  * @brief Calculates the AABB of an AABB transformed to world space.

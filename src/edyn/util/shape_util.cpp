@@ -446,34 +446,47 @@ scalar capsule_support_projection(const std::array<vector3, 2> &vertices,
     return capsule_support_projection(vertices[0], vertices[1], radius, dir);
 }
 
-vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &dir) {
-    // Squared length in yz plane.
-    auto lyz2 = dir.y * dir.y + dir.z * dir.z;
+vector3 cylinder_support_point(scalar radius, scalar half_length, coordinate_axis axis, const vector3 &dir) {
+    // Index of vector element in cylinder object space that represents the
+    // cylinder axis.
+    auto cyl_ax_idx = static_cast<std::underlying_type_t<coordinate_axis>>(axis);
+    // Index of vector elements orthogonal to cylinder axis.
+    auto cyl_ax_ortho_idx0 = (cyl_ax_idx + 1) % 3;
+    auto cyl_ax_ortho_idx1 = (cyl_ax_idx + 2) % 3;
 
-    if (lyz2 > EDYN_EPSILON) {
-        auto d = radius / std::sqrt(lyz2);
-        return {dir.x < 0 ? -half_length : half_length, dir.y * d, dir.z * d};
+    // Squared length in plane orthogonal to cylinder axis.
+    auto planar_len_sq = dir[cyl_ax_ortho_idx0] * dir[cyl_ax_ortho_idx0] + dir[cyl_ax_ortho_idx1] * dir[cyl_ax_ortho_idx1];
+    vector3 sup;
+    sup[cyl_ax_idx] = dir[cyl_ax_idx] < 0 ? -half_length : half_length;
+
+    if (planar_len_sq > EDYN_EPSILON) {
+        auto d = radius / std::sqrt(planar_len_sq);
+        sup[cyl_ax_ortho_idx0] = dir[cyl_ax_ortho_idx0] * d;
+        sup[cyl_ax_ortho_idx1] = dir[cyl_ax_ortho_idx1] * d;
+    } else {
+        sup[cyl_ax_ortho_idx0] = radius;
+        sup[cyl_ax_ortho_idx1] = 0;
     }
 
-    return {dir.x < 0 ? -half_length : half_length, radius, 0};
+    return sup;
 }
 
-vector3 cylinder_support_point(scalar radius, scalar half_length,
+vector3 cylinder_support_point(scalar radius, scalar half_length, coordinate_axis axis,
                                const quaternion &orn, const vector3 &dir) {
     auto local_dir = rotate(conjugate(orn), dir);
-    auto pt = cylinder_support_point(radius, half_length, local_dir);
+    auto pt = cylinder_support_point(radius, half_length, axis, local_dir);
     return rotate(orn, pt);
 }
 
-vector3 cylinder_support_point(scalar radius, scalar half_length, const vector3 &pos,
-                               const quaternion &orn, const vector3 &dir) {
-    return pos + cylinder_support_point(radius, half_length, orn, dir);
+vector3 cylinder_support_point(scalar radius, scalar half_length, coordinate_axis axis,
+                               const vector3 &pos, const quaternion &orn, const vector3 &dir) {
+    return pos + cylinder_support_point(radius, half_length, axis, orn, dir);
 }
 
-scalar cylinder_support_projection(scalar radius, scalar half_length, const vector3 &pos,
-                                   const quaternion &orn, const vector3 &dir) {
+scalar cylinder_support_projection(scalar radius, scalar half_length, coordinate_axis axis,
+                                   const vector3 &pos, const quaternion &orn, const vector3 &dir) {
     auto local_dir = rotate(conjugate(orn), dir);
-    auto pt = cylinder_support_point(radius, half_length, local_dir);
+    auto pt = cylinder_support_point(radius, half_length, axis, local_dir);
     return dot(pos, dir) + dot(pt, local_dir);
 }
 

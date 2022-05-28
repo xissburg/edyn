@@ -120,7 +120,7 @@ shape_raycast_result shape_raycast(const box_shape &box, const raycast_context &
 shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast_context &ctx) {
     scalar u;
     auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
-                                                   cylinder.radius, cylinder.half_length, u);
+                                                   cylinder.radius, cylinder.half_length, cylinder.axis, u);
 
     if (intersect_result.kind == intersect_ray_cylinder_result::kind::distance_greater_than_radius) {
         return {};
@@ -205,7 +205,7 @@ shape_raycast_result shape_raycast(const sphere_shape &sphere, const raycast_con
 shape_raycast_result shape_raycast(const capsule_shape &capsule, const raycast_context &ctx) {
     scalar u;
     auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
-                                                   capsule.radius, capsule.half_length, u);
+                                                   capsule.radius, capsule.half_length, capsule.axis, u);
 
     if (intersect_result.kind == intersect_ray_cylinder_result::kind::distance_greater_than_radius) {
         return {};

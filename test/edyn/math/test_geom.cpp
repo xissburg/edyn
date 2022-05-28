@@ -1,5 +1,4 @@
 #include "../common/common.hpp"
-#include "edyn/math/geom.hpp"
 
 TEST(geom_test, intersect_line_aabb) {
     auto p0 = edyn::vector2{0, 0.5};
@@ -135,4 +134,76 @@ TEST(geom_test, intersect_segments_parallel_single) {
     ASSERT_EQ(num_points, 1);
     ASSERT_SCALAR_EQ(s[0], edyn::scalar(1));
     ASSERT_SCALAR_EQ(t[0], edyn::scalar(0));
+}
+
+TEST(geom_test, closest_point_circle_line_parallel) {
+    auto cpos = edyn::vector3{1, 0, 0};
+    auto corn = edyn::quaternion_axis_angle({0, 1, 0}, 2);
+    auto radius = 2;
+    auto axis = edyn::coordinate_axis::y;
+    auto p0 = edyn::vector3{0.5, 1, -2};
+    auto p1 = edyn::vector3{0.5, 1, 2};
+    size_t n;
+    edyn::scalar s0, s1;
+    edyn::vector3 rc0, rl0, rc1, rl1, normal;
+
+    auto dist_sqr = edyn::closest_point_circle_line(cpos, corn, radius, axis, p0, p1, n, s0, rc0, rl0, s1, rc1, rl1, normal);
+
+    ASSERT_SCALAR_EQ(dist_sqr, 1);
+    ASSERT_EQ(n, 2);
+    ASSERT_LT(std::abs(s0 - (2 - std::cos(std::atan(0.5/2)) * radius) / (p1.z - p0.z)), edyn::scalar(0.001));
+    ASSERT_SCALAR_EQ(s1, 1 - s0);
+    ASSERT_SCALAR_EQ(normal.x, 0);
+    ASSERT_SCALAR_EQ(normal.y, -1);
+    ASSERT_SCALAR_EQ(normal.z, 0);
+}
+
+TEST(geom_test, closest_point_circle_line_diagonal) {
+    auto cpos = edyn::vector3{0, 0, 0};
+    auto corn = edyn::quaternion_identity;
+    auto radius = 2;
+    auto axis = edyn::coordinate_axis::y;
+    auto p0 = edyn::vector3{5, 1, 0};
+    auto p1 = edyn::vector3{0, 1, 5};
+    size_t n;
+    edyn::scalar s0, s1;
+    edyn::vector3 rc0, rl0, rc1, rl1, normal;
+
+    auto dist_sqr = edyn::closest_point_circle_line(cpos, corn, radius, axis, p0, p1, n, s0, rc0, rl0, s1, rc1, rl1, normal);
+
+    ASSERT_SCALAR_EQ(dist_sqr, 3.3578644);
+    ASSERT_EQ(n, 1);
+    ASSERT_EQ(s0, 0.5);
+    ASSERT_SCALAR_EQ(normal.x, 0.59253341);
+    ASSERT_SCALAR_EQ(normal.y, 0.54571818);
+    ASSERT_SCALAR_EQ(normal.z, 0.59253341);
+}
+
+TEST(geom_test, closest_point_circle_circle_parallel) {
+    auto posA = edyn::vector3{0, 0, 0};
+    auto ornA = edyn::quaternion_identity;
+    auto radiusA = edyn::scalar(2);
+    auto axisA = edyn::coordinate_axis::z;
+    auto posB = edyn::vector3{0.5, 0.5, 0};
+    auto ornB = edyn::quaternion_identity;
+    auto radiusB = edyn::scalar(1);
+    auto axisB = edyn::coordinate_axis::z;
+    size_t n;
+    edyn::vector3 rA0, rB0, rA1, rB1, normal;
+
+    auto dist_sqr = edyn::closest_point_circle_circle(posA, ornA, radiusA, axisA,
+                                                      posB, ornB, radiusB, axisB,
+                                                      n, rA0, rB0, rA1, rB1, normal);
+
+    ASSERT_EQ(n, 1);
+    ASSERT_SCALAR_EQ(rA0.x, 1.41421356);
+    ASSERT_SCALAR_EQ(rA0.y, 1.41421356);
+    ASSERT_SCALAR_EQ(rA0.z, 0);
+    ASSERT_SCALAR_EQ(rB0.x, 1.20710678);
+    ASSERT_SCALAR_EQ(rB0.y, 1.20710678);
+    ASSERT_SCALAR_EQ(rB0.z, 0);
+    ASSERT_SCALAR_EQ(dist_sqr, 0.08578638);
+    ASSERT_SCALAR_EQ(normal.x, 0);
+    ASSERT_SCALAR_EQ(normal.y, 0);
+    ASSERT_SCALAR_EQ(normal.z, 1);
 }
