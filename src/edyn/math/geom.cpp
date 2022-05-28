@@ -229,7 +229,6 @@ scalar closest_point_circle_line(
     auto qv = q1 - q0;
     auto qv_len_sqr = length_sqr(qv);
 
-
     // The circle lies in one of the three coordinate planes in object space.
     // The circle axis is the coordinate axis normal to the plane it lies onto.
     // Index of vector element in the cirle's object space that represents the
@@ -572,14 +571,15 @@ scalar closest_point_circle_circle(
                 dirA *= B_contains_A ? -1 : 1;
                 dirB *= B_contains_A || (!A_contains_B && !B_contains_A) ? -1 : 1;
 
-                rA0 = posA + rotate(ornA, dirA * radiusA);
-                rB0 = posA + rotate(ornA, posB_in_A + dirB * radiusB);
+                rA0 = to_world_space(dirA * radiusA, posA, ornA);
+                rB0 = to_world_space(posB_in_A + dirB * radiusB, posA, ornA);
                 return distance_sqr(rA0, rB0);
             } else {
                 // Concentric. Return a pair of points that lie on the same line
-                // crossing the center of the circles.
-                rA0 = posA + rotate(ornA, axis_orthoA * radiusA);
-                rB0 = posB + rotate(ornB, axis_orthoA * radiusB);
+                // crossing the center of the circles, which are both at the
+                // origin in this case.
+                rA0 = to_world_space(axis_orthoA * radiusA, posA, ornA);
+                rB0 = to_world_space(axis_orthoA * radiusB, posA, ornA);
                 return distance_sqr(rA0, rB0);
             }
         }

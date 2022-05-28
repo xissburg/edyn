@@ -110,7 +110,7 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
  * @param dpos Center of disc.
  * @param dorn Orientation of disc.
  * @param radius Radius of disc.
- * @param axis Coordinate axis orthogonal to disc plane.
+ * @param axis Coordinate axis orthogonal to disc plane in object space.
  * @param p Query point.
  * @param q Output for point in disc closest to `p`.
  * @return The squared distance between `p` and `q`.
