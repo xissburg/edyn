@@ -209,8 +209,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
         point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         // Intersect the cylinder cap face circles in 2D, in B's space. If the
-        // cylinder axis is the x axis locally, thus use the z axis in 3D as
-        // the x axis in 2D and y axis in 3D as the y axis in 2D.
+        // cylinder axis is the x axis locally, thus use the y axis in 3D as
+        // the x axis in 2D and z axis in 3D as the y axis in 2D.
         vector2 intersection[2];
         auto centerA = vector2{posA_in_B[cyl_ax_idx_orthoB0], posA_in_B[cyl_ax_idx_orthoB1]};
 
