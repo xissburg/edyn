@@ -3,7 +3,9 @@
 #include "edyn/constraints/cone_constraint.hpp"
 #include "edyn/constraints/cvjoint_constraint.hpp"
 #include "edyn/constraints/hinge_constraint.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/moment_of_inertia.hpp"
 #include "edyn/util/rigidbody.hpp"
@@ -54,6 +56,8 @@ ragdoll_def make_ragdoll_def_from_simple(const ragdoll_simple_def &simple_def) {
     rag_def.arm_lower_size    = scale * 2 * vector3{0.135, 0.04, 0.04};
     rag_def.hand_size         = scale * 2 * vector3{0.065, 0.045, 0.045};
 
+    rag_def.shape_type = simple_def.shape_type;
+
     return rag_def;
 }
 
@@ -69,8 +73,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.head_mass;
-        def.shape = box_shape{rag_def.head_size / 2};
-        def.update_inertia();
         auto pos_y =
             rag_def.head_size.y / 2 +
             rag_def.neck_size.y * scalar(0.627) +
@@ -80,6 +82,20 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             rag_def.hip_size.y / 2;
         def.position = to_world_space({0, pos_y, -0.025}, rag_def.position, rag_def.orientation);
         def.orientation = rag_def.orientation;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.head_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.head_size.x / 2, (rag_def.head_size.y - rag_def.head_size.x) / 2, coordinate_axis::y};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.head_size.x / 2, rag_def.head_size.y / 2, coordinate_axis::y};
+            break;
+        }
+
+        def.update_inertia();
         entities.head = make_rigidbody(registry, def);
     }
 
@@ -88,8 +104,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.neck_mass;
-        def.shape = box_shape{rag_def.neck_size / 2};
-        def.update_inertia();
         auto pos_y =
             rag_def.neck_size.y * scalar(0.627) / 2 +
             rag_def.torso_upper_size.y +
@@ -98,6 +112,20 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             rag_def.hip_size.y / 2;
         def.position = to_world_space({0, pos_y, 0}, rag_def.position, rag_def.orientation);
         def.orientation = rag_def.orientation;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.neck_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.neck_size.x / 2, (rag_def.neck_size.y - rag_def.neck_size.x) / 2, coordinate_axis::y};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.neck_size.x / 2, rag_def.neck_size.y / 2, coordinate_axis::y};
+            break;
+        }
+
+        def.update_inertia();
         entities.neck = make_rigidbody(registry, def);
     }
 
@@ -106,8 +134,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.torso_upper_mass;
-        def.shape = box_shape{rag_def.torso_upper_size / 2};
-        def.update_inertia();
         auto pos_y =
             rag_def.torso_upper_size.y / 2 +
             rag_def.torso_middle_size.y +
@@ -115,6 +141,20 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             rag_def.hip_size.y / 2;
         def.position = to_world_space({0, pos_y, 0}, rag_def.position, rag_def.orientation);
         def.orientation = rag_def.orientation;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.torso_upper_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.torso_upper_size.y / 2, (rag_def.torso_upper_size.x - rag_def.torso_upper_size.y) / 2, coordinate_axis::x};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.torso_upper_size.y / 2, rag_def.torso_upper_size.x / 2, coordinate_axis::x};
+            break;
+        }
+
+        def.update_inertia();
         entities.torso_upper = make_rigidbody(registry, def);
     }
 
@@ -123,14 +163,26 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.torso_middle_mass;
-        def.shape = box_shape{rag_def.torso_middle_size / 2};
-        def.update_inertia();
         auto pos_y =
             rag_def.torso_middle_size.y / 2 +
             rag_def.torso_lower_size.y +
             rag_def.hip_size.y / 2;
         def.position = to_world_space({0, pos_y, 0}, rag_def.position, rag_def.orientation);
         def.orientation = rag_def.orientation;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.torso_middle_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.torso_middle_size.y / 2, (rag_def.torso_middle_size.x - rag_def.torso_middle_size.y) / 2, coordinate_axis::x};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.torso_middle_size.y / 2, rag_def.torso_middle_size.x / 2, coordinate_axis::x};
+            break;
+        }
+
+        def.update_inertia();
         entities.torso_middle = make_rigidbody(registry, def);
     }
 
@@ -139,13 +191,25 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.torso_lower_mass;
-        def.shape = box_shape{rag_def.torso_lower_size / 2};
-        def.update_inertia();
         auto pos_y =
             rag_def.torso_lower_size.y / 2 +
             rag_def.hip_size.y / 2;
         def.position = to_world_space({0, pos_y, 0}, rag_def.position, rag_def.orientation);
         def.orientation = rag_def.orientation;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.torso_lower_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.torso_lower_size.y / 2, (rag_def.torso_lower_size.x - rag_def.torso_lower_size.y) / 2, coordinate_axis::x};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.torso_lower_size.y / 2, rag_def.torso_lower_size.x / 2, coordinate_axis::x};
+            break;
+        }
+
+        def.update_inertia();
         entities.torso_lower = make_rigidbody(registry, def);
     }
 
@@ -154,10 +218,22 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.hip_mass;
-        def.shape = box_shape{rag_def.hip_size / 2};
-        def.update_inertia();
         def.position = rag_def.position;
         def.orientation = rag_def.orientation;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.hip_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.hip_size.y / 2, (rag_def.hip_size.x - rag_def.hip_size.y) / 2, coordinate_axis::x};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.hip_size.y / 2, rag_def.hip_size.x / 2, coordinate_axis::x};
+            break;
+        }
+
+        def.update_inertia();
         entities.hip = make_rigidbody(registry, def);
     }
 
@@ -169,14 +245,25 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.leg_upper_mass;
-        def.shape = box_shape{rag_def.leg_upper_size / 2};
-        def.update_inertia();
 
         auto pos_x = leg_pos_x * to_sign(i == 0);
         auto pos_y = -rag_def.leg_upper_size.y / 2;
-
         def.position = to_world_space({pos_x, pos_y, 0}, rag_def.position, rag_def.orientation);
         def.orientation = rag_def.orientation;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.leg_upper_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.leg_upper_size.x / 2, (rag_def.leg_upper_size.y - rag_def.leg_upper_size.x) / 2, coordinate_axis::y};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.leg_upper_size.x / 2, rag_def.leg_upper_size.y / 2, coordinate_axis::y};
+            break;
+        }
+
+        def.update_inertia();
 
         *std::array{&entities.leg_upper_left, &entities.leg_upper_right}[i] = make_rigidbody(registry, def);
     }
@@ -187,14 +274,25 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.leg_lower_mass;
-        def.shape = box_shape{rag_def.leg_lower_size / 2};
-        def.update_inertia();
 
         auto pos_x = leg_pos_x * to_sign(i == 0);
         auto pos_y = -(rag_def.leg_upper_size.y + rag_def.leg_lower_size.y / 2);
-
         def.position = to_world_space({pos_x, pos_y, 0}, rag_def.position, rag_def.orientation);
         def.orientation = rag_def.orientation;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.leg_lower_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.leg_lower_size.x / 2, (rag_def.leg_lower_size.y - rag_def.leg_lower_size.x) / 2, coordinate_axis::y};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.leg_lower_size.x / 2, rag_def.leg_lower_size.y / 2, coordinate_axis::y};
+            break;
+        }
+
+        def.update_inertia();
 
         *std::array{&entities.leg_lower_left, &entities.leg_lower_right}[i] = make_rigidbody(registry, def);
     }
@@ -205,8 +303,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.foot_mass;
-        def.shape = box_shape{rag_def.foot_size / 2};
-        def.update_inertia();
 
         auto pos_x = leg_pos_x * to_sign(i == 0);
         auto pos_y = -(rag_def.leg_upper_size.y + rag_def.leg_lower_size.y + rag_def.foot_size.y / 2);
@@ -214,6 +310,20 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
 
         def.position = to_world_space({pos_x, pos_y, pos_z}, rag_def.position, rag_def.orientation);
         def.orientation = rag_def.orientation;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.foot_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.foot_size.x / 2, (rag_def.foot_size.z - rag_def.foot_size.x) / 2, coordinate_axis::z};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.foot_size.x / 2, rag_def.foot_size.z / 2, coordinate_axis::z};
+            break;
+        }
+
+        def.update_inertia();
 
         *std::array{&entities.foot_left, &entities.foot_right}[i] = make_rigidbody(registry, def);
     }
@@ -252,8 +362,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.arm_upper_mass;
-        def.shape = box_shape{rag_def.arm_upper_size / 2};
-        def.update_inertia();
 
         auto pos_x = (rag_def.torso_upper_size.x / 2 +
                       rag_def.arm_upper_size.x / 2) * to_sign(i == 0);
@@ -261,6 +369,20 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
 
         def.position = to_world_space({pos_x, pos_y, 0}, rag_def.position, rag_def.orientation);
         def.orientation = i == 0 ? rag_def.orientation : rag_def.orientation * rot_z_pi;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.arm_upper_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.arm_upper_size.y / 2, (rag_def.arm_upper_size.x - rag_def.arm_upper_size.y) / 2, coordinate_axis::x};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.arm_upper_size.y / 2, rag_def.arm_upper_size.x / 2, coordinate_axis::x};
+            break;
+        }
+
+        def.update_inertia();
 
         *std::array{&entities.arm_upper_left, &entities.arm_upper_right}[i] = make_rigidbody(registry, def);
     }
@@ -271,8 +393,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.arm_lower_mass / 2; // Split mass with forearm twist body.
-        def.shape = box_shape{rag_def.arm_lower_size / 2};
-        def.update_inertia();
 
         auto pos_x = (rag_def.torso_upper_size.x / 2 +
                       rag_def.arm_upper_size.x +
@@ -281,6 +401,19 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
 
         def.position = to_world_space({pos_x, pos_y, 0}, rag_def.position, rag_def.orientation);
         def.orientation = i == 0 ? rag_def.orientation : rag_def.orientation * rot_z_pi;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.arm_lower_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.arm_lower_size.y / 2, (rag_def.arm_lower_size.x - rag_def.arm_lower_size.y) / 2, coordinate_axis::x};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.arm_lower_size.y / 2, rag_def.arm_lower_size.x / 2, coordinate_axis::x};
+            break;
+        }
+        def.update_inertia();
 
         *std::array{&entities.arm_lower_left, &entities.arm_lower_right}[i] = make_rigidbody(registry, def);
 
@@ -294,8 +427,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
         def.material->restitution = rag_def.restitution;
         def.material->friction = rag_def.friction;
         def.mass = rag_def.hand_mass;
-        def.shape = box_shape{rag_def.hand_size / 2};
-        def.update_inertia();
 
         auto pos_x = (rag_def.torso_upper_size.x / 2 +
                       rag_def.arm_upper_size.x +
@@ -307,6 +438,19 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
 
         def.position = to_world_space({pos_x, pos_y, pos_z}, rag_def.position, rag_def.orientation);
         def.orientation = i == 0 ? rag_def.orientation : rag_def.orientation * rot_z_pi;
+
+        switch (rag_def.shape_type) {
+        case ragdoll_shape_type::box:
+            def.shape = box_shape{rag_def.hand_size / 2};
+            break;
+        case ragdoll_shape_type::capsule:
+            def.shape = capsule_shape{rag_def.hand_size.y / 2, (rag_def.hand_size.x - rag_def.hand_size.y) / 2, coordinate_axis::x};
+            break;
+        case ragdoll_shape_type::cylinder:
+            def.shape = cylinder_shape{rag_def.hand_size.y / 2, rag_def.hand_size.x / 2, coordinate_axis::x};
+            break;
+        }
+        def.update_inertia();
 
         *std::array{&entities.hand_left, &entities.hand_right}[i] = make_rigidbody(registry, def);
     }
