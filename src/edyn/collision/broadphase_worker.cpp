@@ -80,8 +80,8 @@ void destroy_separated_manifolds(entt::registry &registry) {
 void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity entity,
                                      const AABB &offset_aabb) {
     auto aabb_view = m_registry->view<AABB>();
-    auto &settings = m_registry->ctx<edyn::settings>();
-    auto &manifold_map = m_registry->ctx<contact_manifold_map>();
+    auto &settings = m_registry->ctx().at<edyn::settings>();
+    auto &manifold_map = m_registry->ctx().at<contact_manifold_map>();
 
     tree.query(offset_aabb, [&](tree_node_id_t id) {
         auto &node = tree.get_node(id);
@@ -100,7 +100,7 @@ void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity enti
 void broadphase_worker::collide_tree_async(const dynamic_tree &tree, entt::entity entity,
                                            const AABB &offset_aabb, size_t result_index) {
     auto aabb_view = m_registry->view<AABB>();
-    auto &settings = m_registry->ctx<edyn::settings>();
+    auto &settings = m_registry->ctx().at<edyn::settings>();
 
     tree.query(offset_aabb, [&](tree_node_id_t id) {
         auto &node = tree.get_node(id);
@@ -167,7 +167,7 @@ void broadphase_worker::update_async(job &completion_job) {
 }
 
 void broadphase_worker::finish_async_update() {
-    auto &manifold_map = m_registry->ctx<contact_manifold_map>();
+    auto &manifold_map = m_registry->ctx().at<contact_manifold_map>();
 
     for (auto &pairs : m_pair_results) {
         for (auto &pair : pairs) {

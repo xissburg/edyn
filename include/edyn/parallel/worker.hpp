@@ -55,7 +55,7 @@ public:
 private:
     std::atomic_bool m_running {false};
     job_queue m_queue;
-    std::atomic<size_t> m_size;
+    std::atomic<size_t> m_size {0};
 };
 
 }

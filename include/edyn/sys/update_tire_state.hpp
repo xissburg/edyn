@@ -26,7 +26,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
     auto spin_view = registry.view<spin>();
     auto origin_view = registry.view<origin>();
     auto con_view = registry.view<contact_patch_constraint, contact_manifold>();
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
 
     ts_view.each([&] (auto entity, graph_node &node, tire_state &ts) {
         ts.other_entity = entt::null;

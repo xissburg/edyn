@@ -282,7 +282,7 @@ static void assign_material_properties(entt::registry &registry, contact_manifol
     auto [materialA] = material_view.get(manifold.body[0]);
     auto [materialB] = material_view.get(manifold.body[1]);
 
-    auto &material_table = registry.ctx<material_mix_table>();
+    auto &material_table = registry.ctx().at<material_mix_table>();
 
     if (auto *material = material_table.try_get({materialA.id, materialB.id})) {
         cp.restitution = material->restitution;

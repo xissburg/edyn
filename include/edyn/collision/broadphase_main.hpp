@@ -4,7 +4,6 @@
 #include <map>
 #include <vector>
 #include <entt/entity/fwd.hpp>
-#include <entt/entity/utility.hpp>
 #include "edyn/comp/island.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/collision/dynamic_tree.hpp"

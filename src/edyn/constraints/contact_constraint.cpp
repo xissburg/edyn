@@ -155,11 +155,11 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     auto origin_view = registry.view<origin>();
     auto spin_view = registry.view<spin, delta_spin>();
     auto roll_dir_view = registry.view<roll_direction>();
-    auto &settings = registry.ctx<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
 
     cache.rows.reserve(cache.rows.size() + con_view.size_hint());
 
-    auto &ctx = registry.ctx<internal::contact_constraint_context>();
+    auto &ctx = registry.ctx().at<internal::contact_constraint_context>();
     ctx.row_start_index = cache.rows.size();
     ctx.row_count_start_index = cache.con_num_rows.size();
     ctx.friction_rows.clear();
@@ -332,7 +332,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
 template<>
 void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto &ctx = registry.ctx<internal::contact_constraint_context>();
+    auto &ctx = registry.ctx().at<internal::contact_constraint_context>();
     auto row_idx = ctx.row_start_index;
     auto roll_idx = size_t(0);
     auto cp_idx = size_t(0); // Global contact point index.

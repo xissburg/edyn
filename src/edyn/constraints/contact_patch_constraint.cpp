@@ -167,7 +167,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 auto speed = length(linvelrel - normal * dot(linvelrel, normal));
                 auto stiffness = velocity_dependent_vertical_stiffness(con.m_normal_stiffness, speed);
 
-                auto normal_spring_force = deflection * stiffness;
+                auto normal_spring_force = deflection * stiffness / manifold.num_points;
                 auto normal_spring_impulse = normal_spring_force * dt;
 
                 auto &row = cache.rows.emplace_back();
@@ -198,7 +198,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                                      dot(row.J[1], angvelA) +
                                      dot(row.J[2], linvelB) +
                                      dot(row.J[3], angvelB);
-                auto normal_damper_force = con.m_normal_damping * normal_relspd;
+                auto normal_damper_force = con.m_normal_damping * normal_relspd / manifold.num_points;
                 auto normal_damper_impulse = std::abs(normal_damper_force * dt);
 
                 row.lower_limit = 0;

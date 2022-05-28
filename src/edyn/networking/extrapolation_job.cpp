@@ -51,12 +51,12 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
     , m_solver(m_registry)
     , m_input_history(input_history)
 {
-    m_registry.set<broadphase_worker>(m_registry);
-    m_registry.set<narrowphase>(m_registry);
-    m_registry.set<entity_graph>();
-    m_registry.set<edyn::settings>(settings);
-    m_registry.set<contact_manifold_map>(m_registry);
-    m_registry.set<material_mix_table>(material_table);
+    m_registry.ctx().emplace<broadphase_worker>(m_registry);
+    m_registry.ctx().emplace<narrowphase>(m_registry);
+    m_registry.ctx().emplace<entity_graph>();
+    m_registry.ctx().emplace<edyn::settings>(settings);
+    m_registry.ctx().emplace<contact_manifold_map>(m_registry);
+    m_registry.ctx().emplace<material_mix_table>(material_table);
 
     // Avoid multi-threading issues in the `should_collide` function by
     // pre-allocating the pools required in there.
@@ -73,7 +73,7 @@ void extrapolation_job::load_input() {
     // Import entities and components.
     m_input.ops.execute(m_registry, m_entity_map);
 
-    auto &graph = m_registry.ctx<entity_graph>();
+    auto &graph = m_registry.ctx().at<entity_graph>();
 
     // Create nodes for rigid bodies in entity graph.
     auto insert_graph_node = [&](entt::entity entity) {
@@ -131,14 +131,14 @@ void extrapolation_job::init() {
     load_input();
 
     // Initialize external systems.
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
     if (settings.external_system_init) {
         (*settings.external_system_init)(m_registry);
     }
 
     // Run broadphase to initialize the internal dynamic trees with the
     // imported AABBs.
-    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
     bphase.update();
 
     m_state = state::step;
@@ -146,7 +146,7 @@ void extrapolation_job::init() {
 
 void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
 
     m_destroying_node = true;
 
@@ -164,7 +164,7 @@ void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::en
 void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
     if (!m_destroying_node) {
         auto &edge = registry.get<graph_edge>(entity);
-        registry.ctx<entity_graph>().remove_edge(edge.edge_index);
+        registry.ctx().at<entity_graph>().remove_edge(edge.edge_index);
     }
 }
 
@@ -176,14 +176,14 @@ void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, e
 }
 
 void extrapolation_job::apply_history() {
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
     auto start_time = m_current_time - settings.fixed_dt;
     m_input_history->import_each(start_time, settings.fixed_dt, m_registry, m_entity_map);
 }
 
 void extrapolation_job::sync_and_finish() {
     // Update continuous components.
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
     auto &index_source = *settings.index_source;
     auto manifold_view = m_registry.view<contact_manifold>();
 
@@ -327,7 +327,7 @@ bool extrapolation_job::should_step() {
         return false;
     }
 
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
 
     if (m_current_time + settings.fixed_dt > time) {
         // Job is done.
@@ -345,7 +345,7 @@ void extrapolation_job::begin_step() {
 
     apply_history();
 
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
     if (settings.external_system_pre_step) {
         (*settings.external_system_pre_step)(m_registry);
     }
@@ -355,7 +355,7 @@ void extrapolation_job::begin_step() {
 
 bool extrapolation_job::run_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase);
-    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
 
     if (bphase.parallelizable()) {
         m_state = state::broadphase_async;
@@ -370,14 +370,14 @@ bool extrapolation_job::run_broadphase() {
 
 void extrapolation_job::finish_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase_async);
-    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
     bphase.finish_async_update();
     m_state = state::narrowphase;
 }
 
 bool extrapolation_job::run_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase);
-    auto &nphase = m_registry.ctx<narrowphase>();
+    auto &nphase = m_registry.ctx().at<narrowphase>();
 
     if (nphase.parallelizable()) {
         m_state = state::narrowphase_async;
@@ -392,21 +392,21 @@ bool extrapolation_job::run_narrowphase() {
 
 void extrapolation_job::finish_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase_async);
-    auto &nphase = m_registry.ctx<narrowphase>();
+    auto &nphase = m_registry.ctx().at<narrowphase>();
     nphase.finish_async_update();
     m_state = state::solve;
 }
 
 void extrapolation_job::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(m_registry.ctx<edyn::settings>().fixed_dt);
+    m_solver.update(m_registry.ctx().at<edyn::settings>().fixed_dt);
     m_state = state::finish_step;
 }
 
 void extrapolation_job::finish_step() {
     EDYN_ASSERT(m_state == state::finish_step);
 
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
     m_current_time += settings.fixed_dt;
 
      // Clear actions after they've been consumed.

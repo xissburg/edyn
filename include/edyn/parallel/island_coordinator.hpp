@@ -131,7 +131,7 @@ void island_coordinator::refresh(entt::entity entity) {
     static_assert(sizeof...(Component) > 0);
 
 #ifdef EDYN_DEBUG
-    auto &index_source = m_registry->ctx<settings>().index_source;
+    auto &index_source = m_registry->ctx().at<settings>().index_source;
     auto contains_unknown = ((index_source->index_of<Component>() == SIZE_MAX) || ...);
     EDYN_ASSERT(!contains_unknown);
 #endif

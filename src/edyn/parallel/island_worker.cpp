@@ -80,12 +80,12 @@ island_worker::island_worker(entt::entity island_entity, const settings &setting
     , m_calculate_split_delay(0.6)
     , m_calculate_split_timestamp(0)
 {
-    m_registry.set<contact_manifold_map>(m_registry);
-    m_registry.set<broadphase_worker>(m_registry);
-    m_registry.set<narrowphase>(m_registry);
-    m_registry.set<entity_graph>();
-    m_registry.set<edyn::settings>(settings);
-    m_registry.set<material_mix_table>(material_table);
+    m_registry.ctx().emplace<contact_manifold_map>(m_registry);
+    m_registry.ctx().emplace<broadphase_worker>(m_registry);
+    m_registry.ctx().emplace<narrowphase>(m_registry);
+    m_registry.ctx().emplace<entity_graph>();
+    m_registry.ctx().emplace<edyn::settings>(settings);
+    m_registry.ctx().emplace<material_mix_table>(material_table);
 
     // Avoid multi-threading issues in the `should_collide` function by
     // pre-allocating the pools required in there.
@@ -120,7 +120,7 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&island_worker::on_apply_network_pools>(*this);
 
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
 
     // If this is a networked client, expect extrapolation results.
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
@@ -138,7 +138,7 @@ void island_worker::init() {
 
     // Run broadphase to initialize the internal dynamic trees with the
     // imported AABBs.
-    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
     bphase.update();
 
     // Assign tree view containing the updated broad-phase tree.
@@ -156,7 +156,7 @@ void island_worker::on_construct_graph_node(entt::registry &registry, entt::enti
 
 void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
 
     m_destroying_node = true;
 
@@ -181,7 +181,7 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
 }
 
 void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
-    auto &graph = registry.ctx<entity_graph>();
+    auto &graph = registry.ctx().at<entity_graph>();
     auto &edge = registry.get<graph_edge>(entity);
 
     if (!m_destroying_node) {
@@ -232,7 +232,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
         m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
 
-    auto &graph = m_registry.ctx<entity_graph>();
+    auto &graph = m_registry.ctx().at<entity_graph>();
     auto node_view = m_registry.view<graph_node>();
 
     // Insert nodes in the graph for each rigid body.
@@ -291,7 +291,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
         }
     });
 
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
 
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         // Assign previous position and orientation components to dynamic entities
@@ -343,7 +343,7 @@ void island_worker::sync() {
     m_op_builder->replace<discontinuity_spin>(m_registry);
 
     // Update continuous components.
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
     auto &index_source = *settings.index_source;
     m_registry.view<continuous>().each([&](entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
@@ -453,7 +453,7 @@ bool island_worker::should_step() {
         return true;
     }
 
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
 
     if (settings.paused || m_registry.any_of<sleeping_tag>(m_island_entity)) {
         return false;
@@ -475,7 +475,7 @@ bool island_worker::should_step() {
 void island_worker::begin_step() {
     EDYN_ASSERT(m_state == state::begin_step);
 
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
     if (settings.external_system_pre_step) {
         (*settings.external_system_pre_step)(m_registry);
     }
@@ -489,7 +489,7 @@ void island_worker::begin_step() {
 
 bool island_worker::run_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase);
-    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
 
     if (bphase.parallelizable()) {
         m_state = state::broadphase_async;
@@ -504,14 +504,14 @@ bool island_worker::run_broadphase() {
 
 void island_worker::finish_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase_async);
-    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
     bphase.finish_async_update();
     m_state = state::narrowphase;
 }
 
 bool island_worker::run_narrowphase() {
     EDYN_ASSERT(m_state == state::narrowphase);
-    auto &nphase = m_registry.ctx<narrowphase>();
+    auto &nphase = m_registry.ctx().at<narrowphase>();
 
     if (nphase.parallelizable()) {
         m_state = state::narrowphase_async;
@@ -537,14 +537,14 @@ void island_worker::finish_narrowphase() {
     // the dirty contact points into the current registry operation before that
     // happens.
     sync_dirty();
-    auto &nphase = m_registry.ctx<narrowphase>();
+    auto &nphase = m_registry.ctx().at<narrowphase>();
     nphase.finish_async_update();
     m_state = state::solve;
 }
 
 void island_worker::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(m_registry.ctx<edyn::settings>().fixed_dt);
+    m_solver.update(m_registry.ctx().at<edyn::settings>().fixed_dt);
     m_state = state::finish_step;
 }
 
@@ -568,7 +568,7 @@ void island_worker::finish_step() {
     // Set a limit on the number of steps the worker can lag behind the current
     // time to prevent it from getting stuck in the past in case of a
     // substantial slowdown.
-    auto &settings = m_registry.ctx<edyn::settings>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
     const auto fixed_dt = settings.fixed_dt;
 
     constexpr int max_lagging_steps = 10;
@@ -584,7 +584,7 @@ void island_worker::finish_step() {
     m_op_builder->replace<island_timestamp>(m_registry, m_island_entity);
 
     // Update tree view.
-    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
     auto tview = bphase.view();
     m_registry.replace<tree_view>(m_island_entity, tview);
     m_op_builder->replace<tree_view>(m_registry, m_island_entity);
@@ -635,7 +635,7 @@ bool island_worker::should_split() {
 
             // If the graph has more than one connected component, it means
             // this island could be split.
-            if (!m_registry.ctx<entity_graph>().is_single_connected_component()) {
+            if (!m_registry.ctx().at<entity_graph>().is_single_connected_component()) {
                 return true;
             }
         }
@@ -656,7 +656,7 @@ void island_worker::maybe_reschedule() {
     if (m_splitting.load(std::memory_order_relaxed)) return;
 
     auto sleeping = m_registry.any_of<sleeping_tag>(m_island_entity);
-    auto paused = m_registry.ctx<edyn::settings>().paused;
+    auto paused = m_registry.ctx().at<edyn::settings>().paused;
 
     // The update is done and this job can be rescheduled after this point
     auto reschedule_count = m_reschedule_counter.exchange(0, std::memory_order_acq_rel);
@@ -683,7 +683,7 @@ void island_worker::reschedule_later() {
     // before the current time, schedule it to run at a later time.
     auto time = performance_time();
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
-    auto fixed_dt = m_registry.ctx<edyn::settings>().fixed_dt;
+    auto fixed_dt = m_registry.ctx().at<edyn::settings>().fixed_dt;
     auto delta_time = isle_time.value + fixed_dt - time;
 
     if (delta_time > 0) {
@@ -764,7 +764,7 @@ void island_worker::insert_remote_node(entt::entity remote_entity) {
     auto local_entity = m_entity_map.at(remote_entity);
     auto non_connecting = !m_registry.any_of<procedural_tag>(local_entity);
 
-    auto &graph = m_registry.ctx<entity_graph>();
+    auto &graph = m_registry.ctx().at<entity_graph>();
     auto node_index = graph.insert_node(local_entity, non_connecting);
     m_registry.emplace<graph_node>(local_entity, node_index);
 }
@@ -840,7 +840,7 @@ void island_worker::go_to_sleep() {
 }
 
 void island_worker::on_set_paused(const msg::set_paused &msg) {
-    m_registry.ctx<edyn::settings>().paused = msg.paused;
+    m_registry.ctx().at<edyn::settings>().paused = msg.paused;
     auto &isle_time = m_registry.get<island_timestamp>(m_island_entity);
     auto timestamp = performance_time();
     isle_time.value = timestamp;
@@ -853,11 +853,11 @@ void island_worker::on_step_simulation(const msg::step_simulation &) {
 }
 
 void island_worker::on_set_settings(const msg::set_settings &msg) {
-    m_registry.ctx<settings>() = msg.settings;
+    m_registry.ctx().at<settings>() = msg.settings;
 }
 
 void island_worker::on_set_material_table(const msg::set_material_table &msg) {
-    m_registry.ctx<material_mix_table>() = msg.table;
+    m_registry.ctx().at<material_mix_table>() = msg.table;
 }
 
 void island_worker::on_set_com(const msg::set_com &msg) {
@@ -866,7 +866,7 @@ void island_worker::on_set_com(const msg::set_com &msg) {
 }
 
 void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {
-    auto &manifold_map = m_registry.ctx<contact_manifold_map>();
+    auto &manifold_map = m_registry.ctx().at<contact_manifold_map>();
 
     for (auto manifold : manifolds) {
         if (!m_entity_map.contains(manifold.body[0]) ||
@@ -951,7 +951,7 @@ entity_graph::connected_components_t island_worker::split() {
     // island.
     process_messages();
 
-    auto &graph = m_registry.ctx<entity_graph>();
+    auto &graph = m_registry.ctx().at<entity_graph>();
     auto connected_components = graph.connected_components();
 
     if (connected_components.size() <= 1) {
@@ -1013,7 +1013,7 @@ entity_graph::connected_components_t island_worker::split() {
 
     // Refresh island tree view after nodes are removed and send it back to
     // the coordinator via the message queue.
-    auto &bphase = m_registry.ctx<broadphase_worker>();
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
     auto tview = bphase.view();
     m_registry.replace<tree_view>(m_island_entity, tview);
     m_op_builder->replace<tree_view>(m_registry, m_island_entity);

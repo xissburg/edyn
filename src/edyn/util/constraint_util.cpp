@@ -27,7 +27,7 @@ namespace internal {
         if (registry.any_of<graph_edge>(entity)) {
         #if defined(EDYN_DEBUG) && !defined(EDYN_DISABLE_ASSERT)
             auto &edge = registry.get<graph_edge>(entity);
-            auto [ent0, ent1] = registry.ctx<entity_graph>().edge_node_entities(edge.edge_index);
+            auto [ent0, ent1] = registry.ctx().at<entity_graph>().edge_node_entities(edge.edge_index);
             EDYN_ASSERT(ent0 == body0 && ent1 == body1);
         #endif
             return false;
@@ -35,7 +35,7 @@ namespace internal {
 
         auto node_index0 = registry.get<graph_node>(body0).node_index;
         auto node_index1 = registry.get<graph_node>(body1).node_index;
-        auto edge_index = registry.ctx<entity_graph>().insert_edge(entity, node_index0, node_index1);
+        auto edge_index = registry.ctx().at<entity_graph>().insert_edge(entity, node_index0, node_index1);
         registry.emplace<graph_edge>(entity, edge_index);
 
         return true;
@@ -72,7 +72,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     if (registry.any_of<continuous_contacts_tag>(body0) ||
         registry.any_of<continuous_contacts_tag>(body1)) {
 
-        auto &settings = registry.ctx<edyn::settings>();
+        auto &settings = registry.ctx().at<edyn::settings>();
         registry.emplace<continuous>(manifold_entity).insert(settings.index_source->index_of<edyn::contact_manifold>());
         dirty.created<continuous>();
     }
@@ -90,7 +90,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     auto &material0 = material_view.get<material>(body0);
     auto &material1 = material_view.get<material>(body1);
 
-    auto &material_table = registry.ctx<material_mix_table>();
+    auto &material_table = registry.ctx().at<material_mix_table>();
     auto restitution = scalar(0);
     auto stiffness = scalar(0);
     auto damping = scalar(0);
