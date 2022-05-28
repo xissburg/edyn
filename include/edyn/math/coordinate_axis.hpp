@@ -20,7 +20,7 @@ enum class coordinate_axis : unsigned char {
  * @param axis Axis.
  * @return Vector.
  */
-inline vector3 coordinate_axis_vector(coordinate_axis axis) {
+constexpr vector3 coordinate_axis_vector(coordinate_axis axis) {
     switch (axis) {
     case coordinate_axis::x:
         return vector3_x;
@@ -37,7 +37,7 @@ inline vector3 coordinate_axis_vector(coordinate_axis axis) {
  * @param q Rotation.
  * @return Rotated vector.
  */
-inline vector3 coordinate_axis_vector(coordinate_axis axis, const quaternion &q) {
+constexpr vector3 coordinate_axis_vector(coordinate_axis axis, const quaternion &q) {
     return rotate(q, coordinate_axis_vector(axis));
 }
 
