@@ -345,12 +345,16 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         auto sign_faceA = to_sign(feature_indexA == 0);
         point.pivotB = shB.get_vertex(feature_indexB);
         auto pivotB_world = to_world_space(point.pivotB, posB, ornB);
-        auto pivotA_axis = shA.half_length * sign_faceA;
-        point.pivotA = to_object_space(pivotB_world, posA, ornA);
-        point.distance = (point.pivotA[cyl_ax_idx] - pivotA_axis) * sign_faceA;
-        point.pivotA[cyl_ax_idx] = pivotA_axis; // Project onto face.
-        point.normal_attachment = contact_normal_attachment::normal_on_A;
-        result.maybe_add_point(point);
+
+        // Only insert point if it is inside face.
+        if (!(distance_sqr_line(posA, cyl_axis, pivotB_world) > square(shA.radius))) {
+            auto pivotA_axis = shA.half_length * sign_faceA;
+            point.pivotA = to_object_space(pivotB_world, posA, ornA);
+            point.distance = (point.pivotA[cyl_ax_idx] - pivotA_axis) * sign_faceA;
+            point.pivotA[cyl_ax_idx] = pivotA_axis; // Project onto face.
+            point.normal_attachment = contact_normal_attachment::normal_on_A;
+            result.maybe_add_point(point);
+        }
     } else if (featureA == cylinder_feature::side_edge && featureB == box_feature::face) {
         auto face_normal = shB.get_face_normal(feature_indexB, ornB);
         auto face_vertices = shB.get_face(feature_indexB, posB, ornB);
@@ -390,9 +394,9 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         vector3 closestA[2], closestB[2];
         size_t num_points = 0;
         closest_point_segment_segment(cyl_vertices[0], cyl_vertices[1],
-                                        box_edge[0], box_edge[1],
-                                        s[0], t[0], closestA[0], closestB[0], &num_points,
-                                        &s[1], &t[1], &closestA[1], &closestB[1]);
+                                      box_edge[0], box_edge[1],
+                                      s[0], t[0], closestA[0], closestB[0], &num_points,
+                                      &s[1], &t[1], &closestA[1], &closestB[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
             auto pivotA_world = closestA[i] - sep_axis * shA.radius;

@@ -390,19 +390,26 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
     } else if (featureA == cylinder_feature::face &&
                featureB == cylinder_feature::cap_edge) {
         auto supportB = shB.support_point(posB, ornB, sep_axis);
-        auto pivotA_world = project_plane(supportB, verticesA[feature_indexA], sep_axis);
-        point.pivotA = to_object_space(pivotA_world, posA, ornA);
-        point.pivotB = to_object_space(supportB, posB, ornB);
-        point.normal_attachment = contact_normal_attachment::normal_on_A;
-        result.maybe_add_point(point);
+
+        // Only insert point if it is inside the face.
+        if (!(distance_sqr_line(posA, axisA, supportB) > square(shA.radius))) {
+            auto pivotA_world = project_plane(supportB, verticesA[feature_indexA], sep_axis);
+            point.pivotA = to_object_space(pivotA_world, posA, ornA);
+            point.pivotB = to_object_space(supportB, posB, ornB);
+            point.normal_attachment = contact_normal_attachment::normal_on_A;
+            result.maybe_add_point(point);
+        }
     } else if (featureA == cylinder_feature::cap_edge &&
                featureB == cylinder_feature::face) {
         auto supportA = shA.support_point(posA, ornA, -sep_axis);
-        point.pivotA = to_object_space(supportA, posA, ornA);
-        auto pivotB_world = project_plane(supportA, verticesB[feature_indexB], sep_axis);
-        point.pivotB = to_object_space(pivotB_world, posB, ornB);
-        point.normal_attachment = contact_normal_attachment::normal_on_B;
-        result.maybe_add_point(point);
+
+        if (!(distance_sqr_line(posB, axisB, supportA) > square(shB.radius))) {
+            point.pivotA = to_object_space(supportA, posA, ornA);
+            auto pivotB_world = project_plane(supportA, verticesB[feature_indexB], sep_axis);
+            point.pivotB = to_object_space(pivotB_world, posB, ornB);
+            point.normal_attachment = contact_normal_attachment::normal_on_B;
+            result.maybe_add_point(point);
+        }
     } else if (featureA == cylinder_feature::face &&
                featureB == cylinder_feature::side_edge) {
         // Attach normal to face of A.
