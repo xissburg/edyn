@@ -88,7 +88,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         vector3 closest_circle[2], closest_line[2];
         vector3 dir;
 
-        closest_point_circle_line(cylinder_vertices[i], ornB, shB.radius,
+        closest_point_circle_line(cylinder_vertices[i], ornB, shB.radius, shB.axis,
                                   capsule_vertices[0], capsule_vertices[1], num_points,
                                   s[0], closest_circle[0], closest_line[0],
                                   s[1], closest_circle[1], closest_line[1], dir);
@@ -112,7 +112,7 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
         for (size_t j = 0; j < 2; ++j) {
             auto &vertex = capsule_vertices[j];
             vector3 closest;
-            closest_point_disc(cylinder_vertices[i], ornB, shB.radius, vertex, closest);
+            closest_point_disc(cylinder_vertices[i], ornB, shB.radius, shB.axis, vertex, closest);
             auto dir = closest - vertex;
 
             if (!try_normalize(dir)) {
@@ -174,10 +174,26 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
             // Check if the capsule edge intersects the circular cap.
             auto v0 = to_object_space(capsule_vertices[0], posB, ornB);
             auto v1 = to_object_space(capsule_vertices[1], posB, ornB);
+            vector2 v0_proj, v1_proj;
+
+            switch (shB.axis) {
+            case coordinate_axis::x:
+                v0_proj = to_vector2_zy(v0);
+                v1_proj = to_vector2_zy(v1);
+                break;
+            case coordinate_axis::y:
+                v0_proj = to_vector2_zx(v0);
+                v1_proj = to_vector2_zx(v1);
+                break;
+            case coordinate_axis::z:
+                v0_proj = to_vector2_yx(v0);
+                v1_proj = to_vector2_yx(v1);
+                break;
+            }
+
             scalar s[2];
 
-            auto num_points = intersect_line_circle(to_vector2_zy(v0), to_vector2_zy(v1),
-                                                    shB.radius, s[0], s[1]);
+            auto num_points = intersect_line_circle(v0_proj, v1_proj, shB.radius, s[0], s[1]);
 
             for (size_t i = 0; i < num_points; ++i) {
                 auto t = clamp_unit(s[i]);

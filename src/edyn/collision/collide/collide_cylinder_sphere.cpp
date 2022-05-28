@@ -13,7 +13,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
     const auto &ornB = ctx.ornB;
     const auto threshold = ctx.threshold;
 
-    const auto cyl_axis = quaternion_x(ornA);
+    const auto cyl_axis = coordinate_axis_vector(shA.axis, ornA);
     const auto cyl_vertices = std::array<vector3, 2>{
         posA + cyl_axis * shA.half_length,
         posA - cyl_axis * shA.half_length
@@ -52,7 +52,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
     size_t cyl_face_idx = t < 0.5 ? 0 : 1;
     const auto disc_pos = cyl_vertices[cyl_face_idx];
     vector3 closest;
-    const auto dist_sqr = closest_point_disc(disc_pos, ornA, shA.radius, posB, closest);
+    const auto dist_sqr = closest_point_disc(disc_pos, ornA, shA.radius, shA.axis, posB, closest);
     const auto min_dist = shB.radius + threshold;
 
     if (dist_sqr > min_dist * min_dist) {
@@ -62,7 +62,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
     auto normal = closest - posB;
     const auto n_len_sqr = length_sqr(normal);
     const auto n_len = std::sqrt(n_len_sqr);
-    normal = n_len_sqr > EDYN_EPSILON ? normal / n_len : rotate(ornA, vector3_x) * to_sign(t > 0.5);
+    normal = n_len_sqr > EDYN_EPSILON ? normal / n_len : cyl_axis * to_sign(t > 0.5);
 
     collision_result::collision_point point;
     point.pivotA = rotate(conjugate(ornA), closest - posA);

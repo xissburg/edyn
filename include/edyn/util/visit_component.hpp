@@ -57,28 +57,21 @@ namespace detail {
  * @tparam Ts Family of related component types.
  * @tparam IndexType Type of integral index.
  * @tparam VisitorType Type of visitor function which takes an auto rvalue.
+ * @param tuple Provides the list of types.
  * @param index Index in the family of component types of which component should
  * be visited among all types.
  * @param entity Entity of interest.
  * @param views_tuple Tuple of views for each type `Ts...`.
  * @param visitor Function that will be called with the desired component.
  */
-template<typename... Ts, typename IndexType, typename VisitorType>
-void visit_component(IndexType index, entt::entity entity,
+template<typename IndexType, typename VisitorType, typename... Ts>
+void visit_component([[maybe_unused]] std::tuple<Ts...>, IndexType index, entt::entity entity,
                      const std::tuple<entt::basic_view<entt::entity, entt::get_t<Ts>, entt::exclude_t<>>...> &views_tuple,
                      VisitorType visitor) {
     constexpr auto table = detail::visitor_table<VisitorType, Ts...>{};
     if (index < table.array.functions.size()) {
         table.array.functions[index](entity, views_tuple, visitor);
     }
-}
-
-/*! @copydoc visit_component */
-template<typename... Ts, typename IndexType, typename VisitorType>
-void visit_component(std::tuple<Ts...>, IndexType index, entt::entity entity,
-                     const std::tuple<entt::basic_view<entt::entity, entt::get_t<Ts>, entt::exclude_t<>>...> &views_tuple,
-                     VisitorType visitor) {
-    visit_component<Ts...>(index, entity, views_tuple, visitor);
 }
 
 namespace detail {
@@ -119,26 +112,20 @@ namespace detail {
  * @tparam Ts Family of related component types.
  * @tparam IndexType Type of integral index.
  * @tparam VisitorType Type of visitor function which takes an auto rvalue.
+ * @param tuple Provides the list of types.
  * @param index Index in the family of component types of which component should
  * be visited among all types.
  * @param entity Entity of interest.
  * @param registry The source of components.
- * @param visitor Function that will be called with the desired component.
+ * @param visitor Function that will be called with the desired componentq.
  */
-template<typename... Ts, typename IndexType, typename VisitorType>
-void visit_component(IndexType index, entt::entity entity,
+template<typename IndexType, typename VisitorType, typename... Ts>
+void visit_component([[maybe_unused]] std::tuple<Ts...>, IndexType index, entt::entity entity,
                      entt::registry &registry, VisitorType visitor) {
     constexpr auto table = detail::registry_visitor_table<VisitorType, Ts...>{};
     if (index < table.array.functions.size()) {
         table.array.functions[index](entity, registry, visitor);
     }
-}
-
-/*! @copydoc visit_component */
-template<typename... Ts, typename IndexType, typename VisitorType>
-void visit_component(std::tuple<Ts...>, IndexType index, entt::entity entity,
-                     entt::registry &registry, VisitorType visitor) {
-    visit_component<Ts...>(index, entity, registry, visitor);
 }
 
 }

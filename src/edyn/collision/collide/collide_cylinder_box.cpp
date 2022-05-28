@@ -10,6 +10,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/box_shape.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 
 namespace edyn {
 
@@ -26,7 +27,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         quaternion_z(ornB)
     };
 
-    const auto cyl_axis = quaternion_x(ornA);
+    const auto cyl_axis = coordinate_axis_vector(shA.axis, ornA);
     const auto cyl_vertices = std::array<vector3, 2>{
         posA + cyl_axis * shA.half_length,
         posA - cyl_axis * shA.half_length
@@ -131,7 +132,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             vector3 closest_circle[2];
             vector3 closest_line[2];
             vector3 dir;
-            closest_point_circle_line(circle_position, ornA, shA.radius,
+            closest_point_circle_line(circle_position, ornA, shA.radius, shA.axis,
                                       edge_vertices[0], edge_vertices[1], num_points,
                                       s[0], closest_circle[0], closest_line[0],
                                       s[1], closest_circle[1], closest_line[1],
@@ -179,6 +180,13 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
     point.featureA = {featureA, feature_indexA};
     point.featureB = {featureB, feature_indexB};
 
+    // Index of vector element in cylinder object space that represents the
+    // cylinder axis followed by the indices of the elements of the axes
+    // orthogonal to the cylinder axis.
+    auto cyl_ax_idx = static_cast<std::underlying_type_t<coordinate_axis>>(shA.axis);
+    auto cyl_ax_idx_ortho0 = (cyl_ax_idx + 1) % 3;
+    auto cyl_ax_idx_ortho1 = (cyl_ax_idx + 2) % 3;
+
     if (featureA == cylinder_feature::face && featureB == box_feature::face) {
         auto sign_faceA = to_sign(feature_indexA == 0);
         auto verticesB_local = shB.get_face(feature_indexB);
@@ -191,7 +199,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         size_t num_edge_intersections = 0;
-        std::pair<vector3, vector3> last_edge;
+        std::array<vector3, 2> last_edge;
 
         // Check if circle and face edges intersect.
         for (size_t vertex_idx = 0; vertex_idx < 4; ++vertex_idx) {
@@ -203,11 +211,12 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
             auto v0A = to_object_space(v0w, posA, ornA);
             auto v1A = to_object_space(v1w, posA, ornA);
+            // Project points onto plane orthogonal to cylinder axis.
+            auto v0A_proj = vector2{v0A[cyl_ax_idx_ortho0], v0A[cyl_ax_idx_ortho1]};
+            auto v1A_proj = vector2{v1A[cyl_ax_idx_ortho0], v1A[cyl_ax_idx_ortho1]};
 
             scalar s[2];
-            auto v0A_zy = to_vector2_zy(v0A);
-            auto v1A_zy = to_vector2_zy(v1A);
-            auto num_points = intersect_line_circle(v0A_zy, v1A_zy,
+            auto num_points = intersect_line_circle(v0A_proj, v1A_proj,
                                                     shA.radius, s[0], s[1]);
 
             if (num_points == 0) {
@@ -226,11 +235,12 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             }
 
             ++num_edge_intersections;
-            last_edge = std::make_pair(v0w, v1w);
+            last_edge[0] = v0w;
+            last_edge[1] = v1w;
 
             auto v0B = verticesB_local[vertex_idx];
             auto v1B = verticesB_local[next_vertex_idx];
-            auto pivotA_x = shA.half_length * sign_faceA;
+            auto pivotA_axis = shA.half_length * sign_faceA;
 
             for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
                 auto t = s[pt_idx];
@@ -239,9 +249,9 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
                 auto u = clamp_unit(t);
                 point.pivotA = lerp(v0A, v1A, u);
-                point.pivotA.x = pivotA_x;
                 point.pivotB = lerp(v0B, v1B, u);
-                point.distance = (point.pivotA.x - pivotA_x) * sign_faceA;
+                point.distance = (point.pivotA[cyl_ax_idx] - pivotA_axis) * sign_faceA;
+                point.pivotA[cyl_ax_idx] = pivotA_axis; // Project onto cyl face.
                 result.maybe_add_point(point);
             }
         }
@@ -258,10 +268,9 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
                 auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
                 for(int i = 0; i < 4; ++i) {
                     auto j = (i + 1) % 4;
-                    auto pivotA_x = shA.half_length * sign_faceA;
-                    point.pivotA = vector3{pivotA_x,
-                                           shA.radius * multipliers[i],
-                                           shA.radius * multipliers[j]};
+                    point.pivotA[cyl_ax_idx] = shA.half_length * sign_faceA;
+                    point.pivotA[cyl_ax_idx_ortho0] = shA.radius * multipliers[i];
+                    point.pivotA[cyl_ax_idx_ortho1] = shA.radius * multipliers[j];
                     auto pivotA_in_B = to_world_space(point.pivotA, posA_in_B, ornA_in_B);
                     point.distance = dot(pivotA_in_B - verticesB_local[0], face_normal_local);
                     point.pivotB = project_plane(pivotA_in_B, verticesB_local[0], face_normal_local);
@@ -271,22 +280,27 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         } else if (num_edge_intersections == 1) {
             // If it intersects a single edge, only two contact points have
             // been added, thus add extra points to create a stable base.
-            auto edge_in_A = std::make_pair(
-                to_vector2_zy(to_object_space(last_edge.first, posA, ornA)),
-                to_vector2_zy(to_object_space(last_edge.second, posA, ornA))
-            );
+            std::array<vector2, 2> edge_in_A;
 
-            auto edge_dir = edge_in_A.second - edge_in_A.first;
+            for (int i = 0; i < last_edge.size(); ++i) {
+                auto last_edge_local = to_object_space(last_edge[i], posA, ornA);
+                edge_in_A[i] = vector2{last_edge_local[cyl_ax_idx_ortho0], last_edge_local[cyl_ax_idx_ortho1]};
+            }
+
+            auto edge_dir = edge_in_A[1] - edge_in_A[0];
             auto tangent = normalize(orthogonal(edge_dir));
 
+            auto posB_in_A = to_object_space(posB, posA, ornA);
+            auto box_face_center = vector2{posB_in_A[cyl_ax_idx_ortho0], posB_in_A[cyl_ax_idx_ortho1]};
+
             // Make tangent point towards box face.
-            auto box_face_center = to_vector2_zy(to_object_space(posB, posA, ornA));
             if (dot(tangent, box_face_center) < 0) {
                 tangent *= -1;
             }
 
-            auto pivotA_x = shA.half_length * to_sign(feature_indexA == 0);
-            point.pivotA = vector3{pivotA_x, tangent.y * shA.radius, tangent.x * shA.radius};
+            point.pivotA[cyl_ax_idx] = shA.half_length * to_sign(feature_indexA == 0);
+            point.pivotA[cyl_ax_idx_ortho0] = tangent.x * shA.radius;
+            point.pivotA[cyl_ax_idx_ortho1] = tangent.y * shA.radius;
             // Transform pivotA into box space and project onto box face.
             auto pivotA_in_B = to_world_space(point.pivotA, posA_in_B, ornA_in_B);
             point.pivotB = project_plane(pivotA_in_B, verticesB_local[0], face_normal_local);
@@ -308,21 +322,22 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         // is the x-axis.
         auto v0A = to_object_space(verticesB_world[0], posA, ornA);
         auto v1A = to_object_space(verticesB_world[1], posA, ornA);
+        // Project points onto plane orthogonal to cylinder axis.
+        auto v0A_proj = vector2{v0A[cyl_ax_idx_ortho0], v0A[cyl_ax_idx_ortho1]};
+        auto v1A_proj = vector2{v1A[cyl_ax_idx_ortho0], v1A[cyl_ax_idx_ortho1]};
 
         scalar s[2];
-        auto v0A_zy = to_vector2_zy(v0A);
-        auto v1A_zy = to_vector2_zy(v1A);
-        auto num_points = intersect_line_circle(v0A_zy, v1A_zy,
+        auto num_points = intersect_line_circle(v0A_proj, v1A_proj,
                                                 shA.radius, s[0], s[1]);
 
         auto sign_faceA = to_sign(feature_indexA == 0);
-        auto pivotA_x = shA.half_length * sign_faceA;
+        auto pivotA_axis = shA.half_length * sign_faceA;
 
         for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
             auto t = clamp_unit(s[pt_idx]);
             point.pivotA = lerp(v0A, v1A, t);
-            point.distance = (point.pivotA.x - pivotA_x) * sign_faceA;
-            point.pivotA.x = pivotA_x;
+            point.distance = (point.pivotA[cyl_ax_idx] - pivotA_axis) * sign_faceA;
+            point.pivotA[cyl_ax_idx] = pivotA_axis;
             point.pivotB = lerp(verticesB_local[0], verticesB_local[1], t);
             result.maybe_add_point(point);
         }
@@ -330,12 +345,16 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         auto sign_faceA = to_sign(feature_indexA == 0);
         point.pivotB = shB.get_vertex(feature_indexB);
         auto pivotB_world = to_world_space(point.pivotB, posB, ornB);
-        auto pivotA_x = shA.half_length * sign_faceA;
-        point.pivotA = to_object_space(pivotB_world, posA, ornA);
-        point.distance = (point.pivotA.x - pivotA_x) * sign_faceA;
-        point.pivotA.x = pivotA_x; // Project onto face by setting the x value directly.
-        point.normal_attachment = contact_normal_attachment::normal_on_A;
-        result.maybe_add_point(point);
+
+        // Only insert point if it is inside face.
+        if (!(distance_sqr_line(posA, cyl_axis, pivotB_world) > square(shA.radius))) {
+            auto pivotA_axis = shA.half_length * sign_faceA;
+            point.pivotA = to_object_space(pivotB_world, posA, ornA);
+            point.distance = (point.pivotA[cyl_ax_idx] - pivotA_axis) * sign_faceA;
+            point.pivotA[cyl_ax_idx] = pivotA_axis; // Project onto face.
+            point.normal_attachment = contact_normal_attachment::normal_on_A;
+            result.maybe_add_point(point);
+        }
     } else if (featureA == cylinder_feature::side_edge && featureB == box_feature::face) {
         auto face_normal = shB.get_face_normal(feature_indexB, ornB);
         auto face_vertices = shB.get_face(feature_indexB, posB, ornB);
@@ -375,9 +394,9 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         vector3 closestA[2], closestB[2];
         size_t num_points = 0;
         closest_point_segment_segment(cyl_vertices[0], cyl_vertices[1],
-                                        box_edge[0], box_edge[1],
-                                        s[0], t[0], closestA[0], closestB[0], &num_points,
-                                        &s[1], &t[1], &closestA[1], &closestB[1]);
+                                      box_edge[0], box_edge[1],
+                                      s[0], t[0], closestA[0], closestB[0], &num_points,
+                                      &s[1], &t[1], &closestA[1], &closestB[1]);
 
         for (size_t i = 0; i < num_points; ++i) {
             auto pivotA_world = closestA[i] - sep_axis * shA.radius;

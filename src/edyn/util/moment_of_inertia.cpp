@@ -1,6 +1,7 @@
 #include "edyn/util/moment_of_inertia.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 #include "edyn/util/shape_volume.hpp"
 #include <variant>
 
@@ -14,7 +15,8 @@ vector3 moment_of_inertia_solid_box(scalar mass, const vector3 &extents) {
     };
 }
 
-vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius) {
+vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius,
+                                        coordinate_axis axis) {
     // Reference: Open Dynamics Engine, mass.cpp
     // https://bitbucket.org/odedevs/ode/src/5dd0dfa3bdd91b2885542485067a9559936eff1c/ode/src/mass.cpp#lines-141
     auto cyl_vol = cylinder_volume(radius, len);
@@ -23,14 +25,22 @@ vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius) 
     auto cyl_mass = mass * cyl_vol / total_vol;
     auto sph_mass = mass * sph_vol / total_vol;
 
-    auto cyl_inertia = moment_of_inertia_solid_cylinder(cyl_mass, len, radius);
+    auto cyl_inertia = moment_of_inertia_solid_cylinder(cyl_mass, len, radius, axis);
     auto sph_inertia = moment_of_inertia_solid_sphere(sph_mass, radius);
 
     auto xx = sph_inertia + cyl_inertia.x;
     auto yy_zz = sph_mass * (scalar(0.4) * radius * radius +
                              scalar(0.375) * radius * len +
                              scalar(0.25 * len * len)) + cyl_inertia.y;
-    return {xx, yy_zz, yy_zz};
+
+    switch (axis) {
+    case coordinate_axis::x:
+        return {xx, yy_zz, yy_zz};
+    case coordinate_axis::y:
+        return {yy_zz, xx, yy_zz};
+    case coordinate_axis::z:
+        return {yy_zz, yy_zz, xx};
+    }
 }
 
 scalar moment_of_inertia_solid_sphere(scalar mass, scalar radius) {
@@ -41,20 +51,38 @@ scalar moment_of_inertia_hollow_sphere(scalar mass, scalar radius) {
     return scalar(2) / scalar(3) * mass * radius * radius;
 }
 
-vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius) {
+vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius,
+                                         coordinate_axis axis) {
     // Reference:
     // https://xissburg.github.io/2021-04-30-calculating-moment-of-inertia-cylinder/
     scalar xx = scalar(0.5) * mass * radius * radius;
     scalar yy_zz =  scalar(1) / scalar(12) * mass * (scalar(3) * radius * radius + len * len);
-    return {xx, yy_zz, yy_zz};
+
+    switch (axis) {
+    case coordinate_axis::x:
+        return {xx, yy_zz, yy_zz};
+    case coordinate_axis::y:
+        return {yy_zz, xx, yy_zz};
+    case coordinate_axis::z:
+        return {yy_zz, yy_zz, xx};
+    }
 }
 
 vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
-                                          scalar inner_radius, scalar outer_radius) {
+                                          scalar inner_radius, scalar outer_radius,
+                                          coordinate_axis axis) {
     auto rr = inner_radius * inner_radius + outer_radius * outer_radius;
     auto xx = scalar(0.5) * mass * rr;
     auto yy_zz = scalar(1) / scalar(12) * mass * (scalar(3) * rr + len * len);
-    return {xx, yy_zz, yy_zz};
+
+    switch (axis) {
+    case coordinate_axis::x:
+        return {xx, yy_zz, yy_zz};
+    case coordinate_axis::y:
+        return {yy_zz, xx, yy_zz};
+    case coordinate_axis::z:
+        return {yy_zz, yy_zz, xx};
+    }
 }
 
 matrix3x3 moment_of_inertia_polyhedron(scalar mass,
@@ -132,11 +160,11 @@ matrix3x3 moment_of_inertia(const sphere_shape &sh, scalar mass) {
 }
 
 matrix3x3 moment_of_inertia(const cylinder_shape &sh, scalar mass) {
-    return diagonal_matrix(moment_of_inertia_solid_cylinder(mass, sh.half_length * 2, sh.radius));
+    return diagonal_matrix(moment_of_inertia_solid_cylinder(mass, sh.half_length * 2, sh.radius, sh.axis));
 }
 
 matrix3x3 moment_of_inertia(const capsule_shape &sh, scalar mass) {
-    return diagonal_matrix(moment_of_inertia_solid_capsule(mass, sh.half_length * 2, sh.radius));
+    return diagonal_matrix(moment_of_inertia_solid_capsule(mass, sh.half_length * 2, sh.radius, sh.axis));
 }
 
 matrix3x3 moment_of_inertia(const mesh_shape &sh, scalar mass) {

@@ -1,4 +1,5 @@
 #include "edyn/math/geom.hpp"
+#include "edyn/math/coordinate_axis.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/vector3.hpp"
@@ -169,9 +170,10 @@ scalar closest_point_segment_segment(const vector3 &p1, const vector3 &q1,
 }
 
 scalar closest_point_disc(const vector3 &dpos, const quaternion &dorn,
-                          scalar radius, const vector3 &p, vector3 &q) noexcept {
+                          scalar radius, coordinate_axis axis,
+                          const vector3 &p, vector3 &q) noexcept {
     // Project point onto disc's plane.
-    const auto normal = rotate(dorn, vector3_x);
+    const auto normal = coordinate_axis_vector(axis, dorn);
     const auto ln = dot(p - dpos, normal);
     const auto p_proj = p - normal * ln;
     const auto d = p_proj - dpos;
@@ -213,11 +215,11 @@ size_t intersect_line_circle(const vector2 &p0, const vector2 &p1,
 }
 
 scalar closest_point_circle_line(
-    const vector3 &cpos, const quaternion &corn, scalar radius,
+    const vector3 &cpos, const quaternion &corn, scalar radius, coordinate_axis axis,
     const vector3 &p0, const vector3 &p1, size_t &num_points,
     scalar &s0, vector3 &rc0, vector3 &rl0,
     scalar &s1, vector3 &rc1, vector3 &rl1,
-    vector3 &normal, scalar /*threshold*/) noexcept {
+    vector3 &normal, scalar threshold) noexcept {
 
     // Line points in local disc space. The face of the disc points towards
     // the positive x-axis.
@@ -226,37 +228,58 @@ scalar closest_point_circle_line(
     auto qv = q1 - q0;
     auto qv_len_sqr = length_sqr(qv);
 
-    // If the projection of a segment of the line of length `diameter` on the x axis
+    // The circle lies in one of the three coordinate planes in object space.
+    // The circle axis is the coordinate axis normal to the plane it lies onto.
+    // Index of vector element in the cirle's object space that represents the
+    // circle axis followed by the indices of the elements of the axes
+    // orthogonal to the circle axis, i.e. tangent to the circle plane.
+    auto norm_idx = static_cast<std::underlying_type_t<coordinate_axis>>(axis);
+    auto tan_idx0 = (norm_idx + 1) % 3;
+    auto tan_idx1 = (norm_idx + 2) % 3;
+
+    // Length of the segment projected onto the circle plane.
+    auto qv_proj_len = length(vector2{qv[tan_idx0], qv[tan_idx1]});
+    auto diameter = square(radius);
+
+    // Line points projected onto circle plane.
+    auto q0_proj = vector2{q0[tan_idx0], q0[tan_idx1]};
+    auto q1_proj = vector2{q1[tan_idx0], q1[tan_idx1]};
+
+    // If the projection of a segment of the line of length `diameter` on the circle axis
     // is smaller than threshold, the line is considered to be parallel to the circle.
-    if (std::abs(qv.x) < EDYN_EPSILON) { // (std::abs(qv.x / qv_len) * diameter < threshold) {
+    if (qv_proj_len > EDYN_EPSILON &&
+        std::abs(qv[norm_idx] / qv_proj_len) * diameter < threshold) {
         // Calculate line-circle intersection in the yz plane.
         // For the normal vector, calculate something orthogonal to the line.
-        auto tangent = cross(qv, vector3_x); // tangent lies on the circle plane.
+        auto tangent = cross(qv, coordinate_axis_vector(axis)); // tangent lies on the circle plane.
         normal = cross(qv, tangent);
         normal = rotate(corn, normal);
         normal = normalize(normal);
         EDYN_ASSERT(length_sqr(normal) > EDYN_EPSILON);
 
-        num_points = intersect_line_circle(to_vector2_yz(q0), to_vector2_yz(q1), radius, s0, s1);
+        num_points = intersect_line_circle(q0_proj, q1_proj, radius, s0, s1);
 
         if (num_points > 0) {
             auto rl0_local = q0 + qv * s0;
-            auto rc0_local = vector3{0, rl0_local.y, rl0_local.z};
+            auto rc0_local = rl0_local;
+            rc0_local[norm_idx] = 0;
+
             // Transform to world space.
             rl0 = cpos + rotate(corn, rl0_local);
             rc0 = cpos + rotate(corn, rc0_local);
 
-            // The distance is simply the x coord of the resulting point in the line
-            // in circle space.
-            auto dist2 = rl0_local.x * rl0_local.x;
+            // The distance is simply the value along the circle axis of the
+            // resulting point in the line in circle space.
+            auto dist2 = square(rl0_local[norm_idx]);
 
             if (num_points > 1) {
                 auto rl1_local = q0 + qv * s1;
-                auto rc1_local = vector3{0, rl1_local.y, rl1_local.z};
+                auto rc1_local = rl1_local;
+                rc1_local[norm_idx] = 0;
                 rl1 = cpos + rotate(corn, rl1_local);
                 rc1 = cpos + rotate(corn, rc1_local);
 
-                dist2 = std::min(dist2, rl1_local.x * rl1_local.x);
+                dist2 = std::min(dist2, square(rl1_local[norm_idx]));
             }
 
             return dist2;
@@ -288,11 +311,11 @@ scalar closest_point_circle_line(
 
     // The root finder below would fail if the line is orthogonal to the plane of the
     // circle and is also centered at the circle.
-    if (length_sqr(to_vector2_yz(q0)) <= EDYN_EPSILON &&
-        length_sqr(to_vector2_yz(q1)) <= EDYN_EPSILON ) {
+    if (length_sqr(q0_proj) <= EDYN_EPSILON && length_sqr(q1_proj) <= EDYN_EPSILON ) {
         num_points = 1;
-        normal = quaternion_z(corn);
-        s0 = -q0.x / qv.x;
+        normal = axis == coordinate_axis::x ? quaternion_y(corn) :
+                (axis == coordinate_axis::y ? quaternion_z(corn) : quaternion_x(corn));
+        s0 = -q0[norm_idx] / qv[norm_idx];
         rc0 = cpos + normal * radius;
         rl0 = lerp(p0, p1, s0);
         return radius * radius;
@@ -307,10 +330,10 @@ scalar closest_point_circle_line(
     // its smallest magnitude, thus `q(θ_m)` is the point in the circle closest to
     // the line. The Newton-Raphson method is used for minimization.
 
-    // Intersect line with yz plane and use the angle of this point as the
+    // Intersect line with the circle plane and use the angle of this point as the
     // initial value.
-    const auto q_yz_plane = q0 - (q0.x / qv.x) * qv;
-    const auto initial_theta = std::atan2(q_yz_plane.y, q_yz_plane.z);
+    const auto q_plane = q0 - (q0[norm_idx] / qv[norm_idx]) * qv;
+    const auto initial_theta = std::atan2(q_plane[tan_idx0], q_plane[tan_idx1]);
     const auto qv_len_sqr_inv = scalar(1) / qv_len_sqr;
 
     // Newton-Raphson iterations.
@@ -321,11 +344,22 @@ scalar closest_point_circle_line(
         auto sin_theta = std::sin(theta);
         auto cos_theta = std::cos(theta);
 
-        // Function q(θ) = [0, sin(θ) * r, cos(θ) * r] and its first and
-        // second derivatives.
-        auto q_theta    = vector3{0,  sin_theta * radius,  cos_theta * radius};
-        auto d_q_theta  = vector3{0,  cos_theta * radius, -sin_theta * radius};
-        auto dd_q_theta = vector3{0, -sin_theta * radius, -cos_theta * radius};
+        // Function q(θ) = [0, sin(θ) * r, cos(θ) * r] and its first and second
+        // derivatives. That's when circle lies in the yz plane. Elements must
+        // be swapped according to which coordinate plane the circle lies onto.
+        vector3 q_theta, d_q_theta, dd_q_theta;
+
+        q_theta[norm_idx] = 0;
+        q_theta[tan_idx0] = sin_theta * radius;
+        q_theta[tan_idx1] = cos_theta * radius;
+
+        d_q_theta[norm_idx] = 0;
+        d_q_theta[tan_idx0] = cos_theta * radius;
+        d_q_theta[tan_idx1] = -sin_theta * radius;
+
+        dd_q_theta[norm_idx] = 0;
+        dd_q_theta[tan_idx0] = -sin_theta * radius;
+        dd_q_theta[tan_idx1] = -cos_theta * radius;
 
         // Function c(θ) gives the point in the line closest to q(θ).
         // First and second derivates follow.
@@ -360,7 +394,14 @@ scalar closest_point_circle_line(
 
     auto closest_sin_theta = std::sin(theta);
     auto closest_cos_theta = std::cos(theta);
-    auto rc0_local = vector3{0, closest_sin_theta * radius, closest_cos_theta * radius};
+
+    // Local position of first result point on circle.
+    vector3 rc0_local;
+    rc0_local[norm_idx] = 0;
+    rc0_local[tan_idx0] = closest_sin_theta * radius;
+    rc0_local[tan_idx1] = closest_cos_theta * radius;
+
+    // Local position of first result point on line.
     vector3 rl0_local;
     auto dist_sqr = closest_point_line(q0, qv, rc0_local, s0, rl0_local);
 
@@ -368,7 +409,10 @@ scalar closest_point_circle_line(
     rl0 = cpos + rotate(corn, rl0_local);
 
     // Get tangent at θ and use cross product with line to calculate normal.
-    auto tangent = vector3{0, closest_cos_theta, -closest_sin_theta};
+    vector3 tangent;
+    tangent[norm_idx] = 0;
+    tangent[tan_idx0] = closest_cos_theta;
+    tangent[tan_idx1] = -closest_sin_theta;
     normal = cross(tangent, qv);
 
     auto normal_len_sqr = length_sqr(normal);
@@ -381,7 +425,9 @@ scalar closest_point_circle_line(
         normal = (rl0 - rc0) / std::sqrt(dist_sqr);
     } else {
         // If points coincide, take a vector at an angle θ.
-        normal = vector3{0, closest_sin_theta, closest_cos_theta};
+        normal[norm_idx] = 0;
+        normal[tan_idx0] = closest_sin_theta;
+        normal[tan_idx1] = closest_cos_theta;
         normal = rotate(corn, normal);
     }
 
@@ -428,70 +474,112 @@ size_t intersect_circle_circle(const vector2 &posA, scalar radiusA,
 }
 
 scalar closest_point_circle_circle(
-    const vector3 &posA, const quaternion &ornA, scalar radiusA,
-    const vector3 &posB, const quaternion &ornB, scalar radiusB,
+    const vector3 &posA, const quaternion &ornA, scalar radiusA, coordinate_axis axisA,
+    const vector3 &posB, const quaternion &ornB, scalar radiusB, coordinate_axis axisB,
     size_t &num_points, vector3 &rA0, vector3 &rB0, vector3 &rA1, vector3 &rB1,
     vector3 &normal) {
 
-    auto normalA = rotate(ornA, vector3_x);
-    auto normalB = rotate(ornB, vector3_x);
+    auto normalA = coordinate_axis_vector(axisA, ornA);
+    auto normalB = coordinate_axis_vector(axisB, ornB);
+
+    auto norm_idxA = static_cast<std::underlying_type_t<coordinate_axis>>(axisA);
+    auto tan_idxA0 = (norm_idxA + 1) % 3;
+    auto tan_idxA1 = (norm_idxA + 2) % 3;
+
+    auto norm_idxB = static_cast<std::underlying_type_t<coordinate_axis>>(axisB);
+    auto tan_idxB0 = (norm_idxB + 1) % 3;
+    auto tan_idxB1 = (norm_idxB + 2) % 3;
+
     auto posB_in_A = to_object_space(posB, posA, ornA);
 
     // Check if parallel.
     if (!(length_sqr(cross(normalA, normalB)) > EDYN_EPSILON)) {
         normal = normalB;
+        auto posB_in_A_proj = vector2{posB_in_A[tan_idxA0], posB_in_A[tan_idxA1]};
 
+        // Circle A is in the origin.
         vector2 c0, c1;
-        // A is in the origin.
-        auto np = intersect_circle_circle(vector2_zero, radiusA,
-                                          to_vector2_zy(posB_in_A), radiusB,
-                                          c0, c1);
+        auto np = intersect_circle_circle(vector2_zero, radiusA, posB_in_A_proj, radiusB, c0, c1);
+
         if (np > 0) {
             num_points = np;
-            rA0 = posA + rotate(ornA, vector3 {0, c0.y, c0.x});
-            rB0 = posA + rotate(ornA, vector3 {posB_in_A.x , c0.y, c0.x});
+
+            vector3 rA0_local;
+            rA0_local[norm_idxA] = 0;
+            rA0_local[tan_idxA0] = c0.x;
+            rA0_local[tan_idxA1] = c0.y;
+
+            auto rB0_local = rA0_local;
+            rB0_local[norm_idxA] = posB_in_A[norm_idxA];
+
+            rA0 = to_world_space(rA0_local, posA, ornA);
+            rB0 = to_world_space(rB0_local, posA, ornA);
 
             if (np > 1) {
-                rA1 = posA + rotate(ornA, vector3 {0, c1.y, c1.x});
-                rB1 = posA + rotate(ornA, vector3 {posB_in_A.x , c1.y, c1.x});
+                vector3 rA1_local;
+                rA1_local[norm_idxA] = 0;
+                rA1_local[tan_idxA0] = c1.x;
+                rA1_local[tan_idxA1] = c1.y;
+
+                auto rB1_local = rA1_local;
+                rB1_local[norm_idxA] = posB_in_A[norm_idxA];
+
+                rA1 = to_world_space(rA1_local, posA, ornA);
+                rB1 = to_world_space(rB1_local, posA, ornA);
             }
 
-            return posB_in_A.x * posB_in_A.x;
+            return square(posB_in_A[norm_idxA]);
         } else {
+            // Circles do not intersect.
             // One circle could be contained within the other.
             // If the circles do not intersect and any point of one of them is
             // contained in the other, then the entire circle is contained in
             // the other.
-
             num_points = 1;
-            auto dir = vector2{posB_in_A.z, posB_in_A.y};
+            // Points towards B.
+            auto dir = posB_in_A_proj;
             auto dir_len_sqr = length_sqr(dir);
+
+            // Vector tangent to plane of circle A.
+            auto tanA = vector3_zero;
+            tanA[tan_idxA0] = 1;
 
             if (dir_len_sqr > EDYN_EPSILON) {
                 dir /= std::sqrt(dir_len_sqr);
-                auto pointB_in_A = posB_in_A + vector3_y * radiusB;
-                auto pointA = vector3_y * radiusA;
 
-                if (length_sqr(vector2{pointB_in_A.z, pointB_in_A.y}) < radiusA * radiusA) {
-                    // B contained in A.
-                    rA0 = posA + rotate(ornA, vector3{0, dir.y * radiusA, dir.x * radiusA});
-                    rB0 = posA + rotate(ornA, posB_in_A + vector3{0, dir.y * radiusB, dir.x * radiusB});
-                    return distance_sqr(rA0, rB0);
-                } else if (length_sqr(vector2{pointA.z, pointA.y}) < radiusB * radiusB) {
-                    // A contained in B.
-                    rA0 = posA + rotate(ornA, vector3{0, -dir.y * radiusA, -dir.x * radiusA});
-                    rB0 = posA + rotate(ornA, posB_in_A + vector3{0, -dir.y * radiusB, -dir.x * radiusB});
-                    return distance_sqr(rA0, rB0);
-                } else {
-                    // Circles don't intersect nor are contained in one another.
-                    rA0 = posA + rotate(ornA, vector3{0, dir.y * radiusA, dir.x * radiusA});
-                    rB0 = posA + rotate(ornA, posB_in_A + vector3{0, -dir.y * radiusB, -dir.x * radiusB});
-                    return distance_sqr(rA0, rB0);
-                }
+                auto pointA = tanA * radiusA; // A point on circle A.
+                auto pointB_in_A = posB_in_A + tanA * radiusB; // A point on circle B in A's space.
+                // A contains B if the distance of a point in B to the origin
+                // is smaller than the radius of A.
+                auto A_contains_B = length_sqr(vector2{pointB_in_A[tan_idxA0], pointB_in_A[tan_idxA1]}) < radiusA * radiusA;
+                // B contains A if the distance between a point in A and the
+                // center of B is smaller than the radius of B.
+                auto B_contains_A = distance_sqr(vector2{pointA[tan_idxA0], pointA[tan_idxA1]}, posB_in_A_proj) < radiusB * radiusB;
+
+                // Direction vector pointing towards closest point from circle center.
+                vector3 dirA, dirB;
+                dirA[norm_idxA] = 0;
+                dirA[tan_idxA0] = dir.x;
+                dirA[tan_idxA1] = dir.y;
+
+                dirB[norm_idxB] = 0;
+                dirB[tan_idxB0] = dir.x;
+                dirB[tan_idxB1] = dir.y;
+
+                // Reverse it based on which region the circles are located so they
+                // point in the right direction, towards closest point.
+                dirA *= B_contains_A ? -1 : 1;
+                dirB *= B_contains_A || (!A_contains_B && !B_contains_A) ? -1 : 1;
+
+                rA0 = to_world_space(dirA * radiusA, posA, ornA);
+                rB0 = to_world_space(posB_in_A + dirB * radiusB, posA, ornA);
+                return distance_sqr(rA0, rB0);
             } else {
-                // Concentric.
-                rA0 = posA + rotate(ornA, vector3_y * radiusA);
-                rB0 = posB + rotate(ornB, vector3_y * radiusB);
+                // Concentric. Return a pair of points that lie on the same line
+                // crossing the center of the circles, which are both at the
+                // origin in this case.
+                rA0 = to_world_space(tanA * radiusA, posA, ornA);
+                rB0 = to_world_space(tanA * radiusB, posA, ornA);
                 return distance_sqr(rA0, rB0);
             }
         }
@@ -509,17 +597,31 @@ scalar closest_point_circle_circle(
     // Minimizing `f(φ)` will result in the value of `φ` that gives us the closest
     // points between the two circles.
 
-    // Build ortho basis on B (in A's space).
+    // Build ortho basis of B (in A's space).
     auto ornB_in_A = conjugate(ornA) * ornB;
-    auto u = quaternion_z(ornB_in_A);
-    auto v = quaternion_y(ornB_in_A);
+    vector3 u, v;
+
+    switch (axisA) {
+    case coordinate_axis::x:
+        u = quaternion_z(ornB_in_A);
+        v = quaternion_y(ornB_in_A);
+        break;
+    case coordinate_axis::y:
+        u = quaternion_x(ornB_in_A);
+        v = quaternion_z(ornB_in_A);
+        break;
+    case coordinate_axis::z:
+        u = quaternion_y(ornB_in_A);
+        v = quaternion_x(ornB_in_A);
+        break;
+    }
 
     // Use angle of support point of B closest on A's plane as initial angle.
-    vector3 sup_pos = support_point_circle(posB_in_A, ornB_in_A, radiusB, vector3_x);
-    vector3 sup_neg = support_point_circle(posB_in_A, ornB_in_A, radiusB, -vector3_x);
-    vector3 sup = std::abs(sup_pos.x) < std::abs(sup_neg.x) ? sup_pos : sup_neg;
+    vector3 sup_pos = support_point_circle(posB_in_A, ornB_in_A, radiusB, axisB, coordinate_axis_vector(axisA));
+    vector3 sup_neg = support_point_circle(posB_in_A, ornB_in_A, radiusB, axisB, -coordinate_axis_vector(axisA));
+    vector3 sup = std::abs(sup_pos[norm_idxA]) < std::abs(sup_neg[norm_idxA]) ? sup_pos : sup_neg;
     auto sup_in_B = to_object_space(sup, posB_in_A, ornB_in_A);
-    auto initial_phi = std::atan2(sup_in_B.y, sup_in_B.z);
+    auto initial_phi = std::atan2(sup_in_B[tan_idxA0], sup_in_B[tan_idxA1]);
 
     // Newton-Raphson iterations.
     auto phi = initial_phi;
@@ -533,13 +635,23 @@ scalar closest_point_circle_circle(
         auto d_p_phi = (u * -sin_phi + v * cos_phi) * radiusB;
         auto dd_p_phi = (u * -cos_phi + v * -sin_phi) * radiusB;
 
-        auto theta = std::atan2(p_phi.y, p_phi.z);
+        auto theta = std::atan2(p_phi[tan_idxA0], p_phi[tan_idxA1]);
         auto cos_theta = std::cos(theta);
         auto sin_theta = std::sin(theta);
 
-        auto q_theta = vector3{0, sin_theta * radiusA, cos_theta * radiusA};
-        auto d_q_theta = vector3{0, cos_theta * radiusA, -sin_theta * radiusA};
-        auto dd_q_theta = vector3{0, -sin_theta * radiusA, -cos_theta * radiusA};
+        vector3 q_theta, d_q_theta, dd_q_theta;
+
+        q_theta[norm_idxA] = 0;
+        q_theta[tan_idxA0] = sin_theta * radiusA;
+        q_theta[tan_idxA1] = cos_theta * radiusA;
+
+        d_q_theta[norm_idxA] = 0;
+        d_q_theta[tan_idxA0] = cos_theta * radiusA;
+        d_q_theta[tan_idxA1] = -sin_theta * radiusA;
+
+        dd_q_theta[norm_idxA] = 0;
+        dd_q_theta[tan_idxA0] = -sin_theta * radiusA;
+        dd_q_theta[tan_idxA1] = -cos_theta * radiusA;
 
         // Function d(φ) is the vector connecting the closest points.
         // First and second derivates follow.
@@ -551,9 +663,11 @@ scalar closest_point_circle_circle(
         // length of d(φ).
         // First derivative f' = d'· d
         // Second derivative f" = d'· d + d"· d
-        // auto f_theta = scalar(0.5) * dot(d_phi, d_phi);
+        // auto f_phi = scalar(0.5) * dot(d_phi, d_phi);
         auto d_f_phi = dot(d_phi, d_d_phi);
         auto dd_f_phi = dot(d_d_phi, d_d_phi) + dot(dd_d_phi, d_phi);
+
+        EDYN_ASSERT(dd_f_phi > 0 || dd_f_phi < 0);
 
         auto delta = d_f_phi / dd_f_phi;
         phi -= delta;
@@ -568,21 +682,28 @@ scalar closest_point_circle_circle(
     auto sin_phi = std::sin(phi);
     rB0 = posB_in_A + (u * cos_phi + v * sin_phi) * radiusB;
 
-    auto theta = std::atan2(rB0.y, rB0.z);
+    auto theta = std::atan2(rB0[tan_idxA0], rB0[tan_idxA1]);
     auto cos_theta = std::cos(theta);
     auto sin_theta = std::sin(theta);
-    rA0 = vector3{0, sin_theta * radiusA, cos_theta * radiusA};
+    rA0[norm_idxA] = 0;
+    rA0[tan_idxA0] = sin_theta * radiusA;
+    rA0[tan_idxA1] = cos_theta * radiusA;
 
-    rA0 = posA + rotate(ornA, rA0);
-    rB0 = posA + rotate(ornA, rB0);
+    rA0 = to_world_space(rA0, posA, ornA);
+    rB0 = to_world_space(rB0, posA, ornA);
+
     auto dir = rA0 - rB0;
     auto dist_sqr = length_sqr(dir);
 
     // Get tangents and use cross product to calculate normal.
-    auto tangentA = vector3{0, cos_theta, -sin_theta};
-    auto tangentB = u * -sin_phi + v * cos_phi;
-    normal = cross(tangentA, tangentB);
+    vector3 tangentA;
+    tangentA[norm_idxA] = 0;
+    tangentA[tan_idxA0] = cos_theta;
+    tangentA[tan_idxA1] = -sin_theta;
 
+    auto tangentB = u * -sin_phi + v * cos_phi;
+
+    normal = cross(tangentA, tangentB);
     auto normal_len_sqr = length_sqr(normal);
 
     if (normal_len_sqr > EDYN_EPSILON) {
@@ -593,7 +714,9 @@ scalar closest_point_circle_circle(
         normal = dir / std::sqrt(dist_sqr);
     } else {
         // If points coincide, take a vector at an angle θ.
-        normal = vector3{0, sin_theta, cos_theta};
+        normal[norm_idxA] = 0;
+        normal[tan_idxA0] = sin_theta;
+        normal[tan_idxA1] = cos_theta;
         normal = rotate(ornA, normal);
     }
 
@@ -647,17 +770,28 @@ bool intersect_aabb(const vector3 &min0, const vector3 &max0,
 }
 
 vector3 support_point_circle(const vector3 &pos, const quaternion &orn,
-                             scalar radius, const vector3 &dir) noexcept {
+                             scalar radius, coordinate_axis axis,
+                             const vector3 &dir) noexcept {
+    auto norm_idx = static_cast<std::underlying_type_t<coordinate_axis>>(axis);
+    auto tan_idx0 = (norm_idx + 1) % 3;
+    auto tan_idx1 = (norm_idx + 2) % 3;
+
     auto local_dir = rotate(conjugate(orn), dir);
-    // Squared length in yz plane.
-    auto len_yz_sqr = local_dir.y * local_dir.y + local_dir.z * local_dir.z;
+
+    // Squared length in circle plane.
+    auto len_plane_sqr = local_dir[tan_idx0] * local_dir[tan_idx0] +
+                         local_dir[tan_idx1] * local_dir[tan_idx1];
     vector3 sup;
 
-    if (len_yz_sqr > EDYN_EPSILON) {
-        auto d = radius / std::sqrt(len_yz_sqr);
-        sup = {0, local_dir.y * d, local_dir.z * d};
+    if (len_plane_sqr > EDYN_EPSILON) {
+        auto d = radius / std::sqrt(len_plane_sqr);
+        sup[norm_idx] = 0;
+        sup[tan_idx0] = local_dir[tan_idx0] * d;
+        sup[tan_idx1] = local_dir[tan_idx1] * d;
     } else {
-        sup = {0, radius, 0};
+        sup[norm_idx] = 0;
+        sup[tan_idx0] = radius;
+        sup[tan_idx1] = 0;
     }
 
     return pos + rotate(orn, sup);
@@ -1106,7 +1240,10 @@ bool intersect_segment_aabb(vector3 p0, vector3 p1,
     return true;
 }
 
-intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vector3 pos, quaternion orn, scalar radius, scalar half_length, scalar &u) noexcept {
+intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
+                                                     vector3 pos, quaternion orn,
+                                                     scalar radius, scalar half_length,
+                                                     coordinate_axis axis, scalar &u) noexcept {
     // Let a plane be defined by the ray and the vector orthogonal to the
     // cylinder axis and the ray (i.e. their cross product). This plane cuts
     // the cylinder and their intersection is an ellipse with vertical half
@@ -1115,7 +1252,7 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1, vec
     // spanned by the cylinder axis and the ray are found. By subtracting an
     // amount from the parameter for the ray, the intersection point can be
     // found.
-    auto cyl_dir = quaternion_x(orn);
+    auto cyl_dir = coordinate_axis_vector(axis, orn);
     vector3 cyl_vertices[] = {
         pos + cyl_dir * half_length,
         pos - cyl_dir * half_length

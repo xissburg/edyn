@@ -7,6 +7,10 @@
 
 namespace edyn {
 
+enum class ragdoll_shape_type {
+    box, capsule, cylinder
+};
+
 struct ragdoll_simple_def {
     vector3 position{vector3_zero};
     quaternion orientation{quaternion_identity};
@@ -16,6 +20,8 @@ struct ragdoll_simple_def {
 
     scalar restitution{0};
     scalar friction{0.5};
+
+    ragdoll_shape_type shape_type{ragdoll_shape_type::capsule};
 };
 
 struct ragdoll_def {
@@ -51,6 +57,8 @@ struct ragdoll_def {
 
     scalar restitution{0};
     scalar friction{0.5};
+
+    ragdoll_shape_type shape_type{ragdoll_shape_type::capsule};
 };
 
 struct ragdoll_entities {

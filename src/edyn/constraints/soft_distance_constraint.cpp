@@ -30,14 +30,8 @@ void prepare_constraints<soft_distance_constraint>(entt::registry &registry,
     auto con_view = registry.view<soft_distance_constraint>(entt::exclude_t<disabled_tag>{});
     auto origin_view = registry.view<origin>();
 
-    auto *row_start = registry.ctx().find<row_start_index_soft_distance_constraint>();
-
-    if (row_start == nullptr) {
-        row_start = &registry.ctx().emplace<row_start_index_soft_distance_constraint>();
-    }
-
     size_t start_idx = cache.rows.size();
-    row_start->value = start_idx;
+    registry.ctx().emplace<row_start_index_soft_distance_constraint>().value = start_idx;
 
     con_view.each([&](soft_distance_constraint &con) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);

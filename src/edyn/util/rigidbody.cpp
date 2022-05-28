@@ -115,7 +115,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
                 if constexpr(tuple_has_type<ShapeType, rolling_shapes_tuple_t>::value) {
                     registry.emplace<rolling_tag>(entity);
 
-                    auto roll_dir = shape_rolling_direction<ShapeType>();
+                    auto roll_dir = shape_rolling_direction(shape);
 
                     if (roll_dir != vector3_zero) {
                         registry.emplace<roll_direction>(entity, roll_dir);
