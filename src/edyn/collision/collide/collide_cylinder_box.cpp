@@ -199,7 +199,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         point.normal_attachment = contact_normal_attachment::normal_on_B;
 
         size_t num_edge_intersections = 0;
-        std::pair<vector3, vector3> last_edge;
+        std::array<vector3, 2> last_edge;
 
         // Check if circle and face edges intersect.
         for (size_t vertex_idx = 0; vertex_idx < 4; ++vertex_idx) {
@@ -211,22 +211,9 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
 
             auto v0A = to_object_space(v0w, posA, ornA);
             auto v1A = to_object_space(v1w, posA, ornA);
-            vector2 v0A_proj, v1A_proj;
-
-            switch (shA.axis) {
-            case coordinate_axis::x:
-                v0A_proj = to_vector2_zy(v0A);
-                v1A_proj = to_vector2_zy(v1A);
-                break;
-            case coordinate_axis::y:
-                v0A_proj = to_vector2_zx(v0A);
-                v1A_proj = to_vector2_zx(v1A);
-                break;
-            case coordinate_axis::z:
-                v0A_proj = to_vector2_yx(v0A);
-                v1A_proj = to_vector2_yx(v1A);
-                break;
-            }
+            // Project points onto plane orthogonal to cylinder axis.
+            auto v0A_proj = vector2{v0A[cyl_ax_idx_ortho0], v0A[cyl_ax_idx_ortho1]};
+            auto v1A_proj = vector2{v1A[cyl_ax_idx_ortho0], v1A[cyl_ax_idx_ortho1]};
 
             scalar s[2];
             auto num_points = intersect_line_circle(v0A_proj, v1A_proj,
@@ -248,7 +235,8 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             }
 
             ++num_edge_intersections;
-            last_edge = std::make_pair(v0w, v1w);
+            last_edge[0] = v0w;
+            last_edge[1] = v1w;
 
             auto v0B = verticesB_local[vertex_idx];
             auto v1B = verticesB_local[next_vertex_idx];
@@ -293,28 +281,17 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             // If it intersects a single edge, only two contact points have
             // been added, thus add extra points to create a stable base.
             std::array<vector2, 2> edge_in_A;
-            vector2 box_face_center;
 
-            switch (shA.axis) {
-            case coordinate_axis::x:
-                edge_in_A[0] = to_vector2_zy(to_object_space(last_edge.first, posA, ornA));
-                edge_in_A[1] = to_vector2_zy(to_object_space(last_edge.second, posA, ornA));
-                box_face_center = to_vector2_zy(to_object_space(posB, posA, ornA));
-                break;
-            case coordinate_axis::y:
-                edge_in_A[0] = to_vector2_zx(to_object_space(last_edge.first, posA, ornA));
-                edge_in_A[1] = to_vector2_zx(to_object_space(last_edge.second, posA, ornA));
-                box_face_center = to_vector2_zx(to_object_space(posB, posA, ornA));
-                break;
-            case coordinate_axis::z:
-                edge_in_A[0] = to_vector2_yx(to_object_space(last_edge.first, posA, ornA));
-                edge_in_A[1] = to_vector2_yx(to_object_space(last_edge.second, posA, ornA));
-                box_face_center = to_vector2_yx(to_object_space(posB, posA, ornA));
-                break;
+            for (int i = 0; i < last_edge.size(); ++i) {
+                auto last_edge_local = to_object_space(last_edge[i], posA, ornA);
+                edge_in_A[i] = vector2{last_edge_local[cyl_ax_idx_ortho0], last_edge_local[cyl_ax_idx_ortho1]};
             }
 
             auto edge_dir = edge_in_A[1] - edge_in_A[0];
             auto tangent = normalize(orthogonal(edge_dir));
+
+            auto posB_in_A = to_object_space(posB, posA, ornA);
+            auto box_face_center = vector2{posB_in_A[cyl_ax_idx_ortho0], posB_in_A[cyl_ax_idx_ortho1]};
 
             // Make tangent point towards box face.
             if (dot(tangent, box_face_center) < 0) {
@@ -322,8 +299,8 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             }
 
             point.pivotA[cyl_ax_idx] = shA.half_length * to_sign(feature_indexA == 0);
-            point.pivotA[cyl_ax_idx_ortho0] = tangent.y * shA.radius;
-            point.pivotA[cyl_ax_idx_ortho1] = tangent.x * shA.radius;
+            point.pivotA[cyl_ax_idx_ortho0] = tangent.x * shA.radius;
+            point.pivotA[cyl_ax_idx_ortho1] = tangent.y * shA.radius;
             // Transform pivotA into box space and project onto box face.
             auto pivotA_in_B = to_world_space(point.pivotA, posA_in_B, ornA_in_B);
             point.pivotB = project_plane(pivotA_in_B, verticesB_local[0], face_normal_local);
@@ -345,22 +322,9 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
         // is the x-axis.
         auto v0A = to_object_space(verticesB_world[0], posA, ornA);
         auto v1A = to_object_space(verticesB_world[1], posA, ornA);
-        vector2 v0A_proj, v1A_proj;
-
-        switch (shA.axis) {
-        case coordinate_axis::x:
-            v0A_proj = to_vector2_zy(v0A);
-            v1A_proj = to_vector2_zy(v1A);
-            break;
-        case coordinate_axis::y:
-            v0A_proj = to_vector2_zx(v0A);
-            v1A_proj = to_vector2_zx(v1A);
-            break;
-        case coordinate_axis::z:
-            v0A_proj = to_vector2_yx(v0A);
-            v1A_proj = to_vector2_yx(v1A);
-            break;
-        }
+        // Project points onto plane orthogonal to cylinder axis.
+        auto v0A_proj = vector2{v0A[cyl_ax_idx_ortho0], v0A[cyl_ax_idx_ortho1]};
+        auto v1A_proj = vector2{v1A[cyl_ax_idx_ortho0], v1A[cyl_ax_idx_ortho1]};
 
         scalar s[2];
         auto num_points = intersect_line_circle(v0A_proj, v1A_proj,

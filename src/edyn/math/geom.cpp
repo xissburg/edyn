@@ -1,7 +1,6 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/coordinate_axis.hpp"
 #include "edyn/math/math.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/transform.hpp"
@@ -271,7 +270,7 @@ scalar closest_point_circle_line(
 
             // The distance is simply the value along the circle axis of the
             // resulting point in the line in circle space.
-            auto dist2 = rl0_local[axis_idx] * rl0_local[axis_idx];
+            auto dist2 = square(rl0_local[axis_idx]);
 
             if (num_points > 1) {
                 auto rl1_local = q0 + qv * s1;
@@ -280,7 +279,7 @@ scalar closest_point_circle_line(
                 rl1 = cpos + rotate(corn, rl1_local);
                 rc1 = cpos + rotate(corn, rc1_local);
 
-                dist2 = std::min(dist2, rl1_local[axis_idx] * rl1_local[axis_idx]);
+                dist2 = std::min(dist2, square(rl1_local[axis_idx]));
             }
 
             return dist2;
@@ -529,7 +528,7 @@ scalar closest_point_circle_circle(
                 rB1 = to_world_space(rB1_local, posA, ornA);
             }
 
-            return posB_in_A[axis_idxA] * posB_in_A[axis_idxA];
+            return square(posB_in_A[axis_idxA]);
         } else {
             // Circles do not intersect.
             // One circle could be contained within the other.

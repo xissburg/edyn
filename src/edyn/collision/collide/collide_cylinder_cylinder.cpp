@@ -212,19 +212,7 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
         // cylinder axis is the x axis locally, thus use the z axis in 3D as
         // the x axis in 2D and y axis in 3D as the y axis in 2D.
         vector2 intersection[2];
-        vector2 centerA;
-
-        switch (shB.axis) {
-        case coordinate_axis::x:
-            centerA = to_vector2_zy(posA_in_B);
-            break;
-        case coordinate_axis::y:
-            centerA = to_vector2_zx(posA_in_B);
-            break;
-        case coordinate_axis::z:
-            centerA = to_vector2_yx(posA_in_B);
-            break;
-        }
+        auto centerA = vector2{posA_in_B[cyl_ax_idx_orthoB0], posA_in_B[cyl_ax_idx_orthoB1]};
 
         auto num_points = intersect_circle_circle(centerA, shA.radius,
                                                   vector2_zero, shB.radius,
@@ -245,8 +233,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
 
             for (size_t i = 0; i < num_points; ++i) {
                 point.pivotB[cyl_ax_idxB] = pivotB_axis;
-                point.pivotB[cyl_ax_idx_orthoB0] = intersection[i].y;
-                point.pivotB[cyl_ax_idx_orthoB1] = intersection[i].x;
+                point.pivotB[cyl_ax_idx_orthoB0] = intersection[i].x;
+                point.pivotB[cyl_ax_idx_orthoB1] = intersection[i].y;
 
                 point.pivotA = to_object_space(point.pivotB, posA_in_B, ornA_in_B);
                 point.pivotA[cyl_ax_idxA] = pivotA_axis;
@@ -273,8 +261,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
                 {
                     auto extraA = centerA - dir * shA.radius;
                     point.pivotB[cyl_ax_idxB] = pivotB_axis;
-                    point.pivotB[cyl_ax_idx_orthoB0] = extraA.y;
-                    point.pivotB[cyl_ax_idx_orthoB1] = extraA.x;
+                    point.pivotB[cyl_ax_idx_orthoB0] = extraA.x;
+                    point.pivotB[cyl_ax_idx_orthoB1] = extraA.y;
 
                     point.pivotA = to_object_space(point.pivotB, posA_in_B, ornA_in_B);
                     point.pivotA[cyl_ax_idxA] = pivotA_axis;
@@ -287,8 +275,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
                 {
                     auto extraB = dir * shB.radius;
                     point.pivotB[cyl_ax_idxB] = pivotB_axis;
-                    point.pivotB[cyl_ax_idx_orthoB0] = extraB.y;
-                    point.pivotB[cyl_ax_idx_orthoB1] = extraB.x;
+                    point.pivotB[cyl_ax_idx_orthoB0] = extraB.x;
+                    point.pivotB[cyl_ax_idx_orthoB1] = extraB.y;
 
                     point.pivotA = to_object_space(point.pivotB, posA_in_B, ornA_in_B);
                     point.pivotA[cyl_ax_idxA] = pivotA_axis;
@@ -307,8 +295,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
                 if (shA.radius < shB.radius) {
                     auto extraA = centerA - dir * shA.radius;
                     point.pivotB[cyl_ax_idxB] = pivotB_axis;
-                    point.pivotB[cyl_ax_idx_orthoB0] = extraA.y;
-                    point.pivotB[cyl_ax_idx_orthoB1] = extraA.x;
+                    point.pivotB[cyl_ax_idx_orthoB0] = extraA.x;
+                    point.pivotB[cyl_ax_idx_orthoB1] = extraA.y;
                     point.pivotA = to_object_space(point.pivotB, posA_in_B, ornA_in_B);
                     point.pivotA[cyl_ax_idxA] = pivotA_axis;
                     point.distance = get_local_distance(point.pivotA, point.pivotB);
@@ -316,8 +304,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
                 } else {
                     auto extraB = dir * shB.radius;
                     point.pivotB[cyl_ax_idxB] = pivotB_axis;
-                    point.pivotB[cyl_ax_idx_orthoB0] = extraB.y;
-                    point.pivotB[cyl_ax_idx_orthoB1] = extraB.x;
+                    point.pivotB[cyl_ax_idx_orthoB0] = extraB.x;
+                    point.pivotB[cyl_ax_idx_orthoB1] = extraB.y;
                     point.pivotA = to_object_space(point.pivotB, posA_in_B, ornA_in_B);
                     point.pivotA[cyl_ax_idxA] = pivotA_axis;
                     point.distance = get_local_distance(point.pivotA, point.pivotB);
@@ -330,8 +318,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
                 if (shA.radius < shB.radius) {
                     auto extraA0 = centerA + dir * shA.radius;
                     point.pivotB[cyl_ax_idxB] = pivotB_axis;
-                    point.pivotB[cyl_ax_idx_orthoB0] = extraA0.y;
-                    point.pivotB[cyl_ax_idx_orthoB1] = extraA0.x;
+                    point.pivotB[cyl_ax_idx_orthoB0] = extraA0.x;
+                    point.pivotB[cyl_ax_idx_orthoB1] = extraA0.y;
                     point.pivotA = to_object_space(point.pivotB, posA_in_B, ornA_in_B);
                     point.pivotA[cyl_ax_idxA] = pivotA_axis;
                     point.distance = get_local_distance(point.pivotA, point.pivotB);
@@ -339,8 +327,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
 
                     auto extraA1 = centerA - dir * shA.radius;
                     point.pivotB[cyl_ax_idxB] = pivotB_axis;
-                    point.pivotB[cyl_ax_idx_orthoB0] = extraA1.y;
-                    point.pivotB[cyl_ax_idx_orthoB1] = extraA1.x;
+                    point.pivotB[cyl_ax_idx_orthoB0] = extraA1.x;
+                    point.pivotB[cyl_ax_idx_orthoB1] = extraA1.y;
                     point.pivotA = to_object_space(point.pivotB, posA_in_B, ornA_in_B);
                     point.pivotA[cyl_ax_idxA] = pivotA_axis;
                     point.distance = get_local_distance(point.pivotA, point.pivotB);
@@ -348,8 +336,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
                 } else {
                     auto extraB0 = dir * shB.radius;
                     point.pivotB[cyl_ax_idxB] = pivotB_axis;
-                    point.pivotB[cyl_ax_idx_orthoB0] = extraB0.y;
-                    point.pivotB[cyl_ax_idx_orthoB1] = extraB0.x;
+                    point.pivotB[cyl_ax_idx_orthoB0] = extraB0.x;
+                    point.pivotB[cyl_ax_idx_orthoB1] = extraB0.y;
                     point.pivotA = to_object_space(point.pivotB, posA_in_B, ornA_in_B);
                     point.pivotA[cyl_ax_idxA] = pivotA_axis;
                     point.distance = get_local_distance(point.pivotA, point.pivotB);
@@ -357,8 +345,8 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
 
                     auto extraB1 = -dir * shB.radius;
                     point.pivotB[cyl_ax_idxB] = pivotB_axis;
-                    point.pivotB[cyl_ax_idx_orthoB0] = extraB1.y;
-                    point.pivotB[cyl_ax_idx_orthoB1] = extraB1.x;
+                    point.pivotB[cyl_ax_idx_orthoB0] = extraB1.x;
+                    point.pivotB[cyl_ax_idx_orthoB1] = extraB1.y;
                     point.pivotA = to_object_space(point.pivotB, posA_in_B, ornA_in_B);
                     point.pivotA[cyl_ax_idxA] = pivotA_axis;
                     point.distance = get_local_distance(point.pivotA, point.pivotB);
@@ -423,22 +411,10 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
         // Transform vertices to cylinder space.
         auto v0 = to_object_space(verticesB[0], posA, ornA);
         auto v1 = to_object_space(verticesB[1], posA, ornA);
-        vector2 v0_proj, v1_proj;
 
-        switch (shB.axis) {
-        case coordinate_axis::x:
-            v0_proj = to_vector2_zy(v0);
-            v1_proj = to_vector2_zy(v1);
-            break;
-        case coordinate_axis::y:
-            v0_proj = to_vector2_zx(v0);
-            v1_proj = to_vector2_zx(v1);
-            break;
-        case coordinate_axis::z:
-            v0_proj = to_vector2_yx(v0);
-            v1_proj = to_vector2_yx(v1);
-            break;
-        }
+        // Project points onto plane orthogonal to cylinder axis.
+        auto v0_proj = vector2{v0[cyl_ax_idx_orthoA0], v0[cyl_ax_idx_orthoA1]};
+        auto v1_proj = vector2{v1[cyl_ax_idx_orthoA0], v1[cyl_ax_idx_orthoA1]};
 
         scalar s[2];
         auto num_points = intersect_line_circle(v0_proj, v1_proj,
@@ -462,22 +438,10 @@ void collide(const cylinder_shape &shA, const cylinder_shape &shB,
         // Transform vertices to cylinder space.
         auto v0 = to_object_space(verticesA[0], posB, ornB);
         auto v1 = to_object_space(verticesA[1], posB, ornB);
-        vector2 v0_proj, v1_proj;
 
-        switch (shB.axis) {
-        case coordinate_axis::x:
-            v0_proj = to_vector2_zy(v0);
-            v1_proj = to_vector2_zy(v1);
-            break;
-        case coordinate_axis::y:
-            v0_proj = to_vector2_zx(v0);
-            v1_proj = to_vector2_zx(v1);
-            break;
-        case coordinate_axis::z:
-            v0_proj = to_vector2_yx(v0);
-            v1_proj = to_vector2_yx(v1);
-            break;
-        }
+        // Project points onto plane orthogonal to cylinder axis.
+        auto v0_proj = vector2{v0[cyl_ax_idx_orthoB0], v0[cyl_ax_idx_orthoB1]};
+        auto v1_proj = vector2{v1[cyl_ax_idx_orthoB0], v1[cyl_ax_idx_orthoB1]};
 
         scalar s[2];
         auto num_points = intersect_line_circle(v0_proj, v1_proj,

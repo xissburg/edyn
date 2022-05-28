@@ -152,6 +152,8 @@ void collide_cylinder_triangle(
     // Index of vector element in cylinder object space that represents the
     // cylinder axis.
     auto cyl_ax_idx = static_cast<std::underlying_type_t<coordinate_axis>>(cylinder.axis);
+    auto cyl_ax_ortho_idx0 = (cyl_ax_idx + 1) % 3;
+    auto cyl_ax_ortho_idx1 = (cyl_ax_idx + 2) % 3;
 
     if (cyl_feature == cylinder_feature::face && tri_feature == triangle_feature::face) {
         size_t num_vertices_in_face = 0;
@@ -182,8 +184,6 @@ void collide_cylinder_triangle(
 
         // Add points for the cylinder cap edge perimeter inside the triangle.
         auto multipliers = std::array<scalar, 4>{0, 1, 0, -1};
-        auto cyl_ax_ortho_idx0 = (cyl_ax_idx + 1) % 3;
-        auto cyl_ax_ortho_idx1 = (cyl_ax_idx + 2) % 3;
 
         for (auto i = 0; i < 4; ++i) {
             auto j = (i + 1) % 4;
@@ -210,30 +210,17 @@ void collide_cylinder_triangle(
 
             // Transform vertices to cylinder space.
             auto v0 = tri_vertices[i];
-            auto v0_A = to_object_space(v0, posA, ornA);
+            auto v0A = to_object_space(v0, posA, ornA);
 
             auto v1 = tri_vertices[(i + 1) % 3];
-            auto v1_A = to_object_space(v1, posA, ornA);
+            auto v1A = to_object_space(v1, posA, ornA);
 
-            vector2 v0_proj, v1_proj;
-
-            switch (cylinder.axis) {
-            case coordinate_axis::x:
-                v0_proj = to_vector2_zy(v0_A);
-                v1_proj = to_vector2_zy(v1_A);
-                break;
-            case coordinate_axis::y:
-                v0_proj = to_vector2_zx(v0_A);
-                v1_proj = to_vector2_zx(v1_A);
-                break;
-            case coordinate_axis::z:
-                v0_proj = to_vector2_xy(v0_A);
-                v1_proj = to_vector2_xy(v1_A);
-                break;
-            }
+            // Project points onto plane orthogonal to cylinder axis.
+            auto v0A_proj = vector2{v0A[cyl_ax_ortho_idx0], v0A[cyl_ax_ortho_idx1]};
+            auto v1A_proj = vector2{v1A[cyl_ax_ortho_idx0], v1A[cyl_ax_ortho_idx1]};
 
             scalar s[2];
-            auto num_points = intersect_line_circle(v0_proj, v1_proj,
+            auto num_points = intersect_line_circle(v0A_proj, v1A_proj,
                                                     cylinder.radius, s[0], s[1]);
 
             for (auto j = num_points; j > 0; --j) {
@@ -241,7 +228,7 @@ void collide_cylinder_triangle(
 
                 if (!(t > 0 && t < 1)) continue;
 
-                point.pivotA = lerp(v0_A, v1_A, t);
+                point.pivotA = lerp(v0A, v1A, t);
                 point.pivotA[cyl_ax_idx] = cylinder.half_length * sign_faceA;
                 point.pivotB = lerp(v0, v1, t);
                 result.maybe_add_point(point);
@@ -255,28 +242,15 @@ void collide_cylinder_triangle(
 
         // Check if circle and edge intersect.
         // Transform vertices to cylinder space.
-        auto v0_A = to_object_space(edge_vertices[0], posA, ornA);
-        auto v1_A = to_object_space(edge_vertices[1], posA, ornA);
+        auto v0A = to_object_space(edge_vertices[0], posA, ornA);
+        auto v1A = to_object_space(edge_vertices[1], posA, ornA);
 
         scalar s[2];
-        vector2 v0_proj, v1_proj;
+        // Project points onto plane orthogonal to cylinder axis.
+        auto v0A_proj = vector2{v0A[cyl_ax_ortho_idx0], v0A[cyl_ax_ortho_idx1]};
+        auto v1A_proj = vector2{v1A[cyl_ax_ortho_idx0], v1A[cyl_ax_ortho_idx1]};
 
-        switch (cylinder.axis) {
-        case coordinate_axis::x:
-            v0_proj = to_vector2_zy(v0_A);
-            v1_proj = to_vector2_zy(v1_A);
-            break;
-        case coordinate_axis::y:
-            v0_proj = to_vector2_zx(v0_A);
-            v1_proj = to_vector2_zx(v1_A);
-            break;
-        case coordinate_axis::z:
-            v0_proj = to_vector2_xy(v0_A);
-            v1_proj = to_vector2_xy(v1_A);
-            break;
-        }
-
-        auto num_points = intersect_line_circle(v0_proj, v1_proj,
+        auto num_points = intersect_line_circle(v0A_proj, v1A_proj,
                                                 cylinder.radius, s[0], s[1]);
 
         auto sign_faceA = to_sign(cyl_feature_index == 0);
@@ -285,7 +259,7 @@ void collide_cylinder_triangle(
 
         for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
             auto t = clamp_unit(s[pt_idx]);
-            point.pivotA = lerp(v0_A, v1_A, t);
+            point.pivotA = lerp(v0A, v1A, t);
             point.distance = (point.pivotA[cyl_ax_idx] - pivotA_axis) * sign_faceA;
             point.pivotA[cyl_ax_idx] = pivotA_axis;
             point.pivotB = lerp(edge_vertices[0], edge_vertices[1], t);
