@@ -34,7 +34,7 @@ static void initialize_contact_patch(entt::registry &registry, contact_patch_con
     const auto normal = cp.normal;
     const auto &cyl = registry.get<cylinder_shape>(con.body[0]);
     auto axis_hl = axis * cyl.half_length;
-    auto sup0 = support_point_circle(posA - axis_hl, ornA, cyl.radius, -normal);
+    auto sup0 = support_point_circle(posA - axis_hl, ornA, cyl.radius, cyl.axis, -normal);
     auto sup0_obj = to_object_space(sup0, posA, ornA);
     contact.angle = std::atan2(sup0_obj.y, sup0_obj.z);
 
@@ -145,7 +145,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             // contact plane to find the initial contact extent.
             auto circle_center0 = posA - axis_hl;
             auto circle_center1 = posA + axis_hl;
-            auto sup0 = support_point_circle(posA - axis_hl, ornA, cyl.radius, -normal);
+            auto sup0 = support_point_circle(posA - axis_hl, ornA, cyl.radius, cyl.axis, -normal);
             auto sup1 = sup0 + axis_hl * 2; // because circles are parallel
             auto intersection0 = intersect_line_plane(circle_center0, sup0 - circle_center0, pivotB, normal);
             auto intersection1 = intersect_line_plane(circle_center1, sup1 - circle_center1, pivotB, normal);
