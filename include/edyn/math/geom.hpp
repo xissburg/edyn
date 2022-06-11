@@ -252,8 +252,6 @@ constexpr void support_point_vertices(const std::array<vector3, N> &vertices,
     }
 }
 
-scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3) noexcept;
-
 enum class point_insertion_type {
     none,
     similar,
@@ -271,17 +269,15 @@ insertion_point_result insertion_point_index(const vector3 *points,
                                              size_t count,
                                              size_t &num_points,
                                              const vector3 &new_point,
-                                             scalar new_point_depth,
-                                             bool use_yz) noexcept;
+                                             scalar new_point_depth) noexcept;
 
 template<size_t N>
 insertion_point_result insertion_point_index(const std::array<vector3, N> &points,
                                              const std::array<scalar, N> &depths,
                                              size_t &num_points,
                                              const vector3 &new_point,
-                                             scalar new_point_depth,
-                                             bool use_yz) noexcept {
-    return insertion_point_index(points.data(), depths.data(), N, num_points, new_point, new_point_depth, use_yz);
+                                             scalar new_point_depth) noexcept {
+    return insertion_point_index(points.data(), depths.data(), N, num_points, new_point, new_point_depth);
 }
 
 /**

@@ -247,7 +247,7 @@ void process_collision(entt::entity manifold_entity,
             distances[i] = local_points[i].point.distance;
         }
 
-        auto res = insertion_point_index(pivots, distances, num_points, rp.pivotA, rp.distance, is_tireA);
+        auto res = insertion_point_index(pivots, distances, num_points, rp.pivotA, rp.distance);
 
         // No closest point found for pivotA, try pivotB.
         if (res.type == point_insertion_type::none) {
@@ -255,7 +255,7 @@ void process_collision(entt::entity manifold_entity,
                 pivots[i] = local_points[i].point.pivotB;
             }
 
-            res = insertion_point_index(pivots, distances, num_points, rp.pivotB, rp.distance, is_tireB);
+            res = insertion_point_index(pivots, distances, num_points, rp.pivotB, rp.distance);
         }
 
         if (res.type != point_insertion_type::none) {
@@ -267,7 +267,10 @@ void process_collision(entt::entity manifold_entity,
     // Assign some points to manifold and replace others.
     for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
         auto &local_pt = local_points[pt_idx];
+
         switch (local_pt.type) {
+        case point_insertion_type::none:
+            break;
         case point_insertion_type::append:
             // Notify creation of a new point if it was inserted. It could have
             // been replaced after being inserted in the steps above, but in
@@ -310,8 +313,6 @@ void process_collision(entt::entity manifold_entity,
                 destroy_point_func(local_pt.pt_id);
             }
             new_point_func(local_pt.point);
-            break;
-        default:
             break;
         }
     }
