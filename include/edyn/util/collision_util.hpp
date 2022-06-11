@@ -243,7 +243,10 @@ void process_collision(entt::entity manifold_entity,
     // Assign some points to manifold and replace others.
     for (size_t pt_idx = 0; pt_idx < num_points; ++pt_idx) {
         auto &local_pt = local_points[pt_idx];
+
         switch (local_pt.type) {
+        case point_insertion_type::none:
+            break;
         case point_insertion_type::append:
             // Notify creation of a new point if it was inserted. It could have
             // been replaced after being inserted in the steps above, but in
@@ -286,8 +289,6 @@ void process_collision(entt::entity manifold_entity,
                 destroy_point_func(local_pt.pt_id);
             }
             new_point_func(local_pt.point);
-            break;
-        default:
             break;
         }
     }

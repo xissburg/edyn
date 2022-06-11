@@ -762,11 +762,11 @@ matrix3x3 make_tangent_basis(const vector3 &n) {
 bool intersect_aabb(const vector3 &min0, const vector3 &max0,
                     const vector3 &min1, const vector3 &max1) {
     return (min0.x <= max1.x) &&
-		   (max0.x >= min1.x) &&
-		   (min0.y <= max1.y) &&
-		   (max0.y >= min1.y) &&
-		   (min0.z <= max1.z) &&
-		   (max0.z >= min1.z);
+           (max0.x >= min1.x) &&
+           (min0.y <= max1.y) &&
+           (max0.y >= min1.y) &&
+           (min0.z <= max1.z) &&
+           (max0.z >= min1.z);
 }
 
 vector3 support_point_circle(const vector3 &pos, const quaternion &orn,
@@ -843,20 +843,15 @@ size_t intersect_segments(const vector2 &p0, const vector2 &p1,
     return 0;
 }
 
-scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3) noexcept {
-	vector3 a[3], b[3];
-	a[0] = p0 - p1;
-	a[1] = p0 - p2;
-	a[2] = p0 - p3;
-	b[0] = p2 - p3;
-	b[1] = p1 - p3;
-	b[2] = p1 - p2;
-
-	vector3 tmp0 = cross(a[0], b[0]);
-	vector3 tmp1 = cross(a[1], b[1]);
-	vector3 tmp2 = cross(a[2], b[2]);
-
-	return std::max(std::max(length_sqr(tmp0), length_sqr(tmp1)), length_sqr(tmp2));
+static
+scalar manifold_score(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3) noexcept {
+    // Calculate a value proportional to the surface area of the tetrahedron
+    // with vertices (p0, p1, p2, p3).
+    vector3 c0 = cross(p0 - p1, p0 - p2);
+    vector3 c1 = cross(p0 - p2, p0 - p3);
+    vector3 c2 = cross(p0 - p3, p0 - p1);
+    vector3 c3 = cross(p1 - p2, p2 - p3);
+    return length_sqr(c0) + length_sqr(c1) + length_sqr(c2) + length_sqr(c3);
 }
 
 insertion_point_result insertion_point_index(const vector3 *points,
@@ -868,8 +863,17 @@ insertion_point_result insertion_point_index(const vector3 *points,
     EDYN_ASSERT(num_points <= count);
     const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
 
-    if (num_points < 2) {
+    if (num_points == 0) {
         return {point_insertion_type::append, num_points++};
+    }
+
+    if (num_points == 1) {
+        // Replace if too close.
+        if (distance_sqr(new_point, points[0]) > max_dist_similar_sqr) {
+            return {point_insertion_type::append, num_points++};
+        } else {
+            return {point_insertion_type::similar, 0};
+        }
     }
 
     if (num_points == 2) {
@@ -877,7 +881,8 @@ insertion_point_result insertion_point_index(const vector3 *points,
         if (length_sqr(cross(new_point - points[0], new_point - points[1])) > EDYN_EPSILON) {
             return {point_insertion_type::append, num_points++};
         } else {
-            // Select a point to replace. Maximize segment length.
+            // Points are collinear. Select a point to replace.
+            // Maximize segment length.
             auto dist_sqr0 = distance_sqr(new_point, points[0]);
             auto dist_sqr1 = distance_sqr(new_point, points[1]);
             auto curr_dist_sqr = distance_sqr(points[0], points[1]);
@@ -902,7 +907,9 @@ insertion_point_result insertion_point_index(const vector3 *points,
         auto normal = cross(points[0] - points[1], points[1] - points[2]);
 
         if (try_normalize(normal)) {
-            if (point_in_triangle(vertices, normal, new_point)) {
+            // Check if point is in triangle.
+            if (std::abs(dot(new_point - points[0], normal)) < EDYN_EPSILON &&
+                point_in_triangle(vertices, normal, new_point)) {
                 // Ignore new point because it's inside the existing contact region.
                 return {point_insertion_type::none, count};
             } else {
@@ -931,7 +938,7 @@ insertion_point_result insertion_point_index(const vector3 *points,
                 return {point_insertion_type::replace, 2};
             }
 
-            // Points coincide. Find them and replace one.
+            // Points coincide. Find the pair of points and replace one of them.
             std::array<scalar, 3> dist_sqr;
             dist_sqr[0] = distance_sqr(points[0], points[1]);
             dist_sqr[1] = distance_sqr(points[1], points[2]);
@@ -951,28 +958,28 @@ insertion_point_result insertion_point_index(const vector3 *points,
         }
     }
 
-    // The approximate area when the i-th point is removed.
-    auto areas = make_array<4>(scalar(0));
-    areas[0] = area_4_points(new_point, points[1], points[2], points[3]);
-    areas[1] = area_4_points(new_point, points[0], points[2], points[3]);
-    areas[2] = area_4_points(new_point, points[0], points[1], points[3]);
-    areas[3] = area_4_points(new_point, points[0], points[1], points[2]);
+    // Select the combination of points with the best score.
+    auto scores = make_array<4>(scalar(0));
+    scores[0] = manifold_score(new_point, points[1], points[2], points[3]);
+    scores[1] = manifold_score(new_point, points[0], points[2], points[3]);
+    scores[2] = manifold_score(new_point, points[0], points[1], points[3]);
+    scores[3] = manifold_score(new_point, points[0], points[1], points[2]);
 
-    auto current_area = area_4_points(points[0], points[1], points[2], points[3]);
-    auto max_area = current_area;
-    auto max_area_idx = SIZE_MAX;
+    auto current_score = manifold_score(points[0], points[1], points[2], points[3]);
+    auto max_score = current_score;
+    auto max_score_idx = SIZE_MAX;
 
-    for (size_t i = 0; i < areas.size(); ++i) {
-        if (areas[i] > max_area) {
-            max_area = areas[i];
-            max_area_idx = i;
+    for (size_t i = 0; i < scores.size(); ++i) {
+        if (scores[i] > max_score) {
+            max_score = scores[i];
+            max_score_idx = i;
         }
     }
 
-    if (max_area_idx < max_contacts) {
-        auto type = distance_sqr(points[max_area_idx], new_point) < max_dist_similar_sqr ?
+    if (max_score_idx < max_contacts) {
+        auto type = distance_sqr(points[max_score_idx], new_point) < max_dist_similar_sqr ?
                     point_insertion_type::similar : point_insertion_type::replace;
-        return {type, max_area_idx};
+        return {type, max_score_idx};
     }
 
     // Ignore new point because the current contact set is better as it is.

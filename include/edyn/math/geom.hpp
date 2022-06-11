@@ -249,8 +249,6 @@ constexpr void support_point_vertices(const std::array<vector3, N> &vertices,
     }
 }
 
-scalar area_4_points(const vector3 &p0, const vector3 &p1, const vector3 &p2, const vector3 &p3) noexcept;
-
 enum class point_insertion_type {
     none,
     similar,
