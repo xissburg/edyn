@@ -223,7 +223,7 @@ void process_collision(entt::entity manifold_entity,
             distances[i] = local_points[i].point.distance;
         }
 
-        auto res = insertion_point_index(pivots, distances, num_points, rp.pivotA, rp.distance);
+        auto res = insertion_point_index(pivots, distances, num_points, rp.pivotA);
 
         // No closest point found for pivotA, try pivotB.
         if (res.type == point_insertion_type::none) {
@@ -231,7 +231,7 @@ void process_collision(entt::entity manifold_entity,
                 pivots[i] = local_points[i].point.pivotB;
             }
 
-            res = insertion_point_index(pivots, distances, num_points, rp.pivotB, rp.distance);
+            res = insertion_point_index(pivots, distances, num_points, rp.pivotB);
         }
 
         if (res.type != point_insertion_type::none) {

@@ -858,8 +858,7 @@ insertion_point_result insertion_point_index(const vector3 *points,
                                              const scalar *depths,
                                              size_t count,
                                              size_t &num_points,
-                                             const vector3 &new_point,
-                                             scalar new_point_depth) noexcept {
+                                             const vector3 &new_point) noexcept {
     EDYN_ASSERT(num_points <= count);
     const auto max_dist_similar_sqr = contact_merging_threshold * contact_merging_threshold;
 
