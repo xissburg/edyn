@@ -1,5 +1,6 @@
 #include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -15,6 +16,7 @@
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/util/array.hpp"
 #include "edyn/util/tire_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/math/matrix3x3.hpp"
@@ -23,29 +25,6 @@
 #include <entt/entt.hpp>
 
 namespace edyn {
-
-static void initialize_contact_patch(entt::registry &registry, contact_patch_constraint &con,
-                                     contact_manifold &manifold, contact_manifold::contact_id_type c_id) {
-    auto [posA, ornA, spin_angleA] = registry.get<position, orientation, spin_angle>(con.body[0]);
-    auto &cp = manifold.point[c_id];
-    auto &contact = con.contact[c_id];
-
-    const auto axis = quaternion_x(ornA);
-    const auto normal = cp.normal;
-    const auto &cyl = registry.get<cylinder_shape>(con.body[0]);
-    auto axis_hl = axis * cyl.half_length;
-    auto sup0 = support_point_circle(posA - axis_hl, ornA, cyl.radius, cyl.axis, -normal);
-    auto sup0_obj = to_object_space(sup0, posA, ornA);
-    contact.angle = std::atan2(sup0_obj.y, sup0_obj.z);
-
-    // Transform angle from [-π, π] to [0, 2π].
-    if (contact.angle < 0) {
-        contact.angle += 2 * pi;
-    }
-
-    contact.angle += spin_angleA.s;
-    contact.spin_count = spin_angleA.count;
-}
 
 std::pair<vector3, vector3> get_tire_directions(vector3 axis, vector3 normal, quaternion orn) {
     auto lat_dir = project_direction(axis, normal);
@@ -71,7 +50,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                                    delta_linvel, delta_angvel>();
     auto con_view = registry.view<contact_patch_constraint, contact_manifold>();
     auto origin_view = registry.view<origin>();
-    auto spin_view = registry.view<spin>();
+    auto spin_view = registry.view<spin, spin_angle>();
+    auto cyl_view = registry.view<cylinder_shape>();
 
     for (auto [entity, con, manifold] : con_view.each()) {
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
@@ -81,7 +61,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         // Wheel spin axis in world space.
         const auto axis = quaternion_x(ornA);
         // `A` is assumed to be the tire, thus it must have spin.
-        auto &spinA = registry.get<spin>(con.body[0]);
+        auto &spinA = spin_view.get<spin>(con.body[0]);
         auto spinvelA = axis * spinA.s;
         auto spinvelB = vector3_zero;
 
@@ -90,44 +70,147 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             spinvelB = quaternion_x(ornB) * spinB.s;
         }
 
-        auto &spin_angleA = registry.get<spin_angle>(con.body[0]);
+        auto &spin_angleA = spin_view.get<spin_angle>(con.body[0]);
         auto spin_ornA = ornA * quaternion_axis_angle(vector3_x, spin_angleA.s);
         auto spin_angvelA = angvelA + spinvelA;
 
         auto *delta_spinA = registry.try_get<delta_spin>(con.body[0]);
         auto *delta_spinB = registry.try_get<delta_spin>(con.body[1]);
 
-        auto &cyl = registry.get<cylinder_shape>(con.body[0]);
+        auto &cyl = cyl_view.get<cylinder_shape>(con.body[0]);
 
         // Store initial size of the constraint row cache so the number of rows
         // for this contact constraint can be calculated at the end.
         const auto row_start_index = cache.rows.size();
         unsigned imp_idx = 0;
 
-        auto manifold_ids_end = manifold.ids.begin() + manifold.num_points;
+        struct point_info {
+            scalar angle;
+            scalar half_length;
+            scalar deflection;
+            vector3 normal;
+        };
+        auto num_points = manifold.num_points;
 
-        for (unsigned i = 0; i < manifold.ids.size(); ++i) {
-            if (std::find(manifold.ids.begin(), manifold_ids_end, i) == manifold_ids_end) {
-                con.contact[i].initialized = false;
+        std::array<point_info, max_contacts> infos;
+        auto max_row_half_length = cyl.radius * scalar(0.9);
+        auto r0_inv = scalar(1) / cyl.radius;
+
+        for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
+            auto &cp = manifold.get_point(pt_idx);
+            scalar angle = std::atan2(cp.pivotA.y, cp.pivotA.z);
+
+            // Transform angle from [-π, π] to [0, 2π].
+            if (angle < 0) {
+                angle += 2 * pi;
+            }
+
+            // Add spin angle to bring the contact angle into spin space.
+            angle += spin_angleA.s;
+            infos[pt_idx].angle = angle;
+
+            auto defl = std::min(-cp.distance, scalar(0));
+            infos[pt_idx].deflection = defl;
+            infos[pt_idx].half_length = std::min(scalar(0.4) * cyl.radius *
+                                                 (defl * r0_inv + scalar(2.25) *
+                                                 std::sqrt(defl * r0_inv)),
+                                                 max_row_half_length);
+            infos[pt_idx].normal = cp.normal;
+        }
+
+        // Merge points together into a single patch based on their distance
+        // along the circumference of the tire.
+        for (unsigned i = 0; i < num_points; ++i) {
+            auto pos_i = infos[i].angle * cyl.radius;
+            auto min_i = pos_i - infos[i].half_length;
+            auto max_i = pos_i + infos[i].half_length;
+            unsigned patch_points = 1;
+
+            auto weighted_angle = infos[i].angle * infos[i].deflection;
+            auto weighted_normal = infos[i].normal * infos[i].deflection;
+            auto defl_accum = infos[i].deflection;
+
+            // Look for nearby points ignoring the ones that were already
+            // processed previously.
+            for (unsigned j = num_points; j > i;) {
+                auto k = j - 1;
+                auto pos_k = infos[k].angle * cyl.radius;
+                auto min_k = pos_k - infos[k].half_length;
+                auto max_k = pos_k + infos[k].half_length;
+
+                // Check if intervals intersect.
+                if (min_i <= max_k && max_i >= min_k) {
+                    weighted_angle += infos[k].angle * infos[k].deflection;
+                    weighted_normal += infos[k].normal * infos[k].deflection;
+                    defl_accum += infos[k].deflection;
+                    ++patch_points;
+
+                    // Remove k-th element by replacing with last and
+                    // decrementing size.
+                    infos[k] = infos[--num_points];
+                } else {
+                    --j;
+                }
+            }
+
+            infos[i].angle = weighted_angle / defl_accum;
+            infos[i].normal = normalize(weighted_normal / defl_accum);
+            infos[i].deflection = defl_accum / patch_points;
+        }
+
+        auto merged_infos = make_array<max_contacts>(false);
+
+        // Look for an existing contact patch that is at about the same angle
+        // as the newly calculated locations. Remove patches that are at locations
+        // that do not have a close match among the new locations.
+        for (unsigned i = 0; i < con.num_patches;) {
+            auto &patch = con.patch[i];
+            auto previous_angle = patch.angle - spinA.s * dt;
+            bool found = false;
+
+            for (unsigned j = 0; j < num_points; ++j) {
+                auto &info = infos[j];
+
+                if (std::abs(previous_angle - info.angle) < to_radians(5)) {
+                    patch.angle = info.angle;
+                    patch.deflection = info.deflection;
+                    merged_infos[j] = true;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) {
+                ++i;
+            } else {
+                patch = con.patch[--con.num_patches];
             }
         }
 
-        // Create constraint rows for each contact point.
-        for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-            auto &cp = manifold.get_point(pt_idx);
-            auto &contact = con.contact[manifold.ids[pt_idx]];
+        // Insert new contact patches.
+        for (unsigned i = 0; i < num_points; ++i) {
+            if (merged_infos[i]) continue;
 
-            if (!contact.initialized) {
-                initialize_contact_patch(registry, con, manifold, manifold.ids[pt_idx]);
-                contact.initialized = true;
-            }
+            auto &info = infos[i];
+            auto &patch = con.patch[con.num_patches++];
+            patch.angle = info.angle;
+            patch.deflection = info.deflection;
+            patch.normal = info.normal;
+        }
 
-            const auto normal = cp.normal;
+        // Create constraint rows for each contact patch.
+        for (unsigned i = 0; i < con.num_patches; ++i) {
+            auto &patch = con.patch[i];
+            patch.spin_count = spin_angleA.count;
+
+            const auto normal = patch.normal;
 
             // Calculate contact patch width.
-            auto deflection = std::max(-cp.distance, scalar(0));
+            auto deflection = patch.deflection;
             auto sin_camber = std::clamp(dot(axis, normal), scalar(-1), scalar(1));
             auto camber_angle = std::asin(sin_camber);
+
+
             auto normalized_contact_width = std::cos(std::atan(std::pow(std::abs(camber_angle), std::log(deflection * 300 + 1))));
             auto contact_width = cyl.half_length * 2 * normalized_contact_width;
 
@@ -253,7 +336,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto lat_force = scalar(0);
             auto aligning_torque = scalar(0);
             auto tread_width = contact_width / con.num_tread_rows;
-            auto r0_inv = scalar(1) / cyl.radius;
 
             // Number of full turns since last update.
             auto spin_count_delta = spin_angleA.count - contact.spin_count;
