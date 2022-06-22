@@ -43,10 +43,13 @@ struct contact_patch_constraint : public constraint_base {
 
         // Spin angle at contact point.
         scalar angle{};
+        scalar prev_angle{};
         long spin_count{0};
 
         // Read-only stats.
         vector3 normal;
+        scalar normal_impulse;
+        scalar friction;
         vector3 lon_dir; // Longitudinal tire direction.
         vector3 lat_dir; // Lateral tire direction.
         vector3 pivot; // Center of pressure where forces are applied.
@@ -68,8 +71,9 @@ struct contact_patch_constraint : public constraint_base {
     scalar m_load_sensitivity{0.03};
     scalar m_lon_tread_stiffness{3000000};
     scalar m_lat_tread_stiffness{1800000};
+    scalar m_sidewall_height{0.13};
 
-    static const auto num_rows = 5 * max_contacts;
+    static const auto num_rows = 4 * max_contacts;
     std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
 };
 
