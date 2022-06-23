@@ -50,9 +50,10 @@ struct contact_patch_constraint : public constraint_base {
         vector3 normal;
         scalar normal_impulse;
         scalar friction;
+        uint32_t lifetime {0};
         vector3 lon_dir; // Longitudinal tire direction.
         vector3 lat_dir; // Lateral tire direction.
-        vector3 pivot; // Center of pressure where forces are applied.
+        vector3 pivotA, pivotB; // Center of pressure where forces are applied.
         vector3 center; // Geometric center of contact patch.
         scalar deflection{0}; // Vertical tire deflection.
         scalar sin_camber; // Sine of camber angle.

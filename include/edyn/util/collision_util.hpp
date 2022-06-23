@@ -54,9 +54,6 @@ void create_contact_constraint(entt::registry &registry,
 size_t find_nearest_contact(const contact_point &cp,
                             const collision_result &result);
 
-size_t find_nearest_contact_tire(const contact_point &cp,
-                                 const collision_result &result);
-
 /**
  * Special version of `find_nearest_contact` to find similar points for rolling
  * objects.
@@ -131,27 +128,14 @@ void process_collision(entt::entity manifold_entity,
                        scalar dt,
                        NewPointFunc new_point_func,
                        DestroyPointFunc destroy_point_func) {
-    tire_material *tire = nullptr;
-    auto is_tireA = false;
-    auto is_tireB = false;
-
-    if (tire_view.contains(manifold.body[0])) {
-        tire = &tire_view.template get<tire_material>(manifold.body[0]);
-        is_tireA = true;
-    }
-
-    if (tire_view.contains(manifold.body[1])) {
-        tire = &tire_view.template get<tire_material>(manifold.body[1]);
-        is_tireB = true;
-    }
 
     auto [posA, ornA] = tr_view.template get<position, orientation>(manifold.body[0]);
     auto [posB, ornB] = tr_view.template get<position, orientation>(manifold.body[1]);
     auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
     auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
-    auto rollingA = !is_tireA && rolling_view.contains(manifold.body[0]);
-    auto rollingB = !is_tireB && rolling_view.contains(manifold.body[1]);
+    auto rollingA = rolling_view.contains(manifold.body[0]);
+    auto rollingB = rolling_view.contains(manifold.body[1]);
 
     // Merge new with existing contact points.
     auto merged_indices = std::array<bool, max_contacts>{};
@@ -167,13 +151,7 @@ void process_collision(entt::entity manifold_entity,
         auto &cp = manifold.point[pt_id];
         ++cp.lifetime;
 
-        auto nearest_idx = SIZE_MAX;
-
-        if (tire) {
-            nearest_idx = find_nearest_contact_tire(cp, result);
-        } else {
-            nearest_idx = find_nearest_contact(cp, result);
-        }
+        auto nearest_idx = find_nearest_contact(cp, result);
 
         // Try finding a nearby point for rolling objects.
         if (nearest_idx == result.num_points && rollingA) {

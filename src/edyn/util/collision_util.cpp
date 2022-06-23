@@ -256,27 +256,6 @@ size_t find_nearest_contact_rolling(const collision_result &result, const vector
     return nearest_idx;
 }
 
-size_t find_nearest_contact_tire(const contact_point &cp,
-                                 const collision_result &result) {
-    // Assuming A is the tire, calculate distance in the yz-plane, thus ignoring
-    // the axial component, which means that points that are aligned along the
-    // cylinder axis always get merged together.
-    auto shortest_dist = square(contact_caching_threshold);
-    auto nearest_idx = result.num_points;
-
-    for (size_t i = 0; i < result.num_points; ++i) {
-        auto &coll_pt = result.point[i];
-        auto dist = length_sqr(to_vector2_zy(coll_pt.pivotA) - to_vector2_zy(cp.pivotA));
-
-        if (dist < shortest_dist) {
-            shortest_dist = dist;
-            nearest_idx = i;
-        }
-    }
-
-    return nearest_idx;
-}
-
 static void assign_material_properties(entt::registry &registry, contact_manifold &manifold, contact_point &cp) {
     auto material_view = registry.view<material>();
     auto [materialA] = material_view.get(manifold.body[0]);
