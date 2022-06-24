@@ -23,7 +23,6 @@ void update_tire_state(entt::registry &registry, scalar dt) {
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<linvel, angvel>();
     auto spin_view = registry.view<spin>();
-    auto origin_view = registry.view<origin>();
     auto con_view = registry.view<contact_patch_constraint>();
     auto &graph = registry.ctx().at<entity_graph>();
 
@@ -35,7 +34,6 @@ void update_tire_state(entt::registry &registry, scalar dt) {
         auto &linvelA = vel_view.get<linvel>(entity);
         auto &angvelA = vel_view.get<angvel>(entity);
         auto spinvelA = quaternion_x(ornA) * spin_view.get<spin>(entity).s;
-        auto originA = origin_view.contains(entity) ? origin_view.get<origin>(entity) : static_cast<vector3>(posA);
 
         graph.visit_edges(node.node_index, [&] (auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
@@ -63,16 +61,11 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 spinvelB = quaternion_x(ornB) * spin_view.get<spin>(ts.other_entity).s;
             }
 
-            auto originB = origin_view.contains(ts.other_entity) ? origin_view.get<origin>(ts.other_entity) : static_cast<vector3>(posB);
-
             for (size_t i = 0; i < con.num_patches; ++i) {
                 auto &patch = con.patch[i];
 
-                auto pivotA = to_world_space(patch.pivotA, originA, ornA);
-                auto pivotB = to_world_space(patch.pivotB, originB, ornB);
-
-                auto velA = linvelA + cross(angvelA + spinvelA, pivotA - posA);
-                auto velB = linvelB + cross(angvelB + spinvelB, pivotB - posB);
+                auto velA = linvelA + cross(angvelA + spinvelA, patch.pivot - posA);
+                auto velB = linvelB + cross(angvelB + spinvelB, patch.pivot - posB);
                 auto relvel = velA - velB;
                 auto tan_relvel = project_direction(relvel, patch.normal);
                 auto linvel_rel = project_direction(linvelA - velB, patch.normal);
@@ -104,7 +97,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.Fz = con.impulse[i * 4 + 0] / dt; // Normal spring and damper.
                 tire_cs.Fx = con.impulse[i * 4 + 1] / dt; // Longitudinal spring.
                 tire_cs.Fy = con.impulse[i * 4 + 2] / dt; // Lateral spring.
-                tire_cs.Mz = con.impulse[i * 4 + 3] / dt; // Self-aliging spring.
+                tire_cs.Mz = con.impulse[i * 4 + 3] / dt; // Self-aligning spring.
 
                 for (size_t i = 0; i < patch.tread_rows.size(); ++i) {
                     auto &tread_row = patch.tread_rows[i];
