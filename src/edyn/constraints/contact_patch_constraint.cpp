@@ -284,7 +284,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 }
             }
 
-            info_i.angle = normalize_angle(weighted_angle / defl_accum);
+            info_i.angle = weighted_angle / defl_accum;
             info_i.normal = normalize(weighted_normal / defl_accum);
             info_i.pivot = weighted_pivot / defl_accum;
             info_i.deflection = defl_accum / patch_points;
@@ -307,8 +307,9 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 auto &info = infos[j];
 
                 // Consider wrap around.
-                auto a = std::min(predicted_angle, info.angle);
-                auto b = std::max(predicted_angle, info.angle);
+                auto new_angle = normalize_angle(info.angle);
+                auto a = std::min(predicted_angle, new_angle);
+                auto b = std::max(predicted_angle, new_angle);
                 auto dist = std::min(b - a, a + pi2 - b);
 
                 if (dist < to_radians(5)) {
