@@ -88,6 +88,11 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
     auto cyl_view = registry.view<cylinder_shape>();
 
     for (auto [entity, con, manifold] : con_view.each()) {
+        if (manifold.num_points == 0) {
+            cache.con_num_rows.push_back(0);
+            continue;
+        }
+
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
@@ -122,7 +127,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
         // Create non-penetration constraint rows for each contact point.
         // Ignore spin for normal constraint since it only affects tangential
-        // directions and for cylinders the normal is always
+        // directions and for cylinders the normal always points towards the
+        // spin axis.
         for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
             auto &cp = manifold.get_point(pt_idx);
 
@@ -132,16 +138,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto pivotB = to_world_space(cp.pivotB, originB, ornB);
             auto rA = pivotA - posA;
             auto rB = pivotB - posB;
-            auto vA = linvelA + cross(angvelA, rA);
-            auto vB = linvelB + cross(angvelB, rB);
-            auto relvel = vA - vB;
-            auto normal_relspd = dot(relvel, normal);
-            auto stiffness = velocity_dependent_vertical_stiffness(con.m_normal_stiffness,
-                                                                   std::max(normal_relspd, scalar(0)));
-
-            // Divide stiffness by number of points for correct force distribution.
-            auto spring_force = cp.distance * stiffness / manifold.num_points;
-            auto damper_force = con.m_normal_damping * normal_relspd / manifold.num_points;
 
             auto &row = cache.rows.emplace_back();
             row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
@@ -151,10 +147,29 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             row.dvB = &dvB; row.dwB = &dwB;
             row.impulse = con.impulse[imp_idx++];
             row.lower_limit = 0;
-            row.upper_limit = std::abs(spring_force + damper_force) * dt;
 
             auto options = constraint_row_options{};
-            options.error = -large_scalar;
+
+            if (cp.distance < 0) {
+                auto vA = linvelA + cross(angvelA, rA);
+                auto vB = linvelB + cross(angvelB, rB);
+                auto relvel = vA - vB;
+                auto normal_relspd = dot(relvel, normal);
+                auto stiffness = velocity_dependent_vertical_stiffness(con.m_normal_stiffness,
+                                                                    std::max(normal_relspd, scalar(0)));
+
+                // Divide stiffness by number of points for correct force distribution.
+                auto spring_force = cp.distance * stiffness / manifold.num_points;
+                auto damper_force = con.m_normal_damping * normal_relspd / manifold.num_points;
+
+                row.upper_limit = std::abs(spring_force + damper_force) * dt;
+                options.error = -large_scalar;
+            } else {
+                // It is not penetrating thus apply an impulse that will prevent
+                // penetration after the following physics update.
+                options.error = cp.distance / dt;
+                row.upper_limit = large_scalar;
+            }
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -201,7 +216,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             // Add spin angle to bring the contact angle into spin space.
             angle += spin_angleA.s;
 
-            auto &info = infos[pt_idx];
+            auto &info = infos[num_points++];
             info.angle = angle;
 
             info.deflection = defl;
@@ -215,8 +230,12 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             info.impulse = cp.normal_impulse;
             info.friction = cp.friction;
             info.lifetime = cp.lifetime;
+        }
 
-            ++num_points;
+        if (num_points == 0) {
+            auto num_rows = cache.rows.size() - row_start_index;
+            cache.con_num_rows.push_back(num_rows);
+            continue;
         }
 
         // Merge points together into a single patch based on their distance
@@ -234,8 +253,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
             // Look for nearby points ignoring the ones that were already
             // processed previously.
-            for (unsigned j = num_points; j - 1 > i;) {
-                auto k = j - 1;
+            for (unsigned k = i + 1; k < num_points;) {
                 auto &info_k = infos[k];
                 auto min_k = normalize_angle(info_k.angle - info_k.half_length / cyl.radius);
                 auto max_k = normalize_angle(info_k.angle + info_k.half_length / cyl.radius);
@@ -256,7 +274,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                     // decrementing size.
                     info_k = infos[--num_points];
                 } else {
-                    --j;
+                    ++k;
                 }
             }
 
@@ -331,6 +349,8 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             patch.lifetime = info.lifetime;
             patch.length = info.half_length * 2;
         }
+
+        EDYN_ASSERT(con.num_patches <= max_contacts);
 
         // Create constraint rows for each contact patch.
         for (unsigned i = 0; i < con.num_patches; ++i) {

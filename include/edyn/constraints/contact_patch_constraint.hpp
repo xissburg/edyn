@@ -59,7 +59,7 @@ struct contact_patch_constraint : public constraint_base {
         scalar sliding_spd_avg; // Average of sliding speed of all bristles.
         scalar sliding_ratio; // Percentage of bristles which are sliding.
         scalar width; // Width of contact patch.
-        scalar length;
+        scalar length; // Average lengh of contact patch.
     };
 
     uint8_t num_patches {0};
