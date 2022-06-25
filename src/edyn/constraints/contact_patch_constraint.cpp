@@ -148,28 +148,34 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             row.impulse = con.impulse[imp_idx++];
             row.lower_limit = 0;
 
-            auto options = constraint_row_options{};
+            auto vA = linvelA + cross(angvelA, rA);
+            auto vB = linvelB + cross(angvelB, rB);
+            auto relvel = vA - vB;
+            auto normal_relspd = dot(relvel, normal);
+            auto stiffness = velocity_dependent_vertical_stiffness(con.m_normal_stiffness,
+                                                                   std::max(normal_relspd, scalar(0)));
 
-            if (cp.distance < 0) {
-                auto vA = linvelA + cross(angvelA, rA);
-                auto vB = linvelB + cross(angvelB, rB);
-                auto relvel = vA - vB;
-                auto normal_relspd = dot(relvel, normal);
-                auto stiffness = velocity_dependent_vertical_stiffness(con.m_normal_stiffness,
-                                                                    std::max(normal_relspd, scalar(0)));
+            // Divide stiffness by number of points in the same contact plane
+            // for correct force distribution.
+            unsigned num_points_in_same_plane = 0;
 
-                // Divide stiffness by number of points for correct force distribution.
-                auto spring_force = cp.distance * stiffness / manifold.num_points;
-                auto damper_force = con.m_normal_damping * normal_relspd / manifold.num_points;
+            for (unsigned i = 0; i < manifold.num_points; ++i) {
+                auto &other_cp = manifold.get_point(i);
+                auto other_pivotB = to_world_space(other_cp.pivotB, originB, ornB);
 
-                row.upper_limit = std::abs(spring_force + damper_force) * dt;
-                options.error = -large_scalar;
-            } else {
-                // It is not penetrating thus apply an impulse that will prevent
-                // penetration after the following physics update.
-                options.error = cp.distance / dt;
-                row.upper_limit = large_scalar;
+                if (std::abs(dot(pivotB - other_pivotB, normal)) < collision_threshold) {
+                    ++num_points_in_same_plane;
+                }
             }
+
+            auto deflection = std::max(-cp.distance, scalar(0));
+            auto spring_force = deflection * stiffness / num_points_in_same_plane;
+            auto damper_force = con.m_normal_damping * -normal_relspd / num_points_in_same_plane;
+
+            row.upper_limit = std::abs(spring_force + damper_force) * dt;
+
+            auto options = constraint_row_options{};
+            options.error = -large_scalar;
 
             prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
             warm_start(row);
@@ -278,7 +284,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 }
             }
 
-            info_i.angle = weighted_angle / defl_accum;
+            info_i.angle = normalize_angle(weighted_angle / defl_accum);
             info_i.normal = normalize(weighted_normal / defl_accum);
             info_i.pivot = weighted_pivot / defl_accum;
             info_i.deflection = defl_accum / patch_points;
@@ -294,10 +300,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
         for (unsigned i = 0; i < con.num_patches;) {
             auto &patch = con.patch[i];
             auto predicted_angle = normalize_angle(patch.angle - spinA.s * dt);
-
-            if (predicted_angle < 0) {
-                predicted_angle += 2 * pi;
-            }
 
             bool found = false;
 
