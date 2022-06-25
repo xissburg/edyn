@@ -97,6 +97,10 @@ void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::e
 void island_coordinator::on_destroy_island_resident(entt::registry &registry, entt::entity entity) {
     auto &resident = registry.get<island_resident>(entity);
 
+    if (resident.island_entity == entt::null) {
+        return;
+    }
+
     // Remove from island.
     auto &island = registry.get<edyn::island>(resident.island_entity);
 
