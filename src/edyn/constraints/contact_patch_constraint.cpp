@@ -300,6 +300,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                     patch.normal_impulse = info.impulse;
                     patch.friction = info.friction;
                     patch.lifetime = info.lifetime;
+                    patch.length = info.half_length * 2;
                     merged_infos[j] = true;
                     found = true;
                     break;
@@ -328,6 +329,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             patch.normal_impulse = info.impulse;
             patch.friction = info.friction;
             patch.lifetime = info.lifetime;
+            patch.length = info.half_length * 2;
         }
 
         // Create constraint rows for each contact patch.
@@ -373,17 +375,17 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
             // Calculate contact patch width.
             auto normalized_contact_width = std::cos(std::atan(std::pow(std::abs(camber_angle), std::log(patch.deflection * 300 + 1))));
-            auto contact_width = cyl.half_length * 2 * normalized_contact_width;
+            patch.width = cyl.half_length * 2 * normalized_contact_width;
 
             // Calculate the other end of the contact patch along the width of
             // the tire.
-            auto patch_lat_pos1 = patch_lat_pos0 + lat_dir * contact_width * (sin_camber > 0 ? 1 : -1) * (dot(lat_dir, axis) > 0 ? 1 : -1);
+            auto patch_lat_pos1 = patch_lat_pos0 + lat_dir * patch.width * (sin_camber > 0 ? 1 : -1) * (dot(lat_dir, axis) > 0 ? 1 : -1);
 
             // Calculate center of pressure.
             auto normalized_center_offset = -std::sin(std::atan(camber_angle));
 
             // Where the tread row starts in the x-axis in object space.
-            auto row_start = sin_camber > 0 ? -cyl.half_length : cyl.half_length - contact_width;
+            auto row_start = sin_camber > 0 ? -cyl.half_length : cyl.half_length - patch.width;
 
             auto center_lerp_param = (normalized_center_offset + scalar(1)) * scalar(0.5);
             auto contact_center = lerp(patch_lat_pos0, patch_lat_pos1, center_lerp_param);
@@ -397,10 +399,10 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
             if (sin_camber > 0) {
                 deflection0 = patch.deflection;
-                deflection1 = deflection0 - sin_camber * contact_width;
+                deflection1 = deflection0 - sin_camber * patch.width;
             } else {
                 deflection1 = patch.deflection;
-                deflection0 = deflection1 + sin_camber * contact_width;
+                deflection0 = deflection1 + sin_camber * patch.width;
             }
 
             // Make the smaller deflection at least 10% of the bigger deflection.
@@ -410,13 +412,15 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
             auto sin_contact_angle = std::sin(patch.angle);
             auto cos_contact_angle = std::cos(patch.angle);
-            auto normal_force = patch.normal_impulse / dt;
 
             // Accumulate forces and errors along all bristles.
             auto lon_force = scalar(0);
             auto lat_force = scalar(0);
             auto aligning_torque = scalar(0);
-            auto tread_width = contact_width / con.num_tread_rows;
+            auto tread_width = patch.width / con.num_tread_rows;
+
+            auto normal_force = patch.normal_impulse / dt;
+            auto normal_pressure = normal_force / (patch.width * patch.length);
 
             // Number of full turns since last update.
             auto spin_count_delta = spin_angleA.count - patch.spin_count;
@@ -435,7 +439,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                 auto row_x = row_start + tread_width * scalar(row_idx + 0.5);
 
                 // Normal deflection and length for this row of bristles.
-                auto row_fraction = (row_x - row_start) / contact_width;
+                auto row_fraction = (row_x - row_start) / patch.width;
                 auto defl = lerp(deflection0, deflection1, row_fraction);
 
                 if (defl < EDYN_EPSILON) {
@@ -613,7 +617,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
                         EDYN_ASSERT(false);
                     }
 
-                    auto normal_pressure = (normal_force / con.num_tread_rows) / (tread_width * row_length);
                     auto mu0 = patch.friction * std::exp(scalar(-0.001) * con.m_load_sensitivity * normal_force);
                     bristle.friction = mu0 / (1 + con.m_speed_sensitivity * bristle.sliding_spd);
 
@@ -818,7 +821,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             }
 
             patch.sin_camber = sin_camber;
-            patch.width = contact_width;
             patch.center = geometric_center;
             patch.pivot = contact_center;
             patch.lat_dir = lat_dir;
