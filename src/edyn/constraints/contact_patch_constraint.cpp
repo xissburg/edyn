@@ -396,8 +396,16 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             // position in case they differ in level.
             patch.pivot += normal * dot(normal, patch_lat_pos0 - patch.pivot);
 
+            // Recalculate deflection in case it's been clamped since deformation
+            // is limited by the sidewall height.
+            patch.deflection = dot(normal, patch_lat_pos0 - point_on_edge);
+
+            auto normal_force = patch.normal_impulse / dt;
+
             // Calculate contact patch width.
-            auto normalized_contact_width = std::cos(std::atan(std::pow(std::abs(camber_angle), std::log(patch.deflection * 300 + 1))));
+            auto normalized_contact_width = std::max(scalar(0.08),
+                scalar(1) - scalar(1) /
+                (normal_force * scalar(0.001) * (half_pi - std::abs(camber_angle)) / (std::abs(camber_angle) + scalar(0.001)) + 1));
             patch.width = cyl.half_length * 2 * normalized_contact_width;
 
             // Calculate the other end of the contact patch along the width of
@@ -441,8 +449,6 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto lat_force = scalar(0);
             auto aligning_torque = scalar(0);
             auto tread_width = patch.width / con.num_tread_rows;
-
-            auto normal_force = patch.normal_impulse / dt;
             auto normal_pressure = normal_force / (patch.width * patch.length);
 
             // Number of full turns since last update.
