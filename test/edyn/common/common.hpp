@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <edyn/edyn.hpp>
 
-#if EDYN_DOUBLE_PRECISION
+#ifdef EDYN_DOUBLE_PRECISION
 #define ASSERT_SCALAR_EQ ASSERT_DOUBLE_EQ
 #else
 #define ASSERT_SCALAR_EQ ASSERT_FLOAT_EQ

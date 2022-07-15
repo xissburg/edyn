@@ -97,6 +97,10 @@ void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::e
 void island_coordinator::on_destroy_island_resident(entt::registry &registry, entt::entity entity) {
     auto &resident = registry.get<island_resident>(entity);
 
+    if (resident.island_entity == entt::null) {
+        return;
+    }
+
     // Remove from island.
     auto &island = registry.get<edyn::island>(resident.island_entity);
 
@@ -119,13 +123,6 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
     // Notify the worker of the destruction which happened in the main registry
     // first.
     ctx->m_op_builder->destroy(entity);
-
-    // Manually call these on_destroy functions since they could be triggered
-    // by the EnTT delegate after the island resident is destroyed and the island
-    // resident component is needed in these on_destroy functions.
-    if (registry.any_of<contact_manifold>(entity)) {
-        on_destroy_contact_manifold(registry, entity);
-    }
 }
 
 void island_coordinator::on_destroy_multi_island_resident(entt::registry &registry, entt::entity entity) {
