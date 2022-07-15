@@ -291,14 +291,34 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             info_i.friction /= patch_points;
         }
 
-        auto merged_infos = make_array<max_contacts>(false);
-        std::array<scalar, max_contacts> prev_patch_angles;
-
         // Look for an existing contact patch that is at about the same angle
         // as the newly calculated locations. Remove patches that are at locations
         // that do not have a close match among the new locations.
+
+        // Keep track of which of the existing points have been merged into a patch
+        // so they can be skipped later when creating new patches.
+        auto merged_infos = make_array<max_contacts>(false);
+
+        // Store the angle of each patch before assigning their new angle so the
+        // delta can be calculated.
+        std::array<scalar, max_contacts> prev_patch_angles;
+
+        auto init_patch_with_info = [] (contact_patch_constraint::contact_patch &patch, const point_info &info) {
+            patch.angle          = info.angle;
+            patch.deflection     = info.deflection;
+            patch.normal         = info.normal;
+            patch.pivot          = info.pivot;
+            patch.normal_impulse = info.impulse;
+            patch.friction       = info.friction;
+            patch.lifetime       = info.lifetime;
+            patch.length         = info.half_length * 2;
+        };
+
         for (unsigned i = 0; i < con.num_patches;) {
             auto &patch = con.patch[i];
+            // Predict what is most likely to be the current angle of a patch
+            // by subtracting the angle change over one step from the previous
+            // angle.
             auto predicted_angle = normalize_angle(patch.angle - spinA.s * dt);
 
             bool found = false;
@@ -314,14 +334,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
 
                 if (dist < to_radians(5)) {
                     prev_patch_angles[i] = patch.angle;
-                    patch.angle = info.angle;
-                    patch.deflection = info.deflection;
-                    patch.normal = info.normal;
-                    patch.pivot = info.pivot;
-                    patch.normal_impulse = info.impulse;
-                    patch.friction = info.friction;
-                    patch.lifetime = info.lifetime;
-                    patch.length = info.half_length * 2;
+                    init_patch_with_info(patch, info);
                     merged_infos[j] = true;
                     found = true;
                     break;
@@ -331,6 +344,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             if (found) {
                 ++i;
             } else {
+                // Remove patch by assigning last and decremeting count.
                 patch = con.patch[--con.num_patches];
             }
         }
@@ -343,14 +357,7 @@ void prepare_constraints<contact_patch_constraint>(entt::registry &registry, row
             auto k = con.num_patches++;
             auto &patch = con.patch[k];
             prev_patch_angles[k] = patch.angle;
-            patch.angle = info.angle;
-            patch.deflection = info.deflection;
-            patch.normal = info.normal;
-            patch.pivot = info.pivot;
-            patch.normal_impulse = info.impulse;
-            patch.friction = info.friction;
-            patch.lifetime = info.lifetime;
-            patch.length = info.half_length * 2;
+            init_patch_with_info(patch, info);
         }
 
         EDYN_ASSERT(con.num_patches <= max_contacts);
