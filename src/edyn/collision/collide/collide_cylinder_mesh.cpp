@@ -369,20 +369,11 @@ void collide_cylinder_triangle(
 
         // Check if closest point is on the cylinder axis.
         if (t > 0 && t < 1) {
-            // Add point to result if the closest point match or the vector
-            // connecting them is parallel to the separating axis.
-            auto dir = closest - vertex;
-            auto dir_len_sqr = length_sqr(dir);
-
-            // They're parallel if the absolute dot product is equals to the product
-            // of their lengths.
-            if (!(std::abs(square(dot(dir, sep_axis)) - dir_len_sqr) > EDYN_EPSILON)) {
-                auto pivotA_world = closest - sep_axis * cylinder.radius;
-                point.pivotA = to_object_space(pivotA_world, posA, ornA);
-                point.pivotB = vertex;
-                point.normal_attachment = contact_normal_attachment::none;
-                result.maybe_add_point(point);
-            }
+            auto pivotA_world = closest - sep_axis * cylinder.radius;
+            point.pivotA = to_object_space(pivotA_world, posA, ornA);
+            point.pivotB = vertex;
+            point.normal_attachment = contact_normal_attachment::none;
+            result.maybe_add_point(point);
         }
     } else if (cyl_feature == cylinder_feature::cap_edge && tri_feature == triangle_feature::face) {
         auto supportA = support_point_circle(cylinder_vertices[cyl_feature_index], ornA, cylinder.radius, cylinder.axis, -sep_axis);
@@ -403,17 +394,10 @@ void collide_cylinder_triangle(
 
         // Check if closest point is on the triangle edge segment.
         if (t > 0 && t < 1) {
-            // Add point to result if the closest point match or the vector
-            // connecting them is parallel to the separating axis.
-            auto dir = supportA - closest;
-            auto dir_len_sqr = length_sqr(dir);
-
-            if (!(std::abs(square(dot(dir, sep_axis)) - dir_len_sqr) > EDYN_EPSILON)) {
-                point.pivotA = to_object_space(supportA, posA, ornA);
-                point.pivotB = closest;
-                point.normal_attachment = contact_normal_attachment::none;
-                result.maybe_add_point(point);
-            }
+            point.pivotA = to_object_space(supportA, posA, ornA);
+            point.pivotB = closest;
+            point.normal_attachment = contact_normal_attachment::none;
+            result.maybe_add_point(point);
         }
     }
 }

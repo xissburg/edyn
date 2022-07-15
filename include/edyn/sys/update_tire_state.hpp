@@ -13,7 +13,6 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/parallel/entity_graph.hpp"
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 
 namespace edyn {
@@ -24,8 +23,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<linvel, angvel>();
     auto spin_view = registry.view<spin>();
-    auto origin_view = registry.view<origin>();
-    auto con_view = registry.view<contact_patch_constraint, contact_manifold>();
+    auto con_view = registry.view<contact_patch_constraint>();
     auto &graph = registry.ctx().at<entity_graph>();
 
     ts_view.each([&] (auto entity, graph_node &node, tire_state &ts) {
@@ -36,7 +34,6 @@ void update_tire_state(entt::registry &registry, scalar dt) {
         auto &linvelA = vel_view.get<linvel>(entity);
         auto &angvelA = vel_view.get<angvel>(entity);
         auto spinvelA = quaternion_x(ornA) * spin_view.get<spin>(entity).s;
-        auto originA = origin_view.contains(entity) ? origin_view.get<origin>(entity) : static_cast<vector3>(posA);
 
         graph.visit_edges(node.node_index, [&] (auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
@@ -45,12 +42,12 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 return;
             }
 
-            auto [contact_patch, manifold] = con_view.get(edge_entity);
+            auto [con] = con_view.get(edge_entity);
 
-            EDYN_ASSERT(registry.all_of<tire_state>(manifold.body[0]));
+            EDYN_ASSERT(registry.all_of<tire_state>(con.body[0]));
 
-            ts.other_entity = manifold.body[1];
-            ts.num_contacts = manifold.num_points;
+            ts.other_entity = con.body[1];
+            ts.num_contacts = con.num_patches;
 
             if (ts.num_contacts == 0) {
                 return;
@@ -64,52 +61,46 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 spinvelB = quaternion_x(ornB) * spin_view.get<spin>(ts.other_entity).s;
             }
 
-            auto originB = origin_view.contains(ts.other_entity) ? origin_view.get<origin>(ts.other_entity) : static_cast<vector3>(posB);
+            for (size_t i = 0; i < con.num_patches; ++i) {
+                auto &patch = con.patch[i];
 
-            for (size_t i = 0; i < manifold.num_points; ++i) {
-                auto &cp = manifold.get_point(i);
-                auto &contact = contact_patch.contact[manifold.ids[i]];
-
-                auto pivotA = to_world_space(cp.pivotA, originA, ornA);
-                auto pivotB = to_world_space(cp.pivotB, originB, ornB);
-
-                auto velA = linvelA + cross(angvelA + spinvelA, pivotA - posA);
-                auto velB = linvelB + cross(angvelB + spinvelB, pivotB - posB);
+                auto velA = linvelA + cross(angvelA + spinvelA, patch.pivot - posA);
+                auto velB = linvelB + cross(angvelB + spinvelB, patch.pivot - posB);
                 auto relvel = velA - velB;
-                auto tan_relvel = project_direction(relvel, cp.normal);
-                auto linvel_rel = project_direction(linvelA - velB, cp.normal);
+                auto tan_relvel = project_direction(relvel, patch.normal);
+                auto linvel_rel = project_direction(linvelA - velB, patch.normal);
                 auto linspd_rel = length(linvel_rel);
-                auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : contact.lon_dir;
+                auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : patch.lon_dir;
 
                 auto &tire_cs = ts.contact_state[i];
-                tire_cs.vertical_deflection = contact.deflection;
-                tire_cs.friction_coefficient = cp.friction;
-                tire_cs.sin_camber = contact.sin_camber;
-                auto sin_slip_angle = std::clamp(dot(contact.lat_dir, direction), scalar(-1), scalar(1));
+                tire_cs.vertical_deflection = patch.deflection;
+                tire_cs.friction_coefficient = patch.friction;
+                tire_cs.sin_camber = patch.sin_camber;
+                auto sin_slip_angle = std::clamp(dot(patch.lat_dir, direction), scalar(-1), scalar(1));
                 tire_cs.slip_angle = std::asin(sin_slip_angle);
-                auto vx = dot(linvel_rel, contact.lon_dir);
-                auto vsx = dot(tan_relvel, contact.lon_dir);
+                auto vx = dot(linvel_rel, patch.lon_dir);
+                auto vsx = dot(tan_relvel, patch.lon_dir);
                 tire_cs.slip_ratio = -vsx / (to_sign(vx > 0) * std::max(std::abs(vx), scalar(0.001)));
-                tire_cs.yaw_rate = dot(angvelA, cp.normal);
-                tire_cs.slide_factor = contact.sliding_spd_avg;
-                tire_cs.slide_ratio = contact.sliding_ratio;
-                tire_cs.contact_patch_width = contact.width;
-                tire_cs.contact_lifetime = cp.lifetime;
-                tire_cs.lat_dir = contact.lat_dir;
-                tire_cs.lon_dir = contact.lon_dir;
-                tire_cs.normal = cp.normal;
-                tire_cs.pivot = contact.pivot;
-                tire_cs.position = contact.center;
+                tire_cs.yaw_rate = dot(angvelA, patch.normal);
+                tire_cs.slide_factor = patch.sliding_spd_avg;
+                tire_cs.slide_ratio = patch.sliding_ratio;
+                tire_cs.contact_patch_width = patch.width;
+                tire_cs.contact_lifetime = patch.lifetime;
+                tire_cs.lat_dir = patch.lat_dir;
+                tire_cs.lon_dir = patch.lon_dir;
+                tire_cs.normal = patch.normal;
+                tire_cs.pivot = patch.pivot;
+                tire_cs.position = patch.center;
                 tire_cs.lin_vel = linvel_rel;
 
                 // Add spring and damper impulses.
-                tire_cs.Fz = cp.normal_impulse / dt; // Normal spring and damper.
-                tire_cs.Fx = cp.friction_impulse[0] / dt; // Longitudinal spring.
-                tire_cs.Fy = cp.friction_impulse[1] / dt; // Lateral spring.
-                tire_cs.Mz = cp.spin_friction_impulse / dt; // Self-aliging spring.
+                tire_cs.Fz = con.impulse[i * 4 + 0] / dt; // Normal spring and damper.
+                tire_cs.Fx = con.impulse[i * 4 + 1] / dt; // Longitudinal spring.
+                tire_cs.Fy = con.impulse[i * 4 + 2] / dt; // Lateral spring.
+                tire_cs.Mz = con.impulse[i * 4 + 3] / dt; // Self-aligning spring.
 
-                for (size_t i = 0; i < contact.tread_rows.size(); ++i) {
-                    auto &tread_row = contact.tread_rows[i];
+                for (size_t i = 0; i < patch.tread_rows.size(); ++i) {
+                    auto &tread_row = patch.tread_rows[i];
                     tire_cs.tread_rows[i].start_pos = tread_row.start_pos;
                     tire_cs.tread_rows[i].end_pos = tread_row.end_pos;
 
