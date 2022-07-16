@@ -2,6 +2,7 @@
 #define EDYN_SHARED_COMP_HPP
 
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/aabb_override.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
@@ -36,6 +37,7 @@ namespace edyn {
 using shared_components_t = decltype(std::tuple_cat(std::tuple<
     island_timestamp,
     AABB,
+    AABB_override,
     collision_filter,
     collision_exclusion,
     inertia,

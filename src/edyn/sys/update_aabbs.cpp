@@ -3,6 +3,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/aabb_override.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include <entt/entity/registry.hpp>
@@ -27,7 +28,8 @@ AABB updated_aabb(const polyhedron_shape &polyhedron,
 }
 
 template<typename ShapeType, typename TransformView, typename OriginView>
-void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view, OriginView &origin_view) {
+void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view,
+                 OriginView &origin_view) {
     auto [orn, aabb] = tr_view.template get<orientation, AABB>(entity);
     auto origin = origin_view.contains(entity) ?
         static_cast<vector3>(origin_view.template get<edyn::origin>(entity)) :
@@ -35,23 +37,44 @@ void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view, 
     aabb = updated_aabb(shape, origin, orn);
 }
 
-void update_aabb(entt::registry &registry, entt::entity entity) {
-    auto tr_view = registry.view<position, orientation, AABB>();
-    auto origin_view = registry.view<origin>();
+template<typename TransformView, typename OriginView, typename OverrideView>
+void update_aabb_override(entt::entity entity, TransformView &tr_view,
+                          OriginView &origin_view, OverrideView &override_view) {
+    auto &override = override_view.template get<AABB_override>(entity);
+    auto [orn, aabb] = tr_view.template get<orientation, AABB>(entity);
+    auto origin = origin_view.contains(entity) ?
+        static_cast<vector3>(origin_view.template get<edyn::origin>(entity)) :
+        static_cast<vector3>(tr_view.template get<edyn::position>(entity));
+    aabb = aabb_to_world_space(override, origin, orn);
+}
 
-    visit_shape(registry, entity, [&](auto &&shape) {
-        update_aabb(entity, shape, tr_view, origin_view);
-    });
+void update_aabb(entt::registry &registry, entt::entity entity) {
+    auto origin_view = registry.view<origin>();
+    auto tr_view = registry.view<position, orientation, AABB>();
+    auto override_view = registry.view<AABB_override>();
+
+    if (override_view.contains(entity)) {
+        update_aabb_override(entity, tr_view, origin_view, override_view);
+    } else {
+        visit_shape(registry, entity, [&](auto &&shape) {
+            update_aabb(entity, shape, tr_view, origin_view);
+        });
+    }
 }
 
 template<typename ShapeType>
 void update_aabbs(entt::registry &registry) {
     auto origin_view = registry.view<origin>();
     auto tr_view = registry.view<position, orientation, ShapeType, AABB>();
+    auto override_view = registry.view<AABB_override>();
 
     for (auto entity : tr_view) {
-        auto &shape = tr_view.template get<ShapeType>(entity);
-        update_aabb(entity, shape, tr_view, origin_view);
+        if (override_view.contains(entity)) {
+            update_aabb_override(entity, tr_view, origin_view, override_view);
+        } else {
+            auto &shape = tr_view.template get<ShapeType>(entity);
+            update_aabb(entity, shape, tr_view, origin_view);
+        }
     }
 }
 
