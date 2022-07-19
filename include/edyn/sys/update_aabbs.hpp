@@ -21,6 +21,8 @@ void update_aabbs(entt::registry &registry);
  */
 void update_aabb(entt::registry &registry, entt::entity entity);
 
+void update_island_aabbs(entt::registry &registry);
+
 }
 
 #endif // EDYN_SYS_UPDATE_AABBS_HPP

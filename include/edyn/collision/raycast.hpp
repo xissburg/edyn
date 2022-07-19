@@ -11,8 +11,6 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/shape_index.hpp"
-#include "edyn/collision/tree_view.hpp"
-#include "edyn/collision/broadphase_main.hpp"
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/shapes/shapes.hpp"
 
@@ -130,7 +128,7 @@ struct raycast_result : public shape_raycast_result {
 };
 
 /**
- * @brief Input for a shape-specific raycast query containg the spatial
+ * @brief Input for a shape-specific raycast query containing the spatial
  * configuration.
  */
 struct raycast_context {
@@ -158,7 +156,6 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
     auto index_view = registry.view<shape_index>();
     auto tr_view = registry.view<position, orientation>();
     auto origin_view = registry.view<origin>();
-    auto tree_view_view = registry.view<tree_view>();
     auto shape_views_tuple = get_tuple_of_shape_views(registry);
 
     entt::entity hit_entity {entt::null};
@@ -186,7 +183,7 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
 
     // This function works both in the coordinator and in an island worker.
     // Pick the available broadphase and raycast their AABB trees.
-    if (registry.ctx().find<broadphase_main>() != nullptr) {
+    /* if (registry.ctx().find<broadphase_main>() != nullptr) {
         auto &bphase = registry.ctx().at<broadphase_main>();
         bphase.raycast_islands(p0, p1, [&](entt::entity island_entity) {
             auto &tree_view = tree_view_view.get<edyn::tree_view>(island_entity);
@@ -200,7 +197,7 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
     } else {
         auto &bphase = registry.ctx().at<broadphase_worker>();
         bphase.raycast(p0, p1, raycast_shape);
-    }
+    } */
 
     return {result, hit_entity};
 }

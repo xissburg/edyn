@@ -24,10 +24,6 @@ struct set_material_table {
 
 struct step_simulation {};
 
-struct wake_up_island {};
-
-struct split_island {};
-
 struct set_com {
     entt::entity entity;
     vector3 com;

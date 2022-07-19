@@ -33,12 +33,6 @@ public:
     void update_async(job &completion_job);
     void finish_async_update();
 
-    /**
-     * @brief Returns a view of the procedural dynamic tree.
-     * @return Tree view of the procedural dynamic tree.
-     */
-    tree_view view() const;
-
     template<typename Func>
     void raycast(vector3 p0, vector3 p1, Func func);
 

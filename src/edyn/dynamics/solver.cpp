@@ -201,6 +201,7 @@ void solver::update(scalar dt) {
 
     // Update AABBs after transforms change.
     update_aabbs(registry);
+    update_island_aabbs(registry);
 
     // Update world-space moment of inertia.
     update_inertias(registry);

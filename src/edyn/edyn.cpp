@@ -6,7 +6,6 @@
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/sys/update_presentation.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
-#include "edyn/collision/tree_view.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
 
@@ -24,11 +23,6 @@ static void init_meta() {
     std::apply([&](auto ... c) {
         (entt::meta<decltype(c)>().type().template data<&decltype(c)::body, entt::as_ref_t>("body"_hs), ...);
     }, constraints_tuple);
-
-    entt::meta<tree_view>().type()
-        .data<&tree_view::m_nodes, entt::as_ref_t>("nodes"_hs);
-    entt::meta<tree_view::tree_node>().type()
-        .data<&tree_view::tree_node::entity, entt::as_ref_t>("entity"_hs);
 
     entt::meta<entity_owner>().type()
         .data<&entity_owner::client_entity, entt::as_ref_t>("client_entity"_hs);

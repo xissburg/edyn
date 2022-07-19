@@ -1,9 +1,11 @@
 #ifndef EDYN_COMP_ISLAND_HPP
 #define EDYN_COMP_ISLAND_HPP
 
+#include <optional>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/sparse_set.hpp>
+#include "edyn/comp/aabb.hpp"
 
 namespace edyn {
 
@@ -14,12 +16,12 @@ namespace edyn {
 struct island {
     entt::sparse_set nodes {};
     entt::sparse_set edges {};
+    std::optional<double> sleep_timestamp;
 };
 
-/**
- * @brief Timestamp of the current state of the simulation in an island.
- */
-struct island_timestamp {
+struct island_AABB : public AABB {};
+
+struct island_worker_timestamp {
     double value;
 };
 
@@ -40,10 +42,13 @@ struct multi_island_resident {
     entt::sparse_set island_entities {};
 };
 
-template<typename Archive>
-void serialize(Archive &archive, island_timestamp &timestamp) {
-    archive(timestamp.value);
-}
+struct island_worker_resident {
+    entt::entity worker_entity {entt::null};
+};
+
+struct multi_island_worker_resident {
+    entt::sparse_set worker_entities {};
+};
 
 }
 

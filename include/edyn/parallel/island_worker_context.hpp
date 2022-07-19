@@ -20,22 +20,21 @@ class registry_operation_builder;
  */
 class island_worker_context {
 
-    entt::entity m_island_entity;
+    entt::entity m_worker_entity;
     island_worker *m_worker;
     message_queue_in_out m_message_queue;
     bool m_pending_flush;
 
 public:
+    entt::sparse_set m_nodes;
+    entt::sparse_set m_edges;
     entity_map m_entity_map;
     std::unique_ptr<registry_operation_builder> m_op_builder;
 
     using island_reg_op_func_t = void(entt::entity, msg::island_reg_ops &);
     entt::sigh<island_reg_op_func_t> m_island_reg_op_signal;
 
-    using split_island_func_t = void(entt::entity, msg::split_island &);
-    entt::sigh<split_island_func_t> m_split_island_signal;
-
-    island_worker_context(entt::entity island_entity,
+    island_worker_context(entt::entity worker_entity,
                 island_worker *worker,
                 std::unique_ptr<registry_operation_builder> op_builder,
                 message_queue_in_out message_queue);
@@ -63,10 +62,6 @@ public:
      */
     void flush();
 
-    auto split() {
-        return m_worker->split();
-    }
-
     template<typename Message, typename... Args>
     void send(Args &&... args) {
         m_message_queue.send<Message>(std::forward<Args>(args)...);
@@ -79,14 +74,8 @@ public:
         return entt::sink {m_island_reg_op_signal};
     }
 
-    void on_split_island(msg::split_island &);
-
-    auto split_island_sink() {
-        return entt::sink {m_split_island_signal};
-    }
-
-    auto island_entity() const {
-        return m_island_entity;
+    auto worker_entity() const {
+        return m_worker_entity;
     }
 
     /**

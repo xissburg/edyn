@@ -11,6 +11,10 @@
 
 namespace edyn {
 
+namespace internal {
+    struct no_edge_visits {};
+}
+
 /**
  * A non-directed, unweighted graph where multiple edges can exist between
  * the same pair of nodes (i.e. multigraph) and each node and edge hold an
@@ -90,7 +94,7 @@ public:
      * @tparam Func Visitor function type.
      * @param node_index0 Index of first node.
      * @param node_index1 Index of second node.
-     * @param func Vistor function with signature `void(index_type)`.
+     * @param func Visitor function with signature `void(index_type)`.
      */
     template<typename Func>
     void visit_edges(index_type node_index0, index_type node_index1, Func func) const;
@@ -99,7 +103,7 @@ public:
      * @brief Visit all edges originating at a node.
      * @tparam Func Visitor function type.
      * @param node_index0 Index of node.
-     * @param func Vistor function with signature `void(index_type)`.
+     * @param func Visitor function with signature `void(index_type)`.
      */
     template<typename Func>
     void visit_edges(index_type node_index, Func func) const;
@@ -115,18 +119,18 @@ public:
      * component found.
      * @param first An iterator to the first element of a range of node indices.
      * @param last An iterator past the last element of a range of node indices.
-     * @param visitNodeFunc Function called for each node being visited.
-     * @param visitEdgeFunc Function called for each edge being visited.
-     * @param shouldFunc Function that returns whether to proceed visitng node.
-     * @param componentFunc Function called for each connected component that is
+     * @param visit_node_func Function called for each node being visited.
+     * @param visit_edge_func Function called for each edge being visited.
+     * @param should_func Function that returns whether to proceed visiting node.
+     * @param component_func Function called for each connected component that is
      * formed.
      */
     template<typename It, typename VisitNodeFunc,
              typename VisitEdgeFunc, typename ShouldFunc,
              typename ComponentFunc>
-    void reach(It first, It last, VisitNodeFunc visitNodeFunc,
-               VisitEdgeFunc visitEdgeFunc, ShouldFunc shouldFunc,
-               ComponentFunc componentFunc);
+    void reach(It first, It last, VisitNodeFunc visit_node_func,
+               VisitEdgeFunc visit_edge_func, ShouldFunc should_func,
+               ComponentFunc component_func);
 
     using connected_components_t = std::vector<connected_component>;
 
@@ -141,12 +145,16 @@ public:
     /**
      * @brief Traverses nodes starting at the given node, ignoring
      * non-connecting nodes.
-     * @tparam Func Function type with signature `void(index_type)`.
-     * @param start_nodex_index Index of node where traversal starts.
-     * @param func Function called for each node.
+     * @tparam VisitNodeFunc Function type with signature `void(index_type)`
+     * @tparam VisitEdgeFunc Function type with signature `void(index_type)`
+     * @param start_node_index Index of node where traversal starts.
+     * @param visit_node_func Function called for each node.
+     * @param visit_edge_func Optional function called for each edge.
      */
-    template<typename Func>
-    void traverse_connecting_nodes(index_type start_node_index, Func func);
+    template<typename VisitNodeFunc, typename VisitEdgeFunc = internal::no_edge_visits>
+    void traverse_connecting_nodes(index_type start_node_index,
+                                   VisitNodeFunc visit_node_func,
+                                   VisitEdgeFunc visit_edge_func = {});
 
     void optimize_if_needed();
 
@@ -230,9 +238,9 @@ void entity_graph::visit_edges(index_type node_index, Func func) const {
 template<typename It, typename VisitNodeFunc,
          typename VisitEdgeFunc, typename ShouldFunc,
          typename ComponentFunc>
-void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
-                         VisitEdgeFunc visitEdgeFunc, ShouldFunc shouldFunc,
-                         ComponentFunc componentFunc) {
+void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
+                         VisitEdgeFunc visit_edge_func, ShouldFunc should_func,
+                         ComponentFunc component_func) {
     EDYN_ASSERT(std::distance(first, last) > 0);
 
     m_visited.assign(m_nodes.size(), false);
@@ -250,7 +258,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
             continue;
         }
 
-        if (!shouldFunc(start_node_index)) {
+        if (!should_func(start_node_index)) {
             continue;
         }
 
@@ -265,7 +273,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
 
             const auto &node = m_nodes[node_index];
             EDYN_ASSERT(node.entity != entt::null);
-            visitNodeFunc(node.entity);
+            visit_node_func(node.entity);
 
             // Stop here for non-connecting nodes. Do not visit edges.
             if (node.non_connecting) {
@@ -285,7 +293,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
 
                     if (!m_visited_edges[edge_index]) {
                         EDYN_ASSERT(edge.entity != entt::null);
-                        visitEdgeFunc(edge.entity);
+                        visit_edge_func(edge.entity);
                         m_visited_edges[edge_index] = true;
                     }
 
@@ -295,7 +303,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
                 // Perhaps visit neighboring node and its edges next.
                 auto neighbor_index = adj.node_index;
 
-                if (!m_visited[neighbor_index] && shouldFunc(neighbor_index)) {
+                if (!m_visited[neighbor_index] && should_func(neighbor_index)) {
                     to_visit.emplace_back(neighbor_index);
                     // Set as visited to avoid adding it to `to_visit` more than once.
                     m_visited[neighbor_index] = true;
@@ -306,7 +314,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
         }
 
         // Finished one connected component.
-        componentFunc();
+        component_func();
 
         // Set non-connecting nodes as not visited so they'll be visited again
         // for the next connected components. Non-connecting nodes are shared
@@ -320,9 +328,16 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visitNodeFunc,
     }
 }
 
-template<typename Func>
-void entity_graph::traverse_connecting_nodes(index_type start_node_index, Func func) {
+template<typename VisitNodeFunc, typename VisitEdgeFunc>
+void entity_graph::traverse_connecting_nodes(index_type start_node_index,
+                                             VisitNodeFunc visit_node_func,
+                                             VisitEdgeFunc visit_edge_func) {
     m_visited.assign(m_nodes.size(), false);
+    constexpr auto should_visit_edges = !std::is_same_v<VisitEdgeFunc, internal::no_edge_visits>;
+
+    if constexpr(should_visit_edges) {
+        m_visited_edges.assign(m_edges.size(), false);
+    }
 
     std::vector<index_type> to_visit;
     to_visit.push_back(start_node_index);
@@ -340,13 +355,30 @@ void entity_graph::traverse_connecting_nodes(index_type start_node_index, Func f
             continue;
         }
 
-        func(node_index);
+        visit_node_func(node_index);
 
         // Add neighbors to be visited.
         auto adj_index = node.adjacency_index;
 
         while (adj_index != null_index) {
             auto &adj = m_adjacencies[adj_index];
+
+            if constexpr(should_visit_edges) {
+                auto edge_index = adj.edge_index;
+
+                while (edge_index != null_index) {
+                    auto &edge = m_edges[edge_index];
+
+                    if (!m_visited_edges[edge_index]) {
+                        EDYN_ASSERT(edge.entity != entt::null);
+                        visit_edge_func(edge_index);
+                        m_visited_edges[edge_index] = true;
+                    }
+
+                    edge_index = edge.next;
+                }
+            }
+
             auto neighbor_index = adj.node_index;
 
             if (!m_visited[neighbor_index]) {

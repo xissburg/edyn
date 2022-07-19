@@ -11,8 +11,6 @@
 
 namespace edyn {
 
-class tree_view;
-
 /**
  * @brief Dynamic bounding volume hierarchy tree for broad-phase collision detection.
  *
@@ -96,8 +94,6 @@ public:
      * @return A reference to the tree node.
      */
     const tree_node & get_node(tree_node_id_t) const;
-
-    tree_view view() const;
 
 private:
     tree_node_id_t m_root;

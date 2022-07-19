@@ -35,8 +35,8 @@ island_coordinator::island_coordinator(entt::registry &registry)
     registry.on_construct<graph_edge>().connect<&island_coordinator::on_construct_graph_edge>(*this);
     registry.on_destroy<graph_edge>().connect<&island_coordinator::on_destroy_graph_edge>(*this);
 
-    registry.on_destroy<island_resident>().connect<&island_coordinator::on_destroy_island_resident>(*this);
-    registry.on_destroy<multi_island_resident>().connect<&island_coordinator::on_destroy_multi_island_resident>(*this);
+    registry.on_destroy<island_worker_resident>().connect<&island_coordinator::on_destroy_island_worker_resident>(*this);
+    registry.on_destroy<multi_island_worker_resident>().connect<&island_coordinator::on_destroy_multi_island_worker_resident>(*this);
 
     registry.on_destroy<contact_manifold>().connect<&island_coordinator::on_destroy_contact_manifold>(*this);
 }
@@ -94,25 +94,15 @@ void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::e
     graph.remove_edge(edge.edge_index);
 }
 
-void island_coordinator::on_destroy_island_resident(entt::registry &registry, entt::entity entity) {
-    auto &resident = registry.get<island_resident>(entity);
-
-    if (resident.island_entity == entt::null) {
-        return;
-    }
+void island_coordinator::on_destroy_island_worker_resident(entt::registry &registry, entt::entity entity) {
+    auto &resident = registry.get<island_worker_resident>(entity);
 
     // Remove from island.
-    auto &island = registry.get<edyn::island>(resident.island_entity);
-
-    if (island.nodes.contains(entity)) {
-        island.nodes.erase(entity);
-    } else if (island.edges.contains(entity)) {
-        island.edges.erase(entity);
-    }
+    auto &ctx = m_island_ctx_map.at(resident.worker_entity);
+    ctx->m_nodes.erase(entity);
+    ctx->m_edges.erase(entity);
 
     if (m_importing) return;
-
-    auto &ctx = m_island_ctx_map.at(resident.island_entity);
 
     // When importing delta, the entity is removed from the entity map as part
     // of the import process. Otherwise, the removal has to be done here.
@@ -125,16 +115,15 @@ void island_coordinator::on_destroy_island_resident(entt::registry &registry, en
     ctx->m_op_builder->destroy(entity);
 }
 
-void island_coordinator::on_destroy_multi_island_resident(entt::registry &registry, entt::entity entity) {
-    auto &resident = registry.get<multi_island_resident>(entity);
+void island_coordinator::on_destroy_multi_island_worker_resident(entt::registry &registry, entt::entity entity) {
+    auto &resident = registry.get<multi_island_worker_resident>(entity);
 
     // Remove from islands.
-    for (auto island_entity : resident.island_entities) {
-        auto &island = registry.get<edyn::island>(island_entity);
-        island.nodes.erase(entity);
+    for (auto worker_entity : resident.worker_entities) {
+        auto &ctx = m_island_ctx_map.at(worker_entity);
+        ctx.m_nodes.remove(entity);
 
         if (!m_importing)  {
-            auto &ctx = m_island_ctx_map.at(island_entity);
             ctx->m_op_builder->destroy(entity);
 
             if (ctx->m_entity_map.contains_other(entity)) {
@@ -210,7 +199,7 @@ void island_coordinator::init_new_nodes_and_edges() {
 
     std::vector<entt::entity> connected_nodes;
     std::vector<entt::entity> connected_edges;
-    std::vector<entt::entity> island_entities;
+    std::vector<entt::entity> worker_entities;
     auto resident_view = m_registry->view<island_resident>();
     auto procedural_view = m_registry->view<procedural_tag>();
 
@@ -232,10 +221,10 @@ void island_coordinator::init_new_nodes_and_edges() {
             if (edge_resident.island_entity == entt::null) {
                 connected_edges.push_back(entity);
             } else {
-                auto contains_island = vector_contains(island_entities, edge_resident.island_entity);
+                auto contains_island = vector_contains(worker_entities, edge_resident.island_entity);
 
                 if (!contains_island) {
-                    island_entities.push_back(edge_resident.island_entity);
+                    worker_entities.push_back(edge_resident.island_entity);
                 }
             }
         },
@@ -256,10 +245,10 @@ void island_coordinator::init_new_nodes_and_edges() {
                 return true;
             }
 
-            auto contains_island = vector_contains(island_entities, other_resident.island_entity);
+            auto contains_island = vector_contains(worker_entities, other_resident.island_entity);
 
             if (!contains_island) {
-                island_entities.push_back(other_resident.island_entity);
+                worker_entities.push_back(other_resident.island_entity);
             }
 
             bool continue_visiting = false;
@@ -275,18 +264,22 @@ void island_coordinator::init_new_nodes_and_edges() {
             return continue_visiting;
         },
         [&]() { // connectedComponentFunc
-            if (island_entities.empty()) {
-                create_island(m_timestamp, false, connected_nodes, connected_edges);
-            } else if (island_entities.size() == 1) {
-                auto island_entity = *island_entities.begin();
-                insert_to_island(island_entity, connected_nodes, connected_edges);
+            if (worker_entities.empty()) {
+                // TODO: select least busy worker to insert new nodes in.
+                auto &worker = *m_island_ctx_map.begin()->second;
+                insert_to_worker(worker, connected_nodes, connected_edges);
+            } else if (worker_entities.size() == 1) {
+                auto worker_entity = *worker_entities.begin();
+                insert_to_worker(worker_entity, connected_nodes, connected_edges);
             } else {
-                merge_islands(island_entities, connected_nodes, connected_edges);
+                // TODO: move islands into a single worker and then create nodes and edges
+                // after acknowledgement.
+                //merge_islands(island_entities, connected_nodes, connected_edges);
             }
 
             connected_nodes.clear();
             connected_edges.clear();
-            island_entities.clear();
+            worker_entities.clear();
         });
 }
 
@@ -317,13 +310,10 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
     });
 }
 
-entt::entity island_coordinator::create_island(double timestamp, bool sleeping,
-                                               const std::vector<entt::entity> &nodes,
-                                               const std::vector<entt::entity> &edges) {
-    auto island_entity = m_registry->create();
-    m_registry->emplace<island>(island_entity);
-    auto &isle_time = m_registry->emplace<island_timestamp>(island_entity);
-    isle_time.value = timestamp;
+entt::entity island_coordinator::create_worker() {
+    auto worker_entity = m_registry->create();
+    auto &isle_time = m_registry->emplace<island_worker_timestamp>(worker_entity);
+    isle_time.value = performance_time();
 
     auto [main_queue_input, main_queue_output] = make_message_queue_input_output();
     auto [isle_queue_input, isle_queue_output] = make_message_queue_input_output();
@@ -335,96 +325,58 @@ entt::entity island_coordinator::create_island(double timestamp, bool sleeping,
     // it will be deallocated on the next run.
     auto &settings = m_registry->ctx().at<edyn::settings>();
     auto &material_table = m_registry->ctx().at<edyn::material_mix_table>();
-    auto *worker = new island_worker(island_entity, settings, material_table,
+    auto *worker = new island_worker(settings, material_table,
                                      message_queue_in_out(main_queue_input, isle_queue_output));
 
-    m_island_ctx_map[island_entity] = std::make_unique<island_worker_context>(
-        island_entity, worker, (*settings.make_reg_op_builder)(),
+    m_island_ctx_map[worker_entity] = std::make_unique<island_worker_context>(
+        worker_entity, worker, (*settings.make_reg_op_builder)(),
         message_queue_in_out(isle_queue_input, main_queue_output));
 
-    auto &ctx = m_island_ctx_map[island_entity];
+    // Register to receive delta.
+    auto &ctx = *m_island_ctx_map[worker_entity];
+    ctx.reg_op_sink().connect<&island_coordinator::on_island_reg_ops>(*this);
 
-    // Insert the first entity mapping between the remote island entity and
-    // the local island entity.
-    ctx->m_entity_map.insert(worker->island_entity(), island_entity);
-
-    // Register to receive registry operations.
-    ctx->reg_op_sink().connect<&island_coordinator::on_island_reg_ops>(*this);
-    ctx->split_island_sink().connect<&island_coordinator::on_split_island>(*this);
-
-    // Send over an op containing this island entity to the island worker
-    // before it even starts.
-    ctx->m_op_builder->emplace<island_timestamp>(*m_registry, island_entity);
-
-    if (sleeping) {
-        m_registry->emplace<sleeping_tag>(island_entity);
-        ctx->m_op_builder->emplace<sleeping_tag>(*m_registry, island_entity);
-    }
-
-    insert_to_island(*ctx, nodes, edges);
-
-    ctx->send<msg::island_reg_ops>(ctx->m_op_builder->finish());
-
-    // Create tree_view for this island using the procedural node AABBs. This
-    // ensures expectations will be met after this function call, or else this
-    // island would not have a tree_view until the worker sends an update.
-    dynamic_tree tree;
-    auto aabb_view = m_registry->view<AABB, procedural_tag>();
-
-    for (auto entity : nodes) {
-        if (aabb_view.contains(entity)) {
-            auto &aabb = aabb_view.get<AABB>(entity);
-            tree.create(aabb, entity);
-        }
-    }
-
-    m_registry->emplace<tree_view>(island_entity, tree.view());
-
-    return island_entity;
+    return worker_entity;
 }
 
-void island_coordinator::insert_to_island(entt::entity island_entity,
+void island_coordinator::batch_nodes(const std::vector<entt::entity> &nodes,
+                                     const std::vector<entt::entity> &edges) {
+    auto worker_entity = m_island_ctx_map.begin()->first;
+    auto &ctx = *m_island_ctx_map[worker_entity];
+    insert_to_worker(ctx, nodes, edges);
+    ctx.send<msg::island_reg_ops>(ctx.m_op_builder->finish());
+}
+
+void island_coordinator::insert_to_worker(entt::entity island_entity,
                                           const std::vector<entt::entity> &nodes,
                                           const std::vector<entt::entity> &edges) {
     auto &ctx = m_island_ctx_map.at(island_entity);
-    insert_to_island(*ctx, nodes, edges);
+    insert_to_worker(*ctx, nodes, edges);
 }
 
-void island_coordinator::insert_to_island(island_worker_context &ctx,
+void island_coordinator::insert_to_worker(island_worker_context &ctx,
                                           const std::vector<entt::entity> &nodes,
                                           const std::vector<entt::entity> &edges) {
+    ctx.m_nodes.insert(nodes.begin(), nodes.end());
+    ctx.m_edges.insert(edges.begin(), edges.end());
 
-    auto &island = m_registry->get<edyn::island>(ctx.island_entity());
-
-    for (auto entity : nodes) {
-        if (!island.nodes.contains(entity)) {
-            island.nodes.emplace(entity);
-        }
-    }
-
-    for (auto entity : edges) {
-        if (!island.edges.contains(entity)) {
-            island.edges.emplace(entity);
-        }
-    }
-
-    auto resident_view = m_registry->view<island_resident>();
-    auto multi_resident_view = m_registry->view<multi_island_resident>();
+    auto resident_view = m_registry->view<island_worker_resident>();
+    auto multi_resident_view = m_registry->view<multi_island_worker_resident>();
     auto procedural_view = m_registry->view<procedural_tag>();
-    auto island_entity = ctx.island_entity();
+    auto worker_entity = ctx.worker_entity();
 
     for (auto entity : nodes) {
         if (procedural_view.contains(entity)) {
-            auto &resident = resident_view.get<island_resident>(entity);
-            resident.island_entity = island_entity;
+            auto &resident = resident_view.get<island_worker_resident>(entity);
+            resident.worker_entity = worker_entity;
             ctx.m_op_builder->create(entity);
             ctx.m_op_builder->emplace_all(*m_registry, entity);
         } else {
-            auto &resident = multi_resident_view.get<multi_island_resident>(entity);
+            auto &resident = multi_resident_view.get<multi_island_worker_resident>(entity);
 
-            if (resident.island_entities.contains(island_entity) == 0) {
+            if (resident.worker_entities.contains(worker_entity) == 0) {
                 // Non-procedural entity is not yet in this island, thus create it.
-                resident.island_entities.emplace(island_entity);
+                resident.worker_entities.emplace(worker_entity);
                 ctx.m_op_builder->create(entity);
                 ctx.m_op_builder->emplace_all(*m_registry, entity);
             }
@@ -433,96 +385,13 @@ void island_coordinator::insert_to_island(island_worker_context &ctx,
 
     for (auto entity : edges) {
         // Assign island to residents. All edges are procedural, thus having an
-        // `island_resident`, which refers to a single island.
-        auto &resident = resident_view.get<island_resident>(entity);
-        resident.island_entity = island_entity;
+        // `island_worker_resident`, which refers to a single worker.
+        auto &resident = resident_view.get<island_worker_resident>(entity);
+        resident.worker_entity = worker_entity;
     }
 
     ctx.m_op_builder->create(edges.begin(), edges.end());
     ctx.m_op_builder->emplace_all(*m_registry, edges);
-}
-
-entt::entity island_coordinator::merge_islands(const std::vector<entt::entity> &island_entities,
-                                               const std::vector<entt::entity> &new_nodes,
-                                               const std::vector<entt::entity> &new_edges) {
-    EDYN_ASSERT(island_entities.size() > 1);
-
-    // Pick biggest island and move the other entities into it.
-    entt::entity island_entity;
-    size_t biggest_size = 0;
-
-    for (auto entity : island_entities) {
-        auto &island = m_registry->get<edyn::island>(entity);
-        auto size = island.nodes.size() + island.edges.size();
-
-        if (size > biggest_size) {
-            biggest_size = size;
-            island_entity = entity;
-        }
-    }
-
-    auto other_island_entities = island_entities;
-    vector_erase(other_island_entities, island_entity);
-
-    auto all_nodes = new_nodes;
-    auto all_edges = new_edges;
-
-    for (auto other_island_entity : other_island_entities) {
-        auto &island = m_registry->get<edyn::island>(other_island_entity);
-        all_nodes.insert(all_nodes.end(), island.nodes.begin(), island.nodes.end());
-        all_edges.insert(all_edges.end(), island.edges.begin(), island.edges.end());
-    }
-
-    auto multi_resident_view = m_registry->view<multi_island_resident>();
-
-    for (auto entity : all_nodes) {
-        // Entity might be coming from a sleeping island. Remove `sleeping_tag`s
-        // since the island is supposed to be awake after a merge.
-        m_registry->remove<sleeping_tag>(entity);
-
-        // Remove islands to be destroyed from multi island residents.
-        if (multi_resident_view.contains(entity)) {
-            auto &resident = multi_resident_view.get<multi_island_resident>(entity);
-
-            for (auto other_island_entity : other_island_entities) {
-                if (resident.island_entities.contains(other_island_entity)) {
-                    resident.island_entities.erase(other_island_entity);
-                }
-            }
-        }
-    }
-
-    m_registry->remove<sleeping_tag>(all_edges.begin(), all_edges.end());
-
-    insert_to_island(island_entity, all_nodes, all_edges);
-
-    // Destroy empty islands.
-    for (auto other_island_entity : other_island_entities) {
-        auto &ctx = m_island_ctx_map.at(other_island_entity);
-        ctx->terminate();
-        m_island_ctx_map.erase(other_island_entity);
-        m_registry->destroy(other_island_entity);
-    }
-
-    // Prevents glitch where entities are moved into an island that was sleeping
-    // and thus its timestamp is outdated.
-    if (m_registry->any_of<sleeping_tag>(island_entity)) {
-        auto &isle_timestamp = m_registry->get<island_timestamp>(island_entity);
-        isle_timestamp.value = m_timestamp;
-    }
-
-    return island_entity;
-}
-
-void island_coordinator::create_island(std::vector<entt::entity> nodes, bool sleeping) {
-#if EDYN_DEBUG && !EDYN_DISABLE_ASSERT
-    for (auto entity : nodes) {
-        EDYN_ASSERT(m_registry->any_of<graph_node>(entity));
-    }
-#endif
-
-    auto timestamp = performance_time();
-    create_island(timestamp, sleeping, nodes, {});
 }
 
 void island_coordinator::refresh_dirty_entities() {
@@ -581,10 +450,10 @@ void island_coordinator::refresh_dirty_entities() {
     m_registry->clear<dirty>();
 }
 
-void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, const msg::island_reg_ops &msg) {
+void island_coordinator::on_island_reg_ops(entt::entity source_worker_entity, const msg::island_reg_ops &msg) {
     m_importing = true;
     auto &registry = *m_registry;
-    auto &source_ctx = m_island_ctx_map.at(source_island_entity);
+    auto &source_ctx = m_island_ctx_map.at(source_worker_entity);
 
     msg.ops.execute(registry, source_ctx->m_entity_map);
 
@@ -596,7 +465,7 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
 
     auto procedural_view = registry.view<procedural_tag>();
     auto node_view = registry.view<graph_node>();
-    auto &island = registry.get<edyn::island>(source_island_entity);
+    auto &island = registry.get<edyn::island>(source_worker_entity);
 
     // Insert nodes in the graph for each rigid body.
     auto &graph = registry.ctx().at<entity_graph>();
@@ -607,10 +476,10 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
         registry.emplace<graph_node>(local_entity, node_index);
 
         if (procedural_view.contains(local_entity)) {
-            registry.emplace<island_resident>(local_entity, source_island_entity);
+            registry.emplace<island_resident>(local_entity, source_worker_entity);
         } else {
             auto &resident = registry.emplace<multi_island_resident>(local_entity);
-            resident.island_entities.emplace(source_island_entity);
+            resident.island_entities.emplace(source_worker_entity);
         }
 
         island.nodes.emplace(local_entity);
@@ -628,21 +497,15 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
         auto &node1 = node_view.get<graph_node>(source_ctx->m_entity_map.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         registry.emplace<graph_edge>(local_entity, edge_index);
-        registry.emplace<island_resident>(local_entity, source_island_entity);
+        registry.emplace<island_resident>(local_entity, source_worker_entity);
         island.edges.emplace(local_entity);
     });
 
     m_importing = false;
 
-    // Only do the following if this message wasn't generated during an island split,
-    // since components are not really being replaced, they're just being moved.
-    if (m_splitting_island) {
-        return;
-    }
-
     // Generate contact events.
     msg.ops.replace_for_each<contact_manifold_events>([&](entt::entity remote_entity,
-                                                           const contact_manifold_events &events) {
+                                                          const contact_manifold_events &events) {
         if (!source_ctx->m_entity_map.contains(remote_entity)) {
             return;
         }
@@ -668,116 +531,22 @@ void island_coordinator::on_island_reg_ops(entt::entity source_island_entity, co
         }
     });
 
+    msg.ops.emplace_for_each<island_AABB>([&](entt::entity remote_entity, const island_AABB &) {
+        if (!source_ctx->m_entity_map.contains(remote_entity)) return;
+
+        auto local_entity = source_ctx->m_entity_map.at(remote_entity);
+        m_registry->emplace<island_worker_resident>(local_entity, source_worker_entity);
+    });
+
     (*g_mark_replaced_network_dirty)(registry, msg.ops, source_ctx->m_entity_map, m_timestamp);
-}
-
-void island_coordinator::on_split_island(entt::entity source_island_entity, const msg::split_island &) {
-    m_islands_to_split.push_back(source_island_entity);
-}
-
-void island_coordinator::split_islands() {
-    for (auto island_entity : m_islands_to_split) {
-        split_island(island_entity);
-    }
-    m_islands_to_split.clear();
-}
-
-void island_coordinator::split_island(entt::entity split_island_entity) {
-    if (m_island_ctx_map.count(split_island_entity) == 0) return;
-
-    auto &ctx = m_island_ctx_map.at(split_island_entity);
-    auto connected_components = ctx->split();
-
-    if (connected_components.size() <= 1) return;
-
-    // Process any new messages enqueued during the split, such as created
-    // entities that need to have their entity mappings added and the
-    // update AABB `tree_view` of this island, which removes entities that
-    // have moved due to the split.
-    m_splitting_island = true;
-    ctx->read_messages();
-    m_splitting_island = false;
-
-    // Map entities to the coordinator space.
-    for (auto &connected_component : connected_components) {
-        for (auto &entity : connected_component.nodes) {
-            entity = ctx->m_entity_map.at(entity);
-        }
-
-        for (auto &entity : connected_component.edges) {
-            entity = ctx->m_entity_map.at(entity);
-        }
-    }
-
-    auto timestamp = m_registry->get<island_timestamp>(split_island_entity).value;
-    bool sleeping = m_registry->any_of<sleeping_tag>(split_island_entity);
-    auto multi_resident_view = m_registry->view<multi_island_resident>();
-    auto procedural_view = m_registry->view<procedural_tag>();
-
-    // Collect non-procedural entities that are still in the island that was split.
-    // The first connected component in the array is the one left in the island
-    // that was split.
-    auto &source_connected_component = connected_components.front();
-    std::vector<entt::entity> remaining_non_procedural_entities;
-
-    for (auto entity : source_connected_component.nodes) {
-        if (!procedural_view.contains(entity)) {
-            remaining_non_procedural_entities.push_back(entity);
-        }
-    }
-
-    auto &island = m_registry->get<edyn::island>(split_island_entity);
-
-    for (size_t i = 1; i < connected_components.size(); ++i) {
-        auto &connected = connected_components[i];
-        bool contains_procedural = false;
-
-        for (auto entity : connected.nodes) {
-            if (procedural_view.contains(entity)) {
-                contains_procedural = true;
-                island.nodes.erase(entity);
-                ctx->m_entity_map.erase_other(entity);
-            } else if (!vector_contains(remaining_non_procedural_entities, entity)) {
-                // Remove island that was split from multi-residents if they're not
-                // present in the source island. Non-procedural could be in many
-                // islands thus it's necessary to check before erasing.
-                auto &resident = multi_resident_view.get<multi_island_resident>(entity);
-
-                if (resident.island_entities.contains(split_island_entity)) {
-                    resident.island_entities.erase(split_island_entity);
-                }
-
-                if (island.nodes.contains(entity)) {
-                    island.nodes.erase(entity);
-                    ctx->m_entity_map.erase_other(entity);
-                }
-            }
-        }
-
-        for (auto entity : connected.edges) {
-            island.edges.erase(entity);
-            ctx->m_entity_map.erase_other(entity);
-        }
-
-        // Do not create a new island if this connected component does not
-        // contain any procedural node.
-        if (!contains_procedural) continue;
-
-        create_island(timestamp, sleeping, connected.nodes, connected.edges);
-    }
 }
 
 void island_coordinator::sync() {
     for (auto &pair : m_island_ctx_map) {
-        auto island_entity = pair.first;
         auto &ctx = pair.second;
 
         if (!ctx->reg_ops_empty()) {
             ctx->send_reg_ops();
-
-            if (m_registry->any_of<sleeping_tag>(island_entity)) {
-                ctx->send<msg::wake_up_island>();
-            }
         }
 
         ctx->flush();
@@ -794,7 +563,6 @@ void island_coordinator::update() {
     init_new_nodes_and_edges();
     refresh_dirty_entities();
     sync();
-    split_islands();
 }
 
 void island_coordinator::set_paused(bool paused) {

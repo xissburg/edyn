@@ -15,32 +15,31 @@ class tree_view;
 
 class broadphase_main {
 
+    void intersect_islands();
+
     using aabb_view_t = entt::basic_view<entt::entity, entt::get_t<AABB>, entt::exclude_t<>>;
-    using multi_resident_view_t = entt::basic_view<entt::entity, entt::get_t<multi_island_resident>, entt::exclude_t<>>;
-    using tree_view_view_t = entt::basic_view<entt::entity, entt::get_t<tree_view>, entt::exclude_t<>>;
+    using island_aabb_view_t = entt::basic_view<entt::entity, entt::get_t<island_AABB>, entt::exclude_t<>>;
+    using island_worker_resident_view_t = entt::basic_view<entt::entity, entt::get_t<island_worker_resident>, entt::exclude_t<>>;
+    using multi_island_worker_resident_view_t = entt::basic_view<entt::entity, entt::get_t<multi_island_worker_resident>, entt::exclude_t<>>;
 
-    // A higher threshold is used in the main broadphase to create contact
-    // manifolds between different islands a little earlier and decrease the
-    // probability they'll arrive in the corresponding island worker when the
-    // shapes are already intersecting.
-    constexpr static auto m_threshold = contact_breaking_threshold * scalar(4);
-    constexpr static auto m_aabb_offset = vector3_one * -m_threshold;
-    constexpr static auto m_separation_threshold = m_threshold * scalar(1.3);
+    entity_pair_vector find_intersecting_islands(
+        entt::entity island_entityA, const aabb_view_t &,
+        const island_aabb_view_t &, const island_worker_resident_view_t &,
+        const multi_island_worker_resident_view_t &) const;
 
-    entity_pair_vector intersect_islands(const tree_view &tree_viewA, const tree_view &tree_viewB,
-                                         const aabb_view_t &aabb_view) const;
-    entity_pair_vector intersect_islands_a(const tree_view &tree_viewA, const tree_view &tree_viewB,
-                                           const aabb_view_t &aabb_view) const;
-    entity_pair_vector intersect_island_np(const tree_view &island_tree, entt::entity np_entity,
-                                           const aabb_view_t &aabb_view) const;
-    entity_pair_vector find_intersecting_islands(entt::entity island_entityA,
-                                                 const aabb_view_t &aabb_view,
-                                                 const multi_resident_view_t &resident_view,
-                                                 const tree_view_view_t &tree_view_view) const;
+    void process_intersecting_entities(
+        entity_pair, const island_aabb_view_t &, const island_worker_resident_view_t &,
+        const multi_island_worker_resident_view_t &);
+
+    constexpr static auto m_island_aabb_offset = vector3_one * contact_breaking_threshold * scalar(4);
+    constexpr static auto m_separation_threshold = contact_breaking_threshold * scalar(1.3);
 
 public:
     broadphase_main(entt::registry &);
-    void update();
+
+    void on_construct_island_aabb(entt::registry &, entt::entity);
+    void on_construct_static_kinematic_tag(entt::registry &, entt::entity);
+    void on_destroy_tree_resident(entt::registry &, entt::entity);
 
     template<typename Func>
     void query_islands(const AABB &aabb, Func func);
@@ -54,18 +53,11 @@ public:
     template<typename Func>
     void raycast_non_procedural(vector3 p0, vector3 p1, Func func);
 
-    void on_construct_tree_view(entt::registry &, entt::entity);
-    void on_construct_static_kinematic_tag(entt::registry &, entt::entity);
-    void on_construct_aabb(entt::registry &, entt::entity);
-    void on_destroy_tree_resident(entt::registry &, entt::entity);
-
 private:
     entt::registry *m_registry;
     dynamic_tree m_island_tree; // Tree for island AABBs.
     dynamic_tree m_np_tree; // Tree for non-procedural entities.
     std::vector<entity_pair_vector> m_pair_results;
-
-    bool should_collide(entt::entity, entt::entity) const;
 };
 
 template<typename Func>

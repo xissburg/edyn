@@ -9,6 +9,11 @@ namespace edyn {
 struct rigidbody_tag {};
 
 /**
+ * An island.
+ */
+struct island_tag {};
+
+/**
  * Dynamic rigid body.
  */
 struct dynamic_tag {};
