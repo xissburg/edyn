@@ -9,30 +9,31 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
+#include "edyn/parallel/island_coordinator.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
 
 void update_presentation(entt::registry &registry, double time) {
-    auto timestamp_view = registry.view<island_worker_timestamp>();
+    auto &coordinator = registry.ctx().at<island_coordinator>();
     auto exclude = entt::exclude<sleeping_tag, disabled_tag>;
     auto linear_view = registry.view<position, linvel, present_position, island_worker_resident, procedural_tag>(exclude);
     auto angular_view = registry.view<orientation, angvel, present_orientation, island_worker_resident, procedural_tag>(exclude);
     auto fixed_dt = registry.ctx().at<settings>().fixed_dt;
 
     linear_view.each([&](position &pos, linvel &vel, present_position &pre, island_worker_resident &resident) {
-        EDYN_ASSERT(registry.valid(resident.worker_entity));
-        auto &isle_time = timestamp_view.get<island_worker_timestamp>(resident.worker_entity);
-        EDYN_ASSERT(!(time < isle_time.value));
-        auto dt = std::min(scalar(time - fixed_dt - isle_time.value), fixed_dt);
+        EDYN_ASSERT(resident.worker_index != invalid_worker_index);
+        auto worker_time = coordinator.get_worker_timestamp(resident.worker_index);
+        EDYN_ASSERT(!(time < worker_time));
+        auto dt = scalar(std::min(time - worker_time, max_dt));
         pre = pos + vel * dt;
     });
 
     angular_view.each([&](orientation &orn, angvel &vel, present_orientation &pre, island_worker_resident &resident) {
-        EDYN_ASSERT(registry.valid(resident.worker_entity));
-        auto &isle_time = timestamp_view.get<island_worker_timestamp>(resident.worker_entity);
-        EDYN_ASSERT(!(time < isle_time.value));
-        auto dt = std::min(scalar(time - fixed_dt - isle_time.value), fixed_dt);
+        EDYN_ASSERT(resident.worker_index != invalid_worker_index);
+        auto worker_time = coordinator.get_worker_timestamp(resident.worker_index);
+        EDYN_ASSERT(!(time < worker_time));
+        auto dt = scalar(std::min(time - worker_time, max_dt));
         pre = integrate(orn, vel, dt);
     });
 

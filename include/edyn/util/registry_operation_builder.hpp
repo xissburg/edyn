@@ -63,6 +63,10 @@ class registry_operation_builder {
 
     template<typename Component, typename It>
     void insert_components(const entt::registry &registry, registry_op_type op_type, It first, It last, bool check = false) {
+        if (first == last) {
+            return;
+        }
+
         EDYN_ASSERT(op_type == registry_op_type::emplace ||
                     op_type == registry_op_type::replace ||
                     op_type == registry_op_type::remove);

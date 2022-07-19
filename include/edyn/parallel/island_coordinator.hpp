@@ -3,14 +3,13 @@
 
 #include <vector>
 #include <memory>
-#include <unordered_map>
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
-#include "edyn/parallel/component_index_source.hpp"
 #include "edyn/parallel/island_worker_context.hpp"
 #include "edyn/parallel/message.hpp"
+#include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/util/registry_operation.hpp"
 #include "edyn/util/registry_operation_builder.hpp"
 
@@ -27,16 +26,14 @@ class island_coordinator final {
     void init_new_nodes_and_edges();
     void init_new_non_procedural_node(entt::entity);
 
-    entt::entity create_worker();
-    void insert_to_worker(island_worker_context &ctx,
-                          const std::vector<entt::entity> &nodes,
-                          const std::vector<entt::entity> &edges);
-    void insert_to_worker(entt::entity worker_entity,
+    island_worker_index_type create_worker();
+    void insert_to_worker(island_worker_index_type worker_index,
                           const std::vector<entt::entity> &nodes,
                           const std::vector<entt::entity> &edges);
 
     void refresh_dirty_entities();
     void sync();
+    void balance_workers();
 
 public:
     island_coordinator(island_coordinator const&) = delete;
@@ -52,8 +49,9 @@ public:
 
     void on_destroy_island_worker_resident(entt::registry &, entt::entity);
     void on_destroy_multi_island_worker_resident(entt::registry &, entt::entity);
+    void on_destroy_island(entt::registry &, entt::entity);
 
-    void on_island_reg_ops(entt::entity, const msg::island_reg_ops &);
+    void on_step_update(const message<msg::step_update> &);
 
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
@@ -73,6 +71,8 @@ public:
     void batch_nodes(const std::vector<entt::entity> &nodes,
                      const std::vector<entt::entity> &edges);
 
+    double get_worker_timestamp(island_worker_index_type) const;
+
     auto contact_started_sink() {
         return entt::sink{m_contact_started_signal};
     }
@@ -91,13 +91,15 @@ public:
 
     template<typename Message, typename... Args>
     void send_island_message(entt::entity island_entity, Args &&... args) {
-        auto &ctx = m_island_ctx_map.at(island_entity);
+        auto &resident = m_registry->get<island_worker_resident>(island_entity);
+        auto &ctx = m_worker_ctx[resident.worker_index];
         ctx->send<Message>(std::forward<Args>(args)...);
     }
 
 private:
     entt::registry *m_registry;
-    std::unordered_map<entt::entity, std::unique_ptr<island_worker_context>> m_island_ctx_map;
+    std::vector<std::unique_ptr<island_worker_context>> m_worker_ctx;
+    message_queue_handle<msg::step_update> m_message_queue_handle;
 
     entt::sigh<void(entt::entity)> m_contact_started_signal;
     entt::sigh<void(entt::entity)> m_contact_ended_signal;

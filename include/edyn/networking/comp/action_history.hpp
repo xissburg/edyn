@@ -50,7 +50,7 @@ struct action_history {
     }
 
     void sort() {
-        std::sort(entries.begin(), entries.end(), [] (auto &&lhs, auto &&rhs) {
+        std::sort(entries.begin(), entries.end(), [](auto &&lhs, auto &&rhs) {
             return lhs.timestamp < rhs.timestamp;
         });
     }

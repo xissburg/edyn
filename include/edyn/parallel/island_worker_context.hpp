@@ -5,10 +5,11 @@
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/fwd.hpp>
 #include <entt/entity/sparse_set.hpp>
+#include "edyn/comp/island.hpp"
 #include "edyn/util/entity_map.hpp"
-#include "edyn/parallel/message_queue.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/parallel/island_worker.hpp"
+#include "edyn/parallel/message_dispatcher.hpp"
 
 namespace edyn {
 
@@ -20,25 +21,18 @@ class registry_operation_builder;
  */
 class island_worker_context {
 
-    entt::entity m_worker_entity;
     island_worker *m_worker;
-    message_queue_in_out m_message_queue;
     bool m_pending_flush;
 
 public:
     entt::sparse_set m_nodes;
     entt::sparse_set m_edges;
+    entt::sparse_set m_islands;
     entity_map m_entity_map;
     std::unique_ptr<registry_operation_builder> m_op_builder;
+    double m_timestamp;
 
-    using island_reg_op_func_t = void(entt::entity, msg::island_reg_ops &);
-    entt::sigh<island_reg_op_func_t> m_island_reg_op_signal;
-
-    island_worker_context(entt::entity worker_entity,
-                island_worker *worker,
-                std::unique_ptr<registry_operation_builder> op_builder,
-                message_queue_in_out message_queue);
-    ~island_worker_context();
+    island_worker_context(island_worker *worker, std::unique_ptr<registry_operation_builder> op_builder);
 
     /**
      * Returns whether there are any pending registry operations to be sent.
@@ -54,7 +48,7 @@ public:
      * Sends current registry operations and clears it up, making it ready for more
      * updates.
      */
-    void send_reg_ops();
+    void send_reg_ops(message_queue_identifier source);
 
     /**
      * Ensures messages are delivered and processed by waking up the worker
@@ -63,19 +57,13 @@ public:
     void flush();
 
     template<typename Message, typename... Args>
-    void send(Args &&... args) {
-        m_message_queue.send<Message>(std::forward<Args>(args)...);
+    void send(message_queue_identifier source, Args &&... args) {
+        message_dispatcher::global().send<Message>(m_worker->message_queue_id(), source, std::forward<Args>(args)...);
         m_pending_flush = true;
     }
 
-    void on_island_reg_op(msg::island_reg_ops &);
-
-    auto reg_op_sink() {
-        return entt::sink {m_island_reg_op_signal};
-    }
-
-    auto worker_entity() const {
-        return m_worker_entity;
+    auto message_queue_id() const {
+        return m_worker->message_queue_id();
     }
 
     /**

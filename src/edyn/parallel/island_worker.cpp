@@ -67,15 +67,22 @@ void island_worker_func(job::data_type &data) {
     }
 }
 
-island_worker::island_worker(const settings &settings,
-                             const material_mix_table &material_table,
-                             message_queue_in_out message_queue)
-    : m_message_queue(message_queue)
-    , m_state(state::init)
+island_worker::island_worker(const std::string &name, const settings &settings,
+                             const material_mix_table &material_table, message_queue_identifier coordinator_queue_id)
+    : m_state(state::init)
     , m_solver(m_registry)
     , m_op_builder((*settings.make_reg_op_builder)())
     , m_importing(false)
     , m_destroying_node(false)
+    , m_message_queue(message_dispatcher::global().make_queue<
+        msg::set_paused,
+        msg::set_settings,
+        msg::step_simulation,
+        msg::set_com,
+        msg::set_material_table,
+        msg::update_entities,
+        msg::apply_network_pools>(name.c_str()))
+    , m_coordinator_queue_id(coordinator_queue_id)
 {
     m_registry.ctx().emplace<contact_manifold_map>(m_registry);
     m_registry.ctx().emplace<broadphase_worker>(m_registry);
@@ -95,6 +102,9 @@ island_worker::island_worker(const settings &settings,
     archive(ctx_intptr);
 
     m_last_time = performance_time();
+
+    // Reschedule every time a message is added to the queue.
+    m_message_queue.push_sink().connect<&island_worker::reschedule>(*this);
 }
 
 island_worker::~island_worker() = default;
@@ -109,7 +119,7 @@ void island_worker::init() {
     m_registry.on_construct<compound_shape>().connect<&island_worker::on_construct_compound_shape>(*this);
     m_registry.on_destroy<rotated_mesh_list>().connect<&island_worker::on_destroy_rotated_mesh_list>(*this);
 
-    m_message_queue.sink<msg::island_reg_ops>().connect<&island_worker::on_island_reg_ops>(*this);
+    m_message_queue.sink<msg::update_entities>().connect<&island_worker::on_update_entities>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
@@ -219,6 +229,12 @@ void island_worker::on_destroy_island_resident(entt::registry &registry, entt::e
     // Is this a node or an edge? Idk
     island.nodes.erase(entity);
     island.edges.erase(entity);
+
+    auto &stats = registry.get<island_stats>(resident.island_entity);
+    stats.num_nodes = island.nodes.size();
+    stats.num_edges = island.edges.size();
+    m_op_builder->replace(resident.island_entity, stats);
+
     m_islands_to_split.emplace(resident.island_entity);
 }
 
@@ -238,13 +254,14 @@ void island_worker::on_destroy_rotated_mesh_list(entt::registry &registry, entt:
     }
 }
 
-void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
+void island_worker::on_update_entities(const message<msg::update_entities> &msg) {
     // Import components from main registry.
     m_importing = true;
 
-    msg.ops.execute(m_registry, m_entity_map);
+    auto &ops = msg.content.ops;
+    ops.execute(m_registry, m_entity_map);
 
-    msg.ops.create_for_each([&](entt::entity remote_entity) {
+    ops.create_for_each([&](entt::entity remote_entity) {
         auto local_entity = m_entity_map.at(remote_entity);
         m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
@@ -253,12 +270,12 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     auto node_view = m_registry.view<graph_node>();
 
     // Insert nodes in the graph for each rigid body.
-    msg.ops.emplace_for_each<rigidbody_tag, external_tag>([this](entt::entity remote_entity) {
+    ops.emplace_for_each<rigidbody_tag, external_tag>([this](entt::entity remote_entity) {
         insert_remote_node(remote_entity);
     });
 
     // Insert edges in the graph for constraints.
-    msg.ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
+    ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
         auto local_entity = m_entity_map.at(remote_entity);
 
         if (m_registry.any_of<graph_edge>(local_entity)) return;
@@ -271,7 +288,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
 
     // When orientation is set manually, a few dependent components must be
     // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
-    msg.ops.replace_for_each<orientation>([&](entt::entity remote_entity, const orientation &orn) {
+    ops.replace_for_each<orientation>([&](entt::entity remote_entity, const orientation &orn) {
         auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
@@ -294,7 +311,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     });
 
     // When position is set manually, the AABB and cached origin must be updated.
-    msg.ops.replace_for_each<position>([&](entt::entity remote_entity, const position &pos) {
+    ops.replace_for_each<position>([&](entt::entity remote_entity, const position &pos) {
         auto local_entity = m_entity_map.at(remote_entity);
 
         if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
@@ -313,7 +330,7 @@ void island_worker::on_island_reg_ops(const msg::island_reg_ops &msg) {
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         // Assign previous position and orientation components to dynamic entities
         // for client-side networking extrapolation discontinuity mitigation.
-        msg.ops.emplace_for_each<dynamic_tag>([&](entt::entity remote_entity) {
+        ops.emplace_for_each<dynamic_tag>([&](entt::entity remote_entity) {
             if (!m_entity_map.contains(remote_entity)) return;
 
             auto local_entity = m_entity_map.at(remote_entity);
@@ -358,8 +375,8 @@ bool island_worker::all_sleeping() {
 }
 
 void island_worker::sync() {
-    // Always update AABBs since they're needed for broad-phase in the coordinator.
-    m_op_builder->replace<AABB>(m_registry);
+    // Always update island AABBs since the coordinator needs them to detect
+    // when islands from different workers are about to interact.
     m_op_builder->replace<island_AABB>(m_registry);
 
     // Always update discontinuities since they decay in every step.
@@ -377,7 +394,8 @@ void island_worker::sync() {
     sync_dirty();
 
     auto ops = m_op_builder->finish();
-    m_message_queue.send<msg::island_reg_ops>(std::move(ops));
+    message_dispatcher::global().send<msg::step_update>(
+        m_coordinator_queue_id, m_message_queue.identifier, std::move(ops));
 }
 
 void island_worker::sync_dirty() {
@@ -725,7 +743,7 @@ void island_worker::init_new_nodes_and_edges() {
 
     graph.reach(
         procedural_node_indices.begin(), procedural_node_indices.end(),
-        [&] (entt::entity entity) { // visitNodeFunc
+        [&](entt::entity entity) { // visitNodeFunc
             // We only visit procedural nodes.
             EDYN_ASSERT(procedural_view.contains(entity));
 
@@ -733,7 +751,7 @@ void island_worker::init_new_nodes_and_edges() {
                 connected_nodes.push_back(entity);
             }
         },
-        [&] (entt::entity entity) { // visitEdgeFunc
+        [&](entt::entity entity) { // visitEdgeFunc
             auto &edge_resident = resident_view.get<island_resident>(entity);
 
             if (edge_resident.island_entity == entt::null) {
@@ -746,7 +764,7 @@ void island_worker::init_new_nodes_and_edges() {
                 }
             }
         },
-        [&] (entity_graph::index_type node_index) { // shouldVisitFunc
+        [&](entity_graph::index_type node_index) { // shouldVisitFunc
             auto other_entity = graph.node_entity(node_index);
 
             if (!procedural_view.contains(other_entity)) {
@@ -770,7 +788,7 @@ void island_worker::init_new_nodes_and_edges() {
             bool continue_visiting = false;
 
             // Visit neighbor if it contains an edge that is not in an island yet.
-            graph.visit_edges(node_index, [&] (entt::entity edge_entity) {
+            graph.visit_edges(node_index, [&](entt::entity edge_entity) {
                 if (resident_view.get<island_resident>(edge_entity).island_entity == entt::null) {
                     continue_visiting = true;
                 }
@@ -778,7 +796,7 @@ void island_worker::init_new_nodes_and_edges() {
 
             return continue_visiting;
         },
-        [&] () { // connectedComponentFunc
+        [&]() { // connectedComponentFunc
             if (island_entities.size() <= 1) {
                 // Assign island to the residents.
                 auto island_entity = entt::entity{};
@@ -806,6 +824,7 @@ entt::entity island_worker::create_island() {
     m_registry.emplace<island>(island_entity);
     m_registry.emplace<island_AABB>(island_entity);
     m_registry.emplace<island_tag>(island_entity);
+    m_registry.emplace<island_stats>(island_entity);
     m_op_builder->create(island_entity);
     m_op_builder->emplace_all(m_registry, island_entity);
     return island_entity;
@@ -831,6 +850,11 @@ void island_worker::insert_to_island(entt::entity island_entity,
     auto &island = m_registry.get<edyn::island>(island_entity);
     island.nodes.insert(nodes.begin(), nodes.end());
     island.edges.insert(edges.begin(), edges.end());
+
+    auto &stats = m_registry.get<island_stats>(island_entity);
+    stats.num_nodes = island.nodes.size();
+    stats.num_edges = island.edges.size();
+    m_op_builder->replace(island_entity, stats);
 
     wake_up_island(island_entity);
 }
@@ -906,10 +930,10 @@ void island_worker::split_islands() {
 
         auto start_node = node_view.get<graph_node>(*island.nodes.begin());
 
-        graph.traverse_connecting_nodes(start_node.node_index, [&] (auto node_index) {
+        graph.traverse_connecting_nodes(start_node.node_index, [&](auto node_index) {
             auto node_entity = graph.node_entity(node_index);
             connected_nodes.push_back(node_entity);
-        }, [&] (auto edge_index) {
+        }, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
             connected_edges.push_back(edge_entity);
         });
@@ -922,9 +946,16 @@ void island_worker::split_islands() {
 
         // Traverse graph starting at the remaining nodes to find the other
         // connected components and create new islands for them.
-        auto all_nodes = island.nodes;
-        island.nodes = {connected_nodes.begin(), connected_nodes.end()};
-        island.edges = {connected_edges.begin(), connected_edges.end()};
+        auto all_nodes = std::move(island.nodes);
+        island.nodes.insert(connected_nodes.begin(), connected_nodes.end());
+
+        island.edges.clear();
+        island.edges.insert(connected_edges.begin(), connected_edges.end());
+
+        auto &stats = m_registry.get<island_stats>(island_entity);
+        stats.num_nodes = island.nodes.size();
+        stats.num_edges = island.edges.size();
+        m_op_builder->replace(island_entity, stats);
 
         for (auto entity : connected_nodes) {
             all_nodes.erase(entity);
@@ -936,17 +967,18 @@ void island_worker::split_islands() {
             auto island_entity = m_registry.create();
             auto &island = m_registry.emplace<edyn::island>(island_entity);
             auto &aabb = m_registry.emplace<island_AABB>(island_entity);
+            auto &stats = m_registry.emplace<island_stats>(island_entity);
             m_registry.emplace<island_tag>(island_entity);
 
             auto start_node = node_view.get<graph_node>(*all_nodes.begin());
             auto is_first_node = true;
 
             graph.traverse_connecting_nodes(start_node.node_index,
-                [&] (auto node_index) {
+                [&](auto node_index) {
                     auto node_entity = graph.node_entity(node_index);
                     island.nodes.insert(node_entity);
 
-                    auto &resident = resident_view.get<edyn::island_resident>(node_entity);
+                    auto &resident = resident_view.get<island_resident>(node_entity);
                     resident.island_entity = island_entity;
                     m_op_builder->replace(node_entity, resident);
 
@@ -962,11 +994,11 @@ void island_worker::split_islands() {
                             aabb = {enclosing_aabb(aabb, node_aabb)};
                         }
                     }
-                }, [&] (auto edge_index) {
+                }, [&](auto edge_index) {
                     auto edge_entity = graph.edge_entity(edge_index);
                     island.edges.insert(edge_entity);
 
-                    auto &resident = resident_view.get<edyn::island_resident>(edge_entity);
+                    auto &resident = resident_view.get<island_resident>(edge_entity);
                     resident.island_entity = island_entity;
                     m_op_builder->replace(edge_entity, resident);
                 });
@@ -974,6 +1006,12 @@ void island_worker::split_islands() {
             for (auto entity : connected_nodes) {
                 all_nodes.erase(entity);
             }
+
+            stats.num_nodes = island.nodes.size();
+            stats.num_edges = island.edges.size();
+
+            m_op_builder->create(island_entity);
+            m_op_builder->emplace_all(m_registry, island_entity);
         }
     }
 
@@ -1125,28 +1163,28 @@ void island_worker::put_to_sleep(entt::entity island_entity) {
     }
 }
 
-void island_worker::on_set_paused(const msg::set_paused &msg) {
-    m_registry.ctx().at<edyn::settings>().paused = msg.paused;
+void island_worker::on_set_paused(const message<msg::set_paused> &msg) {
+    m_registry.ctx().at<edyn::settings>().paused = msg.content.paused;
     m_last_time = performance_time();
 }
 
-void island_worker::on_step_simulation(const msg::step_simulation &) {
+void island_worker::on_step_simulation(const message<msg::step_simulation> &) {
     if (!all_sleeping()) {
         m_state = state::begin_step;
     }
 }
 
-void island_worker::on_set_settings(const msg::set_settings &msg) {
-    m_registry.ctx().at<settings>() = msg.settings;
+void island_worker::on_set_settings(const message<msg::set_settings> &msg) {
+    m_registry.ctx().at<settings>() = msg.content.settings;
 }
 
-void island_worker::on_set_material_table(const msg::set_material_table &msg) {
-    m_registry.ctx().at<material_mix_table>() = msg.table;
+void island_worker::on_set_material_table(const message<msg::set_material_table> &msg) {
+    m_registry.ctx().at<material_mix_table>() = msg.content.table;
 }
 
-void island_worker::on_set_com(const msg::set_com &msg) {
-    auto entity = m_entity_map.at(msg.entity);
-    apply_center_of_mass(m_registry, entity, msg.com);
+void island_worker::on_set_com(const message<msg::set_com> &msg) {
+    auto entity = m_entity_map.at(msg.content.entity);
+    apply_center_of_mass(m_registry, entity, msg.content.com);
 }
 
 void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {

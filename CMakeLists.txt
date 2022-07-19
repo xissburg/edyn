@@ -109,6 +109,7 @@ add_library(Edyn
     src/edyn/parallel/island_coordinator.cpp
     src/edyn/parallel/island_worker_context.cpp
     src/edyn/parallel/map_child_entity.cpp
+    src/edyn/parallel/message_dispatcher.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/networking/context/client_network_context.cpp
     src/edyn/networking/context/server_network_context.cpp

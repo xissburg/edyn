@@ -14,7 +14,6 @@ setup_and_add_test(triangle_mesh_serialization edyn/serialization/test_triangle_
 setup_and_add_test(integrate_linvel edyn/sys/integrate_linvel.cpp)
 setup_and_add_test(apply_gravity edyn/sys/test_apply_gravity.cpp)
 setup_and_add_test(job_dispatcher edyn/parallel/test_job_dispatcher.cpp)
-setup_and_add_test(message_queue edyn/parallel/test_message_queue.cpp)
 setup_and_add_test(entity_graph edyn/parallel/test_entity_graph.cpp)
 setup_and_add_test(std_serialization edyn/serialization/test_std_s11n.cpp)
 setup_and_add_test(geom edyn/math/test_geom.cpp)

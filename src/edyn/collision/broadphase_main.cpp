@@ -132,7 +132,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(
         // Only consider islands located in different workers.
         auto &residentB = island_worker_resident_view.get<island_worker_resident>(island_entityB);
 
-        if (residentA.worker_entity != residentB.worker_entity) {
+        if (residentA.worker_index != residentB.worker_index) {
             results.emplace_back(island_entityA, island_entityB);
         }
     });
@@ -146,7 +146,7 @@ entity_pair_vector broadphase_main::find_intersecting_islands(
         // where the island is located.
         auto &resident = multi_island_worker_resident_view.get<multi_island_worker_resident>(np_entity);
 
-        if (!resident.worker_entities.count(residentA.worker_entity)) {
+        if (!resident.worker_indices.count(residentA.worker_index)) {
             results.emplace_back(island_entityA, np_entity);
         }
     });
@@ -160,6 +160,8 @@ void broadphase_main::process_intersecting_entities(
         const multi_island_worker_resident_view_t &multi_island_worker_resident_view) {
 
     if (island_aabb_view.contains(pair.second)) {
+        // Transfer island from one worker into the other.
+        // TODO
 
     } else {
         // Insert non-procedural node into the worker where the island
@@ -170,8 +172,8 @@ void broadphase_main::process_intersecting_entities(
         auto [worker_resident] = island_worker_resident_view.get(island_entity);
         auto [np_resident] = multi_island_worker_resident_view.get(np_entity);
 
-        if (!np_resident.worker_entities.contains(worker_resident.worker_entity)) {
-            np_resident.worker_entities.emplace(worker_resident.worker_entity);
+        if (!np_resident.worker_indices.count(worker_resident.worker_index)) {
+            np_resident.worker_indices.emplace(worker_resident.worker_index);
 
             auto &ctx = m_island_ctx_map.at(worker_resident.worker_entity);
             ctx->m_delta_builder->created(np_entity);
