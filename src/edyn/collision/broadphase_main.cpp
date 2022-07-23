@@ -3,6 +3,7 @@
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tree_resident.hpp"
+#include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/parallel/parallel_for.hpp"
@@ -47,21 +48,6 @@ void broadphase_main::on_destroy_tree_resident(entt::registry &registry, entt::e
 }
 
 void broadphase_main::intersect_islands() {
-    std::vector<entt::entity> awake_island_entities;
-
-    // Update island AABBs in tree (ignore sleeping islands).
-    auto exclude_sleeping = entt::exclude_t<sleeping_tag>{};
-    m_registry->view<tree_resident, island_AABB>(exclude_sleeping)
-        .each([&](auto island_entity, tree_resident &node, island_AABB &aabb)
-    {
-        m_island_tree.move(node.id, aabb);
-        awake_island_entities.push_back(island_entity);
-    });
-
-    if (awake_island_entities.empty()) {
-        return;
-    }
-
     // Update kinematic AABBs in tree.
     // TODO: only do this for kinematic entities that had their AABB updated.
     m_registry->view<tree_resident, AABB, kinematic_tag>()
@@ -70,44 +56,45 @@ void broadphase_main::intersect_islands() {
         m_np_tree.move(node.id, aabb);
     });
 
+    // Update island AABBs in tree (ignore sleeping islands).
+    std::vector<entt::entity> awake_island_entities;
+    auto exclude_sleeping = entt::exclude_t<sleeping_tag>{};
+    m_registry->view<tree_resident, island_AABB>(exclude_sleeping)
+        .each([&](auto island_entity, tree_resident &node, island_AABB &aabb)
+    {
+        m_island_tree.move(node.id, aabb);
+        awake_island_entities.push_back(island_entity);
+    });
+
+    // Do not look for intersecting islands if there's only one.
+    if (awake_island_entities.size() < 2) {
+        return;
+    }
+
     // Search for island pairs with intersecting AABBs.
     const auto aabb_view = m_registry->view<AABB>();
     const auto island_aabb_view = m_registry->view<island_AABB>();
     const auto island_worker_resident_view = m_registry->view<island_worker_resident>();
     const auto multi_island_worker_resident_view = m_registry->view<multi_island_worker_resident>();
 
-    if (awake_island_entities.size() > 1) {
-        m_pair_results.resize(awake_island_entities.size());
+    m_pair_results.resize(awake_island_entities.size());
 
-        parallel_for(size_t{0}, awake_island_entities.size(), [&](size_t index) {
-            auto island_entityA = awake_island_entities[index];
-            m_pair_results[index] = find_intersecting_islands(
-                island_entityA, aabb_view, island_aabb_view,
-                island_worker_resident_view, multi_island_worker_resident_view);
-        });
+    parallel_for(size_t{0}, awake_island_entities.size(), [&](size_t index) {
+        auto island_entityA = awake_island_entities[index];
+        m_pair_results[index] = find_intersecting_islands(
+            island_entityA, aabb_view, island_aabb_view,
+            island_worker_resident_view, multi_island_worker_resident_view);
+    });
 
-        for (auto &results : m_pair_results) {
-            for (auto &pair : results) {
-                process_intersecting_entities(pair, island_aabb_view,
-                                              island_worker_resident_view,
-                                              multi_island_worker_resident_view);
-            }
-        }
-
-        m_pair_results.clear();
-    } else {
-        for (auto island_entityA : awake_island_entities) {
-            auto pairs = find_intersecting_islands(
-                island_entityA, aabb_view, island_aabb_view,
-                island_worker_resident_view, multi_island_worker_resident_view);
-
-            for (auto &pair : pairs) {
-                process_intersecting_entities(pair, island_aabb_view,
-                                              island_worker_resident_view,
-                                              multi_island_worker_resident_view);
-            }
+    for (auto &results : m_pair_results) {
+        for (auto &pair : results) {
+            process_intersecting_entities(pair, island_aabb_view,
+                                            island_worker_resident_view,
+                                            multi_island_worker_resident_view);
         }
     }
+
+    m_pair_results.clear();
 }
 
 entity_pair_vector broadphase_main::find_intersecting_islands(
@@ -160,9 +147,12 @@ void broadphase_main::process_intersecting_entities(
         const multi_island_worker_resident_view_t &multi_island_worker_resident_view) {
 
     if (island_aabb_view.contains(pair.second)) {
-        // Transfer island from one worker into the other.
-        // TODO
-
+        // If islands are in different workers, ask the most busy worker to
+        // exchange islands with the smaller.
+        auto [residentA] = island_worker_resident_view.get(pair.first);
+        auto [residentB] = island_worker_resident_view.get(pair.second);
+        auto &coordinator = m_registry->ctx().at<island_coordinator>();
+        coordinator.exchange_islands(residentA.worker_index, residentB.worker_index);
     } else {
         // Insert non-procedural node into the worker where the island
         // is located.
@@ -173,11 +163,8 @@ void broadphase_main::process_intersecting_entities(
         auto [np_resident] = multi_island_worker_resident_view.get(np_entity);
 
         if (!np_resident.worker_indices.count(worker_resident.worker_index)) {
-            np_resident.worker_indices.emplace(worker_resident.worker_index);
-
-            auto &ctx = m_island_ctx_map.at(worker_resident.worker_entity);
-            ctx->m_delta_builder->created(np_entity);
-            ctx->m_delta_builder->created_all(np_entity, *m_registry);
+            auto &coordinator = m_registry->ctx().at<island_coordinator>();
+            coordinator.move_non_procedural_into_worker(np_entity, worker_resident.worker_index);
         }
     }
 }

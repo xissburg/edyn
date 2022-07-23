@@ -73,6 +73,10 @@ public:
 
     double get_worker_timestamp(island_worker_index_type) const;
 
+    void move_non_procedural_into_worker(entt::entity np_entity, island_worker_index_type worker_index);
+
+    void exchange_islands(island_worker_index_type worker_indexA, island_worker_index_type worker_indexB);
+
     auto contact_started_sink() {
         return entt::sink{m_contact_started_signal};
     }
@@ -93,7 +97,7 @@ public:
     void send_island_message(entt::entity island_entity, Args &&... args) {
         auto &resident = m_registry->get<island_worker_resident>(island_entity);
         auto &ctx = m_worker_ctx[resident.worker_index];
-        ctx->send<Message>(std::forward<Args>(args)...);
+        ctx->send<Message>(m_message_queue_handle.identifier, std::forward<Args>(args)...);
     }
 
 private:

@@ -33,8 +33,8 @@
 #include "parallel/job_dispatcher.hpp"
 #include "parallel/parallel_for.hpp"
 #include "parallel/parallel_for_async.hpp"
-#include "parallel/message_queue.hpp"
 #include "parallel/island_coordinator.hpp"
+#include "parallel/component_index_source.hpp"
 #include "util/moment_of_inertia.hpp"
 #include "util/registry_operation_builder.hpp"
 #include "collision/contact_manifold_map.hpp"
@@ -270,9 +270,7 @@ void set_should_collide(entt::registry &registry, should_collide_func_t func);
  */
 template<typename... Component>
 void refresh(entt::registry &registry, entt::entity entity) {
-    if (auto *coordinator = registry.ctx().find<island_coordinator>(); coordinator) {
-        coordinator->refresh<Component...>(entity);
-    }
+    registry.get_or_emplace<dirty>(entity).updated<Component...>();
 }
 
 /**

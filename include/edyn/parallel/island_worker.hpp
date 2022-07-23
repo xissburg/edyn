@@ -97,7 +97,7 @@ public:
     void on_set_material_table(const message<msg::set_material_table> &msg);
     void on_set_com(const message<msg::set_com> &);
     void on_apply_network_pools(const message<msg::apply_network_pools> &);
-    void on_extrapolation_result(const extrapolation_result &);
+    void on_extrapolation_result(const message<extrapolation_result> &);
 
     auto message_queue_id() const {
         return m_message_queue.identifier;
@@ -123,7 +123,8 @@ private:
         msg::set_com,
         msg::set_material_table,
         msg::update_entities,
-        msg::apply_network_pools> m_message_queue;
+        msg::apply_network_pools,
+        extrapolation_result> m_message_queue;
     message_queue_identifier m_coordinator_queue_id;
 
     double m_last_time;

@@ -95,6 +95,7 @@ add_library(Edyn
     src/edyn/util/ragdoll.cpp
     src/edyn/util/exclude_collision.cpp
     src/edyn/util/make_reg_op_builder.cpp
+    src/edyn/util/island_util.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp

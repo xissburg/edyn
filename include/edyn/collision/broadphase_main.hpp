@@ -37,6 +37,8 @@ class broadphase_main {
 public:
     broadphase_main(entt::registry &);
 
+    void update();
+
     void on_construct_island_aabb(entt::registry &, entt::entity);
     void on_construct_static_kinematic_tag(entt::registry &, entt::entity);
     void on_destroy_tree_resident(entt::registry &, entt::entity);

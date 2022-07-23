@@ -81,7 +81,8 @@ island_worker::island_worker(const std::string &name, const settings &settings,
         msg::set_com,
         msg::set_material_table,
         msg::update_entities,
-        msg::apply_network_pools>(name.c_str()))
+        msg::apply_network_pools,
+        extrapolation_result>(name.c_str()))
     , m_coordinator_queue_id(coordinator_queue_id)
 {
     m_registry.ctx().emplace<contact_manifold_map>(m_registry);
@@ -543,6 +544,7 @@ bool island_worker::run_broadphase() {
         return false;
     } else {
         bphase.update();
+        init_new_nodes_and_edges();
         m_state = state::narrowphase;
         return true;
     }
@@ -552,6 +554,7 @@ void island_worker::finish_broadphase() {
     EDYN_ASSERT(m_state == state::broadphase_async);
     auto &bphase = m_registry.ctx().at<broadphase_worker>();
     bphase.finish_async_update();
+    init_new_nodes_and_edges();
     m_state = state::narrowphase;
 }
 
@@ -900,6 +903,10 @@ void island_worker::merge_islands(const std::vector<entt::entity> &island_entiti
 
     for (auto entity : other_island_entities) {
         m_op_builder->destroy(entity);
+
+        if (m_entity_map.contains_other(entity)) {
+            m_entity_map.erase_other(entity);
+        }
     }
 }
 
@@ -920,6 +927,12 @@ void island_worker::split_islands() {
         if (island.nodes.empty()) {
             EDYN_ASSERT(island.edges.empty());
             m_registry.destroy(island_entity);
+            m_op_builder->destroy(island_entity);
+
+            if (m_entity_map.contains_other(island_entity)) {
+                m_entity_map.erase_other(island_entity);
+            }
+
             continue;
         }
 
@@ -1233,7 +1246,8 @@ static void accumulate_discontinuities(entt::registry &registry) {
     }
 }
 
-void island_worker::on_extrapolation_result(const extrapolation_result &result) {
+void island_worker::on_extrapolation_result(const message<extrapolation_result> &msg) {
+    auto &result = msg.content;
     EDYN_ASSERT(!result.ops.empty());
 
     // Assign current transforms to previous before importing pools into registry.
@@ -1245,13 +1259,13 @@ void island_worker::on_extrapolation_result(const extrapolation_result &result) 
     import_contact_manifolds(result.manifolds);
 }
 
-void island_worker::on_apply_network_pools(const msg::apply_network_pools &msg) {
-    EDYN_ASSERT(!msg.pools.empty());
+void island_worker::on_apply_network_pools(const message<msg::apply_network_pools> &msg) {
+    EDYN_ASSERT(!msg.content.pools.empty());
 
     assign_previous_transforms(m_registry);
 
-    for (auto &pool : msg.pools) {
-        pool.ptr->replace_into_registry(m_registry, msg.entities, m_entity_map);
+    for (auto &pool : msg.content.pools) {
+        pool.ptr->replace_into_registry(m_registry, msg.content.entities, m_entity_map);
     }
 
     accumulate_discontinuities(m_registry);

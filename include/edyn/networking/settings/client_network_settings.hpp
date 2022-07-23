@@ -18,7 +18,7 @@ struct client_network_settings {
 
     /**
      * Even though the timestamp of a registry snapshot lies right after the time
-     * an action happenend, it is possible that the action wasn't still applied
+     * an action happened, it is possible that the action wasn't still applied
      * in the server side at the time the snapshot was generated. Perhaps the
      * action was applied at the same time the snapshot was generated and then
      * its effects were only visible in the next update, which will cause a glitch

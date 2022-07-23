@@ -4,6 +4,7 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/networking/comp/action_history.hpp"
+#include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
@@ -237,12 +238,14 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
         if (island_entities.empty()) {
             packet.timestamp = time;
         } else {
-            auto timestamp_view = registry.view<island_timestamp>();
-            packet.timestamp = timestamp_view.get<island_timestamp>(*island_entities.begin()).value;
+            auto resident_view = registry.view<island_worker_resident>();
+            auto &resident = resident_view.get<island_worker_resident>(*island_entities.begin());
+            packet.timestamp = get_island_worker_timestamp(registry, resident.worker_index);
 
             for (auto island_entity : island_entities) {
-                auto [isle_time] = timestamp_view.get(island_entity);
-                packet.timestamp = std::min(isle_time.value, packet.timestamp);
+                auto [resident] = resident_view.get(island_entity);
+                auto worker_time = get_island_worker_timestamp(registry, resident.worker_index);
+                packet.timestamp = std::min(worker_time, packet.timestamp);
             }
         }
 
@@ -266,7 +269,6 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
 
     for (auto island_entity : island_entities) {
         coordinator.send_island_message<extrapolation_result>(island_entity, result);
-        coordinator.wake_up_island(island_entity);
     }
 
     if (result.terminated_early) {
@@ -535,7 +537,6 @@ static void snap_to_registry_snapshot(entt::registry &registry, packet::registry
 
     for (auto island_entity : island_entities) {
         coordinator.send_island_message<msg::apply_network_pools>(island_entity, msg);
-        coordinator.wake_up_island(island_entity);
     }
 }
 

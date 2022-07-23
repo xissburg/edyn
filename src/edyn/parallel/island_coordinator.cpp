@@ -1,4 +1,5 @@
 #include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/collision/broadphase_main.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/contact_point.hpp"
@@ -9,6 +10,7 @@
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/parallel/message.hpp"
+#include "edyn/parallel/component_index_source.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
@@ -437,6 +439,22 @@ void island_coordinator::insert_to_worker(island_worker_index_type worker_index,
     ctx.m_op_builder->emplace_all(*m_registry, edges);
 }
 
+double island_coordinator::get_worker_timestamp(island_worker_index_type worker_index) const {
+    EDYN_ASSERT(worker_index < m_worker_ctx.size());
+    return m_worker_ctx[worker_index]->m_timestamp;
+}
+
+void island_coordinator::move_non_procedural_into_worker(entt::entity np_entity, island_worker_index_type worker_index) {
+    EDYN_ASSERT(!m_registry->all_of<procedural_tag>(np_entity));
+    insert_to_worker(worker_index, {np_entity}, {});
+}
+
+void island_coordinator::exchange_islands(island_worker_index_type worker_indexA, island_worker_index_type worker_indexB) {
+    // Ask the least busy of the two workers to send relevant islands to the
+    // other.
+
+}
+
 void island_coordinator::refresh_dirty_entities() {
     auto dirty_view = m_registry->view<dirty>();
     auto resident_view = m_registry->view<island_worker_resident>();
@@ -513,7 +531,7 @@ void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
     auto procedural_view = registry.view<procedural_tag>();
     auto node_view = registry.view<graph_node>();
 
-    // Insert nodes in the graph for each rigid body.
+    // Insert nodes in the graph for each new rigid body.
     auto &graph = registry.ctx().at<entity_graph>();
     auto insert_node = [&](entt::entity remote_entity) {
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);
@@ -551,7 +569,7 @@ void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
 
     // Generate contact events.
     ops.replace_for_each<contact_manifold_events>([&](entt::entity remote_entity,
-                                                          const contact_manifold_events &events) {
+                                                      const contact_manifold_events &events) {
         if (!source_ctx->m_entity_map.contains(remote_entity)) {
             return;
         }
@@ -578,7 +596,7 @@ void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
     });
 
     // Assign worker resident to islands.
-    ops.emplace_for_each<island_tag>([&](entt::entity remote_entity, const island_AABB &) {
+    ops.emplace_for_each<island_tag>([&](entt::entity remote_entity) {
         if (!source_ctx->m_entity_map.contains(remote_entity)) return;
 
         auto local_entity = source_ctx->m_entity_map.at(remote_entity);

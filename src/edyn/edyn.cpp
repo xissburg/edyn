@@ -91,8 +91,9 @@ void update(entt::registry &registry) {
     // Do island management. Merge updated entity state into main registry.
     registry.ctx().at<island_coordinator>().update();
 
-    // Perform broad-phase between different islands and create contact manifolds
-    // between them which will later cause islands to be merged into one.
+    // The broad-phase in the main thread looks for intersecting islands in
+    // different workers and ask workers to exchange islands so collisions
+    // can be detected between bodies in these islands.
     registry.ctx().at<broadphase_main>().update();
 
     if (is_paused(registry)) {
