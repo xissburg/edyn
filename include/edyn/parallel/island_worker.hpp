@@ -136,7 +136,6 @@ private:
 
     std::unique_ptr<registry_operation_builder> m_op_builder;
     bool m_importing;
-    bool m_destroying_node;
 
     std::vector<entt::entity> m_new_graph_nodes;
     std::vector<entt::entity> m_new_graph_edges;

@@ -75,7 +75,6 @@ island_worker::island_worker(const std::string &name, const settings &settings,
     , m_solver(m_registry)
     , m_op_builder((*settings.make_reg_op_builder)())
     , m_importing(false)
-    , m_destroying_node(false)
     , m_message_queue(message_dispatcher::global().make_queue<
         msg::set_paused,
         msg::set_settings,
@@ -183,17 +182,27 @@ void island_worker::on_construct_graph_edge(entt::registry &registry, entt::enti
 }
 
 void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
+    // Temporarily disable the `on_destroy<graph_edge>` signal because all
+    // edges connected to this node will be destroyed along with it in a
+    // more efficient manner.
+    m_registry.on_destroy<graph_edge>().disconnect<&island_worker::on_destroy_graph_edge>(*this);
+
     auto &node = registry.get<graph_node>(entity);
     auto &graph = registry.ctx().at<entity_graph>();
 
-    m_destroying_node = true;
-
     graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
+
+        if (!m_importing) {
+            m_op_builder->destroy(edge_entity);
+        }
+
+        if (m_entity_map.contains_other(edge_entity)) {
+            m_entity_map.erase_other(edge_entity);
+        }
+
         registry.destroy(edge_entity);
     });
-
-    m_destroying_node = false;
 
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
@@ -205,14 +214,15 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
     if (m_entity_map.contains_other(entity)) {
         m_entity_map.erase_other(entity);
     }
+
+    // Reconnect `on_destroy<graph_edge>` signal.
+    m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
 }
 
 void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
-    if (!m_destroying_node) {
-        auto &graph = registry.ctx().at<entity_graph>();
-        auto &edge = registry.get<graph_edge>(entity);
-        graph.remove_edge(edge.edge_index);
-    }
+    auto &graph = registry.ctx().at<entity_graph>();
+    auto &edge = registry.get<graph_edge>(entity);
+    graph.remove_edge(edge.edge_index);
 
     // If importing, do not insert this event into the op because the entity
     // was already destroyed in the coordinator.
@@ -1206,17 +1216,30 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     // Collect all islands that must be moved, i.e. the ones whose AABB
     // intersect the island AABBs of the other worker.
     auto &bphase = m_registry.ctx().at<broadphase_worker>();
-    std::vector<entt::entity> island_entities;
+    entt::sparse_set island_entities;
 
     for (auto &aabb : msg.content.island_aabbs) {
         bphase.query_islands(aabb, [&](entt::entity island_entity) {
-            island_entities.push_back(island_entity);
+            if (!island_entities.contains(island_entity)) {
+                island_entities.emplace(island_entity);
+            }
         });
     }
 
     // Considering the collected islands are already owned by the destination
     // worker, select more islands to be moved as to balance the distribution
     // of work.
+    // Go through each island and calculate whether it would be a more balanced
+    // configuration if it was moved to the other worker.
+    // Two heuristics are used when choosing extra islands to be moved to the
+    // other worker:
+    // 1 - The ratio of the total number of nodes and edges between the two
+    //     workers should be close to one.
+    // 2 - The volume of the AABB resulting from the intersection of the union
+    //     of the AABBs of all islands in each worker should be minimized.
+    // Heuristic #1 attempts to equally distribute work among workers.
+    // Heuristic #2 seeks to avoid great spatial overlap between workers, as to
+    // keep clusters of islands that are close to one another in the same worker.
 
     // TODO
 
@@ -1226,21 +1249,22 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
 
     // Collect all nodes and edges of these islands
     auto island_view = m_registry.view<island>();
-    entt::sparse_set all_entities;
+    entt::sparse_set all_nodes, all_edges;
 
     for (auto island_entity : island_entities) {
         auto [island] = island_view.get(island_entity);
 
         for (auto entity : island.nodes) {
-            if (!all_entities.contains(entity)) {
-                all_entities.emplace(entity);
+            // Remember that non-procedural nodes could be in multiple islands.
+            if (!all_nodes.contains(entity)) {
+                all_nodes.emplace(entity);
             }
         }
 
         for (auto entity : island.edges) {
-            if (!all_entities.contains(entity)) {
-                all_entities.emplace(entity);
-            }
+            // Edges are only ever present in a single island, so there's no
+            // need to check if it's already in the set.
+            all_edges.emplace(entity);
         }
     }
 
@@ -1248,7 +1272,12 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     auto &settings = m_registry.ctx().at<edyn::settings>();
     auto builder = (*settings.make_reg_op_builder)();
 
-    for (auto entity : all_entities) {
+    for (auto entity : all_nodes) {
+        builder->create(entity);
+        builder->emplace_all(m_registry, entity);
+    }
+
+    for (auto entity : all_edges) {
         builder->create(entity);
         builder->emplace_all(m_registry, entity);
     }
@@ -1260,7 +1289,53 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     // that still have a connection to one or more procedural entities must
     // stay.
 
-    // TODO
+    // Disable these signals because their tasks will be handled here in a more
+    // efficient manner. Entire connected components are being removed from the
+    // graph thus the destruction of nodes and edges can be more direct.
+    m_registry.on_destroy<graph_node>().disconnect<&island_worker::on_destroy_graph_node>(*this);
+    m_registry.on_destroy<graph_edge>().disconnect<&island_worker::on_destroy_graph_edge>(*this);
+    m_registry.on_destroy<island_resident>().disconnect<&island_worker::on_destroy_island_resident>(*this);
+
+    auto &graph = m_registry.ctx().at<entity_graph>();
+    auto node_view = m_registry.view<graph_node>();
+    auto edge_view = m_registry.view<graph_edge>();
+
+    // Remove all edges from graph first.
+    for (auto entity : all_edges) {
+        auto [edge] = edge_view.get(entity);
+        graph.remove_edge(edge.edge_index);
+
+        if (m_entity_map.contains_other(entity)) {
+            m_entity_map.erase_other(entity);
+        }
+
+        m_registry.destroy(entity);
+    }
+
+    // Nodes can only be removed after they have no incident edges.
+    for (auto entity : all_nodes) {
+        auto [node] = node_view.get(entity);
+        graph.remove_node(node.node_index);
+
+        if (m_entity_map.contains_other(entity)) {
+            m_entity_map.erase_other(entity);
+        }
+
+        m_registry.destroy(entity);
+    }
+
+    // Island entities do not move between workers, thus mark them as destroyed.
+    // New islands will be created in the other worker when the moved entities
+    // are imported.
+    for (auto entity : island_entities) {
+        m_registry.destroy(entity);
+        m_op_builder->destroy(entity);
+    }
+
+    // Enable destruction signals again.
+    m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
+    m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
+    m_registry.on_destroy<island_resident>().connect<&island_worker::on_destroy_island_resident>(*this);
 }
 
 void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {

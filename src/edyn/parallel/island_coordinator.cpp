@@ -113,7 +113,7 @@ void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::e
 void island_coordinator::on_destroy_island_worker_resident(entt::registry &registry, entt::entity entity) {
     auto &resident = registry.get<island_worker_resident>(entity);
 
-    // Remove from island.
+    // Remove from worker context.
     auto &ctx = m_worker_ctx[resident.worker_index];
 
     if (ctx->m_nodes.contains(entity)) {
