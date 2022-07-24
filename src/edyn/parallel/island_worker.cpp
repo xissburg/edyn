@@ -197,8 +197,8 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
             m_op_builder->destroy(edge_entity);
         }
 
-        if (m_entity_map.contains_other(edge_entity)) {
-            m_entity_map.erase_other(edge_entity);
+        if (m_entity_map.contains_local(edge_entity)) {
+            m_entity_map.erase_local(edge_entity);
         }
 
         registry.destroy(edge_entity);
@@ -211,8 +211,8 @@ void island_worker::on_destroy_graph_node(entt::registry &registry, entt::entity
         m_op_builder->destroy(entity);
     }
 
-    if (m_entity_map.contains_other(entity)) {
-        m_entity_map.erase_other(entity);
+    if (m_entity_map.contains_local(entity)) {
+        m_entity_map.erase_local(entity);
     }
 
     // Reconnect `on_destroy<graph_edge>` signal.
@@ -230,8 +230,8 @@ void island_worker::on_destroy_graph_edge(entt::registry &registry, entt::entity
         m_op_builder->destroy(entity);
     }
 
-    if (m_entity_map.contains_other(entity)) {
-        m_entity_map.erase_other(entity);
+    if (m_entity_map.contains_local(entity)) {
+        m_entity_map.erase_local(entity);
     }
 }
 
@@ -916,8 +916,8 @@ void island_worker::merge_islands(const std::vector<entt::entity> &island_entiti
     for (auto entity : other_island_entities) {
         m_op_builder->destroy(entity);
 
-        if (m_entity_map.contains_other(entity)) {
-            m_entity_map.erase_other(entity);
+        if (m_entity_map.contains_local(entity)) {
+            m_entity_map.erase_local(entity);
         }
     }
 }
@@ -941,8 +941,8 @@ void island_worker::split_islands() {
             m_registry.destroy(island_entity);
             m_op_builder->destroy(island_entity);
 
-            if (m_entity_map.contains_other(island_entity)) {
-                m_entity_map.erase_other(island_entity);
+            if (m_entity_map.contains_local(island_entity)) {
+                m_entity_map.erase_local(island_entity);
             }
 
             continue;
@@ -1305,8 +1305,8 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
         auto [edge] = edge_view.get(entity);
         graph.remove_edge(edge.edge_index);
 
-        if (m_entity_map.contains_other(entity)) {
-            m_entity_map.erase_other(entity);
+        if (m_entity_map.contains_local(entity)) {
+            m_entity_map.erase_local(entity);
         }
 
         m_registry.destroy(entity);
@@ -1317,8 +1317,8 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
         auto [node] = node_view.get(entity);
         graph.remove_node(node.node_index);
 
-        if (m_entity_map.contains_other(entity)) {
-            m_entity_map.erase_other(entity);
+        if (m_entity_map.contains_local(entity)) {
+            m_entity_map.erase_local(entity);
         }
 
         m_registry.destroy(entity);
