@@ -91,13 +91,14 @@ void update_aabbs(entt::registry &registry) {
 
 void update_island_aabbs(entt::registry &registry) {
     auto aabb_view = registry.view<AABB>();
+    auto procedural_view = registry.view<procedural_tag>();
 
     registry.view<island, island_AABB>().each([&](island &island, island_AABB &aabb) {
         aabb = {aabb_view.get<AABB>(*island.nodes.begin())};
         auto is_first_node = true;
 
         for (auto entity : island.nodes) {
-            if (!aabb_view.contains(entity)) {
+            if (!procedural_view.contains(entity) || !aabb_view.contains(entity)) {
                 continue;
             }
 

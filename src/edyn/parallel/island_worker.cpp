@@ -15,6 +15,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/shapes/compound_shape.hpp"
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
@@ -44,6 +45,7 @@
 #include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/parallel/component_index_source.hpp"
+#include <entt/entity/fwd.hpp>
 #include <memory>
 #include <variant>
 #include <set>
@@ -82,6 +84,7 @@ island_worker::island_worker(const std::string &name, const settings &settings,
         msg::set_material_table,
         msg::update_entities,
         msg::apply_network_pools,
+        msg::exchange_islands,
         extrapolation_result>(name.c_str()))
     , m_coordinator_queue_id(coordinator_queue_id)
 {
@@ -162,10 +165,8 @@ void island_worker::on_construct_graph_node(entt::registry &registry, entt::enti
     if (!m_importing) {
         if (registry.any_of<procedural_tag>(entity)) {
             registry.emplace<island_resident>(entity);
-            m_op_builder->emplace<island_resident>(registry, entity);
         } else {
             registry.emplace<multi_island_resident>(entity);
-            m_op_builder->emplace<multi_island_resident>(registry, entity);
         }
     }
 }
@@ -746,7 +747,7 @@ void island_worker::init_new_nodes_and_edges() {
 
     graph.reach(
         procedural_node_indices.begin(), procedural_node_indices.end(),
-        [&](entt::entity entity) { // visitNodeFunc
+        [&](entt::entity entity) { // visit_node_func
             // We only visit procedural nodes.
             EDYN_ASSERT(procedural_view.contains(entity));
 
@@ -754,7 +755,7 @@ void island_worker::init_new_nodes_and_edges() {
                 connected_nodes.push_back(entity);
             }
         },
-        [&](entt::entity entity) { // visitEdgeFunc
+        [&](entt::entity entity) { // visit_edge_func
             auto &edge_resident = resident_view.get<island_resident>(entity);
 
             if (edge_resident.island_entity == entt::null) {
@@ -767,7 +768,7 @@ void island_worker::init_new_nodes_and_edges() {
                 }
             }
         },
-        [&](entity_graph::index_type node_index) { // shouldVisitFunc
+        [&](entity_graph::index_type node_index) { // should_visit_func
             auto other_entity = graph.node_entity(node_index);
 
             if (!procedural_view.contains(other_entity)) {
@@ -791,7 +792,8 @@ void island_worker::init_new_nodes_and_edges() {
             bool continue_visiting = false;
 
             // Visit neighbor if it contains an edge that is not in an island yet.
-            graph.visit_edges(node_index, [&](entt::entity edge_entity) {
+            graph.visit_edges(node_index, [&](auto edge_index) {
+                auto edge_entity = graph.edge_entity(edge_index);
                 if (resident_view.get<island_resident>(edge_entity).island_entity == entt::null) {
                     continue_visiting = true;
                 }
@@ -799,7 +801,7 @@ void island_worker::init_new_nodes_and_edges() {
 
             return continue_visiting;
         },
-        [&]() { // connectedComponentFunc
+        [&]() { // connected_component_func
             if (island_entities.size() <= 1) {
                 // Assign island to the residents.
                 auto island_entity = entt::entity{};
@@ -989,7 +991,7 @@ void island_worker::split_islands() {
             graph.traverse_connecting_nodes(start_node.node_index,
                 [&](auto node_index) {
                     auto node_entity = graph.node_entity(node_index);
-                    island.nodes.insert(node_entity);
+                    island.nodes.emplace(node_entity);
 
                     auto &resident = resident_view.get<island_resident>(node_entity);
                     resident.island_entity = island_entity;
@@ -1009,7 +1011,7 @@ void island_worker::split_islands() {
                     }
                 }, [&](auto edge_index) {
                     auto edge_entity = graph.edge_entity(edge_index);
-                    island.edges.insert(edge_entity);
+                    island.edges.emplace(edge_entity);
 
                     auto &resident = resident_view.get<island_resident>(edge_entity);
                     resident.island_entity = island_entity;
@@ -1198,6 +1200,67 @@ void island_worker::on_set_material_table(const message<msg::set_material_table>
 void island_worker::on_set_com(const message<msg::set_com> &msg) {
     auto entity = m_entity_map.at(msg.content.entity);
     apply_center_of_mass(m_registry, entity, msg.content.com);
+}
+
+void island_worker::on_exchange_islands(const message<msg::exchange_islands> &msg) {
+    // Collect all islands that must be moved, i.e. the ones whose AABB
+    // intersect the island AABBs of the other worker.
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
+    std::vector<entt::entity> island_entities;
+
+    for (auto &aabb : msg.content.island_aabbs) {
+        bphase.query_islands(aabb, [&](entt::entity island_entity) {
+            island_entities.push_back(island_entity);
+        });
+    }
+
+    // Considering the collected islands are already owned by the destination
+    // worker, select more islands to be moved as to balance the distribution
+    // of work.
+
+    // TODO
+
+    if (island_entities.empty()) {
+        return;
+    }
+
+    // Collect all nodes and edges of these islands
+    auto island_view = m_registry.view<island>();
+    entt::sparse_set all_entities;
+
+    for (auto island_entity : island_entities) {
+        auto [island] = island_view.get(island_entity);
+
+        for (auto entity : island.nodes) {
+            if (!all_entities.contains(entity)) {
+                all_entities.emplace(entity);
+            }
+        }
+
+        for (auto entity : island.edges) {
+            if (!all_entities.contains(entity)) {
+                all_entities.emplace(entity);
+            }
+        }
+    }
+
+    // Insert all entities to be moved into a set of registry operations.
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto builder = (*settings.make_reg_op_builder)();
+
+    for (auto entity : all_entities) {
+        builder->create(entity);
+        builder->emplace_all(m_registry, entity);
+    }
+
+    message_dispatcher::global().send<msg::move_entities>(msg.content.destination, message_queue_id(), builder->finish());
+
+    // Remove all moved entities from this worker, without including these
+    // changes in the current registry operations. Non-procedural entities
+    // that still have a connection to one or more procedural entities must
+    // stay.
+
+    // TODO
 }
 
 void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {

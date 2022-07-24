@@ -36,13 +36,19 @@ public:
     template<typename Func>
     void raycast(vector3 p0, vector3 p1, Func func);
 
+    template<typename Func>
+    void query_islands(const AABB &aabb, Func func);
+
     void on_construct_aabb(entt::registry &, entt::entity);
     void on_destroy_tree_resident(entt::registry &, entt::entity);
+    void on_construct_island_aabb(entt::registry &, entt::entity);
+    void on_destroy_island_tree_resident(entt::registry &, entt::entity);
 
 private:
     entt::registry *m_registry;
     dynamic_tree m_tree; // Procedural dynamic tree.
     dynamic_tree m_np_tree; // Non-procedural dynamic tree.
+    dynamic_tree m_island_tree; // Island AABB tree.
     std::vector<entt::entity> m_new_aabb_entities;
     std::vector<entity_pair_vector> m_pair_results;
 };
@@ -54,6 +60,13 @@ void broadphase_worker::raycast(vector3 p0, vector3 p1, Func func) {
     });
     m_np_tree.raycast(p0, p1, [&](tree_node_id_t id) {
         func(m_np_tree.get_node(id).entity);
+    });
+}
+
+template<typename Func>
+void broadphase_worker::query_islands(const AABB &aabb, Func func) {
+    m_island_tree.query(aabb, [&](tree_node_id_t id) {
+        func(m_island_tree.get_node(id).entity);
     });
 }
 

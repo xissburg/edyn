@@ -1,4 +1,5 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
+#include "edyn/collision/broadphase_main.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/position.hpp"
@@ -10,7 +11,7 @@
 namespace edyn {
 
 void update_aabbs_of_interest(entt::registry &registry) {
-    auto &tree = registry.ctx().at<island_tree>();
+    auto &bphase = registry.ctx().at<broadphase_main>();
     auto owner_view = registry.view<entity_owner>();
     auto manifold_view = registry.view<contact_manifold>();
     auto position_view = registry.view<position>();
@@ -27,7 +28,7 @@ void update_aabbs_of_interest(entt::registry &registry) {
 
         aabboi.island_entities.clear();
         // Collect entities of islands which intersect the AABB of interest.
-        tree.query(aabboi.aabb, [&](entt::entity island_entity) {
+        bphase.query_islands(aabboi.aabb, [&](entt::entity island_entity) {
             auto &island = registry.get<edyn::island>(island_entity);
 
             for (auto entity : island.nodes) {
@@ -52,7 +53,7 @@ void update_aabbs_of_interest(entt::registry &registry) {
             }
         });
 
-        tree.query_non_procedural(aabboi.aabb, [&](entt::entity np_entity) {
+        bphase.query_non_procedural(aabboi.aabb, [&](entt::entity np_entity) {
             if (!contained_entities.contains(np_entity)) {
                 contained_entities.emplace(np_entity);
             }

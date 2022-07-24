@@ -1,6 +1,7 @@
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/tree_node.hpp"
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/comp/tree_resident.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
@@ -12,11 +13,17 @@
 
 namespace edyn {
 
+struct island_tree_resident {
+    tree_node_id_t id;
+};
+
 broadphase_worker::broadphase_worker(entt::registry &registry)
     : m_registry(&registry)
 {
     registry.on_construct<AABB>().connect<&broadphase_worker::on_construct_aabb>(*this);
     registry.on_destroy<tree_resident>().connect<&broadphase_worker::on_destroy_tree_resident>(*this);
+    registry.on_construct<island_AABB>().connect<&broadphase_worker::on_construct_island_aabb>(*this);
+    registry.on_destroy<island_tree_resident>().connect<&broadphase_worker::on_destroy_island_tree_resident>(*this);
 }
 
 void broadphase_worker::on_construct_aabb(entt::registry &, entt::entity entity) {
@@ -32,6 +39,17 @@ void broadphase_worker::on_destroy_tree_resident(entt::registry &registry, entt:
     } else {
         m_np_tree.destroy(node.id);
     }
+}
+
+void broadphase_worker::on_construct_island_aabb(entt::registry &registry, entt::entity entity) {
+    auto &aabb = registry.get<island_AABB>(entity);
+    tree_node_id_t id = m_island_tree.create(aabb, entity);
+    registry.emplace<island_tree_resident>(entity, id);
+}
+
+void broadphase_worker::on_destroy_island_tree_resident(entt::registry &registry, entt::entity entity) {
+    auto &node = registry.get<island_tree_resident>(entity);
+    m_island_tree.destroy(node.id);
 }
 
 void broadphase_worker::init_new_aabb_entities() {
@@ -129,6 +147,11 @@ void broadphase_worker::common_update() {
     auto kinematic_aabb_node_view = m_registry->view<tree_resident, AABB, kinematic_tag>();
     kinematic_aabb_node_view.each([&](tree_resident &node, AABB &aabb) {
         m_np_tree.move(node.id, aabb);
+    });
+
+    auto island_aabb_node_view = m_registry->view<island_tree_resident, island_AABB>();
+    island_aabb_node_view.each([&](island_tree_resident &node, island_AABB &aabb) {
+        m_island_tree.move(node.id, aabb);
     });
 }
 

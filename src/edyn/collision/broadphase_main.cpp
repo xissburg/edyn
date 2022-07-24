@@ -169,4 +169,8 @@ void broadphase_main::process_intersecting_entities(
     }
 }
 
+void broadphase_main::update() {
+    intersect_islands();
+}
+
 }

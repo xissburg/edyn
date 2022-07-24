@@ -34,11 +34,13 @@ class island_coordinator final {
     void refresh_dirty_entities();
     void sync();
     void balance_workers();
+    void exchange_islands_from_to(island_worker_index_type from_worker,
+                                  island_worker_index_type to_worker);
 
 public:
     island_coordinator(island_coordinator const&) = delete;
     island_coordinator operator=(island_coordinator const&) = delete;
-    island_coordinator(entt::registry &);
+    island_coordinator(entt::registry &, unsigned short num_island_workers = 0);
     ~island_coordinator();
 
     void on_construct_graph_node(entt::registry &, entt::entity);
@@ -75,7 +77,8 @@ public:
 
     void move_non_procedural_into_worker(entt::entity np_entity, island_worker_index_type worker_index);
 
-    void exchange_islands(island_worker_index_type worker_indexA, island_worker_index_type worker_indexB);
+    void exchange_islands(island_worker_index_type worker_indexA,
+                          island_worker_index_type worker_indexB);
 
     auto contact_started_sink() {
         return entt::sink{m_contact_started_signal};

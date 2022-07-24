@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_MESSAGE_HPP
 
 #include <entt/entity/fwd.hpp>
+#include "edyn/comp/aabb.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
@@ -50,6 +51,19 @@ struct update_entities {
 struct apply_network_pools {
     std::vector<entt::entity> entities;
     std::vector<pool_snapshot> pools;
+};
+
+struct exchange_islands {
+    message_queue_identifier destination;
+    std::vector<AABB> island_aabbs;
+};
+
+struct move_entities {
+    registry_operation_collection ops;
+};
+
+struct entities_received_by_worker {
+    std::vector<entt::entity> entities;
 };
 
 }
