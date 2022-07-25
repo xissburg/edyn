@@ -62,8 +62,13 @@ struct move_entities {
     registry_operation_collection ops;
 };
 
+struct entities_moved {
+    std::vector<entt::entity> entities;
+};
+
 struct entities_received_by_worker {
     std::vector<entt::entity> entities;
+    entity_map emap;
 };
 
 }

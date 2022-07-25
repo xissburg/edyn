@@ -84,6 +84,7 @@ island_worker::island_worker(const std::string &name, const settings &settings,
         msg::update_entities,
         msg::apply_network_pools,
         msg::exchange_islands,
+        msg::move_entities,
         extrapolation_result>(name.c_str()))
     , m_coordinator_queue_id(coordinator_queue_id)
 {
@@ -128,6 +129,8 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
     m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
+    m_message_queue.sink<msg::exchange_islands>().connect<&island_worker::on_exchange_islands>(*this);
+    m_message_queue.sink<msg::move_entities>().connect<&island_worker::on_move_entities>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&island_worker::on_apply_network_pools>(*this);
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
@@ -177,7 +180,6 @@ void island_worker::on_construct_graph_edge(entt::registry &registry, entt::enti
         // Assuming this graph edge is a constraint or contact manifold, which
         // are always procedural, thus can only reside in one island.
         registry.emplace<island_resident>(entity);
-        m_op_builder->emplace<island_resident>(registry, entity);
     }
 }
 
@@ -266,92 +268,105 @@ void island_worker::on_destroy_rotated_mesh_list(entt::registry &registry, entt:
     }
 }
 
-void island_worker::on_update_entities(const message<msg::update_entities> &msg) {
-    // Import components from main registry.
-    m_importing = true;
+static void import_reg_ops(entt::registry &registry, entity_map &emap, const registry_operation_collection &ops) {
+    ops.execute(registry, emap);
 
-    auto &ops = msg.content.ops;
-    ops.execute(m_registry, m_entity_map);
-
-    ops.create_for_each([&](entt::entity remote_entity) {
-        auto local_entity = m_entity_map.at(remote_entity);
-        m_op_builder->add_entity_mapping(local_entity, remote_entity);
-    });
-
-    auto &graph = m_registry.ctx().at<entity_graph>();
-    auto node_view = m_registry.view<graph_node>();
+    auto &graph = registry.ctx().at<entity_graph>();
+    auto node_view = registry.view<graph_node>();
+    auto procedural_view = registry.view<procedural_tag>();
 
     // Insert nodes in the graph for each rigid body.
-    ops.emplace_for_each<rigidbody_tag, external_tag>([this](entt::entity remote_entity) {
-        insert_remote_node(remote_entity);
+    ops.emplace_for_each<rigidbody_tag, external_tag>([&](entt::entity remote_entity) {
+        auto local_entity = emap.at(remote_entity);
+        auto procedural = procedural_view.contains(local_entity);
+        auto node_index = graph.insert_node(local_entity, !procedural);
+        registry.emplace<graph_node>(local_entity, node_index);
+
+        if (procedural) {
+            registry.emplace<island_resident>(local_entity);
+        } else {
+            registry.emplace<multi_island_resident>(local_entity);
+        }
     });
 
     // Insert edges in the graph for constraints.
     ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
-        auto local_entity = m_entity_map.at(remote_entity);
-
-        if (m_registry.any_of<graph_edge>(local_entity)) return;
-
-        auto &node0 = node_view.get<graph_node>(m_entity_map.at(con.body[0]));
-        auto &node1 = node_view.get<graph_node>(m_entity_map.at(con.body[1]));
+        auto local_entity = emap.at(remote_entity);
+        auto &node0 = node_view.get<graph_node>(emap.at(con.body[0]));
+        auto &node1 = node_view.get<graph_node>(emap.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
-        m_registry.emplace<graph_edge>(local_entity, edge_index);
+        registry.emplace<graph_edge>(local_entity, edge_index);
+        registry.emplace<island_resident>(local_entity);
     });
 
     // When orientation is set manually, a few dependent components must be
     // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
     ops.replace_for_each<orientation>([&](entt::entity remote_entity, const orientation &orn) {
-        auto local_entity = m_entity_map.at(remote_entity);
+        auto local_entity = emap.at(remote_entity);
 
-        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
-            auto &com = m_registry.get<center_of_mass>(local_entity);
-            auto &pos = m_registry.get<position>(local_entity);
+        if (auto *origin = registry.try_get<edyn::origin>(local_entity)) {
+            auto &com = registry.get<center_of_mass>(local_entity);
+            auto &pos = registry.get<position>(local_entity);
             *origin = to_world_space(-com, pos, orn);
         }
 
-        if (m_registry.any_of<AABB>(local_entity)) {
-            update_aabb(m_registry, local_entity);
+        if (registry.any_of<AABB>(local_entity)) {
+            update_aabb(registry, local_entity);
         }
 
-        if (m_registry.any_of<dynamic_tag>(local_entity)) {
-            update_inertia(m_registry, local_entity);
+        if (registry.any_of<dynamic_tag>(local_entity)) {
+            update_inertia(registry, local_entity);
         }
 
-        if (m_registry.any_of<rotated_mesh_list>(local_entity)) {
-            update_rotated_mesh(m_registry, local_entity);
+        if (registry.any_of<rotated_mesh_list>(local_entity)) {
+            update_rotated_mesh(registry, local_entity);
         }
     });
 
     // When position is set manually, the AABB and cached origin must be updated.
     ops.replace_for_each<position>([&](entt::entity remote_entity, const position &pos) {
-        auto local_entity = m_entity_map.at(remote_entity);
+        auto local_entity = emap.at(remote_entity);
 
-        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
-            auto &com = m_registry.get<center_of_mass>(local_entity);
-            auto &orn = m_registry.get<orientation>(local_entity);
+        if (auto *origin = registry.try_get<edyn::origin>(local_entity)) {
+            auto &com = registry.get<center_of_mass>(local_entity);
+            auto &orn = registry.get<orientation>(local_entity);
             *origin = to_world_space(-com, pos, orn);
         }
 
-        if (m_registry.any_of<AABB>(local_entity)) {
-            update_aabb(m_registry, local_entity);
+        if (registry.any_of<AABB>(local_entity)) {
+            update_aabb(registry, local_entity);
         }
     });
 
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().at<edyn::settings>();
 
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         // Assign previous position and orientation components to dynamic entities
         // for client-side networking extrapolation discontinuity mitigation.
         ops.emplace_for_each<dynamic_tag>([&](entt::entity remote_entity) {
-            if (!m_entity_map.contains(remote_entity)) return;
+            if (!emap.contains(remote_entity)) return;
 
-            auto local_entity = m_entity_map.at(remote_entity);
-            m_registry.emplace<previous_position>(local_entity);
-            m_registry.emplace<previous_orientation>(local_entity);
+            auto local_entity = emap.at(remote_entity);
+            registry.emplace<previous_position>(local_entity);
+            registry.emplace<previous_orientation>(local_entity);
         });
     }
+}
 
+void island_worker::on_update_entities(const message<msg::update_entities> &msg) {
+    // Import components from main registry.
+    m_importing = true;
+    import_reg_ops(m_registry, m_entity_map, msg.content.ops);
     m_importing = false;
+
+    // Add all new entity mappings to current op builder which will be sent
+    // over to the coordinator so it can create corresponding mappings between
+    // its new entities and the entities that were just create here in this
+    // import.
+    msg.content.ops.create_for_each([&](entt::entity remote_entity) {
+        auto local_entity = m_entity_map.at(remote_entity);
+        m_op_builder->add_entity_mapping(local_entity, remote_entity);
+    });
 }
 
 void island_worker::wake_up_island(entt::entity island_entity) {
@@ -527,6 +542,8 @@ bool island_worker::should_step() {
 void island_worker::begin_step() {
     EDYN_ASSERT(m_state == state::begin_step);
 
+    init_new_nodes_and_edges();
+
     auto &settings = m_registry.ctx().at<edyn::settings>();
     if (settings.external_system_pre_step) {
         (*settings.external_system_pre_step)(m_registry);
@@ -535,8 +552,6 @@ void island_worker::begin_step() {
     // Perform splits after processing messages from coordinator and running
     // external logic, which could've destroyed nodes or edges.
     split_islands();
-
-    init_new_nodes_and_edges();
 
     // Initialize new shapes. Basically, create rotated meshes for new
     // imported polyhedron shapes.
@@ -853,13 +868,11 @@ void island_worker::insert_to_island(entt::entity island_entity,
     for (auto entity : nodes) {
         auto &resident = resident_view.get<island_resident>(entity);
         resident.island_entity = island_entity;
-        m_op_builder->replace(entity, resident);
     }
 
     for (auto entity : edges) {
         auto &resident = resident_view.get<island_resident>(entity);
         resident.island_entity = island_entity;
-        m_op_builder->replace(entity, resident);
     }
 
     auto &island = m_registry.get<edyn::island>(island_entity);
@@ -1005,7 +1018,6 @@ void island_worker::split_islands() {
 
                     auto &resident = resident_view.get<island_resident>(node_entity);
                     resident.island_entity = island_entity;
-                    m_op_builder->replace(node_entity, resident);
 
                     connected_nodes.push_back(node_entity);
 
@@ -1025,7 +1037,6 @@ void island_worker::split_islands() {
 
                     auto &resident = resident_view.get<island_resident>(edge_entity);
                     resident.island_entity = island_entity;
-                    m_op_builder->replace(edge_entity, resident);
                 });
 
             for (auto entity : connected_nodes) {
@@ -1095,15 +1106,6 @@ void island_worker::init_new_shapes() {
 
     m_new_polyhedron_shapes.clear();
     m_new_compound_shapes.clear();
-}
-
-void island_worker::insert_remote_node(entt::entity remote_entity) {
-    auto local_entity = m_entity_map.at(remote_entity);
-    auto non_connecting = !m_registry.any_of<procedural_tag>(local_entity);
-
-    auto &graph = m_registry.ctx().at<entity_graph>();
-    auto node_index = graph.insert_node(local_entity, non_connecting);
-    m_registry.emplace<graph_node>(local_entity, node_index);
 }
 
 void island_worker::maybe_go_to_sleep(entt::entity island_entity) {
@@ -1273,16 +1275,25 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     auto builder = (*settings.make_reg_op_builder)();
 
     for (auto entity : all_nodes) {
+        if (m_entity_map.contains(entity)) {
+            builder->add_entity_mapping(entity, m_entity_map.at(entity));
+        }
+
         builder->create(entity);
         builder->emplace_all(m_registry, entity);
     }
 
     for (auto entity : all_edges) {
+        if (m_entity_map.contains(entity)) {
+            builder->add_entity_mapping(entity, m_entity_map.at(entity));
+        }
+
         builder->create(entity);
         builder->emplace_all(m_registry, entity);
     }
 
-    message_dispatcher::global().send<msg::move_entities>(msg.content.destination, message_queue_id(), builder->finish());
+    auto &msg_dispatcher = message_dispatcher::global();
+    msg_dispatcher.send<msg::move_entities>(msg.content.destination, message_queue_id(), builder->finish());
 
     // Remove all moved entities from this worker, without including these
     // changes in the current registry operations. Non-procedural entities
@@ -1299,6 +1310,8 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     auto &graph = m_registry.ctx().at<entity_graph>();
     auto node_view = m_registry.view<graph_node>();
     auto edge_view = m_registry.view<graph_edge>();
+    auto procedural_view = m_registry.view<procedural_tag>();
+    std::vector<entt::entity> moved_entities;
 
     // Remove all edges from graph first.
     for (auto entity : all_edges) {
@@ -1315,6 +1328,23 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     // Nodes can only be removed after they have no incident edges.
     for (auto entity : all_nodes) {
         auto [node] = node_view.get(entity);
+
+        if (!m_registry.all_of<procedural_tag>(entity)) {
+            // Non-procedural nodes that are still connected to a procedural
+            // must not be removed.
+            bool has_procedural_neighbor = false;
+
+            graph.visit_neighbors(node.node_index, [&](entt::entity neighbor) {
+                if (procedural_view.contains(neighbor)) {
+                    has_procedural_neighbor = true;
+                }
+            });
+
+            if (has_procedural_neighbor) {
+                continue;
+            }
+        }
+
         graph.remove_node(node.node_index);
 
         if (m_entity_map.contains_local(entity)) {
@@ -1322,7 +1352,11 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
         }
 
         m_registry.destroy(entity);
+        moved_entities.push_back(entity);
     }
+
+    moved_entities.insert(moved_entities.end(), all_edges.begin(), all_edges.end());
+    msg_dispatcher.send<msg::entities_moved>(m_coordinator_queue_id, message_queue_id(), std::move(moved_entities));
 
     // Island entities do not move between workers, thus mark them as destroyed.
     // New islands will be created in the other worker when the moved entities
@@ -1336,6 +1370,39 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
     m_registry.on_destroy<island_resident>().connect<&island_worker::on_destroy_island_resident>(*this);
+}
+
+void island_worker::on_move_entities(const message<msg::move_entities> &msg) {
+    auto &ops = msg.content.ops;
+    entity_map emap_w2w;
+    msg::entities_received_by_worker response;
+
+    // Create entity mapping between workers. Not all created entities in the
+    // ops contain a mapping to a coordinator entity necessarily.
+    ops.ent_map_for_each([&](entt::entity worker_entity, entt::entity coordinator_entity) {
+        auto local_entity = m_registry.create();
+        emap_w2w.insert(worker_entity, local_entity);
+        m_entity_map.insert(coordinator_entity, local_entity);
+        response.emap.insert(local_entity, coordinator_entity);
+    });
+
+    // Import entities and components using the worker-to-worker entity map
+    // since the ops are in the registry space of the source worker and thus
+    // the entities will be mapped to the registry space of this worker.
+    m_importing = true;
+    import_reg_ops(m_registry, emap_w2w, msg.content.ops);
+    m_importing = false;
+
+    // Add entities to response now that they have all been imported. Not all
+    // entities could have a mapping to a coordinator entity yet, so that
+    // mapping is then added to `emap_w2w` in `ops.execute`.
+    ops.create_for_each([&](entt::entity worker_entity) {
+        auto local_entity = emap_w2w.at(worker_entity);
+        response.entities.push_back(local_entity);
+    });
+
+    message_dispatcher::global()
+        .send<msg::entities_received_by_worker>(m_coordinator_queue_id, message_queue_id(), std::move(response));
 }
 
 void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {

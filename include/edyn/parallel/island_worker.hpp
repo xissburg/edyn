@@ -97,6 +97,7 @@ public:
     void on_set_material_table(const message<msg::set_material_table> &msg);
     void on_set_com(const message<msg::set_com> &);
     void on_exchange_islands(const message<msg::exchange_islands> &);
+    void on_move_entities(const message<msg::move_entities> &);
     void on_apply_network_pools(const message<msg::apply_network_pools> &);
     void on_extrapolation_result(const message<extrapolation_result> &);
 
@@ -126,6 +127,7 @@ private:
         msg::update_entities,
         msg::apply_network_pools,
         msg::exchange_islands,
+        msg::move_entities,
         extrapolation_result> m_message_queue;
     message_queue_identifier m_coordinator_queue_id;
 

@@ -66,35 +66,44 @@ void broadphase_main::intersect_islands() {
         awake_island_entities.push_back(island_entity);
     });
 
-    // Do not look for intersecting islands if there's only one.
-    if (awake_island_entities.size() < 2) {
-        return;
-    }
-
     // Search for island pairs with intersecting AABBs.
     const auto aabb_view = m_registry->view<AABB>();
     const auto island_aabb_view = m_registry->view<island_AABB>();
     const auto island_worker_resident_view = m_registry->view<island_worker_resident>();
     const auto multi_island_worker_resident_view = m_registry->view<multi_island_worker_resident>();
 
-    m_pair_results.resize(awake_island_entities.size());
+    if (awake_island_entities.size() > 4) {
+        m_pair_results.resize(awake_island_entities.size());
 
-    parallel_for(size_t{0}, awake_island_entities.size(), [&](size_t index) {
-        auto island_entityA = awake_island_entities[index];
-        m_pair_results[index] = find_intersecting_islands(
-            island_entityA, aabb_view, island_aabb_view,
-            island_worker_resident_view, multi_island_worker_resident_view);
-    });
+        parallel_for(size_t{0}, awake_island_entities.size(), [&](size_t index) {
+            auto island_entityA = awake_island_entities[index];
+            m_pair_results[index] = find_intersecting_islands(
+                island_entityA, aabb_view, island_aabb_view,
+                island_worker_resident_view, multi_island_worker_resident_view);
+        });
 
-    for (auto &results : m_pair_results) {
-        for (auto &pair : results) {
-            process_intersecting_entities(pair, island_aabb_view,
-                                            island_worker_resident_view,
-                                            multi_island_worker_resident_view);
+        for (auto &results : m_pair_results) {
+            for (auto &pair : results) {
+                process_intersecting_entities(pair, island_aabb_view,
+                                              island_worker_resident_view,
+                                              multi_island_worker_resident_view);
+            }
+        }
+
+        m_pair_results.clear();
+    } else {
+        for (auto island_entityA : awake_island_entities) {
+            auto pairs = find_intersecting_islands(
+                island_entityA, aabb_view, island_aabb_view,
+                island_worker_resident_view, multi_island_worker_resident_view);
+
+            for (auto &pair : pairs) {
+                process_intersecting_entities(pair, island_aabb_view,
+                                              island_worker_resident_view,
+                                              multi_island_worker_resident_view);
+            }
         }
     }
-
-    m_pair_results.clear();
 }
 
 entity_pair_vector broadphase_main::find_intersecting_islands(

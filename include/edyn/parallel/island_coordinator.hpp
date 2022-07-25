@@ -54,6 +54,8 @@ public:
     void on_destroy_island(entt::registry &, entt::entity);
 
     void on_step_update(const message<msg::step_update> &);
+    void on_entities_received(const message<msg::entities_received_by_worker> &);
+    void on_entities_moved(const message<msg::entities_moved> &);
 
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
@@ -106,7 +108,11 @@ public:
 private:
     entt::registry *m_registry;
     std::vector<std::unique_ptr<island_worker_context>> m_worker_ctx;
-    message_queue_handle<msg::step_update> m_message_queue_handle;
+    message_queue_handle<
+        msg::step_update,
+        msg::entities_received_by_worker,
+        msg::entities_moved
+    > m_message_queue_handle;
 
     entt::sigh<void(entt::entity)> m_contact_started_signal;
     entt::sigh<void(entt::entity)> m_contact_ended_signal;

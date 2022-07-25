@@ -51,19 +51,19 @@ void deinit() {
 void attach(entt::registry &registry) {
     registry.ctx().emplace<settings>();
     registry.ctx().emplace<entity_graph>();
+    registry.ctx().emplace<material_mix_table>();
     registry.ctx().emplace<contact_manifold_map>(registry);
     registry.ctx().emplace<island_coordinator>(registry);
     registry.ctx().emplace<broadphase_main>(registry);
-    registry.ctx().emplace<material_mix_table>();
 }
 
 void detach(entt::registry &registry) {
     registry.ctx().erase<settings>();
     registry.ctx().erase<entity_graph>();
+    registry.ctx().erase<material_mix_table>();
     registry.ctx().erase<contact_manifold_map>();
     registry.ctx().erase<island_coordinator>();
     registry.ctx().erase<broadphase_main>();
-    registry.ctx().erase<material_mix_table>();
 }
 
 scalar get_fixed_dt(const entt::registry &registry) {

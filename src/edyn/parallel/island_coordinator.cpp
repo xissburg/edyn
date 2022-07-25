@@ -35,7 +35,11 @@ namespace edyn {
 island_coordinator::island_coordinator(entt::registry &registry,unsigned short num_island_workers)
     : m_registry(&registry)
     , m_message_queue_handle(
-            message_dispatcher::global().make_queue<msg::step_update>("coordinator"))
+            message_dispatcher::global().make_queue<
+                msg::step_update,
+                msg::entities_received_by_worker,
+                msg::entities_moved
+            >("coordinator"))
 {
     registry.on_construct<graph_node>().connect<&island_coordinator::on_construct_graph_node>(*this);
     registry.on_destroy<graph_node>().connect<&island_coordinator::on_destroy_graph_node>(*this);
@@ -48,8 +52,9 @@ island_coordinator::island_coordinator(entt::registry &registry,unsigned short n
 
     registry.on_destroy<contact_manifold>().connect<&island_coordinator::on_destroy_contact_manifold>(*this);
 
-    // Register to receive delta.
     m_message_queue_handle.sink<msg::step_update>().connect<&island_coordinator::on_step_update>(*this);
+    m_message_queue_handle.sink<msg::entities_received_by_worker>().connect<&island_coordinator::on_entities_received>(*this);
+    m_message_queue_handle.sink<msg::entities_moved>().connect<&island_coordinator::on_entities_moved>(*this);
 
     if (num_island_workers == 0) {
         num_island_workers = std::thread::hardware_concurrency();
@@ -315,7 +320,7 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
     auto procedural_view = m_registry->view<procedural_tag>();
     auto resident_view = m_registry->view<island_worker_resident>();
     auto &node = m_registry->get<graph_node>(node_entity);
-    auto &resident = m_registry->emplace<multi_island_worker_resident>(node_entity);
+    auto &resident = m_registry->get<multi_island_worker_resident>(node_entity);
 
     // Add new non-procedural entity to workers where neighboring procedural
     // entities currently reside.
@@ -490,14 +495,20 @@ void island_coordinator::refresh_dirty_entities() {
     m_registry->clear<dirty>();
 }
 
+static
+island_worker_index_type get_message_source_worker_index(const message_queue_identifier &id) {
+    auto &name = id.value;
+    auto prefix = std::string("worker-");
+    EDYN_ASSERT(name.compare(0, prefix.size(), prefix) == 0);
+    auto source_worker_index = std::stoi(name.substr(prefix.size(), name.size() - prefix.size()));
+    return source_worker_index;
+}
+
 void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
     m_importing = true;
     auto &registry = *m_registry;
 
-    auto name = msg.sender.value;
-    auto prefix = std::string("worker-");
-    EDYN_ASSERT(name.compare(0, prefix.size(), prefix) == 0);
-    auto source_worker_index = std::stoi(name.substr(prefix.size(), name.size() - prefix.size()));
+    auto source_worker_index = get_message_source_worker_index(msg.sender);
     auto &source_ctx = m_worker_ctx[source_worker_index];
     auto &ops = msg.content.ops;
 
@@ -505,8 +516,10 @@ void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
 
     // Insert entity mappings for new entities into the current op.
     ops.create_for_each([&](entt::entity remote_entity) {
-        auto local_entity = source_ctx->m_entity_map.at(remote_entity);
-        source_ctx->m_op_builder->add_entity_mapping(local_entity, remote_entity);
+        if (source_ctx->m_entity_map.contains(remote_entity)) {
+            auto local_entity = source_ctx->m_entity_map.at(remote_entity);
+            source_ctx->m_op_builder->add_entity_mapping(local_entity, remote_entity);
+        }
     });
 
     source_ctx->m_timestamp = msg.content.timestamp;
@@ -588,6 +601,58 @@ void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
     });
 
     (*g_mark_replaced_network_dirty)(registry, ops, source_ctx->m_entity_map, m_timestamp);
+}
+
+void island_coordinator::on_entities_received(const message<msg::entities_received_by_worker> &msg) {
+    auto worker_index = get_message_source_worker_index(msg.sender);
+    auto &ctx = m_worker_ctx[worker_index];
+    auto &emap = ctx->m_entity_map;
+    auto resident_view = m_registry->view<island_worker_resident>();
+    auto multi_resident_view = m_registry->view<multi_island_worker_resident>();
+
+    for (auto remote_entity : msg.content.entities) {
+        if (msg.content.emap.contains(remote_entity)) {
+            auto local_entity = msg.content.emap.at(remote_entity);
+            emap.insert(remote_entity, local_entity);
+
+            if (resident_view.contains(local_entity)) {
+                auto [resident] = resident_view.get(local_entity);
+                resident.worker_index = worker_index;
+            } else if (multi_resident_view.contains(local_entity)) {
+                auto [resident] = multi_resident_view.get(local_entity);
+                resident.worker_indices.insert(worker_index);
+            }
+        } else {
+            // TODO: query unknown entity and components.
+            EDYN_ASSERT(false);
+        }
+    }
+}
+
+void island_coordinator::on_entities_moved(const message<msg::entities_moved> &msg) {
+    auto worker_index = get_message_source_worker_index(msg.sender);
+    auto &ctx = m_worker_ctx[worker_index];
+    auto &emap = ctx->m_entity_map;
+    auto resident_view = m_registry->view<island_worker_resident>();
+    auto multi_resident_view = m_registry->view<multi_island_worker_resident>();
+
+    for (auto remote_entity : msg.content.entities) {
+        if (!emap.contains(remote_entity)) continue;
+
+        auto local_entity = emap.at(remote_entity);
+        emap.erase(remote_entity);
+
+        if (resident_view.contains(local_entity)) {
+            auto [resident] = resident_view.get(local_entity);
+
+            if (resident.worker_index == worker_index) {
+                resident.worker_index = invalid_worker_index;
+            }
+        } else if (multi_resident_view.contains(local_entity)) {
+            auto [resident] = multi_resident_view.get(local_entity);
+            resident.worker_indices.erase(worker_index);
+        }
+    }
 }
 
 void island_coordinator::sync() {
