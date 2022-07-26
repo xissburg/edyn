@@ -16,6 +16,7 @@
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
+#include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/shapes/compound_shape.hpp"
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
@@ -87,6 +88,7 @@ island_worker::island_worker(const std::string &name, const settings &settings,
         msg::apply_network_pools,
         msg::exchange_islands,
         msg::move_entities,
+        msg::raycast_request,
         extrapolation_result>(name.c_str()))
     , m_coordinator_queue_id(coordinator_queue_id)
 {
@@ -134,6 +136,7 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
     m_message_queue.sink<msg::exchange_islands>().connect<&island_worker::on_exchange_islands>(*this);
     m_message_queue.sink<msg::move_entities>().connect<&island_worker::on_move_entities>(*this);
+    m_message_queue.sink<msg::raycast_request>().connect<&island_worker::on_raycast_request>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&island_worker::on_apply_network_pools>(*this);
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
@@ -478,14 +481,7 @@ void island_worker::sync_dirty() {
 }
 
 void island_worker::update() {
-    switch (m_state) {
-    case state::init:
-        init();
-        maybe_reschedule();
-        break;
-    case state::step:
-        process_messages();
-
+    auto maybe_do_step = [&]() {
         if (should_step()) {
             begin_step();
             if (run_broadphase()) {
@@ -497,6 +493,21 @@ void island_worker::update() {
             }
         } else {
             maybe_reschedule();
+        }
+    };
+
+    switch (m_state) {
+    case state::init:
+        init();
+        maybe_reschedule();
+        break;
+    case state::step:
+        process_messages();
+
+        if (run_raycast_broadphase()) {
+            if (run_raycast_narrowphase()) {
+                maybe_do_step();
+            }
         }
 
         break;
@@ -538,6 +549,28 @@ void island_worker::update() {
     case state::finish_step:
         finish_step();
         maybe_reschedule();
+        break;
+    case state::raycast_broadphase:
+        if (run_raycast_broadphase()) {
+            if (run_raycast_narrowphase()) {
+                maybe_do_step();
+            }
+        }
+        break;
+    case state::raycast_broadphase_async:
+        finish_raycast_broadphase();
+        if (run_raycast_narrowphase()) {
+            maybe_do_step();
+        }
+        break;
+    case state::raycast_narrowphase:
+        if (run_raycast_narrowphase()) {
+            maybe_do_step();
+        }
+        break;
+    case state::raycast_narrowphase_async:
+        finish_raycast_narrowphase();
+        maybe_do_step();
         break;
     }
 }
@@ -1584,6 +1617,139 @@ void island_worker::on_move_entities(const message<msg::move_entities> &msg) {
 
     message_dispatcher::global()
         .send<msg::entities_received_by_worker>(m_coordinator_queue_id, message_queue_id(), std::move(response));
+}
+
+void island_worker::on_raycast_request(const message<msg::raycast_request> &msg) {
+    auto &ctx = m_raycast_broad_ctx.emplace_back();
+    ctx.id = msg.content.id;
+    ctx.p0 = msg.content.p0;
+    ctx.p1 = msg.content.p1;
+}
+
+bool island_worker::run_raycast_broadphase() {
+    if (m_raycast_broad_ctx.empty()) {
+        return true;
+    }
+
+    m_state_before_raycast = m_state;
+    m_state = state::raycast_broadphase;
+    auto &bphase = m_registry.ctx().at<broadphase_worker>();
+
+    if (m_raycast_broad_ctx.size() == 1) {
+        auto &ctx = m_raycast_broad_ctx.front();
+        bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
+            ctx.candidates.push_back(entity);
+        });
+
+        finish_raycast_broadphase();
+
+        return true;
+    }
+
+    m_state = state::raycast_broadphase_async;
+
+    auto &dispatcher = job_dispatcher::global();
+    auto *raycasts = &m_raycast_broad_ctx;
+
+    parallel_for_async(dispatcher, size_t{}, raycasts->size(), size_t{1}, m_this_job, [raycasts, &bphase](size_t index) {
+        auto &ctx = (*raycasts)[index];
+        bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
+            ctx.candidates.push_back(entity);
+        });
+    });
+
+    return false;
+}
+
+void island_worker::finish_raycast_broadphase() {
+    m_state = state::raycast_narrowphase;
+
+    for (auto &ctx : m_raycast_broad_ctx) {
+        for (auto entity : ctx.candidates) {
+            auto &narrow_ctx = m_raycast_narrow_ctx.emplace_back();
+            narrow_ctx.id = ctx.id;
+            narrow_ctx.p0 = ctx.p0;
+            narrow_ctx.p1 = ctx.p1;
+            narrow_ctx.entity = entity;
+        }
+    }
+
+    m_raycast_broad_ctx.clear();
+}
+
+bool island_worker::run_raycast_narrowphase() {
+    if (m_raycast_narrow_ctx.empty()) {
+        return true;
+    }
+
+    EDYN_ASSERT(m_state == state::raycast_narrowphase);
+
+    auto index_view = m_registry.view<shape_index>();
+    auto tr_view = m_registry.view<position, orientation>();
+    auto origin_view = m_registry.view<origin>();
+    auto shape_views_tuple = get_tuple_of_shape_views(m_registry);
+
+    if (m_raycast_narrow_ctx.size() == 1) {
+        auto &ctx = m_raycast_narrow_ctx.front();
+
+        auto sh_idx = index_view.get<shape_index>(ctx.entity);
+        auto pos = origin_view.contains(ctx.entity) ?
+            static_cast<vector3>(origin_view.get<origin>(ctx.entity)) : tr_view.get<position>(ctx.entity);
+        auto orn = tr_view.get<orientation>(ctx.entity);
+        auto ray_ctx = raycast_context{pos, orn, ctx.p0, ctx.p1};
+
+        visit_shape(sh_idx, ctx.entity, shape_views_tuple, [&](auto &&shape) {
+            ctx.result = shape_raycast(shape, ray_ctx);
+        });
+
+        finish_raycast_narrowphase();
+
+        return true;
+    }
+
+    m_state = state::raycast_narrowphase_async;
+
+    auto &dispatcher = job_dispatcher::global();
+    auto *raycasts = &m_raycast_narrow_ctx;
+
+    parallel_for_async(dispatcher, size_t{}, raycasts->size(), size_t{1}, m_this_job,
+        [raycasts, index_view, origin_view, tr_view, shape_views_tuple](size_t index) {
+        auto &ctx = (*raycasts)[index];
+
+        auto sh_idx = index_view.get<shape_index>(ctx.entity);
+        auto pos = origin_view.contains(ctx.entity) ?
+            static_cast<vector3>(origin_view.get<origin>(ctx.entity)) : tr_view.get<position>(ctx.entity);
+        auto orn = tr_view.get<orientation>(ctx.entity);
+        auto ray_ctx = raycast_context{pos, orn, ctx.p0, ctx.p1};
+
+        visit_shape(sh_idx, ctx.entity, shape_views_tuple, [&](auto &&shape) {
+            ctx.result = shape_raycast(shape, ray_ctx);
+        });
+    });
+
+    return false;
+}
+
+void island_worker::finish_raycast_narrowphase() {
+    std::map<unsigned int, msg::raycast_response> responses;
+
+    for (auto &ctx : m_raycast_narrow_ctx) {
+        if (ctx.result.fraction < responses[ctx.id].result.fraction) {
+            auto &result = responses[ctx.id].result;
+            result = ctx.result;
+            result.entity = ctx.entity;
+        }
+    }
+
+    auto &dispatcher = message_dispatcher::global();
+
+    for (auto [id, response] : responses) {
+        dispatcher.send<msg::raycast_response>(
+            m_coordinator_queue_id, m_message_queue.identifier, std::move(response));
+    }
+
+    m_raycast_narrow_ctx.clear();
+    m_state = m_state_before_raycast;
 }
 
 void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {

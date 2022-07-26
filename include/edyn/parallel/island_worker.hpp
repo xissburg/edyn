@@ -6,6 +6,7 @@
 #include <atomic>
 #include <entt/entity/fwd.hpp>
 #include <condition_variable>
+#include "edyn/collision/raycast.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/dynamics/solver.hpp"
@@ -36,7 +37,24 @@ class island_worker final {
         broadphase_async,
         narrowphase,
         narrowphase_async,
-        finish_step
+        finish_step,
+        raycast_broadphase,
+        raycast_broadphase_async,
+        raycast_narrowphase,
+        raycast_narrowphase_async
+    };
+
+    struct raycast_broadphase_context {
+        unsigned int id;
+        vector3 p0, p1;
+        std::vector<entt::entity> candidates;
+    };
+
+    struct raycast_narrowphase_context {
+        unsigned int id;
+        vector3 p0, p1;
+        entt::entity entity;
+        shape_raycast_result result;
     };
 
     void init();
@@ -72,6 +90,10 @@ class island_worker final {
     void split_islands();
     void wake_up_island(entt::entity island_entity);
     bool all_sleeping();
+    bool run_raycast_broadphase();
+    void finish_raycast_broadphase();
+    bool run_raycast_narrowphase();
+    void finish_raycast_narrowphase();
 
 public:
     island_worker(const std::string &name, const settings &settings,
@@ -99,6 +121,7 @@ public:
     void on_set_com(const message<msg::set_com> &);
     void on_exchange_islands(const message<msg::exchange_islands> &);
     void on_move_entities(const message<msg::move_entities> &);
+    void on_raycast_request(const message<msg::raycast_request> &);
     void on_apply_network_pools(const message<msg::apply_network_pools> &);
     void on_extrapolation_result(const message<extrapolation_result> &);
 
@@ -129,6 +152,7 @@ private:
         msg::apply_network_pools,
         msg::exchange_islands,
         msg::move_entities,
+        msg::raycast_request,
         extrapolation_result> m_message_queue;
     message_queue_identifier m_coordinator_queue_id;
 
@@ -145,6 +169,10 @@ private:
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
     entt::sparse_set m_islands_to_split;
+
+    std::vector<raycast_broadphase_context> m_raycast_broad_ctx;
+    std::vector<raycast_narrowphase_context> m_raycast_narrow_ctx;
+    state m_state_before_raycast;
 
     std::atomic<int> m_reschedule_counter {0};
 

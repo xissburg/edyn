@@ -34,10 +34,10 @@ public:
     void finish_async_update();
 
     template<typename Func>
-    void raycast(vector3 p0, vector3 p1, Func func);
+    void raycast(vector3 p0, vector3 p1, Func func) const;
 
     template<typename Func>
-    void query_islands(const AABB &aabb, Func func);
+    void query_islands(const AABB &aabb, Func func) const;
 
     void on_construct_aabb(entt::registry &, entt::entity);
     void on_destroy_tree_resident(entt::registry &, entt::entity);
@@ -54,7 +54,7 @@ private:
 };
 
 template<typename Func>
-void broadphase_worker::raycast(vector3 p0, vector3 p1, Func func) {
+void broadphase_worker::raycast(vector3 p0, vector3 p1, Func func) const {
     m_tree.raycast(p0, p1, [&](tree_node_id_t id) {
         func(m_tree.get_node(id).entity);
     });
@@ -64,7 +64,7 @@ void broadphase_worker::raycast(vector3 p0, vector3 p1, Func func) {
 }
 
 template<typename Func>
-void broadphase_worker::query_islands(const AABB &aabb, Func func) {
+void broadphase_worker::query_islands(const AABB &aabb, Func func) const {
     m_island_tree.query(aabb, [&](tree_node_id_t id) {
         func(m_island_tree.get_node(id).entity);
     });

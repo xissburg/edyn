@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_MESSAGE_HPP
 
 #include <entt/entity/fwd.hpp>
+#include "edyn/collision/raycast.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
@@ -71,6 +72,16 @@ struct entities_moved {
 struct entities_received_by_worker {
     std::vector<entt::entity> entities;
     entity_map emap;
+};
+
+struct raycast_request {
+    unsigned int id;
+    vector3 p0, p1;
+};
+
+struct raycast_response {
+    unsigned int id;
+    raycast_result result;
 };
 
 }

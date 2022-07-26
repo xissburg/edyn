@@ -5,6 +5,7 @@
 #include <memory>
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
+#include "edyn/collision/raycast.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
 #include "edyn/parallel/island_worker_context.hpp"
@@ -37,6 +38,12 @@ class island_coordinator final {
     void exchange_islands_from_to(island_worker_index_type from_worker,
                                   island_worker_index_type to_worker);
 
+    struct raycast_context {
+        unsigned int counter;
+        raycast_delegate_type delegate;
+        raycast_result result;
+    };
+
 public:
     island_coordinator(island_coordinator const&) = delete;
     island_coordinator operator=(island_coordinator const&) = delete;
@@ -56,6 +63,8 @@ public:
     void on_step_update(const message<msg::step_update> &);
     void on_entities_received(const message<msg::entities_received_by_worker> &);
     void on_entities_moved(const message<msg::entities_moved> &);
+
+    void on_raycast_response(const message<msg::raycast_response> &);
 
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
@@ -105,13 +114,27 @@ public:
         ctx->send<Message>(m_message_queue_handle.identifier, std::forward<Args>(args)...);
     }
 
+    template<typename It>
+    void raycast_workers(It first, It last, vector3 p0, vector3 p1, const raycast_delegate_type &delegate) {
+        auto id = m_next_raycast_id++;
+        auto &ctx = m_raycast_ctx[id];
+        ctx.counter = std::distance(first, last);
+        ctx.delegate = delegate;
+
+        for (; first != last; ++first) {
+            auto &worker = m_worker_ctx[*first];
+            worker->template send<msg::raycast_request>(m_message_queue_handle.identifier, id, p0, p1);
+        }
+    }
+
 private:
     entt::registry *m_registry;
     std::vector<std::unique_ptr<island_worker_context>> m_worker_ctx;
     message_queue_handle<
         msg::step_update,
         msg::entities_received_by_worker,
-        msg::entities_moved
+        msg::entities_moved,
+        msg::raycast_response
     > m_message_queue_handle;
 
     entt::sigh<void(entt::entity)> m_contact_started_signal;
@@ -124,6 +147,9 @@ private:
 
     bool m_importing {false};
     double m_timestamp;
+
+    unsigned int m_next_raycast_id {};
+    std::map<unsigned int, raycast_context> m_raycast_ctx;
 };
 
 }

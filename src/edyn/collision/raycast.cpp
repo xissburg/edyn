@@ -1,11 +1,47 @@
 #include "edyn/collision/raycast.hpp"
+#include "edyn/collision/broadphase_main.hpp"
 #include "edyn/collision/tree_node.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/util/triangle_util.hpp"
+#include <unordered_set>
 
 namespace edyn {
+
+void raycast(entt::registry &registry, vector3 p0, vector3 p1,
+             const raycast_delegate_type &delegate) {
+    auto &bphase = registry.ctx().at<broadphase_main>();
+    std::unordered_set<island_worker_index_type> worker_indices;
+    auto resident_view = registry.view<island_worker_resident>();
+    auto multi_resident_view = registry.view<multi_island_worker_resident>();
+
+    bphase.raycast_islands(p0, p1, [&](entt::entity island_entity) {
+        auto [resident] = resident_view.get(island_entity);
+        worker_indices.insert(resident.worker_index);
+    });
+
+    bphase.raycast_non_procedural(p0, p1, [&](entt::entity entity) {
+        auto [resident] = multi_resident_view.get(entity);
+
+        if (worker_indices.empty()) {
+            // TODO: non-procedural is not in any worker. Run raycast here?
+            // Or create a background job just for this? Idk
+        } else {
+            worker_indices.insert(*resident.worker_indices.begin());
+        }
+    });
+
+    if (worker_indices.empty()) {
+        delegate({});
+        return;
+    }
+
+    auto &coordinator = registry.ctx().at<island_coordinator>();
+    coordinator.raycast_workers(worker_indices.begin(), worker_indices.end(), p0, p1, delegate);
+}
 
 shape_raycast_result shape_raycast(const box_shape &box, const raycast_context &ctx) {
     // Reference: Real-Time Collision Detection - Christer Ericson,

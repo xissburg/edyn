@@ -38,7 +38,8 @@ island_coordinator::island_coordinator(entt::registry &registry,unsigned short n
         message_dispatcher::global().make_queue<
             msg::step_update,
             msg::entities_received_by_worker,
-            msg::entities_moved
+            msg::entities_moved,
+            msg::raycast_response
         >("coordinator"))
 {
     registry.on_construct<graph_node>().connect<&island_coordinator::on_construct_graph_node>(*this);
@@ -55,6 +56,7 @@ island_coordinator::island_coordinator(entt::registry &registry,unsigned short n
     m_message_queue_handle.sink<msg::step_update>().connect<&island_coordinator::on_step_update>(*this);
     m_message_queue_handle.sink<msg::entities_received_by_worker>().connect<&island_coordinator::on_entities_received>(*this);
     m_message_queue_handle.sink<msg::entities_moved>().connect<&island_coordinator::on_entities_moved>(*this);
+    m_message_queue_handle.sink<msg::raycast_response>().connect<&island_coordinator::on_raycast_response>(*this);
 
     if (num_island_workers == 0) {
         num_island_workers = std::thread::hardware_concurrency();
@@ -674,6 +676,24 @@ void island_coordinator::on_entities_moved(const message<msg::entities_moved> &m
             auto [resident] = multi_resident_view.get(local_entity);
             resident.worker_indices.erase(worker_index);
         }
+    }
+}
+
+void island_coordinator::on_raycast_response(const message<msg::raycast_response> &msg) {
+    auto &res = msg.content;
+    auto &ctx = m_raycast_ctx.at(res.id);
+    EDYN_ASSERT(ctx.counter > 0);
+    --ctx.counter;
+
+    if (res.result.fraction < ctx.result.fraction) {
+        ctx.result = res.result;
+        auto worker_index = get_message_source_worker_index(msg.sender);
+        ctx.result.entity = m_worker_ctx[worker_index]->m_entity_map.at(ctx.result.entity);
+    }
+
+    if (ctx.counter == 0) {
+        ctx.delegate(ctx.result);
+        m_raycast_ctx.erase(res.id);
     }
 }
 

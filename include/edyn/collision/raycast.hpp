@@ -1,6 +1,7 @@
 #ifndef EDYN_COLLISION_RAYCAST_HPP
 #define EDYN_COLLISION_RAYCAST_HPP
 
+#include <entt/signal/fwd.hpp>
 #include <variant>
 #include <entt/entity/registry.hpp>
 #include "edyn/math/vector3.hpp"
@@ -125,6 +126,11 @@ struct shape_raycast_result {
 struct raycast_result : public shape_raycast_result {
     // The entity that was hit. It's set to `entt::null` if no entity is hit.
     entt::entity entity { entt::null };
+
+    raycast_result & operator=(const shape_raycast_result &result) {
+        shape_raycast_result::operator=(result);
+        return *this;
+    }
 };
 
 /**
@@ -142,70 +148,18 @@ struct raycast_context {
     vector3 p1;
 };
 
+using raycast_delegate_type = entt::delegate<void(raycast_result)>;
+
 /**
  * @brief Performs a raycast query on a registry.
  * @param registry Data source.
  * @param p0 First point in the ray.
  * @param p1 Second point in the ray.
  * @param ignore_func Function that returns whether an entity should be ignored.
- * @return Result.
+ * @param result_func Function that will be called when the result is ready.
  */
-template<typename IgnoreFunc>
-raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
-                       IgnoreFunc ignore_func) {
-    auto index_view = registry.view<shape_index>();
-    auto tr_view = registry.view<position, orientation>();
-    auto origin_view = registry.view<origin>();
-    auto shape_views_tuple = get_tuple_of_shape_views(registry);
-
-    entt::entity hit_entity {entt::null};
-    shape_raycast_result result;
-
-    auto raycast_shape = [&](entt::entity entity) {
-        if (ignore_func(entity)) {
-            return;
-        }
-
-        auto sh_idx = index_view.get<shape_index>(entity);
-        auto pos = origin_view.contains(entity) ? static_cast<vector3>(origin_view.get<origin>(entity)) : tr_view.get<position>(entity);
-        auto orn = tr_view.get<orientation>(entity);
-        auto ctx = raycast_context{pos, orn, p0, p1};
-
-        visit_shape(sh_idx, entity, shape_views_tuple, [&](auto &&shape) {
-            auto res = shape_raycast(shape, ctx);
-
-            if (res.fraction < result.fraction) {
-                result = res;
-                hit_entity = entity;
-            }
-        });
-    };
-
-    // This function works both in the coordinator and in an island worker.
-    // Pick the available broadphase and raycast their AABB trees.
-    /* if (registry.ctx().find<broadphase_main>() != nullptr) {
-        auto &bphase = registry.ctx().at<broadphase_main>();
-        bphase.raycast_islands(p0, p1, [&](entt::entity island_entity) {
-            auto &tree_view = tree_view_view.get<edyn::tree_view>(island_entity);
-            tree_view.raycast(p0, p1, [&](tree_node_id_t id) {
-                auto entity = tree_view.get_node(id).entity;
-                raycast_shape(entity);
-            });
-        });
-
-        bphase.raycast_non_procedural(p0, p1, raycast_shape);
-    } else {
-        auto &bphase = registry.ctx().at<broadphase_worker>();
-        bphase.raycast(p0, p1, raycast_shape);
-    } */
-
-    return {result, hit_entity};
-}
-
-/*! @copydoc raycast */
-inline raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1) {
-    return raycast(registry, p0, p1, [](auto) { return false; });
-}
+void raycast(entt::registry &registry, vector3 p0, vector3 p1,
+             const raycast_delegate_type &delegate);
 
 // Raycast functions for each shape.
 
