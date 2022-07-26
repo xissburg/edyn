@@ -35,11 +35,11 @@ namespace edyn {
 island_coordinator::island_coordinator(entt::registry &registry,unsigned short num_island_workers)
     : m_registry(&registry)
     , m_message_queue_handle(
-            message_dispatcher::global().make_queue<
-                msg::step_update,
-                msg::entities_received_by_worker,
-                msg::entities_moved
-            >("coordinator"))
+        message_dispatcher::global().make_queue<
+            msg::step_update,
+            msg::entities_received_by_worker,
+            msg::entities_moved
+        >("coordinator"))
 {
     registry.on_construct<graph_node>().connect<&island_coordinator::on_construct_graph_node>(*this);
     registry.on_destroy<graph_node>().connect<&island_coordinator::on_destroy_graph_node>(*this);
@@ -761,7 +761,7 @@ void island_coordinator::balance_workers() {
             smallest_idx = i;
         }
 
-        if (worker_size > biggest_size) {
+        if (worker_size > biggest_size && ctx->m_islands.size() > 1) {
             biggest_size = worker_size;
             biggest_idx = i;
         }
