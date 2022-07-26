@@ -1,6 +1,7 @@
 #ifndef EDYN_UTIL_ENTITY_MAP_HPP
 #define EDYN_UTIL_ENTITY_MAP_HPP
 
+#include "edyn/config/config.h"
 #include <map>
 #include <entt/entity/fwd.hpp>
 
@@ -17,6 +18,8 @@ public:
      * @param local Local entity.
      */
     void insert(entt::entity entity, entt::entity local) {
+        EDYN_ASSERT(!map.count(entity));
+        EDYN_ASSERT(!map_local.count(local));
         map[entity] = local;
         map_local[local] = entity;
     }

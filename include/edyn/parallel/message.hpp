@@ -8,6 +8,7 @@
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
+#include "edyn/util/entity_pair.hpp"
 #include "edyn/util/registry_operation.hpp"
 
 namespace edyn::msg {
@@ -60,6 +61,7 @@ struct exchange_islands {
 
 struct move_entities {
     registry_operation_collection ops;
+    entity_pair_vector emap;
 };
 
 struct entities_moved {

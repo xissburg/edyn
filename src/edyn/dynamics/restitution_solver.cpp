@@ -249,7 +249,10 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     std::vector<entt::entity> manifold_entities;
 
-    graph.traverse_connecting_nodes(start_node_index, [&](auto node_index) {
+    graph.traverse(start_node_index, [&](auto node_index) {
+        // Ignore non-procedural entities.
+        if (!graph.is_connecting_node(node_index)) return;
+
         graph.visit_edges(node_index, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
 

@@ -131,7 +131,11 @@ class component_operation_impl : public component_operation {
             auto local_entity = components[i];
 
             if (registry.valid(local_entity)) {
-                entity_map.insert(remote_entity, local_entity);
+                if (entity_map.contains(remote_entity)) {
+                    EDYN_ASSERT(entity_map.at(remote_entity) == local_entity);
+                } else {
+                    entity_map.insert(remote_entity, local_entity);
+                }
             }
         }
     }

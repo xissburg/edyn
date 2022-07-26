@@ -2,6 +2,7 @@
 #define EDYN_PARALLEL_MESSAGE_DISPATCHER_HPP
 
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -103,17 +104,20 @@ public:
 
     template<typename... MessageTypes>
     auto make_queue(const std::string &name) {
+        auto lock = std::lock_guard(m_queues_mutex);
         m_queues[name] = std::make_unique<message_queue>();
         return message_queue_handle<MessageTypes...>({name}, *m_queues.at(name));
     }
 
     template<typename T, typename... Args>
     void send(message_queue_identifier destination, message_queue_identifier source, Args&& ... args) {
+        auto lock = std::shared_lock(m_queues_mutex);
         m_queues.at(destination.value)->push<T>(source, std::forward<Args>(args)...);
     }
 
 private:
     std::unordered_map<std::string, std::unique_ptr<message_queue>> m_queues;
+    mutable std::shared_mutex m_queues_mutex;
 };
 
 }

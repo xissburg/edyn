@@ -613,14 +613,30 @@ void island_coordinator::on_entities_received(const message<msg::entities_receiv
     for (auto remote_entity : msg.content.entities) {
         if (msg.content.emap.contains(remote_entity)) {
             auto local_entity = msg.content.emap.at(remote_entity);
-            emap.insert(remote_entity, local_entity);
+
+            if (emap.contains(remote_entity)) {
+                EDYN_ASSERT(emap.at(remote_entity) == local_entity);
+            } else {
+                emap.insert(remote_entity, local_entity);
+            }
+
+            if (m_registry->all_of<graph_node>(local_entity)) {
+                if (!ctx->m_nodes.contains(local_entity)) {
+                    ctx->m_nodes.emplace(local_entity);
+                }
+            } else if (m_registry->all_of<graph_edge>(local_entity)) {
+                ctx->m_edges.emplace(local_entity);
+            }
 
             if (resident_view.contains(local_entity)) {
                 auto [resident] = resident_view.get(local_entity);
                 resident.worker_index = worker_index;
             } else if (multi_resident_view.contains(local_entity)) {
                 auto [resident] = multi_resident_view.get(local_entity);
-                resident.worker_indices.insert(worker_index);
+
+                if (!resident.worker_indices.count(worker_index)) {
+                    resident.worker_indices.insert(worker_index);
+                }
             }
         } else {
             // TODO: query unknown entity and components.
@@ -642,11 +658,17 @@ void island_coordinator::on_entities_moved(const message<msg::entities_moved> &m
         auto local_entity = emap.at(remote_entity);
         emap.erase(remote_entity);
 
+        if (ctx->m_nodes.contains(local_entity)) {
+            ctx->m_nodes.erase(local_entity);
+        } else if (ctx->m_edges.contains(local_entity)) {
+            ctx->m_edges.erase(local_entity);
+        }
+
         if (resident_view.contains(local_entity)) {
             auto [resident] = resident_view.get(local_entity);
 
             if (resident.worker_index == worker_index) {
-                resident.worker_index = invalid_worker_index;
+                //resident.worker_index = invalid_worker_index;
             }
         } else if (multi_resident_view.contains(local_entity)) {
             auto [resident] = multi_resident_view.get(local_entity);
@@ -726,9 +748,10 @@ void island_coordinator::balance_workers() {
     auto stats_view = m_registry->view<island_stats>();
 
     for (size_t i = 0; i < m_worker_ctx.size(); ++i) {
+        auto &ctx = m_worker_ctx[i];
         auto worker_size = size_t(0);
 
-        for (auto entity : m_worker_ctx[i]->m_islands) {
+        for (auto entity : ctx->m_islands) {
             auto [stats] = stats_view.get(entity);
             worker_size += stats.size();
         }

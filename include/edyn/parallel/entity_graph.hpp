@@ -143,8 +143,8 @@ public:
     connected_components_t connected_components();
 
     /**
-     * @brief Traverses nodes starting at the given node, ignoring
-     * non-connecting nodes.
+     * @brief Traverses nodes starting at the given node. Neighbors of
+     * non-connecting nodes aren't visited.
      * @tparam VisitNodeFunc Function type with signature `void(index_type)`
      * @tparam VisitEdgeFunc Function type with signature `void(index_type)`
      * @param start_node_index Index of node where traversal starts.
@@ -152,9 +152,9 @@ public:
      * @param visit_edge_func Optional function called for each edge.
      */
     template<typename VisitNodeFunc, typename VisitEdgeFunc = internal::no_edge_visits>
-    void traverse_connecting_nodes(index_type start_node_index,
-                                   VisitNodeFunc visit_node_func,
-                                   VisitEdgeFunc visit_edge_func = {});
+    void traverse(index_type start_node_index,
+                  VisitNodeFunc visit_node_func,
+                  VisitEdgeFunc visit_edge_func = {});
 
     void optimize_if_needed();
 
@@ -329,9 +329,9 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
 }
 
 template<typename VisitNodeFunc, typename VisitEdgeFunc>
-void entity_graph::traverse_connecting_nodes(index_type start_node_index,
-                                             VisitNodeFunc visit_node_func,
-                                             VisitEdgeFunc visit_edge_func) {
+void entity_graph::traverse(index_type start_node_index,
+                            VisitNodeFunc visit_node_func,
+                            VisitEdgeFunc visit_edge_func) {
     m_visited.assign(m_nodes.size(), false);
     constexpr auto should_visit_edges = !std::is_same_v<VisitEdgeFunc, internal::no_edge_visits>;
 
@@ -350,12 +350,12 @@ void entity_graph::traverse_connecting_nodes(index_type start_node_index,
         const auto &node = m_nodes[node_index];
         EDYN_ASSERT(node.entity != entt::null);
 
-        // Ignore non-connecting nodes.
+        visit_node_func(node_index);
+
+        // Do not visit neighbors of non-connecting nodes.
         if (node.non_connecting) {
             continue;
         }
-
-        visit_node_func(node_index);
 
         // Add neighbors to be visited.
         auto adj_index = node.adjacency_index;
