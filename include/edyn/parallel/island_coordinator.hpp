@@ -38,8 +38,9 @@ class island_coordinator final {
     void exchange_islands_from_to(island_worker_index_type from_worker,
                                   island_worker_index_type to_worker);
 
-    struct raycast_context {
+    struct worker_raycast_context {
         unsigned int counter;
+        vector3 p0, p1;
         raycast_delegate_type delegate;
         raycast_result result;
     };
@@ -115,16 +116,20 @@ public:
     }
 
     template<typename It>
-    void raycast_workers(It first, It last, vector3 p0, vector3 p1, const raycast_delegate_type &delegate) {
+    raycast_id_type raycast_workers(It first, It last, vector3 p0, vector3 p1, const raycast_delegate_type &delegate) {
         auto id = m_next_raycast_id++;
         auto &ctx = m_raycast_ctx[id];
         ctx.counter = std::distance(first, last);
         ctx.delegate = delegate;
+        ctx.p0 = p0;
+        ctx.p1 = p1;
 
         for (; first != last; ++first) {
             auto &worker = m_worker_ctx[*first];
             worker->template send<msg::raycast_request>(m_message_queue_handle.identifier, id, p0, p1);
         }
+
+        return id;
     }
 
 private:
@@ -148,8 +153,8 @@ private:
     bool m_importing {false};
     double m_timestamp;
 
-    unsigned int m_next_raycast_id {};
-    std::map<unsigned int, raycast_context> m_raycast_ctx;
+    raycast_id_type m_next_raycast_id {};
+    std::map<raycast_id_type, worker_raycast_context> m_raycast_ctx;
 };
 
 }

@@ -399,8 +399,18 @@ void island_coordinator::insert_to_worker(island_worker_index_type worker_index,
                                           const std::vector<entt::entity> &edges) {
     EDYN_ASSERT(worker_index < m_worker_ctx.size());
     auto &ctx = *m_worker_ctx[worker_index];
-    ctx.m_nodes.insert(nodes.begin(), nodes.end());
-    ctx.m_edges.insert(edges.begin(), edges.end());
+
+    for (auto entity : nodes) {
+        if (!ctx.m_nodes.contains(entity)) {
+            ctx.m_nodes.emplace(entity);
+        }
+    }
+
+    for (auto entity : edges) {
+        if (!ctx.m_edges.contains(entity)) {
+            ctx.m_edges.emplace(entity);
+        }
+    }
 
     auto resident_view = m_registry->view<island_worker_resident>();
     auto multi_resident_view = m_registry->view<multi_island_worker_resident>();
@@ -416,7 +426,7 @@ void island_coordinator::insert_to_worker(island_worker_index_type worker_index,
             auto [resident] = multi_resident_view.get(entity);
 
             if (resident.worker_indices.count(worker_index) == 0) {
-                // Non-procedural entity is not yet in this island, thus create it.
+                // Non-procedural entity is not yet in this worker, thus create it.
                 resident.worker_indices.emplace(worker_index);
                 ctx.m_op_builder->create(entity);
                 ctx.m_op_builder->emplace_all(*m_registry, entity);
@@ -692,7 +702,7 @@ void island_coordinator::on_raycast_response(const message<msg::raycast_response
     }
 
     if (ctx.counter == 0) {
-        ctx.delegate(ctx.result);
+        ctx.delegate(res.id, ctx.result, ctx.p0, ctx.p1);
         m_raycast_ctx.erase(res.id);
     }
 }

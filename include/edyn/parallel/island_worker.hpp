@@ -173,6 +173,8 @@ private:
     std::vector<raycast_broadphase_context> m_raycast_broad_ctx;
     std::vector<raycast_narrowphase_context> m_raycast_narrow_ctx;
     state m_state_before_raycast;
+    size_t m_max_raycast_broadphase_sequential_size {4};
+    size_t m_max_raycast_narrowphase_sequential_size {4};
 
     std::atomic<int> m_reschedule_counter {0};
 

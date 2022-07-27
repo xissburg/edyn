@@ -2,6 +2,7 @@
 #define EDYN_COLLISION_RAYCAST_HPP
 
 #include <entt/signal/fwd.hpp>
+#include <limits>
 #include <variant>
 #include <entt/entity/registry.hpp>
 #include "edyn/math/vector3.hpp"
@@ -148,7 +149,9 @@ struct raycast_context {
     vector3 p1;
 };
 
-using raycast_delegate_type = entt::delegate<void(raycast_result)>;
+using raycast_id_type = unsigned;
+static constexpr auto invalid_raycast_id = std::numeric_limits<raycast_id_type>::max();
+using raycast_delegate_type = entt::delegate<void(raycast_id_type, const raycast_result &, vector3, vector3)>;
 
 /**
  * @brief Performs a raycast query on a registry.
@@ -158,8 +161,8 @@ using raycast_delegate_type = entt::delegate<void(raycast_result)>;
  * @param ignore_func Function that returns whether an entity should be ignored.
  * @param result_func Function that will be called when the result is ready.
  */
-void raycast(entt::registry &registry, vector3 p0, vector3 p1,
-             const raycast_delegate_type &delegate);
+raycast_id_type raycast(entt::registry &registry, vector3 p0, vector3 p1,
+                        const raycast_delegate_type &delegate);
 
 // Raycast functions for each shape.
 

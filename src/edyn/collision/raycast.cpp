@@ -11,8 +11,8 @@
 
 namespace edyn {
 
-void raycast(entt::registry &registry, vector3 p0, vector3 p1,
-             const raycast_delegate_type &delegate) {
+raycast_id_type raycast(entt::registry &registry, vector3 p0, vector3 p1,
+                        const raycast_delegate_type &delegate) {
     auto &bphase = registry.ctx().at<broadphase_main>();
     std::unordered_set<island_worker_index_type> worker_indices;
     auto resident_view = registry.view<island_worker_resident>();
@@ -35,12 +35,12 @@ void raycast(entt::registry &registry, vector3 p0, vector3 p1,
     });
 
     if (worker_indices.empty()) {
-        delegate({});
-        return;
+        delegate(invalid_raycast_id, {}, {}, {});
+        return invalid_raycast_id;
     }
 
     auto &coordinator = registry.ctx().at<island_coordinator>();
-    coordinator.raycast_workers(worker_indices.begin(), worker_indices.end(), p0, p1, delegate);
+    return coordinator.raycast_workers(worker_indices.begin(), worker_indices.end(), p0, p1, delegate);
 }
 
 shape_raycast_result shape_raycast(const box_shape &box, const raycast_context &ctx) {

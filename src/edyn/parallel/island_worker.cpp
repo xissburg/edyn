@@ -1635,7 +1635,7 @@ bool island_worker::run_raycast_broadphase() {
     m_state = state::raycast_broadphase;
     auto &bphase = m_registry.ctx().at<broadphase_worker>();
 
-    if (m_raycast_broad_ctx.size() == 1) {
+    if (m_raycast_broad_ctx.size() <= m_max_raycast_broadphase_sequential_size) {
         auto &ctx = m_raycast_broad_ctx.front();
         bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
             ctx.candidates.push_back(entity);
@@ -1689,7 +1689,7 @@ bool island_worker::run_raycast_narrowphase() {
     auto origin_view = m_registry.view<origin>();
     auto shape_views_tuple = get_tuple_of_shape_views(m_registry);
 
-    if (m_raycast_narrow_ctx.size() == 1) {
+    if (m_raycast_narrow_ctx.size() <= m_max_raycast_narrowphase_sequential_size) {
         auto &ctx = m_raycast_narrow_ctx.front();
 
         auto sh_idx = index_view.get<shape_index>(ctx.entity);
@@ -1735,9 +1735,10 @@ void island_worker::finish_raycast_narrowphase() {
 
     for (auto &ctx : m_raycast_narrow_ctx) {
         if (ctx.result.fraction < responses[ctx.id].result.fraction) {
-            auto &result = responses[ctx.id].result;
-            result = ctx.result;
-            result.entity = ctx.entity;
+            auto &response = responses[ctx.id];
+            response.id = ctx.id;
+            response.result = ctx.result;
+            response.result.entity = ctx.entity;
         }
     }
 
