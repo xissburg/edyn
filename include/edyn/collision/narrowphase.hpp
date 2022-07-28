@@ -54,6 +54,7 @@ private:
     entt::registry *m_registry;
     std::vector<contact_point_construction_info> m_cp_construction_infos;
     std::vector<contact_point_destruction_info> m_cp_destruction_infos;
+    size_t m_max_sequential_size {4};
 };
 
 template<typename Iterator>

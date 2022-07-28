@@ -28,7 +28,7 @@ void island_worker_func(job::data_type &);
  */
 class island_worker final {
 
-    enum class state {
+    enum class state : uint16_t {
         init,
         step,
         begin_step,
@@ -120,7 +120,6 @@ public:
     void on_set_material_table(const message<msg::set_material_table> &msg);
     void on_set_com(const message<msg::set_com> &);
     void on_exchange_islands(const message<msg::exchange_islands> &);
-    void on_move_entities(const message<msg::move_entities> &);
     void on_raycast_request(const message<msg::raycast_request> &);
     void on_apply_network_pools(const message<msg::apply_network_pools> &);
     void on_extrapolation_result(const message<extrapolation_result> &);
@@ -151,7 +150,6 @@ private:
         msg::update_entities,
         msg::apply_network_pools,
         msg::exchange_islands,
-        msg::move_entities,
         msg::raycast_request,
         extrapolation_result> m_message_queue;
     message_queue_identifier m_coordinator_queue_id;
@@ -159,7 +157,7 @@ private:
     double m_last_time;
     double m_step_start_time;
 
-    state m_state;
+    std::atomic<state> m_state;
 
     std::unique_ptr<registry_operation_builder> m_op_builder;
     bool m_importing;
@@ -172,7 +170,7 @@ private:
 
     std::vector<raycast_broadphase_context> m_raycast_broad_ctx;
     std::vector<raycast_narrowphase_context> m_raycast_narrow_ctx;
-    state m_state_before_raycast;
+    std::atomic<state> m_state_before_raycast;
     size_t m_max_raycast_broadphase_sequential_size {4};
     size_t m_max_raycast_narrowphase_sequential_size {4};
 

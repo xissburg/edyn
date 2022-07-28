@@ -294,6 +294,12 @@ public:
         }
     }
 
+    void remap(const entity_map &emap) {
+        for (auto &op : operations) {
+            op.remap(emap);
+        }
+    }
+
     bool empty() const {
         for (auto &op : operations) {
             if (!op.entities.empty()) {

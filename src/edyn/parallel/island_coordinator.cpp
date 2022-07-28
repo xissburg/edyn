@@ -37,8 +37,7 @@ island_coordinator::island_coordinator(entt::registry &registry,unsigned short n
     , m_message_queue_handle(
         message_dispatcher::global().make_queue<
             msg::step_update,
-            msg::entities_received_by_worker,
-            msg::entities_moved,
+            msg::move_entities,
             msg::raycast_response
         >("coordinator"))
 {
@@ -54,8 +53,7 @@ island_coordinator::island_coordinator(entt::registry &registry,unsigned short n
     registry.on_destroy<contact_manifold>().connect<&island_coordinator::on_destroy_contact_manifold>(*this);
 
     m_message_queue_handle.sink<msg::step_update>().connect<&island_coordinator::on_step_update>(*this);
-    m_message_queue_handle.sink<msg::entities_received_by_worker>().connect<&island_coordinator::on_entities_received>(*this);
-    m_message_queue_handle.sink<msg::entities_moved>().connect<&island_coordinator::on_entities_moved>(*this);
+    m_message_queue_handle.sink<msg::move_entities>().connect<&island_coordinator::on_move_entities>(*this);
     m_message_queue_handle.sink<msg::raycast_response>().connect<&island_coordinator::on_raycast_response>(*this);
 
     if (num_island_workers == 0) {
@@ -615,78 +613,43 @@ void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
     (*g_mark_replaced_network_dirty)(registry, ops, source_ctx->m_entity_map, m_timestamp);
 }
 
-void island_coordinator::on_entities_received(const message<msg::entities_received_by_worker> &msg) {
+void island_coordinator::on_move_entities(const message<msg::move_entities> &msg) {
     auto worker_index = get_message_source_worker_index(msg.sender);
     auto &ctx = m_worker_ctx[worker_index];
     auto &emap = ctx->m_entity_map;
+
+    // Import latest component state into main registry.
+    m_importing = true;
+    msg.content.ops.execute(*m_registry, emap);
+    m_importing = false;
+
+    // Create operations to instantiate moved entities into the destination
+    // worker.
+    auto &settings = m_registry->ctx().at<edyn::settings>();
+    auto builder = (*settings.make_reg_op_builder)();
     auto resident_view = m_registry->view<island_worker_resident>();
     auto multi_resident_view = m_registry->view<multi_island_worker_resident>();
+    auto dest_worker_index = msg.content.destination;
+    EDYN_ASSERT(dest_worker_index < m_worker_ctx.size());
+    EDYN_ASSERT(dest_worker_index != worker_index);
 
     for (auto remote_entity : msg.content.entities) {
-        if (msg.content.emap.contains(remote_entity)) {
-            auto local_entity = msg.content.emap.at(remote_entity);
-
-            if (emap.contains(remote_entity)) {
-                EDYN_ASSERT(emap.at(remote_entity) == local_entity);
-            } else {
-                emap.insert(remote_entity, local_entity);
-            }
-
-            if (m_registry->all_of<graph_node>(local_entity)) {
-                if (!ctx->m_nodes.contains(local_entity)) {
-                    ctx->m_nodes.emplace(local_entity);
-                }
-            } else if (m_registry->all_of<graph_edge>(local_entity)) {
-                ctx->m_edges.emplace(local_entity);
-            }
-
-            if (resident_view.contains(local_entity)) {
-                auto [resident] = resident_view.get(local_entity);
-                resident.worker_index = worker_index;
-            } else if (multi_resident_view.contains(local_entity)) {
-                auto [resident] = multi_resident_view.get(local_entity);
-
-                if (!resident.worker_indices.count(worker_index)) {
-                    resident.worker_indices.insert(worker_index);
-                }
-            }
-        } else {
-            // TODO: query unknown entity and components.
-            EDYN_ASSERT(false);
-        }
-    }
-}
-
-void island_coordinator::on_entities_moved(const message<msg::entities_moved> &msg) {
-    auto worker_index = get_message_source_worker_index(msg.sender);
-    auto &ctx = m_worker_ctx[worker_index];
-    auto &emap = ctx->m_entity_map;
-    auto resident_view = m_registry->view<island_worker_resident>();
-    auto multi_resident_view = m_registry->view<multi_island_worker_resident>();
-
-    for (auto remote_entity : msg.content.entities) {
-        if (!emap.contains(remote_entity)) continue;
-
         auto local_entity = emap.at(remote_entity);
-        emap.erase(remote_entity);
+        builder->create(local_entity);
+        builder->emplace_all(*m_registry, local_entity);
 
-        if (ctx->m_nodes.contains(local_entity)) {
-            ctx->m_nodes.erase(local_entity);
-        } else if (ctx->m_edges.contains(local_entity)) {
-            ctx->m_edges.erase(local_entity);
-        }
-
+        // Assign new worker to all entities.
         if (resident_view.contains(local_entity)) {
             auto [resident] = resident_view.get(local_entity);
-
-            if (resident.worker_index == worker_index) {
-                //resident.worker_index = invalid_worker_index;
-            }
-        } else if (multi_resident_view.contains(local_entity)) {
+            resident.worker_index = dest_worker_index;
+        } else {
             auto [resident] = multi_resident_view.get(local_entity);
-            resident.worker_indices.erase(worker_index);
+            resident.worker_indices.insert(dest_worker_index);
         }
     }
+
+    auto &dest_ctx = m_worker_ctx[dest_worker_index];
+    dest_ctx->send<msg::update_entities>(m_message_queue_handle.identifier, builder->finish());
 }
 
 void island_coordinator::on_raycast_response(const message<msg::raycast_response> &msg) {
@@ -719,6 +682,7 @@ void island_coordinator::sync() {
 
 void island_coordinator::update() {
     m_timestamp = performance_time();
+    init_new_nodes_and_edges();
 
     // Insert dirty components into the registry ops before importing messages,
     // which could override the state of these components that have been modified
@@ -842,7 +806,7 @@ void island_coordinator::exchange_islands_from_to(island_worker_index_type from_
     auto &to_ctx = m_worker_ctx[to_worker];
 
     auto msg = msg::exchange_islands{};
-    msg.destination = to_ctx->message_queue_id();
+    msg.destination = to_worker;
 
     auto aabb_view = m_registry->view<island_AABB>();
 

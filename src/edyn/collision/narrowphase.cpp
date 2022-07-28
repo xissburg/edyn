@@ -12,7 +12,7 @@ narrowphase::narrowphase(entt::registry &reg)
 {}
 
 bool narrowphase::parallelizable() const {
-    return m_registry->storage<contact_manifold>().size() > 1;
+    return m_registry->storage<contact_manifold>().size() > m_max_sequential_size;
 }
 
 void narrowphase::clear_contact_manifold_events() {

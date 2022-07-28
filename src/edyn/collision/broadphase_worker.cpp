@@ -75,7 +75,7 @@ void broadphase_worker::init_new_aabb_entities() {
 }
 
 bool broadphase_worker::parallelizable() const {
-    return m_registry->view<AABB, procedural_tag>().size_hint() > 1;
+    return m_registry->view<AABB, procedural_tag>().size_hint() > m_max_sequential_size;
 }
 
 void destroy_separated_manifolds(entt::registry &registry) {

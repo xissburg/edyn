@@ -51,6 +51,7 @@ private:
     dynamic_tree m_island_tree; // Island AABB tree.
     std::vector<entt::entity> m_new_aabb_entities;
     std::vector<entity_pair_vector> m_pair_results;
+    size_t m_max_sequential_size {8};
 };
 
 template<typename Func>

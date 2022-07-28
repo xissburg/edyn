@@ -87,7 +87,6 @@ island_worker::island_worker(const std::string &name, const settings &settings,
         msg::update_entities,
         msg::apply_network_pools,
         msg::exchange_islands,
-        msg::move_entities,
         msg::raycast_request,
         extrapolation_result>(name.c_str()))
     , m_coordinator_queue_id(coordinator_queue_id)
@@ -135,7 +134,6 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
     m_message_queue.sink<msg::exchange_islands>().connect<&island_worker::on_exchange_islands>(*this);
-    m_message_queue.sink<msg::move_entities>().connect<&island_worker::on_move_entities>(*this);
     m_message_queue.sink<msg::raycast_request>().connect<&island_worker::on_raycast_request>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&island_worker::on_apply_network_pools>(*this);
 
@@ -150,8 +148,6 @@ void island_worker::init() {
     // the registry operations containing the initial entities that were added
     // to this island.
     process_messages();
-
-    init_new_nodes_and_edges();
 
     if (settings.external_system_init) {
         (*settings.external_system_init)(m_registry);
@@ -261,6 +257,8 @@ void island_worker::on_destroy_island_resident(entt::registry &registry, entt::e
     if (!m_islands_to_split.contains(resident.island_entity)) {
         m_islands_to_split.emplace(resident.island_entity);
     }
+
+    wake_up_island(resident.island_entity);
 }
 
 void island_worker::on_destroy_multi_island_resident(entt::registry &registry, entt::entity entity) {
@@ -278,6 +276,8 @@ void island_worker::on_destroy_multi_island_resident(entt::registry &registry, e
         if (!m_islands_to_split.contains(island_entity)) {
             m_islands_to_split.emplace(island_entity);
         }
+
+        wake_up_island(island_entity);
     }
 }
 
@@ -403,6 +403,9 @@ void island_worker::on_update_entities(const message<msg::update_entities> &msg)
         auto local_entity = m_entity_map.at(remote_entity);
         m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
+
+    // Wake up all islands involved.
+    //msg.content.ops.
 }
 
 void island_worker::wake_up_island(entt::entity island_entity) {
@@ -577,6 +580,10 @@ void island_worker::update() {
 
 void island_worker::process_messages() {
     m_message_queue.update();
+
+    // Initialize new nodes and edges that might've been created while
+    // processing messages.
+    init_new_nodes_and_edges();
 }
 
 bool island_worker::should_step() {
@@ -608,8 +615,6 @@ bool island_worker::should_step() {
 void island_worker::begin_step() {
     EDYN_ASSERT(m_state == state::begin_step);
 
-    init_new_nodes_and_edges();
-
     auto &settings = m_registry.ctx().at<edyn::settings>();
     if (settings.external_system_pre_step) {
         (*settings.external_system_pre_step)(m_registry);
@@ -636,6 +641,8 @@ bool island_worker::run_broadphase() {
         return false;
     } else {
         bphase.update();
+        // Broadphase creates new manifolds which are edges in the entity graph.
+        // Thus, initialize them right after.
         init_new_nodes_and_edges();
         m_state = state::narrowphase;
         return true;
@@ -1098,12 +1105,12 @@ void island_worker::split_islands() {
             connected_edges.push_back(edge_entity);
         });
 
+        wake_up_island(island_entity);
+
         if (island.nodes.size() == connected_nodes.size()) {
             // Island is a single connected component in the entity graph.
             continue;
         }
-
-        wake_up_island(island_entity);
 
         // Keep these connected nodes into the existing island and
         // traverse graph starting at the remaining nodes to find the other
@@ -1466,31 +1473,28 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
         EDYN_ASSERT(all_nodes.contains(node_indices.second));
     }
 
-    // Insert all entities to be moved into a set of registry operations.
+    // Insert all entities to be moved into a set of registry operations
+    // which will be applied onto the main registry to update all components
+    // to the latest value.
     auto &settings = m_registry.ctx().at<edyn::settings>();
     auto builder = (*settings.make_reg_op_builder)();
-    entity_pair_vector emap;
 
     for (auto entity : all_nodes) {
-        if (m_entity_map.contains_local(entity)) {
-            emap.emplace_back(entity, m_entity_map.at_local(entity));
-        }
-
-        builder->create(entity);
-        builder->emplace_all(m_registry, entity);
+        builder->replace_all(m_registry, entity);
     }
 
     for (auto entity : all_edges) {
-        if (m_entity_map.contains_local(entity)) {
-            emap.emplace_back(entity, m_entity_map.at_local(entity));
-        }
-
-        builder->create(entity);
-        builder->emplace_all(m_registry, entity);
+        builder->replace_all(m_registry, entity);
     }
 
+    std::vector<entt::entity> all_entities;
+    all_entities.insert(all_entities.end(), all_nodes.begin(), all_nodes.end());
+    all_entities.insert(all_entities.end(), all_edges.begin(), all_edges.end());
+
     auto &msg_dispatcher = message_dispatcher::global();
-    msg_dispatcher.send<msg::move_entities>(msg.content.destination, message_queue_id(), builder->finish(), std::move(emap));
+    msg_dispatcher.send<msg::move_entities>(
+        m_coordinator_queue_id, message_queue_id(),
+        msg.content.destination, builder->finish(), std::move(all_entities));
 
     // Remove all moved entities from this worker, without including these
     // changes in the current registry operations. Non-procedural entities
@@ -1509,7 +1513,6 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     auto node_view = m_registry.view<graph_node>();
     auto edge_view = m_registry.view<graph_edge>();
     auto procedural_view = m_registry.view<procedural_tag>();
-    std::vector<entt::entity> moved_entities;
 
     // Remove all edges from graph first.
     for (auto entity : all_edges) {
@@ -1553,11 +1556,7 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
         }
 
         m_registry.destroy(entity);
-        moved_entities.push_back(entity);
     }
-
-    moved_entities.insert(moved_entities.end(), all_edges.begin(), all_edges.end());
-    msg_dispatcher.send<msg::entities_moved>(m_coordinator_queue_id, message_queue_id(), std::move(moved_entities));
 
     // Island entities do not move between workers, thus mark them as destroyed.
     // New islands will be created in the other worker when the moved entities
@@ -1578,47 +1577,6 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     m_registry.on_destroy<multi_island_resident>().connect<&island_worker::on_destroy_multi_island_resident>(*this);
 }
 
-void island_worker::on_move_entities(const message<msg::move_entities> &msg) {
-    auto &ops = msg.content.ops;
-    entity_map emap_w2w;
-    msg::entities_received_by_worker response;
-
-    // Create entity mapping between workers. Not all created entities in the
-    // ops contain a mapping to a coordinator entity necessarily.
-    // Non-procedural entities can be present in multiple workers simultaneously.
-    for (auto [worker_entity, coordinator_entity] : msg.content.emap) {
-        entt::entity local_entity;
-
-        if (m_entity_map.contains(coordinator_entity)) {
-            // Entity already known by this worker.
-            local_entity = m_entity_map.at(coordinator_entity);
-        } else {
-            local_entity = m_registry.create();
-            m_entity_map.insert(coordinator_entity, local_entity);
-        }
-
-        emap_w2w.insert(worker_entity, local_entity);
-        response.emap.insert(local_entity, coordinator_entity);
-    }
-
-    // Import entities and components using the worker-to-worker entity map
-    // since the ops are in the registry space of the source worker and thus
-    // the entities will be mapped to the registry space of this worker.
-    m_importing = true;
-    import_reg_ops(m_registry, emap_w2w, msg.content.ops);
-    m_importing = false;
-
-    // Add entities to response now that they have all been imported. Not all
-    // entities could have a mapping to a coordinator entity yet.
-    ops.create_for_each([&](entt::entity worker_entity) {
-        auto local_entity = emap_w2w.at(worker_entity);
-        response.entities.push_back(local_entity);
-    });
-
-    message_dispatcher::global()
-        .send<msg::entities_received_by_worker>(m_coordinator_queue_id, message_queue_id(), std::move(response));
-}
-
 void island_worker::on_raycast_request(const message<msg::raycast_request> &msg) {
     auto &ctx = m_raycast_broad_ctx.emplace_back();
     ctx.id = msg.content.id;
@@ -1627,19 +1585,21 @@ void island_worker::on_raycast_request(const message<msg::raycast_request> &msg)
 }
 
 bool island_worker::run_raycast_broadphase() {
+    m_state_before_raycast.store(m_state.load());
+
     if (m_raycast_broad_ctx.empty()) {
         return true;
     }
 
-    m_state_before_raycast = m_state;
     m_state = state::raycast_broadphase;
     auto &bphase = m_registry.ctx().at<broadphase_worker>();
 
     if (m_raycast_broad_ctx.size() <= m_max_raycast_broadphase_sequential_size) {
-        auto &ctx = m_raycast_broad_ctx.front();
-        bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
-            ctx.candidates.push_back(entity);
-        });
+        for (auto &ctx : m_raycast_broad_ctx) {
+            bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
+                ctx.candidates.push_back(entity);
+            });
+        }
 
         finish_raycast_broadphase();
 
@@ -1679,6 +1639,7 @@ void island_worker::finish_raycast_broadphase() {
 
 bool island_worker::run_raycast_narrowphase() {
     if (m_raycast_narrow_ctx.empty()) {
+        m_state.store(m_state_before_raycast.load());
         return true;
     }
 
@@ -1690,17 +1651,17 @@ bool island_worker::run_raycast_narrowphase() {
     auto shape_views_tuple = get_tuple_of_shape_views(m_registry);
 
     if (m_raycast_narrow_ctx.size() <= m_max_raycast_narrowphase_sequential_size) {
-        auto &ctx = m_raycast_narrow_ctx.front();
+        for (auto &ctx : m_raycast_narrow_ctx) {
+            auto sh_idx = index_view.get<shape_index>(ctx.entity);
+            auto pos = origin_view.contains(ctx.entity) ?
+                static_cast<vector3>(origin_view.get<origin>(ctx.entity)) : tr_view.get<position>(ctx.entity);
+            auto orn = tr_view.get<orientation>(ctx.entity);
+            auto ray_ctx = raycast_context{pos, orn, ctx.p0, ctx.p1};
 
-        auto sh_idx = index_view.get<shape_index>(ctx.entity);
-        auto pos = origin_view.contains(ctx.entity) ?
-            static_cast<vector3>(origin_view.get<origin>(ctx.entity)) : tr_view.get<position>(ctx.entity);
-        auto orn = tr_view.get<orientation>(ctx.entity);
-        auto ray_ctx = raycast_context{pos, orn, ctx.p0, ctx.p1};
-
-        visit_shape(sh_idx, ctx.entity, shape_views_tuple, [&](auto &&shape) {
-            ctx.result = shape_raycast(shape, ray_ctx);
-        });
+            visit_shape(sh_idx, ctx.entity, shape_views_tuple, [&](auto &&shape) {
+                ctx.result = shape_raycast(shape, ray_ctx);
+            });
+        }
 
         finish_raycast_narrowphase();
 
@@ -1750,7 +1711,7 @@ void island_worker::finish_raycast_narrowphase() {
     }
 
     m_raycast_narrow_ctx.clear();
-    m_state = m_state_before_raycast;
+    m_state.store(m_state_before_raycast.load());
 }
 
 void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {

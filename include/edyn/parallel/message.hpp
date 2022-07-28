@@ -4,6 +4,7 @@
 #include <entt/entity/fwd.hpp>
 #include "edyn/collision/raycast.hpp"
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
@@ -56,22 +57,14 @@ struct apply_network_pools {
 };
 
 struct exchange_islands {
-    message_queue_identifier destination;
+    island_worker_index_type destination;
     std::vector<AABB> island_aabbs;
 };
 
 struct move_entities {
+    island_worker_index_type destination;
     registry_operation_collection ops;
-    entity_pair_vector emap;
-};
-
-struct entities_moved {
     std::vector<entt::entity> entities;
-};
-
-struct entities_received_by_worker {
-    std::vector<entt::entity> entities;
-    entity_map emap;
 };
 
 struct raycast_request {

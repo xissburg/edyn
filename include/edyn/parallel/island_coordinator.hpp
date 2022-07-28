@@ -62,8 +62,7 @@ public:
     void on_destroy_island(entt::registry &, entt::entity);
 
     void on_step_update(const message<msg::step_update> &);
-    void on_entities_received(const message<msg::entities_received_by_worker> &);
-    void on_entities_moved(const message<msg::entities_moved> &);
+    void on_move_entities(const message<msg::move_entities> &);
 
     void on_raycast_response(const message<msg::raycast_response> &);
 
@@ -137,8 +136,7 @@ private:
     std::vector<std::unique_ptr<island_worker_context>> m_worker_ctx;
     message_queue_handle<
         msg::step_update,
-        msg::entities_received_by_worker,
-        msg::entities_moved,
+        msg::move_entities,
         msg::raycast_response
     > m_message_queue_handle;
 
