@@ -5,9 +5,9 @@
 
 namespace edyn {
 
-std::unique_ptr<registry_operation_builder> make_reg_op_builder_default() {
+std::unique_ptr<registry_operation_builder> make_reg_op_builder_default(entt::registry &registry) {
     return std::unique_ptr<registry_operation_builder>(
-        new registry_operation_builder_impl(shared_components_t{}));
+        new registry_operation_builder_impl(registry, shared_components_t{}));
 }
 
 settings::settings()

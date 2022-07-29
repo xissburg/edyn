@@ -76,7 +76,7 @@ island_worker::island_worker(const std::string &name, const settings &settings,
                              const material_mix_table &material_table, message_queue_identifier coordinator_queue_id)
     : m_state(state::init)
     , m_solver(m_registry)
-    , m_op_builder((*settings.make_reg_op_builder)())
+    , m_op_builder((*settings.make_reg_op_builder)(m_registry))
     , m_importing(false)
     , m_message_queue(message_dispatcher::global().make_queue<
         msg::set_paused,
@@ -414,20 +414,20 @@ void island_worker::wake_up_island(entt::entity island_entity) {
 
     if (sleeping_view.contains(island_entity)) {
         m_registry.erase<sleeping_tag>(island_entity);
-        m_op_builder->remove<sleeping_tag>(m_registry, island_entity);
+        m_op_builder->remove<sleeping_tag>(island_entity);
     }
 
     for (auto entity : island.nodes) {
         if (sleeping_view.contains(entity)) {
             m_registry.erase<sleeping_tag>(entity);
-            m_op_builder->remove<sleeping_tag>(m_registry, entity);
+            m_op_builder->remove<sleeping_tag>(entity);
         }
     }
 
     for (auto entity : island.edges) {
         if (sleeping_view.contains(entity)) {
             m_registry.erase<sleeping_tag>(entity);
-            m_op_builder->remove<sleeping_tag>(m_registry, entity);
+            m_op_builder->remove<sleeping_tag>(entity);
         }
     }
 }
@@ -448,17 +448,17 @@ bool island_worker::all_sleeping() {
 void island_worker::sync() {
     // Always update island AABBs since the coordinator needs them to detect
     // when islands from different workers are about to interact.
-    m_op_builder->replace<island_AABB>(m_registry);
+    m_op_builder->replace<island_AABB>();
 
     // Always update discontinuities since they decay in every step.
-    m_op_builder->replace<discontinuity>(m_registry);
+    m_op_builder->replace<discontinuity>();
 
     // Update continuous components.
     auto &settings = m_registry.ctx().at<edyn::settings>();
     auto &index_source = *settings.index_source;
     m_registry.view<continuous>().each([&](entt::entity entity, continuous &cont) {
         for (size_t i = 0; i < cont.size; ++i) {
-            m_op_builder->replace_type_id(m_registry, entity, index_source.type_id_of(cont.indices[i]));
+            m_op_builder->replace_type_id(entity, index_source.type_id_of(cont.indices[i]));
         }
     });
 
@@ -477,12 +477,9 @@ void island_worker::sync_dirty() {
             m_op_builder->create(entity);
         }
 
-        m_op_builder->emplace_type_ids(m_registry, entity,
-            dirty.created_ids.begin(), dirty.created_ids.end());
-        m_op_builder->replace_type_ids(m_registry, entity,
-            dirty.updated_ids.begin(), dirty.updated_ids.end());
-        m_op_builder->remove_type_ids(m_registry, entity,
-            dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
+        m_op_builder->emplace_type_ids(entity, dirty.created_ids.begin(), dirty.created_ids.end());
+        m_op_builder->replace_type_ids(entity, dirty.updated_ids.begin(), dirty.updated_ids.end());
+        m_op_builder->remove_type_ids(entity, dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
     });
 
     m_registry.clear<dirty>();
@@ -941,7 +938,7 @@ entt::entity island_worker::create_island() {
     m_registry.emplace<island_tag>(island_entity);
     m_registry.emplace<island_stats>(island_entity);
     m_op_builder->create(island_entity);
-    m_op_builder->emplace_all(m_registry, island_entity);
+    m_op_builder->emplace_all(island_entity);
     return island_entity;
 }
 
@@ -1228,7 +1225,7 @@ void island_worker::split_islands() {
             stats_new.num_edges = island_new.edges.size();
 
             m_op_builder->create(island_entity_new);
-            m_op_builder->emplace_all(m_registry, island_entity_new);
+            m_op_builder->emplace_all(island_entity_new);
         }
     }
 
@@ -1345,7 +1342,7 @@ bool island_worker::could_go_to_sleep(entt::entity island_entity) const {
 
 void island_worker::put_to_sleep(entt::entity island_entity) {
     m_registry.emplace<sleeping_tag>(island_entity);
-    m_op_builder->emplace<sleeping_tag>(m_registry, island_entity);
+    m_op_builder->emplace<sleeping_tag>(island_entity);
 
     auto &island = m_registry.get<edyn::island>(island_entity);
     auto procedural_view = m_registry.view<procedural_tag>();
@@ -1364,13 +1361,13 @@ void island_worker::put_to_sleep(entt::entity island_entity) {
 
         if (procedural_view.contains(entity)) {
             m_registry.emplace<sleeping_tag>(entity);
-            m_op_builder->emplace<sleeping_tag>(m_registry, entity);
+            m_op_builder->emplace<sleeping_tag>(entity);
         }
     }
 
     for (auto entity : island.edges) {
         m_registry.emplace<sleeping_tag>(entity);
-        m_op_builder->emplace<sleeping_tag>(m_registry, entity);
+        m_op_builder->emplace<sleeping_tag>(entity);
     }
 }
 
@@ -1492,14 +1489,14 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     // which will be applied onto the main registry to update all components
     // to the latest value.
     auto &settings = m_registry.ctx().at<edyn::settings>();
-    auto builder = (*settings.make_reg_op_builder)();
+    auto builder = (*settings.make_reg_op_builder)(m_registry);
 
     for (auto entity : all_nodes) {
-        builder->replace_all(m_registry, entity);
+        builder->replace_all(entity);
     }
 
     for (auto entity : all_edges) {
-        builder->replace_all(m_registry, entity);
+        builder->replace_all(entity);
     }
 
     auto move = msg::move_entities{};

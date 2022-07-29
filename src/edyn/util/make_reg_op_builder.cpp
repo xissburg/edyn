@@ -9,7 +9,7 @@ namespace edyn {
 std::unique_ptr<registry_operation_builder> make_reg_op_builder(entt::registry &registry) {
     auto &settings = registry.ctx().at<edyn::settings>();
     EDYN_ASSERT(settings.make_reg_op_builder != nullptr);
-    return (*settings.make_reg_op_builder)();
+    return (*settings.make_reg_op_builder)(registry);
 }
 
 }

@@ -658,9 +658,9 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         }
     }
 
-    auto builder = (*settings.make_reg_op_builder)();
+    auto builder = (*settings.make_reg_op_builder)(registry);
     builder->create(entities.begin(), entities.end());
-    builder->emplace_all(registry, entities);
+    builder->emplace_all(entities);
     input.ops = builder->finish();
 
     input.entities = std::move(entities);

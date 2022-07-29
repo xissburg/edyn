@@ -189,7 +189,7 @@ void extrapolation_job::sync_and_finish() {
 
     // Collect entities per type to be updated, including only components that
     // have changed, i.e. continuous and dirty components.
-    auto builder = (*settings.make_reg_op_builder)();
+    auto builder = (*settings.make_reg_op_builder)(m_registry);
 
     // Local entity mapping must not be included if the result is going to be
     // remapped into remote space.
@@ -218,7 +218,7 @@ void extrapolation_job::sync_and_finish() {
 
                 if (!is_owned_entity ||
                     !((*g_is_networked_input_component)(id) || (*g_is_action_list_component)(id))) {
-                    builder->replace_type_id(m_registry, local_entity, id);
+                    builder->replace_type_id(local_entity, id);
                 }
             }
         }
@@ -229,7 +229,7 @@ void extrapolation_job::sync_and_finish() {
             for (auto id : dirty->updated_ids) {
                 if (!is_owned_entity ||
                     !((*g_is_networked_input_component)(id) || (*g_is_action_list_component)(id))) {
-                    builder->replace_type_id(m_registry, local_entity, id);
+                    builder->replace_type_id(local_entity, id);
                 }
             }
         }

@@ -331,7 +331,7 @@ void island_coordinator::init_new_non_procedural_node(entt::entity node_entity) 
 
             auto &ctx = m_worker_ctx[worker_index];
             ctx->m_op_builder->create(node_entity);
-            ctx->m_op_builder->emplace_all(*m_registry, node_entity);
+            ctx->m_op_builder->emplace_all(node_entity);
         }
     });
 }
@@ -349,7 +349,7 @@ island_worker_index_type island_coordinator::create_worker() {
     auto *worker = new island_worker(name, settings, material_table, m_message_queue_handle.identifier);
 
     auto &ctx = m_worker_ctx.emplace_back(std::make_unique<island_worker_context>(
-        worker, (*settings.make_reg_op_builder)()));
+        worker, (*settings.make_reg_op_builder)(*m_registry)));
     ctx->m_timestamp = performance_time();
 
     return worker_index;
@@ -396,7 +396,7 @@ void island_coordinator::insert_to_worker(island_worker_index_type worker_index,
             auto [resident] = resident_view.get(entity);
             resident.worker_index = worker_index;
             ctx.m_op_builder->create(entity);
-            ctx.m_op_builder->emplace_all(*m_registry, entity);
+            ctx.m_op_builder->emplace_all(entity);
         } else {
             auto [resident] = multi_resident_view.get(entity);
 
@@ -404,7 +404,7 @@ void island_coordinator::insert_to_worker(island_worker_index_type worker_index,
                 // Non-procedural entity is not yet in this worker, thus create it.
                 resident.worker_indices.emplace(worker_index);
                 ctx.m_op_builder->create(entity);
-                ctx.m_op_builder->emplace_all(*m_registry, entity);
+                ctx.m_op_builder->emplace_all(entity);
             }
         }
     }
@@ -417,7 +417,7 @@ void island_coordinator::insert_to_worker(island_worker_index_type worker_index,
     }
 
     ctx.m_op_builder->create(edges.begin(), edges.end());
-    ctx.m_op_builder->emplace_all(*m_registry, edges);
+    ctx.m_op_builder->emplace_all(edges);
 }
 
 double island_coordinator::get_worker_timestamp(island_worker_index_type worker_index) const {
@@ -456,12 +456,9 @@ void island_coordinator::refresh_dirty_entities() {
             builder->create(entity);
         }
 
-        builder->emplace_type_ids(*m_registry, entity,
-            dirty.created_ids.begin(), dirty.created_ids.end());
-        builder->replace_type_ids(*m_registry, entity,
-            dirty.updated_ids.begin(), dirty.updated_ids.end());
-        builder->remove_type_ids(*m_registry, entity,
-            dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
+        builder->emplace_type_ids(entity, dirty.created_ids.begin(), dirty.created_ids.end());
+        builder->replace_type_ids(entity, dirty.updated_ids.begin(), dirty.updated_ids.end());
+        builder->remove_type_ids(entity, dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
     };
 
     dirty_view.each([&](entt::entity entity, dirty &dirty) {
@@ -606,7 +603,7 @@ void island_coordinator::on_move_entities(const message<msg::move_entities> &msg
     // Create operations to instantiate moved entities into the destination
     // worker.
     auto &settings = m_registry->ctx().at<edyn::settings>();
-    auto builder = (*settings.make_reg_op_builder)();
+    auto builder = (*settings.make_reg_op_builder)(*m_registry);
     auto resident_view = m_registry->view<island_worker_resident>();
     auto multi_resident_view = m_registry->view<multi_island_worker_resident>();
     auto dest_worker_index = move.destination;
@@ -625,7 +622,7 @@ void island_coordinator::on_move_entities(const message<msg::move_entities> &msg
             resident.worker_index = dest_worker_index;
 
             builder->create(local_entity);
-            builder->emplace_all(*m_registry, local_entity);
+            builder->emplace_all(local_entity);
 
             emap.erase(remote_entity);
         } else {
@@ -635,7 +632,7 @@ void island_coordinator::on_move_entities(const message<msg::move_entities> &msg
                 resident.worker_indices.insert(dest_worker_index);
 
                 builder->create(local_entity);
-                builder->emplace_all(*m_registry, local_entity);
+                builder->emplace_all(local_entity);
             }
 
             if (!vector_contains(move.retained_np_entities, remote_entity)) {

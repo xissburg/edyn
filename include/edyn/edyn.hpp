@@ -40,6 +40,7 @@
 #include "collision/contact_manifold_map.hpp"
 #include "context/settings.hpp"
 #include "collision/raycast.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -163,12 +164,12 @@ template<typename... Components, typename... Actions>
 void register_external_components(entt::registry &registry, std::tuple<Actions...> actions = {}) {
     auto &settings = registry.ctx().at<edyn::settings>();
 
-    settings.make_reg_op_builder = []() {
+    settings.make_reg_op_builder = [](entt::registry &registry) {
         auto external = std::tuple<Components...>{};
         auto action_lists = std::tuple<action_list<Actions>...>{};
         auto all_components = std::tuple_cat(shared_components_t{}, external, action_lists);
         return std::unique_ptr<registry_operation_builder>(
-            new registry_operation_builder_impl(all_components));
+            new registry_operation_builder_impl(registry, all_components));
     };
 
     auto external = std::tuple<Components...>{};

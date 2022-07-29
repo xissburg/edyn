@@ -13,7 +13,7 @@
 
 namespace edyn {
 
-std::unique_ptr<registry_operation_builder> make_reg_op_builder_default();
+std::unique_ptr<registry_operation_builder> make_reg_op_builder_default(entt::registry &);
 
 using should_collide_func_t = decltype(&should_collide_default);
 
