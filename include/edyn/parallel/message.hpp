@@ -65,6 +65,7 @@ struct move_entities {
     island_worker_index_type destination;
     registry_operation_collection ops;
     std::vector<entt::entity> entities;
+    std::vector<entt::entity> retained_np_entities;
 };
 
 struct raycast_request {
