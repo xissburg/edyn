@@ -1043,9 +1043,7 @@ void island_worker::merge_islands(const std::vector<entt::entity> &island_entiti
             auto [resident] = multi_resident_view.get(entity);
 
             for (auto island_entity : other_island_entities) {
-                if (resident.island_entities.contains(island_entity)) {
-                    resident.island_entities.remove(island_entity);
-                }
+                resident.island_entities.remove(island_entity);
             }
         }
     }
@@ -1428,7 +1426,7 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
 
     auto island_view = m_registry.view<island, island_AABB>();
 
-    if (island_view.size_hint() > 1) {
+    /* if (island_view.size_hint() > 1) {
         for (auto island_entity : island_view) {
             if (island_entities.contains(island_entity)) continue;
 
@@ -1450,9 +1448,11 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
                 island_entities.emplace(island_entity);
             }
         }
-    }
+    } */
 
     if (island_entities.empty()) {
+        // Send empty reply.
+        message_dispatcher::global().send<msg::move_entities>(m_coordinator_queue_id, message_queue_id());
         return;
     }
 
@@ -1500,11 +1500,9 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     }
 
     auto move = msg::move_entities{};
+    move.destination = msg.content.destination;
     move.entities.insert(move.entities.end(), all_nodes.begin(), all_nodes.end());
     move.entities.insert(move.entities.end(), all_edges.begin(), all_edges.end());
-
-    move.destination = msg.content.destination;
-    move.ops = builder->finish();
 
     // Remove all moved entities from this worker, without including these
     // changes in the current registry operations. Non-procedural entities
@@ -1554,7 +1552,7 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
             if (has_procedural_neighbor) {
                 // Remove the islands that are gonna move from resident.
                 auto &resident = m_registry.get<multi_island_resident>(entity);
-                resident.island_entities.remove(island_entities.begin(), island_entities.end());
+                resident.island_entities.erase(island_entities.begin(), island_entities.end());
 
                 // Mark this non-procedural entity as retained so the coordinator
                 // can update the multi_island_worker_resident correctly. Otherwise,
@@ -1580,7 +1578,7 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     // are imported.
     for (auto entity : island_entities) {
         m_registry.destroy(entity);
-        m_op_builder->destroy(entity);
+        builder->destroy(entity);
 
         if (m_entity_map.contains_local(entity)) {
             m_entity_map.erase_local(entity);
@@ -1592,6 +1590,8 @@ void island_worker::on_exchange_islands(const message<msg::exchange_islands> &ms
     m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
     m_registry.on_destroy<island_resident>().connect<&island_worker::on_destroy_island_resident>(*this);
     m_registry.on_destroy<multi_island_resident>().connect<&island_worker::on_destroy_multi_island_resident>(*this);
+
+    move.ops = builder->finish();
 
     // Finally, dispatch message.
     message_dispatcher::global()

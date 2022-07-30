@@ -25,10 +25,14 @@ class island_worker_context {
     bool m_pending_flush;
 
 public:
+    entt::sparse_set m_nodes;
+    entt::sparse_set m_np_nodes;
+    entt::sparse_set m_edges;
     entt::sparse_set m_islands;
     entity_map m_entity_map;
     std::unique_ptr<registry_operation_builder> m_op_builder;
     double m_timestamp;
+    bool m_exchanging_islands;
 
     island_worker_context(island_worker *worker, std::unique_ptr<registry_operation_builder> op_builder);
 
@@ -68,6 +72,10 @@ public:
      * Schedules worker to be terminated.
      */
     void terminate();
+
+    unsigned weight() const {
+        return m_nodes.size() * 2 + m_np_nodes.size() + m_edges.size() * 4;
+    }
 };
 
 }
