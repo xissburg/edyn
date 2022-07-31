@@ -29,7 +29,7 @@ add_library(Edyn
     cmake/in/build_settings.h.in
     src/edyn/math/geom.cpp
     src/edyn/math/quaternion.cpp
-    src/edyn/math/linear_curve.cpp
+    src/edyn/math/pwl_curve.cpp
     src/edyn/collision/broadphase_main.cpp
     src/edyn/collision/broadphase_worker.cpp
     src/edyn/collision/narrowphase.cpp

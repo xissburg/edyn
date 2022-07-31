@@ -2,7 +2,7 @@
 #define EDYN_CONSTRAINTS_SPRINGDAMPER_CONSTRAINT_HPP
 
 #include "edyn/math/vector3.hpp"
-#include "edyn/math/linear_curve.hpp"
+#include "edyn/math/pwl_curve.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
 #include "edyn/util/array.hpp"
@@ -10,7 +10,7 @@
 namespace edyn {
 
 struct springdamper_constraint : public constraint_base {
-    linear_curve m_stiffness_curve;
+    pwl_curve m_stiffness_curve;
 
     vector3 m_pivotA;
     vector3 m_ctrl_arm_pivotA;

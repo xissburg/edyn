@@ -1,5 +1,5 @@
-#ifndef EDYN_MATH_LINEAR_CURVE_HPP
-#define EDYN_MATH_LINEAR_CURVE_HPP
+#ifndef EDYN_MATH_PWL_CURVE_HPP
+#define EDYN_MATH_PWL_CURVE_HPP
 
 #include <cstddef>
 #include <vector>
@@ -8,9 +8,9 @@
 namespace edyn {
 
 /**
- * @brief A piece-wise linear curve,
+ * @brief A piece-wise linear curve.
  */
-class linear_curve {
+class pwl_curve {
 public:
     void add(scalar x, scalar y);
     void clear();
@@ -22,17 +22,17 @@ public:
     const std::pair<scalar, scalar>& operator[](size_t i) const { return points[i]; }
 
     template<typename Archive>
-    friend void serialize(Archive &, linear_curve &);
+    friend void serialize(Archive &, pwl_curve &);
 
 protected:
     std::vector<std::pair<scalar, scalar>> points;
 };
 
 template<typename Archive>
-void serialize(Archive &archive, linear_curve &curve) {
+void serialize(Archive &archive, pwl_curve &curve) {
     archive(curve.points);
 }
 
 }
 
-#endif // EDYN_MATH_LINEAR_CURVE_HPP
+#endif // EDYN_MATH_PWL_CURVE_HPP

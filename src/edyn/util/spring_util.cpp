@@ -3,9 +3,9 @@
 namespace edyn {
 
 // TODO: Include bump stop stiffness in curve. ****
-linear_curve spring_stiffness_curve(scalar primary_stiffness, scalar primary_max_defl,
+pwl_curve spring_stiffness_curve(scalar primary_stiffness, scalar primary_max_defl,
                                     scalar secondary_stiffness, scalar secondary_max_defl) {
-    linear_curve curve;
+    pwl_curve curve;
     curve.add(-1, 0);
     curve.add(0, 0);
 
@@ -28,7 +28,7 @@ linear_curve spring_stiffness_curve(scalar primary_stiffness, scalar primary_max
     return curve;
 }
 
-scalar spring_preload(const linear_curve& curve,
+scalar spring_preload(const pwl_curve& curve,
                       scalar piston_rod_length,
                       scalar damper_body_length,
                       scalar damper_body_offset,

@@ -331,7 +331,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
             cp.friction = combined_friction;
         });
 
-        refresh<contact_manifold>(registry, entity);
+        refresh<contact_manifold>(registry, edge_entity);
     });
 }
 

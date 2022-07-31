@@ -1,17 +1,17 @@
-#include "edyn/math/linear_curve.hpp"
+#include "edyn/math/pwl_curve.hpp"
 #include "edyn/config/config.h"
 
 namespace edyn {
 
-void linear_curve::add(scalar x, scalar y) {
+void pwl_curve::add(scalar x, scalar y) {
     points.push_back(std::pair(x, y));
 }
 
-void linear_curve::clear() {
+void pwl_curve::clear() {
     points.clear();
 }
 
-scalar linear_curve::get(scalar x) const {
+scalar pwl_curve::get(scalar x) const {
     EDYN_ASSERT(!points.empty());
 
     size_t low = 0;
@@ -37,7 +37,7 @@ scalar linear_curve::get(scalar x) const {
     return y;
 }
 
-std::pair<scalar, scalar> linear_curve::get(size_t i) const {
+std::pair<scalar, scalar> pwl_curve::get(size_t i) const {
     return points[i];
 }
 
