@@ -27,19 +27,15 @@ class island_coordinator final {
     void init_new_nodes_and_edges();
     void init_new_non_procedural_node(entt::entity);
 
-    island_worker_index_type create_worker();
-    void insert_to_worker(island_worker_index_type worker_index,
-                          const std::vector<entt::entity> &nodes,
+    void create_worker();
+    void insert_to_worker(const std::vector<entt::entity> &nodes,
                           const std::vector<entt::entity> &edges);
 
     void refresh_dirty_entities();
     void sync();
     void balance_workers();
-    void exchange_islands_from_to(island_worker_index_type from_worker,
-                                  island_worker_index_type to_worker);
 
     struct worker_raycast_context {
-        unsigned int counter;
         vector3 p0, p1;
         raycast_delegate_type delegate;
         raycast_result result;
@@ -48,7 +44,7 @@ class island_coordinator final {
 public:
     island_coordinator(island_coordinator const&) = delete;
     island_coordinator operator=(island_coordinator const&) = delete;
-    island_coordinator(entt::registry &, unsigned short num_island_workers = 0);
+    island_coordinator(entt::registry &);
     ~island_coordinator();
 
     void on_construct_graph_node(entt::registry &, entt::entity);
@@ -57,16 +53,10 @@ public:
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
 
-    void on_destroy_island_worker_resident(entt::registry &, entt::entity);
-    void on_destroy_multi_island_worker_resident(entt::registry &, entt::entity);
-    void on_destroy_island(entt::registry &, entt::entity);
+    void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
     void on_step_update(const message<msg::step_update> &);
-    void on_move_entities(const message<msg::move_entities> &);
-
     void on_raycast_response(const message<msg::raycast_response> &);
-
-    void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
     void update();
 
@@ -81,15 +71,7 @@ public:
 
     void material_table_changed();
 
-    void batch_nodes(const std::vector<entt::entity> &nodes,
-                     const std::vector<entt::entity> &edges);
-
-    double get_worker_timestamp(island_worker_index_type) const;
-
-    void move_non_procedural_into_worker(entt::entity np_entity, island_worker_index_type worker_index);
-
-    void exchange_islands(island_worker_index_type worker_indexA,
-                          island_worker_index_type worker_indexB);
+    double get_worker_timestamp() const;
 
     auto contact_started_sink() {
         return entt::sink{m_contact_started_signal};
@@ -109,34 +91,26 @@ public:
 
     template<typename Message, typename... Args>
     void send_island_message(entt::entity island_entity, Args &&... args) {
-        auto &resident = m_registry->get<island_worker_resident>(island_entity);
-        auto &ctx = m_worker_ctx[resident.worker_index];
-        ctx->send<Message>(m_message_queue_handle.identifier, std::forward<Args>(args)...);
+        m_worker_ctx->send<Message>(m_message_queue_handle.identifier, std::forward<Args>(args)...);
     }
 
-    template<typename It>
-    raycast_id_type raycast_workers(It first, It last, vector3 p0, vector3 p1, const raycast_delegate_type &delegate) {
+    raycast_id_type raycast_workers(vector3 p0, vector3 p1, const raycast_delegate_type &delegate) {
         auto id = m_next_raycast_id++;
         auto &ctx = m_raycast_ctx[id];
-        ctx.counter = std::distance(first, last);
         ctx.delegate = delegate;
         ctx.p0 = p0;
         ctx.p1 = p1;
 
-        for (; first != last; ++first) {
-            auto &worker = m_worker_ctx[*first];
-            worker->template send<msg::raycast_request>(m_message_queue_handle.identifier, id, p0, p1);
-        }
+        m_worker_ctx->send<msg::raycast_request>(m_message_queue_handle.identifier, id, p0, p1);
 
         return id;
     }
 
 private:
     entt::registry *m_registry;
-    std::vector<std::unique_ptr<island_worker_context>> m_worker_ctx;
+    std::unique_ptr<island_worker_context> m_worker_ctx;
     message_queue_handle<
         msg::step_update,
-        msg::move_entities,
         msg::raycast_response
     > m_message_queue_handle;
 

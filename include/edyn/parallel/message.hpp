@@ -56,18 +56,6 @@ struct apply_network_pools {
     std::vector<pool_snapshot> pools;
 };
 
-struct exchange_islands {
-    island_worker_index_type destination;
-    std::vector<AABB> island_aabbs;
-};
-
-struct move_entities {
-    island_worker_index_type destination;
-    registry_operation_collection ops;
-    std::vector<entt::entity> entities;
-    std::vector<entt::entity> retained_np_entities;
-};
-
 struct raycast_request {
     unsigned int id;
     vector3 p0, p1;

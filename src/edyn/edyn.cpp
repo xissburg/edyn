@@ -1,7 +1,6 @@
 #include "edyn/edyn.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/context/settings.hpp"
-#include "edyn/collision/broadphase_main.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/parallel/island_coordinator.hpp"
 #include "edyn/sys/update_presentation.hpp"
@@ -54,7 +53,6 @@ void attach(entt::registry &registry) {
     registry.ctx().emplace<material_mix_table>();
     registry.ctx().emplace<contact_manifold_map>(registry);
     registry.ctx().emplace<island_coordinator>(registry);
-    registry.ctx().emplace<broadphase_main>(registry);
 }
 
 void detach(entt::registry &registry) {
@@ -63,7 +61,6 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<material_mix_table>();
     registry.ctx().erase<contact_manifold_map>();
     registry.ctx().erase<island_coordinator>();
-    registry.ctx().erase<broadphase_main>();
 }
 
 scalar get_fixed_dt(const entt::registry &registry) {
@@ -90,11 +87,6 @@ void update(entt::registry &registry) {
 
     // Do island management. Merge updated entity state into main registry.
     registry.ctx().at<island_coordinator>().update();
-
-    // The broad-phase in the main thread looks for intersecting islands in
-    // different workers and ask workers to exchange islands so collisions
-    // can be detected between bodies in these islands.
-    registry.ctx().at<broadphase_main>().update();
 
     if (is_paused(registry)) {
         snap_presentation(registry);

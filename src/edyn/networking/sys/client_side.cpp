@@ -238,15 +238,7 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
         if (island_entities.empty()) {
             packet.timestamp = time;
         } else {
-            auto resident_view = registry.view<island_worker_resident>();
-            auto &resident = resident_view.get<island_worker_resident>(*island_entities.begin());
-            packet.timestamp = get_island_worker_timestamp(registry, resident.worker_index);
-
-            for (auto island_entity : island_entities) {
-                auto [resident] = resident_view.get(island_entity);
-                auto worker_time = get_island_worker_timestamp(registry, resident.worker_index);
-                packet.timestamp = std::min(worker_time, packet.timestamp);
-            }
+            packet.timestamp = get_island_worker_timestamp(registry);
         }
 
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});

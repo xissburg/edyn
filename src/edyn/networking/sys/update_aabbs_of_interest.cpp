@@ -1,5 +1,4 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
-#include "edyn/collision/broadphase_main.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/position.hpp"
@@ -11,7 +10,6 @@
 namespace edyn {
 
 void update_aabbs_of_interest(entt::registry &registry) {
-    auto &bphase = registry.ctx().at<broadphase_main>();
     auto owner_view = registry.view<entity_owner>();
     auto manifold_view = registry.view<contact_manifold>();
     auto position_view = registry.view<position>();
@@ -26,9 +24,11 @@ void update_aabbs_of_interest(entt::registry &registry) {
     registry.view<aabb_of_interest>().each([&](aabb_of_interest &aabboi) {
         entt::sparse_set contained_entities;
 
+        // TODO: Move this into worker.
+
         aabboi.island_entities.clear();
         // Collect entities of islands which intersect the AABB of interest.
-        bphase.query_islands(aabboi.aabb, [&](entt::entity island_entity) {
+        /* bphase.query_islands(aabboi.aabb, [&](entt::entity island_entity) {
             auto &island = registry.get<edyn::island>(island_entity);
 
             for (auto entity : island.nodes) {
@@ -57,7 +57,7 @@ void update_aabbs_of_interest(entt::registry &registry) {
             if (!contained_entities.contains(np_entity)) {
                 contained_entities.emplace(np_entity);
             }
-        });
+        }); */
 
         // Insert owners of each entity.
         entt::sparse_set client_entities;

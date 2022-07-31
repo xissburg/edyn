@@ -49,17 +49,6 @@ struct multi_island_resident {
     entt::sparse_set island_entities {};
 };
 
-using island_worker_index_type = uint16_t;
-static constexpr auto invalid_worker_index = std::numeric_limits<island_worker_index_type>::max();
-
-struct island_worker_resident {
-    island_worker_index_type worker_index {invalid_worker_index};
-};
-
-struct multi_island_worker_resident {
-    std::unordered_set<island_worker_index_type> worker_indices;
-};
-
 }
 
 #endif // EDYN_COMP_ISLAND_HPP

@@ -3,9 +3,9 @@
 
 namespace edyn {
 
-double get_island_worker_timestamp(entt::registry &registry, island_worker_index_type worker_index) {
+double get_island_worker_timestamp(entt::registry &registry) {
     auto &coordinator = registry.ctx().at<island_coordinator>();
-    auto worker_time = coordinator.get_worker_timestamp(worker_index);
+    auto worker_time = coordinator.get_worker_timestamp();
     return worker_time;
 }
 

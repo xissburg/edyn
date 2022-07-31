@@ -10,7 +10,6 @@ island_worker_context::island_worker_context(island_worker *worker,
     : m_worker(worker)
     , m_op_builder(std::move(op_builder))
     , m_pending_flush(false)
-    , m_exchanging_islands(false)
 {
 }
 

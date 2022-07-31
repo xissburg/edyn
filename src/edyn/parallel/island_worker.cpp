@@ -72,8 +72,8 @@ void island_worker_func(job::data_type &data) {
     }
 }
 
-island_worker::island_worker(const std::string &name, const settings &settings,
-                             const material_mix_table &material_table, message_queue_identifier coordinator_queue_id)
+island_worker::island_worker(const settings &settings,
+                             const material_mix_table &material_table)
     : m_state(state::init)
     , m_solver(m_registry)
     , m_op_builder((*settings.make_reg_op_builder)(m_registry))
@@ -86,10 +86,8 @@ island_worker::island_worker(const std::string &name, const settings &settings,
         msg::set_material_table,
         msg::update_entities,
         msg::apply_network_pools,
-        msg::exchange_islands,
         msg::raycast_request,
-        extrapolation_result>(name.c_str()))
-    , m_coordinator_queue_id(coordinator_queue_id)
+        extrapolation_result>("worker"))
 {
     m_registry.ctx().emplace<contact_manifold_map>(m_registry);
     m_registry.ctx().emplace<broadphase_worker>(m_registry);
@@ -133,7 +131,6 @@ void island_worker::init() {
     m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
     m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
-    m_message_queue.sink<msg::exchange_islands>().connect<&island_worker::on_exchange_islands>(*this);
     m_message_queue.sink<msg::raycast_request>().connect<&island_worker::on_raycast_request>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&island_worker::on_apply_network_pools>(*this);
 
@@ -466,7 +463,7 @@ void island_worker::sync() {
 
     auto ops = m_op_builder->finish();
     message_dispatcher::global().send<msg::step_update>(
-        m_coordinator_queue_id, m_message_queue.identifier, std::move(ops), m_last_time);
+        {"coordinator"}, m_message_queue.identifier, std::move(ops), m_last_time);
 }
 
 void island_worker::sync_dirty() {
@@ -883,7 +880,7 @@ void island_worker::init_new_nodes_and_edges() {
             }
 
             // Visit neighbor node if it's not in an island yet.
-            auto &other_resident = resident_view.get<island_resident>(other_entity);
+            auto [other_resident] = resident_view.get(other_entity);
 
             if (other_resident.island_entity == entt::null) {
                 return true;
@@ -1037,14 +1034,13 @@ void island_worker::merge_islands(const std::vector<entt::entity> &island_entiti
     }
 
     // Remove destroyed islands from residents.
-    auto multi_resident_view = m_registry.view<multi_island_resident>();
-    for (auto entity : all_nodes) {
-        if (multi_resident_view.contains(entity)) {
-            auto [resident] = multi_resident_view.get(entity);
+    for (auto [entity, resident] : m_registry.view<multi_island_resident>().each()) {
+        resident.island_entities.remove(other_island_entities.begin(), other_island_entities.end());
+    }
 
-            for (auto island_entity : other_island_entities) {
-                resident.island_entities.remove(island_entity);
-            }
+    for (auto [entity, resident] : m_registry.view<multi_island_resident>().each()) {
+        for (auto island_entity : resident.island_entities) {
+            EDYN_ASSERT(m_registry.valid(island_entity));
         }
     }
 }
@@ -1075,6 +1071,14 @@ void island_worker::split_islands() {
 
             if (m_entity_map.contains_local(island_entity)) {
                 m_entity_map.erase_local(island_entity);
+            }
+
+            // Remove destroyed island from non-procedural entities.
+            for (auto entity : island.nodes) {
+                // All nodes are non-procedural at this point so there's no
+                // need to check.
+                auto [resident] = multi_resident_view.get(entity);
+                resident.island_entities.erase(island_entity);
             }
 
             continue;
@@ -1155,10 +1159,14 @@ void island_worker::split_islands() {
         }
 
         // Erase non-procedural nodes since they must not be used as a starting
-        // point for graph traversal.
+        // point for graph traversal. Also, remove the island that was split from
+        // non-procedural entities that are not part of it anymore.
         for (auto entity : all_nodes) {
             if (!procedural_view.contains(entity)) {
                 all_nodes.erase(entity);
+
+                auto [resident] = multi_resident_view.get(entity);
+                resident.island_entities.remove(island_entity);
             }
         }
 
@@ -1185,19 +1193,12 @@ void island_worker::split_islands() {
                     } else {
                         auto [resident] = multi_resident_view.get(node_entity);
                         resident.island_entities.emplace(island_entity_new);
-
-                        // Remove the split island from the resident if it is not
-                        // among the island nodes anymore.
-                        if (!island.nodes.contains(node_entity) &&
-                            resident.island_entities.contains(island_entity)) {
-                            resident.island_entities.erase(island_entity);
-                        }
                     }
 
                     // Update island AABB by uniting all AABBs of all
                     // procedural entities.
                     if (is_procedural && aabb_view.contains(node_entity)) {
-                        auto &node_aabb = aabb_view.get<AABB>(node_entity);
+                        auto [node_aabb] = aabb_view.get(node_entity);
 
                         if (is_first_node) {
                             aabb = {node_aabb};
@@ -1208,14 +1209,12 @@ void island_worker::split_islands() {
                     }
 
                     // Remove visited entity from list of entities to be visited.
-                    if (all_nodes.contains(node_entity)) {
-                        all_nodes.erase(node_entity);
-                    }
+                    all_nodes.remove(node_entity);
                 }, [&](auto edge_index) {
                     auto edge_entity = graph.edge_entity(edge_index);
                     island_new.edges.emplace(edge_entity);
 
-                    auto &resident = resident_view.get<island_resident>(edge_entity);
+                    auto [resident] = resident_view.get(edge_entity);
                     resident.island_entity = island_entity_new;
                 });
 
@@ -1228,6 +1227,12 @@ void island_worker::split_islands() {
     }
 
     m_islands_to_split.clear();
+
+    for (auto [entity, resident] : m_registry.view<multi_island_resident>().each()) {
+        for (auto island_entity : resident.island_entities) {
+            EDYN_ASSERT(m_registry.valid(island_entity));
+        }
+    }
 }
 
 void island_worker::init_new_shapes() {
@@ -1393,211 +1398,6 @@ void island_worker::on_set_com(const message<msg::set_com> &msg) {
     apply_center_of_mass(m_registry, entity, msg.content.com);
 }
 
-void island_worker::on_exchange_islands(const message<msg::exchange_islands> &msg) {
-    // Collect all islands that must be moved, i.e. the ones whose AABB
-    // intersect the island AABBs of the other worker.
-    auto &bphase = m_registry.ctx().at<broadphase_worker>();
-    entt::sparse_set island_entities;
-
-    for (auto &aabb : msg.content.island_aabbs) {
-        bphase.query_islands(aabb, [&](entt::entity island_entity) {
-            if (!island_entities.contains(island_entity)) {
-                island_entities.emplace(island_entity);
-            }
-        });
-    }
-
-    // Considering the collected islands are already owned by the destination
-    // worker, select more islands to be moved as to balance the distribution
-    // of work.
-    // Go through each island and calculate whether it would be a more balanced
-    // configuration if it was moved to the other worker.
-    // Two heuristics are used when choosing extra islands to be moved to the
-    // other worker:
-    // 1 - The ratio of the total number of nodes and edges between the two
-    //     workers should be close to one.
-    // 2 - The volume of the AABB resulting from the intersection of the union
-    //     of the AABBs of all islands in each worker should be minimized.
-    // Heuristic #1 attempts to equally distribute work among workers.
-    // Heuristic #2 seeks to avoid great spatial overlap between workers, as to
-    // keep clusters of islands that are close to one another in the same worker.
-
-    // TODO
-
-    auto island_view = m_registry.view<island, island_AABB>();
-
-    /* if (island_view.size_hint() > 1) {
-        for (auto island_entity : island_view) {
-            if (island_entities.contains(island_entity)) continue;
-
-            EDYN_ASSERT(!(island_entities.size() > island_view.size_hint()));
-            auto num_islands_local = island_view.size_hint() - island_entities.size();
-            auto num_islands_other = msg.content.island_aabbs.size() + island_entities.size();
-
-            if (num_islands_other + 1 > num_islands_local) break;
-
-            bool intersects_local_islands = false;
-            auto &aabb = island_view.get<island_AABB>(island_entity);
-            bphase.query_islands(aabb.inset(vector3_one * -0.9), [&](entt::entity other_island_entity) {
-                if (other_island_entity != island_entity && !island_entities.contains(other_island_entity)) {
-                    intersects_local_islands = true;
-                }
-            });
-
-            if (!intersects_local_islands) {
-                island_entities.emplace(island_entity);
-            }
-        }
-    } */
-
-    if (island_entities.empty()) {
-        // Send empty reply.
-        message_dispatcher::global().send<msg::move_entities>(m_coordinator_queue_id, message_queue_id());
-        return;
-    }
-
-    // Collect all nodes and edges in these islands
-    entt::sparse_set all_nodes, all_edges;
-
-    for (auto island_entity : island_entities) {
-        auto &island = island_view.get<edyn::island>(island_entity);
-
-        for (auto entity : island.nodes) {
-            // Remember that non-procedural nodes could be in multiple islands.
-            if (!all_nodes.contains(entity)) {
-                all_nodes.emplace(entity);
-                EDYN_ASSERT(m_registry.valid(entity));
-            }
-        }
-
-        for (auto entity : island.edges) {
-            // Edges are only ever present in a single island, so there's no
-            // need to check if it's already in the set.
-            all_edges.emplace(entity);
-            EDYN_ASSERT(m_registry.valid(entity));
-        }
-    }
-
-    for (auto entity : all_edges) {
-        auto &edge = m_registry.get<graph_edge>(entity);
-        auto node_indices = m_registry.ctx().at<entity_graph>().edge_node_entities(edge.edge_index);
-        EDYN_ASSERT(all_nodes.contains(node_indices.first));
-        EDYN_ASSERT(all_nodes.contains(node_indices.second));
-    }
-
-    // Insert all entities to be moved into a set of registry operations
-    // which will be applied onto the main registry to update all components
-    // to the latest value.
-    auto &settings = m_registry.ctx().at<edyn::settings>();
-    auto builder = (*settings.make_reg_op_builder)(m_registry);
-
-    for (auto entity : all_nodes) {
-        builder->replace_all(entity);
-    }
-
-    for (auto entity : all_edges) {
-        builder->replace_all(entity);
-    }
-
-    auto move = msg::move_entities{};
-    move.destination = msg.content.destination;
-    move.entities.insert(move.entities.end(), all_nodes.begin(), all_nodes.end());
-    move.entities.insert(move.entities.end(), all_edges.begin(), all_edges.end());
-
-    // Remove all moved entities from this worker, without including these
-    // changes in the current registry operations. Non-procedural entities
-    // that still have a connection to one or more procedural entities must
-    // stay.
-
-    // Disable these signals because their tasks will be handled here in a more
-    // efficient manner. Entire connected components are being removed from the
-    // graph thus the destruction of nodes and edges can be more direct.
-    m_registry.on_destroy<graph_node>().disconnect<&island_worker::on_destroy_graph_node>(*this);
-    m_registry.on_destroy<graph_edge>().disconnect<&island_worker::on_destroy_graph_edge>(*this);
-    m_registry.on_destroy<island_resident>().disconnect<&island_worker::on_destroy_island_resident>(*this);
-    m_registry.on_destroy<multi_island_resident>().disconnect<&island_worker::on_destroy_multi_island_resident>(*this);
-
-    auto &graph = m_registry.ctx().at<entity_graph>();
-    auto node_view = m_registry.view<graph_node>();
-    auto edge_view = m_registry.view<graph_edge>();
-    auto procedural_view = m_registry.view<procedural_tag>();
-
-    // Remove all edges from graph first.
-    for (auto entity : all_edges) {
-        auto [edge] = edge_view.get(entity);
-        graph.remove_edge(edge.edge_index);
-
-        if (m_entity_map.contains_local(entity)) {
-            m_entity_map.erase_local(entity);
-        }
-
-        m_registry.destroy(entity);
-    }
-
-    // Nodes can only be removed after they have no incident edges.
-    for (auto entity : all_nodes) {
-        auto [node] = node_view.get(entity);
-
-        if (!m_registry.all_of<procedural_tag>(entity)) {
-            // Non-procedural nodes that are still connected to a procedural
-            // must not be removed.
-            bool has_procedural_neighbor = false;
-
-            graph.visit_neighbors(node.node_index, [&](entt::entity neighbor) {
-                if (procedural_view.contains(neighbor)) {
-                    has_procedural_neighbor = true;
-                }
-            });
-
-            if (has_procedural_neighbor) {
-                // Remove the islands that are gonna move from resident.
-                auto &resident = m_registry.get<multi_island_resident>(entity);
-                resident.island_entities.erase(island_entities.begin(), island_entities.end());
-
-                // Mark this non-procedural entity as retained so the coordinator
-                // can update the multi_island_worker_resident correctly. Otherwise,
-                // it would remove this worker from the resident which would cause
-                // it to think that this entity is not here anymore.
-                move.retained_np_entities.push_back(entity);
-
-                continue;
-            }
-        }
-
-        graph.remove_node(node.node_index);
-
-        if (m_entity_map.contains_local(entity)) {
-            m_entity_map.erase_local(entity);
-        }
-
-        m_registry.destroy(entity);
-    }
-
-    // Island entities do not move between workers, thus mark them as destroyed.
-    // New islands will be created in the other worker when the moved entities
-    // are imported.
-    for (auto entity : island_entities) {
-        m_registry.destroy(entity);
-        builder->destroy(entity);
-
-        if (m_entity_map.contains_local(entity)) {
-            m_entity_map.erase_local(entity);
-        }
-    }
-
-    // Enable destruction signals again.
-    m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_graph_node>(*this);
-    m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_graph_edge>(*this);
-    m_registry.on_destroy<island_resident>().connect<&island_worker::on_destroy_island_resident>(*this);
-    m_registry.on_destroy<multi_island_resident>().connect<&island_worker::on_destroy_multi_island_resident>(*this);
-
-    move.ops = builder->finish();
-
-    // Finally, dispatch message.
-    message_dispatcher::global()
-        .send<msg::move_entities>(m_coordinator_queue_id, message_queue_id(), std::move(move));
-}
-
 void island_worker::on_raycast_request(const message<msg::raycast_request> &msg) {
     auto &ctx = m_raycast_broad_ctx.emplace_back();
     ctx.id = msg.content.id;
@@ -1728,7 +1528,7 @@ void island_worker::finish_raycast_narrowphase() {
 
     for (auto [id, response] : responses) {
         dispatcher.send<msg::raycast_response>(
-            m_coordinator_queue_id, m_message_queue.identifier, std::move(response));
+            {"coordinator"}, m_message_queue.identifier, std::move(response));
     }
 
     m_raycast_narrow_ctx.clear();

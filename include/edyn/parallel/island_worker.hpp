@@ -96,8 +96,8 @@ class island_worker final {
     void finish_raycast_narrowphase();
 
 public:
-    island_worker(const std::string &name, const settings &settings,
-                  const material_mix_table &material_table, message_queue_identifier coordinator_queue_id);
+    island_worker(const settings &settings,
+                  const material_mix_table &material_table);
 
     ~island_worker();
 
@@ -119,14 +119,9 @@ public:
     void on_set_settings(const message<msg::set_settings> &msg);
     void on_set_material_table(const message<msg::set_material_table> &msg);
     void on_set_com(const message<msg::set_com> &);
-    void on_exchange_islands(const message<msg::exchange_islands> &);
     void on_raycast_request(const message<msg::raycast_request> &);
     void on_apply_network_pools(const message<msg::apply_network_pools> &);
     void on_extrapolation_result(const message<extrapolation_result> &);
-
-    auto message_queue_id() const {
-        return m_message_queue.identifier;
-    }
 
     void import_contact_manifolds(const std::vector<contact_manifold> &manifolds);
 
@@ -149,10 +144,8 @@ private:
         msg::set_material_table,
         msg::update_entities,
         msg::apply_network_pools,
-        msg::exchange_islands,
         msg::raycast_request,
         extrapolation_result> m_message_queue;
-    message_queue_identifier m_coordinator_queue_id;
 
     double m_last_time;
     double m_step_start_time;

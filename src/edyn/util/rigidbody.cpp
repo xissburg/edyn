@@ -177,19 +177,6 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
     return ent;
 }
 
-std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std::vector<rigidbody_def> &defs) {
-    std::vector<entt::entity> entities(defs.size());
-    registry.create(entities.begin(), entities.end());
-
-    for (size_t i = 0; i < entities.size(); ++i) {
-        make_rigidbody(entities[i], registry, defs[i]);
-    }
-
-    auto &coordinator = registry.ctx().at<island_coordinator>();
-    coordinator.batch_nodes(entities, {});
-    return entities;
-}
-
 void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
                              const vector3 &impulse, const vector3 &rel_location) {
     auto &m_inv = registry.get<mass_inv>(entity);
