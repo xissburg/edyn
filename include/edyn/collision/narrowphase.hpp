@@ -20,6 +20,11 @@ namespace edyn {
 struct job;
 
 class narrowphase {
+    enum class state {
+        begin,
+        detect_collision
+    };
+
     struct contact_point_construction_info {
         std::array<collision_result::collision_point, max_contacts> point;
         size_t count {0};
@@ -30,15 +35,14 @@ class narrowphase {
         size_t count {0};
     };
 
+    void detect_collision_async(job &completion_job);
+    void finish_detect_collision();
     void clear_contact_manifold_events();
 
 public:
     narrowphase(entt::registry &);
 
-    bool parallelizable() const;
-    void update();
-    void update_async(job &completion_job);
-    void finish_async_update();
+    bool update(job &completion_job);
 
     /**
      * @brief Detects and processes collisions for the given manifolds.
@@ -55,6 +59,7 @@ private:
     std::vector<contact_point_construction_info> m_cp_construction_infos;
     std::vector<contact_point_destruction_info> m_cp_destruction_infos;
     size_t m_max_sequential_size {4};
+    state m_state {state::begin};
 };
 
 template<typename Iterator>

@@ -7,6 +7,7 @@
 #include <entt/entity/fwd.hpp>
 #include <condition_variable>
 #include "edyn/collision/raycast.hpp"
+#include "edyn/collision/raycast_service.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/dynamics/solver.hpp"
@@ -30,42 +31,23 @@ class island_worker final {
 
     enum class state : uint16_t {
         init,
+        start,
         step,
         begin_step,
-        solve,
+        split_islands,
+        init_new_entities,
         broadphase,
-        broadphase_async,
         narrowphase,
-        narrowphase_async,
+        solve,
         finish_step,
-        raycast_broadphase,
-        raycast_broadphase_async,
-        raycast_narrowphase,
-        raycast_narrowphase_async
-    };
-
-    struct raycast_broadphase_context {
-        unsigned int id;
-        vector3 p0, p1;
-        std::vector<entt::entity> candidates;
-    };
-
-    struct raycast_narrowphase_context {
-        unsigned int id;
-        vector3 p0, p1;
-        entt::entity entity;
-        shape_raycast_result result;
+        raycast
     };
 
     void init();
     void process_messages();
     bool should_step();
     void begin_step();
-    bool run_broadphase();
-    void finish_broadphase();
-    bool run_narrowphase();
-    void finish_narrowphase();
-    void run_solver();
+    bool run_solver();
     void finish_step();
     void reschedule_now();
     void maybe_reschedule();
@@ -79,6 +61,7 @@ class island_worker final {
     void put_to_sleep(entt::entity island_entity);
     void sync();
     void sync_dirty();
+    bool run_state_machine();
     void update();
     entt::entity create_island();
     void insert_to_island(entt::entity island_entity,
@@ -90,10 +73,7 @@ class island_worker final {
     void split_islands();
     void wake_up_island(entt::entity island_entity);
     bool all_sleeping();
-    bool run_raycast_broadphase();
-    void finish_raycast_broadphase();
-    bool run_raycast_narrowphase();
-    void finish_raycast_narrowphase();
+    void consume_raycast_results();
 
 public:
     island_worker(const settings &settings,
@@ -136,6 +116,8 @@ private:
     entt::registry m_registry;
     entity_map m_entity_map;
     solver m_solver;
+    raycast_service m_raycast_service;
+
     message_queue_handle<
         msg::set_paused,
         msg::set_settings,
@@ -152,6 +134,9 @@ private:
 
     std::atomic<state> m_state;
 
+    // Set to true when stepping while paused.
+    bool m_force_step {false};
+
     std::unique_ptr<registry_operation_builder> m_op_builder;
     bool m_importing;
 
@@ -160,12 +145,6 @@ private:
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
     entt::sparse_set m_islands_to_split;
-
-    std::vector<raycast_broadphase_context> m_raycast_broad_ctx;
-    std::vector<raycast_narrowphase_context> m_raycast_narrow_ctx;
-    std::atomic<state> m_state_before_raycast;
-    size_t m_max_raycast_broadphase_sequential_size {4};
-    size_t m_max_raycast_narrowphase_sequential_size {4};
 
     std::atomic<int> m_reschedule_counter {0};
 

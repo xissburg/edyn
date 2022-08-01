@@ -11,30 +11,36 @@ narrowphase::narrowphase(entt::registry &reg)
     : m_registry(&reg)
 {}
 
-bool narrowphase::parallelizable() const {
-    return m_registry->storage<contact_manifold>().size() > m_max_sequential_size;
-}
-
 void narrowphase::clear_contact_manifold_events() {
     m_registry->view<contact_manifold_events>().each([](auto &events) {
         events = {};
     });
 }
 
-void narrowphase::update() {
-    clear_contact_manifold_events();
-    update_contact_distances(*m_registry);
+bool narrowphase::update(job &completion_job) {
+    switch (m_state) {
+    case state::begin:
+        clear_contact_manifold_events();
+        update_contact_distances(*m_registry);
 
-    auto manifold_view = m_registry->view<contact_manifold>();
-    update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
+        if (m_registry->storage<contact_manifold>().size() <= m_max_sequential_size) {
+            auto manifold_view = m_registry->view<contact_manifold>();
+            update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
+            return true;
+        } else {
+            m_state = state::detect_collision;
+            detect_collision_async(completion_job);
+            return false;
+        }
+        break;
+    case state::detect_collision:
+        finish_detect_collision();
+        m_state = state::begin;
+        return true;
+    }
 }
 
-void narrowphase::update_async(job &completion_job) {
-    clear_contact_manifold_events();
-    update_contact_distances(*m_registry);
-
-    EDYN_ASSERT(parallelizable());
-
+void narrowphase::detect_collision_async(job &completion_job) {
     auto manifold_view = m_registry->view<contact_manifold>();
     auto events_view = m_registry->view<contact_manifold_events>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
@@ -79,7 +85,7 @@ void narrowphase::update_async(job &completion_job) {
     });
 }
 
-void narrowphase::finish_async_update() {
+void narrowphase::finish_detect_collision() {
     auto manifold_view = m_registry->view<contact_manifold>();
 
     // Destroy contact points.

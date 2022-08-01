@@ -12,6 +12,11 @@ namespace edyn {
 struct job;
 
 class broadphase_worker {
+    enum class state {
+        begin,
+        collide
+    };
+
     // Offset applied to AABBs when querying the trees.
     constexpr static auto m_aabb_offset = vector3_one * -contact_breaking_threshold;
 
@@ -26,12 +31,8 @@ class broadphase_worker {
     void common_update();
 
 public:
-
     broadphase_worker(entt::registry &);
-    bool parallelizable() const;
-    void update();
-    void update_async(job &completion_job);
-    void finish_async_update();
+    bool update(job &completion_job);
 
     template<typename Func>
     void raycast(vector3 p0, vector3 p1, Func func) const;
@@ -52,6 +53,7 @@ private:
     std::vector<entt::entity> m_new_aabb_entities;
     std::vector<entity_pair_vector> m_pair_results;
     size_t m_max_sequential_size {8};
+    state m_state {state::begin};
 };
 
 template<typename Func>

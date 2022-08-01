@@ -136,11 +136,6 @@ void extrapolation_job::init() {
         (*settings.external_system_init)(m_registry);
     }
 
-    // Run broadphase to initialize the internal dynamic trees with the
-    // imported AABBs.
-    auto &bphase = m_registry.ctx().at<broadphase_worker>();
-    bphase.update();
-
     m_state = state::step;
 }
 

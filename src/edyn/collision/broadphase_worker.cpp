@@ -74,10 +74,6 @@ void broadphase_worker::init_new_aabb_entities() {
     m_new_aabb_entities.clear();
 }
 
-bool broadphase_worker::parallelizable() const {
-    return m_registry->view<AABB, procedural_tag>().size_hint() > m_max_sequential_size;
-}
-
 void destroy_separated_manifolds(entt::registry &registry) {
     auto aabb_view = registry.view<AABB>();
     auto manifold_view = registry.view<contact_manifold>();
@@ -155,49 +151,56 @@ void broadphase_worker::common_update() {
     });
 }
 
-void broadphase_worker::update() {
-    common_update();
+bool broadphase_worker::update(job &completion_job) {
+    switch (m_state) {
+    case state::begin:
+        common_update();
 
-    // Search for new AABB intersections and create manifolds.
-    auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
-    aabb_proc_view.each([&](entt::entity entity, AABB &aabb) {
-        auto offset_aabb = aabb.inset(m_aabb_offset);
-        collide_tree(m_tree, entity, offset_aabb);
-        collide_tree(m_np_tree, entity, offset_aabb);
-    });
-}
+        if (m_registry->view<AABB, procedural_tag>().size_hint() <= m_max_sequential_size) {
+            // Search for new AABB intersections and create manifolds.
+            auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
+            aabb_proc_view.each([&](entt::entity entity, AABB &aabb) {
+                auto offset_aabb = aabb.inset(m_aabb_offset);
+                collide_tree(m_tree, entity, offset_aabb);
+                collide_tree(m_np_tree, entity, offset_aabb);
+            });
+            return true;
+        } else {
+            m_state = state::collide;
 
-void broadphase_worker::update_async(job &completion_job) {
-    EDYN_ASSERT(parallelizable());
+            auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
+            size_t count = 0;
+            // Have to iterate the view to get the actual size...
+            aabb_proc_view.each([&count](auto &) { ++count; });
+            m_pair_results.resize(count);
+            auto &dispatcher = job_dispatcher::global();
 
-    common_update();
+            parallel_for_each_async(dispatcher, aabb_proc_view.begin(), aabb_proc_view.end(), completion_job,
+                    [this, aabb_proc_view](entt::entity entity, size_t index) {
+                auto &aabb = aabb_proc_view.get<AABB>(entity);
+                auto offset_aabb = aabb.inset(m_aabb_offset);
+                collide_tree_async(m_tree, entity, offset_aabb, index);
+                collide_tree_async(m_np_tree, entity, offset_aabb, index);
+            });
 
-    auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
-    size_t count = 0;
-    // Have to iterate the view to get the actual size...
-    aabb_proc_view.each([&count](auto &) { ++count; });
-    m_pair_results.resize(count);
-    auto &dispatcher = job_dispatcher::global();
-
-    parallel_for_each_async(dispatcher, aabb_proc_view.begin(), aabb_proc_view.end(), completion_job,
-            [this, aabb_proc_view](entt::entity entity, size_t index) {
-        auto &aabb = aabb_proc_view.get<AABB>(entity);
-        auto offset_aabb = aabb.inset(m_aabb_offset);
-        collide_tree_async(m_tree, entity, offset_aabb, index);
-        collide_tree_async(m_np_tree, entity, offset_aabb, index);
-    });
-}
-
-void broadphase_worker::finish_async_update() {
-    auto &manifold_map = m_registry->ctx().at<contact_manifold_map>();
-
-    for (auto &pairs : m_pair_results) {
-        for (auto &pair : pairs) {
-            if (!manifold_map.contains(pair.first, pair.second)) {
-                make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);
-            }
+            return false;
         }
-        pairs.clear();
+        break;
+    case state::collide:
+        auto &manifold_map = m_registry->ctx().at<contact_manifold_map>();
+
+        for (auto &pairs : m_pair_results) {
+            for (auto &pair : pairs) {
+                if (!manifold_map.contains(pair.first, pair.second)) {
+                    make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);
+                }
+            }
+            pairs.clear();
+        }
+
+        m_state = state::begin;
+
+        return true;
     }
 }
 

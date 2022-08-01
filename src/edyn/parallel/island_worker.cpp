@@ -141,21 +141,12 @@ void island_worker::init() {
         m_message_queue.sink<extrapolation_result>().connect<&island_worker::on_extrapolation_result>(*this);
     }
 
-    // Process messages enqueued before the worker was started. This includes
-    // the registry operations containing the initial entities that were added
-    // to this island.
+    // Process messages enqueued before the worker was started.
     process_messages();
 
     if (settings.external_system_init) {
         (*settings.external_system_init)(m_registry);
     }
-
-    // Run broadphase to initialize the internal dynamic trees with the
-    // imported AABBs.
-    auto &bphase = m_registry.ctx().at<broadphase_worker>();
-    bphase.update();
-
-    m_state = state::step;
 }
 
 void island_worker::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
@@ -304,9 +295,6 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
     // Insert nodes in the graph for each rigid body.
     ops.emplace_for_each<rigidbody_tag, external_tag>([&](entt::entity remote_entity) {
         auto local_entity = emap.at(remote_entity);
-
-        if (registry.any_of<graph_node>(local_entity)) return;
-
         auto procedural = procedural_view.contains(local_entity);
         auto node_index = graph.insert_node(local_entity, !procedural);
         registry.emplace<graph_node>(local_entity, node_index);
@@ -321,9 +309,6 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
     // Insert edges in the graph for constraints.
     ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
         auto local_entity = emap.at(remote_entity);
-
-        if (registry.any_of<graph_edge>(local_entity)) return;
-
         auto &node0 = node_view.get<graph_node>(emap.at(con.body[0]));
         auto &node1 = node_view.get<graph_node>(emap.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
@@ -401,6 +386,7 @@ void island_worker::on_update_entities(const message<msg::update_entities> &msg)
         m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
 
+    // TODO
     // Wake up all islands involved.
     //msg.content.ops.
 }
@@ -443,10 +429,6 @@ bool island_worker::all_sleeping() {
 }
 
 void island_worker::sync() {
-    // Always update island AABBs since the coordinator needs them to detect
-    // when islands from different workers are about to interact.
-    m_op_builder->replace<island_AABB>();
-
     // Always update discontinuities since they decay in every step.
     m_op_builder->replace<discontinuity>();
 
@@ -461,9 +443,11 @@ void island_worker::sync() {
 
     sync_dirty();
 
-    auto ops = m_op_builder->finish();
-    message_dispatcher::global().send<msg::step_update>(
-        {"coordinator"}, m_message_queue.identifier, std::move(ops), m_last_time);
+    if (!m_op_builder->empty()) {
+        auto ops = m_op_builder->finish();
+        message_dispatcher::global().send<msg::step_update>(
+            {"coordinator"}, m_message_queue.identifier, std::move(ops), m_last_time);
+    }
 }
 
 void island_worker::sync_dirty() {
@@ -482,99 +466,92 @@ void island_worker::sync_dirty() {
     m_registry.clear<dirty>();
 }
 
-void island_worker::update() {
-    auto maybe_do_step = [&]() {
-        if (should_step()) {
-            begin_step();
-            if (run_broadphase()) {
-                if (run_narrowphase()) {
-                    run_solver();
-                    finish_step();
-                    maybe_reschedule();
-                }
-            }
-        } else {
-            maybe_reschedule();
-        }
-    };
-
+bool island_worker::run_state_machine() {
     switch (m_state) {
     case state::init:
         init();
-        maybe_reschedule();
+        m_state = state::start;
+        return run_state_machine();
+        break;
+    case state::start:
+        process_messages();
+        // Messages could have created and destroyed nodes and edges.
+        init_new_nodes_and_edges();
+        split_islands();
+        m_state = state::raycast;
+        return run_state_machine();
+        break;
+    case state::raycast:
+        if (m_raycast_service.update(m_this_job)) {
+            consume_raycast_results();
+            m_state = state::step;
+            return run_state_machine();
+        } else {
+            return false;
+        }
         break;
     case state::step:
-        process_messages();
-
-        if (run_raycast_broadphase()) {
-            if (run_raycast_narrowphase()) {
-                maybe_do_step();
-            }
+        if (should_step()) {
+            m_state = state::begin_step;
+            return run_state_machine();
+        } else {
+            m_state = state::start;
+            maybe_reschedule();
+            return true;
         }
-
         break;
     case state::begin_step:
         begin_step();
-        reschedule_now();
-        break;
-    case state::solve:
-        run_solver();
-        finish_step();
-        reschedule_now();
+        m_state = state::broadphase;
+        return run_state_machine();
         break;
     case state::broadphase:
-        if (run_broadphase()) {
-            reschedule_now();
+        if (m_registry.ctx().at<broadphase_worker>().update(m_this_job)) {
+            // Broadphase creates and destroys manifolds, which are edges in
+            // the entity graph. Thus, it is necessary to initialize new edges
+            // and split islands right after.
+            m_state = state::init_new_entities;
+            return run_state_machine();
+        } else {
+            return false;
         }
         break;
-    case state::broadphase_async:
-        finish_broadphase();
-        if (run_narrowphase()) {
-            run_solver();
-            finish_step();
-            maybe_reschedule();
-        }
+    case state::init_new_entities:
+        init_new_nodes_and_edges();
+        m_state = state::split_islands;
+        return run_state_machine();
+        break;
+    case state::split_islands:
+        split_islands();
+        m_state = state::narrowphase;
+        return run_state_machine();
         break;
     case state::narrowphase:
-        if (run_narrowphase()) {
-            run_solver();
-            finish_step();
-            maybe_reschedule();
+        if (m_registry.ctx().at<narrowphase>().update(m_this_job)) {
+            m_state = state::solve;
+            return run_state_machine();
+        } else {
+            return false;
         }
         break;
-    case state::narrowphase_async:
-        finish_narrowphase();
-        run_solver();
-        finish_step();
-        maybe_reschedule();
+    case state::solve:
+        if (run_solver()) {
+            m_state = state::finish_step;
+            return run_state_machine();
+        } else {
+            return false;
+        }
         break;
     case state::finish_step:
         finish_step();
         maybe_reschedule();
-        break;
-    case state::raycast_broadphase:
-        if (run_raycast_broadphase()) {
-            if (run_raycast_narrowphase()) {
-                maybe_do_step();
-            }
-        }
-        break;
-    case state::raycast_broadphase_async:
-        finish_raycast_broadphase();
-        if (run_raycast_narrowphase()) {
-            maybe_do_step();
-        }
-        break;
-    case state::raycast_narrowphase:
-        if (run_raycast_narrowphase()) {
-            maybe_do_step();
-        }
-        break;
-    case state::raycast_narrowphase_async:
-        finish_raycast_narrowphase();
-        maybe_do_step();
+        return true;
         break;
     }
+}
+
+void island_worker::update() {
+    while (run_state_machine());
 }
 
 void island_worker::process_messages() {
@@ -588,7 +565,8 @@ void island_worker::process_messages() {
 bool island_worker::should_step() {
     auto time = performance_time();
 
-    if (m_state == state::begin_step) {
+    if (m_state == state::begin_step || m_force_step) {
+        m_force_step = false;
         m_step_start_time = time;
         return true;
     }
@@ -630,74 +608,10 @@ void island_worker::begin_step() {
     m_state = state::broadphase;
 }
 
-bool island_worker::run_broadphase() {
-    EDYN_ASSERT(m_state == state::broadphase);
-    auto &bphase = m_registry.ctx().at<broadphase_worker>();
-
-    if (bphase.parallelizable()) {
-        m_state = state::broadphase_async;
-        bphase.update_async(m_this_job);
-        return false;
-    } else {
-        bphase.update();
-        // Broadphase creates new manifolds which are edges in the entity graph.
-        // Thus, initialize them right after.
-        init_new_nodes_and_edges();
-        m_state = state::narrowphase;
-        return true;
-    }
-}
-
-void island_worker::finish_broadphase() {
-    EDYN_ASSERT(m_state == state::broadphase_async);
-    auto &bphase = m_registry.ctx().at<broadphase_worker>();
-    bphase.finish_async_update();
-    init_new_nodes_and_edges();
-    m_state = state::narrowphase;
-}
-
-bool island_worker::run_narrowphase() {
-    EDYN_ASSERT(m_state == state::narrowphase);
-    auto &nphase = m_registry.ctx().at<narrowphase>();
-
-    // Narrow-phase is run right after broad-phase, where manifolds could have
-    // been destroyed, potentially causing islands to split. Thus, split any
-    // pending islands before proceeding.
-    split_islands();
-
-    if (nphase.parallelizable()) {
-        m_state = state::narrowphase_async;
-        nphase.update_async(m_this_job);
-        return false;
-    } else {
-        // Separating contact points will be destroyed in the next call. Move
-        // the dirty contact points into the current reg op before that happens
-        // because the dirty component is removed as well, which would cause
-        // points that were created in this step and are going to be destroyed
-        // next to be missing in the registry op.
-        sync_dirty();
-        nphase.update();
-        m_state = state::solve;
-        return true;
-    }
-}
-
-void island_worker::finish_narrowphase() {
-    EDYN_ASSERT(m_state == state::narrowphase_async);
-    // In the asynchronous narrow-phase update, separating contact points will
-    // be destroyed in the next call. Following the same logic as above, move
-    // the dirty contact points into the current registry operation before that
-    // happens.
-    sync_dirty();
-    auto &nphase = m_registry.ctx().at<narrowphase>();
-    nphase.finish_async_update();
-    m_state = state::solve;
-}
-
-void island_worker::run_solver() {
+bool island_worker::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
     m_solver.update(m_registry.ctx().at<edyn::settings>().fixed_dt);
-    m_state = state::finish_step;
+    return true;
 }
 
 static void decay_discontinuities(entt::registry &registry, scalar rate) {
@@ -749,7 +663,7 @@ void island_worker::finish_step() {
 
     sync();
 
-    m_state = state::step;
+    m_state = state::start;
 }
 
 void island_worker::reschedule_now() {
@@ -1374,6 +1288,14 @@ void island_worker::put_to_sleep(entt::entity island_entity) {
     }
 }
 
+void island_worker::consume_raycast_results() {
+    auto &dispatcher = message_dispatcher::global();
+    m_raycast_service.consume_results([&](unsigned id, raycast_result &result) {
+        dispatcher.send<msg::raycast_response>(
+            {"coordinator"}, m_message_queue.identifier, id, result);
+    });
+}
+
 void island_worker::on_set_paused(const message<msg::set_paused> &msg) {
     m_registry.ctx().at<edyn::settings>().paused = msg.content.paused;
     m_last_time = performance_time();
@@ -1381,7 +1303,7 @@ void island_worker::on_set_paused(const message<msg::set_paused> &msg) {
 
 void island_worker::on_step_simulation(const message<msg::step_simulation> &) {
     if (!all_sleeping()) {
-        m_state = state::begin_step;
+        m_force_step = true;
     }
 }
 
@@ -1399,140 +1321,7 @@ void island_worker::on_set_com(const message<msg::set_com> &msg) {
 }
 
 void island_worker::on_raycast_request(const message<msg::raycast_request> &msg) {
-    auto &ctx = m_raycast_broad_ctx.emplace_back();
-    ctx.id = msg.content.id;
-    ctx.p0 = msg.content.p0;
-    ctx.p1 = msg.content.p1;
-}
-
-bool island_worker::run_raycast_broadphase() {
-    m_state_before_raycast.store(m_state.load());
-
-    if (m_raycast_broad_ctx.empty()) {
-        return true;
-    }
-
-    m_state = state::raycast_broadphase;
-    auto &bphase = m_registry.ctx().at<broadphase_worker>();
-
-    if (m_raycast_broad_ctx.size() <= m_max_raycast_broadphase_sequential_size) {
-        for (auto &ctx : m_raycast_broad_ctx) {
-            bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
-                ctx.candidates.push_back(entity);
-            });
-        }
-
-        finish_raycast_broadphase();
-
-        return true;
-    }
-
-    m_state = state::raycast_broadphase_async;
-
-    auto &dispatcher = job_dispatcher::global();
-    auto *raycasts = &m_raycast_broad_ctx;
-
-    parallel_for_async(dispatcher, size_t{}, raycasts->size(), size_t{1}, m_this_job, [raycasts, &bphase](size_t index) {
-        auto &ctx = (*raycasts)[index];
-        bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
-            ctx.candidates.push_back(entity);
-        });
-    });
-
-    return false;
-}
-
-void island_worker::finish_raycast_broadphase() {
-    m_state = state::raycast_narrowphase;
-
-    for (auto &ctx : m_raycast_broad_ctx) {
-        for (auto entity : ctx.candidates) {
-            auto &narrow_ctx = m_raycast_narrow_ctx.emplace_back();
-            narrow_ctx.id = ctx.id;
-            narrow_ctx.p0 = ctx.p0;
-            narrow_ctx.p1 = ctx.p1;
-            narrow_ctx.entity = entity;
-        }
-    }
-
-    m_raycast_broad_ctx.clear();
-}
-
-bool island_worker::run_raycast_narrowphase() {
-    if (m_raycast_narrow_ctx.empty()) {
-        m_state.store(m_state_before_raycast.load());
-        return true;
-    }
-
-    EDYN_ASSERT(m_state == state::raycast_narrowphase);
-
-    auto index_view = m_registry.view<shape_index>();
-    auto tr_view = m_registry.view<position, orientation>();
-    auto origin_view = m_registry.view<origin>();
-    auto shape_views_tuple = get_tuple_of_shape_views(m_registry);
-
-    if (m_raycast_narrow_ctx.size() <= m_max_raycast_narrowphase_sequential_size) {
-        for (auto &ctx : m_raycast_narrow_ctx) {
-            auto sh_idx = index_view.get<shape_index>(ctx.entity);
-            auto pos = origin_view.contains(ctx.entity) ?
-                static_cast<vector3>(origin_view.get<origin>(ctx.entity)) : tr_view.get<position>(ctx.entity);
-            auto orn = tr_view.get<orientation>(ctx.entity);
-            auto ray_ctx = raycast_context{pos, orn, ctx.p0, ctx.p1};
-
-            visit_shape(sh_idx, ctx.entity, shape_views_tuple, [&](auto &&shape) {
-                ctx.result = shape_raycast(shape, ray_ctx);
-            });
-        }
-
-        finish_raycast_narrowphase();
-
-        return true;
-    }
-
-    m_state = state::raycast_narrowphase_async;
-
-    auto &dispatcher = job_dispatcher::global();
-    auto *raycasts = &m_raycast_narrow_ctx;
-
-    parallel_for_async(dispatcher, size_t{}, raycasts->size(), size_t{1}, m_this_job,
-        [raycasts, index_view, origin_view, tr_view, shape_views_tuple](size_t index) {
-        auto &ctx = (*raycasts)[index];
-
-        auto sh_idx = index_view.get<shape_index>(ctx.entity);
-        auto pos = origin_view.contains(ctx.entity) ?
-            static_cast<vector3>(origin_view.get<origin>(ctx.entity)) : tr_view.get<position>(ctx.entity);
-        auto orn = tr_view.get<orientation>(ctx.entity);
-        auto ray_ctx = raycast_context{pos, orn, ctx.p0, ctx.p1};
-
-        visit_shape(sh_idx, ctx.entity, shape_views_tuple, [&](auto &&shape) {
-            ctx.result = shape_raycast(shape, ray_ctx);
-        });
-    });
-
-    return false;
-}
-
-void island_worker::finish_raycast_narrowphase() {
-    std::map<unsigned int, msg::raycast_response> responses;
-
-    for (auto &ctx : m_raycast_narrow_ctx) {
-        if (ctx.result.fraction < responses[ctx.id].result.fraction) {
-            auto &response = responses[ctx.id];
-            response.id = ctx.id;
-            response.result = ctx.result;
-            response.result.entity = ctx.entity;
-        }
-    }
-
-    auto &dispatcher = message_dispatcher::global();
-
-    for (auto [id, response] : responses) {
-        dispatcher.send<msg::raycast_response>(
-            {"coordinator"}, m_message_queue.identifier, std::move(response));
-    }
-
-    m_raycast_narrow_ctx.clear();
-    m_state.store(m_state_before_raycast.load());
+    m_raycast_service.add_ray(msg.content.p0, msg.content.p1, msg.content.id);
 }
 
 void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {
