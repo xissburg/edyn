@@ -57,21 +57,11 @@ class island_worker final {
     void init_new_shapes();
     void insert_remote_node(entt::entity remote_entity);
     void maybe_go_to_sleep(entt::entity island_entity);
-    bool could_go_to_sleep(entt::entity island_entity) const;
-    void put_to_sleep(entt::entity island_entity);
     void sync();
     void sync_dirty();
     bool run_state_machine();
     void update();
-    entt::entity create_island();
-    void insert_to_island(entt::entity island_entity,
-                          const std::vector<entt::entity> &nodes,
-                          const std::vector<entt::entity> &edges);
-    void merge_islands(const std::vector<entt::entity> &island_entities,
-                       const std::vector<entt::entity> &new_nodes,
-                       const std::vector<entt::entity> &new_edges);
-    void split_islands();
-    void wake_up_island(entt::entity island_entity);
+
     bool all_sleeping();
     void consume_raycast_results();
 
@@ -83,12 +73,12 @@ public:
 
     void reschedule();
 
-    void on_construct_graph_node(entt::registry &, entt::entity);
-    void on_construct_graph_edge(entt::registry &, entt::entity);
-    void on_destroy_graph_node(entt::registry &, entt::entity);
-    void on_destroy_graph_edge(entt::registry &, entt::entity);
-    void on_destroy_island_resident(entt::registry &, entt::entity);
-    void on_destroy_multi_island_resident(entt::registry &, entt::entity);
+    void on_construct_shared_entity(entt::registry &registry, entt::entity entity);
+    void on_destroy_shared_entity(entt::registry &registry, entt::entity entity);
+
+    void on_construct_sleeping_tag(entt::registry &registry, entt::entity entity);
+    void on_destroy_sleeping_tag(entt::registry &registry, entt::entity entity);
+
     void on_construct_polyhedron_shape(entt::registry &, entt::entity);
     void on_construct_compound_shape(entt::registry &, entt::entity);
     void on_destroy_rotated_mesh_list(entt::registry &, entt::entity);
@@ -140,11 +130,8 @@ private:
     std::unique_ptr<registry_operation_builder> m_op_builder;
     bool m_importing;
 
-    std::vector<entt::entity> m_new_graph_nodes;
-    std::vector<entt::entity> m_new_graph_edges;
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
-    entt::sparse_set m_islands_to_split;
 
     std::atomic<int> m_reschedule_counter {0};
 

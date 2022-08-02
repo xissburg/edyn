@@ -21,15 +21,6 @@ struct island {
     std::optional<double> sleep_timestamp;
 };
 
-struct island_stats {
-    unsigned num_nodes {0};
-    unsigned num_edges {0};
-
-    auto size() const {
-        return num_nodes + num_edges;
-    }
-};
-
 struct island_AABB : public AABB {};
 
 /**
