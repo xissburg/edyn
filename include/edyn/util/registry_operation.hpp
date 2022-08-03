@@ -238,6 +238,12 @@ public:
 
         components->remap(emap);
     }
+
+    bool is_component_operation() const {
+        return operation == registry_op_type::emplace ||
+               operation == registry_op_type::replace ||
+               operation == registry_op_type::remove;
+    }
 };
 
 class registry_operation_collection final {

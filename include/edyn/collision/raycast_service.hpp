@@ -35,6 +35,8 @@ class raycast_service {
     void finish_narrowphase();
 
 public:
+    raycast_service(entt::registry &registry);
+
     void add_ray(vector3 p0, vector3 p1, unsigned id) {
         m_broad_ctx.push_back(broadphase_context{id, p0, p1});
     }

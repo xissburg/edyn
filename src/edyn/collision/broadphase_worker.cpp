@@ -1,6 +1,8 @@
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/tree_node.hpp"
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/collision_exclusion.hpp"
+#include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tree_resident.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -24,6 +26,13 @@ broadphase_worker::broadphase_worker(entt::registry &registry)
     registry.on_destroy<tree_resident>().connect<&broadphase_worker::on_destroy_tree_resident>(*this);
     registry.on_construct<island_AABB>().connect<&broadphase_worker::on_construct_island_aabb>(*this);
     registry.on_destroy<island_tree_resident>().connect<&broadphase_worker::on_destroy_island_tree_resident>(*this);
+
+    // The `should_collide_func` function will be invoked in parallel when
+    // running broadphase in parallel, in the call to `broadphase::collide_tree_async`.
+    // Avoid multi-threading issues by pre-allocating the pools that will be
+    // needed in `should_collide_func`.
+    static_cast<void>(registry.storage<collision_filter>());
+    static_cast<void>(registry.storage<collision_exclusion>());
 }
 
 void broadphase_worker::on_construct_aabb(entt::registry &, entt::entity entity) {

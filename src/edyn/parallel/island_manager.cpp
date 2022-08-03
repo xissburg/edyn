@@ -15,7 +15,14 @@ namespace edyn {
 
 island_manager::island_manager(entt::registry &registry)
     : m_registry(&registry)
-{}
+{
+    m_connections.push_back(registry.on_construct<graph_node>().connect<&island_manager::on_construct_graph_node>(*this));
+    m_connections.push_back(registry.on_construct<graph_edge>().connect<&island_manager::on_construct_graph_edge>(*this));
+    m_connections.push_back(registry.on_destroy<graph_node>().connect<&island_manager::on_destroy_graph_node>(*this));
+    m_connections.push_back(registry.on_destroy<graph_edge>().connect<&island_manager::on_destroy_graph_edge>(*this));
+    m_connections.push_back(registry.on_destroy<island_resident>().connect<&island_manager::on_destroy_island_resident>(*this));
+    m_connections.push_back(registry.on_destroy<multi_island_resident>().connect<&island_manager::on_destroy_multi_island_resident>(*this));
+}
 
 void island_manager::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
     m_new_graph_nodes.push_back(entity);
@@ -252,11 +259,14 @@ void island_manager::insert_to_island(entt::entity island_entity,
                 island.nodes.emplace(entity);
             }
         }
+
+        m_registry->remove<sleeping_tag>(entity);
     }
 
     for (auto entity : edges) {
         auto [resident] = resident_view.get(entity);
         resident.island_entity = island_entity;
+        m_registry->remove<sleeping_tag>(entity);
     }
 
     island.edges.insert(edges.begin(), edges.end());
@@ -317,6 +327,12 @@ void island_manager::merge_islands(const std::vector<entt::entity> &island_entit
 }
 
 void island_manager::split_islands() {
+    for (auto island_entity : m_islands_to_split) {
+        if (!m_registry->valid(island_entity)) {
+            m_islands_to_split.erase(island_entity);
+        }
+    }
+
     if (m_islands_to_split.empty()) return;
 
     auto island_view = m_registry->view<island, island_AABB>();
@@ -493,6 +509,10 @@ void island_manager::update() {
 }
 
 void island_manager::wake_up_island(entt::entity island_entity) {
+    if (!m_registry->all_of<sleeping_tag>(island_entity)) {
+        return;
+    }
+
     auto &island = m_registry->get<edyn::island>(island_entity);
     m_registry->remove<sleeping_tag>(island_entity);
     m_registry->remove<sleeping_tag>(island.nodes.begin(), island.nodes.end());

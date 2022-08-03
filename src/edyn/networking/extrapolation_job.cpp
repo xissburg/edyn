@@ -50,6 +50,8 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
     , m_current_time(input.start_time)
     , m_solver(m_registry)
     , m_input_history(input_history)
+    , m_poly_initializer(m_registry)
+    , m_island_manager(m_registry)
 {
     m_registry.ctx().emplace<broadphase_worker>(m_registry);
     m_registry.ctx().emplace<narrowphase>(m_registry);
@@ -58,11 +60,6 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
     m_registry.ctx().emplace<contact_manifold_map>(m_registry);
     m_registry.ctx().emplace<material_mix_table>(material_table);
 
-    // Avoid multi-threading issues in the `should_collide` function by
-    // pre-allocating the pools required in there.
-    static_cast<void>(m_registry.storage<collision_filter>());
-    static_cast<void>(m_registry.storage<collision_exclusion>());
-
     m_this_job.func = &extrapolation_job_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
     auto ctx_intptr = reinterpret_cast<intptr_t>(this);
@@ -70,15 +67,20 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
 }
 
 void extrapolation_job::load_input() {
+    // The registry is expected to be empty before importing the input.
+    EDYN_ASSERT(m_registry.empty());
+
     // Import entities and components.
     m_input.ops.execute(m_registry, m_entity_map);
 
     auto &graph = m_registry.ctx().at<entity_graph>();
+    auto node_view = m_registry.view<graph_node>();
+    auto procedural_view = m_registry.view<procedural_tag>();
 
     // Create nodes for rigid bodies in entity graph.
     auto insert_graph_node = [&](entt::entity entity) {
-        auto non_connecting = !m_registry.any_of<procedural_tag>(entity);
-        auto node_index = graph.insert_node(entity, non_connecting);
+        auto procedural = procedural_view.contains(entity);
+        auto node_index = graph.insert_node(entity, !procedural);
         m_registry.emplace<graph_node>(entity, node_index);
     };
 
@@ -87,10 +89,7 @@ void extrapolation_job::load_input() {
     }, std::tuple<rigidbody_tag, external_tag>{});
 
     // Create edges for constraints in entity graph.
-    auto node_view = m_registry.view<graph_node>();
     auto insert_graph_edge = [&](entt::entity entity, auto &&con) {
-        if (m_registry.any_of<graph_edge>(entity)) return;
-
         auto &node0 = node_view.get<graph_node>(con.body[0]);
         auto &node1 = node_view.get<graph_node>(con.body[1]);
         auto edge_index = graph.insert_edge(entity, node0.node_index, node1.node_index);
@@ -101,8 +100,11 @@ void extrapolation_job::load_input() {
         (m_registry.view<decltype(t)>().each(insert_graph_edge), ...);
     }, constraints_tuple);
 
-    // Create rotated meshes for new imported polyhedron shapes.
-    create_rotated_meshes();
+    // Create islands.
+    m_island_manager.update();
+
+    // Initialize shapes.
+    m_poly_initializer.init_new_shapes();
 
     // Replace client component state by server state.
     for (auto &pool : m_input.snapshot.pools) {
@@ -113,7 +115,7 @@ void extrapolation_job::load_input() {
     // with the correct initial inputs.
     m_input_history->import_initial_state(m_registry, m_entity_map, m_current_time);
 
-    // Update calculated properties after setting initial state.
+    // Recalculate properties after setting initial state from server.
     update_origins(m_registry);
     update_rotated_meshes(m_registry);
     update_aabbs(m_registry);
@@ -122,10 +124,6 @@ void extrapolation_job::load_input() {
 
 void extrapolation_job::init() {
     m_start_time = performance_time();
-
-    m_registry.on_destroy<graph_node>().connect<&extrapolation_job::on_destroy_graph_node>(*this);
-    m_registry.on_destroy<graph_edge>().connect<&extrapolation_job::on_destroy_graph_edge>(*this);
-    m_registry.on_destroy<rotated_mesh_list>().connect<&extrapolation_job::on_destroy_rotated_mesh_list>(*this);
 
     // Import entities and components to be extrapolated.
     load_input();
@@ -137,37 +135,6 @@ void extrapolation_job::init() {
     }
 
     m_state = state::step;
-}
-
-void extrapolation_job::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
-    auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx().at<entity_graph>();
-
-    m_destroying_node = true;
-
-    graph.visit_edges(node.node_index, [&](auto edge_index) {
-        auto edge_entity = graph.edge_entity(edge_index);
-        registry.destroy(edge_entity);
-    });
-
-    m_destroying_node = false;
-
-    graph.remove_all_edges(node.node_index);
-    graph.remove_node(node.node_index);
-}
-
-void extrapolation_job::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
-    if (!m_destroying_node) {
-        auto &edge = registry.get<graph_edge>(entity);
-        registry.ctx().at<entity_graph>().remove_edge(edge.edge_index);
-    }
-}
-
-void extrapolation_job::on_destroy_rotated_mesh_list(entt::registry &registry, entt::entity entity) {
-    auto &rotated = registry.get<rotated_mesh_list>(entity);
-    if (rotated.next != entt::null) {
-        registry.destroy(rotated.next);
-    }
 }
 
 void extrapolation_job::apply_history() {
@@ -251,65 +218,65 @@ void extrapolation_job::sync_and_finish() {
     m_finished.store(true, std::memory_order_release);
 }
 
-void extrapolation_job::update() {
+void extrapolation_job::run_state_machine() {
     switch (m_state) {
     case state::init:
         init();
-        reschedule();
+        m_state = state::step;
+        run_state_machine();
         break;
     case state::step:
         if (should_step()) {
-            begin_step();
-            if (run_broadphase()) {
-                if (run_narrowphase()) {
-                    run_solver();
-                    finish_step();
-                    reschedule();
-                }
-            }
+            m_state = state::begin_step;
+        } else {
+            m_state = state::done;
         }
-
+        run_state_machine();
         break;
     case state::begin_step:
         begin_step();
-        reschedule();
-        break;
-    case state::solve:
-        run_solver();
-        finish_step();
-        reschedule();
+        m_state = state::broadphase;
+        run_state_machine();
         break;
     case state::broadphase:
-        if (run_broadphase()) {
-            reschedule();
+        if (m_registry.ctx().at<broadphase_worker>().update(m_this_job)) {
+            // Broadphase creates and destroys manifolds, which are edges in
+            // the entity graph. Thus, it is necessary to initialize new edges
+            // and split islands right after.
+            m_state = state::update_islands;
+            run_state_machine();
         }
         break;
-    case state::broadphase_async:
-        finish_broadphase();
-        if (run_narrowphase()) {
-            run_solver();
-            finish_step();
-            reschedule();
-        }
+    case state::update_islands:
+        m_island_manager.update();
+        m_state = state::narrowphase;
+        run_state_machine();
         break;
     case state::narrowphase:
-        if (run_narrowphase()) {
-            run_solver();
-            finish_step();
-            reschedule();
+        if (m_registry.ctx().at<narrowphase>().update(m_this_job)) {
+            m_state = state::solve;
+            run_state_machine();
         }
         break;
-    case state::narrowphase_async:
-        finish_narrowphase();
-        run_solver();
-        finish_step();
-        reschedule();
+    case state::solve:
+        if (run_solver()) {
+            m_state = state::finish_step;
+            run_state_machine();
+        }
         break;
     case state::finish_step:
         finish_step();
+        m_state = state::step;
         reschedule();
         break;
+    case state::done:
+        sync_and_finish();
+        break;
     }
+}
+
+void extrapolation_job::update() {
+    run_state_machine();
 }
 
 bool extrapolation_job::should_step() {
@@ -318,7 +285,6 @@ bool extrapolation_job::should_step() {
     if (time - m_start_time > m_input.execution_time_limit) {
         // Timeout.
         m_result.terminated_early = true;
-        sync_and_finish();
         return false;
     }
 
@@ -326,11 +292,8 @@ bool extrapolation_job::should_step() {
 
     if (m_current_time + settings.fixed_dt > time) {
         // Job is done.
-        sync_and_finish();
         return false;
     }
-
-    m_state = state::begin_step;
 
     return true;
 }
@@ -348,54 +311,10 @@ void extrapolation_job::begin_step() {
     m_state = state::broadphase;
 }
 
-bool extrapolation_job::run_broadphase() {
-    EDYN_ASSERT(m_state == state::broadphase);
-    auto &bphase = m_registry.ctx().at<broadphase_worker>();
-
-    if (bphase.parallelizable()) {
-        m_state = state::broadphase_async;
-        bphase.update_async(m_this_job);
-        return false;
-    } else {
-        bphase.update();
-        m_state = state::narrowphase;
-        return true;
-    }
-}
-
-void extrapolation_job::finish_broadphase() {
-    EDYN_ASSERT(m_state == state::broadphase_async);
-    auto &bphase = m_registry.ctx().at<broadphase_worker>();
-    bphase.finish_async_update();
-    m_state = state::narrowphase;
-}
-
-bool extrapolation_job::run_narrowphase() {
-    EDYN_ASSERT(m_state == state::narrowphase);
-    auto &nphase = m_registry.ctx().at<narrowphase>();
-
-    if (nphase.parallelizable()) {
-        m_state = state::narrowphase_async;
-        nphase.update_async(m_this_job);
-        return false;
-    } else {
-        nphase.update();
-        m_state = state::solve;
-        return true;
-    }
-}
-
-void extrapolation_job::finish_narrowphase() {
-    EDYN_ASSERT(m_state == state::narrowphase_async);
-    auto &nphase = m_registry.ctx().at<narrowphase>();
-    nphase.finish_async_update();
-    m_state = state::solve;
-}
-
-void extrapolation_job::run_solver() {
+bool extrapolation_job::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
     m_solver.update(m_registry.ctx().at<edyn::settings>().fixed_dt);
-    m_state = state::finish_step;
+    return true;
 }
 
 void extrapolation_job::finish_step() {
@@ -419,50 +338,6 @@ void extrapolation_job::finish_step() {
 
 void extrapolation_job::reschedule() {
     job_dispatcher::global().async(m_this_job);
-}
-
-void extrapolation_job::create_rotated_meshes() {
-    auto orn_view = m_registry.view<orientation>();
-    auto polyhedron_view = m_registry.view<polyhedron_shape>();
-    auto compound_view = m_registry.view<compound_shape>();
-
-    for (auto [entity, polyhedron] : polyhedron_view.each()) {
-        auto [orn] = orn_view.get(entity);
-        auto rotated = make_rotated_mesh(*polyhedron.mesh, orn);
-        auto rotated_ptr = std::make_unique<rotated_mesh>(std::move(rotated));
-        polyhedron.rotated = rotated_ptr.get();
-        m_registry.emplace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr));
-    }
-
-    for (auto [entity, compound] : compound_view.each()) {
-        auto [orn] = orn_view.get(entity);
-        auto prev_rotated_entity = entt::entity{entt::null};
-
-        for (auto &node : compound.nodes) {
-            if (!std::holds_alternative<polyhedron_shape>(node.shape_var)) continue;
-
-            // Assign a `rotated_mesh_list` to this entity for the first
-            // polyhedron and link it with more rotated meshes for the
-            // remaining polyhedrons.
-            auto &polyhedron = std::get<polyhedron_shape>(node.shape_var);
-            auto local_orn = orn * node.orientation;
-            auto rotated = make_rotated_mesh(*polyhedron.mesh, local_orn);
-            auto rotated_ptr = std::make_unique<rotated_mesh>(std::move(rotated));
-            polyhedron.rotated = rotated_ptr.get();
-
-            if (prev_rotated_entity == entt::null) {
-                m_registry.emplace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr), node.orientation);
-                prev_rotated_entity = entity;
-            } else {
-                auto next = m_registry.create();
-                m_registry.emplace<rotated_mesh_list>(next, polyhedron.mesh, std::move(rotated_ptr), node.orientation);
-
-                auto &prev_rotated_list = m_registry.get<rotated_mesh_list>(prev_rotated_entity);
-                prev_rotated_list.next = next;
-                prev_rotated_entity = next;
-            }
-        }
-    }
 }
 
 }

@@ -1,5 +1,6 @@
 #include "edyn/util/collision_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/comp/dirty.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/config/constants.hpp"

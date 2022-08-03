@@ -2,7 +2,6 @@
 #define EDYN_UTIL_CONSTRAINT_UTIL_HPP
 
 #include <entt/entity/registry.hpp>
-#include "edyn/comp/dirty.hpp"
 #include "edyn/math/vector3.hpp"
 
 namespace edyn {
@@ -32,15 +31,8 @@ template<typename T>
 T & make_constraint(entt::entity entity, entt::registry &registry,
                     entt::entity body0, entt::entity body1) {
 
-    auto is_new = internal::pre_make_constraint(entity, registry, body0, body1);
+    internal::pre_make_constraint(entity, registry, body0, body1);
     auto &con = registry.emplace<T>(entity, body0, body1);
-    auto &con_dirty = registry.get_or_emplace<dirty>(entity);
-    con_dirty.created<T>();
-
-    if (is_new) {
-        con_dirty.set_new();
-    }
-
     return con;
 }
 

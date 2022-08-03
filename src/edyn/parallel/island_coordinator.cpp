@@ -61,7 +61,7 @@ void island_coordinator::on_construct_graph_node(entt::registry &registry, entt:
 }
 
 void island_coordinator::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
-    if (m_importing) {
+    if (!m_importing) {
         m_new_graph_edges.push_back(entity);
     }
 }

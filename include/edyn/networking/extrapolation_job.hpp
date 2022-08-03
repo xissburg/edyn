@@ -6,6 +6,8 @@
 #include "edyn/parallel/job.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/util/entity_map.hpp"
+#include "edyn/parallel/island_manager.hpp"
+#include "edyn/util/polyhedron_shape_initializer.hpp"
 #include <entt/entity/fwd.hpp>
 #include <memory>
 #include <atomic>
@@ -24,27 +26,23 @@ class extrapolation_job final {
         init,
         step,
         begin_step,
-        solve,
+        update_islands,
         broadphase,
-        broadphase_async,
         narrowphase,
-        narrowphase_async,
-        finish_step
+        solve,
+        finish_step,
+        done
     };
 
     void load_input();
     void init();
     bool should_step();
     void begin_step();
-    void run_solver();
-    bool run_broadphase();
-    void finish_broadphase();
-    bool run_narrowphase();
-    void finish_narrowphase();
+    bool run_solver();
     void finish_step();
-    void create_rotated_meshes();
     void apply_history();
     void sync_and_finish();
+    void run_state_machine();
     void update();
 
 public:
@@ -63,16 +61,14 @@ public:
         return m_result;
     }
 
-    void on_destroy_graph_node(entt::registry &, entt::entity);
-    void on_destroy_graph_edge(entt::registry &, entt::entity);
-    void on_destroy_rotated_mesh_list(entt::registry &, entt::entity);
-
     friend void extrapolation_job_func(job::data_type &);
 
 private:
     entt::registry m_registry;
     entity_map m_entity_map;
     solver m_solver;
+    island_manager m_island_manager;
+    polyhedron_shape_initializer m_poly_initializer;
     extrapolation_input m_input;
     extrapolation_result m_result;
 
@@ -81,7 +77,6 @@ private:
     double m_current_time;
     unsigned m_step_count {0};
     std::atomic<bool> m_finished {false};
-    bool m_destroying_node {false};
 
     std::shared_ptr<input_state_history> m_input_history;
 

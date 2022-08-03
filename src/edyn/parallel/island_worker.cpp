@@ -7,8 +7,6 @@
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/comp/collision_filter.hpp"
-#include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/config/config.h"
@@ -16,10 +14,6 @@
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
-#include "edyn/parallel/parallel_for_async.hpp"
-#include "edyn/shapes/compound_shape.hpp"
-#include "edyn/shapes/convex_mesh.hpp"
-#include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_inertias.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
@@ -36,22 +30,15 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include "edyn/util/entity_pair.hpp"
 #include "edyn/util/make_reg_op_builder.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/util/vector.hpp"
-#include "edyn/util/collision_util.hpp"
 #include "edyn/util/registry_operation.hpp"
 #include "edyn/util/registry_operation_builder.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/parallel/component_index_source.hpp"
-#include <algorithm>
-#include <entt/entity/fwd.hpp>
-#include <memory>
-#include <variant>
-#include <set>
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -77,6 +64,7 @@ island_worker::island_worker(const settings &settings,
     : m_state(state::init)
     , m_solver(m_registry)
     , m_op_builder((*settings.make_reg_op_builder)(m_registry))
+    , m_raycast_service(m_registry)
     , m_island_manager(m_registry)
     , m_poly_initializer(m_registry)
     , m_importing(false)
@@ -98,11 +86,6 @@ island_worker::island_worker(const settings &settings,
     m_registry.ctx().emplace<edyn::settings>(settings);
     m_registry.ctx().emplace<material_mix_table>(material_table);
 
-    // Avoid multi-threading issues in the `should_collide` function by
-    // pre-allocating the pools required in there.
-    static_cast<void>(m_registry.storage<collision_filter>());
-    static_cast<void>(m_registry.storage<collision_exclusion>());
-
     m_this_job.func = &island_worker_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
     auto ctx_intptr = reinterpret_cast<intptr_t>(this);
@@ -113,8 +96,6 @@ island_worker::island_worker(const settings &settings,
     // Reschedule every time a message is added to the queue.
     m_message_queue.push_sink().connect<&island_worker::reschedule>(*this);
 }
-
-island_worker::~island_worker() = default;
 
 void island_worker::init() {
     m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_shared_entity>(*this);
@@ -271,9 +252,8 @@ void island_worker::on_update_entities(const message<msg::update_entities> &msg)
         m_op_builder->add_entity_mapping(local_entity, remote_entity);
     });
 
-    // TODO
     // Wake up all islands involved.
-    //msg.content.ops.
+    wake_up_affected_islands(msg.content.ops);
 }
 
 bool island_worker::all_sleeping() {
@@ -287,6 +267,37 @@ bool island_worker::all_sleeping() {
     }
 
     return true;
+}
+
+void island_worker::wake_up_affected_islands(const registry_operation_collection &ops) {
+    // Collect islands of all entities which had a component
+    // emplaced/replaced/removed by the registry operations and wake them up.
+    auto resident_view = m_registry.view<island_resident>();
+    auto multi_resident_view = m_registry.view<multi_island_resident>();
+
+    for (auto &op : ops.operations) {
+        if (!op.is_component_operation()) continue;
+
+        for (auto remote_entity : op.entities) {
+            if (!m_entity_map.contains(remote_entity)) continue;
+
+            auto local_entity = m_entity_map.at(remote_entity);
+
+            if (resident_view.contains(local_entity)) {
+                auto [resident] = resident_view.get(local_entity);
+
+                if (resident.island_entity != entt::null) {
+                    m_island_manager.wake_up_island(resident.island_entity);
+                }
+            } else if (multi_resident_view.contains(local_entity)) {
+                auto [resident] = multi_resident_view.get(local_entity);
+
+                for (auto island_entity : resident.island_entities) {
+                    m_island_manager.wake_up_island(island_entity);
+                }
+            }
+        }
+    }
 }
 
 void island_worker::sync() {

@@ -17,6 +17,7 @@
 #include "edyn/parallel/island_manager.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/util/polyhedron_shape_initializer.hpp"
+#include "edyn/util/registry_operation.hpp"
 
 namespace edyn {
 
@@ -61,13 +62,12 @@ class island_worker final {
     void update();
 
     bool all_sleeping();
+    void wake_up_affected_islands(const registry_operation_collection &ops);
     void consume_raycast_results();
 
 public:
     island_worker(const settings &settings,
                   const material_mix_table &material_table);
-
-    ~island_worker();
 
     void reschedule();
 

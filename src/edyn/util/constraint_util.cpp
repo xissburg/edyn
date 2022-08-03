@@ -31,6 +31,7 @@ namespace internal {
             return false;
         }
 
+        // Assign graph edge.
         auto node_index0 = registry.get<graph_node>(body0).node_index;
         auto node_index1 = registry.get<graph_node>(body1).node_index;
         auto edge_index = registry.ctx().at<entity_graph>().insert_edge(entity, node_index0, node_index1);
@@ -55,15 +56,11 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
     registry.emplace<contact_manifold_events>(manifold_entity);
 
-    auto &dirty = registry.get_or_emplace<edyn::dirty>(manifold_entity);
-    dirty.set_new().created<contact_manifold, contact_manifold_events>();
-
     if (registry.any_of<continuous_contacts_tag>(body0) ||
         registry.any_of<continuous_contacts_tag>(body1)) {
 
         auto &settings = registry.ctx().at<edyn::settings>();
         registry.emplace<continuous>(manifold_entity).insert(settings.index_source->index_of<edyn::contact_manifold>());
-        dirty.created<continuous>();
     }
 
     auto material_view = registry.view<material>();
@@ -90,7 +87,6 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 
     if (restitution > EDYN_EPSILON) {
         registry.emplace<contact_manifold_with_restitution>(manifold_entity);
-        dirty.created<contact_manifold_with_restitution>();
     }
 
     // Assign contact constraint to manifold.

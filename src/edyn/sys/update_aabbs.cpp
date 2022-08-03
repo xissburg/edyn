@@ -65,8 +65,8 @@ void update_aabb(entt::registry &registry, entt::entity entity) {
 
 template<typename ShapeType>
 void update_aabbs(entt::registry &registry) {
+    auto tr_view = registry.view<position, orientation, ShapeType, AABB>(entt::exclude_t<sleeping_tag, disabled_tag>{});
     auto origin_view = registry.view<origin>();
-    auto tr_view = registry.view<position, orientation, ShapeType, AABB>();
     auto override_view = registry.view<AABB_override>();
 
     for (auto entity : tr_view) {
@@ -93,7 +93,8 @@ void update_island_aabbs(entt::registry &registry) {
     auto aabb_view = registry.view<AABB>();
     auto procedural_view = registry.view<procedural_tag>();
 
-    registry.view<island, island_AABB>().each([&](island &island, island_AABB &aabb) {
+    registry.view<island, island_AABB>(entt::exclude_t<sleeping_tag>{})
+        .each([&](island &island, island_AABB &aabb) {
         auto is_first_node = true;
 
         for (auto entity : island.nodes) {

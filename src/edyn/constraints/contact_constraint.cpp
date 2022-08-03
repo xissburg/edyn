@@ -1,4 +1,5 @@
 #include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -74,7 +75,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
     auto body_view = registry.view<position, orientation, linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
-    auto con_view = registry.view<contact_constraint, contact_manifold>();
+    auto con_view = registry.view<contact_constraint, contact_manifold>(entt::exclude_t<sleeping_tag>{});
     auto origin_view = registry.view<origin>();
     auto roll_dir_view = registry.view<roll_direction>();
     auto &settings = registry.ctx().at<edyn::settings>();
@@ -241,7 +242,7 @@ void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache
 
     // Remember that not all manifolds have a contact constraint, which happens
     // when one of the rigid bodies is a sensor, i.e. it doesn't have material.
-    auto con_view = registry.view<contact_constraint, contact_manifold>();
+    auto con_view = registry.view<contact_constraint, contact_manifold>(entt::exclude_t<sleeping_tag>{});
 
     // Solve friction rows locally using a non-standard method where the impulse
     // is limited by the length of a 2D vector to assure a friction circle.
@@ -284,7 +285,7 @@ bool solve_position_constraints<contact_constraint>(entt::registry &registry, sc
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
 
     // Remember that not all manifolds have a contact constraint.
-    auto con_view = registry.view<contact_constraint, contact_manifold>();
+    auto con_view = registry.view<contact_constraint, contact_manifold>(entt::exclude_t<sleeping_tag>{});
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
     auto origin_view = registry.view<origin>();
     auto min_dist = scalar(0);

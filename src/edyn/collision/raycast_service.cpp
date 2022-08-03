@@ -4,6 +4,10 @@
 
 namespace edyn {
 
+raycast_service::raycast_service(entt::registry &registry)
+    : m_registry(&registry)
+{}
+
 bool raycast_service::run_state_machine(job &completion_job) {
     switch (m_state) {
     case state::begin:
@@ -29,20 +33,14 @@ bool raycast_service::run_state_machine(job &completion_job) {
         return run_state_machine(completion_job);
         break;
     case state::done:
+        m_state = state::begin;
         return true;
         break;
     }
 }
 
 bool raycast_service::update(job &completion_job) {
-    while (run_state_machine(completion_job));
-
-    if (m_state == state::done) {
-        m_state = state::begin;
-        return true;
-    }
-
-    return false;
+    return run_state_machine(completion_job);
 }
 
 bool raycast_service::run_broadphase(job &completion_job) {
@@ -151,6 +149,8 @@ void raycast_service::finish_narrowphase() {
     }
 
     m_narrow_ctx.clear();
+
+    m_state = state::done;
 }
 
 }

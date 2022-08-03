@@ -177,7 +177,6 @@ public:
     void remove(entt::entity entity) {
         auto &op = find_or_create_component_operation<Component>(registry_op_type::remove);
         auto view = registry->view<Component>();
-        EDYN_ASSERT(!registry->all_of<Component>(entity));
         insert_components<Component>(view, op, entity);
     }
 

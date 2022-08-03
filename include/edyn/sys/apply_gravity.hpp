@@ -9,7 +9,7 @@
 namespace edyn {
 
 inline void apply_gravity(entt::registry &registry, scalar dt) {
-    auto view = registry.view<linvel, gravity, dynamic_tag>();
+    auto view = registry.view<linvel, gravity, dynamic_tag>(entt::exclude_t<sleeping_tag>{});
     view.each([&](linvel &vel, gravity &g) {
         vel += g * dt;
     });

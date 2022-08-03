@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include <entt/entity/sparse_set.hpp>
 
 namespace edyn {
@@ -38,6 +39,7 @@ private:
     std::vector<entt::entity> m_new_graph_nodes;
     std::vector<entt::entity> m_new_graph_edges;
     entt::sparse_set m_islands_to_split;
+    std::vector<entt::scoped_connection> m_connections;
 };
 
 }

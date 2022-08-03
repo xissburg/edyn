@@ -1,4 +1,5 @@
 #include "edyn/dynamics/solver.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
@@ -46,7 +47,7 @@ scalar solve(constraint_row &row) {
 
 template<typename C>
 void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<C>(entt::exclude_t<disabled_tag>{});
+    auto con_view = registry.view<C>(entt::exclude_t<disabled_tag, sleeping_tag>{});
 
     for (auto entity : con_view) {
         auto [con] = con_view.get(entity);
@@ -170,7 +171,7 @@ void solver::update(scalar dt) {
     }
 
     // Apply constraint velocity correction.
-    auto vel_view = registry.view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>();
+    auto vel_view = registry.view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>(entt::exclude_t<sleeping_tag>{});
     vel_view.each([](linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
         v += dv;
         w += dw;

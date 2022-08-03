@@ -11,9 +11,9 @@ namespace edyn {
 polyhedron_shape_initializer::polyhedron_shape_initializer(entt::registry &registry)
     : m_registry(&registry)
 {
-    registry.on_construct<polyhedron_shape>().connect<&polyhedron_shape_initializer::on_construct_polyhedron_shape>(*this);
-    registry.on_construct<compound_shape>().connect<&polyhedron_shape_initializer::on_construct_compound_shape>(*this);
-    registry.on_destroy<rotated_mesh_list>().connect<&polyhedron_shape_initializer::on_destroy_rotated_mesh_list>(*this);
+    m_connections.push_back(registry.on_construct<polyhedron_shape>().connect<&polyhedron_shape_initializer::on_construct_polyhedron_shape>(*this));
+    m_connections.push_back(registry.on_construct<compound_shape>().connect<&polyhedron_shape_initializer::on_construct_compound_shape>(*this));
+    m_connections.push_back(registry.on_destroy<rotated_mesh_list>().connect<&polyhedron_shape_initializer::on_destroy_rotated_mesh_list>(*this));
 }
 
 void polyhedron_shape_initializer::on_construct_polyhedron_shape(entt::registry &registry, entt::entity entity) {

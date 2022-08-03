@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 
 namespace edyn {
 
@@ -24,6 +25,7 @@ private:
     entt::registry *m_registry;
     std::vector<entt::entity> m_new_polyhedron_shapes;
     std::vector<entt::entity> m_new_compound_shapes;
+    std::vector<entt::scoped_connection> m_connections;
 };
 
 }
