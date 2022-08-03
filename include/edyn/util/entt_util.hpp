@@ -2,6 +2,7 @@
 #define EDYN_UTIL_ENTT_UTIL_HPP
 
 #include <tuple>
+#include <vector>
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -33,6 +34,15 @@ template<typename... Ts>
 struct map_to_tuple_of_views<std::tuple<Ts...>> {
     using type = std::tuple<entt::basic_view<entt::entity, entt::get_t<Ts>, entt::exclude_t<>>...>;
 };
+
+inline void entity_vector_erase_invalid(std::vector<entt::entity> &vec,
+                                        const entt::registry &registry) {
+    auto predicate = [&](entt::entity entity) {
+        return !registry.valid(entity);
+    };
+
+    vec.erase(std::remove_if(vec.begin(), vec.end(), predicate), vec.end());
+}
 
 }
 

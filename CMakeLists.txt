@@ -95,6 +95,7 @@ add_library(Edyn
     src/edyn/util/exclude_collision.cpp
     src/edyn/util/make_reg_op_builder.cpp
     src/edyn/util/island_util.cpp
+    src/edyn/util/polyhedron_shape_initializer.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
@@ -110,6 +111,7 @@ add_library(Edyn
     src/edyn/parallel/island_worker_context.cpp
     src/edyn/parallel/map_child_entity.cpp
     src/edyn/parallel/message_dispatcher.cpp
+    src/edyn/parallel/island_manager.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/networking/context/client_network_context.cpp
     src/edyn/networking/context/server_network_context.cpp

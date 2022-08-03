@@ -77,6 +77,8 @@ island_worker::island_worker(const settings &settings,
     : m_state(state::init)
     , m_solver(m_registry)
     , m_op_builder((*settings.make_reg_op_builder)(m_registry))
+    , m_island_manager(m_registry)
+    , m_poly_initializer(m_registry)
     , m_importing(false)
     , m_message_queue(message_dispatcher::global().make_queue<
         msg::set_paused,
@@ -125,10 +127,6 @@ void island_worker::init() {
 
     m_registry.on_construct<sleeping_tag>().connect<&island_worker::on_construct_sleeping_tag>(*this);
     m_registry.on_destroy<sleeping_tag>().connect<&island_worker::on_destroy_sleeping_tag>(*this);
-
-    m_registry.on_construct<polyhedron_shape>().connect<&island_worker::on_construct_polyhedron_shape>(*this);
-    m_registry.on_construct<compound_shape>().connect<&island_worker::on_construct_compound_shape>(*this);
-    m_registry.on_destroy<rotated_mesh_list>().connect<&island_worker::on_destroy_rotated_mesh_list>(*this);
 
     m_message_queue.sink<msg::update_entities>().connect<&island_worker::on_update_entities>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
@@ -179,22 +177,6 @@ void island_worker::on_construct_sleeping_tag(entt::registry &registry, entt::en
 
 void island_worker::on_destroy_sleeping_tag(entt::registry &registry, entt::entity entity) {
     m_op_builder->remove<sleeping_tag>(entity);
-}
-
-void island_worker::on_construct_polyhedron_shape(entt::registry &registry, entt::entity entity) {
-    m_new_polyhedron_shapes.push_back(entity);
-}
-
-void island_worker::on_construct_compound_shape(entt::registry &registry, entt::entity entity) {
-    m_new_compound_shapes.push_back(entity);
-}
-
-void island_worker::on_destroy_rotated_mesh_list(entt::registry &registry, entt::entity entity) {
-    auto &rotated = registry.get<rotated_mesh_list>(entity);
-    if (rotated.next != entt::null) {
-        // Cascade delete. Could lead to mega tall call stacks.
-        registry.destroy(rotated.next);
-    }
 }
 
 static void import_reg_ops(entt::registry &registry, entity_map &emap, const registry_operation_collection &ops) {
@@ -345,100 +327,83 @@ void island_worker::sync_dirty() {
     m_registry.clear<dirty>();
 }
 
-bool island_worker::run_state_machine() {
+void island_worker::run_state_machine() {
     switch (m_state) {
     case state::init:
         init();
         m_state = state::start;
-        return run_state_machine();
+        run_state_machine();
         break;
     case state::start:
         process_messages();
-        // Messages could have created and destroyed nodes and edges.
-        init_new_nodes_and_edges();
-        split_islands();
         m_state = state::raycast;
-        return run_state_machine();
+        run_state_machine();
         break;
     case state::raycast:
         if (m_raycast_service.update(m_this_job)) {
             consume_raycast_results();
             m_state = state::step;
-            return run_state_machine();
-        } else {
-            return false;
+            run_state_machine();
         }
         break;
     case state::step:
         if (should_step()) {
             m_state = state::begin_step;
-            return run_state_machine();
+            run_state_machine();
         } else {
             m_state = state::start;
             maybe_reschedule();
-            return true;
         }
         break;
     case state::begin_step:
         begin_step();
         m_state = state::broadphase;
-        return run_state_machine();
+        run_state_machine();
         break;
     case state::broadphase:
         if (m_registry.ctx().at<broadphase_worker>().update(m_this_job)) {
             // Broadphase creates and destroys manifolds, which are edges in
             // the entity graph. Thus, it is necessary to initialize new edges
             // and split islands right after.
-            m_state = state::init_new_entities;
-            return run_state_machine();
-        } else {
-            return false;
+            m_state = state::update_islands;
+            run_state_machine();
         }
         break;
-    case state::init_new_entities:
-        init_new_nodes_and_edges();
-        m_state = state::split_islands;
-        return run_state_machine();
-        break;
-    case state::split_islands:
-        split_islands();
+    case state::update_islands:
+        m_island_manager.update();
         m_state = state::narrowphase;
-        return run_state_machine();
+        run_state_machine();
         break;
     case state::narrowphase:
         if (m_registry.ctx().at<narrowphase>().update(m_this_job)) {
             m_state = state::solve;
-            return run_state_machine();
-        } else {
-            return false;
+            run_state_machine();
         }
         break;
     case state::solve:
         if (run_solver()) {
             m_state = state::finish_step;
-            return run_state_machine();
-        } else {
-            return false;
+            run_state_machine();
         }
         break;
     case state::finish_step:
         finish_step();
         maybe_reschedule();
-        return true;
         break;
     }
 }
 
 void island_worker::update() {
-    while (run_state_machine());
+    run_state_machine();
 }
 
 void island_worker::process_messages() {
     m_message_queue.update();
 
-    // Initialize new nodes and edges that might've been created while
+    // Initialize new nodes, edges and shapes that might've been created while
     // processing messages.
-    init_new_nodes_and_edges();
+    m_island_manager.update();
+    m_poly_initializer.init_new_shapes();
 }
 
 bool island_worker::should_step() {
@@ -476,13 +441,13 @@ void island_worker::begin_step() {
         (*settings.external_system_pre_step)(m_registry);
     }
 
-    // Perform splits after processing messages from coordinator and running
-    // external logic, which could've destroyed nodes or edges.
-    split_islands();
+    // Calculate islands after running external logic, which could've created
+    // and destroyed nodes and edges.
+    m_island_manager.update();
 
     // Initialize new shapes. Basically, create rotated meshes for new
     // imported polyhedron shapes.
-    init_new_shapes();
+    m_poly_initializer.init_new_shapes();
 
     m_state = state::broadphase;
 }
@@ -594,61 +559,6 @@ void island_worker::reschedule() {
     job_dispatcher::global().async(m_this_job);
 }
 
-
-void island_worker::init_new_shapes() {
-    auto orn_view = m_registry.view<orientation>();
-    auto polyhedron_view = m_registry.view<polyhedron_shape>();
-    auto compound_view = m_registry.view<compound_shape>();
-
-    for (auto entity : m_new_polyhedron_shapes) {
-        if (!polyhedron_view.contains(entity)) continue;
-
-        auto &polyhedron = polyhedron_view.get<polyhedron_shape>(entity);
-        // A new `rotated_mesh` is assigned to it, replacing another reference
-        // that could be already in there, thus preventing concurrent access.
-        auto rotated = make_rotated_mesh(*polyhedron.mesh, orn_view.get<orientation>(entity));
-        auto rotated_ptr = std::make_unique<rotated_mesh>(std::move(rotated));
-        polyhedron.rotated = rotated_ptr.get();
-        m_registry.emplace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr));
-    }
-
-    for (auto entity : m_new_compound_shapes) {
-        if (!compound_view.contains(entity)) continue;
-
-        auto &compound = compound_view.get<compound_shape>(entity);
-        auto &orn = orn_view.get<orientation>(entity);
-        auto prev_rotated_entity = entt::entity{entt::null};
-
-        for (auto &node : compound.nodes) {
-            if (!std::holds_alternative<polyhedron_shape>(node.shape_var)) continue;
-
-            // Assign a `rotated_mesh_list` to this entity for the first
-            // polyhedron and link it with more rotated meshes for the
-            // remaining polyhedrons.
-            auto &polyhedron = std::get<polyhedron_shape>(node.shape_var);
-            auto local_orn = orn * node.orientation;
-            auto rotated = make_rotated_mesh(*polyhedron.mesh, local_orn);
-            auto rotated_ptr = std::make_unique<rotated_mesh>(std::move(rotated));
-            polyhedron.rotated = rotated_ptr.get();
-
-            if (prev_rotated_entity == entt::null) {
-                m_registry.emplace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr), node.orientation);
-                prev_rotated_entity = entity;
-            } else {
-                auto next = m_registry.create();
-                m_registry.emplace<rotated_mesh_list>(next, polyhedron.mesh, std::move(rotated_ptr), node.orientation);
-
-                auto &prev_rotated_list = m_registry.get<rotated_mesh_list>(prev_rotated_entity);
-                prev_rotated_list.next = next;
-                prev_rotated_entity = next;
-            }
-        }
-    }
-
-    m_new_polyhedron_shapes.clear();
-    m_new_compound_shapes.clear();
-}
-
 void island_worker::maybe_go_to_sleep(entt::entity island_entity) {
     if (m_registry.any_of<sleeping_tag>(island_entity)) {
         return;
@@ -656,13 +566,13 @@ void island_worker::maybe_go_to_sleep(entt::entity island_entity) {
 
     auto &island = m_registry.get<edyn::island>(island_entity);
 
-    if (could_go_to_sleep(island_entity)) {
+    if (m_island_manager.could_go_to_sleep(island_entity)) {
         if (!island.sleep_timestamp) {
             island.sleep_timestamp = m_last_time;
         } else {
             auto sleep_dt = m_last_time - *island.sleep_timestamp;
             if (sleep_dt > island_time_to_sleep) {
-                put_to_sleep(island_entity);
+                m_island_manager.put_to_sleep(island_entity);
                 island.sleep_timestamp.reset();
             }
         }

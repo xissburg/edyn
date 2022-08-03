@@ -14,7 +14,9 @@
 #include "edyn/parallel/message.hpp"
 #include "edyn/parallel/entity_graph.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
+#include "edyn/parallel/island_manager.hpp"
 #include "edyn/util/entity_map.hpp"
+#include "edyn/util/polyhedron_shape_initializer.hpp"
 
 namespace edyn {
 
@@ -34,8 +36,7 @@ class island_worker final {
         start,
         step,
         begin_step,
-        split_islands,
-        init_new_entities,
+        update_islands,
         broadphase,
         narrowphase,
         solve,
@@ -53,13 +54,10 @@ class island_worker final {
     void maybe_reschedule();
     void reschedule_later();
     void do_terminate();
-    void init_new_nodes_and_edges();
-    void init_new_shapes();
-    void insert_remote_node(entt::entity remote_entity);
     void maybe_go_to_sleep(entt::entity island_entity);
     void sync();
     void sync_dirty();
-    bool run_state_machine();
+    void run_state_machine();
     void update();
 
     bool all_sleeping();
@@ -78,10 +76,6 @@ public:
 
     void on_construct_sleeping_tag(entt::registry &registry, entt::entity entity);
     void on_destroy_sleeping_tag(entt::registry &registry, entt::entity entity);
-
-    void on_construct_polyhedron_shape(entt::registry &, entt::entity);
-    void on_construct_compound_shape(entt::registry &, entt::entity);
-    void on_destroy_rotated_mesh_list(entt::registry &, entt::entity);
 
     void on_update_entities(const message<msg::update_entities> &msg);
     void on_set_paused(const message<msg::set_paused> &msg);
@@ -107,6 +101,8 @@ private:
     entity_map m_entity_map;
     solver m_solver;
     raycast_service m_raycast_service;
+    island_manager m_island_manager;
+    polyhedron_shape_initializer m_poly_initializer;
 
     message_queue_handle<
         msg::set_paused,
@@ -129,9 +125,6 @@ private:
 
     std::unique_ptr<registry_operation_builder> m_op_builder;
     bool m_importing;
-
-    std::vector<entt::entity> m_new_polyhedron_shapes;
-    std::vector<entt::entity> m_new_compound_shapes;
 
     std::atomic<int> m_reschedule_counter {0};
 

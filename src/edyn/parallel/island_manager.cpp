@@ -7,14 +7,14 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector.hpp"
+#include "edyn/util/entt_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <set>
 
 namespace edyn {
 
-island_manager::island_manager(entt::registry &registry, registry_operation_builder *op_builder)
+island_manager::island_manager(entt::registry &registry)
     : m_registry(&registry)
-    , m_op_builder(op_builder)
 {}
 
 void island_manager::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
@@ -90,6 +90,11 @@ void island_manager::on_destroy_multi_island_resident(entt::registry &registry, 
 }
 
 void island_manager::init_new_nodes_and_edges() {
+    // Entities that were created and destroyed before a call to `edyn::update`
+    // are still in these collections, thus remove invalid entities first.
+    entity_vector_erase_invalid(m_new_graph_nodes, *m_registry);
+    entity_vector_erase_invalid(m_new_graph_edges, *m_registry);
+
     if (m_new_graph_nodes.empty() && m_new_graph_edges.empty()) return;
 
     auto &graph = m_registry->ctx().at<entity_graph>();
@@ -480,6 +485,11 @@ void island_manager::split_islands() {
             EDYN_ASSERT(m_registry->valid(island_entity));
         }
     }
+}
+
+void island_manager::update() {
+    init_new_nodes_and_edges();
+    split_islands();
 }
 
 void island_manager::wake_up_island(entt::entity island_entity) {

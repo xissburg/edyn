@@ -7,8 +7,6 @@
 
 namespace edyn {
 
-class registry_operation_builder;
-
 class island_manager {
     void init_new_nodes_and_edges();
     entt::entity create_island();
@@ -21,7 +19,8 @@ class island_manager {
     void split_islands();
 
 public:
-    island_manager(entt::registry &registry, registry_operation_builder *op_builder = nullptr);
+    island_manager(entt::registry &registry);
+
     void on_construct_graph_node(entt::registry &, entt::entity);
     void on_construct_graph_edge(entt::registry &, entt::entity);
     void on_destroy_graph_node(entt::registry &, entt::entity);
@@ -29,13 +28,13 @@ public:
     void on_destroy_island_resident(entt::registry &, entt::entity);
     void on_destroy_multi_island_resident(entt::registry &, entt::entity);
 
+    void update();
     void wake_up_island(entt::entity island_entity);
     void put_to_sleep(entt::entity island_entity);
     bool could_go_to_sleep(entt::entity island_entity) const;
 
 private:
     entt::registry *m_registry;
-    registry_operation_builder *m_op_builder;
     std::vector<entt::entity> m_new_graph_nodes;
     std::vector<entt::entity> m_new_graph_edges;
     entt::sparse_set m_islands_to_split;

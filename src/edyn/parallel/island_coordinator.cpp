@@ -128,15 +128,6 @@ void island_coordinator::on_destroy_contact_manifold(entt::registry &registry, e
     }
 }
 
-static void entity_vector_erase_invalid(std::vector<entt::entity> &vec,
-                                        const entt::registry &registry) {
-    auto predicate = [&](entt::entity entity) {
-        return !registry.valid(entity);
-    };
-
-    vec.erase(std::remove_if(vec.begin(), vec.end(), predicate), vec.end());
-}
-
 void island_coordinator::init_new_nodes_and_edges() {
     // Entities that were created and destroyed before a call to `edyn::update`
     // are still in these collections, thus remove invalid entities first.
