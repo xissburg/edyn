@@ -1,5 +1,5 @@
 #include "edyn/networking/extrapolation_job.hpp"
-#include "edyn/collision/broadphase_worker.hpp"
+#include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
@@ -53,7 +53,7 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
     , m_poly_initializer(m_registry)
     , m_island_manager(m_registry)
 {
-    m_registry.ctx().emplace<broadphase_worker>(m_registry);
+    m_registry.ctx().emplace<broadphase>(m_registry);
     m_registry.ctx().emplace<narrowphase>(m_registry);
     m_registry.ctx().emplace<entity_graph>();
     m_registry.ctx().emplace<edyn::settings>(settings);
@@ -239,7 +239,7 @@ void extrapolation_job::run_state_machine() {
         run_state_machine();
         break;
     case state::broadphase:
-        if (m_registry.ctx().at<broadphase_worker>().update(m_this_job)) {
+        if (m_registry.ctx().at<broadphase>().update(m_this_job)) {
             // Broadphase creates and destroys manifolds, which are edges in
             // the entity graph. Thus, it is necessary to initialize new edges
             // and split islands right after.

@@ -5,8 +5,8 @@ namespace edyn {
 
 enum class execution_mode {
     sequential,
-    parallel_synchronous,
-    parallel_asynchronous
+    sequential_mt,
+    asynchronous
 };
 
 }

@@ -53,7 +53,7 @@ struct init_config {
     // Number of worker threads to spawn. If zero, value will be taken from
     // `std::thread::hardware_concurrency`.
     size_t num_worker_threads {0};
-    execution_mode execution_mode {execution_mode::parallel_asynchronous};
+    execution_mode execution_mode {execution_mode::asynchronous};
 };
 
 /**

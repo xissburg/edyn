@@ -20,7 +20,7 @@ struct contact_manifold {
 
     // If the AABB of one of the bodies inflated by this amount does not
     // intersect the AABB of the other, the manifold will be destroyed.
-    // See `edy::broadphase_worker::destroy_separated_manifolds`.
+    // See `edyn::broadphase::destroy_separated_manifolds`.
     scalar separation_threshold;
 
     // Number of contact points in this manifold.

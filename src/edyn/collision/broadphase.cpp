@@ -1,4 +1,4 @@
-#include "edyn/collision/broadphase_worker.hpp"
+#include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/tree_node.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
@@ -19,13 +19,13 @@ struct island_tree_resident {
     tree_node_id_t id;
 };
 
-broadphase_worker::broadphase_worker(entt::registry &registry)
+broadphase::broadphase(entt::registry &registry)
     : m_registry(&registry)
 {
-    registry.on_construct<AABB>().connect<&broadphase_worker::on_construct_aabb>(*this);
-    registry.on_destroy<tree_resident>().connect<&broadphase_worker::on_destroy_tree_resident>(*this);
-    registry.on_construct<island_AABB>().connect<&broadphase_worker::on_construct_island_aabb>(*this);
-    registry.on_destroy<island_tree_resident>().connect<&broadphase_worker::on_destroy_island_tree_resident>(*this);
+    registry.on_construct<AABB>().connect<&broadphase::on_construct_aabb>(*this);
+    registry.on_destroy<tree_resident>().connect<&broadphase::on_destroy_tree_resident>(*this);
+    registry.on_construct<island_AABB>().connect<&broadphase::on_construct_island_aabb>(*this);
+    registry.on_destroy<island_tree_resident>().connect<&broadphase::on_destroy_island_tree_resident>(*this);
 
     // The `should_collide_func` function will be invoked in parallel when
     // running broadphase in parallel, in the call to `broadphase::collide_tree_async`.
@@ -35,12 +35,12 @@ broadphase_worker::broadphase_worker(entt::registry &registry)
     static_cast<void>(registry.storage<collision_exclusion>());
 }
 
-void broadphase_worker::on_construct_aabb(entt::registry &, entt::entity entity) {
+void broadphase::on_construct_aabb(entt::registry &, entt::entity entity) {
     // Perform initialization later when the entity is fully constructed.
     m_new_aabb_entities.push_back(entity);
 }
 
-void broadphase_worker::on_destroy_tree_resident(entt::registry &registry, entt::entity entity) {
+void broadphase::on_destroy_tree_resident(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<tree_resident>(entity);
 
     if (node.procedural) {
@@ -50,18 +50,18 @@ void broadphase_worker::on_destroy_tree_resident(entt::registry &registry, entt:
     }
 }
 
-void broadphase_worker::on_construct_island_aabb(entt::registry &registry, entt::entity entity) {
+void broadphase::on_construct_island_aabb(entt::registry &registry, entt::entity entity) {
     auto &aabb = registry.get<island_AABB>(entity);
     tree_node_id_t id = m_island_tree.create(aabb, entity);
     registry.emplace<island_tree_resident>(entity, id);
 }
 
-void broadphase_worker::on_destroy_island_tree_resident(entt::registry &registry, entt::entity entity) {
+void broadphase::on_destroy_island_tree_resident(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<island_tree_resident>(entity);
     m_island_tree.destroy(node.id);
 }
 
-void broadphase_worker::init_new_aabb_entities() {
+void broadphase::init_new_aabb_entities() {
     if (m_new_aabb_entities.empty()) {
         return;
     }
@@ -99,7 +99,7 @@ void destroy_separated_manifolds(entt::registry &registry) {
     });
 }
 
-void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity entity,
+void broadphase::collide_tree(const dynamic_tree &tree, entt::entity entity,
                                      const AABB &offset_aabb) {
     auto aabb_view = m_registry->view<AABB>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
@@ -119,7 +119,7 @@ void broadphase_worker::collide_tree(const dynamic_tree &tree, entt::entity enti
     });
 }
 
-void broadphase_worker::collide_tree_async(const dynamic_tree &tree, entt::entity entity,
+void broadphase::collide_tree_async(const dynamic_tree &tree, entt::entity entity,
                                            const AABB &offset_aabb, size_t result_index) {
     auto aabb_view = m_registry->view<AABB>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
@@ -137,7 +137,7 @@ void broadphase_worker::collide_tree_async(const dynamic_tree &tree, entt::entit
     });
 }
 
-void broadphase_worker::common_update() {
+void broadphase::common_update() {
     init_new_aabb_entities();
     destroy_separated_manifolds(*m_registry);
 
@@ -160,7 +160,7 @@ void broadphase_worker::common_update() {
     });
 }
 
-bool broadphase_worker::update(job &completion_job) {
+bool broadphase::update(job &completion_job) {
     switch (m_state) {
     case state::begin:
         common_update();

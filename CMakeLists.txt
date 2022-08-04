@@ -29,7 +29,7 @@ add_library(Edyn
     cmake/in/build_settings.h.in
     src/edyn/math/geom.cpp
     src/edyn/math/quaternion.cpp
-    src/edyn/collision/broadphase_worker.cpp
+    src/edyn/collision/broadphase.cpp
     src/edyn/collision/narrowphase.cpp
     src/edyn/collision/contact_manifold_map.cpp
     src/edyn/collision/dynamic_tree.cpp
@@ -108,6 +108,7 @@ add_library(Edyn
     src/edyn/simulation/simulation_worker.cpp
     src/edyn/simulation/island_coordinator.cpp
     src/edyn/simulation/simulation_worker_context.cpp
+    src/edyn/simulation/stepper_sequential.cpp
     src/edyn/replication/make_reg_op_builder.cpp
     src/edyn/replication/map_child_entity.cpp
     src/edyn/parallel/message_dispatcher.cpp

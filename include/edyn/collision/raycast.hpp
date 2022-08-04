@@ -13,7 +13,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/shape_index.hpp"
-#include "edyn/collision/broadphase_worker.hpp"
+#include "edyn/collision/broadphase.hpp"
 #include "edyn/shapes/shapes.hpp"
 
 namespace edyn {

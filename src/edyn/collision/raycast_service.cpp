@@ -50,7 +50,7 @@ bool raycast_service::run_broadphase(job &completion_job) {
     }
 
     m_state = state::broadphase;
-    auto &bphase = m_registry->ctx().at<broadphase_worker>();
+    auto &bphase = m_registry->ctx().at<broadphase>();
 
     if (m_broad_ctx.size() <= m_max_raycast_broadphase_sequential_size) {
         for (auto &ctx : m_broad_ctx) {

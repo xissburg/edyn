@@ -1,5 +1,5 @@
-#ifndef EDYN_COLLISION_BROADPHASE_WORKER_HPP
-#define EDYN_COLLISION_BROADPHASE_WORKER_HPP
+#ifndef EDYN_COLLISION_BROADPHASE_HPP
+#define EDYN_COLLISION_BROADPHASE_HPP
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
@@ -11,7 +11,7 @@ namespace edyn {
 
 struct job;
 
-class broadphase_worker {
+class broadphase {
     enum class state {
         begin,
         collide
@@ -31,7 +31,7 @@ class broadphase_worker {
     void common_update();
 
 public:
-    broadphase_worker(entt::registry &);
+    broadphase(entt::registry &);
     bool update(job &completion_job);
 
     template<typename Func>
@@ -57,7 +57,7 @@ private:
 };
 
 template<typename Func>
-void broadphase_worker::raycast(vector3 p0, vector3 p1, Func func) const {
+void broadphase::raycast(vector3 p0, vector3 p1, Func func) const {
     m_tree.raycast(p0, p1, [&](tree_node_id_t id) {
         func(m_tree.get_node(id).entity);
     });
@@ -67,7 +67,7 @@ void broadphase_worker::raycast(vector3 p0, vector3 p1, Func func) const {
 }
 
 template<typename Func>
-void broadphase_worker::query_islands(const AABB &aabb, Func func) const {
+void broadphase::query_islands(const AABB &aabb, Func func) const {
     m_island_tree.query(aabb, [&](tree_node_id_t id) {
         func(m_island_tree.get_node(id).entity);
     });
@@ -75,4 +75,4 @@ void broadphase_worker::query_islands(const AABB &aabb, Func func) const {
 
 }
 
-#endif // EDYN_COLLISION_BROADPHASE_WORKER_HPP
+#endif // EDYN_COLLISION_BROADPHASE_HPP

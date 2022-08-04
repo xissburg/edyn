@@ -1,6 +1,7 @@
 #ifndef EDYN_CORE_FLAT_NESTED_ARRAY_HPP
 #define EDYN_CORE_FLAT_NESTED_ARRAY_HPP
 
+#include <cstddef>
 #include <vector>
 #include "edyn/config/config.h"
 
