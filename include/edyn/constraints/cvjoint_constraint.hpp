@@ -7,7 +7,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
-#include "edyn/util/array.hpp"
+#include "edyn/util/array_util.hpp"
 
 namespace edyn {
 

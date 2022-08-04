@@ -1,7 +1,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/comp/shared_comp.hpp"
-#include "edyn/util/registry_operation_builder.hpp"
-#include "edyn/parallel/component_index_source.hpp"
+#include "edyn/replication/registry_operation_builder.hpp"
+#include "edyn/replication/component_index_source.hpp"
 
 namespace edyn {
 

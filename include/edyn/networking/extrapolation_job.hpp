@@ -5,8 +5,8 @@
 #include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/util/entity_map.hpp"
-#include "edyn/parallel/island_manager.hpp"
+#include "edyn/replication/entity_map.hpp"
+#include "edyn/simulation/island_manager.hpp"
 #include "edyn/util/polyhedron_shape_initializer.hpp"
 #include <entt/entity/fwd.hpp>
 #include <memory>

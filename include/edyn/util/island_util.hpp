@@ -32,8 +32,6 @@ entt::sparse_set collect_islands_from_residents(entt::registry &registry, It fir
     return island_entities;
 }
 
-double get_simulation_timestamp(entt::registry &registry);
-
 }
 
 #endif // EDYN_UTIL_ISLAND_UTIL_HPP

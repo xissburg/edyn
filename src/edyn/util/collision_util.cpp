@@ -14,7 +14,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
-#include "edyn/util/triangle_util.hpp"
+#include "edyn/math/triangle.hpp"
 #include <limits>
 
 namespace edyn {

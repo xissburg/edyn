@@ -13,7 +13,7 @@
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
-#include "edyn/parallel/map_child_entity.hpp"
+#include "edyn/replication/map_child_entity.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 
 namespace edyn {

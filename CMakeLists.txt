@@ -86,33 +86,32 @@ add_library(Edyn
     src/edyn/util/constraint_util.cpp
     src/edyn/util/shape_util.cpp
     src/edyn/util/aabb_util.cpp
-    src/edyn/util/moment_of_inertia.cpp
-    src/edyn/util/shape_volume.cpp
+    src/edyn/dynamics/moment_of_inertia.cpp
+    src/edyn/math/shape_volume.cpp
     src/edyn/util/collision_util.cpp
     src/edyn/shapes/triangle_mesh.cpp
     src/edyn/shapes/paged_triangle_mesh.cpp
-    src/edyn/util/triangle_util.cpp
+    src/edyn/math/triangle.cpp
     src/edyn/util/ragdoll.cpp
     src/edyn/util/exclude_collision.cpp
-    src/edyn/util/make_reg_op_builder.cpp
-    src/edyn/util/island_util.cpp
     src/edyn/util/polyhedron_shape_initializer.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
     src/edyn/shapes/convex_mesh.cpp
     src/edyn/shapes/compound_shape.cpp
-    src/edyn/parallel/entity_graph.cpp
+    src/edyn/core/entity_graph.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
     src/edyn/parallel/job_scheduler.cpp
     src/edyn/parallel/job_queue_scheduler.cpp
-    src/edyn/parallel/simulation_worker.cpp
-    src/edyn/parallel/island_coordinator.cpp
-    src/edyn/parallel/simulation_worker_context.cpp
-    src/edyn/parallel/map_child_entity.cpp
+    src/edyn/simulation/simulation_worker.cpp
+    src/edyn/simulation/island_coordinator.cpp
+    src/edyn/simulation/simulation_worker_context.cpp
+    src/edyn/replication/make_reg_op_builder.cpp
+    src/edyn/replication/map_child_entity.cpp
     src/edyn/parallel/message_dispatcher.cpp
-    src/edyn/parallel/island_manager.cpp
+    src/edyn/simulation/island_manager.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp
     src/edyn/networking/context/client_network_context.cpp
     src/edyn/networking/context/server_network_context.cpp
@@ -129,6 +128,7 @@ add_library(Edyn
     src/edyn/context/settings.cpp
     src/edyn/edyn.cpp
     src/edyn/time/common/time.cpp
+    src/edyn/time/simulation_time.cpp
 )
 add_library(Edyn::Edyn ALIAS Edyn)
 

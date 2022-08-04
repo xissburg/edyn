@@ -9,8 +9,8 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/context/settings.hpp"
-#include "edyn/parallel/entity_graph.hpp"
-#include "edyn/parallel/component_index_source.hpp"
+#include "edyn/core/entity_graph.hpp"
+#include "edyn/replication/component_index_source.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 

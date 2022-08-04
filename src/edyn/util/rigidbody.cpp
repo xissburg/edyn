@@ -19,10 +19,10 @@
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/graph_node.hpp"
-#include "edyn/util/moment_of_inertia.hpp"
+#include "edyn/dynamics/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/tuple_util.hpp"
-#include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/simulation/island_coordinator.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/edyn.hpp"
 

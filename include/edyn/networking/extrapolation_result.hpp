@@ -5,7 +5,7 @@
 #include <memory>
 #include <entt/entity/sparse_set.hpp>
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/util/registry_operation.hpp"
+#include "edyn/replication/registry_operation.hpp"
 
 namespace edyn {
 

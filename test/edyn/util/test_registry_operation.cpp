@@ -1,6 +1,6 @@
 #include "../common/common.hpp"
-#include "edyn/util/registry_operation.hpp"
-#include "edyn/util/registry_operation_builder.hpp"
+#include "edyn/replication/registry_operation.hpp"
+#include "edyn/replication/registry_operation_builder.hpp"
 #include <entt/core/type_info.hpp>
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>

@@ -16,7 +16,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/parallel/entity_graph.hpp"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>

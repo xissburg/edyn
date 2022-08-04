@@ -10,8 +10,8 @@
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
-#include "edyn/util/entity_pair.hpp"
-#include "edyn/util/registry_operation.hpp"
+#include "edyn/core/entity_pair.hpp"
+#include "edyn/replication/registry_operation.hpp"
 
 namespace edyn::msg {
 

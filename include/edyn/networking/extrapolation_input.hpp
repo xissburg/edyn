@@ -1,9 +1,9 @@
 #ifndef EDYN_NETWORKING_EXTRAPOLATION_INPUT_HPP
 #define EDYN_NETWORKING_EXTRAPOLATION_INPUT_HPP
 
-#include "edyn/util/entity_map.hpp"
+#include "edyn/replication/entity_map.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
-#include "edyn/util/registry_operation.hpp"
+#include "edyn/replication/registry_operation.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/sparse_set.hpp>
 #include <memory>

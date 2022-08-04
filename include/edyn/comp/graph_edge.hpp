@@ -1,7 +1,7 @@
 #ifndef EDYN_COMP_GRAPH_EDGE_HPP
 #define EDYN_COMP_GRAPH_EDGE_HPP
 
-#include "edyn/parallel/entity_graph.hpp"
+#include "edyn/core/entity_graph.hpp"
 
 namespace edyn {
 

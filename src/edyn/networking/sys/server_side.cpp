@@ -21,13 +21,14 @@
 #include "edyn/networking/sys/update_network_dirty.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
-#include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/simulation/island_coordinator.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
-#include "edyn/util/entity_map.hpp"
+#include "edyn/replication/entity_map.hpp"
 #include "edyn/util/island_util.hpp"
-#include "edyn/util/vector.hpp"
+#include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/time/simulation_time.hpp"
 #include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <set>

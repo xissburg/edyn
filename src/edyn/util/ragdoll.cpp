@@ -7,7 +7,7 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include "edyn/util/moment_of_inertia.hpp"
+#include "edyn/dynamics/moment_of_inertia.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/util/exclude_collision.hpp"
 

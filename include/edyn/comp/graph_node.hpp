@@ -1,7 +1,7 @@
 #ifndef EDYN_COMP_GRAPH_NODE_HPP
 #define EDYN_COMP_GRAPH_NODE_HPP
 
-#include "edyn/parallel/entity_graph.hpp"
+#include "edyn/core/entity_graph.hpp"
 
 namespace edyn {
 

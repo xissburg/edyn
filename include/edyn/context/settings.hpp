@@ -6,7 +6,7 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/context/external_system.hpp"
-#include "edyn/util/make_reg_op_builder.hpp"
+#include "edyn/replication/make_reg_op_builder.hpp"
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/networking/settings/client_network_settings.hpp"
 #include "edyn/networking/settings/server_network_settings.hpp"

@@ -9,7 +9,7 @@
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
-#include "edyn/parallel/entity_graph.hpp"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
@@ -18,14 +18,15 @@
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/sys/update_network_dirty.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/simulation/island_coordinator.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/networking/extrapolation_job.hpp"
 #include "edyn/serialization/std_s11n.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
-#include "edyn/util/vector.hpp"
+#include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/time/simulation_time.hpp"
 #include <entt/entity/registry.hpp>
 #include <set>
 

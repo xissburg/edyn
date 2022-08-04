@@ -1,7 +1,7 @@
 #ifndef EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 #define EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 
-#include "edyn/util/entity_map.hpp"
+#include "edyn/replication/entity_map.hpp"
 #include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/networking/util/client_snapshot_importer.hpp"
 #include "edyn/networking/util/client_snapshot_exporter.hpp"

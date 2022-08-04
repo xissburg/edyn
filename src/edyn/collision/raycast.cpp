@@ -4,8 +4,8 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/transform.hpp"
-#include "edyn/parallel/island_coordinator.hpp"
-#include "edyn/util/triangle_util.hpp"
+#include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/math/triangle.hpp"
 #include <unordered_set>
 
 namespace edyn {

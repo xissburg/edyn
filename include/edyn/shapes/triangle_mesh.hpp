@@ -7,11 +7,11 @@
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/geom.hpp"
+#include "edyn/math/triangle.hpp"
 #include "edyn/comp/aabb.hpp"
-#include "edyn/util/triangle_util.hpp"
 #include "edyn/collision/static_tree.hpp"
-#include "edyn/util/unordered_pair.hpp"
-#include "edyn/util/flat_nested_array.hpp"
+#include "edyn/core/unordered_pair.hpp"
+#include "edyn/core/flat_nested_array.hpp"
 
 namespace edyn {
 

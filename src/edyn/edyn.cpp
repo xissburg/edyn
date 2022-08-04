@@ -2,7 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
-#include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/simulation/island_coordinator.hpp"
 #include "edyn/sys/update_presentation.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include <entt/meta/factory.hpp>

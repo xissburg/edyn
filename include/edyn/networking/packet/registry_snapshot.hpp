@@ -2,7 +2,7 @@
 #define EDYN_NETWORKING_UTIL_REGISTRY_SNAPSHOT_HPP
 
 #include <vector>
-#include "edyn/util/entity_map.hpp"
+#include "edyn/replication/entity_map.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
 

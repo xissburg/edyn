@@ -3,7 +3,7 @@
 
 #include <array>
 #include <entt/entity/fwd.hpp>
-#include "edyn/util/array.hpp"
+#include "edyn/util/array_util.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"

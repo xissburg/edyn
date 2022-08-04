@@ -11,7 +11,7 @@
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/extrapolation_input.hpp"
-#include "edyn/util/registry_operation.hpp"
+#include "edyn/replication/registry_operation.hpp"
 
 namespace edyn {
 

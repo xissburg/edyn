@@ -4,7 +4,7 @@
 #include <vector>
 #include <entt/entity/fwd.hpp>
 #include "edyn/comp/aabb.hpp"
-#include "edyn/util/entity_pair.hpp"
+#include "edyn/core/entity_pair.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
 
 namespace edyn {
