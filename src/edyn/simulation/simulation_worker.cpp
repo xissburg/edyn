@@ -60,7 +60,7 @@ void simulation_worker_func(job::data_type &data) {
 }
 
 simulation_worker::simulation_worker(const settings &settings,
-                             const material_mix_table &material_table)
+                                     const material_mix_table &material_table)
     : m_state(state::init)
     , m_solver(m_registry)
     , m_op_builder((*settings.make_reg_op_builder)(m_registry))
@@ -381,7 +381,7 @@ void simulation_worker::run_state_machine() {
         }
         break;
     case state::update_islands:
-        m_island_manager.update();
+        m_island_manager.update(m_step_start_time);
         m_state = state::narrowphase;
         run_state_machine();
         break;
@@ -498,10 +498,6 @@ void simulation_worker::finish_step() {
         m_last_time += fixed_dt;
     }
 
-    for (auto island_entity : m_registry.view<island_tag>(entt::exclude_t<sleeping_tag>{})) {
-        maybe_go_to_sleep(island_entity);
-    }
-
     // Clear actions after they've been consumed.
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(m_registry);
@@ -568,28 +564,6 @@ void simulation_worker::reschedule() {
     if (reschedule_count > 0) return;
 
     job_dispatcher::global().async(m_this_job);
-}
-
-void simulation_worker::maybe_go_to_sleep(entt::entity island_entity) {
-    if (m_registry.any_of<sleeping_tag>(island_entity)) {
-        return;
-    }
-
-    auto &island = m_registry.get<edyn::island>(island_entity);
-
-    if (m_island_manager.could_go_to_sleep(island_entity)) {
-        if (!island.sleep_timestamp) {
-            island.sleep_timestamp = m_last_time;
-        } else {
-            auto sleep_dt = m_last_time - *island.sleep_timestamp;
-            if (sleep_dt > island_time_to_sleep) {
-                m_island_manager.put_to_sleep(island_entity);
-                island.sleep_timestamp.reset();
-            }
-        }
-    } else {
-        island.sleep_timestamp.reset();
-    }
 }
 
 void simulation_worker::consume_raycast_results() {

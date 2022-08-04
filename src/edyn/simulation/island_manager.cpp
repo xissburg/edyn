@@ -9,6 +9,7 @@
 #include "edyn/util/vector_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include <entt/entity/registry.hpp>
+#include <entt/entity/utility.hpp>
 #include <set>
 
 namespace edyn {
@@ -503,9 +504,11 @@ void island_manager::split_islands() {
     }
 }
 
-void island_manager::update() {
+void island_manager::update(double timestamp) {
     init_new_nodes_and_edges();
     split_islands();
+    put_islands_to_sleep();
+    m_last_time = timestamp;
 }
 
 void island_manager::wake_up_island(entt::entity island_entity) {
@@ -576,6 +579,26 @@ bool island_manager::could_go_to_sleep(entt::entity island_entity) const {
     }
 
     return true;
+}
+
+void island_manager::put_islands_to_sleep() {
+    auto island_view = m_registry->view<island>(entt::exclude_t<sleeping_tag>{});
+
+    for (auto [entity, island] : island_view.each()) {
+        if (could_go_to_sleep(entity)) {
+            if (!island.sleep_timestamp) {
+                island.sleep_timestamp = m_last_time;
+            } else {
+                auto sleep_dt = m_last_time - *island.sleep_timestamp;
+                if (sleep_dt > island_time_to_sleep) {
+                    put_to_sleep(entity);
+                    island.sleep_timestamp.reset();
+                }
+            }
+        } else {
+            island.sleep_timestamp.reset();
+        }
+    }
 }
 
 }

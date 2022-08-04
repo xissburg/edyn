@@ -52,7 +52,6 @@ class simulation_worker final {
     void maybe_reschedule();
     void reschedule_later();
     void do_terminate();
-    void maybe_go_to_sleep(entt::entity island_entity);
     void sync();
     void sync_dirty();
     void run_state_machine();

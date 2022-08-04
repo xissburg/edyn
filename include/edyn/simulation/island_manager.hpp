@@ -19,6 +19,10 @@ class island_manager {
                        const std::vector<entt::entity> &new_edges);
     void split_islands();
 
+    void put_to_sleep(entt::entity island_entity);
+    bool could_go_to_sleep(entt::entity island_entity) const;
+    void put_islands_to_sleep();
+
 public:
     island_manager(entt::registry &registry);
 
@@ -29,10 +33,9 @@ public:
     void on_destroy_island_resident(entt::registry &, entt::entity);
     void on_destroy_multi_island_resident(entt::registry &, entt::entity);
 
-    void update();
+    void update(double timestamp);
+
     void wake_up_island(entt::entity island_entity);
-    void put_to_sleep(entt::entity island_entity);
-    bool could_go_to_sleep(entt::entity island_entity) const;
 
 private:
     entt::registry *m_registry;
@@ -40,6 +43,7 @@ private:
     std::vector<entt::entity> m_new_graph_edges;
     entt::sparse_set m_islands_to_split;
     std::vector<entt::scoped_connection> m_connections;
+    double m_last_time;
 };
 
 }
