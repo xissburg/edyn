@@ -1,5 +1,5 @@
-#ifndef EDYN_PARALLEL_ISLAND_WORKER_CONTEXT_HPP
-#define EDYN_PARALLEL_ISLAND_WORKER_CONTEXT_HPP
+#ifndef EDYN_PARALLEL_SIMULATION_WORKER_CONTEXT_HPP
+#define EDYN_PARALLEL_SIMULATION_WORKER_CONTEXT_HPP
 
 #include <memory>
 #include <entt/entity/fwd.hpp>
@@ -8,7 +8,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/util/entity_map.hpp"
 #include "edyn/parallel/message.hpp"
-#include "edyn/parallel/island_worker.hpp"
+#include "edyn/parallel/simulation_worker.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
 
 namespace edyn {
@@ -17,11 +17,11 @@ class registry_operation_collection;
 class registry_operation_builder;
 
 /**
- * Context of an island worker in the main thread in an island coordinator.
+ * Context of a simulation worker in the main thread in an island coordinator.
  */
-class island_worker_context {
+class simulation_worker_context {
 
-    island_worker *m_worker;
+    simulation_worker *m_worker;
     bool m_pending_flush;
 
 public:
@@ -29,7 +29,8 @@ public:
     std::unique_ptr<registry_operation_builder> m_op_builder;
     double m_timestamp;
 
-    island_worker_context(island_worker *worker, std::unique_ptr<registry_operation_builder> op_builder);
+    simulation_worker_context(simulation_worker *worker,
+                              std::unique_ptr<registry_operation_builder> op_builder);
 
     /**
      * Returns whether there are any pending registry operations to be sent.
@@ -67,4 +68,4 @@ public:
 
 }
 
-#endif // EDYN_PARALLEL_ISLAND_WORKER_CONTEXT_HPP
+#endif // EDYN_PARALLEL_SIMULATION_WORKER_CONTEXT_HPP

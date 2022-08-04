@@ -238,7 +238,7 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
         if (island_entities.empty()) {
             packet.timestamp = time;
         } else {
-            packet.timestamp = get_island_worker_timestamp(registry);
+            packet.timestamp = get_simulation_timestamp(registry);
         }
 
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});

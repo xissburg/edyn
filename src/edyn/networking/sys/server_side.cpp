@@ -456,7 +456,7 @@ static void maybe_publish_client_registry_snapshot(entt::registry &registry,
         if (island_entities.empty()) {
             packet.timestamp = time;
         } else {
-            packet.timestamp = get_island_worker_timestamp(registry);
+            packet.timestamp = get_simulation_timestamp(registry);
         }
 
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});

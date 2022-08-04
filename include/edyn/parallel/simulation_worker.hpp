@@ -1,5 +1,5 @@
-#ifndef EDYN_PARALLEL_ISLAND_WORKER_HPP
-#define EDYN_PARALLEL_ISLAND_WORKER_HPP
+#ifndef EDYN_PARALLEL_SIMULATION_WORKER_HPP
+#define EDYN_PARALLEL_SIMULATION_WORKER_HPP
 
 #include <mutex>
 #include <memory>
@@ -25,12 +25,9 @@ struct settings;
 struct extrapolation_result;
 class registry_operation_builder;
 
-void island_worker_func(job::data_type &);
+void simulation_worker_func(job::data_type &);
 
-/**
- * Simulates one island in a worker thread independently.
- */
-class island_worker final {
+class simulation_worker final {
 
     enum class state : uint16_t {
         init,
@@ -66,7 +63,7 @@ class island_worker final {
     void consume_raycast_results();
 
 public:
-    island_worker(const settings &settings,
+    simulation_worker(const settings &settings,
                   const material_mix_table &material_table);
 
     void reschedule();
@@ -94,7 +91,7 @@ public:
     void terminate();
     void join();
 
-    friend void island_worker_func(job::data_type &);
+    friend void simulation_worker_func(job::data_type &);
 
 private:
     entt::registry m_registry;
@@ -138,4 +135,4 @@ private:
 
 }
 
-#endif // EDYN_PARALLEL_ISLAND_WORKER_HPP
+#endif // EDYN_PARALLEL_SIMULATION_WORKER_HPP

@@ -19,7 +19,7 @@ void update_presentation(entt::registry &registry, double time) {
     auto linear_view = registry.view<position, linvel, present_position, procedural_tag>(exclude);
     auto angular_view = registry.view<orientation, angvel, present_orientation, procedural_tag>(exclude);
     auto fixed_dt = registry.ctx().at<settings>().fixed_dt;
-    auto worker_time = get_island_worker_timestamp(registry);
+    auto worker_time = get_simulation_timestamp(registry);
     EDYN_ASSERT(!(time < worker_time));
 
     linear_view.each([&](position &pos, linvel &vel, present_position &pre) {

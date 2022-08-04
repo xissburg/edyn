@@ -32,9 +32,7 @@ entt::sparse_set collect_islands_from_residents(entt::registry &registry, It fir
     return island_entities;
 }
 
-double get_island_worker_timestamp(entt::registry &registry);
-
-void wake_up_island(entt::registry &,entt::entity island_entity);
+double get_simulation_timestamp(entt::registry &registry);
 
 }
 

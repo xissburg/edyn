@@ -1,4 +1,4 @@
-#include "edyn/parallel/island_worker.hpp"
+#include "edyn/parallel/simulation_worker.hpp"
 #include "edyn/collision/broadphase_worker.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
@@ -43,11 +43,11 @@
 
 namespace edyn {
 
-void island_worker_func(job::data_type &data) {
+void simulation_worker_func(job::data_type &data) {
     auto archive = memory_input_archive(data.data(), data.size());
     intptr_t worker_intptr;
     archive(worker_intptr);
-    auto *worker = reinterpret_cast<island_worker *>(worker_intptr);
+    auto *worker = reinterpret_cast<simulation_worker *>(worker_intptr);
 
     if (worker->is_terminating()) {
         // `worker` is dynamically allocated and must be manually deallocated
@@ -59,7 +59,7 @@ void island_worker_func(job::data_type &data) {
     }
 }
 
-island_worker::island_worker(const settings &settings,
+simulation_worker::simulation_worker(const settings &settings,
                              const material_mix_table &material_table)
     : m_state(state::init)
     , m_solver(m_registry)
@@ -86,7 +86,7 @@ island_worker::island_worker(const settings &settings,
     m_registry.ctx().emplace<edyn::settings>(settings);
     m_registry.ctx().emplace<material_mix_table>(material_table);
 
-    m_this_job.func = &island_worker_func;
+    m_this_job.func = &simulation_worker_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
     auto ctx_intptr = reinterpret_cast<intptr_t>(this);
     archive(ctx_intptr);
@@ -94,35 +94,35 @@ island_worker::island_worker(const settings &settings,
     m_last_time = performance_time();
 
     // Reschedule every time a message is added to the queue.
-    m_message_queue.push_sink().connect<&island_worker::reschedule>(*this);
+    m_message_queue.push_sink().connect<&simulation_worker::reschedule>(*this);
 }
 
-void island_worker::init() {
-    m_registry.on_construct<graph_node>().connect<&island_worker::on_construct_shared_entity>(*this);
-    m_registry.on_construct<graph_edge>().connect<&island_worker::on_construct_shared_entity>(*this);
-    m_registry.on_construct<island>().connect<&island_worker::on_construct_shared_entity>(*this);
+void simulation_worker::init() {
+    m_registry.on_construct<graph_node>().connect<&simulation_worker::on_construct_shared_entity>(*this);
+    m_registry.on_construct<graph_edge>().connect<&simulation_worker::on_construct_shared_entity>(*this);
+    m_registry.on_construct<island>().connect<&simulation_worker::on_construct_shared_entity>(*this);
 
-    m_registry.on_destroy<graph_node>().connect<&island_worker::on_destroy_shared_entity>(*this);
-    m_registry.on_destroy<graph_edge>().connect<&island_worker::on_destroy_shared_entity>(*this);
-    m_registry.on_destroy<island>().connect<&island_worker::on_destroy_shared_entity>(*this);
+    m_registry.on_destroy<graph_node>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
+    m_registry.on_destroy<graph_edge>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
+    m_registry.on_destroy<island>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
 
-    m_registry.on_construct<sleeping_tag>().connect<&island_worker::on_construct_sleeping_tag>(*this);
-    m_registry.on_destroy<sleeping_tag>().connect<&island_worker::on_destroy_sleeping_tag>(*this);
+    m_registry.on_construct<sleeping_tag>().connect<&simulation_worker::on_construct_sleeping_tag>(*this);
+    m_registry.on_destroy<sleeping_tag>().connect<&simulation_worker::on_destroy_sleeping_tag>(*this);
 
-    m_message_queue.sink<msg::update_entities>().connect<&island_worker::on_update_entities>(*this);
-    m_message_queue.sink<msg::set_paused>().connect<&island_worker::on_set_paused>(*this);
-    m_message_queue.sink<msg::step_simulation>().connect<&island_worker::on_step_simulation>(*this);
-    m_message_queue.sink<msg::set_com>().connect<&island_worker::on_set_com>(*this);
-    m_message_queue.sink<msg::set_settings>().connect<&island_worker::on_set_settings>(*this);
-    m_message_queue.sink<msg::set_material_table>().connect<&island_worker::on_set_material_table>(*this);
-    m_message_queue.sink<msg::raycast_request>().connect<&island_worker::on_raycast_request>(*this);
-    m_message_queue.sink<msg::apply_network_pools>().connect<&island_worker::on_apply_network_pools>(*this);
+    m_message_queue.sink<msg::update_entities>().connect<&simulation_worker::on_update_entities>(*this);
+    m_message_queue.sink<msg::set_paused>().connect<&simulation_worker::on_set_paused>(*this);
+    m_message_queue.sink<msg::step_simulation>().connect<&simulation_worker::on_step_simulation>(*this);
+    m_message_queue.sink<msg::set_com>().connect<&simulation_worker::on_set_com>(*this);
+    m_message_queue.sink<msg::set_settings>().connect<&simulation_worker::on_set_settings>(*this);
+    m_message_queue.sink<msg::set_material_table>().connect<&simulation_worker::on_set_material_table>(*this);
+    m_message_queue.sink<msg::raycast_request>().connect<&simulation_worker::on_raycast_request>(*this);
+    m_message_queue.sink<msg::apply_network_pools>().connect<&simulation_worker::on_apply_network_pools>(*this);
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
 
     // If this is a networked client, expect extrapolation results.
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
-        m_message_queue.sink<extrapolation_result>().connect<&island_worker::on_extrapolation_result>(*this);
+        m_message_queue.sink<extrapolation_result>().connect<&simulation_worker::on_extrapolation_result>(*this);
     }
 
     // Process messages enqueued before the worker was started.
@@ -133,14 +133,14 @@ void island_worker::init() {
     }
 }
 
-void island_worker::on_construct_shared_entity(entt::registry &registry, entt::entity entity) {
+void simulation_worker::on_construct_shared_entity(entt::registry &registry, entt::entity entity) {
     if (!m_importing) {
         m_op_builder->create(entity);
         m_op_builder->emplace_all(entity);
     }
 }
 
-void island_worker::on_destroy_shared_entity(entt::registry &registry, entt::entity entity) {
+void simulation_worker::on_destroy_shared_entity(entt::registry &registry, entt::entity entity) {
     // If importing, do not insert this event into the op because the entity
     // was already destroyed in the coordinator.
     if (!m_importing) {
@@ -152,11 +152,11 @@ void island_worker::on_destroy_shared_entity(entt::registry &registry, entt::ent
     }
 }
 
-void island_worker::on_construct_sleeping_tag(entt::registry &registry, entt::entity entity) {
+void simulation_worker::on_construct_sleeping_tag(entt::registry &registry, entt::entity entity) {
     m_op_builder->emplace<sleeping_tag>(entity);
 }
 
-void island_worker::on_destroy_sleeping_tag(entt::registry &registry, entt::entity entity) {
+void simulation_worker::on_destroy_sleeping_tag(entt::registry &registry, entt::entity entity) {
     m_op_builder->remove<sleeping_tag>(entity);
 }
 
@@ -237,7 +237,7 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
     }
 }
 
-void island_worker::on_update_entities(const message<msg::update_entities> &msg) {
+void simulation_worker::on_update_entities(const message<msg::update_entities> &msg) {
     // Import components from main registry.
     m_importing = true;
     import_reg_ops(m_registry, m_entity_map, msg.content.ops);
@@ -256,7 +256,7 @@ void island_worker::on_update_entities(const message<msg::update_entities> &msg)
     wake_up_affected_islands(msg.content.ops);
 }
 
-bool island_worker::all_sleeping() {
+bool simulation_worker::all_sleeping() {
     auto sleeping_view = m_registry.view<sleeping_tag>();
     auto island_view = m_registry.view<island_tag>();
 
@@ -269,7 +269,7 @@ bool island_worker::all_sleeping() {
     return true;
 }
 
-void island_worker::wake_up_affected_islands(const registry_operation_collection &ops) {
+void simulation_worker::wake_up_affected_islands(const registry_operation_collection &ops) {
     // Collect islands of all entities which had a component
     // emplaced/replaced/removed by the registry operations and wake them up.
     auto resident_view = m_registry.view<island_resident>();
@@ -300,7 +300,7 @@ void island_worker::wake_up_affected_islands(const registry_operation_collection
     }
 }
 
-void island_worker::sync() {
+void simulation_worker::sync() {
     // Always update discontinuities since they decay in every step.
     m_op_builder->replace<discontinuity>();
 
@@ -322,7 +322,7 @@ void island_worker::sync() {
     }
 }
 
-void island_worker::sync_dirty() {
+void simulation_worker::sync_dirty() {
     // Assign dirty components to the operation builder. This can be called at
     // any time to move the current dirty entities into the next operation.
     m_registry.view<dirty>().each([&](entt::entity entity, dirty &dirty) {
@@ -338,7 +338,7 @@ void island_worker::sync_dirty() {
     m_registry.clear<dirty>();
 }
 
-void island_worker::run_state_machine() {
+void simulation_worker::run_state_machine() {
     switch (m_state) {
     case state::init:
         init();
@@ -404,11 +404,11 @@ void island_worker::run_state_machine() {
     }
 }
 
-void island_worker::update() {
+void simulation_worker::update() {
     run_state_machine();
 }
 
-void island_worker::process_messages() {
+void simulation_worker::process_messages() {
     m_message_queue.update();
 
     // Initialize new nodes, edges and shapes that might've been created while
@@ -417,7 +417,7 @@ void island_worker::process_messages() {
     m_poly_initializer.init_new_shapes();
 }
 
-bool island_worker::should_step() {
+bool simulation_worker::should_step() {
     auto time = performance_time();
 
     if (m_state == state::begin_step || m_force_step) {
@@ -444,7 +444,7 @@ bool island_worker::should_step() {
     return true;
 }
 
-void island_worker::begin_step() {
+void simulation_worker::begin_step() {
     EDYN_ASSERT(m_state == state::begin_step);
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
@@ -463,7 +463,7 @@ void island_worker::begin_step() {
     m_state = state::broadphase;
 }
 
-bool island_worker::run_solver() {
+bool simulation_worker::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
     m_solver.update(m_registry.ctx().at<edyn::settings>().fixed_dt);
     return true;
@@ -477,7 +477,7 @@ static void decay_discontinuities(entt::registry &registry, scalar rate) {
     });
 }
 
-void island_worker::finish_step() {
+void simulation_worker::finish_step() {
     EDYN_ASSERT(m_state == state::finish_step);
 
     auto dt = m_step_start_time - m_last_time;
@@ -521,11 +521,11 @@ void island_worker::finish_step() {
     m_state = state::start;
 }
 
-void island_worker::reschedule_now() {
+void simulation_worker::reschedule_now() {
     job_dispatcher::global().async(m_this_job);
 }
 
-void island_worker::maybe_reschedule() {
+void simulation_worker::maybe_reschedule() {
     auto paused = m_registry.ctx().at<edyn::settings>().paused;
 
     // The update is done and this job can be rescheduled after this point
@@ -544,7 +544,7 @@ void island_worker::maybe_reschedule() {
     }
 }
 
-void island_worker::reschedule_later() {
+void simulation_worker::reschedule_later() {
     // Only reschedule if it has not been scheduled and updated already.
     auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
     if (reschedule_count > 0) return;
@@ -562,7 +562,7 @@ void island_worker::reschedule_later() {
     }
 }
 
-void island_worker::reschedule() {
+void simulation_worker::reschedule() {
     // Only reschedule if it has not been scheduled and updated already.
     auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
     if (reschedule_count > 0) return;
@@ -570,7 +570,7 @@ void island_worker::reschedule() {
     job_dispatcher::global().async(m_this_job);
 }
 
-void island_worker::maybe_go_to_sleep(entt::entity island_entity) {
+void simulation_worker::maybe_go_to_sleep(entt::entity island_entity) {
     if (m_registry.any_of<sleeping_tag>(island_entity)) {
         return;
     }
@@ -592,7 +592,7 @@ void island_worker::maybe_go_to_sleep(entt::entity island_entity) {
     }
 }
 
-void island_worker::consume_raycast_results() {
+void simulation_worker::consume_raycast_results() {
     auto &dispatcher = message_dispatcher::global();
     m_raycast_service.consume_results([&](unsigned id, raycast_result &result) {
         dispatcher.send<msg::raycast_response>(
@@ -600,35 +600,35 @@ void island_worker::consume_raycast_results() {
     });
 }
 
-void island_worker::on_set_paused(const message<msg::set_paused> &msg) {
+void simulation_worker::on_set_paused(const message<msg::set_paused> &msg) {
     m_registry.ctx().at<edyn::settings>().paused = msg.content.paused;
     m_last_time = performance_time();
 }
 
-void island_worker::on_step_simulation(const message<msg::step_simulation> &) {
+void simulation_worker::on_step_simulation(const message<msg::step_simulation> &) {
     if (!all_sleeping()) {
         m_force_step = true;
     }
 }
 
-void island_worker::on_set_settings(const message<msg::set_settings> &msg) {
+void simulation_worker::on_set_settings(const message<msg::set_settings> &msg) {
     m_registry.ctx().at<settings>() = msg.content.settings;
 }
 
-void island_worker::on_set_material_table(const message<msg::set_material_table> &msg) {
+void simulation_worker::on_set_material_table(const message<msg::set_material_table> &msg) {
     m_registry.ctx().at<material_mix_table>() = msg.content.table;
 }
 
-void island_worker::on_set_com(const message<msg::set_com> &msg) {
+void simulation_worker::on_set_com(const message<msg::set_com> &msg) {
     auto entity = m_entity_map.at(msg.content.entity);
     apply_center_of_mass(m_registry, entity, msg.content.com);
 }
 
-void island_worker::on_raycast_request(const message<msg::raycast_request> &msg) {
+void simulation_worker::on_raycast_request(const message<msg::raycast_request> &msg) {
     m_raycast_service.add_ray(msg.content.p0, msg.content.p1, msg.content.id);
 }
 
-void island_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {
+void simulation_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {
     auto &manifold_map = m_registry.ctx().at<contact_manifold_map>();
 
     for (auto manifold : manifolds) {
@@ -674,7 +674,7 @@ static void accumulate_discontinuities(entt::registry &registry) {
     }
 }
 
-void island_worker::on_extrapolation_result(const message<extrapolation_result> &msg) {
+void simulation_worker::on_extrapolation_result(const message<extrapolation_result> &msg) {
     auto &result = msg.content;
     EDYN_ASSERT(!result.ops.empty());
 
@@ -687,7 +687,7 @@ void island_worker::on_extrapolation_result(const message<extrapolation_result> 
     import_contact_manifolds(result.manifolds);
 }
 
-void island_worker::on_apply_network_pools(const message<msg::apply_network_pools> &msg) {
+void simulation_worker::on_apply_network_pools(const message<msg::apply_network_pools> &msg) {
     EDYN_ASSERT(!msg.content.pools.empty());
 
     assign_previous_transforms(m_registry);
@@ -699,20 +699,20 @@ void island_worker::on_apply_network_pools(const message<msg::apply_network_pool
     accumulate_discontinuities(m_registry);
 }
 
-bool island_worker::is_terminated() const {
+bool simulation_worker::is_terminated() const {
     return m_terminated.load(std::memory_order_acquire);
 }
 
-bool island_worker::is_terminating() const {
+bool simulation_worker::is_terminating() const {
     return m_terminating.load(std::memory_order_acquire);
 }
 
-void island_worker::terminate() {
+void simulation_worker::terminate() {
     m_terminating.store(true, std::memory_order_release);
     reschedule();
 }
 
-void island_worker::do_terminate() {
+void simulation_worker::do_terminate() {
     {
         auto lock = std::lock_guard(m_terminate_mutex);
         m_terminated.store(true, std::memory_order_release);
@@ -720,7 +720,7 @@ void island_worker::do_terminate() {
     m_terminate_cv.notify_one();
 }
 
-void island_worker::join() {
+void simulation_worker::join() {
     auto lock = std::unique_lock(m_terminate_mutex);
     m_terminate_cv.wait(lock, [&] { return is_terminated(); });
 }

@@ -8,7 +8,7 @@
 #include "edyn/collision/raycast.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
-#include "edyn/parallel/island_worker_context.hpp"
+#include "edyn/parallel/simulation_worker_context.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/util/registry_operation.hpp"
@@ -16,7 +16,7 @@
 
 namespace edyn {
 
-class island_worker;
+class simulation_worker;
 
 /**
  * Manages all simulation islands. Creates and destroys island workers as necessary
@@ -71,7 +71,7 @@ public:
 
     void material_table_changed();
 
-    double get_worker_timestamp() const;
+    double get_simulation_timestamp() const;
 
     auto contact_started_sink() {
         return entt::sink{m_contact_started_signal};
@@ -108,7 +108,7 @@ public:
 
 private:
     entt::registry *m_registry;
-    std::unique_ptr<island_worker_context> m_worker_ctx;
+    std::unique_ptr<simulation_worker_context> m_worker_ctx;
     message_queue_handle<
         msg::step_update,
         msg::raycast_response

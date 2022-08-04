@@ -14,7 +14,7 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/parallel/island_worker.hpp"
+#include "edyn/parallel/simulation_worker.hpp"
 #include "edyn/comp/dirty.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/parallel/entity_graph.hpp"
@@ -148,20 +148,20 @@ void island_coordinator::init_new_nodes_and_edges() {
 }
 
 void island_coordinator::create_worker() {
-    // The `island_worker` is dynamically allocated and kept alive while
-    // the associated island lives. The job that's created for it calls its
+    // The `simulationworker` is dynamically allocated and kept alive while
+    // the simulation runs asynchronously. The job that's created for it calls its
     // `update` function which reschedules itself to be run over and over again.
-    // After the `finish` function is called on it (when the island is destroyed),
-    // it will be deallocated on the next run.
+    // After the `finish` function is called on it it will be deallocated on the
+    // next run.
     auto &settings = m_registry->ctx().at<edyn::settings>();
     auto &material_table = m_registry->ctx().at<edyn::material_mix_table>();
-    auto *worker = new island_worker(settings, material_table);
+    auto *worker = new simulation_worker(settings, material_table);
 
-    m_worker_ctx = std::make_unique<island_worker_context>(worker, (*settings.make_reg_op_builder)(*m_registry));
+    m_worker_ctx = std::make_unique<simulation_worker_context>(worker, (*settings.make_reg_op_builder)(*m_registry));
     m_worker_ctx->m_timestamp = performance_time();
 }
 
-double island_coordinator::get_worker_timestamp() const {
+double island_coordinator::get_simulation_timestamp() const {
     return m_worker_ctx->m_timestamp;
 }
 
