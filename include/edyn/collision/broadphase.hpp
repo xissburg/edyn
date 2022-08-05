@@ -25,13 +25,14 @@ class broadphase {
 
     void init_new_aabb_entities();
 
-    void collide_tree(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb);
+    void collide_tree(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb) const;
     void collide_tree_async(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb, size_t result_index);
 
     void common_update();
 
 public:
     broadphase(entt::registry &);
+    void update(bool mt);
     bool update(job &completion_job);
 
     template<typename Func>

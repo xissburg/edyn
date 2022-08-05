@@ -17,6 +17,13 @@ void narrowphase::clear_contact_manifold_events() {
     });
 }
 
+void narrowphase::update(bool mt) {
+    clear_contact_manifold_events();
+    update_contact_distances(*m_registry);
+    auto manifold_view = m_registry->view<contact_manifold>();
+    update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
+}
+
 bool narrowphase::update(job &completion_job) {
     switch (m_state) {
     case state::begin:

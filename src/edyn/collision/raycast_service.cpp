@@ -1,6 +1,7 @@
 #include "edyn/collision/raycast_service.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
+#include "edyn/util/vector_util.hpp"
 
 namespace edyn {
 
@@ -68,7 +69,9 @@ bool raycast_service::run_broadphase(job &completion_job) {
     parallel_for_async(dispatcher, size_t{}, raycasts->size(), size_t{1}, completion_job, [raycasts, &bphase](size_t index) {
         auto &ctx = (*raycasts)[index];
         bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
-            ctx.candidates.push_back(entity);
+            if (!vector_contains(ctx.ignore_entities, entity)) {
+                ctx.candidates.push_back(entity);
+            }
         });
     });
 

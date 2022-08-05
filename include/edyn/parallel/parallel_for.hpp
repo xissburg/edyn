@@ -207,7 +207,9 @@ void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last
     auto count = std::distance(first, last);
 
     parallel_for(dispatcher, size_t{0}, static_cast<size_t>(count), size_t{1}, [&](size_t index) {
-        func(first + index);
+        auto it = first;
+        std::advance(it, index);
+        func(it);
     });
 }
 

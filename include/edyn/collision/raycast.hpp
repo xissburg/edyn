@@ -15,6 +15,7 @@
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/shapes/shapes.hpp"
+#include "edyn/util/vector_util.hpp"
 
 namespace edyn {
 
@@ -154,15 +155,20 @@ static constexpr auto invalid_raycast_id = std::numeric_limits<raycast_id_type>:
 using raycast_delegate_type = entt::delegate<void(raycast_id_type, const raycast_result &, vector3, vector3)>;
 
 /**
- * @brief Performs a raycast query on a registry.
+ * @brief Performs a raycast query asynchronously. Only call this function if
+ * Edyn was initialized in `execution_mode::asynchronous`.
  * @param registry Data source.
  * @param p0 First point in the ray.
  * @param p1 Second point in the ray.
- * @param ignore_func Function that returns whether an entity should be ignored.
- * @param result_func Function that will be called when the result is ready.
+ * @param delegate Triggered when the results are available.
+ * @param ignore_entities Entities to be ignored during raycast.
  */
-raycast_id_type raycast(entt::registry &registry, vector3 p0, vector3 p1,
-                        const raycast_delegate_type &delegate);
+raycast_id_type raycast_async(entt::registry &registry, vector3 p0, vector3 p1,
+                              const raycast_delegate_type &delegate,
+                              const std::vector<entt::entity> &ignore_entities = {});
+
+raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
+                       const std::vector<entt::entity> &ignore_entities = {});
 
 // Raycast functions for each shape.
 

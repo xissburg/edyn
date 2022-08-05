@@ -26,7 +26,6 @@ void print_entities(entt::registry& registry) {
 
 int main(int argc, char** argv) {
     entt::registry registry;
-    edyn::init();
     edyn::attach(registry);
     edyn::set_fixed_dt(registry, 0.041);
 
@@ -44,7 +43,6 @@ int main(int argc, char** argv) {
     }
 
     edyn::detach(registry);
-    edyn::deinit();
 
     return 0;
 }

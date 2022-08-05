@@ -94,14 +94,16 @@ public:
         m_worker_ctx->send<Message>(m_message_queue_handle.identifier, std::forward<Args>(args)...);
     }
 
-    raycast_id_type raycast_workers(vector3 p0, vector3 p1, const raycast_delegate_type &delegate) {
+    raycast_id_type raycast(vector3 p0, vector3 p1,
+                            const raycast_delegate_type &delegate,
+                            std::vector<entt::entity> ignore_entities = {}) {
         auto id = m_next_raycast_id++;
         auto &ctx = m_raycast_ctx[id];
         ctx.delegate = delegate;
         ctx.p0 = p0;
         ctx.p1 = p1;
 
-        m_worker_ctx->send<msg::raycast_request>(m_message_queue_handle.identifier, id, p0, p1);
+        m_worker_ctx->send<msg::raycast_request>(m_message_queue_handle.identifier, id, p0, p1, ignore_entities);
 
         return id;
     }

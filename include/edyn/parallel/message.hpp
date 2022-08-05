@@ -59,6 +59,7 @@ struct apply_network_pools {
 struct raycast_request {
     unsigned int id;
     vector3 p0, p1;
+    std::vector<entt::entity> ignore_entities;
 };
 
 struct raycast_response {

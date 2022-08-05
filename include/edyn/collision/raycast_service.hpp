@@ -18,6 +18,7 @@ class raycast_service {
     struct broadphase_context {
         unsigned id;
         vector3 p0, p1;
+        std::vector<entt::entity> ignore_entities;
         std::vector<entt::entity> candidates;
     };
 
@@ -37,8 +38,8 @@ class raycast_service {
 public:
     raycast_service(entt::registry &registry);
 
-    void add_ray(vector3 p0, vector3 p1, unsigned id) {
-        m_broad_ctx.push_back(broadphase_context{id, p0, p1});
+    void add_ray(vector3 p0, vector3 p1, unsigned id, const std::vector<entt::entity> &ignore_entities) {
+        m_broad_ctx.push_back(broadphase_context{id, p0, p1, ignore_entities});
     }
 
     bool update(job &completion_job);

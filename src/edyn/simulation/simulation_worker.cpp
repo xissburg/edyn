@@ -413,7 +413,7 @@ void simulation_worker::process_messages() {
 
     // Initialize new nodes, edges and shapes that might've been created while
     // processing messages.
-    m_island_manager.update();
+    m_island_manager.update(m_step_start_time);
     m_poly_initializer.init_new_shapes();
 }
 
@@ -454,7 +454,7 @@ void simulation_worker::begin_step() {
 
     // Calculate islands after running external logic, which could've created
     // and destroyed nodes and edges.
-    m_island_manager.update();
+    m_island_manager.update(m_step_start_time);
 
     // Initialize new shapes. Basically, create rotated meshes for new
     // imported polyhedron shapes.
@@ -599,7 +599,15 @@ void simulation_worker::on_set_com(const message<msg::set_com> &msg) {
 }
 
 void simulation_worker::on_raycast_request(const message<msg::raycast_request> &msg) {
-    m_raycast_service.add_ray(msg.content.p0, msg.content.p1, msg.content.id);
+    auto ignore_entities = std::vector<entt::entity>{};
+
+    for (auto remote_entity : msg.content.ignore_entities) {
+        if (m_entity_map.contains(remote_entity)) {
+            auto local_entity = m_entity_map.at(remote_entity);
+            ignore_entities.push_back(local_entity);
+        }
+    }
+    m_raycast_service.add_ray(msg.content.p0, msg.content.p1, msg.content.id, ignore_entities);
 }
 
 void simulation_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {

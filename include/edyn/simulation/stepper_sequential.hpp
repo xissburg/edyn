@@ -10,13 +10,13 @@
 namespace edyn {
 
 class stepper_sequential {
-
-    void step_simulation(double dt);
-
 public:
-    stepper_sequential(entt::registry &registry);
-
+    stepper_sequential(entt::registry &registry, bool multithreaded);
     void update();
+
+    double get_timestamp() const {
+        return m_last_time;
+    }
 
 private:
     entt::registry *m_registry;

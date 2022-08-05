@@ -57,21 +57,10 @@ struct init_config {
 };
 
 /**
- * @brief Initializes Edyn's internals such as its thread pool and job system.
- * Call it before using Edyn.
- */
-void init(const init_config &config = {});
-
-/**
- * @brief Undoes what was done by `init()`. Call it when Edyn is not needed anymore.
- */
-void deinit();
-
-/**
  * @brief Attaches Edyn to an EnTT registry.
  * @param registry The registry to be setup to run Edyn.
  */
-void attach(entt::registry &registry);
+void attach(entt::registry &registry, const init_config &config = {});
 
 /**
  * @brief Detaches Edyn from an EnTT registry.

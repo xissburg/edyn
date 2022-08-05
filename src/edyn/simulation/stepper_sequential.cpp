@@ -10,22 +10,15 @@
 
 namespace edyn {
 
-stepper_sequential::stepper_sequential(entt::registry &registry)
+stepper_sequential::stepper_sequential(entt::registry &registry, bool multithreaded)
     : m_registry(&registry)
     , m_island_manager(registry)
     , m_raycast_service(registry)
     , m_poly_initializer(registry)
     , m_solver(registry)
+    , m_multithreaded(multithreaded)
 {
     m_last_time = performance_time();
-}
-
-void stepper_sequential::step_simulation(double dt) {
-    m_poly_initializer.init_new_shapes();
-    m_registry->ctx().at<broadphase>().update();
-    m_island_manager.update();
-    m_registry->ctx().at<narrowphase>().update();
-    m_solver.update(dt);
 }
 
 void stepper_sequential::update() {
@@ -40,9 +33,14 @@ void stepper_sequential::update() {
     int max_steps = 20;
     num_steps = std::min(num_steps, max_steps);
 
+    m_poly_initializer.init_new_shapes();
+
     for (int i = 0; i < num_steps; ++i) {
-        step_simulation(elapsed);
-        m_island_manager.update(m_last_time + fixed_dt * i);
+        auto step_time = m_last_time + fixed_dt * i;
+        m_registry->ctx().at<broadphase>().update(m_multithreaded);
+        m_island_manager.update(step_time);
+        m_registry->ctx().at<narrowphase>().update(m_multithreaded);
+        m_solver.update(elapsed);
     }
 
     m_last_time = time;

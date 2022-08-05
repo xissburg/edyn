@@ -10,10 +10,51 @@
 
 namespace edyn {
 
-raycast_id_type raycast(entt::registry &registry, vector3 p0, vector3 p1,
-                        const raycast_delegate_type &delegate) {
+raycast_id_type raycast_async(entt::registry &registry, vector3 p0, vector3 p1,
+                              const raycast_delegate_type &delegate,
+                              const std::vector<entt::entity> &ignore_entities) {
     auto &coordinator = registry.ctx().at<island_coordinator>();
-    return coordinator.raycast_workers(p0, p1, delegate);
+    return coordinator.raycast(p0, p1, delegate, ignore_entities);
+}
+
+raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
+                       const std::vector<entt::entity> &ignore_entities) {
+    auto index_view = registry.view<shape_index>();
+    auto tr_view = registry.view<position, orientation>();
+    auto origin_view = registry.view<origin>();
+    auto shape_views_tuple = get_tuple_of_shape_views(registry);
+
+    entt::entity hit_entity {entt::null};
+    shape_raycast_result result;
+
+    auto raycast_shape = [&](entt::entity entity) {
+        auto sh_idx = index_view.get<shape_index>(entity);
+        auto pos = origin_view.contains(entity) ?
+            static_cast<vector3>(origin_view.get<origin>(entity)) :
+            tr_view.get<position>(entity);
+        auto orn = tr_view.get<orientation>(entity);
+        auto ctx = raycast_context{pos, orn, p0, p1};
+
+        visit_shape(sh_idx, entity, shape_views_tuple, [&](auto &&shape) {
+            auto res = shape_raycast(shape, ctx);
+
+            if (res.fraction < result.fraction) {
+                result = res;
+                hit_entity = entity;
+            }
+        });
+    };
+
+    // This function works both in the coordinator and in an island worker.
+    // Pick the available broadphase and raycast their AABB trees.
+    auto &bphase = registry.ctx().at<broadphase>();
+    bphase.raycast(p0, p1, [&](entt::entity entity) {
+        if (!vector_contains(ignore_entities, entity)) {
+            raycast_shape(entity);
+        }
+    });
+
+    return {result, hit_entity};
 }
 
 shape_raycast_result shape_raycast(const box_shape &box, const raycast_context &ctx) {

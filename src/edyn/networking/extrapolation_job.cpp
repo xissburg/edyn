@@ -101,7 +101,7 @@ void extrapolation_job::load_input() {
     }, constraints_tuple);
 
     // Create islands.
-    m_island_manager.update();
+    m_island_manager.update(m_start_time);
 
     // Initialize shapes.
     m_poly_initializer.init_new_shapes();
@@ -248,7 +248,7 @@ void extrapolation_job::run_state_machine() {
         }
         break;
     case state::update_islands:
-        m_island_manager.update();
+        m_island_manager.update(m_current_time);
         m_state = state::narrowphase;
         run_state_machine();
         break;

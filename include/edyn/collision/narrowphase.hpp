@@ -42,6 +42,7 @@ class narrowphase {
 public:
     narrowphase(entt::registry &);
 
+    void update(bool mt);
     bool update(job &completion_job);
 
     /**

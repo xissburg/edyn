@@ -1,8 +1,11 @@
 #include "edyn/edyn.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/narrowphase.hpp"
+#include "edyn/config/execution_mode.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/sys/update_presentation.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include <entt/meta/factory.hpp>
@@ -27,32 +30,42 @@ static void init_meta() {
         .data<&entity_owner::client_entity, entt::as_ref_t>("client_entity"_hs);
 }
 
-void init(const init_config &config) {
+void attach(entt::registry &registry, const init_config &config) {
     init_meta();
 
     auto &dispatcher = job_dispatcher::global();
+    auto num_workers = config.execution_mode == execution_mode::sequential ? 1 : config.num_worker_threads;
 
     if (!dispatcher.running()) {
-        if (config.num_worker_threads == 0) {
+        if (num_workers == 0) {
             dispatcher.start();
         } else {
-            dispatcher.start(config.num_worker_threads);
+            dispatcher.start(num_workers);
         }
 
         dispatcher.assure_current_queue();
     }
-}
 
-void deinit() {
-    job_dispatcher::global().stop();
-}
-
-void attach(entt::registry &registry) {
     registry.ctx().emplace<settings>();
     registry.ctx().emplace<entity_graph>();
     registry.ctx().emplace<material_mix_table>();
     registry.ctx().emplace<contact_manifold_map>(registry);
-    registry.ctx().emplace<island_coordinator>(registry);
+
+    switch (config.execution_mode) {
+    case execution_mode::sequential:
+        registry.ctx().emplace<broadphase>(registry);
+        registry.ctx().emplace<narrowphase>(registry);
+        registry.ctx().emplace<stepper_sequential>(registry, false);
+        break;
+    case execution_mode::sequential_mt:
+        registry.ctx().emplace<broadphase>(registry);
+        registry.ctx().emplace<narrowphase>(registry);
+        registry.ctx().emplace<stepper_sequential>(registry, true);
+        break;
+    case execution_mode::asynchronous:
+        registry.ctx().emplace<island_coordinator>(registry);
+        break;
+    }
 }
 
 void detach(entt::registry &registry) {
@@ -61,6 +74,10 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<material_mix_table>();
     registry.ctx().erase<contact_manifold_map>();
     registry.ctx().erase<island_coordinator>();
+    registry.ctx().erase<stepper_sequential>();
+
+    job_dispatcher::global().stop();
+
 }
 
 scalar get_fixed_dt(const entt::registry &registry) {
@@ -85,8 +102,11 @@ void update(entt::registry &registry) {
     // Run jobs scheduled in physics thread.
     job_dispatcher::global().once_current_queue();
 
-    // Do island management. Merge updated entity state into main registry.
-    registry.ctx().at<island_coordinator>().update();
+    if (registry.ctx().contains<island_coordinator>()) {
+        registry.ctx().at<island_coordinator>().update();
+    } else if (registry.ctx().contains<stepper_sequential>()) {
+        registry.ctx().at<stepper_sequential>().update();
+    }
 
     if (is_paused(registry)) {
         snap_presentation(registry);

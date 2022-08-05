@@ -8,6 +8,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/parallel/parallel_for.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/context/settings.hpp"
@@ -100,7 +101,7 @@ void destroy_separated_manifolds(entt::registry &registry) {
 }
 
 void broadphase::collide_tree(const dynamic_tree &tree, entt::entity entity,
-                                     const AABB &offset_aabb) {
+                                     const AABB &offset_aabb) const {
     auto aabb_view = m_registry->view<AABB>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
     auto &manifold_map = m_registry->ctx().at<contact_manifold_map>();
@@ -120,7 +121,7 @@ void broadphase::collide_tree(const dynamic_tree &tree, entt::entity entity,
 }
 
 void broadphase::collide_tree_async(const dynamic_tree &tree, entt::entity entity,
-                                           const AABB &offset_aabb, size_t result_index) {
+                                    const AABB &offset_aabb, size_t result_index) {
     auto aabb_view = m_registry->view<AABB>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
 
@@ -160,19 +161,34 @@ void broadphase::common_update() {
     });
 }
 
+void broadphase::update(bool mt) {
+    // Search for new AABB intersections and create manifolds.
+    auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
+
+    if (mt && aabb_proc_view.size_hint() > m_max_sequential_size) {
+        parallel_for_each(aabb_proc_view.begin(), aabb_proc_view.end(), [&](auto &&it) {
+            auto entity = *it;
+            auto [aabb] = aabb_proc_view.get(entity);
+            auto offset_aabb = aabb.inset(m_aabb_offset);
+            collide_tree(m_tree, entity, offset_aabb);
+            collide_tree(m_np_tree, entity, offset_aabb);
+        });
+    } else {
+        for (auto [entity, aabb] : aabb_proc_view.each()) {
+            auto offset_aabb = aabb.inset(m_aabb_offset);
+            collide_tree(m_tree, entity, offset_aabb);
+            collide_tree(m_np_tree, entity, offset_aabb);
+        }
+    }
+}
+
 bool broadphase::update(job &completion_job) {
     switch (m_state) {
     case state::begin:
         common_update();
 
         if (m_registry->view<AABB, procedural_tag>().size_hint() <= m_max_sequential_size) {
-            // Search for new AABB intersections and create manifolds.
-            auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
-            aabb_proc_view.each([&](entt::entity entity, AABB &aabb) {
-                auto offset_aabb = aabb.inset(m_aabb_offset);
-                collide_tree(m_tree, entity, offset_aabb);
-                collide_tree(m_np_tree, entity, offset_aabb);
-            });
+            update(false);
             return true;
         } else {
             m_state = state::collide;
