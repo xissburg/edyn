@@ -4,7 +4,6 @@
 #include <vector>
 #include <memory>
 #include <entt/entity/fwd.hpp>
-#include <entt/signal/sigh.hpp>
 #include "edyn/collision/raycast.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
@@ -53,8 +52,6 @@ public:
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
 
-    void on_destroy_contact_manifold(entt::registry &, entt::entity);
-
     void on_step_update(const message<msg::step_update> &);
     void on_raycast_response(const message<msg::raycast_response> &);
 
@@ -72,22 +69,6 @@ public:
     void material_table_changed();
 
     double get_simulation_timestamp() const;
-
-    auto contact_started_sink() {
-        return entt::sink{m_contact_started_signal};
-    }
-
-    auto contact_ended_sink() {
-        return entt::sink{m_contact_ended_signal};
-    }
-
-    auto contact_point_created_sink() {
-        return entt::sink{m_contact_point_created_signal};
-    }
-
-    auto contact_point_destroyed_sink() {
-        return entt::sink{m_contact_point_destroyed_signal};
-    }
 
     template<typename Message, typename... Args>
     void send_island_message(entt::entity island_entity, Args &&... args) {
@@ -115,11 +96,6 @@ private:
         msg::step_update,
         msg::raycast_response
     > m_message_queue_handle;
-
-    entt::sigh<void(entt::entity)> m_contact_started_signal;
-    entt::sigh<void(entt::entity)> m_contact_ended_signal;
-    entt::sigh<void(entt::entity, contact_manifold::contact_id_type)> m_contact_point_created_signal;
-    entt::sigh<void(entt::entity, contact_manifold::contact_id_type)> m_contact_point_destroyed_signal;
 
     std::vector<entt::entity> m_new_graph_nodes;
     std::vector<entt::entity> m_new_graph_edges;

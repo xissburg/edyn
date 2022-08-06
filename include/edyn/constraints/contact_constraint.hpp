@@ -57,6 +57,9 @@ namespace internal {
 }
 
 template<>
+void init_constraints<contact_constraint>(entt::registry &);
+
+template<>
 void prepare_constraints<contact_constraint>(entt::registry &, row_cache &, scalar dt);
 
 template<>

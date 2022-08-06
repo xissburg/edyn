@@ -13,7 +13,6 @@ scalar solve(constraint_row &row);
 class solver {
 public:
     solver(entt::registry &);
-    ~solver();
 
     void update(scalar dt);
 

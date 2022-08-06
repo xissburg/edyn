@@ -71,6 +71,11 @@ namespace internal {
 }
 
 template<>
+void init_constraints<contact_constraint>(entt::registry &registry) {
+    registry.ctx().emplace<internal::contact_constraint_context>();
+}
+
+template<>
 void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
     auto body_view = registry.view<position, orientation, linvel, angvel,
                                    mass_inv, inertia_world_inv,

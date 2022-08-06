@@ -162,6 +162,8 @@ void broadphase::common_update() {
 }
 
 void broadphase::update(bool mt) {
+    common_update();
+
     // Search for new AABB intersections and create manifolds.
     auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
 
@@ -185,13 +187,13 @@ void broadphase::update(bool mt) {
 bool broadphase::update(job &completion_job) {
     switch (m_state) {
     case state::begin:
-        common_update();
 
         if (m_registry->view<AABB, procedural_tag>().size_hint() <= m_max_sequential_size) {
             update(false);
             return true;
         } else {
             m_state = state::collide;
+            common_update();
 
             auto aabb_proc_view = m_registry->view<AABB, procedural_tag>();
             size_t count = 0;

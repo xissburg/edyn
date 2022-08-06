@@ -1,7 +1,9 @@
 #include "edyn/edyn.hpp"
+#include "edyn/collision/contact_event_emitter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/config/execution_mode.hpp"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/simulation/island_coordinator.hpp"
@@ -50,17 +52,20 @@ void attach(entt::registry &registry, const init_config &config) {
     registry.ctx().emplace<entity_graph>();
     registry.ctx().emplace<material_mix_table>();
     registry.ctx().emplace<contact_manifold_map>(registry);
+    registry.ctx().emplace<contact_event_emitter>(registry);
 
     switch (config.execution_mode) {
     case execution_mode::sequential:
         registry.ctx().emplace<broadphase>(registry);
         registry.ctx().emplace<narrowphase>(registry);
         registry.ctx().emplace<stepper_sequential>(registry, false);
+        init_constraints(registry);
         break;
     case execution_mode::sequential_mt:
         registry.ctx().emplace<broadphase>(registry);
         registry.ctx().emplace<narrowphase>(registry);
         registry.ctx().emplace<stepper_sequential>(registry, true);
+        init_constraints(registry);
         break;
     case execution_mode::asynchronous:
         registry.ctx().emplace<island_coordinator>(registry);
@@ -77,7 +82,6 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<stepper_sequential>();
 
     job_dispatcher::global().stop();
-
 }
 
 scalar get_fixed_dt(const entt::registry &registry) {
@@ -86,7 +90,10 @@ scalar get_fixed_dt(const entt::registry &registry) {
 
 void set_fixed_dt(entt::registry &registry, scalar dt) {
     registry.ctx().at<settings>().fixed_dt = dt;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 bool is_paused(const entt::registry &registry) {
@@ -95,7 +102,12 @@ bool is_paused(const entt::registry &registry) {
 
 void set_paused(entt::registry &registry, bool paused) {
     registry.ctx().at<settings>().paused = paused;
-    registry.ctx().at<island_coordinator>().set_paused(paused);
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->set_paused(paused);
+    } else {
+        registry.ctx().at<stepper_sequential>().set_paused(paused);
+    }
 }
 
 void update(entt::registry &registry) {
@@ -124,7 +136,12 @@ void update(entt::registry &registry) {
 
 void step_simulation(entt::registry &registry) {
     EDYN_ASSERT(is_paused(registry));
-    registry.ctx().at<island_coordinator>().step_simulation();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->step_simulation();
+    } else {
+        registry.ctx().at<stepper_sequential>().step_simulation();
+    }
 }
 
 void remove_external_components(entt::registry &registry) {
@@ -132,22 +149,34 @@ void remove_external_components(entt::registry &registry) {
     settings.make_reg_op_builder = &make_reg_op_builder_default;
     settings.index_source.reset(new component_index_source_impl(shared_components_t{}));
     settings.clear_actions_func = nullptr;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 void set_external_system_init(entt::registry &registry, external_system_func_t func) {
     registry.ctx().at<settings>().external_system_init = func;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 void set_external_system_pre_step(entt::registry &registry, external_system_func_t func) {
     registry.ctx().at<settings>().external_system_pre_step = func;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 void set_external_system_post_step(entt::registry &registry, external_system_func_t func) {
     registry.ctx().at<settings>().external_system_post_step = func;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 void set_external_system_functions(entt::registry &registry,
@@ -158,7 +187,10 @@ void set_external_system_functions(entt::registry &registry,
     settings.external_system_init = init_func;
     settings.external_system_pre_step = pre_step_func;
     settings.external_system_post_step = post_step_func;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 void remove_external_systems(entt::registry &registry) {
@@ -166,7 +198,10 @@ void remove_external_systems(entt::registry &registry) {
     settings.external_system_init = nullptr;
     settings.external_system_pre_step = nullptr;
     settings.external_system_post_step = nullptr;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 void tag_external_entity(entt::registry &registry, entt::entity entity, bool procedural) {
@@ -182,7 +217,10 @@ void tag_external_entity(entt::registry &registry, entt::entity entity, bool pro
 
 void set_should_collide(entt::registry &registry, should_collide_func_t func) {
     registry.ctx().at<settings>().should_collide_func = func;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 bool manifold_exists(entt::registry &registry, entt::entity first, entt::entity second) {
@@ -204,19 +242,19 @@ entt::entity get_manifold_entity(const entt::registry &registry, entity_pair ent
 }
 
 entt::sink<entt::sigh<void(entt::entity)>> on_contact_started(entt::registry &registry) {
-    return registry.ctx().at<island_coordinator>().contact_started_sink();
+    return registry.ctx().at<contact_event_emitter>().contact_started_sink();
 }
 
 entt::sink<entt::sigh<void(entt::entity)>> on_contact_ended(entt::registry &registry) {
-    return registry.ctx().at<island_coordinator>().contact_ended_sink();
+    return registry.ctx().at<contact_event_emitter>().contact_ended_sink();
 }
 
 entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>> on_contact_point_created(entt::registry &registry) {
-    return registry.ctx().at<island_coordinator>().contact_point_created_sink();
+    return registry.ctx().at<contact_event_emitter>().contact_point_created_sink();
 }
 
 entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>> on_contact_point_destroyed(entt::registry &registry) {
-    return registry.ctx().at<island_coordinator>().contact_point_destroyed_sink();
+    return registry.ctx().at<contact_event_emitter>().contact_point_destroyed_sink();
 }
 
 vector3 get_gravity(const entt::registry &registry) {
@@ -241,7 +279,10 @@ unsigned get_solver_velocity_iterations(const entt::registry &registry) {
 void set_solver_velocity_iterations(entt::registry &registry, unsigned iterations) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.num_solver_velocity_iterations = iterations;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 unsigned get_solver_position_iterations(const entt::registry &registry) {
@@ -251,7 +292,10 @@ unsigned get_solver_position_iterations(const entt::registry &registry) {
 void set_solver_position_iterations(entt::registry &registry, unsigned iterations) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.num_solver_position_iterations = iterations;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 unsigned get_solver_restitution_iterations(const entt::registry &registry) {
@@ -261,7 +305,10 @@ unsigned get_solver_restitution_iterations(const entt::registry &registry) {
 void set_solver_restitution_iterations(entt::registry &registry, unsigned iterations) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.num_restitution_iterations = iterations;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 unsigned get_solver_individual_restitution_iterations(const entt::registry &registry) {
@@ -271,14 +318,20 @@ unsigned get_solver_individual_restitution_iterations(const entt::registry &regi
 void set_solver_individual_restitution_iterations(entt::registry &registry, unsigned iterations) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.num_individual_restitution_iterations = iterations;
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->settings_changed();
+    }
 }
 
 void insert_material_mixing(entt::registry &registry, material::id_type material_id0,
                             material::id_type material_id1, const material_base &material) {
     auto &material_table = registry.ctx().at<material_mix_table>();
     material_table.insert({material_id0, material_id1}, material);
-    registry.ctx().at<island_coordinator>().material_table_changed();
+
+    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+        coordinator->material_table_changed();
+    }
 }
 
 }

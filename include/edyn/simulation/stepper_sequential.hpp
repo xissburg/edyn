@@ -13,6 +13,8 @@ class stepper_sequential {
 public:
     stepper_sequential(entt::registry &registry, bool multithreaded);
     void update();
+    void step_simulation();
+    void set_paused(bool paused);
 
     double get_timestamp() const {
         return m_last_time;

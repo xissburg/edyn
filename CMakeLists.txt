@@ -65,6 +65,7 @@ add_library(Edyn
     src/edyn/collision/collision_result.cpp
     src/edyn/collision/raycast.cpp
     src/edyn/collision/raycast_service.cpp
+    src/edyn/collision/contact_event_emitter.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
     src/edyn/constraints/soft_distance_constraint.cpp

@@ -1,4 +1,5 @@
 #include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/collision/contact_event_emitter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/contact_point.hpp"
@@ -42,7 +43,6 @@ island_coordinator::island_coordinator(entt::registry &registry)
     registry.on_destroy<graph_node>().connect<&island_coordinator::on_destroy_graph_node>(*this);
     registry.on_construct<graph_edge>().connect<&island_coordinator::on_construct_graph_edge>(*this);
     registry.on_destroy<graph_edge>().connect<&island_coordinator::on_destroy_graph_edge>(*this);
-    registry.on_destroy<contact_manifold>().connect<&island_coordinator::on_destroy_contact_manifold>(*this);
 
     m_message_queue_handle.sink<msg::step_update>().connect<&island_coordinator::on_step_update>(*this);
     m_message_queue_handle.sink<msg::raycast_response>().connect<&island_coordinator::on_raycast_response>(*this);
@@ -51,6 +51,11 @@ island_coordinator::island_coordinator(entt::registry &registry)
 }
 
 island_coordinator::~island_coordinator() {
+    m_registry->on_construct<graph_node>().disconnect<&island_coordinator::on_construct_graph_node>(*this);
+    m_registry->on_destroy<graph_node>().disconnect<&island_coordinator::on_destroy_graph_node>(*this);
+    m_registry->on_construct<graph_edge>().disconnect<&island_coordinator::on_construct_graph_edge>(*this);
+    m_registry->on_destroy<graph_edge>().disconnect<&island_coordinator::on_destroy_graph_edge>(*this);
+
     m_worker_ctx->terminate();
 }
 
@@ -115,19 +120,6 @@ void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::e
     m_worker_ctx->m_op_builder->destroy(entity);
 }
 
-void island_coordinator::on_destroy_contact_manifold(entt::registry &registry, entt::entity entity) {
-    // Trigger contact destroyed events.
-    auto &manifold = registry.get<contact_manifold>(entity);
-
-    if (manifold.num_points > 0) {
-        for (unsigned i = 0; i < manifold.num_points; ++i) {
-            m_contact_point_destroyed_signal.publish(entity, manifold.ids[i]);
-        }
-
-        m_contact_ended_signal.publish(entity);
-    }
-}
-
 void island_coordinator::init_new_nodes_and_edges() {
     // Entities that were created and destroyed before a call to `edyn::update`
     // are still in these collections, thus remove invalid entities first.
@@ -148,7 +140,7 @@ void island_coordinator::init_new_nodes_and_edges() {
 }
 
 void island_coordinator::create_worker() {
-    // The `simulationworker` is dynamically allocated and kept alive while
+    // The `simulation_worker` is dynamically allocated and kept alive while
     // the simulation runs asynchronously. The job that's created for it calls its
     // `update` function which reschedules itself to be run over and over again.
     // After the `finish` function is called on it it will be deallocated on the
@@ -248,33 +240,10 @@ void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
 
     m_importing = false;
 
-    // Generate contact events.
-    ops.replace_for_each<contact_manifold_events>([&](entt::entity remote_entity,
-                                                      const contact_manifold_events &events) {
-        if (!m_worker_ctx->m_entity_map.contains(remote_entity)) {
-            return;
-        }
-
-        auto manifold_entity = m_worker_ctx->m_entity_map.at(remote_entity);
-
-        // Contact could have ended and started again in the same step. Do not
-        // generate event in that case.
-        if (events.contact_started && !events.contact_ended) {
-            m_contact_started_signal.publish(manifold_entity);
-        }
-
-        for (unsigned i = 0; i < events.num_contacts_created; ++i) {
-            m_contact_point_created_signal.publish(manifold_entity, events.contacts_created[i]);
-        }
-
-        for (unsigned i = 0; i < events.num_contacts_destroyed; ++i) {
-            m_contact_point_destroyed_signal.publish(manifold_entity, events.contacts_destroyed[i]);
-        }
-
-        if (events.contact_ended && !events.contact_started) {
-            m_contact_ended_signal.publish(manifold_entity);
-        }
-    });
+    // Must consume events after each snapshot to avoid losing any event that
+    // could be overriden in the next snapshot.
+    auto &emitter = registry.ctx().at<contact_event_emitter>();
+    emitter.consume_events();
 
     (*g_mark_replaced_network_dirty)(registry, ops, m_worker_ctx->m_entity_map, m_timestamp);
 }
