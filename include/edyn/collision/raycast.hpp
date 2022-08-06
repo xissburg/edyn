@@ -155,6 +155,19 @@ static constexpr auto invalid_raycast_id = std::numeric_limits<raycast_id_type>:
 using raycast_delegate_type = entt::delegate<void(raycast_id_type, const raycast_result &, vector3, vector3)>;
 
 /**
+ * @brief Performs a raycast against all rigid bodies. Do not call this if Edyn
+ * was initialized with `execution_mode::asynchronous`, use `raycast_async`
+ * instead.
+ * @param registry Data source.
+ * @param p0 First point in the ray.
+ * @param p1 Second point in the ray.
+ * @param ignore_entities Entities to be ignored during raycast.
+ * @return Result containing the first entity that was hit by the ray.
+ */
+raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
+                       const std::vector<entt::entity> &ignore_entities = {});
+
+/**
  * @brief Performs a raycast query asynchronously. Only call this function if
  * Edyn was initialized in `execution_mode::asynchronous`.
  * @param registry Data source.
@@ -162,13 +175,11 @@ using raycast_delegate_type = entt::delegate<void(raycast_id_type, const raycast
  * @param p1 Second point in the ray.
  * @param delegate Triggered when the results are available.
  * @param ignore_entities Entities to be ignored during raycast.
+ * @return Request id, which will be passed to the delegate when it is invoked.
  */
 raycast_id_type raycast_async(entt::registry &registry, vector3 p0, vector3 p1,
                               const raycast_delegate_type &delegate,
                               const std::vector<entt::entity> &ignore_entities = {});
-
-raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
-                       const std::vector<entt::entity> &ignore_entities = {});
 
 // Raycast functions for each shape.
 

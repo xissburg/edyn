@@ -5,7 +5,7 @@ namespace edyn {
 
 enum class execution_mode {
     sequential,
-    sequential_mt,
+    sequential_multithreaded,
     asynchronous
 };
 

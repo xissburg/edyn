@@ -18,11 +18,16 @@ stepper_sequential::stepper_sequential(entt::registry &registry, bool multithrea
     , m_poly_initializer(registry)
     , m_solver(registry)
     , m_multithreaded(multithreaded)
+    , m_paused(false)
 {
     m_last_time = performance_time();
 }
 
 void stepper_sequential::update() {
+    if (m_paused) {
+        return;
+    }
+
     auto time = performance_time();
     auto elapsed = time - m_last_time;
 
@@ -53,6 +58,8 @@ void stepper_sequential::update() {
 }
 
 void stepper_sequential::step_simulation() {
+    EDYN_ASSERT(m_paused);
+
     auto fixed_dt = m_registry->ctx().at<settings>().fixed_dt;
     m_last_time = performance_time();
 
@@ -69,6 +76,9 @@ void stepper_sequential::step_simulation() {
 }
 
 void stepper_sequential::set_paused(bool paused) {
+    m_paused = paused;
+    m_accumulated_time = 0;
+
     if (!paused) {
         m_last_time = performance_time();
     }

@@ -1,4 +1,5 @@
 #include "edyn/edyn.hpp"
+#include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_event_emitter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/narrowphase.hpp"
@@ -58,15 +59,10 @@ void attach(entt::registry &registry, const init_config &config) {
 
     switch (config.execution_mode) {
     case execution_mode::sequential:
+    case execution_mode::sequential_multithreaded:
         registry.ctx().emplace<broadphase>(registry);
         registry.ctx().emplace<narrowphase>(registry);
-        registry.ctx().emplace<stepper_sequential>(registry, false);
-        init_constraints(registry);
-        break;
-    case execution_mode::sequential_mt:
-        registry.ctx().emplace<broadphase>(registry);
-        registry.ctx().emplace<narrowphase>(registry);
-        registry.ctx().emplace<stepper_sequential>(registry, true);
+        registry.ctx().emplace<stepper_sequential>(registry, config.execution_mode == execution_mode::sequential_multithreaded);
         init_constraints(registry);
         break;
     case execution_mode::asynchronous:
@@ -80,6 +76,8 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<entity_graph>();
     registry.ctx().erase<material_mix_table>();
     registry.ctx().erase<contact_manifold_map>();
+    registry.ctx().erase<broadphase>();
+    registry.ctx().erase<narrowphase>();
     registry.ctx().erase<island_coordinator>();
     registry.ctx().erase<stepper_sequential>();
 
