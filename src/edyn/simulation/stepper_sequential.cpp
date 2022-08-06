@@ -42,9 +42,9 @@ void stepper_sequential::update() {
 
     for (int i = 0; i < num_steps; ++i) {
         auto step_time = m_last_time + fixed_dt * i;
-        bphase.update(m_multithreaded);
+        bphase.update_sequential(m_multithreaded);
         m_island_manager.update(step_time);
-        nphase.update(m_multithreaded);
+        nphase.update_sequential(m_multithreaded);
         m_solver.update(fixed_dt);
         emitter.consume_events();
     }
@@ -61,9 +61,9 @@ void stepper_sequential::step_simulation() {
     auto &emitter = m_registry->ctx().at<contact_event_emitter>();
 
     m_poly_initializer.init_new_shapes();
-    bphase.update(m_multithreaded);
+    bphase.update_sequential(m_multithreaded);
     m_island_manager.update(m_last_time);
-    nphase.update(m_multithreaded);
+    nphase.update_sequential(m_multithreaded);
     m_solver.update(fixed_dt);
     emitter.consume_events();
 }

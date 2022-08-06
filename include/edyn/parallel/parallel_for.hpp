@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <iterator>
 #include "edyn/config/config.h"
 #include "edyn/parallel/job.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
@@ -94,6 +95,91 @@ void parallel_for_job_func(job::data_type &data) {
     auto *ctx = reinterpret_cast<parallel_for_context<IndexType, Function> *>(ctx_ptr);
 
     run_parallel_for(*ctx);
+
+    ctx->decrement();
+}
+
+template<typename Iterator, typename Function>
+struct parallel_for_each_context {
+    std::atomic<size_t> current;
+    const Iterator first;
+    const Iterator last;
+    const size_t total_size;
+    const size_t chunk_size;
+    size_t count;
+    bool done;
+    std::mutex mutex;
+    std::condition_variable cv;
+    Function func;
+
+    parallel_for_each_context(Iterator first, Iterator last, size_t total_size,
+                              size_t chunk_size, size_t num_jobs, Function func)
+        : current(0)
+        , first(first)
+        , last(last)
+        , total_size(total_size)
+        , chunk_size(chunk_size)
+        , count(num_jobs)
+        , done(false)
+        , func(func)
+    {}
+
+    ~parallel_for_each_context() {
+        EDYN_ASSERT(count == 0);
+    }
+
+    void decrement() {
+        std::lock_guard lock(mutex);
+        EDYN_ASSERT(count > 0);
+        --count;
+        done = count == 0;
+
+        if (done) {
+            cv.notify_one();
+        }
+    }
+
+    void wait() {
+        std::unique_lock lock(mutex);
+        cv.wait(lock, [&] { return done; });
+    }
+};
+
+template<typename Iterator, typename Function>
+void run_parallel_for_each(parallel_for_each_context<Iterator, Function> &ctx) {
+    using value_type = typename Iterator::value_type;
+
+    while (true) {
+        auto first_index = ctx.current.fetch_add(ctx.chunk_size, std::memory_order_relaxed);
+
+        if (first_index >= ctx.total_size) {
+            break;
+        }
+
+        auto first = ctx.first;
+        std::advance(first, first_index);
+
+        auto last = first;
+        std::advance(last, std::min(ctx.chunk_size, ctx.total_size - first_index));
+
+        for (; first != last; ++first) {
+            if constexpr(std::is_invocable_v<Function, value_type, size_t>) {
+                ctx.func(*first, first_index++);
+            } else {
+                ctx.func(*first);
+            }
+        }
+    }
+}
+
+template<typename Iterator, typename Function>
+void parallel_for_each_job_func(job::data_type &data) {
+    auto archive = memory_input_archive(data.data(), data.size());
+    intptr_t ctx_ptr;
+    archive(ctx_ptr);
+    auto *ctx = reinterpret_cast<parallel_for_each_context<Iterator, Function> *>(ctx_ptr);
+
+    run_parallel_for_each(*ctx);
 
     ctx->decrement();
 }
@@ -204,13 +290,41 @@ void parallel_for(IndexType first, IndexType last, Function func) {
  */
 template<typename Iterator, typename Function>
 void parallel_for_each(job_dispatcher &dispatcher, Iterator first, Iterator last, Function func) {
-    auto count = std::distance(first, last);
+    // Number of available workers.
+    auto num_workers = dispatcher.num_workers();
 
-    parallel_for(dispatcher, size_t{0}, static_cast<size_t>(count), size_t{1}, [&](size_t index) {
-        auto it = first;
-        std::advance(it, index);
-        func(it);
-    });
+    // Number of elements to be processed.
+    auto count = std::distance(first, last);
+    EDYN_ASSERT(count > 1);
+
+    // Size of chunk that will be processed per job iteration. The calling thread
+    // also does work thus 1 is added to the number of workers.
+    size_t chunk_size = std::max(count / (num_workers + 1), size_t{1});
+
+    // Number of jobs that will be dispatched. Must not be greater than number
+    // of workers (including this thread).
+    auto num_jobs = std::min(num_workers, size_t(count - 1));
+
+    // Context that's shared among all jobs.
+    auto context = detail::parallel_for_each_context<Iterator, Function>(first, last, count, chunk_size, num_jobs, func);
+
+    // Job that'll process chunks of data in worker threads.
+    auto child_job = job();
+    child_job.func = &detail::parallel_for_each_job_func<Iterator, Function>;
+    auto archive = fixed_memory_output_archive(child_job.data.data(), child_job.data.size());
+    auto ctx_ptr = reinterpret_cast<intptr_t>(&context);
+    archive(ctx_ptr);
+
+    // Dispatch background jobs.
+    for (size_t i = 0; i < num_jobs; ++i) {
+        dispatcher.async(child_job);
+    }
+
+    // Process chunks of the for loop in the current thread as well.
+    detail::run_parallel_for_each(context);
+
+    // Wait all background jobs to finish.
+    context.wait();
 }
 
 /**

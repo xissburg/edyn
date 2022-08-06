@@ -12,12 +12,11 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collision_result.hpp"
+#include "edyn/parallel/job.hpp"
 #include "edyn/util/collision_util.hpp"
 #include "edyn/context/settings.hpp"
 
 namespace edyn {
-
-struct job;
 
 class narrowphase {
     enum class state {
@@ -35,15 +34,15 @@ class narrowphase {
         size_t count {0};
     };
 
-    void detect_collision_async(job &completion_job);
+    void detect_collision_parallel(bool async, const job &completion_job = {});
     void finish_detect_collision();
     void clear_contact_manifold_events();
 
 public:
     narrowphase(entt::registry &);
 
-    void update(bool mt);
-    bool update(job &completion_job);
+    void update_sequential(bool mt);
+    bool update(const job &completion_job);
 
     /**
      * @brief Detects and processes collisions for the given manifolds.

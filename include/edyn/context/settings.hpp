@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <variant>
+#include "edyn/config/execution_mode.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/context/external_system.hpp"
@@ -28,6 +29,8 @@ struct settings {
     unsigned num_solver_position_iterations {3};
     unsigned num_restitution_iterations {8};
     unsigned num_individual_restitution_iterations {3};
+
+    execution_mode execution_mode;
 
     make_reg_op_builder_func_t make_reg_op_builder {&make_reg_op_builder_default};
     std::shared_ptr<component_index_source> index_source;

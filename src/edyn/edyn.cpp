@@ -48,7 +48,9 @@ void attach(entt::registry &registry, const init_config &config) {
         dispatcher.assure_current_queue();
     }
 
-    registry.ctx().emplace<settings>();
+    auto &settings = registry.ctx().emplace<edyn::settings>();
+    settings.execution_mode = config.execution_mode;
+
     registry.ctx().emplace<entity_graph>();
     registry.ctx().emplace<material_mix_table>();
     registry.ctx().emplace<contact_manifold_map>(registry);
@@ -332,6 +334,11 @@ void insert_material_mixing(entt::registry &registry, material::id_type material
     if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
         coordinator->material_table_changed();
     }
+}
+
+execution_mode get_execution_mode(const entt::registry &registry) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    return settings.execution_mode;
 }
 
 }

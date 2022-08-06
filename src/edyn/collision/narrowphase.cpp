@@ -2,6 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/config/constants.hpp"
+#include "edyn/parallel/parallel_for.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/comp/material.hpp"
 
@@ -17,14 +18,21 @@ void narrowphase::clear_contact_manifold_events() {
     });
 }
 
-void narrowphase::update(bool mt) {
+void narrowphase::update_sequential(bool mt) {
     clear_contact_manifold_events();
     update_contact_distances(*m_registry);
+
     auto manifold_view = m_registry->view<contact_manifold>();
-    update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
+
+    if (mt && manifold_view.size() > m_max_sequential_size) {
+        detect_collision_parallel(false);
+        finish_detect_collision();
+    } else {
+        update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
+    }
 }
 
-bool narrowphase::update(job &completion_job) {
+bool narrowphase::update(const job &completion_job) {
     switch (m_state) {
     case state::begin:
         clear_contact_manifold_events();
@@ -36,7 +44,7 @@ bool narrowphase::update(job &completion_job) {
             return true;
         } else {
             m_state = state::detect_collision;
-            detect_collision_async(completion_job);
+            detect_collision_parallel(true, completion_job);
             return false;
         }
         break;
@@ -47,7 +55,7 @@ bool narrowphase::update(job &completion_job) {
     }
 }
 
-void narrowphase::detect_collision_async(job &completion_job) {
+void narrowphase::detect_collision_parallel(bool async, const job &completion_job) {
     auto manifold_view = m_registry->view<contact_manifold>();
     auto events_view = m_registry->view<contact_manifold_events>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
@@ -68,8 +76,7 @@ void narrowphase::detect_collision_async(job &completion_job) {
     m_cp_destruction_infos.resize(manifold_view.size());
     auto &dispatcher = job_dispatcher::global();
 
-    parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job,
-            [this, body_view, tr_view, vel_view, rolling_view, origin_view,
+    auto for_loop_body = [this, body_view, tr_view, vel_view, rolling_view, origin_view,
              manifold_view, events_view, orn_view, material_view, mesh_shape_view,
              paged_mesh_shape_view, shapes_views_tuple, dt](size_t index) {
         auto entity = manifold_view[index];
@@ -89,7 +96,13 @@ void narrowphase::detect_collision_async(job &completion_job) {
             EDYN_ASSERT(pt_id < max_contacts);
             destruction_info.point_id[destruction_info.count++] = pt_id;
         });
-    });
+    };
+
+    if (async) {
+        parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, for_loop_body);
+    } else {
+        parallel_for(dispatcher, size_t{}, manifold_view.size(), size_t{1}, for_loop_body);
+    }
 }
 
 void narrowphase::finish_detect_collision() {

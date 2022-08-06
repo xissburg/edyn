@@ -24,16 +24,20 @@ class broadphase {
     constexpr static auto m_separation_threshold = contact_breaking_threshold * scalar(1.3);
 
     void init_new_aabb_entities();
+    void move_aabbs();
+    void destroy_separated_manifolds();
 
     void collide_tree(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb) const;
     void collide_tree_async(const dynamic_tree &tree, entt::entity entity, const AABB &offset_aabb, size_t result_index);
+    void collide_parallel(bool async, const job &completion_job);
+    void finish_collide();
 
     void common_update();
 
 public:
     broadphase(entt::registry &);
-    void update(bool mt);
-    bool update(job &completion_job);
+    void update_sequential(bool mt);
+    bool update(const job &completion_job);
 
     template<typename Func>
     void raycast(vector3 p0, vector3 p1, Func func) const;

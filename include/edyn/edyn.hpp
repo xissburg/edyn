@@ -435,6 +435,8 @@ void set_solver_individual_restitution_iterations(entt::registry &registry, unsi
 void insert_material_mixing(entt::registry &registry, material::id_type material_id0,
                             material::id_type material_id1, const material_base &material);
 
+execution_mode get_execution_mode(const entt::registry &registry);
+
 }
 
 #endif // EDYN_EDYN_HPP
