@@ -1,6 +1,14 @@
 #include "edyn/dynamics/solver.hpp"
+#include "edyn/comp/inertia.hpp"
+#include "edyn/comp/mass.hpp"
+#include "edyn/comp/origin.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/position.hpp"
+#include "edyn/comp/orientation.hpp"
+#include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
 #include "edyn/sys/integrate_angvel.hpp"
@@ -20,9 +28,19 @@
 #include "edyn/dynamics/restitution_solver.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
+#include <tuple>
 #include <type_traits>
 
 namespace edyn {
+
+template<typename View>
+size_t view_size(const View &view) {
+    size_t size = 0;
+    for (auto entity : view) {
+        ++size;
+    }
+    return size;
+}
 
 scalar solve(constraint_row &row) {
     auto delta_relvel = dot(row.J[0], *row.dvA) +
@@ -76,7 +94,7 @@ void update_impulse<null_constraint>(entt::registry &, row_cache &, size_t &, si
 
 // Specialization to assign the impulses of friction constraints which are not
 // stored in traditional constraint rows.
-template<>
+/* template<>
 void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
     auto con_view = registry.view<contact_constraint, contact_manifold>(entt::exclude_t<disabled_tag, sleeping_tag>{});
     auto &ctx = registry.ctx().at<internal::contact_constraint_context>();
@@ -116,7 +134,7 @@ void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cac
 
         ++con_idx;
     }
-}
+} */
 
 void update_impulses(entt::registry &registry, row_cache &cache) {
     // Assign impulses from constraint rows back into the constraints. The rows
@@ -139,69 +157,236 @@ solver::solver(entt::registry &registry)
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
 }
 
-void solver::update(scalar dt) {
-    auto &registry = *m_registry;
-    auto &settings = registry.ctx().at<edyn::settings>();
+template<typename C>
+void prepare_constraints_seq(entt::registry &registry, row_cache_sparse &cache, scalar dt) {
+    auto body_view = registry.view<position, orientation,
+                                   linvel, angvel,
+                                   mass_inv, inertia_world_inv,
+                                   delta_linvel, delta_angvel>();
+    auto origin_view = registry.view<origin>();
+    auto con_view = registry.view<C>(entt::exclude_t<sleeping_tag, disabled_tag>{});
 
+    size_t index = 0;
+    for (auto [entity, con] : con_view.each()) {
+        auto &entry = cache.entries[index++];
+
+        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
+        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+
+        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
+        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+        entry.count = 0;
+
+        prepare_constraint(con, entry, dt,
+                           originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA,
+                           originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB);
+    }
+}
+
+template<typename C>
+void prepare_constraints_async(entt::registry &registry, row_cache_sparse &cache, scalar dt, const job &decr_job) {
+    auto body_view = registry.view<position, orientation,
+                                   linvel, angvel,
+                                   mass_inv, inertia_world_inv,
+                                   delta_linvel, delta_angvel>();
+    auto origin_view = registry.view<origin>();
+    auto con_view = registry.view<C>(entt::exclude_t<sleeping_tag, disabled_tag>{});
+    auto &dispatcher = job_dispatcher::global();
+
+    parallel_for_each_async(dispatcher, con_view.begin(), con_view.end(), decr_job,
+        [body_view, origin_view, con_view, &cache, dt](C &con, size_t index) {
+            auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
+            auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+
+            auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
+            auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+            auto &entry = cache.entries[index];
+            entry.count = 0;
+
+            prepare_constraint(con, entry, dt,
+                               originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA,
+                               originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB);
+        });
+}
+
+template<>
+void prepare_constraints_seq<null_constraint>(entt::registry &registry, row_cache_sparse &cache, scalar dt) {}
+
+template<>
+void prepare_constraints_async<null_constraint>(entt::registry &registry, row_cache_sparse &cache, scalar dt, const job &decr_job) {}
+
+bool solver::prepare_constraints(const job &completion_job, scalar dt) {
+    // Resize the row cache for each constraint type to fit the rows of
+    // each constraint of each type.
+    std::apply([&](auto ... c) {
+        size_t idx = 0;
+        (m_row_cache_sparse[idx++].entries.resize(view_size(m_registry->view<decltype(c)>(entt::exclude_t<sleeping_tag, disabled_tag>{}))), ...);
+    }, constraints_tuple);
+
+    // Only constraint types that exist in a sizable number will be
+    // prepared in parallel.
+    // Calculate how many constraint types will be prepared asynchronously.
+    unsigned num_async = 0;
+    const size_t max_sequential_size = 2;
+    for (auto &cache : m_row_cache_sparse) {
+        if (cache.entries.size() > max_sequential_size) {
+            ++num_async;
+        }
+    }
+
+    // Prepare the sequential ones first.
+    std::apply([&](auto ... c) {
+        size_t idx = 0;
+        (((m_row_cache_sparse[idx].entries.size() <= max_sequential_size ?
+            prepare_constraints_seq<decltype(c)>(*m_registry, m_row_cache_sparse[idx], dt) : void(0)), ++idx), ...);
+    }, constraints_tuple);
+
+    // Prepare the parallel ones later.
+    if (num_async > 0) {
+        // Multiple asynchronous parallel-for loops will be started. When they
+        // finish, they decrement this atomic counter which, when it reaches zero,
+        // will dispatch the `completion_job` to run again, which will invoke
+        // this function so we can continue in the `pack_rows` state.
+        m_counter = std::make_unique<atomic_counter>(completion_job, num_async);
+        auto decrement_job = m_counter->get_decrement_job();
+
+        std::apply([&](auto ... c) {
+            size_t idx = 0;
+            (((m_row_cache_sparse[idx].entries.size() > max_sequential_size ?
+                prepare_constraints_async<decltype(c)>(*m_registry, m_row_cache_sparse[idx], dt, decrement_job) : void(0)), ++idx), ...);
+        }, constraints_tuple);
+
+        return false;
+    }
+
+    return true;
+}
+
+void solver::pack_rows() {
     m_row_cache.clear();
 
-    // Apply restitution impulses before gravity to prevent resting objects to
-    // start bouncing due to the initial gravity acceleration.
-    solve_restitution(registry, dt);
-
-    apply_gravity(registry, dt);
-
-    // Setup constraints.
-    prepare_constraints(registry, m_row_cache, dt);
-
-    // Solve constraints.
-    for (unsigned i = 0; i < settings.num_solver_velocity_iterations; ++i) {
-        // Prepare constraints for iteration.
-        iterate_constraints(registry, m_row_cache, dt);
-
-        // Solve rows.
-        for (auto &row : m_row_cache.rows) {
-            auto delta_impulse = solve(row);
-            apply_impulse(delta_impulse, row);
+    for (auto &cache : m_row_cache_sparse) {
+        for (auto &entry : cache.entries) {
+            for (size_t i = 0; i < entry.count; ++i) {
+                m_row_cache.rows.push_back(entry.rows[i]);
+            }
+            m_row_cache.con_num_rows.push_back(entry.count);
         }
     }
+}
 
-    // Apply constraint velocity correction.
-    auto vel_view = registry.view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>(entt::exclude_t<sleeping_tag>{});
-    vel_view.each([](linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
-        v += dv;
-        w += dw;
-        dv = vector3_zero;
-        dw = vector3_zero;
-    });
+bool solver::update(const job &completion_job) {
+    auto &registry = *m_registry;
+    auto &settings = registry.ctx().at<edyn::settings>();
+    auto dt = settings.fixed_dt;
 
-    // Assign applied impulses.
-    update_impulses(registry, m_row_cache);
+    switch (m_state) {
+    case state::begin:
+        m_row_cache.clear();
+        m_state = state::solve_restitution;
+        return false;
+        break;
 
-    // Integrate velocities to obtain new transforms.
-    integrate_linvel(registry, dt);
-    integrate_angvel(registry, dt);
+    case state::solve_restitution:
+        // Apply restitution impulses before gravity to prevent resting objects to
+        // start bouncing due to the initial gravity acceleration.
+        solve_restitution(registry, dt);
+        m_state = state::apply_gravity;
+        return false;
+        break;
 
-    // Now that rigid bodies have moved, perform positional correction.
-    for (unsigned i = 0; i < settings.num_solver_position_iterations; ++i) {
-        if (solve_position_constraints(registry, dt)) {
-            break;
+    case state::apply_gravity:
+        apply_gravity(registry, dt);
+        m_state = state::prepare_constraints;
+        return false;
+        break;
+
+    case state::prepare_constraints:
+        m_state = state::pack_rows;
+        prepare_constraints(completion_job, dt);
+        return false;
+        break;
+
+    case state::pack_rows:
+        pack_rows();
+        m_state = state::solve_constraints;
+        return false;
+        break;
+
+    case state::solve_constraints:
+        for (unsigned i = 0; i < settings.num_solver_velocity_iterations; ++i) {
+            // Prepare constraints for iteration.
+            //iterate_constraints(registry, m_row_cache, dt);
+
+            // Solve rows.
+            for (auto &row : m_row_cache.rows) {
+                auto delta_impulse = solve(row);
+                apply_impulse(delta_impulse, row);
+            }
         }
+        m_state = state::apply_delta;
+        return false;
+        break;
+
+    case state::apply_delta:
+        // Apply constraint velocity correction.
+        for (auto [e, v, w, dv, dw] : registry.view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>(entt::exclude_t<sleeping_tag>{}).each()) {
+            v += dv;
+            w += dw;
+            dv = vector3_zero;
+            dw = vector3_zero;
+        }
+        m_state = state::assign_applied_impulse;
+        return false;
+        break;
+
+    case state::assign_applied_impulse:
+        update_impulses(registry, m_row_cache);
+        m_state = state::integrate_velocity;
+        return false;
+        break;
+
+    case state::integrate_velocity:
+        // Integrate velocities to obtain new transforms.
+        integrate_linvel(registry, dt);
+        integrate_angvel(registry, dt);
+        m_state = state::solve_position_constraints;
+        return false;
+        break;
+
+    case state::solve_position_constraints:
+        // Now that rigid bodies have moved, perform positional correction.
+        for (unsigned i = 0; i < settings.num_solver_position_iterations; ++i) {
+            if (solve_position_constraints(registry, dt)) {
+                break;
+            }
+        }
+        m_state = state::finalize;
+        return false;
+        break;
+
+    case state::finalize:
+        update_origins(registry);
+
+        // Update rotated vertices of convex meshes after rotations change. It is
+        // important to do this before `update_aabbs` because the rotated meshes
+        // will be used to calculate AABBs of polyhedrons.
+        update_rotated_meshes(registry);
+
+        // Update AABBs after transforms change.
+        update_aabbs(registry);
+        update_island_aabbs(registry);
+
+        // Update world-space moment of inertia.
+        update_inertias(registry);
+        m_state = state::begin;
+        return true;
+        break;
+
+    case state::done:
+        m_state = state::begin;
+        return true;
     }
-
-    update_origins(registry);
-
-    // Update rotated vertices of convex meshes after rotations change. It is
-    // important to do this before `update_aabbs` because the rotated meshes
-    // will be used to calculate AABBs of polyhedrons.
-    update_rotated_meshes(registry);
-
-    // Update AABBs after transforms change.
-    update_aabbs(registry);
-    update_island_aabbs(registry);
-
-    // Update world-space moment of inertia.
-    update_inertias(registry);
 }
 
 }

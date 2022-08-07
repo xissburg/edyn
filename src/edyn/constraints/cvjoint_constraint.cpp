@@ -56,254 +56,243 @@ void cvjoint_constraint::update_angle(scalar new_angle) {
 }
 
 template<>
-void prepare_constraints<cvjoint_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation,
-                                   linvel, angvel,
-                                   mass_inv, inertia_world_inv,
-                                   delta_linvel, delta_angvel>();
-    auto con_view = registry.view<cvjoint_constraint>(entt::exclude_t<disabled_tag>{});
-    auto origin_view = registry.view<origin>();
+void prepare_constraint<cvjoint_constraint>(cvjoint_constraint &con, row_cache_sparse::entry &cache_entry, scalar dt,
+                        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+                        const vector3 &linvelA, const vector3 &angvelA,
+                        scalar inv_mA, const matrix3x3 &inv_IA, delta_linvel &dvA, delta_angvel &dwA,
+                        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+                        const vector3 &linvelB, const vector3 &angvelB,
+                        scalar inv_mB, const matrix3x3 &inv_IB, delta_linvel &dvB, delta_angvel &dwB) {
+    auto pivotA = to_world_space(con.pivot[0], originA, ornA);
+    auto pivotB = to_world_space(con.pivot[1], originB, ornB);
+    auto rA = pivotA - posA;
+    auto rB = pivotB - posB;
 
-    con_view.each([&](cvjoint_constraint &con) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+    const auto rA_skew = skew_matrix(rA);
+    const auto rB_skew = skew_matrix(rB);
+    constexpr auto I = matrix3x3_identity;
+    auto row_idx = size_t{};
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+    // Make the position of pivot points match, akin to a `point_constraint`.
+    for (int i = 0; i < 3; ++i) {
+        auto &row = cache_entry.add_row();
+        row.J = {I.row[i], -rA_skew.row[i],
+                -I.row[i],  rB_skew.row[i]};
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
 
-        auto pivotA = to_world_space(con.pivot[0], originA, ornA);
-        auto pivotB = to_world_space(con.pivot[1], originB, ornB);
-        auto rA = pivotA - posA;
-        auto rB = pivotB - posB;
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = con.impulse[row_idx++];
 
-        const auto rA_skew = skew_matrix(rA);
-        const auto rB_skew = skew_matrix(rB);
-        constexpr auto I = matrix3x3_identity;
-        auto row_idx = size_t{};
+        prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
+        warm_start(row);
+    }
 
-        // Make the position of pivot points match, akin to a `point_constraint`.
-        for (int i = 0; i < 3; ++i) {
-            auto &row = cache.rows.emplace_back();
-            row.J = {I.row[i], -rA_skew.row[i],
-                    -I.row[i],  rB_skew.row[i]};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = large_scalar;
+    auto twist_axisA = rotate(ornA, con.frame[0].column(0));
+    auto twist_axisB = rotate(ornB, con.frame[1].column(0));
 
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+    auto has_limit = con.twist_min < con.twist_max;
 
-            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
+    // Relationship between velocity and relative angle along the twist axis.
+    {
+        auto &row = cache_entry.add_row();
+        row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = con.impulse[row_idx++];
 
-        auto twist_axisA = rotate(ornA, con.frame[0].column(0));
-        auto twist_axisB = rotate(ornB, con.frame[1].column(0));
+        auto angle = con.relative_angle(ornA, ornB, twist_axisA, twist_axisB);
+        auto options = constraint_row_options{};
 
-        auto has_limit = con.twist_min < con.twist_max;
+        if (has_limit) {
+            con.update_angle(angle);
 
-        // Relationship between velocity and relative angle along the twist axis.
-        {
-            auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+            auto limit_error = scalar{};
+            const auto mid_angle = (con.twist_min + con.twist_max) / scalar(2);
 
-            auto angle = con.relative_angle(ornA, ornB, twist_axisA, twist_axisB);
-            auto options = constraint_row_options{};
-
-            if (has_limit) {
-                con.update_angle(angle);
-
-                auto limit_error = scalar{};
-                const auto mid_angle = (con.twist_min + con.twist_max) / scalar(2);
-
-                // Set constraint limits according to which is the closer
-                // angular limit.
-                if (con.twist_angle < mid_angle) {
-                    limit_error = con.twist_min - con.twist_angle;
-                    row.lower_limit = -large_scalar;
-                    row.upper_limit = 0;
-                } else {
-                    limit_error = con.twist_max - con.twist_angle;
-                    row.lower_limit = 0;
-                    row.upper_limit = large_scalar;
-                }
-
-                // Only assign error if the limits haven't been violated. The
-                // position constraints will fix angular limit errors later.
-                if (con.twist_angle > con.twist_min && con.twist_angle < con.twist_max) {
-                    options.error = limit_error / dt;
-                }
-
-                options.restitution = con.twist_restitution;
-            } else {
+            // Set constraint limits according to which is the closer
+            // angular limit.
+            if (con.twist_angle < mid_angle) {
+                limit_error = con.twist_min - con.twist_angle;
                 row.lower_limit = -large_scalar;
+                row.upper_limit = 0;
+            } else {
+                limit_error = con.twist_max - con.twist_angle;
+                row.lower_limit = 0;
                 row.upper_limit = large_scalar;
             }
 
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
-
-        // Twist bump stops.
-        if (has_limit && con.twist_bump_stop_stiffness > 0 && con.twist_bump_stop_angle > 0) {
-            auto bump_stop_deflection = scalar{0};
-            auto bump_stop_min = con.twist_min + con.twist_bump_stop_angle;
-            auto bump_stop_max = con.twist_max - con.twist_bump_stop_angle;
-
-            if (con.twist_angle < bump_stop_min) {
-                bump_stop_deflection = con.twist_angle - bump_stop_min;
-            } else if (con.twist_angle > bump_stop_max) {
-                bump_stop_deflection = con.twist_angle - bump_stop_max;
+            // Only assign error if the limits haven't been violated. The
+            // position constraints will fix angular limit errors later.
+            if (con.twist_angle > con.twist_min && con.twist_angle < con.twist_max) {
+                options.error = limit_error / dt;
             }
 
-            auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
-
-            auto spring_force = con.twist_bump_stop_stiffness * bump_stop_deflection;
-            auto spring_impulse = spring_force * dt;
-            row.lower_limit = std::min(spring_impulse, scalar(0));
-            row.upper_limit = std::max(scalar(0), spring_impulse);
-
-            auto options = constraint_row_options{};
-            options.error = -bump_stop_deflection / dt;
-
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
+            options.restitution = con.twist_restitution;
+        } else {
+            row.lower_limit = -large_scalar;
+            row.upper_limit = large_scalar;
         }
 
-        // Twist stiffness.
-        if (has_limit && con.twist_stiffness > 0) {
-            auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+        warm_start(row);
+    }
 
-            auto deflection = con.twist_angle - con.twist_rest_angle;
-            auto spring_force = con.twist_stiffness * deflection;
-            auto spring_impulse = spring_force * dt;
-            row.lower_limit = std::min(spring_impulse, scalar(0));
-            row.upper_limit = std::max(scalar(0), spring_impulse);
+    // Twist bump stops.
+    if (has_limit && con.twist_bump_stop_stiffness > 0 && con.twist_bump_stop_angle > 0) {
+        auto bump_stop_deflection = scalar{0};
+        auto bump_stop_min = con.twist_min + con.twist_bump_stop_angle;
+        auto bump_stop_max = con.twist_max - con.twist_bump_stop_angle;
 
-            auto options = constraint_row_options{};
-            options.error = -deflection / dt;
-
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
+        if (con.twist_angle < bump_stop_min) {
+            bump_stop_deflection = con.twist_angle - bump_stop_min;
+        } else if (con.twist_angle > bump_stop_max) {
+            bump_stop_deflection = con.twist_angle - bump_stop_max;
         }
 
-        // Twisting friction and damping.
-        if (has_limit && (con.twist_friction_torque > 0 || con.twist_damping > 0)) {
-            // Since damping acts as a speed-dependent friction, a single row
-            // is employed for both damping and constant friction.
-            auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+        auto &row = cache_entry.add_row();
+        row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = con.impulse[row_idx++];
 
-            auto friction_impulse = con.twist_friction_torque * dt;
+        auto spring_force = con.twist_bump_stop_stiffness * bump_stop_deflection;
+        auto spring_impulse = spring_force * dt;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
 
-            if (con.twist_damping > 0) {
-                auto relvel = dot(angvelA, twist_axisA) - dot(angvelB, twist_axisB);
-                friction_impulse += std::abs(relvel) * con.twist_damping * dt;
-            }
+        auto options = constraint_row_options{};
+        options.error = -bump_stop_deflection / dt;
 
-            row.lower_limit = -friction_impulse;
-            row.upper_limit = friction_impulse;
+        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+        warm_start(row);
+    }
 
-            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
+    // Twist stiffness.
+    if (has_limit && con.twist_stiffness > 0) {
+        auto &row = cache_entry.add_row();
+        row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = con.impulse[row_idx++];
+
+        auto deflection = con.twist_angle - con.twist_rest_angle;
+        auto spring_force = con.twist_stiffness * deflection;
+        auto spring_impulse = spring_force * dt;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
+
+        auto options = constraint_row_options{};
+        options.error = -deflection / dt;
+
+        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+        warm_start(row);
+    }
+
+    // Twisting friction and damping.
+    if (has_limit && (con.twist_friction_torque > 0 || con.twist_damping > 0)) {
+        // Since damping acts as a speed-dependent friction, a single row
+        // is employed for both damping and constant friction.
+        auto &row = cache_entry.add_row();
+        row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = con.impulse[row_idx++];
+
+        auto friction_impulse = con.twist_friction_torque * dt;
+
+        if (con.twist_damping > 0) {
+            auto relvel = dot(angvelA, twist_axisA) - dot(angvelB, twist_axisB);
+            friction_impulse += std::abs(relvel) * con.twist_damping * dt;
         }
 
-        // Bending friction and damping.
-        if (con.bend_friction_torque > 0 || con.bend_damping > 0) {
-            // Apply friction and damping to slowdown the non-twisting
-            // angular velocity.
-            auto twist_angvelA = dot(angvelA, twist_axisA) * twist_axisA;
-            auto twist_angvelB = dot(angvelB, twist_axisB) * twist_axisB;
-            auto angvel_rel = (angvelA - twist_angvelA) - (angvelB - twist_angvelB);
-            auto angspd_rel = length(angvel_rel);
-            vector3 angvel_axis;
+        row.lower_limit = -friction_impulse;
+        row.upper_limit = friction_impulse;
 
-            if (angspd_rel > EDYN_EPSILON) {
-                angvel_axis = angvel_rel / angspd_rel;
-            } else {
-                // Pick axis orthogonal to `twist_axisA`.
-                angvel_axis = rotate(ornA, con.frame[0].column(1));
-            }
+        prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
+        warm_start(row);
+    }
 
-            auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, angvel_axis, vector3_zero, -angvel_axis};
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+    // Bending friction and damping.
+    if (con.bend_friction_torque > 0 || con.bend_damping > 0) {
+        // Apply friction and damping to slowdown the non-twisting
+        // angular velocity.
+        auto twist_angvelA = dot(angvelA, twist_axisA) * twist_axisA;
+        auto twist_angvelB = dot(angvelB, twist_axisB) * twist_axisB;
+        auto angvel_rel = (angvelA - twist_angvelA) - (angvelB - twist_angvelB);
+        auto angspd_rel = length(angvel_rel);
+        vector3 angvel_axis;
 
-            auto friction_impulse = con.bend_friction_torque * dt;
-
-            if (con.twist_damping > 0) {
-                friction_impulse += std::abs(angspd_rel) * con.bend_damping * dt;
-            }
-
-            row.lower_limit = -friction_impulse;
-            row.upper_limit = friction_impulse;
-
-            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
+        if (angspd_rel > EDYN_EPSILON) {
+            angvel_axis = angvel_rel / angspd_rel;
+        } else {
+            // Pick axis orthogonal to `twist_axisA`.
+            angvel_axis = rotate(ornA, con.frame[0].column(1));
         }
 
-        // Bending spring.
-        if (con.bend_stiffness > 0) {
-            auto bend_axis = cross(rotate(ornA, con.rest_direction), twist_axisB);
-            auto bend_axis_len = length(bend_axis);
-            auto angle = std::asin(bend_axis_len);
+        auto &row = cache_entry.add_row();
+        row.J = {vector3_zero, angvel_axis, vector3_zero, -angvel_axis};
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = con.impulse[row_idx++];
 
-            if (bend_axis_len > EDYN_EPSILON) {
-                bend_axis /= bend_axis_len;
-            } else {
-                bend_axis = rotate(ornA, con.frame[0].column(1));
-            }
+        auto friction_impulse = con.bend_friction_torque * dt;
 
-            auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, bend_axis, vector3_zero, -bend_axis};
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
-
-            auto spring_force = con.bend_stiffness * angle;
-            auto spring_impulse = spring_force * dt;
-            row.lower_limit = std::min(spring_impulse, scalar(0));
-            row.upper_limit = std::max(scalar(0), spring_impulse);
-
-            auto options = constraint_row_options{};
-            options.error = -angle / dt;
-
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
+        if (con.twist_damping > 0) {
+            friction_impulse += std::abs(angspd_rel) * con.bend_damping * dt;
         }
 
-        cache.con_num_rows.push_back(row_idx);
-    });
+        row.lower_limit = -friction_impulse;
+        row.upper_limit = friction_impulse;
+
+        prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
+        warm_start(row);
+    }
+
+    // Bending spring.
+    if (con.bend_stiffness > 0) {
+        auto bend_axis = cross(rotate(ornA, con.rest_direction), twist_axisB);
+        auto bend_axis_len = length(bend_axis);
+        auto angle = std::asin(bend_axis_len);
+
+        if (bend_axis_len > EDYN_EPSILON) {
+            bend_axis /= bend_axis_len;
+        } else {
+            bend_axis = rotate(ornA, con.frame[0].column(1));
+        }
+
+        auto &row = cache_entry.add_row();
+        row.J = {vector3_zero, bend_axis, vector3_zero, -bend_axis};
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+        row.impulse = con.impulse[row_idx++];
+
+        auto spring_force = con.bend_stiffness * angle;
+        auto spring_impulse = spring_force * dt;
+        row.lower_limit = std::min(spring_impulse, scalar(0));
+        row.upper_limit = std::max(scalar(0), spring_impulse);
+
+        auto options = constraint_row_options{};
+        options.error = -angle / dt;
+
+        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+        warm_start(row);
+    }
 }
 
 template<>

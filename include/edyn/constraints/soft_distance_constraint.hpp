@@ -22,10 +22,16 @@ struct soft_distance_constraint : public constraint_base {
 };
 
 template<>
-void prepare_constraints<soft_distance_constraint>(entt::registry &, row_cache &, scalar dt);
-
+void prepare_constraint<soft_distance_constraint>(soft_distance_constraint &con, row_cache_sparse::entry &cache_entry, scalar dt,
+                        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+                        const vector3 &linvelA, const vector3 &angvelA,
+                        scalar inv_mA, const matrix3x3 &inv_IA, delta_linvel &dvA, delta_angvel &dwA,
+                        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+                        const vector3 &linvelB, const vector3 &angvelB,
+                        scalar inv_mB, const matrix3x3 &inv_IB, delta_linvel &dvB, delta_angvel &dwB);
+/*
 template<>
-void iterate_constraints<soft_distance_constraint>(entt::registry &, row_cache &, scalar dt);
+void iterate_constraints<soft_distance_constraint>(entt::registry &, row_cache &, scalar dt); */
 
 template<typename Archive>
 void serialize(Archive &archive, soft_distance_constraint &c) {

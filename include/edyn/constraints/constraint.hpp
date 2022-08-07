@@ -22,7 +22,7 @@ namespace edyn {
  * @brief Tuple of all available constraints. They are solved in this order so
  * the more important constraints should be the last in the list.
  */
-static const auto constraints_tuple = std::tuple<
+using constraints_tuple_t = std::tuple<
     null_constraint,
     gravity_constraint,
     distance_constraint,
@@ -33,9 +33,11 @@ static const auto constraints_tuple = std::tuple<
     cone_constraint,
     point_constraint,
     contact_constraint
->{};
+>;
 
-inline
+static const constraints_tuple_t constraints_tuple = constraints_tuple_t{};
+
+/* inline
 void init_constraints(entt::registry &registry) {
     std::apply([&](auto ... c) {
         (init_constraints<decltype(c)>(registry), ...);
@@ -54,7 +56,7 @@ void iterate_constraints(entt::registry &registry, row_cache &cache, scalar dt) 
     std::apply([&](auto ... c) {
         (iterate_constraints<decltype(c)>(registry, cache, dt), ...);
     }, constraints_tuple);
-}
+} */
 
 inline
 bool solve_position_constraints(entt::registry &registry, scalar dt) {

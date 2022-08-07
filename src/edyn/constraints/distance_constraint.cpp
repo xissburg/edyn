@@ -18,52 +18,42 @@
 namespace edyn {
 
 template<>
-void prepare_constraints<distance_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation,
-                                   linvel, angvel,
-                                   mass_inv, inertia_world_inv,
-                                   delta_linvel, delta_angvel>();
-    auto con_view = registry.view<distance_constraint>(entt::exclude_t<disabled_tag>{});
-    auto origin_view = registry.view<origin>();
+void prepare_constraint<distance_constraint>(distance_constraint &con, row_cache_sparse::entry &cache_entry, scalar dt,
+                        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+                        const vector3 &linvelA, const vector3 &angvelA,
+                        scalar inv_mA, const matrix3x3 &inv_IA, delta_linvel &dvA, delta_angvel &dwA,
+                        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+                        const vector3 &linvelB, const vector3 &angvelB,
+                        scalar inv_mB, const matrix3x3 &inv_IB, delta_linvel &dvB, delta_angvel &dwB) {
 
-    con_view.each([&](entt::entity entity, distance_constraint &con) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+    auto pivotA = to_world_space(con.pivot[0], originA, ornA);
+    auto pivotB = to_world_space(con.pivot[1], originB, ornB);
+    auto rA = pivotA - posA;
+    auto rB = pivotB - posB;
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+    auto d = pivotA - pivotB;
+    auto dist_sqr = length_sqr(d);
 
-        auto pivotA = to_world_space(con.pivot[0], originA, ornA);
-        auto pivotB = to_world_space(con.pivot[1], originB, ornB);
-        auto rA = pivotA - posA;
-        auto rB = pivotB - posB;
+    if (!(dist_sqr > EDYN_EPSILON)) {
+        d = vector3_x;
+    }
 
-        auto d = pivotA - pivotB;
-        auto dist_sqr = length_sqr(d);
+    auto &row = cache_entry.add_row();
+    row.J = {d, cross(rA, d), -d, -cross(rB, d)};
+    row.lower_limit = -large_scalar;
+    row.upper_limit =  large_scalar;
 
-        if (!(dist_sqr > EDYN_EPSILON)) {
-            d = vector3_x;
-        }
+    auto options = constraint_row_options{};
+    options.error = scalar(0.5) * (dist_sqr - con.distance * con.distance) / dt;
 
-        auto &row = cache.rows.emplace_back();
-        row.J = {d, cross(rA, d), -d, -cross(rB, d)};
-        row.lower_limit = -large_scalar;
-        row.upper_limit =  large_scalar;
+    row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+    row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+    row.dvA = &dvA; row.dwA = &dwA;
+    row.dvB = &dvB; row.dwB = &dwB;
+    row.impulse = con.impulse;
 
-        auto options = constraint_row_options{};
-        options.error = scalar(0.5) * (dist_sqr - con.distance * con.distance) / dt;
-
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
-        row.impulse = con.impulse;
-
-        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
-
-        cache.con_num_rows.push_back(1);
-    });
+    prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+    warm_start(row);
 }
 
 }

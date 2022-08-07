@@ -467,8 +467,7 @@ void simulation_worker::begin_step() {
 
 bool simulation_worker::run_solver() {
     EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(m_registry.ctx().at<edyn::settings>().fixed_dt);
-    return true;
+    return m_solver.update(m_registry.ctx().at<edyn::settings>().fixed_dt);
 }
 
 static void decay_discontinuities(entt::registry &registry, scalar rate) {

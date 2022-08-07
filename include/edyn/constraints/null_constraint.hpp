@@ -3,7 +3,6 @@
 
 #include <entt/entity/fwd.hpp>
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
@@ -18,9 +17,6 @@ template<typename Archive>
 void serialize(Archive &archive, null_constraint &con) {
     archive(con.body);
 }
-
-template<>
-void prepare_constraints<null_constraint>(entt::registry &, row_cache &cache, scalar dt);
 
 }
 

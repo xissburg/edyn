@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <tuple>
+#include "edyn/config/config.h"
 #include "edyn/constraints/constraint_row.hpp"
 
 namespace edyn {
@@ -24,6 +25,21 @@ struct row_cache {
     // as in the pool of each constraint type and ordered by the order which
     // the constraint types appear in the `constraints_tuple`.
     std::vector<size_t> con_num_rows;
+};
+
+struct row_cache_sparse {
+    static constexpr size_t max_rows = 32;
+    struct entry {
+        std::array<constraint_row, max_rows> rows;
+        size_t count {};
+
+        constraint_row & add_row() {
+            EDYN_ASSERT(count < max_rows);
+            return rows[count++];
+        }
+    };
+
+    std::vector<entry> entries;
 };
 
 }
