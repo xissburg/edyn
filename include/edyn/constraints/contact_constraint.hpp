@@ -6,6 +6,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/util/array_util.hpp"
 
 namespace edyn {
 
@@ -13,7 +14,8 @@ namespace edyn {
  * @brief Non-penetration constraint.
  */
 struct contact_constraint : public constraint_base {
-
+    static constexpr auto num_rows = 4;
+    std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
 };
 
 template<typename Archive>
@@ -60,13 +62,18 @@ template<>
 void init_constraints<contact_constraint>(entt::registry &);
 
 template<>
-void prepare_constraint<contact_constraint>(contact_constraint &con, row_cache_sparse::entry &cache_entry, scalar dt,
-                        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-                        const vector3 &linvelA, const vector3 &angvelA,
-                        scalar inv_mA, const matrix3x3 &inv_IA, delta_linvel &dvA, delta_angvel &dwA,
-                        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-                        const vector3 &linvelB, const vector3 &angvelB,
-                        scalar inv_mB, const matrix3x3 &inv_IB, delta_linvel &dvB, delta_angvel &dwB);
+void prepare_constraint<contact_constraint>(const entt::registry &, entt::entity, contact_constraint &con,
+                                            row_cache_sparse::entry &cache_entry, scalar dt,
+                                            const vector3 &originA,
+                                            const vector3 &posA, const quaternion &ornA,
+                                            const vector3 &linvelA, const vector3 &angvelA,
+                                            scalar inv_mA, const matrix3x3 &inv_IA,
+                                            delta_linvel &dvA, delta_angvel &dwA,
+                                            const vector3 &originB,
+                                            const vector3 &posB, const quaternion &ornB,
+                                            const vector3 &linvelB, const vector3 &angvelB,
+                                            scalar inv_mB, const matrix3x3 &inv_IB,
+                                            delta_linvel &dvB, delta_angvel &dwB);
 
 /* template<>
 void iterate_constraints<contact_constraint>(entt::registry &, row_cache &, scalar dt); */

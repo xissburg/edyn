@@ -108,13 +108,21 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
         const auto row_start_index = cache.rows.size();*/
 
 template<>
-void prepare_constraint<contact_constraint>(contact_constraint &con, row_cache_sparse::entry &cache_entry, scalar dt,
-                        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-                        const vector3 &linvelA, const vector3 &angvelA,
-                        scalar inv_mA, const matrix3x3 &inv_IA, delta_linvel &dvA, delta_angvel &dwA,
-                        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-                        const vector3 &linvelB, const vector3 &angvelB,
-                        scalar inv_mB, const matrix3x3 &inv_IB, delta_linvel &dvB, delta_angvel &dwB) {
+void prepare_constraint<contact_constraint>(const entt::registry &registry, entt::entity entity, contact_constraint &con,
+                                            row_cache_sparse::entry &cache_entry, scalar dt,
+                                            const vector3 &originA,
+                                            const vector3 &posA, const quaternion &ornA,
+                                            const vector3 &linvelA, const vector3 &angvelA,
+                                            scalar inv_mA, const matrix3x3 &inv_IA,
+                                            delta_linvel &dvA, delta_angvel &dwA,
+                                            const vector3 &originB,
+                                            const vector3 &posB, const quaternion &ornB,
+                                            const vector3 &linvelB, const vector3 &angvelB,
+                                            scalar inv_mB, const matrix3x3 &inv_IB,
+                                            delta_linvel &dvB, delta_angvel &dwB) {
+    auto &manifold = registry.get<contact_manifold>(entity);
+    auto &settings = registry.ctx().at<edyn::settings>();
+
     // Create constraint rows for each contact point.
     for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
         auto &cp = manifold.get_point(pt_idx);
@@ -133,7 +141,7 @@ void prepare_constraint<contact_constraint>(contact_constraint &con, row_cache_s
         normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
         normal_row.dvA = &dvA; normal_row.dwA = &dwA;
         normal_row.dvB = &dvB; normal_row.dwB = &dwB;
-        normal_row.impulse = cp.normal_impulse;
+        normal_row.impulse = con.impulse[pt_idx];// cp.normal_impulse;
         normal_row.lower_limit = 0;
 
         auto normal_options = constraint_row_options{};

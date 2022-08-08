@@ -15,13 +15,18 @@ template<typename C>
 void init_constraints(entt::registry &) {}
 
 template<typename C>
-void prepare_constraint(C &, row_cache_sparse::entry &, scalar dt,
-                        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+void prepare_constraint(const entt::registry &, entt::entity, C &con,
+                        row_cache_sparse::entry &cache_entry, scalar dt,
+                        const vector3 &originA, const vector3
+                        &posA, const quaternion &ornA,
                         const vector3 &linvelA, const vector3 &angvelA,
-                        scalar inv_mA, const matrix3x3 &inv_IA, delta_linvel &dvA, delta_angvel &dwA,
-                        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+                        scalar inv_mA, const matrix3x3 &inv_IA,
+                        delta_linvel &dvA, delta_angvel &dwA,
+                        const vector3 &originB,
+                        const vector3 &posB, const quaternion &ornB,
                         const vector3 &linvelB, const vector3 &angvelB,
-                        scalar inv_mB, const matrix3x3 &inv_IB, delta_linvel &dvB, delta_angvel &dwB) {}
+                        scalar inv_mB, const matrix3x3 &inv_IB,
+                        delta_linvel &dvB, delta_angvel &dwB) {}
 
 //template<typename C>
 //void iterate_constraints(entt::registry &, row_cache &, scalar dt) {}

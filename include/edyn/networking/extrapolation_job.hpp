@@ -38,7 +38,6 @@ class extrapolation_job final {
     void init();
     bool should_step();
     void begin_step();
-    bool run_solver();
     void finish_step();
     void apply_history();
     void sync_and_finish();

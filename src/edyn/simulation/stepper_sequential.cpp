@@ -21,6 +21,7 @@ stepper_sequential::stepper_sequential(entt::registry &registry, bool multithrea
     , m_paused(false)
 {
     m_last_time = performance_time();
+    m_island_manager.set_last_time(m_last_time);
 }
 
 void stepper_sequential::update() {
@@ -50,7 +51,7 @@ void stepper_sequential::update() {
         bphase.update_sequential(m_multithreaded);
         m_island_manager.update(step_time);
         nphase.update_sequential(m_multithreaded);
-        m_solver.update(fixed_dt);
+        m_solver.update_sequential(m_multithreaded);
         emitter.consume_events();
     }
 
@@ -60,7 +61,6 @@ void stepper_sequential::update() {
 void stepper_sequential::step_simulation() {
     EDYN_ASSERT(m_paused);
 
-    auto fixed_dt = m_registry->ctx().at<settings>().fixed_dt;
     m_last_time = performance_time();
 
     auto &bphase = m_registry->ctx().at<broadphase>();
@@ -71,7 +71,7 @@ void stepper_sequential::step_simulation() {
     bphase.update_sequential(m_multithreaded);
     m_island_manager.update(m_last_time);
     nphase.update_sequential(m_multithreaded);
-    m_solver.update(fixed_dt);
+    m_solver.update_sequential(m_multithreaded);
     emitter.consume_events();
 }
 

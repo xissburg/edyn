@@ -37,6 +37,10 @@ public:
 
     void wake_up_island(entt::entity island_entity);
 
+    void set_last_time(double time) {
+        m_last_time = time;
+    }
+
 private:
     entt::registry *m_registry;
     std::vector<entt::entity> m_new_graph_nodes;

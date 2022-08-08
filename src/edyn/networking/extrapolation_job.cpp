@@ -124,6 +124,7 @@ void extrapolation_job::load_input() {
 
 void extrapolation_job::init() {
     m_start_time = performance_time();
+    m_island_manager.set_last_time(m_start_time);
 
     // Import entities and components to be extrapolated.
     load_input();
@@ -259,7 +260,7 @@ void extrapolation_job::run_state_machine() {
         }
         break;
     case state::solve:
-        if (run_solver()) {
+        if (m_solver.update(m_this_job)) {
             m_state = state::finish_step;
             run_state_machine();
         }
@@ -309,12 +310,6 @@ void extrapolation_job::begin_step() {
     }
 
     m_state = state::broadphase;
-}
-
-bool extrapolation_job::run_solver() {
-    EDYN_ASSERT(m_state == state::solve);
-    m_solver.update(m_registry.ctx().at<edyn::settings>().fixed_dt);
-    return true;
 }
 
 void extrapolation_job::finish_step() {

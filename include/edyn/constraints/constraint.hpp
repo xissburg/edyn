@@ -37,14 +37,14 @@ using constraints_tuple_t = std::tuple<
 
 static const constraints_tuple_t constraints_tuple = constraints_tuple_t{};
 
-/* inline
+inline
 void init_constraints(entt::registry &registry) {
     std::apply([&](auto ... c) {
         (init_constraints<decltype(c)>(registry), ...);
     }, constraints_tuple);
 }
 
-inline
+/* inline
 void prepare_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
     std::apply([&](auto ... c) {
         (prepare_constraints<decltype(c)>(registry, cache, dt), ...);

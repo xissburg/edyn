@@ -33,12 +33,14 @@ class solver {
     };
 
     bool prepare_constraints(const job &completion_job, scalar dt);
+    void prepare_constraints_sequential(bool mt, scalar dt);
     void pack_rows();
 
 public:
     solver(entt::registry &);
 
     bool update(const job &completion_job);
+    void update_sequential(bool mt);
 
 private:
     entt::registry *m_registry;

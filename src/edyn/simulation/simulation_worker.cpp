@@ -94,6 +94,7 @@ simulation_worker::simulation_worker(const settings &settings,
     archive(ctx_intptr);
 
     m_last_time = performance_time();
+    m_island_manager.set_last_time(m_last_time);
 
     // Reschedule every time a message is added to the queue.
     m_message_queue.push_sink().connect<&simulation_worker::reschedule>(*this);
@@ -394,7 +395,7 @@ void simulation_worker::run_state_machine() {
         }
         break;
     case state::solve:
-        if (run_solver()) {
+        if (m_solver.update(m_this_job)) {
             m_state = state::finish_step;
             run_state_machine();
         }
@@ -463,11 +464,6 @@ void simulation_worker::begin_step() {
     m_poly_initializer.init_new_shapes();
 
     m_state = state::broadphase;
-}
-
-bool simulation_worker::run_solver() {
-    EDYN_ASSERT(m_state == state::solve);
-    return m_solver.update(m_registry.ctx().at<edyn::settings>().fixed_dt);
 }
 
 static void decay_discontinuities(entt::registry &registry, scalar rate) {

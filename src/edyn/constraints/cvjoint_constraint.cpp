@@ -56,13 +56,18 @@ void cvjoint_constraint::update_angle(scalar new_angle) {
 }
 
 template<>
-void prepare_constraint<cvjoint_constraint>(cvjoint_constraint &con, row_cache_sparse::entry &cache_entry, scalar dt,
-                        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-                        const vector3 &linvelA, const vector3 &angvelA,
-                        scalar inv_mA, const matrix3x3 &inv_IA, delta_linvel &dvA, delta_angvel &dwA,
-                        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-                        const vector3 &linvelB, const vector3 &angvelB,
-                        scalar inv_mB, const matrix3x3 &inv_IB, delta_linvel &dvB, delta_angvel &dwB) {
+void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity, cvjoint_constraint &con,
+                                            row_cache_sparse::entry &cache_entry, scalar dt,
+                                            const vector3 &originA, const vector3
+                                            &posA, const quaternion &ornA,
+                                            const vector3 &linvelA, const vector3 &angvelA,
+                                            scalar inv_mA, const matrix3x3 &inv_IA,
+                                            delta_linvel &dvA, delta_angvel &dwA,
+                                            const vector3 &originB,
+                                            const vector3 &posB, const quaternion &ornB,
+                                            const vector3 &linvelB, const vector3 &angvelB,
+                                            scalar inv_mB, const matrix3x3 &inv_IB,
+                                            delta_linvel &dvB, delta_angvel &dwB) {
     auto pivotA = to_world_space(con.pivot[0], originA, ornA);
     auto pivotB = to_world_space(con.pivot[1], originB, ornB);
     auto rA = pivotA - posA;

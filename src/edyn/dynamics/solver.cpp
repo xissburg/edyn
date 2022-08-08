@@ -8,6 +8,7 @@
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/parallel_for.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/integrate_linvel.hpp"
@@ -35,11 +36,7 @@ namespace edyn {
 
 template<typename View>
 size_t view_size(const View &view) {
-    size_t size = 0;
-    for (auto entity : view) {
-        ++size;
-    }
-    return size;
+    return std::distance(view.begin(), view.end());
 }
 
 scalar solve(constraint_row &row) {
@@ -158,7 +155,7 @@ solver::solver(entt::registry &registry)
 }
 
 template<typename C>
-void prepare_constraints_seq(entt::registry &registry, row_cache_sparse &cache, scalar dt) {
+void prepare_constraints_seq(entt::registry &registry, row_cache_sparse &cache, scalar dt, bool mt) {
     auto body_view = registry.view<position, orientation,
                                    linvel, angvel,
                                    mass_inv, inertia_world_inv,
@@ -166,20 +163,30 @@ void prepare_constraints_seq(entt::registry &registry, row_cache_sparse &cache, 
     auto origin_view = registry.view<origin>();
     auto con_view = registry.view<C>(entt::exclude_t<sleeping_tag, disabled_tag>{});
 
-    size_t index = 0;
-    for (auto [entity, con] : con_view.each()) {
-        auto &entry = cache.entries[index++];
-
+    auto for_loop_body = [&registry, body_view, con_view, origin_view, &cache, dt](entt::entity entity, size_t index) {
+        auto [con] = con_view.get(entity);
         auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
         auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
         auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+
+        auto &entry = cache.entries[index];
         entry.count = 0;
 
-        prepare_constraint(con, entry, dt,
-                           originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA,
-                           originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB);
+        prepare_constraint(registry, entity, con, entry, dt,
+                            originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA,
+                            originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB);
+    };
+
+    if (mt && view_size(con_view) > 4) {
+        auto &dispatcher = job_dispatcher::global();
+        parallel_for_each(dispatcher, con_view.begin(), con_view.end(), for_loop_body);
+    } else {
+        size_t index = 0;
+        for (auto entity : con_view) {
+            for_loop_body(entity, index++);
+        }
     }
 }
 
@@ -194,26 +201,28 @@ void prepare_constraints_async(entt::registry &registry, row_cache_sparse &cache
     auto &dispatcher = job_dispatcher::global();
 
     parallel_for_each_async(dispatcher, con_view.begin(), con_view.end(), decr_job,
-        [body_view, origin_view, con_view, &cache, dt](C &con, size_t index) {
+        [&registry, body_view, con_view, origin_view, &cache, dt](entt::entity entity, size_t index) {
+            auto [con] = con_view.get(entity);
             auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
             auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
             auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
             auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+
             auto &entry = cache.entries[index];
             entry.count = 0;
 
-            prepare_constraint(con, entry, dt,
+            prepare_constraint(registry, entity, con, entry, dt,
                                originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA,
                                originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB);
         });
 }
 
 template<>
-void prepare_constraints_seq<null_constraint>(entt::registry &registry, row_cache_sparse &cache, scalar dt) {}
+void prepare_constraints_seq<null_constraint>(entt::registry &, row_cache_sparse &, scalar, bool) {}
 
 template<>
-void prepare_constraints_async<null_constraint>(entt::registry &registry, row_cache_sparse &cache, scalar dt, const job &decr_job) {}
+void prepare_constraints_async<null_constraint>(entt::registry &, row_cache_sparse &, scalar, const job &) {}
 
 bool solver::prepare_constraints(const job &completion_job, scalar dt) {
     // Resize the row cache for each constraint type to fit the rows of
@@ -238,7 +247,7 @@ bool solver::prepare_constraints(const job &completion_job, scalar dt) {
     std::apply([&](auto ... c) {
         size_t idx = 0;
         (((m_row_cache_sparse[idx].entries.size() <= max_sequential_size ?
-            prepare_constraints_seq<decltype(c)>(*m_registry, m_row_cache_sparse[idx], dt) : void(0)), ++idx), ...);
+            prepare_constraints_seq<decltype(c)>(*m_registry, m_row_cache_sparse[idx], dt, false) : void(0)), ++idx), ...);
     }, constraints_tuple);
 
     // Prepare the parallel ones later.
@@ -260,6 +269,18 @@ bool solver::prepare_constraints(const job &completion_job, scalar dt) {
     }
 
     return true;
+}
+
+void solver::prepare_constraints_sequential(bool mt, scalar dt) {
+    std::apply([&](auto ... c) {
+        size_t idx = 0;
+        (m_row_cache_sparse[idx++].entries.resize(view_size(m_registry->view<decltype(c)>(entt::exclude_t<sleeping_tag, disabled_tag>{}))), ...);
+    }, constraints_tuple);
+
+    std::apply([&](auto ... c) {
+        size_t idx = 0;
+        ((prepare_constraints_seq<decltype(c)>(*m_registry, m_row_cache_sparse[idx], dt, mt), ++idx), ...);
+    }, constraints_tuple);
 }
 
 void solver::pack_rows() {
@@ -284,7 +305,7 @@ bool solver::update(const job &completion_job) {
     case state::begin:
         m_row_cache.clear();
         m_state = state::solve_restitution;
-        return false;
+        return update(completion_job);
         break;
 
     case state::solve_restitution:
@@ -292,25 +313,28 @@ bool solver::update(const job &completion_job) {
         // start bouncing due to the initial gravity acceleration.
         solve_restitution(registry, dt);
         m_state = state::apply_gravity;
-        return false;
+        return update(completion_job);
         break;
 
     case state::apply_gravity:
         apply_gravity(registry, dt);
         m_state = state::prepare_constraints;
-        return false;
+        return update(completion_job);
         break;
 
     case state::prepare_constraints:
         m_state = state::pack_rows;
-        prepare_constraints(completion_job, dt);
-        return false;
+        if (prepare_constraints(completion_job, dt)) {
+            return update(completion_job);
+        } else {
+            return false;
+        }
         break;
 
     case state::pack_rows:
         pack_rows();
         m_state = state::solve_constraints;
-        return false;
+        return update(completion_job);
         break;
 
     case state::solve_constraints:
@@ -325,7 +349,7 @@ bool solver::update(const job &completion_job) {
             }
         }
         m_state = state::apply_delta;
-        return false;
+        return update(completion_job);
         break;
 
     case state::apply_delta:
@@ -337,13 +361,13 @@ bool solver::update(const job &completion_job) {
             dw = vector3_zero;
         }
         m_state = state::assign_applied_impulse;
-        return false;
+        return update(completion_job);
         break;
 
     case state::assign_applied_impulse:
         update_impulses(registry, m_row_cache);
         m_state = state::integrate_velocity;
-        return false;
+        return update(completion_job);
         break;
 
     case state::integrate_velocity:
@@ -351,7 +375,7 @@ bool solver::update(const job &completion_job) {
         integrate_linvel(registry, dt);
         integrate_angvel(registry, dt);
         m_state = state::solve_position_constraints;
-        return false;
+        return update(completion_job);
         break;
 
     case state::solve_position_constraints:
@@ -362,7 +386,7 @@ bool solver::update(const job &completion_job) {
             }
         }
         m_state = state::finalize;
-        return false;
+        return update(completion_job);
         break;
 
     case state::finalize:
@@ -379,14 +403,72 @@ bool solver::update(const job &completion_job) {
 
         // Update world-space moment of inertia.
         update_inertias(registry);
-        m_state = state::begin;
-        return true;
+        m_state = state::done;
+        return update(completion_job);
         break;
 
     case state::done:
         m_state = state::begin;
         return true;
     }
+}
+
+void solver::update_sequential(bool mt) {
+    auto &registry = *m_registry;
+    auto &settings = registry.ctx().at<edyn::settings>();
+    auto dt = settings.fixed_dt;
+
+    m_row_cache.clear();
+    solve_restitution(registry, dt);
+    apply_gravity(registry, dt);
+    prepare_constraints_sequential(mt, dt);
+    pack_rows();
+
+    for (unsigned i = 0; i < settings.num_solver_velocity_iterations; ++i) {
+        // Prepare constraints for iteration.
+        //iterate_constraints(registry, m_row_cache, dt);
+
+        // Solve rows.
+        for (auto &row : m_row_cache.rows) {
+            auto delta_impulse = solve(row);
+            apply_impulse(delta_impulse, row);
+        }
+    }
+
+    // Apply constraint velocity correction.
+    for (auto [e, v, w, dv, dw] : registry.view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>(entt::exclude_t<sleeping_tag>{}).each()) {
+        v += dv;
+        w += dw;
+        dv = vector3_zero;
+        dw = vector3_zero;
+    }
+
+    update_impulses(registry, m_row_cache);
+
+    // Integrate velocities to obtain new transforms.
+    integrate_linvel(registry, dt);
+    integrate_angvel(registry, dt);
+
+    // Now that rigid bodies have moved, perform positional correction.
+    for (unsigned i = 0; i < settings.num_solver_position_iterations; ++i) {
+        if (solve_position_constraints(registry, dt)) {
+            break;
+        }
+    }
+
+    update_origins(registry);
+
+    // Update rotated vertices of convex meshes after rotations change. It is
+    // important to do this before `update_aabbs` because the rotated meshes
+    // will be used to calculate AABBs of polyhedrons.
+    update_rotated_meshes(registry);
+
+    // Update AABBs after transforms change.
+    update_aabbs(registry);
+    update_island_aabbs(registry);
+
+    // Update world-space moment of inertia.
+    update_inertias(registry);
 }
 
 }

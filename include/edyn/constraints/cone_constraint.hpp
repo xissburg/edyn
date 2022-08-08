@@ -47,13 +47,18 @@ struct cone_constraint : public constraint_base {
 };
 
 template<>
-void prepare_constraint<cone_constraint>(cone_constraint &, row_cache_sparse::entry &, scalar dt,
-                        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-                        const vector3 &linvelA, const vector3 &angvelA,
-                        scalar inv_mA, const matrix3x3 &inv_IA, delta_linvel &dvA, delta_angvel &dwA,
-                        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-                        const vector3 &linvelB, const vector3 &angvelB,
-                        scalar inv_mB, const matrix3x3 &inv_IB, delta_linvel &dvB, delta_angvel &dwB);
+void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, cone_constraint &con,
+                                         row_cache_sparse::entry &cache_entry, scalar dt,
+                                         const vector3 &originA, const vector3
+                                         &posA, const quaternion &ornA,
+                                         const vector3 &linvelA, const vector3 &angvelA,
+                                         scalar inv_mA, const matrix3x3 &inv_IA,
+                                         delta_linvel &dvA, delta_angvel &dwA,
+                                         const vector3 &originB,
+                                         const vector3 &posB, const quaternion &ornB,
+                                         const vector3 &linvelB, const vector3 &angvelB,
+                                         scalar inv_mB, const matrix3x3 &inv_IB,
+                                         delta_linvel &dvB, delta_angvel &dwB);
 
 template<typename Archive>
 void serialize(Archive &archive, cone_constraint &c) {
