@@ -31,14 +31,28 @@ struct island_solver_context {
 
     island_solver_context() = default;
 
-    island_solver_context(entt::registry &registry, entt::entity island_entity, unsigned num_iterations, atomic_counter *counter)
-        : registry(&registry), island_entity(island_entity), num_iterations(num_iterations), counter(counter) {}
+    island_solver_context(entt::registry &registry, entt::entity island_entity,
+                          unsigned num_iterations, atomic_counter *counter)
+        : registry(&registry)
+        , island_entity(island_entity)
+        , num_iterations(num_iterations)
+        , counter(counter)
+    {}
 
-    island_solver_context(entt::registry &registry, entt::entity island_entity, unsigned num_iterations, atomic_counter_sync *counter)
-        : registry(&registry), island_entity(island_entity), num_iterations(num_iterations), counter_sync(counter) {}
+    island_solver_context(entt::registry &registry, entt::entity island_entity,
+                          unsigned num_iterations, atomic_counter_sync *counter)
+        : registry(&registry)
+        , island_entity(island_entity)
+        , num_iterations(num_iterations)
+        , counter_sync(counter)
+    {}
 
-    island_solver_context(entt::registry &registry, entt::entity island_entity, unsigned num_iterations)
-        : registry(&registry), island_entity(island_entity), num_iterations(num_iterations) {}
+    island_solver_context(entt::registry &registry, entt::entity island_entity,
+                          unsigned num_iterations)
+        : registry(&registry)
+        , island_entity(island_entity)
+        , num_iterations(num_iterations)
+    {}
 };
 
 template<typename Archive>
@@ -102,7 +116,7 @@ void update_impulse(entt::registry &registry, row_cache &cache, It first, It las
                 auto [manifold] = manifold_view.get(entity);
                 EDYN_ASSERT(manifold.num_points == num_rows);
                 for (size_t i = 0; i < num_rows; ++i) {
-                    manifold.get_point(i).normal_impulse = cache.rows[row_idx + i].impulse;
+                    manifold.get_point(i).normal_impulse = con.impulse[i];
                 }
             }
 

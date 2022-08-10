@@ -9,6 +9,11 @@ namespace edyn {
 struct rigidbody_tag {};
 
 /**
+ * Identifies a constraint.
+ */
+struct constraint_tag {};
+
+/**
  * An island.
  */
 struct island_tag {};

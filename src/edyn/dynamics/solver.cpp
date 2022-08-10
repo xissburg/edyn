@@ -45,7 +45,7 @@ solver::solver(entt::registry &registry)
     registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
     registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
     registry.on_construct<island_tag>().connect<&entt::registry::emplace<row_cache>>();
-    registry.on_construct<graph_edge>().connect<&entt::registry::emplace<constraint_row_prep_cache>>();
+    registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<constraint_row_prep_cache>>();
 }
 
 template<typename C>

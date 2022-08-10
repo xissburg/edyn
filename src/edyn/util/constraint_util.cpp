@@ -37,6 +37,8 @@ namespace internal {
         auto edge_index = registry.ctx().at<entity_graph>().insert_edge(entity, node_index0, node_index1);
         registry.emplace<graph_edge>(entity, edge_index);
 
+        registry.emplace<constraint_tag>(entity);
+
         return true;
     }
 }
