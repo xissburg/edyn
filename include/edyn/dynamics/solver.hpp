@@ -1,6 +1,7 @@
 #ifndef EDYN_DYNAMICS_SOLVER_HPP
 #define EDYN_DYNAMICS_SOLVER_HPP
 
+#include <entt/signal/sigh.hpp>
 #include <memory>
 #include <tuple>
 #include <vector>
@@ -15,7 +16,7 @@ struct job;
 
 scalar solve(constraint_row &row);
 
-class solver {
+class solver final {
     enum class state {
         begin,
         solve_restitution,
@@ -28,10 +29,6 @@ class solver {
         done
     };
 
-    bool prepare_constraints(const job &completion_job, scalar dt);
-    void prepare_constraints_sequential(bool mt, scalar dt);
-    void pack_rows();
-
 public:
     solver(entt::registry &);
 
@@ -40,6 +37,7 @@ public:
 
 private:
     entt::registry *m_registry;
+    std::vector<entt::scoped_connection> m_connections;
     state m_state {state::begin};
     std::unique_ptr<atomic_counter> m_counter;
 };

@@ -30,11 +30,32 @@ struct row_cache {
 struct constraint_row_prep_cache {
     static constexpr size_t max_rows = 32;
     std::array<constraint_row, max_rows> rows;
-    size_t count {};
+    uint8_t num_rows;
+    std::array<uint8_t, 16> rows_per_constraint;
+    uint8_t num_constraints;
+
+    constraint_row_prep_cache() {
+        clear();
+    }
 
     constraint_row & add_row() {
-        EDYN_ASSERT(count < max_rows);
-        return rows[count++];
+        EDYN_ASSERT(num_rows < max_rows);
+        EDYN_ASSERT(num_constraints > 0);
+        ++rows_per_constraint[num_constraints - 1];
+        return rows[num_rows++];
+    }
+
+    void add_constraint() {
+        ++num_constraints;
+    }
+
+    void clear() {
+        num_rows = 0;
+        num_constraints = 0;
+
+        for (auto &c : rows_per_constraint) {
+            c = 0;
+        }
     }
 };
 

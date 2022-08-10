@@ -7,12 +7,18 @@
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
+#include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/serialization/entt_s11n.hpp"
+#include "edyn/util/tuple_util.hpp"
 #include <entt/entity/registry.hpp>
+#include <tuple>
+#include <type_traits>
 
 namespace edyn {
+
+static void island_solver_job_func(job::data_type &data);
 
 enum class island_solver_state : uint8_t {
     pack_rows,
@@ -66,65 +72,75 @@ void serialize(Archive &archive, island_solver_context &ctx) {
     serialize_enum(archive, ctx.state);
 }
 
-template<typename C, typename It>
-void insert_rows(const entt::registry &registry, row_cache &cache, It first, It last) {
-    if constexpr(!std::is_same_v<C, null_constraint>) {
-        auto view = registry.view<C, constraint_row_prep_cache>(exclude_sleeping_disabled);
+template<typename It>
+void insert_rows(entt::registry &registry, row_cache &cache, It first, It last) {
+    auto prep_view = registry.view<constraint_row_prep_cache>();
 
-        for (; first != last; ++first) {
-            auto entity = *first;
-            if (!view.contains(entity)) continue;
+    for (; first != last; ++first) {
+        auto entity = *first;
+        auto [prep_cache] = prep_view.get(entity);
 
-            auto &prep_cache = view.template get<const constraint_row_prep_cache>(entity);
-            cache.con_num_rows.push_back(prep_cache.count);
-
-            if (prep_cache.count > 0) {
-                auto end = prep_cache.rows.begin();
-                std::advance(end, prep_cache.count);
-                cache.rows.insert(cache.rows.end(), prep_cache.rows.begin(), end);
-            }
+        // Insert all constraint rows into island row cache. Since an entity
+        // can have multiple constraints (of different types), these could be
+        // rows of more than one constraint.
+        if (prep_cache.num_rows > 0) {
+            auto end = prep_cache.rows.begin();
+            std::advance(end, prep_cache.num_rows);
+            cache.rows.insert(cache.rows.end(), prep_cache.rows.begin(), end);
         }
+
+        // Then insert the number of rows for each constraint.
+        for (unsigned i = 0; i < prep_cache.num_constraints; ++i) {
+            auto num_rows = prep_cache.rows_per_constraint[i];
+            cache.con_num_rows.push_back(num_rows);
+        }
+
+        prep_cache.clear();
     }
 }
 
-template<typename C, typename It>
-void update_impulse(entt::registry &registry, row_cache &cache, It first, It last, size_t &con_idx, size_t &row_idx) {
-    if constexpr(!std::is_same_v<C, null_constraint>) {
-        auto view = registry.view<C>(exclude_sleeping_disabled);
-        auto manifold_view = registry.view<contact_manifold>();
+template<typename C>
+void update_impulse(entt::registry &registry, entt::entity entity,
+                    entt::basic_view<entt::entity, entt::get_t<C>, entt::exclude_t<>> &con_view,
+                    entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &manifold_view,
+                    row_cache &cache, size_t &con_idx, size_t &row_idx) {
+    if (!con_view.contains(entity)) {
+        return;
+    }
 
-        for (; first != last; ++first) {
-            auto entity = *first;
-            if (!view.contains(entity)) continue;
+    auto [con] = con_view.get(entity);
+    auto num_rows = cache.con_num_rows[con_idx];
 
-            auto [con] = view.get(entity);
-            auto num_rows = cache.con_num_rows[con_idx];
-
-            // Check if the constraint `impulse` member is a scalar, otherwise
-            // an array is expected.
-            if constexpr(std::is_same_v<decltype(con.impulse), scalar>) {
-                EDYN_ASSERT(num_rows == 1);
-                con.impulse = cache.rows[row_idx].impulse;
-            } else {
-                EDYN_ASSERT(con.impulse.size() >= num_rows);
-                for (size_t i = 0; i < num_rows; ++i) {
-                    con.impulse[i] = cache.rows[row_idx + i].impulse;
-                }
-            }
-
-            if constexpr(std::is_same_v<C, contact_constraint>) {
-                auto [manifold] = manifold_view.get(entity);
-                EDYN_ASSERT(manifold.num_points == num_rows);
-                for (size_t i = 0; i < num_rows; ++i) {
-                    manifold.get_point(i).normal_impulse = con.impulse[i];
-                }
-            }
-
-            row_idx += num_rows;
-            ++con_idx;
+    // Check if the constraint `impulse` member is a scalar, otherwise
+    // an array is expected.
+    if constexpr(std::is_same_v<decltype(con.impulse), scalar>) {
+        EDYN_ASSERT(num_rows == 1);
+        con.impulse = cache.rows[row_idx].impulse;
+    } else {
+        EDYN_ASSERT(con.impulse.size() >= num_rows);
+        for (size_t i = 0; i < num_rows; ++i) {
+            con.impulse[i] = cache.rows[row_idx + i].impulse;
         }
     }
+
+    if constexpr(std::is_same_v<C, contact_constraint>) {
+        auto [manifold] = manifold_view.get(entity);
+        EDYN_ASSERT(manifold.num_points == num_rows);
+        for (size_t i = 0; i < num_rows; ++i) {
+            manifold.get_point(i).normal_impulse = con.impulse[i];
+        }
+    }
+
+    row_idx += num_rows;
+    ++con_idx;
 }
+
+// No-op for null constraints.
+template<>
+void update_impulse<null_constraint>(entt::registry &, entt::entity,
+                    entt::basic_view<entt::entity, entt::get_t<null_constraint>, entt::exclude_t<>> &,
+                    entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &,
+                    row_cache &, size_t &, size_t &) {}
 
 // Specialization to assign the impulses of friction constraints which are not
 // stored in traditional constraint rows.
@@ -179,19 +195,15 @@ void update_impulses(entt::registry &registry, row_cache &cache, It first, It la
     // constraint type in the order they appear in the tuple.
     size_t con_idx = 0;
     size_t row_idx = 0;
+    auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
+    auto manifold_view = registry.view<contact_manifold>();
 
-    std::apply([&](auto ... c) {
-        (update_impulse<decltype(c)>(registry, cache, first, last, con_idx, row_idx), ...);
-    }, constraints_tuple);
-}
-
-static void island_solver_update(island_solver_context &ctx);
-
-static void island_solver_job_func(job::data_type &data) {
-    auto archive = memory_input_archive(data.data(), data.size());
-    island_solver_context ctx;
-    archive(ctx);
-    island_solver_update(ctx);
+    for (; first != last; ++first) {
+        auto entity = *first;
+        std::apply([&](auto &&... con_view) {
+            (update_impulse(registry, entity, con_view, manifold_view, cache, con_idx, row_idx), ...);
+        }, con_view_tuple);
+    }
 }
 
 static bool run_island_solver_state_machine(island_solver_context &ctx) {
@@ -201,9 +213,8 @@ static bool run_island_solver_state_machine(island_solver_context &ctx) {
         auto &cache = ctx.registry->get<row_cache>(ctx.island_entity);
         cache.clear();
 
-        std::apply([&](auto ... c) {
-            (insert_rows<decltype(c)>(*ctx.registry, cache, island.edges.begin(), island.edges.end()), ...);
-        }, constraints_tuple);
+        insert_rows(*ctx.registry, cache, island.edges.begin(), island.edges.end());
+
         ctx.state = island_solver_state::solve_constraints;
         ctx.iteration = 0;
 
@@ -279,6 +290,13 @@ void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,
                            unsigned int num_iterations) {
     auto ctx = island_solver_context(registry, island_entity, num_iterations);
     while (!run_island_solver_state_machine(ctx));
+}
+
+static void island_solver_job_func(job::data_type &data) {
+    auto archive = memory_input_archive(data.data(), data.size());
+    island_solver_context ctx;
+    archive(ctx);
+    island_solver_update(ctx);
 }
 
 }

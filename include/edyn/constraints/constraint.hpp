@@ -13,7 +13,6 @@
 #include "edyn/constraints/cone_constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/constraints/gravity_constraint.hpp"
-#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
@@ -43,20 +42,6 @@ void init_constraints(entt::registry &registry) {
         (init_constraints<decltype(c)>(registry), ...);
     }, constraints_tuple);
 }
-
-/* inline
-void prepare_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
-    std::apply([&](auto ... c) {
-        (prepare_constraints<decltype(c)>(registry, cache, dt), ...);
-    }, constraints_tuple);
-}
-
-inline
-void iterate_constraints(entt::registry &registry, row_cache &cache, scalar dt) {
-    std::apply([&](auto ... c) {
-        (iterate_constraints<decltype(c)>(registry, cache, dt), ...);
-    }, constraints_tuple);
-} */
 
 inline
 bool solve_position_constraints(entt::registry &registry, scalar dt) {

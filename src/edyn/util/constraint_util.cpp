@@ -6,8 +6,6 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
-#include "edyn/comp/delta_linvel.hpp"
-#include "edyn/comp/delta_angvel.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/replication/component_index_source.hpp"
