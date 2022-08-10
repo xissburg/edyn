@@ -16,7 +16,7 @@ void init_constraints(entt::registry &) {}
 
 template<typename C>
 void prepare_constraint(const entt::registry &, entt::entity, C &con,
-                        row_cache_sparse::entry &cache_entry, scalar dt,
+                        constraint_row_prep_cache &cache, scalar dt,
                         const vector3 &originA, const vector3
                         &posA, const quaternion &ornA,
                         const vector3 &linvelA, const vector3 &angvelA,

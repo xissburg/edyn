@@ -22,7 +22,7 @@ struct row_start_index_soft_distance_constraint {
 
 template<>
 void prepare_constraint<soft_distance_constraint>(const entt::registry &, entt::entity, soft_distance_constraint &con,
-                                                  row_cache_sparse::entry &cache_entry, scalar dt,
+                                                  constraint_row_prep_cache &cache, scalar dt,
                                                   const vector3 &originA, const vector3
                                                   &posA, const quaternion &ornA,
                                                   const vector3 &linvelA, const vector3 &angvelA,
@@ -59,7 +59,7 @@ void prepare_constraint<soft_distance_constraint>(const entt::registry &, entt::
         auto spring_force = con.stiffness * error;
         auto spring_impulse = spring_force * dt;
 
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {dn, p, -dn, -q};
         row.lower_limit = std::min(spring_impulse, scalar(0));
         row.upper_limit = std::max(scalar(0), spring_impulse);
@@ -80,7 +80,7 @@ void prepare_constraint<soft_distance_constraint>(const entt::registry &, entt::
     {
         // Damping row. It functions like friction where the force is
         // proportional to the relative speed.
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {dn, p, -dn, -q};
 
         auto relspd = dot(row.J[0], linvelA) +

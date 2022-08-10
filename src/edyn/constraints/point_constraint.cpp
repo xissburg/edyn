@@ -20,7 +20,7 @@ namespace edyn {
 
 template<>
 void prepare_constraint<point_constraint>(const entt::registry &, entt::entity, point_constraint &con,
-                                          row_cache_sparse::entry &cache_entry, scalar dt,
+                                          constraint_row_prep_cache &cache, scalar dt,
                                           const vector3 &originA, const vector3
                                           &posA, const quaternion &ornA,
                                           const vector3 &linvelA, const vector3 &angvelA,
@@ -43,7 +43,7 @@ void prepare_constraint<point_constraint>(const entt::registry &, entt::entity, 
     auto num_rows = size_t{3};
 
     for (size_t i = 0; i < num_rows; ++i) {
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
@@ -65,7 +65,7 @@ void prepare_constraint<point_constraint>(const entt::registry &, entt::entity, 
         auto spin_axis = angvelA - angvelB;
 
         if (try_normalize(spin_axis)) {
-            auto &row = cache_entry.add_row();
+            auto &row = cache.add_row();
             row.J = {vector3_zero, spin_axis, vector3_zero, -spin_axis};
             row.inv_mA = inv_mA;  row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;

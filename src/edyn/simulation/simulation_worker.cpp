@@ -94,6 +94,7 @@ simulation_worker::simulation_worker(const settings &settings,
     archive(ctx_intptr);
 
     m_last_time = performance_time();
+    m_step_start_time = m_last_time;
     m_island_manager.set_last_time(m_last_time);
 
     // Reschedule every time a message is added to the queue.

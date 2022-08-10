@@ -6,7 +6,6 @@
 #include <vector>
 #include <entt/entity/fwd.hpp>
 #include "edyn/math/scalar.hpp"
-#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/parallel/atomic_counter.hpp"
 
@@ -22,11 +21,8 @@ class solver {
         solve_restitution,
         apply_gravity,
         prepare_constraints,
-        pack_rows,
         solve_constraints,
-        apply_delta,
-        assign_applied_impulse,
-        integrate_velocity,
+        apply_solution,
         solve_position_constraints,
         finalize,
         done
@@ -44,9 +40,7 @@ public:
 
 private:
     entt::registry *m_registry;
-    row_cache m_row_cache;
-    std::array<row_cache_sparse, std::tuple_size_v<constraints_tuple_t>> m_row_cache_sparse;
-    state m_state;
+    state m_state {state::begin};
     std::unique_ptr<atomic_counter> m_counter;
 };
 

@@ -109,7 +109,7 @@ void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache
 
 template<>
 void prepare_constraint<contact_constraint>(const entt::registry &registry, entt::entity entity, contact_constraint &con,
-                                            row_cache_sparse::entry &cache_entry, scalar dt,
+                                            constraint_row_prep_cache &cache, scalar dt,
                                             const vector3 &originA,
                                             const vector3 &posA, const quaternion &ornA,
                                             const vector3 &linvelA, const vector3 &angvelA,
@@ -135,7 +135,7 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
         auto rB = pivotB - posB;
 
         // Create normal row, i.e. non-penetration constraint.
-        auto &normal_row = cache_entry.add_row();
+        auto &normal_row = cache.add_row();
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
         normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
         normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;

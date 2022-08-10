@@ -23,7 +23,7 @@ namespace edyn {
 
 template<>
 void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity, generic_constraint &con,
-                                            row_cache_sparse::entry &cache_entry, scalar dt,
+                                            constraint_row_prep_cache &cache, scalar dt,
                                             const vector3 &originA, const vector3
                                             &posA, const quaternion &ornA,
                                             const vector3 &linvelA, const vector3 &angvelA,
@@ -56,7 +56,7 @@ void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity
         if (dof.limit_enabled) {
             EDYN_ASSERT(!(dof.offset_min > dof.offset_max));
 
-            auto &row = cache_entry.add_row();
+            auto &row = cache.add_row();
             row.J = J;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -108,7 +108,7 @@ void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity
                 bump_stop_deflection = offset_proj - bump_stop_max;
             }
 
-            auto &row = cache_entry.add_row();
+            auto &row = cache.add_row();
             row.J = J;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -130,7 +130,7 @@ void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity
 
         // Linear spring.
         if (dof.spring_stiffness > 0) {
-            auto &row = cache_entry.add_row();
+            auto &row = cache.add_row();
             row.J = J;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -153,7 +153,7 @@ void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity
 
         // Linear damping and friction.
         if (dof.friction_force > 0 || dof.damping > 0) {
-            auto &row = cache_entry.add_row();
+            auto &row = cache.add_row();
             row.J = J;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -215,7 +215,7 @@ void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity
         if (dof.limit_enabled) {
             EDYN_ASSERT(!(dof.angle_min > dof.angle_max));
 
-            auto &row = cache_entry.add_row();
+            auto &row = cache.add_row();
             row.J = J;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -262,7 +262,7 @@ void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity
                 bump_stop_deflection = dof.current_angle - bump_stop_max;
             }
 
-            auto &row = cache_entry.add_row();
+            auto &row = cache.add_row();
             row.J = J;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -284,7 +284,7 @@ void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity
 
         // Angular spring.
         if (dof.spring_stiffness > 0) {
-            auto &row = cache_entry.add_row();
+            auto &row = cache.add_row();
             row.J = J;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -306,7 +306,7 @@ void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity
         }
 
         if (dof.friction_torque > 0 || dof.damping > 0) {
-            auto &row = cache_entry.add_row();
+            auto &row = cache.add_row();
             row.J = J;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;
             row.inv_mB = inv_mB; row.inv_IB = inv_IB;

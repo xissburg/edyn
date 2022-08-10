@@ -19,7 +19,7 @@ namespace edyn {
 
 template<>
 void prepare_constraint<distance_constraint>(const entt::registry &, entt::entity, distance_constraint &con,
-                                             row_cache_sparse::entry &cache_entry, scalar dt,
+                                             constraint_row_prep_cache &cache, scalar dt,
                                              const vector3 &originA, const vector3
                                              &posA, const quaternion &ornA,
                                              const vector3 &linvelA, const vector3 &angvelA,
@@ -43,7 +43,7 @@ void prepare_constraint<distance_constraint>(const entt::registry &, entt::entit
         d = vector3_x;
     }
 
-    auto &row = cache_entry.add_row();
+    auto &row = cache.add_row();
     row.J = {d, cross(rA, d), -d, -cross(rB, d)};
     row.lower_limit = -large_scalar;
     row.upper_limit =  large_scalar;

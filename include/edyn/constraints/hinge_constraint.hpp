@@ -84,7 +84,7 @@ struct hinge_constraint : public constraint_base {
 
 template<>
 void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, hinge_constraint &con,
-                                          row_cache_sparse::entry &cache_entry, scalar dt,
+                                          constraint_row_prep_cache &cache, scalar dt,
                                           const vector3 &originA, const vector3
                                           &posA, const quaternion &ornA,
                                           const vector3 &linvelA, const vector3 &angvelA,

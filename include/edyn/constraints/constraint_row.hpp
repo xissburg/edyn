@@ -56,6 +56,27 @@ struct constraint_row_options {
     scalar restitution {scalar(0)};
 };
 
+inline scalar solve(constraint_row &row) {
+    auto delta_relvel = dot(row.J[0], *row.dvA) +
+                        dot(row.J[1], *row.dwA) +
+                        dot(row.J[2], *row.dvB) +
+                        dot(row.J[3], *row.dwB);
+    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
+    auto impulse = row.impulse + delta_impulse;
+
+    if (impulse < row.lower_limit) {
+        delta_impulse = row.lower_limit - row.impulse;
+        row.impulse = row.lower_limit;
+    } else if (impulse > row.upper_limit) {
+        delta_impulse = row.upper_limit - row.impulse;
+        row.impulse = row.upper_limit;
+    } else {
+        row.impulse = impulse;
+    }
+
+    return delta_impulse;
+}
+
 }
 
 #endif // EDYN_COMP_CONSTRAINT_ROW_HPP

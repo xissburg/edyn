@@ -37,7 +37,7 @@ void hinge_constraint::reset_angle(const quaternion &ornA, const quaternion &orn
 
 template<>
 void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, hinge_constraint &con,
-                                          row_cache_sparse::entry &cache_entry, scalar dt,
+                                          constraint_row_prep_cache &cache, scalar dt,
                                           const vector3 &originA, const vector3
                                           &posA, const quaternion &ornA,
                                           const vector3 &linvelA, const vector3 &angvelA,
@@ -61,7 +61,7 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
 
     // Make the position of pivot points match, akin to a `point_constraint`.
     for (int i = 0; i < 3; ++i) {
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {I.row[i], -rA_skew.row[i],
                 -I.row[i],  rB_skew.row[i]};
         row.lower_limit = -EDYN_SCALAR_MAX;
@@ -83,7 +83,7 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
     auto q = rotate(ornA, con.frame[0].column(2));
 
     {
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, p, vector3_zero, -p};
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
@@ -99,7 +99,7 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
     }
 
     {
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, q, vector3_zero, -q};
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
@@ -137,7 +137,7 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
 
     if (has_limit) {
         // One row for angular limits.
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -179,7 +179,7 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
             }
 
             if (bump_stop_deflection != 0) {
-                auto &row = cache_entry.add_row();
+                auto &row = cache.add_row();
                 row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
                 row.inv_mA = inv_mA; row.inv_IA = inv_IA;
                 row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -202,7 +202,7 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
     }
 
     if (has_spring) {
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -226,7 +226,7 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
     if (has_friction) {
         // Since damping acts as a speed-dependent friction, a single row
         // is employed for both damping and constant friction.
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;

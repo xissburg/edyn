@@ -27,19 +27,15 @@ struct row_cache {
     std::vector<size_t> con_num_rows;
 };
 
-struct row_cache_sparse {
+struct constraint_row_prep_cache {
     static constexpr size_t max_rows = 32;
-    struct entry {
-        std::array<constraint_row, max_rows> rows;
-        size_t count {};
+    std::array<constraint_row, max_rows> rows;
+    size_t count {};
 
-        constraint_row & add_row() {
-            EDYN_ASSERT(count < max_rows);
-            return rows[count++];
-        }
-    };
-
-    std::vector<entry> entries;
+    constraint_row & add_row() {
+        EDYN_ASSERT(count < max_rows);
+        return rows[count++];
+    }
 };
 
 }

@@ -17,7 +17,7 @@ namespace edyn {
 
 template<>
 void prepare_constraint<gravity_constraint>(const entt::registry &, entt::entity, gravity_constraint &con,
-                                            row_cache_sparse::entry &cache_entry, scalar dt,
+                                            constraint_row_prep_cache &cache, scalar dt,
                                             const vector3 &originA, const vector3
                                             &posA, const quaternion &ornA,
                                             const vector3 &linvelA, const vector3 &angvelA,
@@ -39,7 +39,7 @@ void prepare_constraint<gravity_constraint>(const entt::registry &, entt::entity
     auto F = gravitational_constant / (l2 * inv_mA * inv_mB);
     auto P = F * dt;
 
-    auto &row = cache_entry.add_row();
+    auto &row = cache.add_row();
     row.J = {dn, vector3_zero, -dn, -vector3_zero};
     row.lower_limit = -P;
     row.upper_limit = P;

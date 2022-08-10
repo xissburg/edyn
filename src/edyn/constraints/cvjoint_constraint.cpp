@@ -57,7 +57,7 @@ void cvjoint_constraint::update_angle(scalar new_angle) {
 
 template<>
 void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity, cvjoint_constraint &con,
-                                            row_cache_sparse::entry &cache_entry, scalar dt,
+                                            constraint_row_prep_cache &cache, scalar dt,
                                             const vector3 &originA, const vector3
                                             &posA, const quaternion &ornA,
                                             const vector3 &linvelA, const vector3 &angvelA,
@@ -80,7 +80,7 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
 
     // Make the position of pivot points match, akin to a `point_constraint`.
     for (int i = 0; i < 3; ++i) {
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {I.row[i], -rA_skew.row[i],
                 -I.row[i],  rB_skew.row[i]};
         row.lower_limit = -large_scalar;
@@ -103,7 +103,7 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
 
     // Relationship between velocity and relative angle along the twist axis.
     {
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -160,7 +160,7 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
             bump_stop_deflection = con.twist_angle - bump_stop_max;
         }
 
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -182,7 +182,7 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
 
     // Twist stiffness.
     if (has_limit && con.twist_stiffness > 0) {
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -207,7 +207,7 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
     if (has_limit && (con.twist_friction_torque > 0 || con.twist_damping > 0)) {
         // Since damping acts as a speed-dependent friction, a single row
         // is employed for both damping and constant friction.
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -246,7 +246,7 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
             angvel_axis = rotate(ornA, con.frame[0].column(1));
         }
 
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, angvel_axis, vector3_zero, -angvel_axis};
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -279,7 +279,7 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
             bend_axis = rotate(ornA, con.frame[0].column(1));
         }
 
-        auto &row = cache_entry.add_row();
+        auto &row = cache.add_row();
         row.J = {vector3_zero, bend_axis, vector3_zero, -bend_axis};
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;

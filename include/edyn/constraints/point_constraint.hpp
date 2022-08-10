@@ -32,7 +32,7 @@ void serialize(Archive &archive, point_constraint &c) {
 
 template<>
 void prepare_constraint<point_constraint>(const entt::registry &, entt::entity, point_constraint &con,
-                                          row_cache_sparse::entry &cache_entry, scalar dt,
+                                          constraint_row_prep_cache &cache, scalar dt,
                                           const vector3 &originA, const vector3
                                           &posA, const quaternion &ornA,
                                           const vector3 &linvelA, const vector3 &angvelA,

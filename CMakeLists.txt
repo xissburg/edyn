@@ -77,6 +77,8 @@ add_library(Edyn
     src/edyn/constraints/gravity_constraint.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/restitution_solver.cpp
+    src/edyn/dynamics/island_solver.cpp
+    src/edyn/dynamics/moment_of_inertia.cpp
     src/edyn/sys/update_aabbs.cpp
     src/edyn/sys/update_rotated_meshes.cpp
     src/edyn/sys/update_inertias.cpp
@@ -86,7 +88,6 @@ add_library(Edyn
     src/edyn/util/constraint_util.cpp
     src/edyn/util/shape_util.cpp
     src/edyn/util/aabb_util.cpp
-    src/edyn/dynamics/moment_of_inertia.cpp
     src/edyn/math/shape_volume.cpp
     src/edyn/util/collision_util.cpp
     src/edyn/shapes/triangle_mesh.cpp

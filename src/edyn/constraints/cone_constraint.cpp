@@ -24,7 +24,7 @@ namespace edyn {
 
 template<>
 void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, cone_constraint &con,
-                                         row_cache_sparse::entry &cache_entry, scalar dt,
+                                         constraint_row_prep_cache &cache, scalar dt,
                                          const vector3 &originA, const vector3
                                          &posA, const quaternion &ornA,
                                          const vector3 &linvelA, const vector3 &angvelA,
@@ -88,7 +88,7 @@ void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, c
         {normal_world,  cross(rA, normal_world),
         -normal_world, -cross(rB, normal_world)};
 
-    auto &row = cache_entry.rows[cache_entry.count++];
+    auto &row = cache.add_row();
     row.J = J;
     row.inv_mA = inv_mA; row.inv_IA = inv_IA;
     row.inv_mB = inv_mB; row.inv_IB = inv_IB;
@@ -106,7 +106,7 @@ void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, c
     warm_start(row);
 
     if (con.bump_stop_stiffness > 0 && con.bump_stop_length > 0) {
-        auto &row = cache_entry.rows[cache_entry.count++];
+        auto &row = cache.add_row();
         row.J = J;
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
