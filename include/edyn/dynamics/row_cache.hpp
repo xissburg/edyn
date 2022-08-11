@@ -13,53 +13,72 @@ namespace edyn {
  * Stores the constraint rows for one solver update.
  */
 struct row_cache {
+    template<typename T>
+    struct row_container {
+        std::vector<T> rows;
+        // Number of rows in each constraint. This is sorted in the same order
+        // as in the pool of each constraint type and ordered by the order which
+        // the constraint types appear in the `constraints_tuple`.
+        std::vector<uint8_t> con_num_rows;
+
+        void clear() {
+            // Clear caches and keep capacity.
+            rows.clear();
+            con_num_rows.clear();
+        }
+    };
 
     void clear() {
-        // Clear caches and keep capacity.
-        rows.clear();
-        con_num_rows.clear();
-        friction_rows.clear();
-        con_num_friction_rows.clear();
+        regular.clear();
+        friction.clear();
     }
 
-    std::vector<constraint_row> rows;
-
-    // Number of rows in each constraint. This is sorted in the same order
-    // as in the pool of each constraint type and ordered by the order which
-    // the constraint types appear in the `constraints_tuple`.
-    std::vector<uint8_t> con_num_rows;
-
-    std::vector<constraint_row_friction> friction_rows;
-    std::vector<uint8_t> con_num_friction_rows;
+    row_container<constraint_row> regular;
+    row_container<constraint_row_friction> friction;
 };
 
 struct constraint_row_prep_cache {
     static constexpr unsigned max_rows = 32;
-    std::array<constraint_row, max_rows> rows;
-    uint8_t num_rows;
-    std::array<uint8_t, 16> rows_per_constraint;
-    uint8_t num_constraints;
+    static constexpr unsigned max_constraints = 16;
 
-    std::array<constraint_row_friction, max_rows> friction_rows;
-    uint8_t num_friction_rows;
-    std::array<uint8_t, 16> friction_rows_per_constraint;
+    template<typename T>
+    struct row_container {
+        std::array<T, max_rows> rows;
+        uint8_t num_rows;
+        std::array<uint8_t, max_constraints> rows_per_constraint;
+
+        T & add_row(uint8_t constraint_index) {
+            EDYN_ASSERT(constraint_index < max_constraints);
+            ++rows_per_constraint[constraint_index];
+            EDYN_ASSERT(num_rows < max_rows);
+            return rows[num_rows++];
+        }
+
+        void clear() {
+            num_rows = 0;
+
+            for (auto &c : rows_per_constraint) {
+                c = 0;
+            }
+        }
+    };
+
+    row_container<constraint_row> regular;
+    row_container<constraint_row_friction> friction;
+    uint8_t num_constraints;
 
     constraint_row_prep_cache() {
         clear();
     }
 
     constraint_row & add_row() {
-        EDYN_ASSERT(num_rows < max_rows);
         EDYN_ASSERT(num_constraints > 0);
-        ++rows_per_constraint[num_constraints - 1];
-        return rows[num_rows++];
+        return regular.add_row(num_constraints - 1);
     }
 
     constraint_row_friction & add_friction_row() {
-        EDYN_ASSERT(num_friction_rows < max_rows);
         EDYN_ASSERT(num_constraints > 0);
-        ++friction_rows_per_constraint[num_constraints - 1];
-        return friction_rows[num_friction_rows++];
+        return friction.add_row(num_constraints - 1);
     }
 
     void add_constraint() {
@@ -67,17 +86,9 @@ struct constraint_row_prep_cache {
     }
 
     void clear() {
-        num_rows = 0;
-        num_friction_rows = 0;
+        regular.clear();
+        friction.clear();
         num_constraints = 0;
-
-        for (auto &c : rows_per_constraint) {
-            c = 0;
-        }
-
-        for (auto &c : friction_rows_per_constraint) {
-            c = 0;
-        }
     }
 };
 

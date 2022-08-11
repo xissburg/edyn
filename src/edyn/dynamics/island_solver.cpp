@@ -84,28 +84,29 @@ void insert_rows(entt::registry &registry, row_cache &cache, It first, It last) 
         // Insert all constraint rows into island row cache. Since an entity
         // can have multiple constraints (of different types), these could be
         // rows of more than one constraint.
-        if (prep_cache.num_rows > 0) {
-            auto end = prep_cache.rows.begin();
-            std::advance(end, prep_cache.num_rows);
-            cache.rows.insert(cache.rows.end(), prep_cache.rows.begin(), end);
+        if (prep_cache.regular.num_rows > 0) {
+            auto first = prep_cache.regular.rows.begin();
+            auto last = first;
+            std::advance(last, prep_cache.regular.num_rows);
+            cache.regular.rows.insert(cache.regular.rows.end(), first, last);
         }
 
-        if (prep_cache.num_friction_rows > 0) {
-            for (unsigned i = 0; i < prep_cache.num_friction_rows; ++i) {
-                auto &friction_row = prep_cache.friction_rows[i];
-                friction_row.normal_row_index = cache.rows.size() - prep_cache.num_rows + i;
+        if (prep_cache.friction.num_rows > 0) {
+            for (unsigned i = 0; i < prep_cache.friction.num_rows; ++i) {
+                auto &friction_row = prep_cache.friction.rows[i];
+                friction_row.normal_row_index = cache.regular.rows.size() - prep_cache.regular.num_rows + i;
             }
 
-            auto first = prep_cache.friction_rows.begin();
+            auto first = prep_cache.friction.rows.begin();
             auto last = first;
-            std::advance(last, prep_cache.num_friction_rows);
-            cache.friction_rows.insert(cache.friction_rows.end(), first, last);
+            std::advance(last, prep_cache.friction.num_rows);
+            cache.friction.rows.insert(cache.friction.rows.end(), first, last);
         }
 
         // Then insert the number of rows for each constraint.
         for (unsigned i = 0; i < prep_cache.num_constraints; ++i) {
-            cache.con_num_rows.push_back(prep_cache.rows_per_constraint[i]);
-            cache.con_num_friction_rows.push_back(prep_cache.friction_rows_per_constraint[i]);
+            cache.regular.con_num_rows.push_back(prep_cache.regular.rows_per_constraint[i]);
+            cache.friction.con_num_rows.push_back(prep_cache.friction.rows_per_constraint[i]);
         }
 
         prep_cache.clear();
@@ -122,23 +123,23 @@ void update_impulse(entt::registry &registry, entt::entity entity,
     }
 
     auto [con] = con_view.get(entity);
-    auto num_rows = cache.con_num_rows[con_idx];
-    auto num_friction_rows = cache.con_num_friction_rows[con_idx];
+    auto num_rows = cache.regular.con_num_rows[con_idx];
+    auto num_friction_rows = cache.friction.con_num_rows[con_idx];
 
     // Check if the constraint `impulse` member is a scalar, otherwise
     // an array is expected.
     if constexpr(std::is_same_v<decltype(con.impulse), scalar>) {
         EDYN_ASSERT(num_rows == 1);
-        con.impulse = cache.rows[row_idx].impulse;
+        con.impulse = cache.regular.rows[row_idx].impulse;
     } else {
         EDYN_ASSERT(con.impulse.size() >= num_rows);
         for (size_t i = 0; i < num_rows; ++i) {
-            con.impulse[i] = cache.rows[row_idx + i].impulse;
+            con.impulse[i] = cache.regular.rows[row_idx + i].impulse;
         }
 
         if (num_friction_rows > 0) {
             for (unsigned i = 0; i < num_friction_rows; ++i) {
-                auto &friction_row = cache.friction_rows[friction_row_idx + i];
+                auto &friction_row = cache.friction.rows[friction_row_idx + i];
                 for (unsigned j = 0; j < 2; ++j) {
                     con.impulse[4 + i * 2 + j] = friction_row.row[j].impulse;
                 }
@@ -201,12 +202,12 @@ static bool run_island_solver_state_machine(island_solver_context &ctx) {
 
         insert_rows(*ctx.registry, cache, island.edges.begin(), island.edges.end());
 
-        for (auto &row : cache.rows) {
+        for (auto &row : cache.regular.rows) {
             warm_start(row);
         }
 
-        for (auto &friction_row : cache.friction_rows) {
-            warm_start(friction_row, cache.rows);
+        for (auto &friction_row : cache.friction.rows) {
+            warm_start(friction_row, cache.regular.rows);
         }
 
         ctx.state = island_solver_state::solve_constraints;
@@ -217,13 +218,13 @@ static bool run_island_solver_state_machine(island_solver_context &ctx) {
     case island_solver_state::solve_constraints: {
         auto &cache = ctx.registry->get<row_cache>(ctx.island_entity);
 
-        for (auto &row : cache.rows) {
+        for (auto &row : cache.regular.rows) {
             auto delta_impulse = solve(row);
             apply_impulse(delta_impulse, row);
         }
 
-        for (auto &row : cache.friction_rows) {
-            solve_friction(row, cache.rows);
+        for (auto &row : cache.friction.rows) {
+            solve_friction(row, cache.regular.rows);
         }
 
         ++ctx.iteration;
