@@ -26,6 +26,7 @@ stepper_sequential::stepper_sequential(entt::registry &registry, bool multithrea
 
 void stepper_sequential::update() {
     if (m_paused) {
+        m_island_manager.update(m_last_time);
         return;
     }
 

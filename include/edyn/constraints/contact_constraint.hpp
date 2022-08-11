@@ -3,6 +3,7 @@
 
 #include <array>
 #include <vector>
+#include "edyn/config/constants.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
@@ -14,7 +15,10 @@ namespace edyn {
  * @brief Non-penetration constraint.
  */
 struct contact_constraint : public constraint_base {
-    static constexpr auto num_rows = 4 + 4 * 2;
+    static constexpr auto num_rows = max_contacts + // Non-penetration
+                                     max_contacts * 2 + // Friction
+                                     max_contacts * 2 + // Rolling resistance
+                                     max_contacts; // Spinning friction
     std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
 };
 

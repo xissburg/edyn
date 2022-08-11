@@ -103,14 +103,16 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
         for (auto i = 0; i < 2; ++i) {
             auto &row_i = friction_row.row[i];
             row_i.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-            row_i.impulse = con.impulse[4 + pt_idx * 2 + i];
+            row_i.impulse = con.impulse[max_contacts + pt_idx * 2 + i];
             row_i.eff_mass = get_effective_mass(row_i.J, inv_mA, inv_IA, inv_mB, inv_IB);
             row_i.rhs = -get_relative_speed(row_i.J, linvelA, angvelA, linvelB, angvelB);
         }
 
-        /* if (cp.roll_friction > 0) {
-            auto &roll_rows = ctx.roll_friction_rows.emplace_back();
-            roll_rows.friction_coefficient = cp.roll_friction;
+        if (cp.roll_friction > 0) {
+            auto &roll_row = cache.add_rolling_row();
+            roll_row.friction_coefficient = cp.roll_friction;
+
+            auto roll_dir_view = registry.view<roll_direction>();
 
             for (auto i = 0; i < 2; ++i) {
                 auto axis = tangents[i];
@@ -119,86 +121,36 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
                 // axis by the projection of the roll direction onto the axis,
                 // thus preventing impulses in the undesired directions.
                 for (auto j = 0; j < 2; ++j) {
-                    if (roll_dir_view.contains(body[j])) {
-                        auto roll_dir = rotate(ornA, roll_dir_view.get<roll_direction>(body[j]));
+                    if (roll_dir_view.contains(con.body[j])) {
+                        auto roll_dir = rotate(ornA, std::get<0>(roll_dir_view.get(con.body[j])));
                         axis *= dot(roll_dir, axis);
                     }
                 }
 
-                auto &roll_row = roll_rows.row[i];
-                roll_row.J = {vector3_zero, axis, vector3_zero, -axis};
-                roll_row.impulse = cp.rolling_friction_impulse[i];
-                auto J_invM_JT = dot(inv_IA * roll_row.J[1], roll_row.J[1]) +
-                                dot(inv_IB * roll_row.J[3], roll_row.J[3]);
-
-                if (J_invM_JT > EDYN_EPSILON) {
-                    roll_row.eff_mass = scalar(1) / J_invM_JT;
-                } else {
-                    roll_row.eff_mass = 0;
-                }
-
-                roll_row.rhs = -get_relative_speed(roll_row.J, linvelA, angvelA, linvelB, angvelB);
+                auto &row_i = roll_row.row[i];
+                row_i.J = {vector3_zero, axis, vector3_zero, -axis};
+                row_i.impulse = con.impulse[max_contacts + max_contacts * 2 + pt_idx * 2 + i];
+                auto J_invM_JT = dot(inv_IA * row_i.J[1], row_i.J[1]) +
+                                 dot(inv_IB * row_i.J[3], row_i.J[3]);
+                row_i.eff_mass = J_invM_JT > EDYN_EPSILON ? scalar(1) / J_invM_JT : 0;
+                row_i.rhs = -get_relative_speed(row_i.J, linvelA, angvelA, linvelB, angvelB);
             }
         }
 
         if (cp.spin_friction > 0) {
-            auto &spin_row = cache_entry.add_row();
-            spin_row.J = {vector3_zero, normal, vector3_zero, -normal};
-            spin_row.inv_mA = inv_mA; spin_row.inv_IA = inv_IA;
-            spin_row.inv_mB = inv_mB; spin_row.inv_IB = inv_IB;
-            spin_row.dvA = &dvA; spin_row.dwA = &dwA;
-            spin_row.dvB = &dvB; spin_row.dwB = &dwB;
+            auto &spin_row = cache.add_spinning_row();
+            spin_row.friction_coefficient = cp.spin_friction;
+            spin_row.J = {normal, -normal};
             spin_row.impulse = cp.spin_friction_impulse;
 
-            prepare_row(spin_row, {}, linvelA, angvelA, linvelB, angvelB);
-        } */
+            auto J_invM_JT = dot(inv_IA * spin_row.J[0], spin_row.J[0]) +
+                             dot(inv_IB * spin_row.J[1], spin_row.J[1]);
+            EDYN_ASSERT(J_invM_JT > EDYN_EPSILON);
+            spin_row.eff_mass = scalar(1) / J_invM_JT;
+            spin_row.rhs = -(dot(spin_row.J[0], angvelA) + dot(spin_row.J[1], angvelB));
+        }
     }
 }
-/*
-template<>
-void iterate_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto &ctx = registry.ctx().at<internal::contact_constraint_context>();
-    auto row_idx = ctx.row_start_index;
-    auto roll_idx = size_t(0);
-    auto cp_idx = size_t(0); // Global contact point index.
-
-    // Remember that not all manifolds have a contact constraint, which happens
-    // when one of the rigid bodies is a sensor, i.e. it doesn't have material.
-    auto con_view = registry.view<contact_constraint, contact_manifold>(entt::exclude_t<sleeping_tag>{});
-
-    // Solve friction rows locally using a non-standard method where the impulse
-    // is limited by the length of a 2D vector to assure a friction circle.
-    // These are the same fundamental operations found in `edyn::solver` adapted
-    // to couple the two friction constraints together.
-    // It is interesting to note that all friction constraints will be solved
-    // before the non-penetration constraints, i.e. they're not interleaved.
-    // Solving the non-penetration constraints last helps minimize penetration
-    // errors because there won't be additional errors introduced by other
-    // constraints.
-    for (auto entity : con_view) {
-        auto &manifold = con_view.get<contact_manifold>(entity);
-
-        manifold.each_point([&](contact_point &cp) {
-            auto &normal_row = cache.rows[row_idx++];
-            auto &friction_row_pair = ctx.friction_rows[cp_idx];
-            internal::solve_friction_row_pair(friction_row_pair, normal_row);
-
-            if (cp.roll_friction > 0) {
-                auto &roll_row_pair = ctx.roll_friction_rows[roll_idx++];
-                internal::solve_friction_row_pair(roll_row_pair, normal_row);
-            }
-
-            if (cp.spin_friction > 0) {
-                auto &spin_row = cache.rows[row_idx++];
-                auto max_impulse_len = cp.spin_friction * normal_row.impulse;
-                spin_row.lower_limit = -max_impulse_len;
-                spin_row.upper_limit = max_impulse_len;
-            }
-
-            ++cp_idx;
-        });
-    }
-} */
 
 template<>
 bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt) {

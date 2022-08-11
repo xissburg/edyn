@@ -76,6 +76,7 @@ add_library(Edyn
     src/edyn/constraints/cone_constraint.cpp
     src/edyn/constraints/gravity_constraint.cpp
     src/edyn/constraints/constraint_row_friction.cpp
+    src/edyn/constraints/constraint_row_spin_friction.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/restitution_solver.cpp
     src/edyn/dynamics/island_solver.cpp

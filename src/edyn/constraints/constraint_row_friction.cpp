@@ -9,6 +9,7 @@
 namespace edyn {
 
 void solve_friction(constraint_row_friction &friction_row, const std::vector<constraint_row> &row_cache) {
+    // Impulse is limited by the length of a 2D vector to assure a friction circle.
     vector2 delta_impulse;
     vector2 impulse;
     auto &normal_row = row_cache[friction_row.normal_row_index];
