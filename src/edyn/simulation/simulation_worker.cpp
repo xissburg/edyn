@@ -104,11 +104,11 @@ simulation_worker::simulation_worker(const settings &settings,
 void simulation_worker::init() {
     m_registry.on_construct<graph_node>().connect<&simulation_worker::on_construct_shared_entity>(*this);
     m_registry.on_construct<graph_edge>().connect<&simulation_worker::on_construct_shared_entity>(*this);
-    m_registry.on_construct<island>().connect<&simulation_worker::on_construct_shared_entity>(*this);
+    m_registry.on_construct<island_tag>().connect<&simulation_worker::on_construct_shared_entity>(*this);
 
     m_registry.on_destroy<graph_node>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
     m_registry.on_destroy<graph_edge>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
-    m_registry.on_destroy<island>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
+    m_registry.on_destroy<island_tag>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
 
     m_registry.on_construct<sleeping_tag>().connect<&simulation_worker::on_construct_sleeping_tag>(*this);
     m_registry.on_destroy<sleeping_tag>().connect<&simulation_worker::on_destroy_sleeping_tag>(*this);
