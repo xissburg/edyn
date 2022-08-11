@@ -114,6 +114,7 @@ add_library(Edyn
     src/edyn/simulation/stepper_sequential.cpp
     src/edyn/replication/make_reg_op_builder.cpp
     src/edyn/replication/map_child_entity.cpp
+    src/edyn/replication/register_external.cpp
     src/edyn/parallel/message_dispatcher.cpp
     src/edyn/simulation/island_manager.cpp
     src/edyn/serialization/paged_triangle_mesh_s11n.cpp

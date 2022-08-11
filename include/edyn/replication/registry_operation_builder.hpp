@@ -238,6 +238,10 @@ public:
         return registry_operation_collection{std::move(operations)};
     }
 
+    entt::registry & get_registry() {
+        return *registry;
+    }
+
 protected:
     entt::registry *registry;
     std::vector<registry_operation> operations;
