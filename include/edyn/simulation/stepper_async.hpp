@@ -1,26 +1,22 @@
-#ifndef EDYN_SIMULATION_ISLAND_COORDINATOR_HPP
-#define EDYN_SIMULATION_ISLAND_COORDINATOR_HPP
+#ifndef EDYN_SIMULATION_STEPPER_ASYNC_HPP
+#define EDYN_SIMULATION_STEPPER_ASYNC_HPP
 
 #include <vector>
 #include <memory>
 #include <entt/entity/fwd.hpp>
 #include "edyn/collision/raycast.hpp"
-#include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
 #include "edyn/simulation/simulation_worker_context.hpp"
 #include "edyn/parallel/message.hpp"
-#include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 
 namespace edyn {
-
-class simulation_worker;
 
 /**
  * Manages all simulation islands. Creates and destroys island workers as necessary
  * and synchronizes the workers and the main registry.
  */
-class island_coordinator final {
+class stepper_async final {
 
     void init_new_nodes_and_edges();
     void init_new_non_procedural_node(entt::entity);
@@ -40,10 +36,10 @@ class island_coordinator final {
     };
 
 public:
-    island_coordinator(island_coordinator const&) = delete;
-    island_coordinator operator=(island_coordinator const&) = delete;
-    island_coordinator(entt::registry &);
-    ~island_coordinator();
+    stepper_async(stepper_async const&) = delete;
+    stepper_async operator=(stepper_async const&) = delete;
+    stepper_async(entt::registry &);
+    ~stepper_async();
 
     void on_construct_graph_node(entt::registry &, entt::entity);
     void on_construct_graph_edge(entt::registry &, entt::entity);
@@ -109,4 +105,4 @@ private:
 
 }
 
-#endif // EDYN_SIMULATION_ISLAND_COORDINATOR_HPP
+#endif // EDYN_SIMULATION_STEPPER_ASYNC_HPP

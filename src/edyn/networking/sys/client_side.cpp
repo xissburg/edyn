@@ -18,7 +18,7 @@
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/sys/update_network_dirty.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/networking/extrapolation_job.hpp"
 #include "edyn/serialization/std_s11n.hpp"
@@ -258,7 +258,7 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
                                                           result.entities.begin(),
                                                           result.entities.end(),
                                                           include_multi_resident);
-    auto &coordinator = registry.ctx().at<island_coordinator>();
+    auto &coordinator = registry.ctx().at<stepper_async>();
 
     for (auto island_entity : island_entities) {
         coordinator.send_island_message<extrapolation_result>(island_entity, result);
@@ -524,7 +524,7 @@ static void snap_to_registry_snapshot(entt::registry &registry, packet::registry
                                                           snapshot.entities.begin(),
                                                           snapshot.entities.end(),
                                                           include_multi_resident);
-    auto &coordinator = registry.ctx().at<island_coordinator>();
+    auto &coordinator = registry.ctx().at<stepper_async>();
 
     auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
 
@@ -696,7 +696,7 @@ static void process_packet(entt::registry &registry, const packet::server_settin
     settings.num_solver_position_iterations = server.num_solver_position_iterations;
     settings.num_restitution_iterations = server.num_restitution_iterations;
     settings.num_individual_restitution_iterations = server.num_individual_restitution_iterations;
-    registry.ctx().at<island_coordinator>().settings_changed();
+    registry.ctx().at<stepper_async>().settings_changed();
 
     auto &ctx = registry.ctx().at<client_network_context>();
     ctx.allow_full_ownership = server.allow_full_ownership;

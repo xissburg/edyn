@@ -22,7 +22,7 @@
 #include "edyn/dynamics/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/tuple_util.hpp"
-#include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/edyn.hpp"
 
@@ -294,7 +294,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 }
 
 void set_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {
-    auto &coordinator = registry.ctx().at<island_coordinator>();
+    auto &coordinator = registry.ctx().at<stepper_async>();
     coordinator.set_center_of_mass(entity, com);
 }
 

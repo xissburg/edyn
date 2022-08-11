@@ -4,7 +4,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/transform.hpp"
-#include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include "edyn/math/triangle.hpp"
 #include <unordered_set>
 
@@ -13,7 +13,7 @@ namespace edyn {
 raycast_id_type raycast_async(entt::registry &registry, vector3 p0, vector3 p1,
                               const raycast_delegate_type &delegate,
                               const std::vector<entt::entity> &ignore_entities) {
-    auto &coordinator = registry.ctx().at<island_coordinator>();
+    auto &coordinator = registry.ctx().at<stepper_async>();
     return coordinator.raycast(p0, p1, delegate, ignore_entities);
 }
 

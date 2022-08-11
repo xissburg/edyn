@@ -34,7 +34,7 @@
 #include "parallel/job_dispatcher.hpp"
 #include "parallel/parallel_for.hpp"
 #include "parallel/parallel_for_async.hpp"
-#include "simulation/island_coordinator.hpp"
+#include "simulation/stepper_async.hpp"
 #include "replication/component_index_source.hpp"
 #include "dynamics/moment_of_inertia.hpp"
 #include "replication/registry_operation_builder.hpp"
@@ -174,7 +174,7 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
         };
     }
 
-    registry.ctx().at<island_coordinator>().settings_changed();
+    registry.ctx().at<stepper_async>().settings_changed();
 }
 
 template<typename... Component, typename... Actions>

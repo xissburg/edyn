@@ -9,7 +9,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
-#include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include "edyn/time/simulation_time.hpp"
 #include <entt/entity/registry.hpp>
 

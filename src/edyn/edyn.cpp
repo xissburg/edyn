@@ -7,7 +7,7 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
-#include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/sys/update_presentation.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
@@ -66,7 +66,7 @@ void attach(entt::registry &registry, const init_config &config) {
         init_constraints(registry);
         break;
     case execution_mode::asynchronous:
-        registry.ctx().emplace<island_coordinator>(registry);
+        registry.ctx().emplace<stepper_async>(registry);
         break;
     }
 }
@@ -78,7 +78,7 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<contact_manifold_map>();
     registry.ctx().erase<broadphase>();
     registry.ctx().erase<narrowphase>();
-    registry.ctx().erase<island_coordinator>();
+    registry.ctx().erase<stepper_async>();
     registry.ctx().erase<stepper_sequential>();
 
     job_dispatcher::global().stop();
@@ -91,7 +91,7 @@ scalar get_fixed_dt(const entt::registry &registry) {
 void set_fixed_dt(entt::registry &registry, scalar dt) {
     registry.ctx().at<settings>().fixed_dt = dt;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -103,7 +103,7 @@ bool is_paused(const entt::registry &registry) {
 void set_paused(entt::registry &registry, bool paused) {
     registry.ctx().at<settings>().paused = paused;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->set_paused(paused);
     } else {
         registry.ctx().at<stepper_sequential>().set_paused(paused);
@@ -114,8 +114,8 @@ void update(entt::registry &registry) {
     // Run jobs scheduled in physics thread.
     job_dispatcher::global().once_current_queue();
 
-    if (registry.ctx().contains<island_coordinator>()) {
-        registry.ctx().at<island_coordinator>().update();
+    if (registry.ctx().contains<stepper_async>()) {
+        registry.ctx().at<stepper_async>().update();
     } else if (registry.ctx().contains<stepper_sequential>()) {
         registry.ctx().at<stepper_sequential>().update();
     }
@@ -137,7 +137,7 @@ void update(entt::registry &registry) {
 void step_simulation(entt::registry &registry) {
     EDYN_ASSERT(is_paused(registry));
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->step_simulation();
     } else {
         registry.ctx().at<stepper_sequential>().step_simulation();
@@ -150,7 +150,7 @@ void remove_external_components(entt::registry &registry) {
     settings.index_source.reset(new component_index_source_impl(shared_components_t{}));
     settings.clear_actions_func = nullptr;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -158,7 +158,7 @@ void remove_external_components(entt::registry &registry) {
 void set_external_system_init(entt::registry &registry, external_system_func_t func) {
     registry.ctx().at<settings>().external_system_init = func;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -166,7 +166,7 @@ void set_external_system_init(entt::registry &registry, external_system_func_t f
 void set_external_system_pre_step(entt::registry &registry, external_system_func_t func) {
     registry.ctx().at<settings>().external_system_pre_step = func;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -174,7 +174,7 @@ void set_external_system_pre_step(entt::registry &registry, external_system_func
 void set_external_system_post_step(entt::registry &registry, external_system_func_t func) {
     registry.ctx().at<settings>().external_system_post_step = func;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -188,7 +188,7 @@ void set_external_system_functions(entt::registry &registry,
     settings.external_system_pre_step = pre_step_func;
     settings.external_system_post_step = post_step_func;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -199,7 +199,7 @@ void remove_external_systems(entt::registry &registry) {
     settings.external_system_pre_step = nullptr;
     settings.external_system_post_step = nullptr;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -218,7 +218,7 @@ void tag_external_entity(entt::registry &registry, entt::entity entity, bool pro
 void set_should_collide(entt::registry &registry, should_collide_func_t func) {
     registry.ctx().at<settings>().should_collide_func = func;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -280,7 +280,7 @@ void set_solver_velocity_iterations(entt::registry &registry, unsigned iteration
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.num_solver_velocity_iterations = iterations;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -293,7 +293,7 @@ void set_solver_position_iterations(entt::registry &registry, unsigned iteration
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.num_solver_position_iterations = iterations;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -306,7 +306,7 @@ void set_solver_restitution_iterations(entt::registry &registry, unsigned iterat
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.num_restitution_iterations = iterations;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -319,7 +319,7 @@ void set_solver_individual_restitution_iterations(entt::registry &registry, unsi
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.num_individual_restitution_iterations = iterations;
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->settings_changed();
     }
 }
@@ -329,7 +329,7 @@ void insert_material_mixing(entt::registry &registry, material::id_type material
     auto &material_table = registry.ctx().at<material_mix_table>();
     material_table.insert({material_id0, material_id1}, material);
 
-    if (auto *coordinator = registry.ctx().find<island_coordinator>()) {
+    if (auto *coordinator = registry.ctx().find<stepper_async>()) {
         coordinator->material_table_changed();
     }
 }

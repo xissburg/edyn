@@ -1,4 +1,4 @@
-#include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include "edyn/collision/contact_event_emitter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
@@ -31,7 +31,7 @@
 
 namespace edyn {
 
-island_coordinator::island_coordinator(entt::registry &registry)
+stepper_async::stepper_async(entt::registry &registry)
     : m_registry(&registry)
     , m_message_queue_handle(
         message_dispatcher::global().make_queue<
@@ -39,13 +39,13 @@ island_coordinator::island_coordinator(entt::registry &registry)
             msg::raycast_response
         >("coordinator"))
 {
-    registry.on_construct<graph_node>().connect<&island_coordinator::on_construct_graph_node>(*this);
-    registry.on_destroy<graph_node>().connect<&island_coordinator::on_destroy_graph_node>(*this);
-    registry.on_construct<graph_edge>().connect<&island_coordinator::on_construct_graph_edge>(*this);
-    registry.on_destroy<graph_edge>().connect<&island_coordinator::on_destroy_graph_edge>(*this);
+    registry.on_construct<graph_node>().connect<&stepper_async::on_construct_graph_node>(*this);
+    registry.on_destroy<graph_node>().connect<&stepper_async::on_destroy_graph_node>(*this);
+    registry.on_construct<graph_edge>().connect<&stepper_async::on_construct_graph_edge>(*this);
+    registry.on_destroy<graph_edge>().connect<&stepper_async::on_destroy_graph_edge>(*this);
 
-    m_message_queue_handle.sink<msg::step_update>().connect<&island_coordinator::on_step_update>(*this);
-    m_message_queue_handle.sink<msg::raycast_response>().connect<&island_coordinator::on_raycast_response>(*this);
+    m_message_queue_handle.sink<msg::step_update>().connect<&stepper_async::on_step_update>(*this);
+    m_message_queue_handle.sink<msg::raycast_response>().connect<&stepper_async::on_raycast_response>(*this);
 
     auto &settings = m_registry->ctx().at<edyn::settings>();
     m_op_builder = (*settings.make_reg_op_builder)(*m_registry);
@@ -53,41 +53,41 @@ island_coordinator::island_coordinator(entt::registry &registry)
     create_worker();
 }
 
-island_coordinator::~island_coordinator() {
-    m_registry->on_construct<graph_node>().disconnect<&island_coordinator::on_construct_graph_node>(*this);
-    m_registry->on_destroy<graph_node>().disconnect<&island_coordinator::on_destroy_graph_node>(*this);
-    m_registry->on_construct<graph_edge>().disconnect<&island_coordinator::on_construct_graph_edge>(*this);
-    m_registry->on_destroy<graph_edge>().disconnect<&island_coordinator::on_destroy_graph_edge>(*this);
+stepper_async::~stepper_async() {
+    m_registry->on_construct<graph_node>().disconnect<&stepper_async::on_construct_graph_node>(*this);
+    m_registry->on_destroy<graph_node>().disconnect<&stepper_async::on_destroy_graph_node>(*this);
+    m_registry->on_construct<graph_edge>().disconnect<&stepper_async::on_construct_graph_edge>(*this);
+    m_registry->on_destroy<graph_edge>().disconnect<&stepper_async::on_destroy_graph_edge>(*this);
 
     m_worker_ctx->terminate();
 }
 
-void island_coordinator::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
+void stepper_async::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
     if (!m_importing) {
         m_new_graph_nodes.push_back(entity);
     }
 }
 
-void island_coordinator::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
+void stepper_async::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
     if (!m_importing) {
         m_new_graph_edges.push_back(entity);
     }
 }
 
-void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
+void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
     auto &graph = registry.ctx().at<entity_graph>();
 
     // Prevent edges from being removed in `on_destroy_graph_edge`. The more
     // direct `entity_graph::remove_all_edges` will be used instead.
-    registry.on_destroy<graph_edge>().disconnect<&island_coordinator::on_destroy_graph_edge>(*this);
+    registry.on_destroy<graph_edge>().disconnect<&stepper_async::on_destroy_graph_edge>(*this);
 
     graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
     });
 
-    registry.on_destroy<graph_edge>().connect<&island_coordinator::on_destroy_graph_edge>(*this);
+    registry.on_destroy<graph_edge>().connect<&stepper_async::on_destroy_graph_edge>(*this);
 
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
@@ -105,7 +105,7 @@ void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::e
     m_op_builder->destroy(entity);
 }
 
-void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
+void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
     auto &edge = registry.get<graph_edge>(entity);
     auto &graph = registry.ctx().at<entity_graph>();
     graph.remove_edge(edge.edge_index);
@@ -123,7 +123,7 @@ void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::e
     m_op_builder->destroy(entity);
 }
 
-void island_coordinator::init_new_nodes_and_edges() {
+void stepper_async::init_new_nodes_and_edges() {
     // Entities that were created and destroyed before a call to `edyn::update`
     // are still in these collections, thus remove invalid entities first.
     entity_vector_erase_invalid(m_new_graph_nodes, *m_registry);
@@ -142,7 +142,7 @@ void island_coordinator::init_new_nodes_and_edges() {
     }
 }
 
-void island_coordinator::create_worker() {
+void stepper_async::create_worker() {
     // The `simulation_worker` is dynamically allocated and kept alive while
     // the simulation runs asynchronously. The job that's created for it calls its
     // `update` function which reschedules itself to be run over and over again.
@@ -156,11 +156,11 @@ void island_coordinator::create_worker() {
     m_worker_ctx->m_timestamp = performance_time();
 }
 
-double island_coordinator::get_simulation_timestamp() const {
+double stepper_async::get_simulation_timestamp() const {
     return m_worker_ctx->m_timestamp;
 }
 
-void island_coordinator::refresh_dirty_entities() {
+void stepper_async::refresh_dirty_entities() {
     auto dirty_view = m_registry->view<dirty>();
     auto &index_source = m_registry->ctx().at<settings>().index_source;
 
@@ -196,7 +196,7 @@ void island_coordinator::refresh_dirty_entities() {
     m_registry->clear<dirty>();
 }
 
-void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
+void stepper_async::on_step_update(const message<msg::step_update> &msg) {
     m_importing = true;
     auto &registry = *m_registry;
 
@@ -249,7 +249,7 @@ void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
     (*g_mark_replaced_network_dirty)(registry, ops, m_worker_ctx->m_entity_map, m_timestamp);
 }
 
-void island_coordinator::on_raycast_response(const message<msg::raycast_response> &msg) {
+void stepper_async::on_raycast_response(const message<msg::raycast_response> &msg) {
     auto &res = msg.content;
     auto &ctx = m_raycast_ctx.at(res.id);
 
@@ -262,7 +262,7 @@ void island_coordinator::on_raycast_response(const message<msg::raycast_response
     m_raycast_ctx.erase(res.id);
 }
 
-void island_coordinator::sync() {
+void stepper_async::sync() {
     if (!m_op_builder->empty()) {
         m_worker_ctx->send<msg::update_entities>(m_message_queue_handle.identifier, m_op_builder->finish());
     }
@@ -270,7 +270,7 @@ void island_coordinator::sync() {
     m_worker_ctx->flush();
 }
 
-void island_coordinator::update() {
+void stepper_async::update() {
     m_timestamp = performance_time();
     init_new_nodes_and_edges();
 
@@ -285,26 +285,26 @@ void island_coordinator::update() {
     sync();
 }
 
-void island_coordinator::set_paused(bool paused) {
+void stepper_async::set_paused(bool paused) {
     m_worker_ctx->send<msg::set_paused>(m_message_queue_handle.identifier, paused);
 }
 
-void island_coordinator::step_simulation() {
+void stepper_async::step_simulation() {
     m_worker_ctx->send<msg::step_simulation>(m_message_queue_handle.identifier);
 }
 
-void island_coordinator::settings_changed() {
+void stepper_async::settings_changed() {
     auto &settings = m_registry->ctx().at<edyn::settings>();
     m_op_builder = (*settings.make_reg_op_builder)(*m_registry);
     m_worker_ctx->send<msg::set_settings>(m_message_queue_handle.identifier, settings);
 }
 
-void island_coordinator::material_table_changed() {
+void stepper_async::material_table_changed() {
     auto &material_table = m_registry->ctx().at<material_mix_table>();
     m_worker_ctx->send<msg::set_material_table>(m_message_queue_handle.identifier, material_table);
 }
 
-void island_coordinator::set_center_of_mass(entt::entity entity, const vector3 &com) {
+void stepper_async::set_center_of_mass(entt::entity entity, const vector3 &com) {
     m_worker_ctx->send<msg::set_com>(m_message_queue_handle.identifier, entity, com);
 }
 

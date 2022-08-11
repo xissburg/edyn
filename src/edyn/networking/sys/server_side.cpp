@@ -21,7 +21,7 @@
 #include "edyn/networking/sys/update_network_dirty.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
-#include "edyn/simulation/island_coordinator.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/replication/entity_map.hpp"
@@ -118,7 +118,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
                                                           snapshot.entities.begin(),
                                                           snapshot.entities.end(),
                                                           include_multi_resident);
-    auto &coordinator = registry.ctx().at<island_coordinator>();
+    auto &coordinator = registry.ctx().at<stepper_async>();
     auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
 
     for (auto island_entity : island_entities) {
