@@ -5,11 +5,10 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/config/constants.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
 
 namespace edyn {
-
-struct delta_linvel;
-struct delta_angvel;
 
 /**
  * `constraint_row` contains all and only the information that's required

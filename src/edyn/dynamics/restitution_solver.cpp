@@ -1,4 +1,5 @@
 #include "edyn/dynamics/restitution_solver.hpp"
+#include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -106,7 +107,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     // Reuse collections of rows to prevent a high number of allocations.
     auto normal_rows = std::vector<constraint_row>{};
-    auto friction_row_pairs = std::vector<internal::contact_friction_row_pair>{};
+    auto friction_row_pairs = std::vector<constraint_row_friction>{};
 
     normal_rows.reserve(10);
     friction_row_pairs.reserve(10);
@@ -174,7 +175,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 apply_impulse(delta_impulse, normal_row);
 
                 auto &friction_row_pair = friction_row_pairs[row_idx];
-                internal::solve_friction_row_pair(friction_row_pair, normal_row);
+                solve_friction(friction_row_pair, normal_rows);
             }
         }
 

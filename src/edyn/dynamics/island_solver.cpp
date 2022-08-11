@@ -2,6 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -89,10 +90,22 @@ void insert_rows(entt::registry &registry, row_cache &cache, It first, It last) 
             cache.rows.insert(cache.rows.end(), prep_cache.rows.begin(), end);
         }
 
+        if (prep_cache.num_friction_rows > 0) {
+            for (unsigned i = 0; i < prep_cache.num_friction_rows; ++i) {
+                auto &friction_row = prep_cache.friction_rows[i];
+                friction_row.normal_row_index = cache.rows.size() - prep_cache.num_rows + i;
+            }
+
+            auto first = prep_cache.friction_rows.begin();
+            auto last = first;
+            std::advance(last, prep_cache.num_friction_rows);
+            cache.friction_rows.insert(cache.friction_rows.end(), first, last);
+        }
+
         // Then insert the number of rows for each constraint.
         for (unsigned i = 0; i < prep_cache.num_constraints; ++i) {
-            auto num_rows = prep_cache.rows_per_constraint[i];
-            cache.con_num_rows.push_back(num_rows);
+            cache.con_num_rows.push_back(prep_cache.rows_per_constraint[i]);
+            cache.con_num_friction_rows.push_back(prep_cache.friction_rows_per_constraint[i]);
         }
 
         prep_cache.clear();
@@ -103,13 +116,14 @@ template<typename C>
 void update_impulse(entt::registry &registry, entt::entity entity,
                     entt::basic_view<entt::entity, entt::get_t<C>, entt::exclude_t<>> &con_view,
                     entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &manifold_view,
-                    row_cache &cache, size_t &con_idx, size_t &row_idx) {
+                    row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx) {
     if (!con_view.contains(entity)) {
         return;
     }
 
     auto [con] = con_view.get(entity);
     auto num_rows = cache.con_num_rows[con_idx];
+    auto num_friction_rows = cache.con_num_friction_rows[con_idx];
 
     // Check if the constraint `impulse` member is a scalar, otherwise
     // an array is expected.
@@ -121,17 +135,32 @@ void update_impulse(entt::registry &registry, entt::entity entity,
         for (size_t i = 0; i < num_rows; ++i) {
             con.impulse[i] = cache.rows[row_idx + i].impulse;
         }
+
+        if (num_friction_rows > 0) {
+            for (unsigned i = 0; i < num_friction_rows; ++i) {
+                auto &friction_row = cache.friction_rows[friction_row_idx + i];
+                for (unsigned j = 0; j < 2; ++j) {
+                    con.impulse[4 + i * 2 + j] = friction_row.row[j].impulse;
+                }
+            }
+        }
     }
 
     if constexpr(std::is_same_v<C, contact_constraint>) {
         auto [manifold] = manifold_view.get(entity);
         EDYN_ASSERT(manifold.num_points == num_rows);
         for (size_t i = 0; i < num_rows; ++i) {
-            manifold.get_point(i).normal_impulse = con.impulse[i];
+            auto &pt = manifold.get_point(i);
+            pt.normal_impulse = con.impulse[i];
+
+            for (int j = 0; j < 2; ++j) {
+                pt.friction_impulse[j] = con.impulse[4 + i * 2 + j];
+            }
         }
     }
 
     row_idx += num_rows;
+    friction_row_idx += num_friction_rows;
     ++con_idx;
 }
 
@@ -140,51 +169,7 @@ template<>
 void update_impulse<null_constraint>(entt::registry &, entt::entity,
                     entt::basic_view<entt::entity, entt::get_t<null_constraint>, entt::exclude_t<>> &,
                     entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &,
-                    row_cache &, size_t &, size_t &) {}
-
-// Specialization to assign the impulses of friction constraints which are not
-// stored in traditional constraint rows.
-/* template<>
-void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<contact_constraint, contact_manifold>(exclude_sleeping_disabled);
-    auto &ctx = registry.ctx().at<internal::contact_constraint_context>();
-    auto global_pt_idx = size_t(0);
-    auto roll_idx = size_t(0);
-
-    for (auto entity : con_view) {
-        auto &manifold = con_view.get<contact_manifold>(entity);
-
-        for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-            auto &cp = manifold.get_point(pt_idx);
-            cp.normal_impulse = cache.rows[row_idx++].impulse;
-
-            // Friction impulse.
-            auto &friction_rows = ctx.friction_rows[global_pt_idx];
-
-            for (auto i = 0; i < 2; ++i) {
-                cp.friction_impulse[i] = friction_rows.row[i].impulse;
-            }
-
-            // Rolling friction impulse.
-            if (cp.roll_friction > 0) {
-                auto &roll_rows = ctx.roll_friction_rows[roll_idx];
-                for (auto i = 0; i < 2; ++i) {
-                    cp.rolling_friction_impulse[i] = roll_rows.row[i].impulse;
-                }
-                ++roll_idx;
-            }
-
-            // Spinning friction impulse.
-            if (cp.spin_friction > 0) {
-                cp.spin_friction_impulse = cache.rows[row_idx++].impulse;
-            }
-
-            ++global_pt_idx;
-        }
-
-        ++con_idx;
-    }
-} */
+                    row_cache &, size_t &, size_t &, size_t &) {}
 
 template<typename It>
 void update_impulses(entt::registry &registry, row_cache &cache, It first, It last) {
@@ -195,13 +180,14 @@ void update_impulses(entt::registry &registry, row_cache &cache, It first, It la
     // constraint type in the order they appear in the tuple.
     size_t con_idx = 0;
     size_t row_idx = 0;
+    size_t friction_row_idx = 0;
     auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
     auto manifold_view = registry.view<contact_manifold>();
 
     for (; first != last; ++first) {
         auto entity = *first;
         std::apply([&](auto &&... con_view) {
-            (update_impulse(registry, entity, con_view, manifold_view, cache, con_idx, row_idx), ...);
+            (update_impulse(registry, entity, con_view, manifold_view, cache, con_idx, row_idx, friction_row_idx), ...);
         }, con_view_tuple);
     }
 }
@@ -215,6 +201,14 @@ static bool run_island_solver_state_machine(island_solver_context &ctx) {
 
         insert_rows(*ctx.registry, cache, island.edges.begin(), island.edges.end());
 
+        for (auto &row : cache.rows) {
+            warm_start(row);
+        }
+
+        for (auto &friction_row : cache.friction_rows) {
+            warm_start(friction_row, cache.rows);
+        }
+
         ctx.state = island_solver_state::solve_constraints;
         ctx.iteration = 0;
 
@@ -226,6 +220,10 @@ static bool run_island_solver_state_machine(island_solver_context &ctx) {
         for (auto &row : cache.rows) {
             auto delta_impulse = solve(row);
             apply_impulse(delta_impulse, row);
+        }
+
+        for (auto &row : cache.friction_rows) {
+            solve_friction(row, cache.rows);
         }
 
         ++ctx.iteration;

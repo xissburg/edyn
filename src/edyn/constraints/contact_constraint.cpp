@@ -24,89 +24,6 @@
 
 namespace edyn {
 
-namespace internal {
-    void solve_friction_row_pair(contact_friction_row_pair &friction_row_pair, constraint_row &normal_row) {
-        vector2 delta_impulse;
-        vector2 impulse;
-        auto &friction_rows = friction_row_pair.row;
-
-        for (auto i = 0; i < 2; ++i) {
-            auto &friction_row = friction_rows[i];
-            auto delta_relspd = get_relative_speed(friction_row.J,
-                                                   *normal_row.dvA, *normal_row.dwA,
-                                                   *normal_row.dvB, *normal_row.dwB);
-            delta_impulse[i] = (friction_row.rhs - delta_relspd) * friction_row.eff_mass;
-            impulse[i] = friction_row.impulse + delta_impulse[i];
-        }
-
-        auto impulse_len_sqr = length_sqr(impulse);
-        auto max_impulse_len = friction_row_pair.friction_coefficient * normal_row.impulse;
-
-        // Limit impulse by normal load.
-        if (impulse_len_sqr > square(max_impulse_len)) {
-            auto impulse_len = std::sqrt(impulse_len_sqr);
-
-            if (impulse_len > EDYN_EPSILON) {
-                impulse = impulse / impulse_len * max_impulse_len;
-            } else {
-                impulse = {0, 0};
-            }
-
-            for (auto i = 0; i < 2; ++i) {
-                delta_impulse[i] = impulse[i] - friction_rows[i].impulse;
-            }
-        }
-
-        // Apply delta impulse.
-        for (auto i = 0; i < 2; ++i) {
-            auto &friction_row = friction_rows[i];
-            friction_row.impulse = impulse[i];
-
-            *normal_row.dvA += normal_row.inv_mA * friction_row.J[0] * delta_impulse[i];
-            *normal_row.dwA += normal_row.inv_IA * friction_row.J[1] * delta_impulse[i];
-            *normal_row.dvB += normal_row.inv_mB * friction_row.J[2] * delta_impulse[i];
-            *normal_row.dwB += normal_row.inv_IB * friction_row.J[3] * delta_impulse[i];
-        }
-    }
-}
-
-template<>
-void init_constraints<contact_constraint>(entt::registry &registry) {
-    registry.ctx().emplace<internal::contact_constraint_context>();
-}
-/*
-template<>
-void prepare_constraints<contact_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation, linvel, angvel,
-                                   mass_inv, inertia_world_inv,
-                                   delta_linvel, delta_angvel>();
-    auto con_view = registry.view<contact_constraint, contact_manifold>(entt::exclude_t<sleeping_tag>{});
-    auto origin_view = registry.view<origin>();
-    auto roll_dir_view = registry.view<roll_direction>();
-    auto &settings = registry.ctx().at<edyn::settings>();
-
-    cache.rows.reserve(cache.rows.size() + con_view.size_hint());
-
-    auto &ctx = registry.ctx().at<internal::contact_constraint_context>();
-    ctx.row_start_index = cache.rows.size();
-    ctx.row_count_start_index = cache.con_num_rows.size();
-    ctx.friction_rows.clear();
-    ctx.friction_rows.reserve(con_view.size_hint());
-    ctx.roll_friction_rows.clear();
-
-    for (auto [entity, con, manifold] : con_view.each()) {
-        auto body = manifold.body;
-
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(body[1]);
-
-        auto originA = origin_view.contains(body[0]) ? origin_view.get<origin>(body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(body[1]) ? origin_view.get<origin>(body[1]) : static_cast<vector3>(posB);
-
-        // Store initial size of the constraint row cache so the number of rows
-        // for this contact constraint can be calculated at the end.
-        const auto row_start_index = cache.rows.size();*/
-
 template<>
 void prepare_constraint<contact_constraint>(const entt::registry &registry, entt::entity entity, contact_constraint &con,
                                             constraint_row_prep_cache &cache, scalar dt,
@@ -141,7 +58,7 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
         normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
         normal_row.dvA = &dvA; normal_row.dwA = &dwA;
         normal_row.dvB = &dvB; normal_row.dwB = &dwB;
-        normal_row.impulse = con.impulse[pt_idx];// cp.normal_impulse;
+        normal_row.impulse = con.impulse[pt_idx];
         normal_row.lower_limit = 0;
 
         auto normal_options = constraint_row_options{};
@@ -175,30 +92,23 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
         }
 
         prepare_row(normal_row, normal_options, linvelA, angvelA, linvelB, angvelB);
-        warm_start(normal_row);
 
-        // Create special friction rows, always one pair per contact point.
-        /* auto &friction_rows = ctx.friction_rows.emplace_back();
-        friction_rows.friction_coefficient = cp.friction;
+        // Create special friction rows.
+        auto &friction_row = cache.add_friction_row();
+        friction_row.friction_coefficient = cp.friction;
 
         vector3 tangents[2];
         plane_space(normal, tangents[0], tangents[1]);
 
         for (auto i = 0; i < 2; ++i) {
-            auto &friction_row = friction_rows.row[i];
-            friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-            friction_row.impulse = cp.friction_impulse[i];
-            friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
-            friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA, linvelB, angvelB);
-
-            // Warm-starting.
-            dvA += inv_mA * friction_row.J[0] * friction_row.impulse;
-            dwA += inv_IA * friction_row.J[1] * friction_row.impulse;
-            dvB += inv_mB * friction_row.J[2] * friction_row.impulse;
-            dwB += inv_IB * friction_row.J[3] * friction_row.impulse;
+            auto &row_i = friction_row.row[i];
+            row_i.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
+            row_i.impulse = con.impulse[4 + pt_idx * 2 + i];
+            row_i.eff_mass = get_effective_mass(row_i.J, inv_mA, inv_IA, inv_mB, inv_IB);
+            row_i.rhs = -get_relative_speed(row_i.J, linvelA, angvelA, linvelB, angvelB);
         }
 
-        if (cp.roll_friction > 0) {
+        /* if (cp.roll_friction > 0) {
             auto &roll_rows = ctx.roll_friction_rows.emplace_back();
             roll_rows.friction_coefficient = cp.roll_friction;
 
@@ -228,10 +138,6 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
                 }
 
                 roll_row.rhs = -get_relative_speed(roll_row.J, linvelA, angvelA, linvelB, angvelB);
-
-                // Warm-starting.
-                dwA += inv_IA * roll_row.J[1] * roll_row.impulse;
-                dwB += inv_IB * roll_row.J[3] * roll_row.impulse;
             }
         }
 
@@ -245,7 +151,6 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
             spin_row.impulse = cp.spin_friction_impulse;
 
             prepare_row(spin_row, {}, linvelA, angvelA, linvelB, angvelB);
-            warm_start(spin_row);
         } */
     }
 }
