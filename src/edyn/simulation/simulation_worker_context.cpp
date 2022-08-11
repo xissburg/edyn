@@ -5,20 +5,10 @@
 
 namespace edyn {
 
-simulation_worker_context::simulation_worker_context(simulation_worker *worker,
-                                             std::unique_ptr<registry_operation_builder> op_builder)
+simulation_worker_context::simulation_worker_context(simulation_worker *worker)
     : m_worker(worker)
-    , m_op_builder(std::move(op_builder))
     , m_pending_flush(false)
 {
-}
-
-bool simulation_worker_context::reg_ops_empty() const {
-    return m_op_builder->empty();
-}
-
-void simulation_worker_context::send_reg_ops(message_queue_identifier source) {
-    send<msg::update_entities>(source, m_op_builder->finish());
 }
 
 void simulation_worker_context::flush() {

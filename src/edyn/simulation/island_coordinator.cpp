@@ -47,6 +47,9 @@ island_coordinator::island_coordinator(entt::registry &registry)
     m_message_queue_handle.sink<msg::step_update>().connect<&island_coordinator::on_step_update>(*this);
     m_message_queue_handle.sink<msg::raycast_response>().connect<&island_coordinator::on_raycast_response>(*this);
 
+    auto &settings = m_registry->ctx().at<edyn::settings>();
+    m_op_builder = (*settings.make_reg_op_builder)(*m_registry);
+
     create_worker();
 }
 
@@ -99,7 +102,7 @@ void island_coordinator::on_destroy_graph_node(entt::registry &registry, entt::e
 
     // Notify the worker of the destruction which happened in the main registry
     // first.
-    m_worker_ctx->m_op_builder->destroy(entity);
+    m_op_builder->destroy(entity);
 }
 
 void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
@@ -117,7 +120,7 @@ void island_coordinator::on_destroy_graph_edge(entt::registry &registry, entt::e
 
     // Notify the worker of the destruction which happened in the main registry
     // first.
-    m_worker_ctx->m_op_builder->destroy(entity);
+    m_op_builder->destroy(entity);
 }
 
 void island_coordinator::init_new_nodes_and_edges() {
@@ -127,14 +130,14 @@ void island_coordinator::init_new_nodes_and_edges() {
     entity_vector_erase_invalid(m_new_graph_edges, *m_registry);
 
     if (!m_new_graph_nodes.empty()) {
-        m_worker_ctx->m_op_builder->create(m_new_graph_nodes.begin(), m_new_graph_nodes.end());
-        m_worker_ctx->m_op_builder->emplace_all(m_new_graph_nodes);
+        m_op_builder->create(m_new_graph_nodes.begin(), m_new_graph_nodes.end());
+        m_op_builder->emplace_all(m_new_graph_nodes);
         m_new_graph_nodes.clear();
     }
 
     if (!m_new_graph_edges.empty()) {
-        m_worker_ctx->m_op_builder->create(m_new_graph_edges.begin(), m_new_graph_edges.end());
-        m_worker_ctx->m_op_builder->emplace_all(m_new_graph_edges);
+        m_op_builder->create(m_new_graph_edges.begin(), m_new_graph_edges.end());
+        m_op_builder->emplace_all(m_new_graph_edges);
         m_new_graph_edges.clear();
     }
 }
@@ -149,7 +152,7 @@ void island_coordinator::create_worker() {
     auto &material_table = m_registry->ctx().at<edyn::material_mix_table>();
     auto *worker = new simulation_worker(settings, material_table);
 
-    m_worker_ctx = std::make_unique<simulation_worker_context>(worker, (*settings.make_reg_op_builder)(*m_registry));
+    m_worker_ctx = std::make_unique<simulation_worker_context>(worker);
     m_worker_ctx->m_timestamp = performance_time();
 }
 
@@ -174,15 +177,13 @@ void island_coordinator::refresh_dirty_entities() {
     };
 
     auto refresh = [this](entt::entity entity, dirty &dirty) {
-        auto &builder = m_worker_ctx->m_op_builder;
-
         if (dirty.is_new_entity) {
-            builder->create(entity);
+            m_op_builder->create(entity);
         }
 
-        builder->emplace_type_ids(entity, dirty.created_ids.begin(), dirty.created_ids.end());
-        builder->replace_type_ids(entity, dirty.updated_ids.begin(), dirty.updated_ids.end());
-        builder->remove_type_ids(entity, dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
+        m_op_builder->emplace_type_ids(entity, dirty.created_ids.begin(), dirty.created_ids.end());
+        m_op_builder->replace_type_ids(entity, dirty.updated_ids.begin(), dirty.updated_ids.end());
+        m_op_builder->remove_type_ids(entity, dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
     };
 
     dirty_view.each([&](entt::entity entity, dirty &dirty) {
@@ -207,7 +208,7 @@ void island_coordinator::on_step_update(const message<msg::step_update> &msg) {
     ops.create_for_each([&](entt::entity remote_entity) {
         if (m_worker_ctx->m_entity_map.contains(remote_entity)) {
             auto local_entity = m_worker_ctx->m_entity_map.at(remote_entity);
-            m_worker_ctx->m_op_builder->add_entity_mapping(local_entity, remote_entity);
+            m_op_builder->add_entity_mapping(local_entity, remote_entity);
         }
     });
 
@@ -262,8 +263,8 @@ void island_coordinator::on_raycast_response(const message<msg::raycast_response
 }
 
 void island_coordinator::sync() {
-    if (!m_worker_ctx->reg_ops_empty()) {
-        m_worker_ctx->send_reg_ops(m_message_queue_handle.identifier);
+    if (!m_op_builder->empty()) {
+        m_worker_ctx->send<msg::update_entities>(m_message_queue_handle.identifier, m_op_builder->finish());
     }
 
     m_worker_ctx->flush();
@@ -294,6 +295,7 @@ void island_coordinator::step_simulation() {
 
 void island_coordinator::settings_changed() {
     auto &settings = m_registry->ctx().at<edyn::settings>();
+    m_op_builder = (*settings.make_reg_op_builder)(*m_registry);
     m_worker_ctx->send<msg::set_settings>(m_message_queue_handle.identifier, settings);
 }
 

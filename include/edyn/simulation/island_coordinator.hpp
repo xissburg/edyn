@@ -10,7 +10,6 @@
 #include "edyn/simulation/simulation_worker_context.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
-#include "edyn/replication/registry_operation.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 
 namespace edyn {
@@ -92,6 +91,7 @@ public:
 private:
     entt::registry *m_registry;
     std::unique_ptr<simulation_worker_context> m_worker_ctx;
+    std::unique_ptr<registry_operation_builder> m_op_builder;
     message_queue_handle<
         msg::step_update,
         msg::raycast_response

@@ -13,9 +13,6 @@
 
 namespace edyn {
 
-class registry_operation_collection;
-class registry_operation_builder;
-
 /**
  * Context of a simulation worker in the main thread in an island coordinator.
  */
@@ -26,27 +23,14 @@ class simulation_worker_context {
 
 public:
     entity_map m_entity_map;
-    std::unique_ptr<registry_operation_builder> m_op_builder;
     double m_timestamp;
 
-    simulation_worker_context(simulation_worker *worker,
-                              std::unique_ptr<registry_operation_builder> op_builder);
-
-    /**
-     * Returns whether there are any pending registry operations to be sent.
-     */
-    bool reg_ops_empty() const;
+    simulation_worker_context(simulation_worker *worker);
 
     /**
      * Reads messages sent by worker.
      */
     void read_messages();
-
-    /**
-     * Sends current registry operations and clears it up, making it ready for more
-     * updates.
-     */
-    void send_reg_ops(message_queue_identifier source);
 
     /**
      * Ensures messages are delivered and processed by waking up the worker
