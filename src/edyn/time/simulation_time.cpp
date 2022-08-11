@@ -6,8 +6,8 @@ namespace edyn {
 
 double get_simulation_timestamp(entt::registry &registry) {
     if (registry.ctx().contains<stepper_async>()) {
-        auto &coordinator = registry.ctx().at<stepper_async>();
-        auto worker_time = coordinator.get_simulation_timestamp();
+        auto &stepper = registry.ctx().at<stepper_async>();
+        auto worker_time = stepper.get_simulation_timestamp();
         return worker_time;
     } else if (registry.ctx().contains<stepper_sequential>()) {
         auto &stepper = registry.ctx().at<stepper_sequential>();

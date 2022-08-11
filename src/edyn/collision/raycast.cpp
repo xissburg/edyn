@@ -13,8 +13,8 @@ namespace edyn {
 raycast_id_type raycast_async(entt::registry &registry, vector3 p0, vector3 p1,
                               const raycast_delegate_type &delegate,
                               const std::vector<entt::entity> &ignore_entities) {
-    auto &coordinator = registry.ctx().at<stepper_async>();
-    return coordinator.raycast(p0, p1, delegate, ignore_entities);
+    auto &stepper = registry.ctx().at<stepper_async>();
+    return stepper.raycast(p0, p1, delegate, ignore_entities);
 }
 
 raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,

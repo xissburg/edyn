@@ -9,9 +9,9 @@ namespace edyn {
 
 /**
  * @brief Marks an entity as dirty, consequently scheduling them for a refresh
- *      in the other end, i.e. from island worker to island coordinator and
- *      vice versa. These components are consumed by an island worker or
- *      coordinator in their update, i.e. they get processed and deleted right
+ *      in the other end, i.e. from simulation worker to main and
+ *      vice versa. These components are consumed by an simulation worker or
+ *      main thread in their update, i.e. they get processed and deleted right
  *      after.
  */
 struct dirty {

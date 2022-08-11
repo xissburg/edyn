@@ -14,7 +14,7 @@
 namespace edyn {
 
 /**
- * Context of a simulation worker in the main thread in an island coordinator.
+ * Context of a simulation worker in the main thread in a stepper async.
  */
 class simulation_worker_context {
 

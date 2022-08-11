@@ -138,12 +138,8 @@ auto get_component_indices(entt::registry &registry) {
 }
 
 /**
- * @brief Registers external components to be shared between island coordinator
- * and island workers.
- * @remark If you need a component of your own to be available in an external
- * system, it must be registered using this function. That will ensure the
- * component is sent to the island workers and is inserted in their private
- * registry.
+ * @brief Registers external components to be shared with the asynchronous
+ * simulation worker.
  * @tparam Components External component types.
  * @tparam Actions All action types. Note that **actions are not components**.
  * Instead, they're stored in `edyn::action_list<Action>` which is an actual

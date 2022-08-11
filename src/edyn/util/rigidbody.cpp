@@ -142,7 +142,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (def.kind == rigidbody_kind::rb_dynamic) {
         // Instruct island worker to continuously send position, orientation and
-        // velocity updates back to coordinator. The velocity is needed for calculation
+        // velocity updates back to main. The velocity is needed for calculation
         // of the present position and orientation in `update_presentation`.
         auto &settings = registry.ctx().at<edyn::settings>();
         auto &cont = registry.emplace<continuous>(entity);
@@ -294,8 +294,8 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 }
 
 void set_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {
-    auto &coordinator = registry.ctx().at<stepper_async>();
-    coordinator.set_center_of_mass(entity, com);
+    auto &stepper = registry.ctx().at<stepper_async>();
+    stepper.set_center_of_mass(entity, com);
 }
 
 void apply_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {

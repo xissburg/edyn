@@ -6,7 +6,7 @@ namespace edyn {
 /**
  * @brief Function which can be specialized to perform custom logic when
  * replacing a component with a new value coming from a remote source, such as
- * importing components from the coordinator into a worker and vice versa, and
+ * importing components from the main registry into a worker and vice versa, and
  * importing remote values for components in client-server communication.
  * It simply assigns the new value by default.
  */

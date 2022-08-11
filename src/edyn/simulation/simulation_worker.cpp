@@ -146,7 +146,7 @@ void simulation_worker::on_construct_shared_entity(entt::registry &registry, ent
 
 void simulation_worker::on_destroy_shared_entity(entt::registry &registry, entt::entity entity) {
     // If importing, do not insert this event into the op because the entity
-    // was already destroyed in the coordinator.
+    // was already destroyed in the main registry.
     if (!m_importing) {
         m_op_builder->destroy(entity);
     }
@@ -248,7 +248,7 @@ void simulation_worker::on_update_entities(const message<msg::update_entities> &
     m_importing = false;
 
     // Add all new entity mappings to current op builder which will be sent
-    // over to the coordinator so it can create corresponding mappings between
+    // over to the main thread so it can create corresponding mappings between
     // its new entities and the entities that were just created here in this
     // import.
     msg.content.ops.create_for_each([&](entt::entity remote_entity) {
@@ -322,7 +322,7 @@ void simulation_worker::sync() {
     if (!m_op_builder->empty()) {
         auto ops = m_op_builder->finish();
         message_dispatcher::global().send<msg::step_update>(
-            {"coordinator"}, m_message_queue.identifier, std::move(ops), m_last_time);
+            {"main"}, m_message_queue.identifier, std::move(ops), m_last_time);
     }
 }
 
@@ -568,7 +568,7 @@ void simulation_worker::consume_raycast_results() {
     auto &dispatcher = message_dispatcher::global();
     m_raycast_service.consume_results([&](unsigned id, raycast_result &result) {
         dispatcher.send<msg::raycast_response>(
-            {"coordinator"}, m_message_queue.identifier, id, result);
+            {"main"}, m_message_queue.identifier, id, result);
     });
 }
 

@@ -118,11 +118,11 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
                                                           snapshot.entities.begin(),
                                                           snapshot.entities.end(),
                                                           include_multi_resident);
-    auto &coordinator = registry.ctx().at<stepper_async>();
+    auto &stepper = registry.ctx().at<stepper_async>();
     auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
 
     for (auto island_entity : island_entities) {
-        coordinator.send_island_message<msg::apply_network_pools>(island_entity, msg);
+        stepper.send_island_message<msg::apply_network_pools>(island_entity, msg);
     }
 }
 

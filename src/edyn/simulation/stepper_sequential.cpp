@@ -44,16 +44,26 @@ void stepper_sequential::update() {
     auto &bphase = m_registry->ctx().at<broadphase>();
     auto &nphase = m_registry->ctx().at<narrowphase>();
     auto &emitter = m_registry->ctx().at<contact_event_emitter>();
+    auto &settings = m_registry->ctx().at<edyn::settings>();
 
     m_poly_initializer.init_new_shapes();
 
     for (int i = 0; i < num_steps; ++i) {
         auto step_time = m_last_time + fixed_dt * i;
+
+        if (settings.external_system_pre_step) {
+            (*settings.external_system_pre_step)(*m_registry);
+        }
+
         bphase.update_sequential(m_multithreaded);
         m_island_manager.update(step_time);
         nphase.update_sequential(m_multithreaded);
         m_solver.update_sequential(m_multithreaded);
         emitter.consume_events();
+
+        if (settings.external_system_post_step) {
+            (*settings.external_system_post_step)(*m_registry);
+        }
     }
 
     m_last_time = time;
@@ -67,6 +77,11 @@ void stepper_sequential::step_simulation() {
     auto &bphase = m_registry->ctx().at<broadphase>();
     auto &nphase = m_registry->ctx().at<narrowphase>();
     auto &emitter = m_registry->ctx().at<contact_event_emitter>();
+    auto &settings = m_registry->ctx().at<edyn::settings>();
+
+    if (settings.external_system_pre_step) {
+        (*settings.external_system_pre_step)(*m_registry);
+    }
 
     m_poly_initializer.init_new_shapes();
     bphase.update_sequential(m_multithreaded);
@@ -74,6 +89,10 @@ void stepper_sequential::step_simulation() {
     nphase.update_sequential(m_multithreaded);
     m_solver.update_sequential(m_multithreaded);
     emitter.consume_events();
+
+    if (settings.external_system_post_step) {
+        (*settings.external_system_post_step)(*m_registry);
+    }
 }
 
 void stepper_sequential::set_paused(bool paused) {

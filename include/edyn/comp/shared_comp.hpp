@@ -30,8 +30,8 @@
 namespace edyn {
 
 /**
- * Tuple of components that are exchanged between island coordinator and
- * island workers.
+ * Tuple of components that are exchanged between main thread and
+ * simulation worker.
  */
 using shared_components_t = decltype(std::tuple_cat(std::tuple<
     AABB,

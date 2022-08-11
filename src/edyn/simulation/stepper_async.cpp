@@ -37,7 +37,7 @@ stepper_async::stepper_async(entt::registry &registry)
         message_dispatcher::global().make_queue<
             msg::step_update,
             msg::raycast_response
-        >("coordinator"))
+        >("main"))
 {
     registry.on_construct<graph_node>().connect<&stepper_async::on_construct_graph_node>(*this);
     registry.on_destroy<graph_node>().connect<&stepper_async::on_destroy_graph_node>(*this);

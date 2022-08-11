@@ -35,7 +35,7 @@ struct set_com {
 };
 
 /**
- * Message sent by worker to coordinator after every step of the simulation
+ * Message sent by worker to the main thread after every step of the simulation
  * containing everything that changed since the previous update.
  */
 struct step_update {
@@ -44,7 +44,7 @@ struct step_update {
 };
 
 /**
- * Message sent by the coordinator to a worker asking entities and components
+ * Message sent by the stepper to a worker asking entities and components
  * to be created, destroyed or updated.
  */
 struct update_entities {

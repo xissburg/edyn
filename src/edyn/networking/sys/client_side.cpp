@@ -258,10 +258,10 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
                                                           result.entities.begin(),
                                                           result.entities.end(),
                                                           include_multi_resident);
-    auto &coordinator = registry.ctx().at<stepper_async>();
+    auto &stepper = registry.ctx().at<stepper_async>();
 
     for (auto island_entity : island_entities) {
-        coordinator.send_island_message<extrapolation_result>(island_entity, result);
+        stepper.send_island_message<extrapolation_result>(island_entity, result);
     }
 
     if (result.terminated_early) {
@@ -524,12 +524,12 @@ static void snap_to_registry_snapshot(entt::registry &registry, packet::registry
                                                           snapshot.entities.begin(),
                                                           snapshot.entities.end(),
                                                           include_multi_resident);
-    auto &coordinator = registry.ctx().at<stepper_async>();
+    auto &stepper = registry.ctx().at<stepper_async>();
 
     auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
 
     for (auto island_entity : island_entities) {
-        coordinator.send_island_message<msg::apply_network_pools>(island_entity, msg);
+        stepper.send_island_message<msg::apply_network_pools>(island_entity, msg);
     }
 }
 
