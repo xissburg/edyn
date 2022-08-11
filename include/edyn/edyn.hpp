@@ -170,7 +170,9 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
         };
     }
 
-    registry.ctx().at<stepper_async>().settings_changed();
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->settings_changed();
+    }
 }
 
 template<typename... Component, typename... Actions>
