@@ -164,7 +164,7 @@ void simulation_worker::on_destroy_sleeping_tag(entt::registry &registry, entt::
     m_op_builder->remove<sleeping_tag>(entity);
 }
 
-static void import_reg_ops(entt::registry &registry, entity_map &emap, const registry_operation_collection &ops) {
+static void import_reg_ops(entt::registry &registry, entity_map &emap, const registry_operation &ops) {
     ops.execute(registry, emap);
 
     auto &graph = registry.ctx().at<entity_graph>();
@@ -273,16 +273,14 @@ bool simulation_worker::all_sleeping() {
     return true;
 }
 
-void simulation_worker::wake_up_affected_islands(const registry_operation_collection &ops) {
+void simulation_worker::wake_up_affected_islands(const registry_operation &ops) {
     // Collect islands of all entities which had a component
     // emplaced/replaced/removed by the registry operations and wake them up.
     auto resident_view = m_registry.view<island_resident>();
     auto multi_resident_view = m_registry.view<multi_island_resident>();
 
-    for (auto &op : ops.operations) {
-        if (!op.is_component_operation()) continue;
-
-        for (auto remote_entity : op.entities) {
+    for (auto &op : ops.replace_components) {
+        for (auto remote_entity : op->entities) {
             if (!m_entity_map.contains(remote_entity)) continue;
 
             auto local_entity = m_entity_map.at(remote_entity);
@@ -320,7 +318,7 @@ void simulation_worker::sync() {
     sync_dirty();
 
     if (!m_op_builder->empty()) {
-        auto ops = m_op_builder->finish();
+        auto &&ops = std::move(m_op_builder->finish());
         message_dispatcher::global().send<msg::step_update>(
             {"main"}, m_message_queue.identifier, std::move(ops), m_last_time);
     }

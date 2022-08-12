@@ -200,7 +200,7 @@ void extrapolation_job::sync_and_finish() {
         m_result.entities.push_back(local_entity);
     }
 
-    m_result.ops = builder->finish();
+    m_result.ops = std::move(builder->finish());
     EDYN_ASSERT(!m_result.ops.empty());
 
     // Insert all manifolds into it.

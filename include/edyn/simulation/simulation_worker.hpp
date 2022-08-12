@@ -57,7 +57,7 @@ class simulation_worker final {
     void update();
 
     bool all_sleeping();
-    void wake_up_affected_islands(const registry_operation_collection &ops);
+    void wake_up_affected_islands(const registry_operation &ops);
     void consume_raycast_results();
 
 public:

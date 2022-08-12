@@ -11,7 +11,7 @@ namespace edyn {
 
 struct extrapolation_result {
     std::vector<entt::entity> entities;
-    registry_operation_collection ops;
+    registry_operation ops;
     std::vector<contact_manifold> manifolds;
     bool terminated_early {false};
     double timestamp;
@@ -21,9 +21,7 @@ struct extrapolation_result {
             entity = emap.at(entity);
         }
 
-        for (auto &op : ops.operations) {
-            op.remap(emap);
-        }
+        ops.remap(emap);
 
         auto remove_it = std::remove_if(manifolds.begin(), manifolds.end(), [&](contact_manifold &manifold) {
             if (!emap.contains(manifold.body[0]) || !emap.contains(manifold.body[1])) {

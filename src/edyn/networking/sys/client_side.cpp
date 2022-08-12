@@ -253,21 +253,13 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
                                      [&](auto entity) { return !registry.valid(entity); });
     result.entities.erase(invalid_it, result.entities.end());
 
-    const bool include_multi_resident = false;
-    auto island_entities = collect_islands_from_residents(registry,
-                                                          result.entities.begin(),
-                                                          result.entities.end(),
-                                                          include_multi_resident);
-    auto &stepper = registry.ctx().at<stepper_async>();
-
-    for (auto island_entity : island_entities) {
-        stepper.send_island_message<extrapolation_result>(island_entity, result);
-    }
-
     if (result.terminated_early) {
         auto &ctx = registry.ctx().at<client_network_context>();
         ctx.extrapolation_timeout_signal.publish();
     }
+
+    auto &stepper = registry.ctx().at<stepper_async>();
+    stepper.send_message_to_worker<extrapolation_result>(std::move(result));
 }
 
 static void process_finished_extrapolation_jobs(entt::registry &registry) {
@@ -517,20 +509,8 @@ static void insert_input_to_state_history(entt::registry &registry,
 }
 
 static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
-    // Collect all procedural entities present in snapshot and find islands
-    // where they reside and finally send the snapshot to the island workers.
-    const bool include_multi_resident = false;
-    auto island_entities = collect_islands_from_residents(registry,
-                                                          snapshot.entities.begin(),
-                                                          snapshot.entities.end(),
-                                                          include_multi_resident);
     auto &stepper = registry.ctx().at<stepper_async>();
-
-    auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
-
-    for (auto island_entity : island_entities) {
-        stepper.send_island_message<msg::apply_network_pools>(island_entity, msg);
-    }
+    stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
 }
 
 static void process_packet(entt::registry &registry, packet::registry_snapshot &snapshot) {
@@ -654,7 +634,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     auto builder = (*settings.make_reg_op_builder)(registry);
     builder->create(entities.begin(), entities.end());
     builder->emplace_all(entities);
-    input.ops = builder->finish();
+    input.ops = std::move(builder->finish());
 
     input.entities = std::move(entities);
     input.snapshot = std::move(snapshot);
@@ -669,7 +649,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
                                                    material_table, ctx.input_history);
     job->reschedule();
 
-    ctx.extrapolation_jobs.push_back(extrapolation_job_context{std::move(job)});
+    ctx.extrapolation_jobs.emplace_back(std::move(job));
 }
 
 static void process_packet(entt::registry &registry, packet::set_playout_delay &delay) {

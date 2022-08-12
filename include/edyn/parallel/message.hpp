@@ -39,7 +39,7 @@ struct set_com {
  * containing everything that changed since the previous update.
  */
 struct step_update {
-    registry_operation_collection ops;
+    registry_operation ops;
     double timestamp;
 };
 
@@ -48,7 +48,7 @@ struct step_update {
  * to be created, destroyed or updated.
  */
 struct update_entities {
-    registry_operation_collection ops;
+    registry_operation ops;
 };
 
 struct apply_network_pools {

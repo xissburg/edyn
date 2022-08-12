@@ -66,7 +66,7 @@ public:
     double get_simulation_timestamp() const;
 
     template<typename Message, typename... Args>
-    void send_island_message(entt::entity island_entity, Args &&... args) {
+    void send_message_to_worker(Args &&... args) {
         m_worker_ctx->send<Message>(m_message_queue_handle.identifier, std::forward<Args>(args)...);
     }
 

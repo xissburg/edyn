@@ -6,6 +6,7 @@
 #include "edyn/networking/util/client_snapshot_importer.hpp"
 #include "edyn/networking/util/client_snapshot_exporter.hpp"
 #include "edyn/networking/util/clock_sync.hpp"
+#include "edyn/networking/extrapolation_job.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/sparse_set.hpp>
@@ -19,10 +20,13 @@ namespace packet {
     struct edyn_packet;
 }
 
-class extrapolation_job;
-
 struct extrapolation_job_context {
     std::unique_ptr<extrapolation_job> job;
+
+    extrapolation_job_context() = default;
+    extrapolation_job_context(std::unique_ptr<extrapolation_job> &&job)
+        : job(std::move(job))
+    {}
 };
 
 struct client_network_context {

@@ -109,21 +109,8 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // Import inputs directly into the main registry.
     ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot, performance_time());
 
-    // Get islands of all entities contained in the snapshot and send the
-    // snapshot to them. They will import the pre-processed state into their
-    // registries. Later, these components will be updated in the main registry
-    // via registry operations.
-    bool include_multi_resident = true;
-    auto island_entities = collect_islands_from_residents(registry,
-                                                          snapshot.entities.begin(),
-                                                          snapshot.entities.end(),
-                                                          include_multi_resident);
     auto &stepper = registry.ctx().at<stepper_async>();
-    auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
-
-    for (auto island_entity : island_entities) {
-        stepper.send_island_message<msg::apply_network_pools>(island_entity, msg);
-    }
+    stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
 }
 
 template<typename T>

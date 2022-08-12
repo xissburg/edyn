@@ -41,7 +41,7 @@ namespace internal {
     template<typename... Components>
     auto make_mark_replaced_network_dirty_func([[maybe_unused]] std::tuple<Components...>) {
         return [](entt::registry &registry,
-                  const registry_operation_collection &ops,
+                  const registry_operation &ops,
                   const entity_map &emap, double timestamp) {
             ops.replace_for_each<Components...>([&](entt::entity remote_entity, const auto &c) {
                 if (!emap.contains(remote_entity)) {
@@ -62,7 +62,7 @@ namespace internal {
 extern bool(*g_is_networked_component)(entt::id_type);
 extern bool(*g_is_networked_input_component)(entt::id_type);
 extern bool(*g_is_action_list_component)(entt::id_type);
-extern void(*g_mark_replaced_network_dirty)(entt::registry &, const registry_operation_collection &,
+extern void(*g_mark_replaced_network_dirty)(entt::registry &, const registry_operation &,
                                             const entity_map &, double timestamp);
 
 /**

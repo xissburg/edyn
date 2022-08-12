@@ -1,6 +1,7 @@
 #ifndef EDYN_REPLICATION_REGISTRY_OPERATION_BUILDER_HPP
 #define EDYN_REPLICATION_REGISTRY_OPERATION_BUILDER_HPP
 
+#include <type_traits>
 #include <vector>
 #include <memory>
 #include <entt/entity/registry.hpp>
@@ -12,82 +13,47 @@ namespace edyn {
  * @brief Utility to build a registry operation collection bit by bit.
  */
 class registry_operation_builder {
+
     template<typename Component>
-    registry_operation & find_or_create_component_operation(registry_op_type op_type) {
-        EDYN_ASSERT(op_type == registry_op_type::emplace ||
-                    op_type == registry_op_type::replace ||
-                    op_type == registry_op_type::remove ||
-                    op_type == registry_op_type::ent_map);
-
-        auto type_id = entt::type_index<Component>::value();
-
-        for (auto &op : operations) {
-            if (op.operation == op_type && op.components && op.components->get_type_id() == type_id) {
-                return op;
-            }
+    component_operation_emplace<Component> & find_or_create_emplace_operation() {
+         auto found_it = std::find_if(operation.emplace_components.begin(), operation.emplace_components.end(),
+                                      [](auto &&op) { return op->get_type_id() == entt::type_index<Component>::value(); });
+        if (found_it != operation.emplace_components.end()) {
+            return static_cast<component_operation_emplace<Component> &>(*found_it->get());
         }
 
-        auto &op = operations.emplace_back();
-        op.operation = op_type;
-        op.components = std::make_unique<component_operation_impl<Component>>();
-        return op;
+        auto op = std::make_unique<component_operation_emplace<Component>>();
+        auto &ref = *op.get();
+        operation.emplace_components.emplace_back(std::move(op));
+        return ref;
     }
 
-    registry_operation & find_or_create_entity_operation(registry_op_type op_type) {
-        EDYN_ASSERT(op_type == registry_op_type::create ||
-                    op_type == registry_op_type::destroy);
-
-        for (auto &op : operations) {
-            if (op.operation == op_type) {
-                return op;
-            }
+    template<typename Component>
+    component_operation_replace<Component> & find_or_create_replace_operation() {
+         auto found_it = std::find_if(operation.replace_components.begin(), operation.replace_components.end(),
+                                     [](auto &&op) { return op->get_type_id() == entt::type_index<Component>::value(); });
+        if (found_it != operation.replace_components.end()) {
+            return static_cast<component_operation_replace<Component> &>(*found_it->get());
         }
 
-        auto &op = operations.emplace_back();
-        op.operation = op_type;
-        return op;
+        auto op = std::make_unique<component_operation_replace<Component>>();
+        auto &ref = *op.get();
+        operation.replace_components.emplace_back(std::move(op));
+        return ref;
     }
 
-    template<typename Component, typename ViewType>
-    void insert_components(const ViewType &view, registry_operation &op, entt::entity entity) {
-        op.entities.push_back(entity);
-
-        if constexpr(!std::is_empty_v<Component>) {
-            if (op.operation != registry_op_type::remove) {
-                auto [comp] = view.get(entity);
-                auto *components = static_cast<component_operation_impl<Component> *>(op.components.get());
-                components->components.push_back(comp);
-            }
-        }
-    }
-
-    template<typename Component, typename It>
-    void insert_components(registry_op_type op_type, It first, It last, bool check = false) {
-        if (first == last) {
-            return;
+    template<typename Component>
+    component_operation_remove<Component> & find_or_create_remove_operation() {
+         auto found_it = std::find_if(operation.remove_components.begin(), operation.remove_components.end(),
+                                     [](auto &&op) { return op->get_type_id() == entt::type_index<Component>::value(); });
+        if (found_it != operation.remove_components.end()) {
+            return static_cast<component_operation_remove<Component> &>(*found_it->get());
         }
 
-        EDYN_ASSERT(op_type == registry_op_type::emplace ||
-                    op_type == registry_op_type::replace ||
-                    op_type == registry_op_type::remove);
-
-        auto &op = find_or_create_component_operation<Component>(op_type);
-        auto view = registry->view<Component>();
-
-        if (!check || op_type == registry_op_type::remove) {
-            for (; first != last; ++first) {
-                auto entity = *first;
-                insert_components<Component>(view, op, entity);
-            }
-        } else {
-            for (; first != last; ++first) {
-                auto entity = *first;
-
-                if (view.contains(entity)) {
-                    insert_components<Component>(view, op, entity);
-                }
-            }
-        }
+        auto op = std::make_unique<component_operation_remove<Component>>();
+        auto &ref = *op.get();
+        operation.remove_components.emplace_back(std::move(op));
+        return ref;
     }
 
 public:
@@ -96,29 +62,51 @@ public:
 
     template<typename It>
     void create(It first, It last) {
-        auto &op = find_or_create_entity_operation(registry_op_type::create);
-        op.entities.insert(op.entities.end(), first, last);
+        operation.create_entities.insert(operation.create_entities.end(), first, last);
     }
 
     void create(entt::entity entity) {
-        auto &op = find_or_create_entity_operation(registry_op_type::create);
-        op.entities.push_back(entity);
+        operation.create_entities.push_back(entity);
     }
 
     template<typename It>
     void destroy(It first, It last) {
-        auto &op = find_or_create_entity_operation(registry_op_type::destroy);
-        op.entities.insert(op.entities.end(), first, last);
+        operation.destroy_entities.insert(operation.destroy_entities.end(), first, last);
     }
 
     void destroy(entt::entity entity) {
-        auto &op = find_or_create_entity_operation(registry_op_type::destroy);
-        op.entities.push_back(entity);
+        operation.destroy_entities.push_back(entity);
     }
 
     template<typename Component, typename It>
     void emplace(It first, It last, bool check = false) {
-        insert_components<Component>(registry_op_type::emplace, first, last, check);
+        auto &op = find_or_create_emplace_operation<Component>();
+        auto view = registry->view<Component>();
+
+        if (!check) {
+            op.entities.insert(op.entities.end(), first, last);
+
+            if constexpr(!std::is_empty_v<Component>) {
+                for (; first != last; ++first) {
+                    auto entity = *first;
+                    auto [comp] = view.get(entity);
+                    op.components.push_back(comp);
+                }
+            }
+        } else {
+            for (; first != last; ++first) {
+                auto entity = *first;
+
+                if (view.contains(entity)) {
+                    op.entities.push_back(entity);
+
+                    if constexpr(!std::is_empty_v<Component>) {
+                        auto [comp] = view.get(entity);
+                        op.components.push_back(comp);
+                    }
+                }
+            }
+        }
     }
 
     template<typename Component>
@@ -129,15 +117,44 @@ public:
 
     template<typename Component>
     void emplace(entt::entity entity) {
-        auto &op = find_or_create_component_operation<Component>(registry_op_type::emplace);
-        auto view = registry->view<Component>();
-        EDYN_ASSERT(registry->all_of<Component>(entity));
-        insert_components<Component>(view, op, entity);
+        auto &op = find_or_create_emplace_operation<Component>();
+        op.entities.push_back(entity);
+
+        if constexpr(!std::is_empty_v<Component>) {
+            auto &comp = registry->get<Component>(entity);
+            op.components.push_back(comp);
+        }
     }
 
     template<typename Component, typename It>
     void replace(It first, It last, bool check = false) {
-        insert_components<Component>(registry_op_type::replace, first, last, check);
+        auto &op = find_or_create_replace_operation<Component>();
+        auto view = registry->view<Component>();
+
+        if (!check) {
+            op.entities.insert(op.entities.end(), first, last);
+
+            if constexpr(!std::is_empty_v<Component>) {
+                for (; first != last; ++first) {
+                    auto entity = *first;
+                    auto [comp] = view.get(entity);
+                    op.components.push_back(comp);
+                }
+            }
+        } else {
+            for (; first != last; ++first) {
+                auto entity = *first;
+
+                if (view.contains(entity)) {
+                    op.entities.push_back(entity);
+
+                    if constexpr(!std::is_empty_v<Component>) {
+                        auto [comp] = view.get(entity);
+                        op.components.push_back(comp);
+                    }
+                }
+            }
+        }
     }
 
     template<typename Component>
@@ -148,23 +165,26 @@ public:
 
     template<typename Component>
     void replace(entt::entity entity) {
-        auto &op = find_or_create_component_operation<Component>(registry_op_type::replace);
-        auto view = registry->view<Component>();
-        EDYN_ASSERT(registry->all_of<Component>(entity));
-        insert_components<Component>(view, op, entity);
+        auto &op = find_or_create_replace_operation<Component>();
+        op.entities.push_back(entity);
+
+        if constexpr(!std::is_empty_v<Component>) {
+            auto &comp = registry->get<Component>(entity);
+            op.components.push_back(comp);
+        }
     }
 
     template<typename Component>
     void replace(entt::entity entity, const Component &comp) {
-        auto &op = find_or_create_component_operation<Component>(registry_op_type::replace);
+        auto &op = find_or_create_replace_operation<Component>();
         op.entities.push_back(entity);
-        auto *components = static_cast<component_operation_impl<Component> *>(op.components.get());
-        components->components.push_back(comp);
+        op.components.push_back(comp);
     }
 
     template<typename Component, typename It>
-    void remove(It first, It last, bool check = false) {
-        insert_components<Component>(registry_op_type::remove, first, last, check);
+    void remove(It first, It last) {
+        auto &op = find_or_create_remove_operation<Component>();
+        op.entities.insert(op.entities.end(), first, last);
     }
 
     template<typename Component>
@@ -175,9 +195,8 @@ public:
 
     template<typename Component>
     void remove(entt::entity entity) {
-        auto &op = find_or_create_component_operation<Component>(registry_op_type::remove);
-        auto view = registry->view<Component>();
-        insert_components<Component>(view, op, entity);
+        auto &op = find_or_create_remove_operation<Component>();
+        op.entities.push_back(entity);
     }
 
     virtual void emplace_all(const std::vector<entt::entity> &entities) = 0;
@@ -218,24 +237,15 @@ public:
     }
 
     void add_entity_mapping(entt::entity local_entity, entt::entity remote_entity) {
-        auto &op = find_or_create_component_operation<entt::entity>(registry_op_type::ent_map);
-        op.entities.push_back(local_entity);
-        auto *components = static_cast<component_operation_impl<entt::entity> *>(op.components.get());
-        components->components.push_back(remote_entity);
+        operation.map_entities.emplace_back(local_entity, remote_entity);
     }
 
     bool empty() const {
-        for (auto &op : operations) {
-            if (!op.entities.empty()) {
-                return false;
-            }
-        }
-
-        return true;
+        return operation.empty();
     }
 
-    registry_operation_collection finish() {
-        return registry_operation_collection{std::move(operations)};
+    registry_operation && finish() {
+        return std::move(operation);
     }
 
     entt::registry & get_registry() {
@@ -244,7 +254,7 @@ public:
 
 protected:
     entt::registry *registry;
-    std::vector<registry_operation> operations;
+    registry_operation operation;
 };
 
 template<typename... Components>
@@ -263,7 +273,7 @@ public:
     }
 
     void remove_all(const std::vector<entt::entity> &entities) override {
-        (remove<Components>(entities.begin(), entities.end(), true), ...);
+        (remove<Components>(entities.begin(), entities.end()), ...);
     }
 
     void emplace_all(const entt::sparse_set &entities) override {
@@ -275,7 +285,7 @@ public:
     }
 
     void remove_all(const entt::sparse_set &entities) override {
-        (remove<Components>(entities.begin(), entities.end(), true), ...);
+        (remove<Components>(entities.begin(), entities.end()), ...);
     }
 
     void emplace_all(entt::entity entity) override {

@@ -2,9 +2,11 @@
 #define EDYN_REPLICATION_REGISTRY_OPERATION_HPP
 
 #include <memory>
+#include <type_traits>
 #include <vector>
 #include <entt/entity/registry.hpp>
 #include "edyn/config/config.h"
+#include "edyn/core/entity_pair.hpp"
 #include "edyn/replication/map_child_entity.hpp"
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/comp/merge_component.hpp"
@@ -12,40 +14,40 @@
 namespace edyn {
 
 /**
- * @brief Registry operation type.
- */
-enum class registry_op_type {
-    create, // Create entity.
-    destroy, // Destroy entity.
-    emplace, // Emplace component.
-    replace, // Replace component.
-    remove, // Remove component.
-    ent_map // Create entity mapping.
-};
-
-/**
  * @brief Registry operation for components.
  */
 class component_operation {
 public:
     virtual ~component_operation() = default;
-    virtual void execute(entt::registry &, registry_op_type,
-                         const std::vector<entt::entity> &, entity_map &) const = 0;
+    virtual void execute(entt::registry &, entity_map &) const = 0;
     virtual entt::id_type get_type_id() const = 0;
-    virtual void remap(const entity_map &emap) = 0;
+
+    virtual void remap(const entity_map &emap) {
+        for (auto &remote_entity : entities) {
+            auto local_entity = emap.at(remote_entity);
+            remote_entity = local_entity;
+        }
+    }
+
+    bool empty() const {
+        return entities.empty();
+    }
+
+    std::vector<entt::entity> entities;
 };
 
 template<typename Component>
-class component_operation_impl : public component_operation {
+class component_operation_emplace : public component_operation {
+public:
+    static constexpr auto is_empty_type = std::is_empty_v<Component>;
+    std::vector<Component> components;
 
-    void execute_emplace(entt::registry &registry,
-                         const std::vector<entt::entity> &entities,
-                         const entity_map &entity_map) const {
-        if constexpr(!std::is_empty_v<Component>) {
+    void execute(entt::registry &registry, entity_map &entity_map) const override {
+        if constexpr(!is_empty_type) {
             EDYN_ASSERT(entities.size() == components.size());
         }
 
-        for (size_t i = 0; i < entities.size(); ++i) {
+        for (unsigned i = 0; i < entities.size(); ++i) {
             auto remote_entity = entities[i];
 
             if (!entity_map.contains(remote_entity)) {
@@ -58,7 +60,7 @@ class component_operation_impl : public component_operation {
                 continue;
             }
 
-            if constexpr(std::is_empty_v<Component>) {
+            if constexpr(is_empty_type) {
                 registry.emplace<Component>(local_entity);
             } else {
                 auto comp = components[i];
@@ -68,37 +70,69 @@ class component_operation_impl : public component_operation {
         }
     }
 
-    template<typename T = Component>
-    typename std::enable_if_t<!std::is_empty_v<T>>
-    execute_replace(entt::registry &registry,
-                    const std::vector<entt::entity> &entities,
-                    const entity_map &entity_map) const {
-        EDYN_ASSERT(entities.size() == components.size());
+    entt::id_type get_type_id() const override {
+        return entt::type_index<Component>::value();
+    }
 
-        for (size_t i = 0; i < entities.size(); ++i) {
-            auto remote_entity = entities[i];
+    void remap(const entity_map &emap) override {
+        component_operation::remap(emap);
 
-            if (!entity_map.contains(remote_entity)) {
-                continue;
+        if constexpr(!is_empty_type) {
+            for (auto &comp : components) {
+                internal::map_child_entity_no_validation(emap, comp);
             }
+        }
+    }
+};
 
-            auto local_entity = entity_map.at(remote_entity);
+template<typename Component>
+class component_operation_replace : public component_operation {
+public:
+    std::vector<Component> components;
 
-            if (!registry.valid(local_entity) || !registry.all_of<Component>(local_entity)) {
-                continue;
+    void execute(entt::registry &registry, entity_map &entity_map) const override {
+        if constexpr(!std::is_empty_v<Component>) {
+            EDYN_ASSERT(entities.size() == components.size());
+
+            for (unsigned i = 0; i < entities.size(); ++i) {
+                auto remote_entity = entities[i];
+
+                if (!entity_map.contains(remote_entity)) {
+                    continue;
+                }
+
+                auto local_entity = entity_map.at(remote_entity);
+
+                if (!registry.valid(local_entity) || !registry.all_of<Component>(local_entity)) {
+                    continue;
+                }
+
+                auto comp = components[i];
+                internal::map_child_entity(registry, entity_map, comp);
+                registry.patch<Component>(local_entity, [&](auto &&current) {
+                    merge_component(current, comp);
+                });
             }
-
-            auto comp = components[i];
-            internal::map_child_entity(registry, entity_map, comp);
-            registry.patch<Component>(local_entity, [&](auto &&current) {
-                merge_component(current, comp);
-            });
         }
     }
 
-    void execute_remove(entt::registry &registry,
-                        const std::vector<entt::entity> &entities,
-                        const entity_map &entity_map) const {
+    entt::id_type get_type_id() const override {
+        return entt::type_index<Component>::value();
+    }
+
+    void remap(const entity_map &emap) override {
+        component_operation::remap(emap);
+
+        for (auto &comp : components) {
+            internal::map_child_entity_no_validation(emap, comp);
+        }
+    }
+};
+
+template<typename Component>
+class component_operation_remove : public component_operation {
+public:
+    void execute(entt::registry &registry, entity_map &entity_map) const override {
         for (auto remote_entity : entities) {
             if (!entity_map.contains(remote_entity)) {
                 continue;
@@ -114,71 +148,8 @@ class component_operation_impl : public component_operation {
         }
     }
 
-    template<typename T = Component>
-    typename std::enable_if_t<std::is_same_v<T, entt::entity>>
-    execute_ent_map(const entt::registry &registry,
-                    const std::vector<entt::entity> &entities,
-                    entity_map &entity_map) const {
-        // Component operations are cleverly used to insert entity mappings,
-        // thus not requiring a separate means of doing so. Local entities
-        // are inserted as components which are related directly to the
-        // entity at the same index in the entities array, which is the
-        // remote entity.
-        EDYN_ASSERT(entities.size() == components.size());
-
-        for (size_t i = 0; i < entities.size(); ++i) {
-            auto remote_entity = entities[i];
-            auto local_entity = components[i];
-
-            if (registry.valid(local_entity)) {
-                if (entity_map.contains(remote_entity)) {
-                    EDYN_ASSERT(entity_map.at(remote_entity) == local_entity);
-                } else {
-                    entity_map.insert(remote_entity, local_entity);
-                }
-            }
-        }
-    }
-
-public:
-    static constexpr auto is_empty_type = std::is_empty_v<Component>;
-    std::vector<Component> components;
-
-    void execute(entt::registry &registry, registry_op_type op,
-                 const std::vector<entt::entity> &entities,
-                 entity_map &entity_map) const override {
-        switch (op) {
-        case registry_op_type::emplace:
-            execute_emplace(registry, entities, entity_map);
-            break;
-        case registry_op_type::replace:
-            if constexpr(!is_empty_type) {
-                execute_replace(registry, entities, entity_map);
-            }
-            break;
-        case registry_op_type::remove:
-            execute_remove(registry, entities, entity_map);
-            break;
-        case registry_op_type::ent_map:
-            if constexpr(std::is_same_v<Component, entt::entity>) {
-                execute_ent_map(registry, entities, entity_map);
-            }
-            break;
-        default:
-            break;
-        }
-    }
-
     entt::id_type get_type_id() const override {
         return entt::type_index<Component>::value();
-    }
-
-    void remap(const entity_map &emap) override {
-        if constexpr(!is_empty_type) {
-            for (auto &comp : components) {
-                internal::map_child_entity_no_validation(emap, comp);
-            }
-        }
     }
 };
 
@@ -188,7 +159,7 @@ public:
 class registry_operation final {
 
     void execute_create(entt::registry &registry, entity_map &entity_map) const {
-        for (auto remote_entity : entities) {
+        for (auto remote_entity : create_entities) {
             if (entity_map.contains(remote_entity)) {
                 continue;
             }
@@ -199,7 +170,7 @@ class registry_operation final {
     }
 
     void execute_destroy(entt::registry &registry, entity_map &entity_map) const {
-        for (auto remote_entity : entities) {
+        for (auto remote_entity : destroy_entities) {
             if (!entity_map.contains(remote_entity)) {
                 continue;
             }
@@ -213,152 +184,191 @@ class registry_operation final {
         }
     }
 
-public:
-    registry_op_type operation;
-    std::vector<entt::entity> entities;
-    std::shared_ptr<component_operation> components;
-
-    void execute(entt::registry &registry, entity_map &entity_map) const {
-        switch (operation) {
-        case registry_op_type::create:
-            execute_create(registry, entity_map);
-            break;
-        case registry_op_type::destroy:
-            execute_destroy(registry, entity_map);
-            break;
-        default:
-            components->execute(registry, operation, entities, entity_map);
+    void execute_map_entities(const entt::registry &registry,
+                              entity_map &entity_map) const {
+        for (auto [remote_entity, local_entity] : map_entities) {
+            if (registry.valid(local_entity)) {
+                if (entity_map.contains(remote_entity)) {
+                    EDYN_ASSERT(entity_map.at(remote_entity) == local_entity);
+                } else {
+                    entity_map.insert(remote_entity, local_entity);
+                }
+            }
         }
     }
 
+    template<typename Component, typename Func>
+    void for_each_emplace(Func func) const {
+        auto found_it = std::find_if(emplace_components.begin(), emplace_components.end(),
+                                     [](auto &&op) { return op->get_type_id() == entt::type_index<Component>::value(); });
+        if (found_it != emplace_components.end()) {
+            auto *typed_op = static_cast<const component_operation_emplace<Component> *>(found_it->get());
+            for (unsigned i = 0; i < typed_op->entities.size(); ++i) {
+                auto entity = typed_op->entities[i];
+                if constexpr(std::is_empty_v<Component>) {
+                    func(entity);
+                } else {
+                    auto &comp = typed_op->components[i];
+                    func(entity, comp);
+                }
+            }
+        }
+    }
+
+    template<typename Component, typename Func>
+    void for_each_replace(Func func) const {
+        auto found_it = std::find_if(replace_components.begin(), replace_components.end(),
+                                     [](auto &&op) { return op->get_type_id() == entt::type_index<Component>::value(); });
+        if (found_it != replace_components.end()) {
+            auto *typed_op = static_cast<const component_operation_replace<Component> *>(found_it->get());
+            for (unsigned i = 0; i < typed_op->entities.size(); ++i) {
+                auto entity = typed_op->entities[i];
+
+                if constexpr(std::is_invocable_v<Func, entt::entity>) {
+                    func(entity);
+                } else {
+                    if constexpr(std::is_empty_v<Component>) {
+                        func(entity, Component{});
+                    } else {
+                        func(entity, typed_op->components[i]);
+                    }
+                }
+            }
+        }
+    }
+
+    template<typename Component, typename Func>
+    void for_each_remove(Func func) const {
+        auto found_it = std::find_if(remove_components.begin(), remove_components.end(),
+                                     [](auto &&op) { return op->get_type_id() == entt::type_index<Component>::value(); });
+        if (found_it != remove_components.end()) {
+            auto *typed_op = static_cast<const component_operation_remove<Component> *>(found_it->get());
+            for (unsigned i = 0; i < typed_op->entities.size(); ++i) {
+                auto entity = typed_op->entities[i];
+                func(entity);
+            }
+        }
+    }
+
+public:
+    registry_operation() = default;
+    registry_operation(registry_operation &) = delete;
+    registry_operation(registry_operation &&) = default;
+    registry_operation & operator=(registry_operation &) = delete;
+    registry_operation & operator=(registry_operation &&) = default;
+
+    std::vector<entt::entity> create_entities;
+    std::vector<entt::entity> destroy_entities;
+    entity_pair_vector map_entities;
+
+    std::vector<std::unique_ptr<component_operation>> emplace_components;
+    std::vector<std::unique_ptr<component_operation>> replace_components;
+    std::vector<std::unique_ptr<component_operation>> remove_components;
+
+    void execute(entt::registry &registry, entity_map &entity_map) const {
+        execute_map_entities(registry, entity_map);
+        execute_create(registry, entity_map);
+
+        for (auto &op : emplace_components) {
+            op->execute(registry, entity_map);
+        }
+
+        for (auto &op : replace_components) {
+            op->execute(registry, entity_map);
+        }
+
+        for (auto &op : remove_components) {
+            op->execute(registry, entity_map);
+        }
+
+        execute_destroy(registry, entity_map);
+    }
+
     void remap(const entity_map &emap) {
-        for (auto &entity : entities) {
+        for (auto &entity : create_entities) {
             entity = emap.at(entity);
         }
 
-        components->remap(emap);
-    }
-
-    bool is_component_operation() const {
-        return operation == registry_op_type::emplace ||
-               operation == registry_op_type::replace ||
-               operation == registry_op_type::remove;
-    }
-};
-
-class registry_operation_collection final {
-
-    template<typename Component, typename Func>
-    void for_each_comp(registry_op_type op_type, Func func) const {
-        auto type_id = entt::type_index<Component>::value();
-
-        for (auto &op : operations) {
-            if (op.operation == op_type && op.components && op.components->get_type_id() == type_id) {
-                if constexpr(std::is_empty_v<Component>) {
-                    if constexpr(std::is_invocable_v<Func, entt::entity>) {
-                        for (auto entity : op.entities) {
-                            func(entity);
-                        }
-                    }
-                } else {
-                    if (op_type == registry_op_type::remove) {
-                        if constexpr(std::is_invocable_v<Func, entt::entity>) {
-                            for (auto entity : op.entities) {
-                                func(entity);
-                            }
-                        }
-                    } else {
-                        auto *components = static_cast<component_operation_impl<Component> *>(op.components.get());
-                        EDYN_ASSERT(op.entities.size() == components->components.size());
-                        for (size_t i = 0; i < op.entities.size(); ++i) {
-                            func(op.entities[i], components->components[i]);
-                        }
-                    }
-                }
-            }
+        for (auto &entity : destroy_entities) {
+            entity = emap.at(entity);
         }
-    }
 
-    template<typename Func>
-    void for_each_entity(registry_op_type op_type,Func func) const {
-        for (auto &op : operations) {
-            if (op.operation == op_type) {
-                for (auto entity : op.entities) {
-                    func(entity);
-                }
-            }
+        for (auto &[remote_entity, local_entity] : map_entities) {
+            local_entity = emap.at(remote_entity);
+            remote_entity = emap.at_local(local_entity);
         }
-    }
 
-public:
-    std::vector<registry_operation> operations;
-
-    void execute(entt::registry &registry,
-                 entity_map &entity_map) const {
-        for (auto &op : operations) {
-            op.execute(registry, entity_map);
+        for (auto &op : emplace_components) {
+            op->remap(emap);
         }
-    }
 
-    void remap(const entity_map &emap) {
-        for (auto &op : operations) {
-            op.remap(emap);
+        for (auto &op : replace_components) {
+            op->remap(emap);
+        }
+
+        for (auto &op : remove_components) {
+            op->remap(emap);
         }
     }
 
     bool empty() const {
-        for (auto &op : operations) {
-            if (!op.entities.empty()) {
-                return false;
-            }
-        }
-
-        return true;
+        return create_entities.empty() &&
+               destroy_entities.empty() &&
+               map_entities.empty() &&
+               emplace_components.empty() &&
+               replace_components.empty() &&
+               remove_components.empty();
     }
 
     template<typename Func>
     void create_for_each(Func func) const {
-        for_each_entity(registry_op_type::create, func);
+        for (auto entity : create_entities) {
+            func(entity);
+        }
     }
 
     template<typename Func>
     void destroy_for_each(Func func) const {
-        for_each_entity(registry_op_type::destroy, func);
+        for (auto entity : destroy_entities) {
+            func(entity);
+        }
     }
 
     template<typename... Component, typename Func>
     void emplace_for_each(Func func) const {
-        (for_each_comp<Component>(registry_op_type::emplace, func), ...);
+        (for_each_emplace<Component>(func), ...);
     }
 
     template<typename... Component, typename Func>
     void replace_for_each(Func func) const {
-        (for_each_comp<Component>(registry_op_type::replace, func), ...);
+        (for_each_replace<Component>(func), ...);
     }
 
     template<typename... Component, typename Func>
     void remove_for_each(Func func) const {
-        (for_each_comp<Component>(registry_op_type::remove, func), ...);
+        (for_each_remove<Component>(func), ...);
     }
 
     template<typename... Component, typename Func>
     void emplace_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
-        (for_each_comp<Component>(registry_op_type::emplace, func), ...);
+        (for_each_emplace<Component>(func), ...);
     }
 
     template<typename... Component, typename Func>
     void replace_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
-        (for_each_comp<Component>(registry_op_type::replace, func), ...);
+        (for_each_replace<Component>(func), ...);
     }
 
     template<typename... Component, typename Func>
     void remove_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
-        (for_each_comp<Component>(registry_op_type::remove, func), ...);
+        (for_each_remove<Component>(func), ...);
     }
 
     template<typename Func>
     void ent_map_for_each(Func func) const {
-        for_each_comp<entt::entity>(registry_op_type::ent_map, func);
+        for (auto [remote_entity, local_entity] : map_entities) {
+            func(remote_entity, local_entity);
+        }
     }
 };
 
