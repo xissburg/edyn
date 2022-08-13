@@ -22,7 +22,6 @@
 #include "edyn/parallel/message.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/serialization/memory_archive.hpp"
-#include "edyn/comp/dirty.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/rotated_mesh_list.hpp"
@@ -64,6 +63,7 @@ simulation_worker::simulation_worker(const settings &settings,
     : m_state(state::init)
     , m_solver(m_registry)
     , m_op_builder((*settings.make_reg_op_builder)(m_registry))
+    , m_op_observer((*settings.make_reg_op_observer)(*m_op_builder))
     , m_raycast_service(m_registry)
     , m_island_manager(m_registry)
     , m_poly_initializer(m_registry)
@@ -110,9 +110,6 @@ void simulation_worker::init() {
     m_registry.on_destroy<graph_edge>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
     m_registry.on_destroy<island_tag>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
 
-    m_registry.on_construct<sleeping_tag>().connect<&simulation_worker::on_construct_sleeping_tag>(*this);
-    m_registry.on_destroy<sleeping_tag>().connect<&simulation_worker::on_destroy_sleeping_tag>(*this);
-
     m_message_queue.sink<msg::update_entities>().connect<&simulation_worker::on_update_entities>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&simulation_worker::on_set_paused>(*this);
     m_message_queue.sink<msg::step_simulation>().connect<&simulation_worker::on_step_simulation>(*this);
@@ -138,30 +135,13 @@ void simulation_worker::init() {
 }
 
 void simulation_worker::on_construct_shared_entity(entt::registry &registry, entt::entity entity) {
-    if (!m_importing) {
-        m_op_builder->create(entity);
-        m_op_builder->emplace_all(entity);
-    }
+    registry.emplace<shared_tag>(entity);
 }
 
 void simulation_worker::on_destroy_shared_entity(entt::registry &registry, entt::entity entity) {
-    // If importing, do not insert this event into the op because the entity
-    // was already destroyed in the main registry.
-    if (!m_importing) {
-        m_op_builder->destroy(entity);
-    }
-
     if (m_entity_map.contains_local(entity)) {
         m_entity_map.erase_local(entity);
     }
-}
-
-void simulation_worker::on_construct_sleeping_tag(entt::registry &registry, entt::entity entity) {
-    m_op_builder->emplace<sleeping_tag>(entity);
-}
-
-void simulation_worker::on_destroy_sleeping_tag(entt::registry &registry, entt::entity entity) {
-    m_op_builder->remove<sleeping_tag>(entity);
 }
 
 static void import_reg_ops(entt::registry &registry, entity_map &emap, const registry_operation &ops) {
@@ -244,8 +224,12 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
 void simulation_worker::on_update_entities(const message<msg::update_entities> &msg) {
     // Import components from main registry.
     m_importing = true;
+    m_op_observer->set_active(false);
+
     import_reg_ops(m_registry, m_entity_map, msg.content.ops);
+
     m_importing = false;
+    m_op_observer->set_active(true);
 
     // Add all new entity mappings to current op builder which will be sent
     // over to the main thread so it can create corresponding mappings between
@@ -315,29 +299,11 @@ void simulation_worker::sync() {
         }
     });
 
-    sync_dirty();
-
     if (!m_op_builder->empty()) {
         auto &&ops = std::move(m_op_builder->finish());
         message_dispatcher::global().send<msg::step_update>(
             {"main"}, m_message_queue.identifier, std::move(ops), m_last_time);
     }
-}
-
-void simulation_worker::sync_dirty() {
-    // Assign dirty components to the operation builder. This can be called at
-    // any time to move the current dirty entities into the next operation.
-    m_registry.view<dirty>().each([&](entt::entity entity, dirty &dirty) {
-        if (dirty.is_new_entity) {
-            m_op_builder->create(entity);
-        }
-
-        m_op_builder->emplace_type_ids(entity, dirty.created_ids.begin(), dirty.created_ids.end());
-        m_op_builder->replace_type_ids(entity, dirty.updated_ids.begin(), dirty.updated_ids.end());
-        m_op_builder->remove_type_ids(entity, dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
-    });
-
-    m_registry.clear<dirty>();
 }
 
 void simulation_worker::run_state_machine() {
@@ -365,6 +331,7 @@ void simulation_worker::run_state_machine() {
             run_state_machine();
         } else {
             m_state = state::start;
+            sync();
             maybe_reschedule();
         }
         break;

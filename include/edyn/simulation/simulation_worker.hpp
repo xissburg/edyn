@@ -17,7 +17,8 @@
 #include "edyn/simulation/island_manager.hpp"
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/util/polyhedron_shape_initializer.hpp"
-#include "edyn/replication/registry_operation.hpp"
+#include "edyn/replication/registry_operation_builder.hpp"
+#include "edyn/replication/registry_operation_observer.hpp"
 
 namespace edyn {
 
@@ -52,7 +53,6 @@ class simulation_worker final {
     void reschedule_later();
     void do_terminate();
     void sync();
-    void sync_dirty();
     void run_state_machine();
     void update();
 
@@ -68,9 +68,6 @@ public:
 
     void on_construct_shared_entity(entt::registry &registry, entt::entity entity);
     void on_destroy_shared_entity(entt::registry &registry, entt::entity entity);
-
-    void on_construct_sleeping_tag(entt::registry &registry, entt::entity entity);
-    void on_destroy_sleeping_tag(entt::registry &registry, entt::entity entity);
 
     void on_update_entities(const message<msg::update_entities> &msg);
     void on_set_paused(const message<msg::set_paused> &msg);
@@ -119,6 +116,7 @@ private:
     bool m_force_step {false};
 
     std::unique_ptr<registry_operation_builder> m_op_builder;
+    std::unique_ptr<registry_operation_observer> m_op_observer;
     bool m_importing;
 
     std::atomic<int> m_reschedule_counter {0};

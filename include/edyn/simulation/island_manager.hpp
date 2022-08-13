@@ -18,6 +18,7 @@ class island_manager {
                        const std::vector<entt::entity> &new_nodes,
                        const std::vector<entt::entity> &new_edges);
     void split_islands();
+    void wake_up_islands();
 
     void put_to_sleep(entt::entity island_entity);
     bool could_go_to_sleep(entt::entity island_entity) const;
@@ -46,6 +47,7 @@ private:
     std::vector<entt::entity> m_new_graph_nodes;
     std::vector<entt::entity> m_new_graph_edges;
     entt::sparse_set m_islands_to_split;
+    entt::sparse_set m_islands_to_wake_up;
     std::vector<entt::scoped_connection> m_connections;
     double m_last_time;
 };

@@ -16,7 +16,6 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/simulation/simulation_worker.hpp"
-#include "edyn/comp/dirty.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
@@ -49,6 +48,7 @@ stepper_async::stepper_async(entt::registry &registry)
 
     auto &settings = m_registry->ctx().at<edyn::settings>();
     m_op_builder = (*settings.make_reg_op_builder)(*m_registry);
+    m_op_observer = (*settings.make_reg_op_observer)(*m_op_builder);
 
     create_worker();
 }
@@ -63,15 +63,11 @@ stepper_async::~stepper_async() {
 }
 
 void stepper_async::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
-    if (!m_importing) {
-        m_new_graph_nodes.push_back(entity);
-    }
+    registry.emplace<shared_tag>(entity);
 }
 
 void stepper_async::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
-    if (!m_importing) {
-        m_new_graph_edges.push_back(entity);
-    }
+    registry.emplace<shared_tag>(entity);
 }
 
 void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -85,6 +81,12 @@ void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity
     graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
+
+        if (!m_importing) {
+            if (m_worker_ctx->m_entity_map.contains_local(edge_entity)) {
+                m_worker_ctx->m_entity_map.erase_local(edge_entity);
+            }
+        }
     });
 
     registry.on_destroy<graph_edge>().connect<&stepper_async::on_destroy_graph_edge>(*this);
@@ -92,17 +94,13 @@ void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
 
-    if (m_importing) return;
-
-    // When importing delta, the entity is removed from the entity map as part
-    // of the import process. Otherwise, the removal has to be done here.
-    if (m_worker_ctx->m_entity_map.contains_local(entity)) {
-        m_worker_ctx->m_entity_map.erase_local(entity);
+    if (!m_importing) {
+        // When importing delta, the entity is removed from the entity map as part
+        // of the import process. Otherwise, the removal has to be done here.
+        if (m_worker_ctx->m_entity_map.contains_local(entity)) {
+            m_worker_ctx->m_entity_map.erase_local(entity);
+        }
     }
-
-    // Notify the worker of the destruction which happened in the main registry
-    // first.
-    m_op_builder->destroy(entity);
 }
 
 void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
@@ -110,35 +108,10 @@ void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity
     auto &graph = registry.ctx().at<entity_graph>();
     graph.remove_edge(edge.edge_index);
 
-    if (m_importing) return;
-
-    // When importing delta, the entity is removed from the entity map as part
-    // of the import process. Otherwise, the removal has to be done here.
-    if (m_worker_ctx->m_entity_map.contains_local(entity)) {
-        m_worker_ctx->m_entity_map.erase_local(entity);
-    }
-
-    // Notify the worker of the destruction which happened in the main registry
-    // first.
-    m_op_builder->destroy(entity);
-}
-
-void stepper_async::init_new_nodes_and_edges() {
-    // Entities that were created and destroyed before a call to `edyn::update`
-    // are still in these collections, thus remove invalid entities first.
-    entity_vector_erase_invalid(m_new_graph_nodes, *m_registry);
-    entity_vector_erase_invalid(m_new_graph_edges, *m_registry);
-
-    if (!m_new_graph_nodes.empty()) {
-        m_op_builder->create(m_new_graph_nodes.begin(), m_new_graph_nodes.end());
-        m_op_builder->emplace_all(m_new_graph_nodes);
-        m_new_graph_nodes.clear();
-    }
-
-    if (!m_new_graph_edges.empty()) {
-        m_op_builder->create(m_new_graph_edges.begin(), m_new_graph_edges.end());
-        m_op_builder->emplace_all(m_new_graph_edges);
-        m_new_graph_edges.clear();
+    if (!m_importing) {
+        if (m_worker_ctx->m_entity_map.contains_local(entity)) {
+            m_worker_ctx->m_entity_map.erase_local(entity);
+        }
     }
 }
 
@@ -160,48 +133,12 @@ double stepper_async::get_simulation_timestamp() const {
     return m_worker_ctx->m_timestamp;
 }
 
-void stepper_async::refresh_dirty_entities() {
-    auto dirty_view = m_registry->view<dirty>();
-    auto &index_source = m_registry->ctx().at<settings>().index_source;
-
-    // Do not share components which are not present in the shared components
-    // list.
-    auto remove_unshared = [index_source](dirty::id_set_t &set) {
-        for (auto it = set.begin(); it != set.end();) {
-            if (index_source->index_of_id(*it) == SIZE_MAX) {
-                it = set.erase(it);
-            } else {
-                ++it;
-            }
-        }
-    };
-
-    auto refresh = [this](entt::entity entity, dirty &dirty) {
-        if (dirty.is_new_entity) {
-            m_op_builder->create(entity);
-        }
-
-        m_op_builder->emplace_type_ids(entity, dirty.created_ids.begin(), dirty.created_ids.end());
-        m_op_builder->replace_type_ids(entity, dirty.updated_ids.begin(), dirty.updated_ids.end());
-        m_op_builder->remove_type_ids(entity, dirty.destroyed_ids.begin(), dirty.destroyed_ids.end());
-    };
-
-    dirty_view.each([&](entt::entity entity, dirty &dirty) {
-        remove_unshared(dirty.created_ids);
-        remove_unshared(dirty.updated_ids);
-        remove_unshared(dirty.destroyed_ids);
-        refresh(entity, dirty);
-    });
-
-    m_registry->clear<dirty>();
-}
-
 void stepper_async::on_step_update(const message<msg::step_update> &msg) {
     m_importing = true;
+    m_op_observer->set_active(false);
+
     auto &registry = *m_registry;
-
     auto &ops = msg.content.ops;
-
     ops.execute(registry, m_worker_ctx->m_entity_map);
 
     // Insert entity mappings for new entities into the current op.
@@ -240,13 +177,14 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
     });
 
     m_importing = false;
+    m_op_observer->set_active(true);
 
     // Must consume events after each snapshot to avoid losing any event that
     // could be overriden in the next snapshot.
     auto &emitter = registry.ctx().at<contact_event_emitter>();
     emitter.consume_events();
 
-    (*g_mark_replaced_network_dirty)(registry, ops, m_worker_ctx->m_entity_map, m_timestamp);
+    (*g_mark_replaced_network_dirty)(registry, ops, m_worker_ctx->m_entity_map, m_worker_ctx->m_timestamp);
 }
 
 void stepper_async::on_raycast_response(const message<msg::raycast_response> &msg) {
@@ -271,17 +209,7 @@ void stepper_async::sync() {
 }
 
 void stepper_async::update() {
-    m_timestamp = performance_time();
-    init_new_nodes_and_edges();
-
-    // Insert dirty components into the registry ops before importing messages,
-    // which could override the state of these components that have been modified
-    // by the user.
-
     m_message_queue_handle.update();
-
-    refresh_dirty_entities();
-    init_new_nodes_and_edges();
     sync();
 }
 
@@ -296,6 +224,7 @@ void stepper_async::step_simulation() {
 void stepper_async::settings_changed() {
     auto &settings = m_registry->ctx().at<edyn::settings>();
     m_op_builder = (*settings.make_reg_op_builder)(*m_registry);
+    m_op_observer = (*settings.make_reg_op_observer)(*m_op_builder);
     m_worker_ctx->send<msg::set_settings>(m_message_queue_handle.identifier, settings);
 }
 

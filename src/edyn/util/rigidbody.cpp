@@ -1,7 +1,6 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/origin.hpp"
-#include "edyn/comp/dirty.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/rigidbody.hpp"
@@ -317,33 +316,30 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
     linvel += cross(angvel, com_world - pos);
     pos = com_world;
 
-    auto &dirty = registry.get_or_emplace<edyn::dirty>(entity);
-
     if (com != vector3_zero) {
         if (has_com) {
             registry.replace<center_of_mass>(entity, com);
             registry.replace<edyn::origin>(entity, origin);
-            dirty.updated<center_of_mass, edyn::origin>();
         } else {
             registry.emplace<center_of_mass>(entity, com);
             registry.emplace<edyn::origin>(entity, origin);
-            dirty.created<center_of_mass, edyn::origin>();
 
             if (registry.any_of<dynamic_tag>(entity)) {
                 auto &settings = registry.ctx().at<edyn::settings>();
-                registry.get<continuous>(entity).insert(settings.index_source->index_of<edyn::origin>());
-                dirty.updated<continuous>();
+                registry.patch<continuous>(entity, [&](continuous &con) {
+                    con.insert(settings.index_source->index_of<edyn::origin>());
+                });
             }
         }
     } else if (has_com) {
         registry.remove<center_of_mass>(entity);
         registry.remove<edyn::origin>(entity);
-        dirty.destroyed<center_of_mass, edyn::origin>();
 
         if (registry.any_of<dynamic_tag>(entity)) {
             auto &settings = registry.ctx().at<edyn::settings>();
-            registry.get<continuous>(entity).remove(settings.index_source->index_of<edyn::origin>());
-            dirty.updated<continuous>();
+            registry.patch<continuous>(entity, [&](continuous &con) {
+                con.remove(settings.index_source->index_of<edyn::origin>());
+            });
         }
     }
 }

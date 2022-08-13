@@ -1,7 +1,9 @@
 #ifndef EDYN_REPLICATION_REGISTRY_OPERATION_OBSERVER_HPP
 #define EDYN_REPLICATION_REGISTRY_OPERATION_OBSERVER_HPP
 
+#include "edyn/comp/tag.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
 
 namespace edyn {
@@ -10,29 +12,63 @@ class registry_operation_observer {
 public:
     registry_operation_observer(registry_operation_builder &builder)
         : m_builder(&builder)
-    {}
+        , m_active(true)
+    {
+        auto &registry = builder.get_registry();
+        registry.on_construct<shared_tag>().connect<&registry_operation_observer::on_construct_shared>(*this);
+        registry.on_destroy<shared_tag>().connect<&registry_operation_observer::on_destroy_shared>(*this);
+    }
 
     virtual ~registry_operation_observer() {}
 
+    void on_construct_shared(entt::registry &registry, entt::entity entity) {
+        m_observed_entities.emplace(entity);
+
+        if (m_active) {
+            m_builder->create(entity);
+            m_builder->emplace_all(entity);
+        }
+    }
+
+    void on_destroy_shared(entt::registry &registry, entt::entity entity) {
+        m_observed_entities.erase(entity);
+
+        if (m_active) {
+            m_builder->destroy(entity);
+        }
+    }
+
+    void set_active(bool active) {
+        m_active = active;
+    }
+
 protected:
     registry_operation_builder *m_builder;
+    entt::sparse_set m_observed_entities;
+    bool m_active;
 };
 
 template<typename... Components>
 class registry_operation_observer_impl : public registry_operation_observer {
     template<typename Component>
     void on_construct(entt::registry &registry, entt::entity entity) {
-        m_builder->emplace<Component>(entity);
+        if (m_active && m_observed_entities.contains(entity)) {
+            m_builder->emplace<Component>(entity);
+        }
     }
 
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
-        m_builder->replace<Component>(entity);
+        if (m_active && m_observed_entities.contains(entity)) {
+            m_builder->replace<Component>(entity);
+        }
     }
 
     template<typename Component>
     void on_destroy(entt::registry &registry, entt::entity entity) {
-        m_builder->remove<Component>(entity);
+        if (m_active && m_observed_entities.contains(entity)) {
+            m_builder->remove<Component>(entity);
+        }
     }
 
 public:

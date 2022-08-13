@@ -9,6 +9,7 @@
 #include "edyn/simulation/simulation_worker_context.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
+#include "edyn/replication/registry_operation_observer.hpp"
 
 namespace edyn {
 
@@ -18,16 +19,11 @@ namespace edyn {
  */
 class stepper_async final {
 
-    void init_new_nodes_and_edges();
-    void init_new_non_procedural_node(entt::entity);
-
     void create_worker();
     void insert_to_worker(const std::vector<entt::entity> &nodes,
                           const std::vector<entt::entity> &edges);
 
-    void refresh_dirty_entities();
     void sync();
-    void balance_workers();
 
     struct worker_raycast_context {
         vector3 p0, p1;
@@ -88,16 +84,13 @@ private:
     entt::registry *m_registry;
     std::unique_ptr<simulation_worker_context> m_worker_ctx;
     std::unique_ptr<registry_operation_builder> m_op_builder;
+    std::unique_ptr<registry_operation_observer> m_op_observer;
     message_queue_handle<
         msg::step_update,
         msg::raycast_response
     > m_message_queue_handle;
 
-    std::vector<entt::entity> m_new_graph_nodes;
-    std::vector<entt::entity> m_new_graph_edges;
-
     bool m_importing {false};
-    double m_timestamp;
 
     raycast_id_type m_next_raycast_id {};
     std::map<raycast_id_type, worker_raycast_context> m_raycast_ctx;

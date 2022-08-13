@@ -5,6 +5,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/math/vector3.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
 #include "edyn/util/entt_util.hpp"
@@ -77,11 +78,14 @@ void island_manager::on_destroy_island_resident(entt::registry &registry, entt::
         island.edges.erase(entity);
     }
 
+    // Island could have been split.
     if (!m_islands_to_split.contains(resident.island_entity)) {
         m_islands_to_split.emplace(resident.island_entity);
     }
 
-    wake_up_island(resident.island_entity);
+    if (!m_islands_to_wake_up.contains(resident.island_entity)) {
+        m_islands_to_wake_up.emplace(resident.island_entity);
+    }
 }
 
 void island_manager::on_destroy_multi_island_resident(entt::registry &registry, entt::entity entity) {
@@ -93,7 +97,10 @@ void island_manager::on_destroy_multi_island_resident(entt::registry &registry, 
 
         // Non-procedural entities do not form islands thus there's no need to
         // check whether this island was split by its removal.
-        wake_up_island(island_entity);
+
+        if (!m_islands_to_wake_up.contains(island_entity)) {
+            m_islands_to_wake_up.emplace(island_entity);
+        }
     }
 }
 
@@ -504,6 +511,15 @@ void island_manager::split_islands() {
     }
 }
 
+void island_manager::wake_up_islands() {
+    for (auto island_entity : m_islands_to_wake_up) {
+        if (m_registry->valid(island_entity)) {
+            wake_up_island(island_entity);
+        }
+    }
+    m_islands_to_wake_up.clear();
+}
+
 void island_manager::update(double timestamp) {
     init_new_nodes_and_edges();
     split_islands();
@@ -532,16 +548,15 @@ void island_manager::put_to_sleep(entt::entity island_entity) {
     for (auto entity : island.nodes) {
         if (!procedural_view.contains(entity)) continue;
 
-        if (auto *v = m_registry->try_get<linvel>(entity); v) {
-            *v = vector3_zero;
-            // TODO: mark dirty?
-        }
-
-        if (auto *w = m_registry->try_get<angvel>(entity); w) {
-            *w = vector3_zero;
-        }
-
         m_registry->emplace<sleeping_tag>(entity);
+
+        if (m_registry->all_of<linvel>(entity)) {
+            m_registry->replace<linvel>(entity, vector3_zero);
+        }
+
+        if (m_registry->all_of<angvel>(entity)) {
+            m_registry->replace<angvel>(entity, vector3_zero);
+        }
     }
 
     for (auto entity : island.edges) {
