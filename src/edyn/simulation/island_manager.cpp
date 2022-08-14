@@ -96,8 +96,9 @@ void island_manager::on_destroy_multi_island_resident(entt::registry &registry, 
         island.nodes.erase(entity);
 
         // Non-procedural entities do not form islands thus there's no need to
-        // check whether this island was split by its removal.
-
+        // check whether this island was split by its removal. It is necessary
+        // to wake the island up though, as it might cause other entities to
+        // start moving.
         if (!m_islands_to_wake_up.contains(island_entity)) {
             m_islands_to_wake_up.emplace(island_entity);
         }
@@ -521,6 +522,7 @@ void island_manager::wake_up_islands() {
 }
 
 void island_manager::update(double timestamp) {
+    wake_up_islands();
     init_new_nodes_and_edges();
     split_islands();
     put_islands_to_sleep();
