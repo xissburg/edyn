@@ -103,7 +103,6 @@ void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, c
     options.restitution = con.restitution;
 
     prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-    warm_start(row);
 
     if (con.bump_stop_stiffness > 0 && con.bump_stop_length > 0) {
         auto &row = cache.add_row();
@@ -124,7 +123,6 @@ void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, c
         options.error = -bump_stop_deflection / dt;
 
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 }
 

@@ -54,7 +54,6 @@ void prepare_constraint<gravity_constraint>(const entt::registry &, entt::entity
     options.error = large_scalar;
 
     prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-    warm_start(row);
 }
 
 }

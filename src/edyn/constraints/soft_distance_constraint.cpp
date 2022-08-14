@@ -74,7 +74,6 @@ void prepare_constraint<soft_distance_constraint>(const entt::registry &, entt::
         options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
 
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 
     {
@@ -101,7 +100,6 @@ void prepare_constraint<soft_distance_constraint>(const entt::registry &, entt::
         row.impulse = con.impulse[1];
 
         prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 }
 /*

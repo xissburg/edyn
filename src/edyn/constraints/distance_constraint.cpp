@@ -58,7 +58,6 @@ void prepare_constraint<distance_constraint>(const entt::registry &, entt::entit
     row.impulse = con.impulse;
 
     prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-    warm_start(row);
 }
 
 }

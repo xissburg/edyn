@@ -74,7 +74,6 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
         row.impulse = con.impulse[row_idx++];
 
         prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 
     // Make relative angular velocity go to zero along directions orthogonal
@@ -95,7 +94,6 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
         row.impulse = con.impulse[row_idx++];
 
         prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 
     {
@@ -111,7 +109,6 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
         row.impulse = con.impulse[row_idx++];
 
         prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 
     // Handle angular limits and friction.
@@ -164,7 +161,6 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
         options.restitution = con.limit_restitution;
 
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
 
         // Another row for bump stop spring.
         if (con.bump_stop_stiffness > 0 && con.bump_stop_angle > 0) {
@@ -196,7 +192,6 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
                 options.error = -bump_stop_deflection / dt;
 
                 prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-                warm_start(row);
             }
         }
     }
@@ -220,7 +215,6 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
         options.error = -deflection / dt;
 
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 
     if (has_friction) {
@@ -245,7 +239,6 @@ void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, 
         row.upper_limit = friction_impulse;
 
         prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 }
 

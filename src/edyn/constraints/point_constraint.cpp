@@ -58,7 +58,6 @@ void prepare_constraint<point_constraint>(const entt::registry &, entt::entity, 
         options.error = (pivotA[i] - pivotB[i]) / dt;
 
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 
     if (con.friction_torque > 0) {
@@ -78,7 +77,6 @@ void prepare_constraint<point_constraint>(const entt::registry &, entt::entity, 
             row.upper_limit = friction_impulse;
 
             prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
         }
     }
 }
