@@ -7,15 +7,12 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/context/external_system.hpp"
-#include "edyn/replication/make_reg_op_builder.hpp"
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/networking/settings/client_network_settings.hpp"
 #include "edyn/networking/settings/server_network_settings.hpp"
 
 namespace edyn {
 
-std::unique_ptr<registry_operation_builder> make_reg_op_builder_default(entt::registry &);
-std::unique_ptr<registry_operation_observer> make_reg_op_observer_default(registry_operation_builder &);
 
 using should_collide_func_t = decltype(&should_collide_default);
 
@@ -33,8 +30,6 @@ struct settings {
 
     execution_mode execution_mode;
 
-    make_reg_op_builder_func_t make_reg_op_builder {&make_reg_op_builder_default};
-    make_reg_op_observer_func_t make_reg_op_observer {&make_reg_op_observer_default};
     std::shared_ptr<component_index_source> index_source;
     external_system_func_t external_system_init {nullptr};
     external_system_func_t external_system_pre_step {nullptr};

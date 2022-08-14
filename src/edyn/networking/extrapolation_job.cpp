@@ -9,10 +9,12 @@
 #include "edyn/comp/rotated_mesh_list.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/context/registry_operation_context.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/util/input_state_history.hpp"
+#include "edyn/replication/registry_operation_observer.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
@@ -43,6 +45,7 @@ void extrapolation_job_func(job::data_type &data) {
 
 extrapolation_job::extrapolation_job(extrapolation_input &&input,
                                      const settings &settings,
+                                     const registry_operation_context &reg_op_ctx,
                                      const material_mix_table &material_table,
                                      std::shared_ptr<input_state_history> input_history)
     : m_input(std::move(input))
@@ -57,6 +60,7 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
     m_registry.ctx().emplace<narrowphase>(m_registry);
     m_registry.ctx().emplace<entity_graph>();
     m_registry.ctx().emplace<edyn::settings>(settings);
+    m_registry.ctx().emplace<registry_operation_context>(reg_op_ctx);
     m_registry.ctx().emplace<contact_manifold_map>(m_registry);
     m_registry.ctx().emplace<material_mix_table>(material_table);
 
@@ -152,7 +156,8 @@ void extrapolation_job::sync_and_finish() {
 
     // Collect entities per type to be updated, including only components that
     // have changed, i.e. continuous and dirty components.
-    auto builder = (*settings.make_reg_op_builder)(m_registry);
+    auto &reg_op_ctx = m_registry.ctx().at<registry_operation_context>();
+    auto builder = (*reg_op_ctx.make_reg_op_builder)(m_registry);
 
     // Local entity mapping must not be included if the result is going to be
     // remapped into remote space.

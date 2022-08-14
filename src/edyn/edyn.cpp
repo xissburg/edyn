@@ -5,6 +5,7 @@
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/context/registry_operation_context.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/simulation/stepper_async.hpp"
@@ -66,6 +67,7 @@ void attach(entt::registry &registry, const init_config &config) {
         init_constraints(registry);
         break;
     case execution_mode::asynchronous:
+        registry.ctx().emplace<registry_operation_context>();
         registry.ctx().emplace<stepper_async>(registry);
         break;
     }

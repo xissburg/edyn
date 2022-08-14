@@ -5,6 +5,7 @@
 #include "edyn/collision/raycast.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/context/registry_operation_context.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
@@ -21,6 +22,10 @@ struct set_paused {
 
 struct set_settings {
     edyn::settings settings;
+};
+
+struct set_registry_operation_context {
+    edyn::registry_operation_context ctx;
 };
 
 struct set_material_table {

@@ -15,6 +15,7 @@
 namespace edyn {
 
 class input_state_history;
+struct registry_operation_context;
 class material_mix_table;
 struct settings;
 
@@ -47,6 +48,7 @@ class extrapolation_job final {
 public:
     extrapolation_job(extrapolation_input &&input,
                       const settings &settings,
+                      const registry_operation_context &reg_op_ctx,
                       const material_mix_table &material_table,
                       std::shared_ptr<input_state_history> input_history);
 

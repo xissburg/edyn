@@ -5,6 +5,7 @@
 #include "edyn/comp/action_list.hpp"
 #include "edyn/comp/shared_comp.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/context/registry_operation_context.hpp"
 #include "edyn/replication/component_index_source.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/replication/registry_operation_observer.hpp"
@@ -24,19 +25,27 @@ namespace edyn {
  */
 template<typename... Components, typename... Actions>
 void register_external_components(entt::registry &registry, std::tuple<Actions...> actions = {}) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-
-    settings.make_reg_op_builder = [](entt::registry &registry) {
+    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
+    reg_op_ctx.make_reg_op_builder = [](entt::registry &registry) {
         auto external = std::tuple<Components...>{};
         auto action_lists = std::tuple<action_list<Actions>...>{};
         auto all_components = std::tuple_cat(shared_components_t{}, external, action_lists);
         return std::unique_ptr<registry_operation_builder>(
             new registry_operation_builder_impl(registry, all_components));
     };
+    reg_op_ctx.make_reg_op_observer = [](registry_operation_builder &builder) {
+        auto external = std::tuple<Components...>{};
+        auto action_lists = std::tuple<action_list<Actions>...>{};
+        auto all_components = std::tuple_cat(shared_components_t{}, external, action_lists);
+        return std::unique_ptr<registry_operation_observer>(
+            new registry_operation_observer_impl(builder, all_components));
+    };
 
     auto external = std::tuple<Components...>{};
     auto action_lists = std::tuple<action_list<Actions>...>{};
     auto all_components = std::tuple_cat(shared_components_t{}, external, action_lists);
+
+    auto &settings = registry.ctx().at<edyn::settings>();
     settings.index_source.reset(new component_index_source_impl(all_components));
 
     if constexpr(sizeof...(Actions) > 0) {
@@ -47,6 +56,7 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
+        stepper->reg_op_ctx_changed();
     }
 }
 

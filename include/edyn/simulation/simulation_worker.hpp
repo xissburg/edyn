@@ -25,6 +25,7 @@ namespace edyn {
 struct settings;
 struct extrapolation_result;
 class registry_operation_builder;
+struct registry_operation_context;
 
 void simulation_worker_func(job::data_type &);
 
@@ -62,7 +63,8 @@ class simulation_worker final {
 
 public:
     simulation_worker(const settings &settings,
-                  const material_mix_table &material_table);
+                      const registry_operation_context &reg_op_ctx,
+                      const material_mix_table &material_table);
 
     void reschedule();
 
@@ -73,6 +75,7 @@ public:
     void on_set_paused(const message<msg::set_paused> &msg);
     void on_step_simulation(const message<msg::step_simulation> &msg);
     void on_set_settings(const message<msg::set_settings> &msg);
+    void on_set_reg_op_ctx(const message<msg::set_registry_operation_context> &msg);
     void on_set_material_table(const message<msg::set_material_table> &msg);
     void on_set_com(const message<msg::set_com> &);
     void on_raycast_request(const message<msg::raycast_request> &);
@@ -99,6 +102,7 @@ private:
     message_queue_handle<
         msg::set_paused,
         msg::set_settings,
+        msg::set_registry_operation_context,
         msg::step_simulation,
         msg::set_com,
         msg::set_material_table,

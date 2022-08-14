@@ -29,12 +29,12 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include "edyn/replication/make_reg_op_builder.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/util/vector_util.hpp"
 #include "edyn/replication/registry_operation.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/replication/component_index_source.hpp"
@@ -59,11 +59,12 @@ void simulation_worker_func(job::data_type &data) {
 }
 
 simulation_worker::simulation_worker(const settings &settings,
+                                     const registry_operation_context &reg_op_ctx,
                                      const material_mix_table &material_table)
     : m_state(state::init)
     , m_solver(m_registry)
-    , m_op_builder((*settings.make_reg_op_builder)(m_registry))
-    , m_op_observer((*settings.make_reg_op_observer)(*m_op_builder))
+    , m_op_builder((*reg_op_ctx.make_reg_op_builder)(m_registry))
+    , m_op_observer((*reg_op_ctx.make_reg_op_observer)(*m_op_builder))
     , m_raycast_service(m_registry)
     , m_island_manager(m_registry)
     , m_poly_initializer(m_registry)
@@ -71,6 +72,7 @@ simulation_worker::simulation_worker(const settings &settings,
     , m_message_queue(message_dispatcher::global().make_queue<
         msg::set_paused,
         msg::set_settings,
+        msg::set_registry_operation_context,
         msg::step_simulation,
         msg::set_com,
         msg::set_material_table,
@@ -84,6 +86,7 @@ simulation_worker::simulation_worker(const settings &settings,
     m_registry.ctx().emplace<narrowphase>(m_registry);
     m_registry.ctx().emplace<entity_graph>();
     m_registry.ctx().emplace<edyn::settings>(settings);
+    m_registry.ctx().emplace<registry_operation_context>(reg_op_ctx);
     m_registry.ctx().emplace<material_mix_table>(material_table);
 
     init_constraints(m_registry);
@@ -115,6 +118,7 @@ void simulation_worker::init() {
     m_message_queue.sink<msg::step_simulation>().connect<&simulation_worker::on_step_simulation>(*this);
     m_message_queue.sink<msg::set_com>().connect<&simulation_worker::on_set_com>(*this);
     m_message_queue.sink<msg::set_settings>().connect<&simulation_worker::on_set_settings>(*this);
+    m_message_queue.sink<msg::set_registry_operation_context>().connect<&simulation_worker::on_set_reg_op_ctx>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&simulation_worker::on_set_material_table>(*this);
     m_message_queue.sink<msg::raycast_request>().connect<&simulation_worker::on_raycast_request>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&simulation_worker::on_apply_network_pools>(*this);
@@ -550,6 +554,12 @@ void simulation_worker::on_step_simulation(const message<msg::step_simulation> &
 
 void simulation_worker::on_set_settings(const message<msg::set_settings> &msg) {
     m_registry.ctx().at<settings>() = msg.content.settings;
+}
+
+void simulation_worker::on_set_reg_op_ctx(const message<msg::set_registry_operation_context> &msg) {
+    m_registry.ctx().at<registry_operation_context>() = msg.content.ctx;
+    m_op_builder = (*msg.content.ctx.make_reg_op_builder)(m_registry);
+    m_op_observer = (*msg.content.ctx.make_reg_op_observer)(*m_op_builder);
 }
 
 void simulation_worker::on_set_material_table(const message<msg::set_material_table> &msg) {

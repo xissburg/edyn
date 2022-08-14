@@ -57,6 +57,8 @@ public:
     // propagate changes to island workers.
     void settings_changed();
 
+    void reg_op_ctx_changed();
+
     void material_table_changed();
 
     double get_simulation_timestamp() const;

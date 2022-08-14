@@ -8,6 +8,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
+#include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/replication/component_index_source.hpp"
@@ -46,9 +47,9 @@ stepper_async::stepper_async(entt::registry &registry)
     m_message_queue_handle.sink<msg::step_update>().connect<&stepper_async::on_step_update>(*this);
     m_message_queue_handle.sink<msg::raycast_response>().connect<&stepper_async::on_raycast_response>(*this);
 
-    auto &settings = m_registry->ctx().at<edyn::settings>();
-    m_op_builder = (*settings.make_reg_op_builder)(*m_registry);
-    m_op_observer = (*settings.make_reg_op_observer)(*m_op_builder);
+    auto &reg_op_ctx = m_registry->ctx().at<registry_operation_context>();
+    m_op_builder = (*reg_op_ctx.make_reg_op_builder)(*m_registry);
+    m_op_observer = (*reg_op_ctx.make_reg_op_observer)(*m_op_builder);
 
     create_worker();
 }
@@ -122,8 +123,9 @@ void stepper_async::create_worker() {
     // After the `finish` function is called on it it will be deallocated on the
     // next run.
     auto &settings = m_registry->ctx().at<edyn::settings>();
+    auto &reg_op_ctx = m_registry->ctx().at<registry_operation_context>();
     auto &material_table = m_registry->ctx().at<edyn::material_mix_table>();
-    auto *worker = new simulation_worker(settings, material_table);
+    auto *worker = new simulation_worker(settings, reg_op_ctx, material_table);
 
     m_worker_ctx = std::make_unique<simulation_worker_context>(worker);
     m_worker_ctx->m_timestamp = performance_time();
@@ -223,9 +225,14 @@ void stepper_async::step_simulation() {
 
 void stepper_async::settings_changed() {
     auto &settings = m_registry->ctx().at<edyn::settings>();
-    m_op_builder = (*settings.make_reg_op_builder)(*m_registry);
-    m_op_observer = (*settings.make_reg_op_observer)(*m_op_builder);
     m_worker_ctx->send<msg::set_settings>(m_message_queue_handle.identifier, settings);
+}
+
+void stepper_async::reg_op_ctx_changed() {
+    auto &reg_op_ctx = m_registry->ctx().at<registry_operation_context>();
+    m_op_builder = (*reg_op_ctx.make_reg_op_builder)(*m_registry);
+    m_op_observer = (*reg_op_ctx.make_reg_op_observer)(*m_op_builder);
+    m_worker_ctx->send<msg::set_registry_operation_context>(m_message_queue_handle.identifier, reg_op_ctx);
 }
 
 void stepper_async::material_table_changed() {

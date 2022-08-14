@@ -3,6 +3,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
@@ -495,16 +496,16 @@ static void insert_input_to_state_history(entt::registry &registry,
                                           const packet::registry_snapshot &snap, double time) {
     // Insert inputs of entities not owned by this client into the state history.
     auto &ctx = registry.ctx().at<client_network_context>();
-    entt::sparse_set unwoned_entities;
+    entt::sparse_set unowned_entities;
 
     for (auto entity : snap.entities) {
-        if (!ctx.owned_entities.contains(entity) && !unwoned_entities.contains(entity)) {
-            unwoned_entities.emplace(entity);
+        if (!ctx.owned_entities.contains(entity) && !unowned_entities.contains(entity)) {
+            unowned_entities.emplace(entity);
         }
     }
 
-    if (!unwoned_entities.empty()) {
-        ctx.input_history->emplace(snap, unwoned_entities, time);
+    if (!unowned_entities.empty()) {
+        ctx.input_history->emplace(snap, unowned_entities, time);
     }
 }
 
@@ -631,7 +632,8 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         }
     }
 
-    auto builder = (*settings.make_reg_op_builder)(registry);
+    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
+    auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
     builder->create(entities.begin(), entities.end());
     builder->emplace_all(entities);
     input.ops = std::move(builder->finish());
@@ -645,7 +647,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     // Assign latest value of action threshold before extrapolation.
     ctx.input_history->action_time_threshold = client_settings.action_time_threshold;
 
-    auto job = std::make_unique<extrapolation_job>(std::move(input), settings,
+    auto job = std::make_unique<extrapolation_job>(std::move(input), settings, reg_op_ctx,
                                                    material_table, ctx.input_history);
     job->reschedule();
 

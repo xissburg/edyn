@@ -15,8 +15,8 @@ public:
         , m_active(true)
     {
         auto &registry = builder.get_registry();
-        registry.on_construct<shared_tag>().connect<&registry_operation_observer::on_construct_shared>(*this);
-        registry.on_destroy<shared_tag>().connect<&registry_operation_observer::on_destroy_shared>(*this);
+        m_connections.push_back(registry.on_construct<shared_tag>().connect<&registry_operation_observer::on_construct_shared>(*this));
+        m_connections.push_back(registry.on_destroy<shared_tag>().connect<&registry_operation_observer::on_destroy_shared>(*this));
     }
 
     virtual ~registry_operation_observer() {}
@@ -45,6 +45,7 @@ public:
 protected:
     registry_operation_builder *m_builder;
     entt::sparse_set m_observed_entities;
+    std::vector<entt::scoped_connection> m_connections;
     bool m_active;
 };
 
@@ -82,9 +83,6 @@ public:
     }
 
     virtual ~registry_operation_observer_impl() {}
-
-private:
-    std::vector<entt::scoped_connection> m_connections;
 };
 
 }

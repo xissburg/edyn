@@ -1,16 +1,21 @@
 #include "edyn/replication/register_external.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/context/registry_operation_context.hpp"
 
 namespace edyn {
 
 void remove_external_components(entt::registry &registry) {
     auto &settings = registry.ctx().at<edyn::settings>();
-    settings.make_reg_op_builder = &make_reg_op_builder_default;
     settings.index_source.reset(new component_index_source_impl(shared_components_t{}));
     settings.clear_actions_func = nullptr;
 
+    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
+    reg_op_ctx.make_reg_op_builder = &make_reg_op_builder_default;
+    reg_op_ctx.make_reg_op_observer = &make_reg_op_observer_default;
+
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
+        stepper->reg_op_ctx_changed();
     }
 }
 
