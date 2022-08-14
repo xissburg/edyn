@@ -587,6 +587,10 @@ bool island_manager::could_go_to_sleep(entt::entity island_entity) const {
     auto vel_view = m_registry->view<linvel, angvel>();
 
     for (auto entity : island.nodes) {
+        if (!vel_view.contains(entity)) {
+            continue;
+        }
+
         auto [v, w] = vel_view.get(entity);
 
         if ((length_sqr(v) > island_linear_sleep_threshold * island_linear_sleep_threshold) ||
