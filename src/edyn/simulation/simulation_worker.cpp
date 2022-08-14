@@ -167,6 +167,11 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
 
     ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
         auto local_entity = emap.at(remote_entity);
+
+        // There could be multiple constraints (of different types) assigned to
+        // the same entity, which means it could already have an edge.
+        if (registry.any_of<graph_edge>(local_entity)) return;
+
         auto &node0 = node_view.get<graph_node>(emap.at(con.body[0]));
         auto &node1 = node_view.get<graph_node>(emap.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);

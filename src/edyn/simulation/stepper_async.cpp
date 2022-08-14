@@ -170,6 +170,8 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
     ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
         auto local_entity = m_worker_ctx->m_entity_map.at(remote_entity);
 
+        // There could be multiple constraints (of different types) assigned to
+        // the same entity, which means it could already have an edge.
         if (registry.any_of<graph_edge>(local_entity)) return;
 
         auto [node0] = node_view.get(m_worker_ctx->m_entity_map.at(con.body[0]));
