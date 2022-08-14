@@ -12,40 +12,42 @@ struct constraint_row_options;
 struct matrix3x3;
 
 namespace internal {
-    bool pre_make_constraint(entt::entity entity, entt::registry &registry,
+    bool pre_make_constraint(entt::registry &registry, entt::entity entity,
                              entt::entity body0, entt::entity body1);
 }
 
 /**
  * @brief Assigns a constraint component of type `T` to the given entity and does
  * all the other necessary steps to tie things together correctly.
- *
  * @tparam T Constraint type.
- * @param entity The constraint entity.
+ * @tparam SetupFunc Type of function to configure the constraint.
  * @param registry The `entt::registry`.
+ * @param entity The constraint entity.
  * @param body0 First rigid body entity.
  * @param body1 Second rigid body entity.
- * graph.
+ * @param setup Optional function to configure the constraint. Ensures the
+ * assigned properties are propagated to the simulation worker when running
+ * in asynchronous execution mode.
  */
-template<typename T>
-T & make_constraint(entt::entity entity, entt::registry &registry,
-                    entt::entity body0, entt::entity body1) {
-
-    internal::pre_make_constraint(entity, registry, body0, body1);
-    auto &con = registry.emplace<T>(entity, body0, body1);
-    return con;
+template<typename T, typename... SetupFunc>
+void make_constraint(entt::registry &registry, entt::entity entity,
+                     entt::entity body0, entt::entity body1, SetupFunc... setup) {
+    internal::pre_make_constraint(registry, entity, body0, body1);
+    registry.emplace<T>(entity, body0, body1);
+    (registry.patch<T>(entity, setup), ...);
 }
 
 /*! @copydoc make_constraint */
-template<typename T>
+template<typename T, typename... SetupFunc>
 auto make_constraint(entt::registry &registry,
-                     entt::entity body0, entt::entity body1) {
-    auto ent = registry.create();
-    auto &con = make_constraint<T>(ent, registry, body0, body1);
-    return std::pair<entt::entity, T &>(ent, con);
+                     entt::entity body0, entt::entity body1,
+                     SetupFunc... setup) {
+    auto entity = registry.create();
+    make_constraint<T>(registry, entity, body0, body1, setup...);
+    return entity;
 }
 
-entt::entity make_contact_manifold(entt::registry &,
+entt::entity make_contact_manifold(entt::registry &registry,
                                    entt::entity body0, entt::entity body1,
                                    scalar separation_threshold);
 

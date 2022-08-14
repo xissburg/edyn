@@ -15,7 +15,7 @@
 namespace edyn {
 
 namespace internal {
-    bool pre_make_constraint(entt::entity entity, entt::registry &registry,
+    bool pre_make_constraint(entt::registry &registry, entt::entity entity,
                              entt::entity body0, entt::entity body1) {
         // Multiple constraints of different types can be assigned to the same
         // entity. If this entity already has a graph edge, just do a few
@@ -69,7 +69,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     if (!material_view.contains(body0) || !material_view.contains(body1)) {
         // If not, emplace a null constraint to ensure an edge will exist in
         // the entity graph.
-        make_constraint<null_constraint>(manifold_entity, registry, body0, body1);
+        make_constraint<null_constraint>(registry, manifold_entity, body0, body1);
         return;
     }
 
@@ -90,7 +90,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     }
 
     // Assign contact constraint to manifold.
-    make_constraint<contact_constraint>(manifold_entity, registry, body0, body1);
+    make_constraint<contact_constraint>(registry, manifold_entity, body0, body1);
 }
 
 void swap_manifold(contact_manifold &manifold) {
