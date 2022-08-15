@@ -2,9 +2,9 @@
 #define EDYN_COLLISION_CONTACT_MANIFOLD_HPP
 
 #include <array>
+#include <limits>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
-#include <limits>
 #include "edyn/config/config.h"
 #include "edyn/config/constants.hpp"
 #include "edyn/collision/contact_point.hpp"

@@ -2,6 +2,8 @@
 #define EDYN_UTIL_CONSTRAINT_UTIL_HPP
 
 #include <entt/entity/registry.hpp>
+#include "edyn/comp/graph_node.hpp"
+#include "edyn/core/entity_pair.hpp"
 #include "edyn/math/vector3.hpp"
 
 namespace edyn {
@@ -45,6 +47,22 @@ auto make_constraint(entt::registry &registry,
     auto entity = registry.create();
     make_constraint<T>(registry, entity, body0, body1, setup...);
     return entity;
+}
+
+/**
+ * @brief Visit all edges of a node in the entity graph. This can be used to
+ * iterate over all constraints assigned to a rigid body, including contacts.
+ * @tparam Func Visitor function type.
+ * @param entity Node entity.
+ * @param func Vistor function with signature `void(entt::entity)`.
+ */
+template<typename Func>
+void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
+    auto &node = registry.get<graph_node>(entity);
+    auto &graph = registry.ctx().at<entity_graph>();
+    graph.visit_edges(node.node_index, [&](auto edge_index) {
+        func(graph.edge_entity(edge_index));
+    });
 }
 
 entt::entity make_contact_manifold(entt::registry &registry,

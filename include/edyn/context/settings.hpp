@@ -13,9 +13,6 @@
 
 namespace edyn {
 
-
-using should_collide_func_t = decltype(&should_collide_default);
-
 struct component_index_source;
 
 struct settings {

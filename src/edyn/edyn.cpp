@@ -2,7 +2,9 @@
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_event_emitter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
+#include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/context/registry_operation_context.hpp"
@@ -113,7 +115,7 @@ void set_paused(entt::registry &registry, bool paused) {
 }
 
 void update(entt::registry &registry) {
-    // Run jobs scheduled in physics thread.
+    // Run jobs scheduled to run in this thread.
     job_dispatcher::global().once_current_queue();
 
     if (registry.ctx().contains<stepper_async>()) {
@@ -129,7 +131,7 @@ void update(entt::registry &registry) {
         update_presentation(registry, time);
     }
 
-    // Clear actions after they've been pushed to island workers.
+    // Clear actions after they've been pushed to workers.
     auto &settings = registry.ctx().at<edyn::settings>();
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(registry);
@@ -143,110 +145,6 @@ void step_simulation(entt::registry &registry) {
         stepper->step_simulation();
     } else {
         registry.ctx().at<stepper_sequential>().step_simulation();
-    }
-}
-
-void set_should_collide(entt::registry &registry, should_collide_func_t func) {
-    registry.ctx().at<settings>().should_collide_func = func;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
-bool manifold_exists(entt::registry &registry, entt::entity first, entt::entity second) {
-    return manifold_exists(registry, entity_pair{first, second});
-}
-
-bool manifold_exists(entt::registry &registry, entity_pair entities) {
-    auto &manifold_map = registry.ctx().at<contact_manifold_map>();
-    return manifold_map.contains(entities);
-}
-
-entt::entity get_manifold_entity(const entt::registry &registry, entt::entity first, entt::entity second) {
-    return get_manifold_entity(registry, entity_pair{first, second});
-}
-
-entt::entity get_manifold_entity(const entt::registry &registry, entity_pair entities) {
-    auto &manifold_map = registry.ctx().at<contact_manifold_map>();
-    return manifold_map.get(entities);
-}
-
-entt::sink<entt::sigh<void(entt::entity)>> on_contact_started(entt::registry &registry) {
-    return registry.ctx().at<contact_event_emitter>().contact_started_sink();
-}
-
-entt::sink<entt::sigh<void(entt::entity)>> on_contact_ended(entt::registry &registry) {
-    return registry.ctx().at<contact_event_emitter>().contact_ended_sink();
-}
-
-entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>> on_contact_point_created(entt::registry &registry) {
-    return registry.ctx().at<contact_event_emitter>().contact_point_created_sink();
-}
-
-entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>> on_contact_point_destroyed(entt::registry &registry) {
-    return registry.ctx().at<contact_event_emitter>().contact_point_destroyed_sink();
-}
-
-unsigned get_solver_velocity_iterations(const entt::registry &registry) {
-    return registry.ctx().at<settings>().num_solver_velocity_iterations;
-}
-
-void set_solver_velocity_iterations(entt::registry &registry, unsigned iterations) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-    settings.num_solver_velocity_iterations = iterations;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
-unsigned get_solver_position_iterations(const entt::registry &registry) {
-    return registry.ctx().at<settings>().num_solver_position_iterations;
-}
-
-void set_solver_position_iterations(entt::registry &registry, unsigned iterations) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-    settings.num_solver_position_iterations = iterations;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
-unsigned get_solver_restitution_iterations(const entt::registry &registry) {
-    return registry.ctx().at<settings>().num_restitution_iterations;
-}
-
-void set_solver_restitution_iterations(entt::registry &registry, unsigned iterations) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-    settings.num_restitution_iterations = iterations;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
-unsigned get_solver_individual_restitution_iterations(const entt::registry &registry) {
-    return registry.ctx().at<settings>().num_individual_restitution_iterations;
-}
-
-void set_solver_individual_restitution_iterations(entt::registry &registry, unsigned iterations) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-    settings.num_individual_restitution_iterations = iterations;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
-void insert_material_mixing(entt::registry &registry, material::id_type material_id0,
-                            material::id_type material_id1, const material_base &material) {
-    auto &material_table = registry.ctx().at<material_mix_table>();
-    material_table.insert({material_id0, material_id1}, material);
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->material_table_changed();
     }
 }
 

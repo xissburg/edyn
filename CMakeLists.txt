@@ -66,6 +66,8 @@ add_library(Edyn
     src/edyn/collision/raycast.cpp
     src/edyn/collision/raycast_service.cpp
     src/edyn/collision/contact_event_emitter.cpp
+    src/edyn/collision/contact_signal.cpp
+    src/edyn/config/solver_iteration_config.cpp
     src/edyn/constraints/contact_constraint.cpp
     src/edyn/constraints/distance_constraint.cpp
     src/edyn/constraints/soft_distance_constraint.cpp
@@ -99,6 +101,8 @@ add_library(Edyn
     src/edyn/util/exclude_collision.cpp
     src/edyn/util/polyhedron_shape_initializer.cpp
     src/edyn/util/gravity_util.cpp
+    src/edyn/util/contact_manifold_util.cpp
+    src/edyn/util/insert_material_mixing.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp

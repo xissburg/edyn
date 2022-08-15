@@ -33,7 +33,7 @@ struct contact_point {
     std::array<scalar, 2> friction_impulse; // Applied tangential friction impulse.
     scalar spin_friction_impulse; // Applied spin friction impulse.
     std::array<scalar, 2> rolling_friction_impulse; // Applied rolling friction impulse.
-    scalar normal_restitution_impulse; // Applied normal impulse in resitution solver.
+    scalar normal_restitution_impulse; // Applied normal impulse in restitution solver.
     std::array<scalar, 2> friction_restitution_impulse; // Applied tangential friction impulse in restitution solver.
     /**
      * The restitution impulses are calculated by the restitution solver and are

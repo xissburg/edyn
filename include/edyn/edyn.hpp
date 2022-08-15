@@ -2,12 +2,8 @@
 #define EDYN_EDYN_HPP
 
 #include "edyn/build_settings.h"
-#include "comp/dirty.hpp"
-#include "comp/graph_node.hpp"
-#include "comp/graph_edge.hpp"
-#include "comp/present_position.hpp"
-#include "comp/present_orientation.hpp"
 #include "edyn/config/execution_mode.hpp"
+#include "edyn/config/solver_iteration_config.hpp"
 #include "math/constants.hpp"
 #include "math/scalar.hpp"
 #include "math/vector3.hpp"
@@ -16,30 +12,20 @@
 #include "math/matrix3x3.hpp"
 #include "math/transform.hpp"
 #include "math/math.hpp"
-#include "math/geom.hpp"
 #include "time/time.hpp"
 #include "util/rigidbody.hpp"
-#include "util/ragdoll.hpp"
 #include "util/constraint_util.hpp"
-#include "util/shape_util.hpp"
-#include "math/shape_volume.hpp"
-#include "util/tuple_util.hpp"
 #include "util/exclude_collision.hpp"
 #include "util/gravity_util.hpp"
-#include "collision/contact_manifold.hpp"
-#include "collision/contact_point.hpp"
-#include "shapes/create_paged_triangle_mesh.hpp"
-#include "serialization/s11n.hpp"
-#include "parallel/job_dispatcher.hpp"
-#include "parallel/parallel_for.hpp"
-#include "parallel/parallel_for_async.hpp"
-#include "simulation/stepper_async.hpp"
-#include "replication/component_index_source.hpp"
-#include "dynamics/moment_of_inertia.hpp"
-#include "collision/contact_manifold_map.hpp"
-#include "context/settings.hpp"
+#include "util/insert_material_mixing.hpp"
+#include "collision/contact_signal.hpp"
 #include "context/step_callback.hpp"
 #include "collision/raycast.hpp"
+#include "shapes/shapes.hpp"
+#include "comp/shared_comp.hpp"
+#include "comp/present_position.hpp"
+#include "comp/present_orientation.hpp"
+#include "constraints/constraint.hpp"
 
 namespace edyn {
 
@@ -106,196 +92,6 @@ void update(entt::registry &registry);
  * @param registry Data source.
  */
 void step_simulation(entt::registry &registry);
-
-/**
- * @brief Get index of a component type among all shared components within the
- * library. Also supports any registered external component.
- * @tparam Component The component type.
- * @param registry Data source.
- * @return Component index.
- */
-template<typename Component>
-size_t get_component_index(entt::registry &registry) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-    return settings.index_source->index_of<Component>();
-}
-
-/**
- * @brief Get indices of a sequence of component types among all shared
- * components in the library. Also supports any registered external component.
- * @tparam IndexType Desired integral index type.
- * @tparam Component The component type.
- * @param registry Data source.
- * @return Component index.
- */
-template<typename IndexType, typename... Component>
-auto get_component_indices(entt::registry &registry) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-    return settings.index_source->indices_of<IndexType, Component...>();
-}
-
-/**
- * @brief Overrides the default collision filtering function, which checks
- * collision groups and masks. Remember to return false if both entities
- * are the same.
- * @param registry Data source.
- * @param func The function.
- */
-void set_should_collide(entt::registry &registry, should_collide_func_t func);
-
-/**
- * @brief Checks whether there is a contact manifold connecting the two entities.
- * @param registry Data source.
- * @param first One entity.
- * @param second Another entity.
- * @return Whether a contact manifold exists between the two entities.
- */
-bool manifold_exists(entt::registry &registry, entt::entity first, entt::entity second);
-
-/*! @copydoc manifold_exists */
-bool manifold_exists(entt::registry &registry, entity_pair entities);
-
-/**
- * @brief Get contact manifold entity for a pair of entities.
- * Asserts if the manifold does not exist.
- * @param registry Data source.
- * @param first One entity.
- * @param second Another entity.
- * @return Contact manifold entity.
- */
-entt::entity get_manifold_entity(const entt::registry &registry, entt::entity first, entt::entity second);
-
-/*! @copydoc get_manifold_entity */
-entt::entity get_manifold_entity(const entt::registry &registry, entity_pair entities);
-
-/**
- * @brief Signal triggered when a contact starts.
- * A contact is considered to start when the first contact point is added to a
- * manifold, i.e. when the number of points in a manifold becomes greater than
- * zero.
- * @param registry Data source.
- * @return Sink to observe contact started events.
- */
-entt::sink<entt::sigh<void(entt::entity)>> on_contact_started(entt::registry &);
-
-/**
- * @brief Signal triggered when a contact ends.
- * A contact ends when the last point is destroyed in a contact manifold, i.e.
- * when the number of points goes to zero, or when a manifold is destroyed due
- * to AABB separation.
- * @param registry Data source.
- * @return Sink to observe contact ended events.
- */
-entt::sink<entt::sigh<void(entt::entity)>> on_contact_ended(entt::registry &);
-
-/**
- * @brief Signal triggered when a contact point is created.
- * This event is also triggered right after a contact started event, for each
- * point that the contact has started with.
- * The signal emits the manifold entity and the contact point id in that manifold.
- * @param registry Data source.
- * @return Sink to observe contact point creation events.
- */
-entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>>
-on_contact_point_created(entt::registry &);
-
-/**
- * @brief Signal triggered when a contact point is destroyed.
- * This event is also triggered for each contact point before a contact ended
- * event.
- * The signal emits the manifold entity and the contact point id in that manifold.
- * @param registry Data source.
- * @return Sink to observe contact point destruction events.
- */
-entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>>
-on_contact_point_destroyed(entt::registry &);
-
-/**
- * @brief Visit all edges of a node in the entity graph. This can be used to
- * iterate over all constraints assigned to a rigid body, including contacts.
- * @tparam Func Visitor function type.
- * @param entity Node entity.
- * @param func Vistor function with signature `void(entt::entity)`.
- */
-template<typename Func>
-void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
-    auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx().at<entity_graph>();
-    graph.visit_edges(node.node_index, [&](auto edge_index) {
-        func(graph.edge_entity(edge_index));
-    });
-}
-
-/**
- * @brief Get the number of constraint solver velocity iterations.
- * @param registry Data source.
- * @return Number of solver velocity iterations.
- */
-unsigned get_solver_velocity_iterations(const entt::registry &registry);
-
-/**
- * @brief Set the number of constraint solver velocity iterations.
- * @param registry Data source.
- * @param iterations Number of solver velocity iterations.
- */
-void set_solver_velocity_iterations(entt::registry &registry, unsigned iterations);
-
-/**
- * @brief Get the number of constraint solver position iterations.
- * @param registry Data source.
- * @return Number of solver position iterations.
- */
-unsigned get_solver_position_iterations(const entt::registry &registry);
-
-/**
- * @brief Set the number of constraint solver position iterations.
- * @param registry Data source.
- * @param iterations Number of solver position iterations.
- */
-void set_solver_position_iterations(entt::registry &registry, unsigned iterations);
-
-/**
- * @brief Get the number of restitution iterations.
- * @param registry Data source.
- * @return Number of restitution iterations.
- */
-unsigned get_solver_restitution_iterations(const entt::registry &registry);
-
-/**
- * @brief Set the number of restitution iterations. The restitution solver will
- * stop early once the penetration velocity of all contact points is above a
- * threshold.
- * @param registry Data source.
- * @param iterations Number of restitution iterations.
- */
-void set_solver_restitution_iterations(entt::registry &registry, unsigned iterations);
-
-/**
- * @brief Get the number of individual restitution iterations.
- * @param registry Data source.
- * @return Number of individual restitution iterations.
- */
-unsigned get_solver_individual_restitution_iterations(const entt::registry &registry);
-
-/**
- * @brief Set the number of individual restitution iterations. This is the number
- * of iterations used while solving each subset of contact constraints in each
- * iteration of the restitution solver.
- * @param registry Data source.
- * @param iterations Number of individual restitution iterations.
- */
-void set_solver_individual_restitution_iterations(entt::registry &registry, unsigned iterations);
-
-/**
- * @brief Use the provided material when two rigid bodies with the given
- * material ids collide.
- * @param registry Data source.
- * @param material_id0 ID of a material.
- * @param material_id1 ID of another material (could be equal to material_id0).
- * @param material Material info.
- */
-void insert_material_mixing(entt::registry &registry, material::id_type material_id0,
-                            material::id_type material_id1, const material_base &material);
 
 execution_mode get_execution_mode(const entt::registry &registry);
 
