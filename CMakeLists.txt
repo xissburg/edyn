@@ -98,6 +98,7 @@ add_library(Edyn
     src/edyn/util/ragdoll.cpp
     src/edyn/util/exclude_collision.cpp
     src/edyn/util/polyhedron_shape_initializer.cpp
+    src/edyn/util/gravity_util.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
@@ -132,6 +133,7 @@ add_library(Edyn
     src/edyn/networking/networking_external.cpp
     src/edyn/context/settings.cpp
     src/edyn/context/registry_operation_context.cpp
+    src/edyn/context/step_callback.cpp
     src/edyn/edyn.cpp
     src/edyn/time/common/time.cpp
     src/edyn/time/simulation_time.cpp

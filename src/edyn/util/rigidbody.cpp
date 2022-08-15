@@ -1,7 +1,9 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/comp/roll_direction.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/math/transform.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
@@ -21,9 +23,10 @@
 #include "edyn/dynamics/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/tuple_util.hpp"
+#include "edyn/util/gravity_util.hpp"
 #include "edyn/simulation/stepper_async.hpp"
+#include "edyn/replication/component_index_source.hpp"
 #include "edyn/context/settings.hpp"
-#include "edyn/edyn.hpp"
 
 namespace edyn {
 
@@ -180,16 +183,20 @@ void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
                              const vector3 &impulse, const vector3 &rel_location) {
     auto &m_inv = registry.get<mass_inv>(entity);
     auto &i_inv = registry.get<inertia_world_inv>(entity);
-    registry.get<linvel>(entity) += impulse * m_inv;
-    registry.get<angvel>(entity) += i_inv * cross(rel_location, impulse);
-    refresh<linvel, angvel>(registry, entity);
+    registry.patch<linvel>(entity, [&](linvel &v) {
+        v += impulse * m_inv;
+    });
+    registry.patch<angvel>(entity, [&](angvel &w) {
+        w += i_inv * cross(rel_location, impulse);
+    });
 }
 
 void rigidbody_apply_torque_impulse(entt::registry &registry, entt::entity entity,
                                     const vector3 &torque_impulse) {
     auto &i_inv = registry.get<inertia_world_inv>(entity);
-    registry.get<angvel>(entity) += i_inv * torque_impulse;
-    refresh<angvel>(registry, entity);
+    registry.patch<angvel>(entity, [&](angvel &w) {
+        w += i_inv * torque_impulse;
+    });
 }
 
 void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
@@ -227,7 +234,6 @@ void set_rigidbody_mass(entt::registry &registry, entt::entity entity, scalar ma
     EDYN_ASSERT(registry.any_of<rigidbody_tag>(entity));
     registry.replace<edyn::mass>(entity, mass);
     registry.replace<edyn::mass_inv>(entity, scalar(1.0) / mass);
-    refresh<edyn::mass, edyn::mass_inv>(registry, entity);
 }
 
 void set_rigidbody_inertia(entt::registry &registry, entt::entity entity, const matrix3x3 &inertia) {
@@ -236,7 +242,6 @@ void set_rigidbody_inertia(entt::registry &registry, entt::entity entity, const 
     auto I_inv = inverse_matrix_symmetric(inertia);
     registry.replace<edyn::inertia>(entity, inertia);
     registry.replace<edyn::inertia_inv>(entity, I_inv);
-    refresh<edyn::inertia, edyn::inertia_inv>(registry, entity);
 }
 
 void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scalar friction) {
@@ -245,9 +250,9 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
     auto material_view = registry.view<material>();
     auto manifold_view = registry.view<contact_manifold>();
 
-    auto &material = material_view.get<edyn::material>(entity);
-    material.friction = friction;
-    refresh<edyn::material>(registry, entity);
+    auto &material = registry.patch<edyn::material>(entity, [friction](auto &mat) {
+        mat.friction = friction;
+    });
 
     // Update friction in contact manifolds.
     auto &graph = registry.ctx().at<entity_graph>();
@@ -288,13 +293,17 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
             cp.friction = combined_friction;
         });
 
-        refresh<contact_manifold>(registry, edge_entity);
+        // Force changes to be propagated to simulation worker.
+        registry.patch<contact_manifold>(edge_entity);
     });
 }
 
 void set_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {
-    auto &stepper = registry.ctx().at<stepper_async>();
-    stepper.set_center_of_mass(entity, com);
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->set_center_of_mass(entity, com);
+    } else {
+        apply_center_of_mass(registry, entity, com);
+    }
 }
 
 void apply_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {

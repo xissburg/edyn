@@ -132,10 +132,6 @@ void simulation_worker::init() {
 
     // Process messages enqueued before the worker was started.
     process_messages();
-
-    if (settings.external_system_init) {
-        (*settings.external_system_init)(m_registry);
-    }
 }
 
 void simulation_worker::on_construct_shared_entity(entt::registry &registry, entt::entity entity) {
@@ -426,8 +422,8 @@ void simulation_worker::begin_step() {
     EDYN_ASSERT(m_state == state::begin_step);
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
-    if (settings.external_system_pre_step) {
-        (*settings.external_system_pre_step)(m_registry);
+    if (settings.pre_step_callback) {
+        (*settings.pre_step_callback)(m_registry);
     }
 
     // Calculate islands after running external logic, which could've created
@@ -480,8 +476,8 @@ void simulation_worker::finish_step() {
         decay_discontinuities(m_registry, network_settings.discontinuity_decay_rate);
     }
 
-    if (settings.external_system_post_step) {
-        (*settings.external_system_post_step)(m_registry);
+    if (settings.post_step_callback) {
+        (*settings.post_step_callback)(m_registry);
     }
 
     sync();

@@ -25,6 +25,7 @@
 #include "math/shape_volume.hpp"
 #include "util/tuple_util.hpp"
 #include "util/exclude_collision.hpp"
+#include "util/gravity_util.hpp"
 #include "collision/contact_manifold.hpp"
 #include "collision/contact_point.hpp"
 #include "shapes/create_paged_triangle_mesh.hpp"
@@ -37,9 +38,8 @@
 #include "dynamics/moment_of_inertia.hpp"
 #include "collision/contact_manifold_map.hpp"
 #include "context/settings.hpp"
+#include "context/step_callback.hpp"
 #include "collision/raycast.hpp"
-#include <entt/entity/fwd.hpp>
-#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
@@ -144,18 +144,6 @@ auto get_component_indices(entt::registry &registry) {
 void set_should_collide(entt::registry &registry, should_collide_func_t func);
 
 /**
- * @brief Propagates changes to a component to the island worker where the
- * entity currently resides.
- * @tparam Component Component type.
- * @param registry Data source.
- * @param entity The entity that owns the component.
- */
-template<typename... Component>
-void refresh(entt::registry &registry, entt::entity entity) {
-    registry.get_or_emplace<dirty>(entity).updated<Component...>();
-}
-
-/**
  * @brief Checks whether there is a contact manifold connecting the two entities.
  * @param registry Data source.
  * @param first One entity.
@@ -237,22 +225,6 @@ void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
         func(graph.edge_entity(edge_index));
     });
 }
-
-/**
- * @brief Get default gravity.
- * This value is assigned as the gravitational acceleration for all new rigid bodies.
- * @param registry Data source.
- * @return Gravity acceleration vector.
- */
-vector3 get_gravity(const entt::registry &registry);
-
-/**
- * @brief Changes the default gravity acceleration.
- * This value is assigned as the gravitational acceleration for all new rigid bodies.
- * @param registry Data source.
- * @param gravity The new default gravity acceleration.
- */
-void set_gravity(entt::registry &registry, vector3 gravity);
 
 /**
  * @brief Get the number of constraint solver velocity iterations.

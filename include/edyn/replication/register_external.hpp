@@ -10,6 +10,7 @@
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/replication/registry_operation_observer.hpp"
 #include "edyn/simulation/stepper_async.hpp"
+#include <tuple>
 
 namespace edyn {
 
@@ -71,49 +72,6 @@ void register_external_components(entt::registry &registry,
  * @brief Removes registered external components and resets to defaults.
  */
 void remove_external_components(entt::registry &registry);
-
-/**
- * @brief Assigns a function to be called once after a new island worker is
- * created and initialized in a worker thread.
- * @param registry Data source.
- * @param func The function.
- */
-void set_external_system_init(entt::registry &registry, external_system_func_t func);
-
-/**
- * @brief Assigns a function to be called before each simulation step in each
- * island worker in a worker thread.
- * @param registry Data source.
- * @param func The function.
- */
-void set_external_system_pre_step(entt::registry &registry, external_system_func_t func);
-
-/**
- * @brief Assigns a function to be called after each simulation step in each
- * island worker in a worker thread.
- * @param registry Data source.
- * @param func The function.
- */
-void set_external_system_post_step(entt::registry &registry, external_system_func_t func);
-
-/**
- * @brief Set all external system functions in one call. See individual setters
- * for details.
- * @param registry Data source.
- * @param init_func Initialization function called on island worker start up.
- * @param pre_step_func Called before each step.
- * @param post_step_func Called after each step.
- */
-void set_external_system_functions(entt::registry &registry,
-                                   external_system_func_t init_func,
-                                   external_system_func_t pre_step_func,
-                                   external_system_func_t post_step_func);
-
-/**
- * @brief Remove all external system functions.
- * @param registry Data source.
- */
-void remove_external_systems(entt::registry &registry);
 
 /**
  * @brief Assigns an `external_tag` to this entity and inserts it as a node

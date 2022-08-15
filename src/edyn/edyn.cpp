@@ -188,21 +188,6 @@ entt::sink<entt::sigh<void(entt::entity, contact_manifold::contact_id_type)>> on
     return registry.ctx().at<contact_event_emitter>().contact_point_destroyed_sink();
 }
 
-vector3 get_gravity(const entt::registry &registry) {
-    return registry.ctx().at<settings>().gravity;
-}
-
-void set_gravity(entt::registry &registry, vector3 gravity) {
-    registry.ctx().at<settings>().gravity = gravity;
-
-    auto view = registry.view<edyn::gravity, procedural_tag, rigidbody_tag>();
-
-    for (auto entity : view) {
-        view.get<edyn::gravity>(entity) = gravity;
-        refresh<edyn::gravity>(registry, entity);
-    }
-}
-
 unsigned get_solver_velocity_iterations(const entt::registry &registry) {
     return registry.ctx().at<settings>().num_solver_velocity_iterations;
 }

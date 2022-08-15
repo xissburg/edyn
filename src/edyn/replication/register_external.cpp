@@ -19,55 +19,6 @@ void remove_external_components(entt::registry &registry) {
     }
 }
 
-void set_external_system_init(entt::registry &registry, external_system_func_t func) {
-    registry.ctx().at<settings>().external_system_init = func;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
-void set_external_system_pre_step(entt::registry &registry, external_system_func_t func) {
-    registry.ctx().at<settings>().external_system_pre_step = func;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
-void set_external_system_post_step(entt::registry &registry, external_system_func_t func) {
-    registry.ctx().at<settings>().external_system_post_step = func;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
-void set_external_system_functions(entt::registry &registry,
-                                   external_system_func_t init_func,
-                                   external_system_func_t pre_step_func,
-                                   external_system_func_t post_step_func) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-    settings.external_system_init = init_func;
-    settings.external_system_pre_step = pre_step_func;
-    settings.external_system_post_step = post_step_func;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
-void remove_external_systems(entt::registry &registry) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-    settings.external_system_init = nullptr;
-    settings.external_system_pre_step = nullptr;
-    settings.external_system_post_step = nullptr;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-}
-
 void tag_external_entity(entt::registry &registry, entt::entity entity, bool procedural) {
     if (procedural) {
         registry.emplace<edyn::procedural_tag>(entity);

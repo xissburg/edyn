@@ -133,12 +133,6 @@ void extrapolation_job::init() {
     // Import entities and components to be extrapolated.
     load_input();
 
-    // Initialize external systems.
-    auto &settings = m_registry.ctx().at<edyn::settings>();
-    if (settings.external_system_init) {
-        (*settings.external_system_init)(m_registry);
-    }
-
     m_state = state::step;
 }
 
@@ -310,8 +304,8 @@ void extrapolation_job::begin_step() {
     apply_history();
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
-    if (settings.external_system_pre_step) {
-        (*settings.external_system_pre_step)(m_registry);
+    if (settings.pre_step_callback) {
+        (*settings.pre_step_callback)(m_registry);
     }
 
     m_state = state::broadphase;
@@ -328,8 +322,8 @@ void extrapolation_job::finish_step() {
         (*settings.clear_actions_func)(m_registry);
     }
 
-    if (settings.external_system_post_step) {
-        (*settings.external_system_post_step)(m_registry);
+    if (settings.post_step_callback) {
+        (*settings.post_step_callback)(m_registry);
     }
 
     ++m_step_count;

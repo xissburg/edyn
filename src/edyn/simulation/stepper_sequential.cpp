@@ -51,8 +51,8 @@ void stepper_sequential::update() {
     for (int i = 0; i < num_steps; ++i) {
         auto step_time = m_last_time + fixed_dt * i;
 
-        if (settings.external_system_pre_step) {
-            (*settings.external_system_pre_step)(*m_registry);
+        if (settings.pre_step_callback) {
+            (*settings.pre_step_callback)(*m_registry);
         }
 
         bphase.update_sequential(m_multithreaded);
@@ -61,8 +61,8 @@ void stepper_sequential::update() {
         m_solver.update_sequential(m_multithreaded);
         emitter.consume_events();
 
-        if (settings.external_system_post_step) {
-            (*settings.external_system_post_step)(*m_registry);
+        if (settings.post_step_callback) {
+            (*settings.post_step_callback)(*m_registry);
         }
     }
 
@@ -79,8 +79,8 @@ void stepper_sequential::step_simulation() {
     auto &emitter = m_registry->ctx().at<contact_event_emitter>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
 
-    if (settings.external_system_pre_step) {
-        (*settings.external_system_pre_step)(*m_registry);
+    if (settings.pre_step_callback) {
+        (*settings.pre_step_callback)(*m_registry);
     }
 
     m_poly_initializer.init_new_shapes();
@@ -90,8 +90,8 @@ void stepper_sequential::step_simulation() {
     m_solver.update_sequential(m_multithreaded);
     emitter.consume_events();
 
-    if (settings.external_system_post_step) {
-        (*settings.external_system_post_step)(*m_registry);
+    if (settings.post_step_callback) {
+        (*settings.post_step_callback)(*m_registry);
     }
 }
 
