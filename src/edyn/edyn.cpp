@@ -66,7 +66,6 @@ void attach(entt::registry &registry, const init_config &config) {
         registry.ctx().emplace<broadphase>(registry);
         registry.ctx().emplace<narrowphase>(registry);
         registry.ctx().emplace<stepper_sequential>(registry, config.execution_mode == execution_mode::sequential_multithreaded);
-        init_constraints(registry);
         break;
     case execution_mode::asynchronous:
         registry.ctx().emplace<registry_operation_context>();

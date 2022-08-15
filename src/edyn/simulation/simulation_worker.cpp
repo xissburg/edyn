@@ -89,8 +89,6 @@ simulation_worker::simulation_worker(const settings &settings,
     m_registry.ctx().emplace<registry_operation_context>(reg_op_ctx);
     m_registry.ctx().emplace<material_mix_table>(material_table);
 
-    init_constraints(m_registry);
-
     m_this_job.func = &simulation_worker_func;
     auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
     auto ctx_intptr = reinterpret_cast<intptr_t>(this);

@@ -37,13 +37,6 @@ using constraints_tuple_t = std::tuple<
 static const constraints_tuple_t constraints_tuple = constraints_tuple_t{};
 
 inline
-void init_constraints(entt::registry &registry) {
-    std::apply([&](auto ... c) {
-        (init_constraints<decltype(c)>(registry), ...);
-    }, constraints_tuple);
-}
-
-inline
 bool solve_position_constraints(entt::registry &registry, scalar dt) {
     auto solved = false;
 

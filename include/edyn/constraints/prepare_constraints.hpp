@@ -12,9 +12,6 @@ namespace edyn {
 struct row_cache;
 
 template<typename C>
-void init_constraints(entt::registry &) {}
-
-template<typename C>
 void prepare_constraint(const entt::registry &, entt::entity, C &con,
                         constraint_row_prep_cache &cache, scalar dt,
                         const vector3 &originA, const vector3
