@@ -82,23 +82,6 @@ struct hinge_constraint : public constraint_base {
     void reset_angle(const quaternion &ornA, const quaternion &ornB);
 };
 
-template<>
-void prepare_constraint<hinge_constraint>(const entt::registry &, entt::entity, hinge_constraint &con,
-                                          constraint_row_prep_cache &cache, scalar dt,
-                                          const vector3 &originA, const vector3
-                                          &posA, const quaternion &ornA,
-                                          const vector3 &linvelA, const vector3 &angvelA,
-                                          scalar inv_mA, const matrix3x3 &inv_IA,
-                                          delta_linvel &dvA, delta_angvel &dwA,
-                                          const vector3 &originB,
-                                          const vector3 &posB, const quaternion &ornB,
-                                          const vector3 &linvelB, const vector3 &angvelB,
-                                          scalar inv_mB, const matrix3x3 &inv_IB,
-                                          delta_linvel &dvB, delta_angvel &dwB);
-
-template<>
-bool solve_position_constraints<hinge_constraint>(entt::registry &, scalar dt);
-
 template<typename Archive>
 void serialize(Archive &archive, hinge_constraint &c) {
     archive(c.body);
@@ -111,6 +94,22 @@ void serialize(Archive &archive, hinge_constraint &c) {
     archive(c.angle);
     archive(c.impulse);
 }
+
+template<>
+void prepare_constraint<hinge_constraint>(
+    const entt::registry &, entt::entity, hinge_constraint &con,
+    constraint_row_prep_cache &cache, scalar dt,
+    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+    const vector3 &linvelA, const vector3 &angvelA,
+    scalar inv_mA, const matrix3x3 &inv_IA,
+    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+    const vector3 &linvelB, const vector3 &angvelB,
+    scalar inv_mB, const matrix3x3 &inv_IB);
+
+template<>
+void prepare_position_constraint<hinge_constraint>(
+    entt::registry &registry, entt::entity entity, hinge_constraint &con,
+    position_solver &solver);
 
 }
 

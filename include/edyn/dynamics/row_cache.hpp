@@ -7,7 +7,6 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
-#include "edyn/constraints/constraint_row_positional.hpp"
 #include "edyn/constraints/constraint_row_spin_friction.hpp"
 
 namespace edyn {
@@ -43,49 +42,6 @@ struct row_cache {
     }
 };
 
-struct row_cache_positional {
-    std::vector<constraint_row_positional> rows;
-};
-
-struct constraint_row_positional_prep_cache {
-    static constexpr unsigned max_rows = 32;
-    static constexpr unsigned max_constraints = 16;
-
-    // All rows in this entity.
-    std::array<constraint_row_positional, max_rows> rows;
-    uint8_t num_rows;
-
-    // Number of rows per constraint in the same order they appear in the
-    // `constraints_tuple`, since an entity can have multiple constraints
-    // of different types.
-    std::array<uint8_t, max_constraints> rows_per_constraint;
-    uint8_t num_constraints;
-
-    constraint_row_positional_prep_cache() {
-        clear();
-    }
-
-    void add_constraint() {
-        ++num_constraints;
-    }
-
-    constraint_row_positional & add_row() {
-        EDYN_ASSERT(num_rows < max_rows);
-        EDYN_ASSERT(num_constraints > 0);
-        ++rows_per_constraint[num_constraints - 1];
-        return rows[num_rows++];
-    }
-
-    void clear() {
-        num_rows = 0;
-        num_constraints = 0;
-
-        for (auto &c : rows_per_constraint) {
-            c = 0;
-        }
-    }
-};
-
 /**
  * During constraint preparation which happens right before solving, all
  * constraint rows are inserted into this component. They are then packed
@@ -102,9 +58,11 @@ struct constraint_row_prep_cache {
         constraint_row_friction friction;
         constraint_row_friction rolling;
         constraint_row_spin_friction spinning;
+        constraint_row_options options;
 
         void clear() {
             flags = 0;
+            options = {};
         }
     };
 
@@ -157,6 +115,13 @@ struct constraint_row_prep_cache {
         EDYN_ASSERT(!(curr_row.flags & constraint_row_flag_spinning_friction));
         curr_row.flags |= constraint_row_flag_spinning_friction;
         return curr_row.spinning;
+    }
+
+    // Get preparation options for the current row.
+    constraint_row_options & get_options() {
+        EDYN_ASSERT(num_constraints > 0);
+        auto &curr_row = rows[num_rows - 1];
+        return curr_row.options;
     }
 
     void clear() {

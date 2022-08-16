@@ -1,4 +1,5 @@
 #include "edyn/constraints/cvjoint_constraint.hpp"
+#include "edyn/dynamics/position_solver.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/constants.hpp"
@@ -56,18 +57,16 @@ void cvjoint_constraint::update_angle(scalar new_angle) {
 }
 
 template<>
-void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity, cvjoint_constraint &con,
-                                            constraint_row_prep_cache &cache, scalar dt,
-                                            const vector3 &originA, const vector3
-                                            &posA, const quaternion &ornA,
-                                            const vector3 &linvelA, const vector3 &angvelA,
-                                            scalar inv_mA, const matrix3x3 &inv_IA,
-                                            delta_linvel &dvA, delta_angvel &dwA,
-                                            const vector3 &originB,
-                                            const vector3 &posB, const quaternion &ornB,
-                                            const vector3 &linvelB, const vector3 &angvelB,
-                                            scalar inv_mB, const matrix3x3 &inv_IB,
-                                            delta_linvel &dvB, delta_angvel &dwB) {
+void prepare_constraint<cvjoint_constraint>(
+    const entt::registry &, entt::entity, cvjoint_constraint &con,
+    constraint_row_prep_cache &cache, scalar dt,
+    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+    const vector3 &linvelA, const vector3 &angvelA,
+    scalar inv_mA, const matrix3x3 &inv_IA,
+    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+    const vector3 &linvelB, const vector3 &angvelB,
+    scalar inv_mB, const matrix3x3 &inv_IB) {
+
     auto pivotA = to_world_space(con.pivot[0], originA, ornA);
     auto pivotB = to_world_space(con.pivot[1], originB, ornB);
     auto rA = pivotA - posA;
@@ -85,14 +84,7 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
                 -I.row[i],  rB_skew.row[i]};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = con.impulse[row_idx++];
-
-        prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
     }
 
     auto twist_axisA = rotate(ornA, con.frame[0].column(0));
@@ -104,14 +96,10 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
     {
         auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = con.impulse[row_idx++];
 
         auto angle = con.relative_angle(ornA, ornB, twist_axisA, twist_axisB);
-        auto options = constraint_row_options{};
+        auto &options = cache.get_options();
 
         if (has_limit) {
             con.update_angle(angle);
@@ -142,8 +130,6 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
             row.lower_limit = -large_scalar;
             row.upper_limit = large_scalar;
         }
-
-        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
     }
 
     // Twist bump stops.
@@ -160,10 +146,6 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
 
         auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = con.impulse[row_idx++];
 
         auto spring_force = con.twist_bump_stop_stiffness * bump_stop_deflection;
@@ -171,20 +153,14 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
         row.lower_limit = std::min(spring_impulse, scalar(0));
         row.upper_limit = std::max(scalar(0), spring_impulse);
 
-        auto options = constraint_row_options{};
+        auto &options = cache.get_options();
         options.error = -bump_stop_deflection / dt;
-
-        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
     }
 
     // Twist stiffness.
     if (has_limit && con.twist_stiffness > 0) {
         auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = con.impulse[row_idx++];
 
         auto deflection = con.twist_angle - con.twist_rest_angle;
@@ -193,10 +169,8 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
         row.lower_limit = std::min(spring_impulse, scalar(0));
         row.upper_limit = std::max(scalar(0), spring_impulse);
 
-        auto options = constraint_row_options{};
+        auto &options = cache.get_options();
         options.error = -deflection / dt;
-
-        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
     }
 
     // Twisting friction and damping.
@@ -205,10 +179,6 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
         // is employed for both damping and constant friction.
         auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = con.impulse[row_idx++];
 
         auto friction_impulse = con.twist_friction_torque * dt;
@@ -220,8 +190,6 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
 
         row.lower_limit = -friction_impulse;
         row.upper_limit = friction_impulse;
-
-        prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
     }
 
     // Bending friction and damping.
@@ -243,10 +211,6 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
 
         auto &row = cache.add_row();
         row.J = {vector3_zero, angvel_axis, vector3_zero, -angvel_axis};
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = con.impulse[row_idx++];
 
         auto friction_impulse = con.bend_friction_torque * dt;
@@ -257,8 +221,6 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
 
         row.lower_limit = -friction_impulse;
         row.upper_limit = friction_impulse;
-
-        prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
     }
 
     // Bending spring.
@@ -275,10 +237,6 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
 
         auto &row = cache.add_row();
         row.J = {vector3_zero, bend_axis, vector3_zero, -bend_axis};
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = con.impulse[row_idx++];
 
         auto spring_force = con.bend_stiffness * angle;
@@ -286,93 +244,53 @@ void prepare_constraint<cvjoint_constraint>(const entt::registry &, entt::entity
         row.lower_limit = std::min(spring_impulse, scalar(0));
         row.upper_limit = std::max(scalar(0), spring_impulse);
 
-        auto options = constraint_row_options{};
+        auto &options = cache.get_options();
         options.error = -angle / dt;
-
-        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
     }
 }
 
 template<>
-bool solve_position_constraints<cvjoint_constraint>(entt::registry &registry, scalar dt) {
-    auto con_view = registry.view<cvjoint_constraint>(entt::exclude_t<disabled_tag>{});
-    auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
-    auto origin_view = registry.view<origin>();
-    auto linear_error = scalar(0);
-    auto angular_error = scalar(0);
+void prepare_position_constraint<cvjoint_constraint>(
+    entt::registry &registry, entt::entity entity, cvjoint_constraint &con,
+    position_solver &solver) {
 
-    con_view.each([&](cvjoint_constraint &con) {
-        auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
-        auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
+    auto originA = solver.get_originA(), originB = solver.get_originB();
+    auto &posA = *solver.posA, &posB = *solver.posB;
+    auto &ornA = *solver.ornA, &ornB = *solver.ornB;
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+    // Apply angular correction along twist axes.
+    auto twist_axisA = rotate(ornA, con.frame[0].column(0));
+    auto twist_axisB = rotate(ornB, con.frame[1].column(0));
+    auto angle = con.relative_angle(ornA, ornB, twist_axisA, twist_axisB);
+    auto has_limit = con.twist_min < con.twist_max;
+    auto twist_error = scalar{};
 
-        // Apply angular correction along twist axes.
-        auto twist_axisA = rotate(ornA, con.frame[0].column(0));
-        auto twist_axisB = rotate(ornB, con.frame[1].column(0));
-        auto angle = con.relative_angle(ornA, ornB, twist_axisA, twist_axisB);
-        auto J = std::array<vector3, 4>{vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-        auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
-        auto has_limit = con.twist_min < con.twist_max;
-        auto twist_error = scalar{};
+    if (has_limit) {
+        con.update_angle(angle);
 
-        if (has_limit) {
-            con.update_angle(angle);
-
-            if (con.twist_angle < con.twist_min) {
-                twist_error = con.twist_angle - con.twist_min;
-            } else if (con.twist_angle > con.twist_max) {
-                twist_error = con.twist_angle - con.twist_max;
-            }
-        } else {
-            twist_error = angle;
+        if (con.twist_angle < con.twist_min) {
+            twist_error = con.twist_angle - con.twist_min;
+        } else if (con.twist_angle > con.twist_max) {
+            twist_error = con.twist_angle - con.twist_max;
         }
-
-        const auto twist_correction_factor = scalar(0.2);
-        auto correction = twist_error * eff_mass * twist_correction_factor;
-        ornA += quaternion_derivative(ornA, inv_IA * J[1] * correction);
-        ornB += quaternion_derivative(ornB, inv_IB * J[3] * correction);
-        angular_error = std::max(angle, angular_error);
-
-        // Apply correction to join the pivot points together.
-        auto pivotA = to_world_space(con.pivot[0], originA, ornA);
-        auto pivotB = to_world_space(con.pivot[1], originB, ornB);
-        auto dir = pivotA - pivotB;
-        auto error = length(dir);
-
-        if (error > EDYN_EPSILON) {
-            dir /= error;
-
-            auto rA = pivotA - posA;
-            auto rB = pivotB - posB;
-            auto J = std::array<vector3, 4>{dir, cross(rA, dir), -dir, -cross(rB, dir)};
-            auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
-            auto correction = -error * eff_mass;
-
-            posA += inv_mA * J[0] * correction;
-            posB += inv_mB * J[2] * correction;
-            ornA += quaternion_derivative(ornA, inv_IA * J[1] * correction);
-            ornB += quaternion_derivative(ornB, inv_IB * J[3] * correction);
-
-            linear_error = std::max(error, linear_error);
-        }
-
-        ornA = normalize(ornA);
-        ornB = normalize(ornB);
-
-        auto basisA = to_matrix3x3(ornA);
-        inv_IA = basisA * inv_IA * transpose(basisA);
-
-        auto basisB = to_matrix3x3(ornB);
-        inv_IB = basisB * inv_IB * transpose(basisB);
-    });
-
-    if (linear_error < scalar(0.005) && angular_error < to_radians(2)) {
-        return true;
+    } else {
+        twist_error = angle;
     }
 
-    return false;
+    solver.solve({vector3_zero, twist_axisA, vector3_zero, -twist_axisB}, twist_error);
+
+    // Apply correction to join the pivot points together.
+    auto pivotA = to_world_space(con.pivot[0], originA, ornA);
+    auto pivotB = to_world_space(con.pivot[1], originB, ornB);
+    auto dir = pivotA - pivotB;
+    auto error = length(dir);
+
+    if (error > EDYN_EPSILON) {
+        dir /= error;
+        auto rA = pivotA - posA;
+        auto rB = pivotB - posB;
+        solver.solve({dir, cross(rA, dir), -dir, -cross(rB, dir)}, -error);
+    }
 }
 
 }

@@ -9,6 +9,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/config/execution_mode.hpp"
+#include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
@@ -49,6 +50,7 @@ solver::solver(entt::registry &registry)
     m_connections.emplace_back(registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>());
     m_connections.emplace_back(registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>());
     m_connections.emplace_back(registry.on_construct<island_tag>().connect<&entt::registry::emplace<row_cache>>());
+    m_connections.emplace_back(registry.on_construct<island_tag>().connect<&entt::registry::emplace<island_constraint_entities>>());
     m_connections.emplace_back(registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<constraint_row_prep_cache>>());
 }
 
@@ -76,9 +78,25 @@ void invoke_prepare_constraint(const entt::registry &registry, entt::entity enti
 
     cache.add_constraint();
 
+    // Grab index of first row so all rows that will be added can be iterated
+    // later to finish their setup. Note that no rows could be added as well.
+    auto row_start_index = cache.num_rows;
+
     prepare_constraint(registry, entity, con, cache, dt,
-                       originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA,
-                       originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB);
+                       originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA,
+                       originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB);
+
+    // Assign masses and deltas to new rows.
+    for (auto i = row_start_index; i < cache.num_rows; ++i) {
+        auto &row = cache.rows[i].row;
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
+
+        auto &options = cache.rows[i].options;
+        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+    }
 }
 
 static bool prepare_constraints(entt::registry &registry, scalar dt, execution_mode mode,

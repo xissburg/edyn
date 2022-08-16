@@ -23,18 +23,16 @@
 namespace edyn {
 
 template<>
-void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, cone_constraint &con,
-                                         constraint_row_prep_cache &cache, scalar dt,
-                                         const vector3 &originA, const vector3
-                                         &posA, const quaternion &ornA,
-                                         const vector3 &linvelA, const vector3 &angvelA,
-                                         scalar inv_mA, const matrix3x3 &inv_IA,
-                                         delta_linvel &dvA, delta_angvel &dwA,
-                                         const vector3 &originB,
-                                         const vector3 &posB, const quaternion &ornB,
-                                         const vector3 &linvelB, const vector3 &angvelB,
-                                         scalar inv_mB, const matrix3x3 &inv_IB,
-                                         delta_linvel &dvB, delta_angvel &dwB) {
+void prepare_constraint<cone_constraint>(
+    const entt::registry &, entt::entity, cone_constraint &con,
+    constraint_row_prep_cache &cache, scalar dt,
+    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+    const vector3 &linvelA, const vector3 &angvelA,
+    scalar inv_mA, const matrix3x3 &inv_IA,
+    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+    const vector3 &linvelB, const vector3 &angvelB,
+    scalar inv_mB, const matrix3x3 &inv_IB) {
+
     // Transform B's pivot into the frame space in A and apply scaling so
     // that the cone is circular and has an opening angle of 90 degrees, which
     // makes calculations easier. The transformation is later reverted to
@@ -90,27 +88,17 @@ void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, c
 
     auto &row = cache.add_row();
     row.J = J;
-    row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-    row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-    row.dvA = &dvA; row.dwA = &dwA;
-    row.dvB = &dvB; row.dwB = &dwB;
     row.lower_limit = 0;
     row.upper_limit = large_scalar;
     row.impulse = con.impulse[row_idx++];
 
-    auto options = constraint_row_options{};
+    auto &options = cache.get_options();
     options.error = -error / dt;
     options.restitution = con.restitution;
-
-    prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
 
     if (con.bump_stop_stiffness > 0 && con.bump_stop_length > 0) {
         auto &row = cache.add_row();
         row.J = J;
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
         row.impulse = con.impulse[row_idx++];
 
         auto bump_stop_deflection = con.bump_stop_length + error;
@@ -119,10 +107,8 @@ void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, c
         row.lower_limit = 0;
         row.upper_limit = std::max(scalar(0), spring_impulse);
 
-        auto options = constraint_row_options{};
+        auto &options = cache.get_options();
         options.error = -bump_stop_deflection / dt;
-
-        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
     }
 }
 

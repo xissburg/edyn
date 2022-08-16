@@ -22,18 +22,15 @@ void serialize(Archive &archive, gravity_constraint &con) {
 }
 
 template<>
-void prepare_constraint<gravity_constraint>(const entt::registry &, entt::entity, gravity_constraint &con,
-                                            constraint_row_prep_cache &cache, scalar dt,
-                                            const vector3 &originA, const vector3
-                                            &posA, const quaternion &ornA,
-                                            const vector3 &linvelA, const vector3 &angvelA,
-                                            scalar inv_mA, const matrix3x3 &inv_IA,
-                                            delta_linvel &dvA, delta_angvel &dwA,
-                                            const vector3 &originB,
-                                            const vector3 &posB, const quaternion &ornB,
-                                            const vector3 &linvelB, const vector3 &angvelB,
-                                            scalar inv_mB, const matrix3x3 &inv_IB,
-                                            delta_linvel &dvB, delta_angvel &dwB);
+void prepare_constraint<gravity_constraint>(
+    const entt::registry &, entt::entity, gravity_constraint &con,
+    constraint_row_prep_cache &cache, scalar dt,
+    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+    const vector3 &linvelA, const vector3 &angvelA,
+    scalar inv_mA, const matrix3x3 &inv_IA,
+    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+    const vector3 &linvelB, const vector3 &angvelB,
+    scalar inv_mB, const matrix3x3 &inv_IB);
 
 }
 

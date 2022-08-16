@@ -13,6 +13,7 @@
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/dynamics/position_solver.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/geom.hpp"
@@ -26,18 +27,16 @@
 namespace edyn {
 
 template<>
-void prepare_constraint<contact_constraint>(const entt::registry &registry, entt::entity entity, contact_constraint &con,
-                                            constraint_row_prep_cache &cache, scalar dt,
-                                            const vector3 &originA,
-                                            const vector3 &posA, const quaternion &ornA,
-                                            const vector3 &linvelA, const vector3 &angvelA,
-                                            scalar inv_mA, const matrix3x3 &inv_IA,
-                                            delta_linvel &dvA, delta_angvel &dwA,
-                                            const vector3 &originB,
-                                            const vector3 &posB, const quaternion &ornB,
-                                            const vector3 &linvelB, const vector3 &angvelB,
-                                            scalar inv_mB, const matrix3x3 &inv_IB,
-                                            delta_linvel &dvB, delta_angvel &dwB) {
+void prepare_constraint<contact_constraint>(
+    const entt::registry &registry, entt::entity entity, contact_constraint &con,
+    constraint_row_prep_cache &cache, scalar dt,
+    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+    const vector3 &linvelA, const vector3 &angvelA,
+    scalar inv_mA, const matrix3x3 &inv_IA,
+    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+    const vector3 &linvelB, const vector3 &angvelB,
+    scalar inv_mB, const matrix3x3 &inv_IB) {
+
     auto &manifold = registry.get<contact_manifold>(entity);
     auto &settings = registry.ctx().at<edyn::settings>();
 
@@ -55,14 +54,10 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
         // Create normal row, i.e. non-penetration constraint.
         auto &normal_row = cache.add_row();
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
-        normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
-        normal_row.dvA = &dvA; normal_row.dwA = &dwA;
-        normal_row.dvB = &dvB; normal_row.dwB = &dwB;
         normal_row.impulse = con.impulse[pt_idx];
         normal_row.lower_limit = 0;
 
-        auto normal_options = constraint_row_options{};
+        auto &normal_options = cache.get_options();
 
         // Do not use the traditional restitution path if the restitution solver
         // is being used.
@@ -91,8 +86,6 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
             normal_options.error = cp.distance / dt;
             normal_row.upper_limit = large_scalar;
         }
-
-        prepare_row(normal_row, normal_options, linvelA, angvelA, linvelB, angvelB);
 
         // Create special friction rows.
         auto &friction_row = cache.add_friction_row();
@@ -156,15 +149,14 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
 template<>
 void prepare_position_constraint<contact_constraint>(
     entt::registry &registry, entt::entity entity, contact_constraint &con,
-    constraint_row_positional_prep_cache &cache,
-    const vector3 &originA, position &posA, orientation &ornA,
-    scalar inv_mA, inertia_world_inv &inv_IA,
-    const vector3 &originB, position &posB, orientation &ornB,
-    scalar inv_mB, inertia_world_inv &inv_IB) {
+    position_solver &solver) {
     // Solve position constraints by applying linear and angular corrections
     // iteratively. Based on Box2D's solver:
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
 
+    auto originA = solver.get_originA(), originB = solver.get_originB();
+    auto &posA = *solver.posA, &posB = *solver.posB;
+    auto &ornA = *solver.ornA, &ornB = *solver.ornB;
     auto &manifold = registry.get<contact_manifold>(entity);
 
     for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
@@ -199,17 +191,8 @@ void prepare_position_constraint<contact_constraint>(
             continue;
         }
 
-        auto &row = cache.add_row();
-        row.error = -cp.distance;
-        row.J = std::array<vector3, 4>{normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        row.inv_mA = inv_mA;
-        row.inv_mB = inv_mB;
-        row.inv_IA = &inv_IA;
-        row.inv_IB = &inv_IB;
-        row.posA = &posA;
-        row.posB = &posB;
-        row.ornA = &ornA;
-        row.ornB = &ornB;
+        auto error = -cp.distance;
+        solver.solve({normal, cross(rA, normal), -normal, -cross(rB, normal)}, error);
     }
 }
 

@@ -16,18 +16,15 @@
 namespace edyn {
 
 template<>
-void prepare_constraint<gravity_constraint>(const entt::registry &, entt::entity, gravity_constraint &con,
-                                            constraint_row_prep_cache &cache, scalar dt,
-                                            const vector3 &originA, const vector3
-                                            &posA, const quaternion &ornA,
-                                            const vector3 &linvelA, const vector3 &angvelA,
-                                            scalar inv_mA, const matrix3x3 &inv_IA,
-                                            delta_linvel &dvA, delta_angvel &dwA,
-                                            const vector3 &originB,
-                                            const vector3 &posB, const quaternion &ornB,
-                                            const vector3 &linvelB, const vector3 &angvelB,
-                                            scalar inv_mB, const matrix3x3 &inv_IB,
-                                            delta_linvel &dvB, delta_angvel &dwB) {
+void prepare_constraint<gravity_constraint>(
+    const entt::registry &, entt::entity, gravity_constraint &con,
+    constraint_row_prep_cache &cache, scalar dt,
+    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+    const vector3 &linvelA, const vector3 &angvelA,
+    scalar inv_mA, const matrix3x3 &inv_IA,
+    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+    const vector3 &linvelB, const vector3 &angvelB,
+    scalar inv_mB, const matrix3x3 &inv_IB) {
 
     auto d = posA - posB;
     auto l2 = length_sqr(d);
@@ -43,17 +40,10 @@ void prepare_constraint<gravity_constraint>(const entt::registry &, entt::entity
     row.J = {dn, vector3_zero, -dn, -vector3_zero};
     row.lower_limit = -P;
     row.upper_limit = P;
-
-    row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-    row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-    row.dvA = &dvA; row.dwA = &dwA;
-    row.dvB = &dvB; row.dwB = &dwB;
     row.impulse = con.impulse;
 
-    auto options = constraint_row_options{};
+    auto &options = cache.get_options();
     options.error = large_scalar;
-
-    prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
 }
 
 }

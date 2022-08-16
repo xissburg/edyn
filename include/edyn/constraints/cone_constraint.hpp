@@ -46,20 +46,6 @@ struct cone_constraint : public constraint_base {
     std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
 };
 
-template<>
-void prepare_constraint<cone_constraint>(const entt::registry &, entt::entity, cone_constraint &con,
-                                         constraint_row_prep_cache &cache, scalar dt,
-                                         const vector3 &originA, const vector3
-                                         &posA, const quaternion &ornA,
-                                         const vector3 &linvelA, const vector3 &angvelA,
-                                         scalar inv_mA, const matrix3x3 &inv_IA,
-                                         delta_linvel &dvA, delta_angvel &dwA,
-                                         const vector3 &originB,
-                                         const vector3 &posB, const quaternion &ornB,
-                                         const vector3 &linvelB, const vector3 &angvelB,
-                                         scalar inv_mB, const matrix3x3 &inv_IB,
-                                         delta_linvel &dvB, delta_angvel &dwB);
-
 template<typename Archive>
 void serialize(Archive &archive, cone_constraint &c) {
     archive(c.body, c.pivot, c.frame);
@@ -67,6 +53,17 @@ void serialize(Archive &archive, cone_constraint &c) {
     archive(c.bump_stop_stiffness, c.bump_stop_length);
     archive(c.impulse);
 };
+
+template<>
+void prepare_constraint<cone_constraint>(
+    const entt::registry &, entt::entity, cone_constraint &con,
+    constraint_row_prep_cache &cache, scalar dt,
+    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+    const vector3 &linvelA, const vector3 &angvelA,
+    scalar inv_mA, const matrix3x3 &inv_IA,
+    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+    const vector3 &linvelB, const vector3 &angvelB,
+    scalar inv_mB, const matrix3x3 &inv_IB);
 
 }
 

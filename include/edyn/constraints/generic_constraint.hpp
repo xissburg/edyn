@@ -48,23 +48,6 @@ struct generic_constraint : public constraint_base {
     std::array<scalar, num_rows> impulse {make_array<num_rows, scalar>(0)};
 };
 
-template<>
-void prepare_constraint<generic_constraint>(const entt::registry &, entt::entity, generic_constraint &con,
-                                            constraint_row_prep_cache &cache, scalar dt,
-                                            const vector3 &originA, const vector3
-                                            &posA, const quaternion &ornA,
-                                            const vector3 &linvelA, const vector3 &angvelA,
-                                            scalar inv_mA, const matrix3x3 &inv_IA,
-                                            delta_linvel &dvA, delta_angvel &dwA,
-                                            const vector3 &originB,
-                                            const vector3 &posB, const quaternion &ornB,
-                                            const vector3 &linvelB, const vector3 &angvelB,
-                                            scalar inv_mB, const matrix3x3 &inv_IB,
-                                            delta_linvel &dvB, delta_angvel &dwB);
-
-template<>
-bool solve_position_constraints<generic_constraint>(entt::registry &, scalar dt);
-
 template<typename Archive>
 void serialize(Archive &archive, generic_constraint::linear_dof &dof) {
     archive(dof.limit_enabled);
@@ -97,6 +80,22 @@ void serialize(Archive &archive, generic_constraint &c) {
     archive(c.angular_dofs);
     archive(c.impulse);
 }
+
+template<>
+void prepare_constraint<generic_constraint>(
+    const entt::registry &, entt::entity, generic_constraint &con,
+    constraint_row_prep_cache &cache, scalar dt,
+    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+    const vector3 &linvelA, const vector3 &angvelA,
+    scalar inv_mA, const matrix3x3 &inv_IA,
+    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+    const vector3 &linvelB, const vector3 &angvelB,
+    scalar inv_mB, const matrix3x3 &inv_IB);
+
+template<>
+void prepare_position_constraint<generic_constraint>(
+    entt::registry &registry, entt::entity entity, generic_constraint &con,
+    position_solver &solver);
 
 }
 

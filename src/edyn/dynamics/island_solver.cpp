@@ -1,9 +1,11 @@
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/inertia.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/comp/position.hpp"
 #include "edyn/config/config.h"
 #include "edyn/config/constants.hpp"
 #include "edyn/config/execution_mode.hpp"
@@ -12,6 +14,8 @@
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/dynamics/island_constraint_entities.hpp"
+#include "edyn/dynamics/position_solver.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
@@ -24,10 +28,12 @@
 #include "edyn/serialization/entt_s11n.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include <cstdint>
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <iterator>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 
 namespace edyn {
 
@@ -38,8 +44,6 @@ enum class island_solver_state : uint8_t {
     solve_constraints,
     assign_applied_impulses,
     apply_solution,
-    prepare_position_constraints,
-    pack_position_rows,
     solve_position_constraints
 };
 
@@ -77,6 +81,16 @@ struct island_solver_context {
         , dt(dt)
         , counter_sync(counter)
     {}
+
+    void decrement_counter() {
+        EDYN_ASSERT((counter != nullptr && counter_sync == nullptr) ||
+                    (counter == nullptr && counter_sync != nullptr));
+        if (counter) {
+            counter->decrement();
+        } else {
+            counter_sync->decrement();
+        }
+    }
 };
 
 template<typename Archive>
@@ -129,52 +143,12 @@ static void solve(row_cache &cache) {
     }
 }
 
-static void solve_position(constraint_row_positional &row) {
-    auto eff_mass = get_effective_mass(row.J, row.inv_mA, *row.inv_IA, row.inv_mB, *row.inv_IB);
-    auto correction = row.error * contact_position_correction_rate * eff_mass;
-
-    *row.posA += row.inv_mA * row.J[0] * correction;
-    *row.posB += row.inv_mB * row.J[2] * correction;
-
-    // Use quaternion derivative to apply angular correction which should
-    // be good enough for small angles.
-    auto angular_correctionA = *row.inv_IA * row.J[1] * correction;
-    *row.ornA += quaternion_derivative(*row.ornA, angular_correctionA);
-    *row.ornA = normalize(*row.ornA);
-
-    auto angular_correctionB = *row.inv_IB * row.J[3] * correction;
-    *row.ornB += quaternion_derivative(*row.ornB, angular_correctionB);
-    *row.ornB = normalize(*row.ornB);
-
-    auto basisA = to_matrix3x3(*row.ornA);
-    *row.inv_IA = basisA * *row.inv_IA * transpose(basisA);
-
-    auto basisB = to_matrix3x3(*row.ornB);
-    *row.inv_IB = basisB * *row.inv_IB * transpose(basisB);
-}
-
-static bool solve(row_cache_positional &cache) {
-    auto error = scalar(0);
-
-    for (auto &row : cache.rows) {
-        solve_position(row);
-        error = std::max(std::abs(row.error), error);
-    }
-
-    return error < scalar(0.005);
-}
-
 template<typename It>
 void insert_rows(entt::registry &registry, row_cache &cache, It first, It last) {
     auto prep_view = registry.view<constraint_row_prep_cache>();
 
     for (; first != last; ++first) {
         auto entity = *first;
-
-        if (!prep_view.contains(entity)) {
-            continue;
-        }
-
         auto [prep_cache] = prep_view.get(entity);
 
         // Insert all constraint rows into island row cache. Since an entity
@@ -211,95 +185,108 @@ void insert_rows(entt::registry &registry, row_cache &cache, It first, It last) 
     }
 }
 
-template<typename It>
-void pack_rows(entt::registry &registry, row_cache &cache, It first, It last) {
+void pack_rows(entt::registry &registry, row_cache &cache, const island_constraint_entities &constraint_entities) {
     cache.clear();
-    insert_rows(registry, cache, first, last);
+
+    for (auto &entities : constraint_entities.entities) {
+        insert_rows(registry, cache, entities.begin(), entities.end());
+    }
+
     warm_start(cache);
 }
 
 template<typename C>
-void update_impulse(entt::registry &registry, entt::entity entity,
-                    entt::basic_view<entt::entity, entt::get_t<C>, entt::exclude_t<>> &con_view,
+void update_impulse(entt::registry &registry, const std::vector<entt::entity> &entities,
                     entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &manifold_view,
                     row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
                     size_t &rolling_row_idx, size_t &spinning_row_idx) {
-    if (!con_view.contains(entity)) {
-        return;
-    }
 
-    auto [con] = con_view.get(entity);
-    auto num_rows = cache.con_num_rows[con_idx];
+    auto con_view = registry.view<C>();
 
-    constexpr auto friction_start_index = max_contacts;
-    constexpr auto rolling_start_index = max_contacts + max_contacts * 2;
-    constexpr auto spinning_start_index = rolling_start_index + max_contacts * 2;
+    for (auto entity : entities) {
+        auto [con] = con_view.get(entity);
+        auto num_rows = cache.con_num_rows[con_idx];
 
-    // Check if the constraint `impulse` member is a scalar, otherwise
-    // an array is expected.
-    if constexpr(std::is_same_v<decltype(con.impulse), scalar>) {
-        EDYN_ASSERT(num_rows == 1);
-        con.impulse = cache.rows[row_idx].impulse;
-    } else {
-        EDYN_ASSERT(con.impulse.size() >= num_rows);
-        for (size_t i = 0; i < num_rows; ++i) {
-            con.impulse[i] = cache.rows[row_idx + i].impulse;
+        constexpr auto friction_start_index = max_contacts;
+        constexpr auto rolling_start_index = max_contacts + max_contacts * 2;
+        constexpr auto spinning_start_index = rolling_start_index + max_contacts * 2;
 
-            auto flags = cache.flags[row_idx + i];
+        // Check if the constraint `impulse` member is a scalar, otherwise
+        // an array is expected.
+        if constexpr(std::is_same_v<decltype(con.impulse), scalar>) {
+            EDYN_ASSERT(num_rows == 1);
+            con.impulse = cache.rows[row_idx].impulse;
+        } else {
+            EDYN_ASSERT(con.impulse.size() >= num_rows);
+            for (size_t i = 0; i < num_rows; ++i) {
+                con.impulse[i] = cache.rows[row_idx + i].impulse;
 
-            if (flags & constraint_row_flag_friction) {
-                auto &friction_row = cache.friction[friction_row_idx++];
-                for (unsigned j = 0; j < 2; ++j) {
-                    con.impulse[friction_start_index + i * 2 + j] = friction_row.row[j].impulse;
+                auto flags = cache.flags[row_idx + i];
+
+                if (flags & constraint_row_flag_friction) {
+                    auto &friction_row = cache.friction[friction_row_idx++];
+                    for (unsigned j = 0; j < 2; ++j) {
+                        con.impulse[friction_start_index + i * 2 + j] = friction_row.row[j].impulse;
+                    }
+                }
+
+                if (flags & constraint_row_flag_rolling_friction) {
+                    auto &roll_row = cache.rolling[rolling_row_idx++];
+                    for (unsigned j = 0; j < 2; ++j) {
+                        con.impulse[rolling_start_index + i * 2 + j] = roll_row.row[j].impulse;
+                    }
+                }
+
+                if (flags & constraint_row_flag_spinning_friction) {
+                    auto &spin_row = cache.spinning[spinning_row_idx++];
+                    con.impulse[spinning_start_index + i] = spin_row.impulse;
                 }
             }
+        }
 
-            if (flags & constraint_row_flag_rolling_friction) {
-                auto &roll_row = cache.rolling[rolling_row_idx++];
-                for (unsigned j = 0; j < 2; ++j) {
-                    con.impulse[rolling_start_index + i * 2 + j] = roll_row.row[j].impulse;
+        if constexpr(std::is_same_v<C, contact_constraint>) {
+            auto [manifold] = manifold_view.get(entity);
+            EDYN_ASSERT(manifold.num_points == num_rows);
+            for (size_t i = 0; i < num_rows; ++i) {
+                auto &pt = manifold.get_point(i);
+                pt.normal_impulse = con.impulse[i];
+
+                for (int j = 0; j < 2; ++j) {
+                    pt.friction_impulse[j] = con.impulse[friction_start_index + i * 2 + j];
                 }
-            }
 
-            if (flags & constraint_row_flag_spinning_friction) {
-                auto &spin_row = cache.spinning[spinning_row_idx++];
-                con.impulse[spinning_start_index + i] = spin_row.impulse;
+                for (int j = 0; j < 2; ++j) {
+                    pt.rolling_friction_impulse[j] = con.impulse[rolling_start_index + i * 2 + j];
+                }
+
+                pt.spin_friction_impulse = con.impulse[spinning_start_index + i];
             }
         }
+
+        row_idx += num_rows;
+        ++con_idx;
     }
-
-    if constexpr(std::is_same_v<C, contact_constraint>) {
-        auto [manifold] = manifold_view.get(entity);
-        EDYN_ASSERT(manifold.num_points == num_rows);
-        for (size_t i = 0; i < num_rows; ++i) {
-            auto &pt = manifold.get_point(i);
-            pt.normal_impulse = con.impulse[i];
-
-            for (int j = 0; j < 2; ++j) {
-                pt.friction_impulse[j] = con.impulse[friction_start_index + i * 2 + j];
-            }
-
-            for (int j = 0; j < 2; ++j) {
-                pt.rolling_friction_impulse[j] = con.impulse[rolling_start_index + i * 2 + j];
-            }
-
-            pt.spin_friction_impulse = con.impulse[spinning_start_index + i];
-        }
-    }
-
-    row_idx += num_rows;
-    ++con_idx;
 }
 
 // No-op for null constraints.
 template<>
-void update_impulse<null_constraint>(entt::registry &, entt::entity,
-                    entt::basic_view<entt::entity, entt::get_t<null_constraint>, entt::exclude_t<>> &,
+void update_impulse<null_constraint>(entt::registry &, const std::vector<entt::entity> &,
                     entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &,
                     row_cache &, size_t &, size_t &, size_t &, size_t &, size_t &) {}
 
-template<typename It>
-void assign_applied_impulses(entt::registry &registry, row_cache &cache, It first, It last) {
+template<typename... C, size_t... Ints>
+void update_impulses(entt::registry &registry, const island_constraint_entities &constraint_entities,
+                     entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &manifold_view,
+                     row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
+                     size_t &rolling_row_idx, size_t &spinning_row_idx,
+                     [[maybe_unused]] std::tuple<C...>,
+                     std::index_sequence<Ints...>) {
+    (update_impulse<C>(registry, constraint_entities.entities[Ints], manifold_view, cache,
+                       con_idx, row_idx, friction_row_idx, rolling_row_idx, spinning_row_idx), ...);
+}
+
+void assign_applied_impulses(entt::registry &registry, row_cache &cache,
+                             const island_constraint_entities &constraint_entities) {
     // Assign impulses from constraint rows back into the constraints. The rows
     // are inserted into the cache for each constraint type in the order they're
     // found in `constraints_tuple` and in the same order they're in their EnTT
@@ -310,89 +297,77 @@ void assign_applied_impulses(entt::registry &registry, row_cache &cache, It firs
     size_t friction_row_idx = 0;
     size_t rolling_row_idx = 0;
     size_t spinning_row_idx = 0;
-    auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
     auto manifold_view = registry.view<contact_manifold>();
 
-    for (; first != last; ++first) {
-        auto entity = *first;
-        std::apply([&](auto &&... con_view) {
-            (update_impulse(registry, entity, con_view, manifold_view, cache,
-                            con_idx, row_idx, friction_row_idx, rolling_row_idx, spinning_row_idx), ...);
-        }, con_view_tuple);
-    }
+    update_impulses(registry, constraint_entities, manifold_view, cache,
+                    con_idx, row_idx, friction_row_idx, rolling_row_idx, spinning_row_idx,
+                    constraints_tuple, std::make_index_sequence<std::tuple_size_v<constraints_tuple_t>>());
 }
 
 template<typename C, typename BodyView, typename OriginView>
-void invoke_prepare_position_constraint(entt::registry &registry, entt::entity entity,
-                                        constraint_row_positional_prep_cache &cache,
-                                        const entt::basic_view<entt::entity, entt::get_t<C>, entt::exclude_t<>> &con_view,
-                                        const BodyView &body_view, const OriginView &origin_view) {
+scalar solve_position_constraints_each(entt::registry &registry, const std::vector<entt::entity> &entities,
+                                       const BodyView &body_view, const OriginView &origin_view) {
     if constexpr(std::is_same_v<C, null_constraint>) {
-        return;
+        return 0;
     }
 
-    if (!con_view.contains(entity)) {
-        return;
+    auto con_view = registry.view<C>();
+    auto max_error = scalar(0);
+
+    for (auto entity : entities) {
+        auto [con] = con_view.get(entity);
+        auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
+        auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
+
+        auto solver = position_solver{};
+        solver.posA = &posA;
+        solver.posB = &posB;
+        solver.ornA = &ornA;
+        solver.ornB = &ornB;
+        solver.inv_mA = inv_mA;
+        solver.inv_mB = inv_mB;
+        solver.inv_IA = &inv_IA;
+        solver.inv_IB = &inv_IB;
+
+        if (origin_view.contains(con.body[0])) {
+            solver.originA = &origin_view.template get<origin>(con.body[0]);
+        }
+
+        if (origin_view.contains(con.body[1])) {
+            solver.originB = &origin_view.template get<origin>(con.body[1]);
+        }
+
+        prepare_position_constraint(registry, entity, con, solver);
+
+        max_error = std::max(solver.max_error, max_error);
     }
 
-    auto [con] = con_view.get(entity);
-    auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
-    auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
-
-    auto originA = origin_view.contains(con.body[0]) ?
-        origin_view.template get<origin>(con.body[0]) : static_cast<vector3>(posA);
-    auto originB = origin_view.contains(con.body[1]) ?
-        origin_view.template get<origin>(con.body[1]) : static_cast<vector3>(posB);
-
-    cache.add_constraint();
-
-    prepare_position_constraint(registry, entity, con, cache,
-                                originA, posA, ornA, inv_mA, inv_IA,
-                                originB, posB, ornB, inv_mB, inv_IB);
+    return max_error;
 }
 
-template<typename It>
-static void prepare_position_constraints(entt::registry &registry, It first, It last) {
+template<typename... Args>
+constexpr auto max_variadic(Args &&...args) {
+    return std::max({std::forward<Args>(args)...});
+}
+
+template<typename... C, size_t... Ints>
+scalar solve_position_constraints_indexed(entt::registry &registry, const island_constraint_entities &constraint_entities,
+                                         [[maybe_unused]] std::tuple<C...>, std::index_sequence<Ints...>) {
     auto body_view = registry.view<position, orientation,
                                    mass_inv, inertia_world_inv>();
     auto origin_view = registry.view<origin>();
-    auto cache_view = registry.view<constraint_row_positional_prep_cache>(exclude_sleeping_disabled);
-    auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
-
-    auto for_loop_body = [&registry, body_view, cache_view, origin_view, con_view_tuple](entt::entity entity) {
-        auto &cache = cache_view.get<constraint_row_positional_prep_cache>(entity);
-
-        std::apply([&](auto &&... con_view) {
-            (invoke_prepare_position_constraint(registry, entity, cache, con_view, body_view, origin_view), ...);
-        }, con_view_tuple);
-    };
-
-    for (; first != last; ++first) {
-        auto entity = *first;
-
-        if (cache_view.contains(entity)) {
-            for_loop_body(entity);
-        }
-    }
+    return max_variadic(solve_position_constraints_each<C>(registry, constraint_entities.entities[Ints], body_view, origin_view)...);
 }
 
-template<typename It>
-void pack_rows_positional(entt::registry &registry, row_cache_positional &cache, It first, It last) {
-    cache.rows.clear();
-    auto cache_view = registry.view<constraint_row_positional_prep_cache>();
+template<typename... C>
+scalar solve_position_constraints(entt::registry &registry, const island_constraint_entities &constraint_entities,
+                                  const std::tuple<C...> &constraints) {
+    return solve_position_constraints_indexed(registry, constraint_entities, constraints, std::make_index_sequence<sizeof...(C)>());
+}
 
-    for (; first != last; ++first) {
-        auto entity = *first;
-
-        if (cache_view.contains(entity)) {
-            auto [prep_cache] = cache_view.get(entity);
-            auto first = prep_cache.rows.begin();
-            auto last = first;
-            std::advance(last, prep_cache.num_rows);
-            cache.rows.insert(cache.rows.end(), first, last);
-            prep_cache.clear();
-        }
-    }
+static bool solve_position_constraints(entt::registry &registry, const island_constraint_entities &constraint_entities) {
+    auto error = solve_position_constraints(registry, constraint_entities, constraints_tuple);
+    return error < scalar(0.005);
 }
 
 template<typename It>
@@ -452,15 +427,53 @@ static void dispatch_solver(island_solver_context &ctx) {
     job_dispatcher::global().async(j);
 }
 
+template<typename C>
+void collect_constraint_entities_single(const entt::registry &registry,
+                                        const entt::sparse_set &island_edges,
+                                        std::vector<entt::entity> &constraint_entities) {
+    auto view = registry.view<C>();
+
+    for (auto entity : island_edges) {
+        if (view.contains(entity)) {
+            constraint_entities.push_back(entity);
+        }
+    }
+}
+
+template<typename... C, size_t... Ints>
+void collect_constraint_entities_each(const entt::registry &registry,
+                                      const entt::sparse_set &island_edges,
+                                      island_constraint_entities &constraint_entities,
+                                      [[maybe_unused]] std::tuple<C...>,
+                                      std::index_sequence<Ints...>) {
+    (collect_constraint_entities_single<C>(registry, island_edges, constraint_entities.entities[Ints]), ...);
+}
+
+void collect_constraint_entities(const entt::registry &registry,
+                                 const entt::sparse_set &island_edges,
+                                 island_constraint_entities &constraint_entities) {
+    for (auto &entities : constraint_entities.entities) {
+        entities.clear();
+    }
+
+    collect_constraint_entities_each(registry, island_edges, constraint_entities, constraints_tuple,
+                                     std::make_index_sequence<std::tuple_size_v<constraints_tuple_t>>());
+}
+
 static void island_solver_update(island_solver_context &ctx) {
     switch (ctx.state) {
     case island_solver_state::pack_rows: {
         auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
+        auto &constraint_entities = ctx.registry->get<island_constraint_entities>(ctx.island_entity);
+        collect_constraint_entities(*ctx.registry, island.edges, constraint_entities);
+
         auto &cache = ctx.registry->get<row_cache>(ctx.island_entity);
-        pack_rows(*ctx.registry, cache, island.edges.begin(), island.edges.end());
+        pack_rows(*ctx.registry, cache, constraint_entities);
+
         ctx.state = island_solver_state::solve_constraints;
         ctx.iteration = 0;
         dispatch_solver(ctx);
+        break;
     }
     case island_solver_state::solve_constraints: {
         auto &cache = ctx.registry->get<row_cache>(ctx.island_entity);
@@ -473,6 +486,7 @@ static void island_solver_update(island_solver_context &ctx) {
         }
 
         dispatch_solver(ctx);
+        break;
     }
     case island_solver_state::apply_solution: {
         auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
@@ -482,48 +496,34 @@ static void island_solver_update(island_solver_context &ctx) {
                            execution_mode::asynchronous, make_solver_job(ctx))) {
             dispatch_solver(ctx);
         }
+        break;
     }
     case island_solver_state::assign_applied_impulses: {
-        auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
         auto &cache = ctx.registry->get<row_cache>(ctx.island_entity);
-        assign_applied_impulses(*ctx.registry, cache, island.edges.begin(), island.edges.end());
+        auto &constraint_entities = ctx.registry->get<island_constraint_entities>(ctx.island_entity);
+        assign_applied_impulses(*ctx.registry, cache, constraint_entities);
 
         if (ctx.num_position_iterations > 0) {
             ctx.iteration = 0;
-            ctx.state = island_solver_state::prepare_position_constraints;
+            ctx.state = island_solver_state::solve_position_constraints;
+            dispatch_solver(ctx);
+        } else {
+            // Done.
+            ctx.decrement_counter();
         }
-
-        dispatch_solver(ctx);
-    }
-    case island_solver_state::prepare_position_constraints: {
-        auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
-        prepare_position_constraints(*ctx.registry, island.edges.begin(), island.edges.end());
-        ctx.state = island_solver_state::pack_position_rows;
-        dispatch_solver(ctx);
-    }
-    case island_solver_state::pack_position_rows: {
-        auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
-        auto &cache = ctx.registry->get<row_cache_positional>(ctx.island_entity);
-        pack_rows_positional(*ctx.registry, cache, island.edges.begin(), island.edges.end());
-        ctx.state = island_solver_state::solve_position_constraints;
-        dispatch_solver(ctx);
+        break;
     }
     case island_solver_state::solve_position_constraints: {
-        auto &cache = ctx.registry->get<row_cache_positional>(ctx.island_entity);
+        auto &constraint_entities = ctx.registry->get<island_constraint_entities>(ctx.island_entity);
 
-        if (ctx.iteration++ >= ctx.num_position_iterations || solve(cache)) {
+        if (solve_position_constraints(*ctx.registry, constraint_entities) ||
+            ++ctx.iteration >= ctx.num_position_iterations) {
             // Done. Decrement atomic counter.
-            EDYN_ASSERT((ctx.counter != nullptr && ctx.counter_sync == nullptr) ||
-                        (ctx.counter == nullptr && ctx.counter_sync != nullptr));
-            if (ctx.counter) {
-                ctx.counter->decrement();
-            } else {
-                ctx.counter_sync->decrement();
-            }
+            ctx.decrement_counter();
         } else {
-            ctx.state = island_solver_state::prepare_position_constraints;
             dispatch_solver(ctx);
         }
+        break;
     }
     }
 }
@@ -553,8 +553,11 @@ void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,
                            unsigned num_iterations, unsigned num_position_iterations,
                            scalar dt) {
     auto &island = registry.get<edyn::island>(island_entity);
+    auto &constraint_entities = registry.get<island_constraint_entities>(island_entity);
+    collect_constraint_entities(registry, island.edges, constraint_entities);
+
     auto &cache = registry.get<row_cache>(island_entity);
-    pack_rows(registry, cache, island.edges.begin(), island.edges.end());
+    pack_rows(registry, cache, constraint_entities);
 
     for (unsigned i = 0; i < num_iterations; ++i) {
         solve(cache);
@@ -562,15 +565,11 @@ void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,
 
     const auto exec_mode = execution_mode::sequential;
     apply_solution(registry, dt, island.nodes.begin(), island.nodes.end(), exec_mode);
-    assign_applied_impulses(registry, cache, island.edges.begin(), island.edges.end());
 
-    auto &cache_pos = registry.get<row_cache_positional>(island_entity);
+    assign_applied_impulses(registry, cache, constraint_entities);
 
     for (unsigned i = 0; i < num_position_iterations; ++i) {
-        prepare_position_constraints(registry, island.edges.begin(), island.edges.end());
-        pack_rows_positional(registry, cache_pos, island.edges.begin(), island.edges.end());
-
-        if (solve(cache_pos)) {
+        if (solve_position_constraints(registry, constraint_entities)) {
             break;
         }
     }
