@@ -13,7 +13,6 @@
 #include "edyn/constraints/cone_constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/constraints/gravity_constraint.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
@@ -35,17 +34,6 @@ using constraints_tuple_t = std::tuple<
 >;
 
 static const constraints_tuple_t constraints_tuple = constraints_tuple_t{};
-
-inline
-bool solve_position_constraints(entt::registry &registry, scalar dt) {
-    auto solved = false;
-
-    std::apply([&](auto ... c) {
-        solved = (solve_position_constraints<decltype(c)>(registry, dt) && ...);
-    }, constraints_tuple);
-
-    return solved;
-}
 
 }
 

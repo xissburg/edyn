@@ -7,6 +7,7 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
+#include "edyn/constraints/constraint_row_positional.hpp"
 #include "edyn/constraints/constraint_row_spin_friction.hpp"
 
 namespace edyn {
@@ -39,6 +40,49 @@ struct row_cache {
         friction.clear();
         rolling.clear();
         spinning.clear();
+    }
+};
+
+struct row_cache_positional {
+    std::vector<constraint_row_positional> rows;
+};
+
+struct constraint_row_positional_prep_cache {
+    static constexpr unsigned max_rows = 32;
+    static constexpr unsigned max_constraints = 16;
+
+    // All rows in this entity.
+    std::array<constraint_row_positional, max_rows> rows;
+    uint8_t num_rows;
+
+    // Number of rows per constraint in the same order they appear in the
+    // `constraints_tuple`, since an entity can have multiple constraints
+    // of different types.
+    std::array<uint8_t, max_constraints> rows_per_constraint;
+    uint8_t num_constraints;
+
+    constraint_row_positional_prep_cache() {
+        clear();
+    }
+
+    void add_constraint() {
+        ++num_constraints;
+    }
+
+    constraint_row_positional & add_row() {
+        EDYN_ASSERT(num_rows < max_rows);
+        EDYN_ASSERT(num_constraints > 0);
+        ++rows_per_constraint[num_constraints - 1];
+        return rows[num_rows++];
+    }
+
+    void clear() {
+        num_rows = 0;
+        num_constraints = 0;
+
+        for (auto &c : rows_per_constraint) {
+            c = 0;
+        }
     }
 };
 

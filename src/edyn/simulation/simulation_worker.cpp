@@ -29,6 +29,7 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/util/island_util.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/util/vector_util.hpp"
 #include "edyn/replication/registry_operation.hpp"
@@ -296,11 +297,11 @@ void simulation_worker::sync() {
     // Update continuous components.
     auto &settings = m_registry.ctx().at<edyn::settings>();
     auto &index_source = *settings.index_source;
-    m_registry.view<continuous>().each([&](entt::entity entity, continuous &cont) {
+    for (auto [entity, cont] : m_registry.view<continuous>(exclude_sleeping_disabled).each()) {
         for (size_t i = 0; i < cont.size; ++i) {
             m_op_builder->replace_type_id(entity, index_source.type_id_of(cont.indices[i]));
         }
-    });
+    }
 
     if (!m_op_builder->empty()) {
         auto &&ops = std::move(m_op_builder->finish());

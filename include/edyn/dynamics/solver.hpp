@@ -22,9 +22,7 @@ class solver final {
         solve_restitution,
         apply_gravity,
         prepare_constraints,
-        solve_constraints,
-        apply_solution,
-        solve_position_constraints,
+        solve_islands,
         finalize,
         done
     };

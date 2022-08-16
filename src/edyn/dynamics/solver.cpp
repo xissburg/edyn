@@ -74,7 +74,7 @@ void invoke_prepare_constraint(const entt::registry &registry, entt::entity enti
     auto originB = origin_view.contains(con.body[1]) ?
         origin_view.template get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
-    ++cache.num_constraints;
+    cache.add_constraint();
 
     prepare_constraint(registry, entity, con, cache, dt,
                        originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA,
@@ -84,9 +84,9 @@ void invoke_prepare_constraint(const entt::registry &registry, entt::entity enti
 static bool prepare_constraints(entt::registry &registry, scalar dt, execution_mode mode,
                                 std::optional<job> completion_job = {}) {
     auto body_view = registry.view<position, orientation,
-                                linvel, angvel,
-                                mass_inv, inertia_world_inv,
-                                delta_linvel, delta_angvel>();
+                                   linvel, angvel,
+                                   mass_inv, inertia_world_inv,
+                                   delta_linvel, delta_angvel>();
     auto origin_view = registry.view<origin>();
     auto cache_view = registry.view<constraint_row_prep_cache>(exclude_sleeping_disabled);
     auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
@@ -121,23 +121,6 @@ static bool prepare_constraints(entt::registry &registry, scalar dt, execution_m
     }
 }
 
-static void apply_solution(entt::registry &registry, scalar dt) {
-    auto view = registry.view<position, orientation,
-                              linvel, angvel, delta_linvel, delta_angvel,
-                              dynamic_tag>(exclude_sleeping_disabled);
-    for (auto [e, pos, orn, v, w, dv, dw] : view.each()) {
-        // Apply deltas.
-        v += dv;
-        w += dw;
-        // Integrate velocities and obtain new transforms.
-        pos += v * dt;
-        orn = integrate(orn, w, dt);
-        // Reset deltas back to zero for next update.
-        dv = vector3_zero;
-        dw = vector3_zero;
-    }
-}
-
 bool solver::update(const job &completion_job) {
     auto &registry = *m_registry;
     auto &settings = registry.ctx().at<edyn::settings>();
@@ -164,7 +147,7 @@ bool solver::update(const job &completion_job) {
         break;
 
     case state::prepare_constraints:
-        m_state = state::solve_constraints;
+        m_state = state::solve_islands;
         if (prepare_constraints(*m_registry, dt, execution_mode::asynchronous, completion_job)) {
             return update(completion_job);
         } else {
@@ -172,8 +155,9 @@ bool solver::update(const job &completion_job) {
         }
         break;
 
-    case state::solve_constraints: {
-        m_state = state::apply_solution;
+    case state::solve_islands: {
+        m_state = state::finalize;
+
         auto island_view = registry.view<island>(exclude_sleeping_disabled);
         auto num_islands = view_size(island_view);
 
@@ -183,6 +167,8 @@ bool solver::update(const job &completion_job) {
             for (auto island_entity : island_view) {
                 run_island_solver_async(registry, island_entity,
                                         settings.num_solver_velocity_iterations,
+                                        settings.num_solver_position_iterations,
+                                        settings.fixed_dt,
                                         m_counter.get());
             }
 
@@ -192,23 +178,6 @@ bool solver::update(const job &completion_job) {
         }
         break;
     }
-    case state::apply_solution:
-        // Apply constraint velocity correction.
-        apply_solution(registry, dt);
-        m_state = state::solve_position_constraints;
-        return update(completion_job);
-        break;
-
-    case state::solve_position_constraints:
-        // Now that rigid bodies have moved, perform positional correction.
-        for (unsigned i = 0; i < settings.num_solver_position_iterations; ++i) {
-            if (solve_position_constraints(registry, dt)) {
-                break;
-            }
-        }
-        m_state = state::finalize;
-        return update(completion_job);
-        break;
 
     case state::finalize:
         update_origins(registry);
@@ -256,23 +225,20 @@ void solver::update_sequential(bool mt) {
         auto counter = atomic_counter_sync(num_islands);
 
         for (auto island_entity : island_view) {
-            run_island_solver_seq_mt(registry, island_entity, settings.num_solver_velocity_iterations, &counter);
+            run_island_solver_seq_mt(registry, island_entity,
+                                     settings.num_solver_velocity_iterations,
+                                     settings.num_solver_position_iterations,
+                                     settings.fixed_dt,
+                                     &counter);
         }
 
         counter.wait();
     } else {
         for (auto island_entity : island_view) {
-            run_island_solver_seq(registry, island_entity, settings.num_solver_velocity_iterations);
-        }
-    }
-
-    // Apply constraint velocity correction.
-    apply_solution(registry, dt);
-
-    // Now that rigid bodies have moved, perform positional correction.
-    for (unsigned i = 0; i < settings.num_solver_position_iterations; ++i) {
-        if (solve_position_constraints(registry, dt)) {
-            break;
+            run_island_solver_seq(registry, island_entity,
+                                  settings.num_solver_velocity_iterations,
+                                  settings.num_solver_position_iterations,
+                                  settings.fixed_dt);
         }
     }
 

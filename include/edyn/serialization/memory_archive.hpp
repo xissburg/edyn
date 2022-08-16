@@ -131,6 +131,10 @@ public:
         (operator()(t), ...);
     }
 
+    bool failed() const {
+        return m_failed;
+    }
+
 protected:
     template<typename T>
     void write_bytes(T &t) {

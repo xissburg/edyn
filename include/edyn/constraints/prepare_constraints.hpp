@@ -25,11 +25,12 @@ void prepare_constraint(const entt::registry &, entt::entity, C &con,
                         scalar inv_mB, const matrix3x3 &inv_IB,
                         delta_linvel &dvB, delta_angvel &dwB) {}
 
-//template<typename C>
-//void iterate_constraints(entt::registry &, row_cache &, scalar dt) {}
-
 template<typename C>
-bool solve_position_constraints(entt::registry &, scalar dt) { return true; }
+void prepare_position_constraint(
+    entt::registry &registry, entt::entity entity, C &con,
+    constraint_row_positional_prep_cache &cache,
+    const vector3 &originA, position &posA, orientation &ornA, scalar inv_mA, inertia_world_inv &inv_IA,
+    const vector3 &originB, position &posB, orientation &ornB, scalar inv_mB, inertia_world_inv &inv_IB);
 
 }
 

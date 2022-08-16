@@ -17,6 +17,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/context/settings.hpp"
@@ -153,84 +154,63 @@ void prepare_constraint<contact_constraint>(const entt::registry &registry, entt
 }
 
 template<>
-bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt) {
+void prepare_position_constraint<contact_constraint>(
+    entt::registry &registry, entt::entity entity, contact_constraint &con,
+    constraint_row_positional_prep_cache &cache,
+    const vector3 &originA, position &posA, orientation &ornA,
+    scalar inv_mA, inertia_world_inv &inv_IA,
+    const vector3 &originB, position &posB, orientation &ornB,
+    scalar inv_mB, inertia_world_inv &inv_IB) {
     // Solve position constraints by applying linear and angular corrections
     // iteratively. Based on Box2D's solver:
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
 
-    // Remember that not all manifolds have a contact constraint.
-    auto con_view = registry.view<contact_constraint, contact_manifold>(entt::exclude_t<sleeping_tag>{});
-    auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv>();
-    auto origin_view = registry.view<origin>();
-    auto min_dist = scalar(0);
+    auto &manifold = registry.get<contact_manifold>(entity);
 
-    for (auto entity : con_view) {
-        auto &manifold = con_view.get<contact_manifold>(entity);
-
-        if (manifold.num_points == 0) {
-            continue;
-        }
+    for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
+        auto &cp = manifold.get_point(pt_idx);
 
         // Ignore soft contacts.
-        if (manifold.get_point(0).stiffness < large_scalar) {
+        if (cp.stiffness < large_scalar) {
             continue;
         }
 
-        auto [posA, ornA, inv_mA, inv_IA] = body_view.get(manifold.body[0]);
-        auto [posB, ornB, inv_mB, inv_IB] = body_view.get(manifold.body[1]);
+        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
 
-        auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
-
-        for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-            auto &cp = manifold.get_point(pt_idx);
-            auto pivotA = to_world_space(cp.pivotA, originA, ornA);
-            auto pivotB = to_world_space(cp.pivotB, originB, ornB);
-
-            switch (cp.normal_attachment) {
-            case contact_normal_attachment::normal_on_A:
-                cp.normal = rotate(ornA, cp.local_normal);
-                break;
-            case contact_normal_attachment::normal_on_B:
-                cp.normal = rotate(ornB, cp.local_normal);
-                break;
-            case contact_normal_attachment::none:
-                break;
-            }
-
-            auto normal = cp.normal;
-            cp.distance = dot(pivotA - pivotB, normal);
-            min_dist = std::min(cp.distance, min_dist);
-
-            auto rA = pivotA - posA;
-            auto rB = pivotB - posB;
-            auto J = std::array<vector3, 4>{normal, cross(rA, normal), -normal, -cross(rB, normal)};
-            auto eff_mass = get_effective_mass(J, inv_mA, inv_IA, inv_mB, inv_IB);
-            auto error = std::min(cp.distance, scalar(0));
-            auto correction = -error * contact_position_correction_rate * eff_mass;
-
-            posA += inv_mA * J[0] * correction;
-            posB += inv_mB * J[2] * correction;
-
-            // Use quaternion derivative to apply angular correction which should
-            // be good enough for small angles.
-            auto angular_correctionA = inv_IA * J[1] * correction;
-            ornA += quaternion_derivative(ornA, angular_correctionA);
-            ornA = normalize(ornA);
-
-            auto angular_correctionB = inv_IB * J[3] * correction;
-            ornB += quaternion_derivative(ornB, angular_correctionB);
-            ornB = normalize(ornB);
+        switch (cp.normal_attachment) {
+        case contact_normal_attachment::normal_on_A:
+            cp.normal = rotate(ornA, cp.local_normal);
+            break;
+        case contact_normal_attachment::normal_on_B:
+            cp.normal = rotate(ornB, cp.local_normal);
+            break;
+        case contact_normal_attachment::none:
+            break;
         }
 
-        auto basisA = to_matrix3x3(ornA);
-        inv_IA = basisA * inv_IA * transpose(basisA);
+        auto normal = cp.normal;
+        cp.distance = dot(pivotA - pivotB, normal);
 
-        auto basisB = to_matrix3x3(ornB);
-        inv_IB = basisB * inv_IB * transpose(basisB);
+        auto rA = pivotA - posA;
+        auto rB = pivotB - posB;
+
+        if (cp.distance > -EDYN_EPSILON) {
+            continue;
+        }
+
+        auto &row = cache.add_row();
+        row.error = -cp.distance;
+        row.J = std::array<vector3, 4>{normal, cross(rA, normal), -normal, -cross(rB, normal)};
+        row.inv_mA = inv_mA;
+        row.inv_mB = inv_mB;
+        row.inv_IA = &inv_IA;
+        row.inv_IB = &inv_IB;
+        row.posA = &posA;
+        row.posB = &posB;
+        row.ornA = &ornA;
+        row.ornB = &ornB;
     }
-
-    return min_dist > contact_position_solver_min_error;
 }
 
 }

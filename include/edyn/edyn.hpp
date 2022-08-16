@@ -26,6 +26,7 @@
 #include "comp/present_position.hpp"
 #include "comp/present_orientation.hpp"
 #include "constraints/constraint.hpp"
+#include "serialization/s11n.hpp"
 
 namespace edyn {
 

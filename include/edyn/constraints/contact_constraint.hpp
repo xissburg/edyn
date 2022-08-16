@@ -43,7 +43,13 @@ void prepare_constraint<contact_constraint>(const entt::registry &, entt::entity
                                             delta_linvel &dvB, delta_angvel &dwB);
 
 template<>
-bool solve_position_constraints<contact_constraint>(entt::registry &registry, scalar dt);
+void prepare_position_constraint<contact_constraint>(
+    entt::registry &registry, entt::entity entity, contact_constraint &con,
+    constraint_row_positional_prep_cache &cache,
+    const vector3 &originA, position &posA, orientation &ornA,
+    scalar inv_mA, inertia_world_inv &inv_IA,
+    const vector3 &originB, position &posB, orientation &ornB,
+    scalar inv_mB, inertia_world_inv &inv_IB);
 
 }
 
