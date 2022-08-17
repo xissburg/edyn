@@ -27,9 +27,9 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/serialization/entt_s11n.hpp"
 #include "edyn/util/tuple_util.hpp"
-#include <cstdint>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
+#include <cstdint>
 #include <iterator>
 #include <tuple>
 #include <type_traits>
@@ -143,19 +143,29 @@ static void solve(row_cache &cache) {
     }
 }
 
-template<typename It>
-void insert_rows(entt::registry &registry, row_cache &cache, It first, It last) {
+template<typename C>
+void insert_rows(entt::registry &registry, row_cache &cache, const entt::sparse_set &entities,
+                 island_constraint_entities &constraint_entities) {
     auto prep_view = registry.view<constraint_row_prep_cache>();
+    auto con_view = registry.view<C>();
+    auto con_idx = tuple_index_of<unsigned, C>(constraints_tuple);
 
-    for (; first != last; ++first) {
-        auto entity = *first;
+    for (auto entity : entities) {
+        if (!con_view.contains(entity)) {
+            continue;
+        }
+
+        constraint_entities.entities[con_idx].push_back(entity);
+
         auto [prep_cache] = prep_view.get(entity);
+
+        // Insert the number of rows for the current constraint before processing.
+        cache.con_num_rows.push_back(prep_cache.current_num_rows());
 
         // Insert all constraint rows into island row cache. Since an entity
         // can have multiple constraints (of different types), these could be
         // rows of more than one constraint.
-        for (unsigned i = 0; i < prep_cache.num_rows; ++i) {
-            auto &elem = prep_cache.rows[i];
+        prep_cache.process_rows([&](constraint_row_prep_cache::element &elem) {
             auto normal_row_index = cache.rows.size();
             cache.rows.push_back(elem.row);
             cache.flags.push_back(elem.flags);
@@ -174,42 +184,43 @@ void insert_rows(entt::registry &registry, row_cache &cache, It first, It last) 
                 cache.spinning.push_back(elem.spinning);
                 cache.spinning.back().normal_row_index = normal_row_index;
             }
-        }
-
-        // Then insert the number of rows for each constraint.
-        for (unsigned i = 0; i < prep_cache.num_constraints; ++i) {
-            cache.con_num_rows.push_back(prep_cache.rows_per_constraint[i]);
-        }
-
-        prep_cache.clear();
+        });
     }
 }
 
-void pack_rows(entt::registry &registry, row_cache &cache, const island_constraint_entities &constraint_entities) {
+template<>
+void insert_rows<null_constraint>(entt::registry &, row_cache &, const entt::sparse_set &,
+                                  island_constraint_entities &) {}
+
+void pack_rows(entt::registry &registry, row_cache &cache, const entt::sparse_set &entities,
+               island_constraint_entities &constraint_entities) {
     cache.clear();
 
     for (auto &entities : constraint_entities.entities) {
-        insert_rows(registry, cache, entities.begin(), entities.end());
+        entities.clear();
     }
+
+    std::apply([&](auto ... c) {
+        (insert_rows<decltype(c)>(registry, cache, entities, constraint_entities), ...);
+    }, constraints_tuple);
 
     warm_start(cache);
 }
 
 template<typename C>
 void update_impulse(entt::registry &registry, const std::vector<entt::entity> &entities,
-                    entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &manifold_view,
                     row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
                     size_t &rolling_row_idx, size_t &spinning_row_idx) {
 
+    constexpr auto friction_start_index = max_contacts;
+    constexpr auto rolling_start_index = max_contacts + max_contacts * 2;
+    constexpr auto spinning_start_index = rolling_start_index + max_contacts * 2;
     auto con_view = registry.view<C>();
+    auto manifold_view = registry.view<contact_manifold>();
 
     for (auto entity : entities) {
         auto [con] = con_view.get(entity);
         auto num_rows = cache.con_num_rows[con_idx];
-
-        constexpr auto friction_start_index = max_contacts;
-        constexpr auto rolling_start_index = max_contacts + max_contacts * 2;
-        constexpr auto spinning_start_index = rolling_start_index + max_contacts * 2;
 
         // Check if the constraint `impulse` member is a scalar, otherwise
         // an array is expected.
@@ -271,17 +282,15 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
 // No-op for null constraints.
 template<>
 void update_impulse<null_constraint>(entt::registry &, const std::vector<entt::entity> &,
-                    entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &,
                     row_cache &, size_t &, size_t &, size_t &, size_t &, size_t &) {}
 
 template<typename... C, size_t... Ints>
 void update_impulses(entt::registry &registry, const island_constraint_entities &constraint_entities,
-                     entt::basic_view<entt::entity, entt::get_t<contact_manifold>, entt::exclude_t<>> &manifold_view,
                      row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
                      size_t &rolling_row_idx, size_t &spinning_row_idx,
                      [[maybe_unused]] std::tuple<C...>,
                      std::index_sequence<Ints...>) {
-    (update_impulse<C>(registry, constraint_entities.entities[Ints], manifold_view, cache,
+    (update_impulse<C>(registry, constraint_entities.entities[Ints], cache,
                        con_idx, row_idx, friction_row_idx, rolling_row_idx, spinning_row_idx), ...);
 }
 
@@ -297,9 +306,8 @@ void assign_applied_impulses(entt::registry &registry, row_cache &cache,
     size_t friction_row_idx = 0;
     size_t rolling_row_idx = 0;
     size_t spinning_row_idx = 0;
-    auto manifold_view = registry.view<contact_manifold>();
 
-    update_impulses(registry, constraint_entities, manifold_view, cache,
+    update_impulses(registry, constraint_entities, cache,
                     con_idx, row_idx, friction_row_idx, rolling_row_idx, spinning_row_idx,
                     constraints_tuple, std::make_index_sequence<std::tuple_size_v<constraints_tuple_t>>());
 }
@@ -427,48 +435,13 @@ static void dispatch_solver(island_solver_context &ctx) {
     job_dispatcher::global().async(j);
 }
 
-template<typename C>
-void collect_constraint_entities_single(const entt::registry &registry,
-                                        const entt::sparse_set &island_edges,
-                                        std::vector<entt::entity> &constraint_entities) {
-    auto view = registry.view<C>();
-
-    for (auto entity : island_edges) {
-        if (view.contains(entity)) {
-            constraint_entities.push_back(entity);
-        }
-    }
-}
-
-template<typename... C, size_t... Ints>
-void collect_constraint_entities_each(const entt::registry &registry,
-                                      const entt::sparse_set &island_edges,
-                                      island_constraint_entities &constraint_entities,
-                                      [[maybe_unused]] std::tuple<C...>,
-                                      std::index_sequence<Ints...>) {
-    (collect_constraint_entities_single<C>(registry, island_edges, constraint_entities.entities[Ints]), ...);
-}
-
-void collect_constraint_entities(const entt::registry &registry,
-                                 const entt::sparse_set &island_edges,
-                                 island_constraint_entities &constraint_entities) {
-    for (auto &entities : constraint_entities.entities) {
-        entities.clear();
-    }
-
-    collect_constraint_entities_each(registry, island_edges, constraint_entities, constraints_tuple,
-                                     std::make_index_sequence<std::tuple_size_v<constraints_tuple_t>>());
-}
-
 static void island_solver_update(island_solver_context &ctx) {
     switch (ctx.state) {
     case island_solver_state::pack_rows: {
         auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
         auto &constraint_entities = ctx.registry->get<island_constraint_entities>(ctx.island_entity);
-        collect_constraint_entities(*ctx.registry, island.edges, constraint_entities);
-
         auto &cache = ctx.registry->get<row_cache>(ctx.island_entity);
-        pack_rows(*ctx.registry, cache, constraint_entities);
+        pack_rows(*ctx.registry, cache, island.edges, constraint_entities);
 
         ctx.state = island_solver_state::solve_constraints;
         ctx.iteration = 0;
@@ -554,10 +527,8 @@ void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,
                            scalar dt) {
     auto &island = registry.get<edyn::island>(island_entity);
     auto &constraint_entities = registry.get<island_constraint_entities>(island_entity);
-    collect_constraint_entities(registry, island.edges, constraint_entities);
-
     auto &cache = registry.get<row_cache>(island_entity);
-    pack_rows(registry, cache, constraint_entities);
+    pack_rows(registry, cache, island.edges, constraint_entities);
 
     for (unsigned i = 0; i < num_iterations; ++i) {
         solve(cache);

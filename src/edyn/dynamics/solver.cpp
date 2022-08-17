@@ -55,13 +55,14 @@ solver::solver(entt::registry &registry)
 }
 
 template<typename C, typename BodyView, typename OriginView>
-void invoke_prepare_constraint(const entt::registry &registry, entt::entity entity,
+void invoke_prepare_constraint(entt::registry &registry, entt::entity entity,
                                constraint_row_prep_cache &cache, scalar dt,
-                               const entt::basic_view<entt::entity, entt::get_t<C>, entt::exclude_t<>> &con_view,
                                const BodyView &body_view, const OriginView &origin_view) {
     if constexpr(std::is_same_v<C, null_constraint>) {
         return;
     }
+
+    auto con_view = registry.view<C>();
 
     if (!con_view.contains(entity)) {
         return;
@@ -107,14 +108,14 @@ static bool prepare_constraints(entt::registry &registry, scalar dt, execution_m
                                    delta_linvel, delta_angvel>();
     auto origin_view = registry.view<origin>();
     auto cache_view = registry.view<constraint_row_prep_cache>(exclude_sleeping_disabled);
-    auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
 
-    auto for_loop_body = [&registry, body_view, cache_view, origin_view, con_view_tuple, dt](entt::entity entity) {
-        auto &cache = cache_view.get<constraint_row_prep_cache>(entity);
+    auto for_loop_body = [&registry, body_view, cache_view, origin_view, dt](entt::entity entity) {
+        auto &prep_cache = cache_view.get<constraint_row_prep_cache>(entity);
+        prep_cache.clear();
 
-        std::apply([&](auto &&... con_view) {
-            (invoke_prepare_constraint(registry, entity, cache, dt, con_view, body_view, origin_view), ...);
-        }, con_view_tuple);
+        std::apply([&](auto ... c) {
+            (invoke_prepare_constraint<decltype(c)>(registry, entity, prep_cache, dt, body_view, origin_view), ...);
+        }, constraints_tuple);
     };
 
     const size_t max_sequential_size = 4;

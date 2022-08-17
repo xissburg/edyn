@@ -75,6 +75,7 @@ struct constraint_row_prep_cache {
     // of different types.
     std::array<uint8_t, max_constraints> rows_per_constraint;
     uint8_t num_constraints;
+    uint8_t current_constraint_index;
 
     constraint_row_prep_cache() {
         clear();
@@ -124,9 +125,33 @@ struct constraint_row_prep_cache {
         return curr_row.options;
     }
 
+    template<typename Func>
+    void process_rows(Func func) {
+        EDYN_ASSERT(num_constraints > 0);
+        EDYN_ASSERT(current_constraint_index < num_constraints);
+        unsigned start_index = 0;
+
+        for (unsigned i = 0; i < current_constraint_index; ++i) {
+            start_index += rows_per_constraint[i];
+        }
+
+        for (auto i = start_index; i < rows_per_constraint[current_constraint_index]; ++i) {
+            func(rows[i]);
+        }
+
+        ++current_constraint_index;
+    }
+
+    auto current_num_rows() {
+        EDYN_ASSERT(num_constraints > 0);
+        EDYN_ASSERT(current_constraint_index < num_constraints);
+        return rows_per_constraint[current_constraint_index];
+    }
+
     void clear() {
         num_rows = 0;
         num_constraints = 0;
+        current_constraint_index = 0;
 
         for (auto &elem : rows) {
             elem.clear();

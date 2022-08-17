@@ -17,16 +17,9 @@ public:
         auto eff_mass = get_effective_mass(J, inv_mA, *inv_IA, inv_mB, *inv_IB);
         auto correction = error * error_correction_rate * eff_mass;
 
+        // Apply position correction.
         *posA += inv_mA * J[0] * correction;
         *posB += inv_mB * J[2] * correction;
-
-        if (originA) {
-            *originA = to_world_space(-comA, *posA, *ornA);
-        }
-
-        if (originB) {
-            *originB = to_world_space(-comB, *posB, *ornB);
-        }
 
         // Use quaternion derivative to apply angular correction which should
         // be good enough for small angles.
@@ -38,6 +31,16 @@ public:
         *ornB += quaternion_derivative(*ornB, angular_correctionB);
         *ornB = normalize(*ornB);
 
+        // Compute origins with new transforms.
+        if (originA) {
+            *originA = to_world_space(-comA, *posA, *ornA);
+        }
+
+        if (originB) {
+            *originB = to_world_space(-comB, *posB, *ornB);
+        }
+
+        // Compute world space inertia with new orientation.
         auto basisA = to_matrix3x3(*ornA);
         *inv_IA = basisA * *inv_IA * transpose(basisA);
 
