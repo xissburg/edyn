@@ -10,7 +10,8 @@ namespace edyn {
 /**
  * Stores the entities of each constraint type that reside in the island to which
  * this component is assigned. Each vector of entities is in direct correspondence
- * with the type in `constraints_tuple`.
+ * with the type in `constraints_tuple`. This component enables the solver to
+ * go over constraint entities per constraint type.
  */
 struct island_constraint_entities {
     std::array<std::vector<entt::entity>, std::tuple_size_v<constraints_tuple_t>> entities;

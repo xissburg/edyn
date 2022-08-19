@@ -155,17 +155,18 @@ void insert_rows(entt::registry &registry, row_cache &cache, const entt::sparse_
             continue;
         }
 
+        // Insert entity into array located at the constraint type index.
         constraint_entities.entities[con_idx].push_back(entity);
 
         auto [prep_cache] = prep_view.get(entity);
 
-        // Insert the number of rows for the current constraint before processing.
+        // Insert the number of rows for the current constraint before consuming.
         cache.con_num_rows.push_back(prep_cache.current_num_rows());
 
         // Insert all constraint rows into island row cache. Since an entity
         // can have multiple constraints (of different types), these could be
         // rows of more than one constraint.
-        prep_cache.process_rows([&](constraint_row_prep_cache::element &elem) {
+        prep_cache.consume_rows([&](constraint_row_prep_cache::element &elem) {
             auto normal_row_index = cache.rows.size();
             cache.rows.push_back(elem.row);
             cache.flags.push_back(elem.flags);
@@ -256,21 +257,31 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
         }
 
         if constexpr(std::is_same_v<C, contact_constraint>) {
+            // Assign applied impulses to contact points.
             auto [manifold] = manifold_view.get(entity);
             EDYN_ASSERT(manifold.num_points == num_rows);
-            for (size_t i = 0; i < num_rows; ++i) {
+
+            for (unsigned i = 0; i < num_rows; ++i) {
                 auto &pt = manifold.get_point(i);
                 pt.normal_impulse = con.impulse[i];
 
-                for (int j = 0; j < 2; ++j) {
-                    pt.friction_impulse[j] = con.impulse[friction_start_index + i * 2 + j];
+                auto flags = cache.flags[row_idx + i];
+
+                if (flags & constraint_row_flag_friction) {
+                    for (int j = 0; j < 2; ++j) {
+                        pt.friction_impulse[j] = con.impulse[friction_start_index + i * 2 + j];
+                    }
                 }
 
-                for (int j = 0; j < 2; ++j) {
-                    pt.rolling_friction_impulse[j] = con.impulse[rolling_start_index + i * 2 + j];
+                if (flags & constraint_row_flag_rolling_friction) {
+                    for (int j = 0; j < 2; ++j) {
+                        pt.rolling_friction_impulse[j] = con.impulse[rolling_start_index + i * 2 + j];
+                    }
                 }
 
-                pt.spin_friction_impulse = con.impulse[spinning_start_index + i];
+                if (flags & constraint_row_flag_spinning_friction) {
+                    pt.spin_friction_impulse = con.impulse[spinning_start_index + i];
+                }
             }
         }
 
@@ -290,6 +301,10 @@ void update_impulses(entt::registry &registry, const island_constraint_entities 
                      size_t &rolling_row_idx, size_t &spinning_row_idx,
                      [[maybe_unused]] std::tuple<C...>,
                      std::index_sequence<Ints...>) {
+    // The entities at the i-th array in `constraint_entities` contains the
+    // entities that are known to have a constraint of type `C`, which were
+    // inserted in the same order they entered the row cache so a direct 1-to-1
+    // correspondence can be made.
     (update_impulse<C>(registry, constraint_entities.entities[Ints], cache,
                        con_idx, row_idx, friction_row_idx, rolling_row_idx, spinning_row_idx), ...);
 }
@@ -321,13 +336,13 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
 
     auto con_view = registry.view<C>();
     auto max_error = scalar(0);
+    auto solver = position_solver{};
 
     for (auto entity : entities) {
         auto [con] = con_view.get(entity);
         auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
         auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
 
-        auto solver = position_solver{};
         solver.posA = &posA;
         solver.posB = &posB;
         solver.ornA = &ornA;
@@ -370,7 +385,8 @@ scalar solve_position_constraints_indexed(entt::registry &registry, const island
 template<typename... C>
 scalar solve_position_constraints(entt::registry &registry, const island_constraint_entities &constraint_entities,
                                   const std::tuple<C...> &constraints) {
-    return solve_position_constraints_indexed(registry, constraint_entities, constraints, std::make_index_sequence<sizeof...(C)>());
+    return solve_position_constraints_indexed(registry, constraint_entities, constraints,
+                                              std::make_index_sequence<sizeof...(C)>());
 }
 
 static bool solve_position_constraints(entt::registry &registry, const island_constraint_entities &constraint_entities) {

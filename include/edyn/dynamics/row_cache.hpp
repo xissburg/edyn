@@ -16,16 +16,19 @@ static constexpr uint8_t constraint_row_flag_rolling_friction = 1 << 1;
 static constexpr uint8_t constraint_row_flag_spinning_friction = 1 << 2;
 
 /**
- * Stores the constraint rows for one solver update.
+ * Stores the constraint rows for all constraints in an island, packed in a
+ * contiguous array. It is assigned as a component for each island.
  */
 struct row_cache {
     std::vector<constraint_row> rows;
 
-    // Number of rows in each constraint. Values are inserted sequentially
-    // for each edge in an island. One edge can have more than one constraint.
+    // When packing rows, after appending rows for one constraint into the
+    // `rows` array, the number of rows appended is inserted into this array.
     std::vector<uint8_t> con_num_rows;
 
-    // Bitset which stores whether the row is accompanied by friction rows.
+    // Bitset which stores whether a row is accompanied by friction rows.
+    // It has a one-to-one relationship with the `rows` array.
+    // This is used to assign applied impulses after running the solver.
     std::vector<uint8_t> flags;
 
     std::vector<constraint_row_friction> friction;
@@ -43,22 +46,23 @@ struct row_cache {
 };
 
 /**
- * During constraint preparation which happens right before solving, all
- * constraint rows are inserted into this component. They are then packed
- * together into a `row_cache` for better performance during the solver
- * iterations.
+ * During constraint preparation, which happens right before solving, all
+ * constraint rows are inserted into this component. This allows preparation
+ * to be run in parallel with per-constraint granularity since they're not
+ * appending rows to a shared buffer. They are then packed together into a
+ * `row_cache` for better performance during the solver iterations.
  */
 struct constraint_row_prep_cache {
-    static constexpr unsigned max_rows = 32;
-    static constexpr unsigned max_constraints = 16;
+    static constexpr unsigned max_rows = 16;
+    static constexpr unsigned max_constraints = 8;
 
     struct element {
         constraint_row row;
+        constraint_row_options options;
         uint8_t flags; // Whether this row has friction.
         constraint_row_friction friction;
         constraint_row_friction rolling;
         constraint_row_spin_friction spinning;
-        constraint_row_options options;
 
         void clear() {
             flags = 0;
@@ -75,6 +79,10 @@ struct constraint_row_prep_cache {
     // of different types.
     std::array<uint8_t, max_constraints> rows_per_constraint;
     uint8_t num_constraints;
+
+    // Index of constraint used when packing. Since packed rows are inserted by
+    // constraint type as to solve them sorted by type, the rows in this cache
+    // are "consumed" per constraint.
     uint8_t current_constraint_index;
 
     constraint_row_prep_cache() {
@@ -125,8 +133,9 @@ struct constraint_row_prep_cache {
         return curr_row.options;
     }
 
+    // Consumes rows for one constraint type.
     template<typename Func>
-    void process_rows(Func func) {
+    void consume_rows(Func func) {
         EDYN_ASSERT(num_constraints > 0);
         EDYN_ASSERT(current_constraint_index < num_constraints);
         unsigned start_index = 0;
@@ -144,6 +153,7 @@ struct constraint_row_prep_cache {
         ++current_constraint_index;
     }
 
+    // Number of rows in the next constraint ready to be consumed.
     auto current_num_rows() {
         EDYN_ASSERT(num_constraints > 0);
         EDYN_ASSERT(current_constraint_index < num_constraints);
