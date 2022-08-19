@@ -1,18 +1,17 @@
 #ifndef EDYN_DYNAMICS_SOLVER_HPP
 #define EDYN_DYNAMICS_SOLVER_HPP
 
-#include <entt/signal/sigh.hpp>
 #include <memory>
-#include <tuple>
 #include <vector>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include "edyn/math/scalar.hpp"
-#include "edyn/constraints/constraint.hpp"
 #include "edyn/parallel/atomic_counter.hpp"
 
 namespace edyn {
 
 struct job;
+struct constraint_row;
 
 scalar solve(constraint_row &row);
 

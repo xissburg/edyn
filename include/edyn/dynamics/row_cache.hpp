@@ -135,7 +135,9 @@ struct constraint_row_prep_cache {
             start_index += rows_per_constraint[i];
         }
 
-        for (auto i = start_index; i < rows_per_constraint[current_constraint_index]; ++i) {
+        auto end_index = start_index + rows_per_constraint[current_constraint_index];
+
+        for (auto i = start_index; i < end_index; ++i) {
             func(rows[i]);
         }
 

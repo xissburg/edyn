@@ -13,9 +13,9 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <cmath>

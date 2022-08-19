@@ -5,7 +5,6 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/prepare_constraints.hpp"
-#include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/array_util.hpp"
