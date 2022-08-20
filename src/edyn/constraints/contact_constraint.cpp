@@ -1,34 +1,18 @@
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/comp/tag.hpp"
-#include "edyn/constraints/constraint_row.hpp"
-#include "edyn/comp/position.hpp"
-#include "edyn/comp/orientation.hpp"
-#include "edyn/comp/linvel.hpp"
-#include "edyn/comp/angvel.hpp"
-#include "edyn/comp/delta_linvel.hpp"
-#include "edyn/comp/delta_angvel.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
-#include "edyn/comp/origin.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/dynamics/position_solver.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/constants.hpp"
-#include "edyn/math/geom.hpp"
-#include "edyn/math/math.hpp"
-#include "edyn/math/scalar.hpp"
 #include "edyn/math/transform.hpp"
-#include "edyn/util/constraint_util.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
 
-template<>
-void prepare_constraint<contact_constraint>(
-    const entt::registry &registry, entt::entity entity, contact_constraint &con,
+void contact_constraint::prepare(
+    const entt::registry &registry, entt::entity entity, const contact_manifold &manifold,
     constraint_row_prep_cache &cache, scalar dt,
     const vector3 &originA, const vector3 &posA, const quaternion &ornA,
     const vector3 &linvelA, const vector3 &angvelA,
@@ -37,7 +21,6 @@ void prepare_constraint<contact_constraint>(
     const vector3 &linvelB, const vector3 &angvelB,
     scalar inv_mB, const matrix3x3 &inv_IB) {
 
-    auto &manifold = registry.get<contact_manifold>(entity);
     auto &settings = registry.ctx().at<edyn::settings>();
 
     // Create constraint rows for each contact point.
@@ -54,7 +37,7 @@ void prepare_constraint<contact_constraint>(
         // Create normal row, i.e. non-penetration constraint.
         auto &normal_row = cache.add_row();
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        normal_row.impulse = con.impulse[pt_idx];
+        normal_row.impulse = impulse[pt_idx];
         normal_row.lower_limit = 0;
 
         auto &normal_options = cache.get_options();
@@ -97,7 +80,7 @@ void prepare_constraint<contact_constraint>(
         for (auto i = 0; i < 2; ++i) {
             auto &row_i = friction_row.row[i];
             row_i.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-            row_i.impulse = con.impulse[max_contacts + pt_idx * 2 + i];
+            row_i.impulse = impulse[max_contacts + pt_idx * 2 + i];
             row_i.eff_mass = get_effective_mass(row_i.J, inv_mA, inv_IA, inv_mB, inv_IB);
             row_i.rhs = -get_relative_speed(row_i.J, linvelA, angvelA, linvelB, angvelB);
         }
@@ -115,15 +98,15 @@ void prepare_constraint<contact_constraint>(
                 // axis by the projection of the roll direction onto the axis,
                 // thus preventing impulses in the undesired directions.
                 for (auto j = 0; j < 2; ++j) {
-                    if (roll_dir_view.contains(con.body[j])) {
-                        auto roll_dir = rotate(ornA, std::get<0>(roll_dir_view.get(con.body[j])));
+                    if (roll_dir_view.contains(body[j])) {
+                        auto roll_dir = rotate(ornA, std::get<0>(roll_dir_view.get(body[j])));
                         axis *= dot(roll_dir, axis);
                     }
                 }
 
                 auto &row_i = roll_row.row[i];
                 row_i.J = {vector3_zero, axis, vector3_zero, -axis};
-                row_i.impulse = con.impulse[max_contacts + max_contacts * 2 + pt_idx * 2 + i];
+                row_i.impulse = impulse[max_contacts + max_contacts * 2 + pt_idx * 2 + i];
                 auto J_invM_JT = dot(inv_IA * row_i.J[1], row_i.J[1]) +
                                  dot(inv_IB * row_i.J[3], row_i.J[3]);
                 row_i.eff_mass = J_invM_JT > EDYN_EPSILON ? scalar(1) / J_invM_JT : 0;
@@ -146,18 +129,13 @@ void prepare_constraint<contact_constraint>(
     }
 }
 
-template<>
-void prepare_position_constraint<contact_constraint>(
-    entt::registry &registry, entt::entity entity, contact_constraint &con,
-    position_solver &solver) {
+void contact_constraint::solve_position(position_solver &solver, contact_manifold &manifold) {
     // Solve position constraints by applying linear and angular corrections
     // iteratively. Based on Box2D's solver:
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
-
     auto originA = solver.get_originA(), originB = solver.get_originB();
     auto &posA = *solver.posA, &posB = *solver.posB;
     auto &ornA = *solver.ornA, &ornB = *solver.ornB;
-    auto &manifold = registry.get<contact_manifold>(entity);
 
     for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
         auto &cp = manifold.get_point(pt_idx);

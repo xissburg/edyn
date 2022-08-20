@@ -7,6 +7,7 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
@@ -31,6 +32,8 @@ static void init_meta() {
     std::apply([&](auto ... c) {
         (entt::meta<decltype(c)>().type().template data<&decltype(c)::body, entt::as_ref_t>("body"_hs), ...);
     }, constraints_tuple);
+
+    entt::meta<null_constraint>().type().template data<&null_constraint::body, entt::as_ref_t>("body"_hs);
 
     entt::meta<entity_owner>().type()
         .data<&entity_owner::client_entity, entt::as_ref_t>("client_entity"_hs);

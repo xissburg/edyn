@@ -11,7 +11,6 @@
 #include "edyn/constraints/generic_constraint.hpp"
 #include "edyn/constraints/cvjoint_constraint.hpp"
 #include "edyn/constraints/cone_constraint.hpp"
-#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/constraints/gravity_constraint.hpp"
 
 namespace edyn {
@@ -21,7 +20,6 @@ namespace edyn {
  * the more important constraints should be the last in the list.
  */
 using constraints_tuple_t = std::tuple<
-    null_constraint,
     gravity_constraint,
     distance_constraint,
     soft_distance_constraint,

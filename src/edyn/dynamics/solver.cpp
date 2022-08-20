@@ -1,4 +1,5 @@
 #include "edyn/dynamics/solver.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
@@ -54,21 +55,11 @@ solver::solver(entt::registry &registry)
     m_connections.emplace_back(registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<constraint_row_prep_cache>>());
 }
 
-template<typename C, typename BodyView, typename OriginView>
-void invoke_prepare_constraint(entt::registry &registry, entt::entity entity,
+template<typename C, typename BodyView, typename OriginView, typename ManifoldView>
+void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
                                constraint_row_prep_cache &cache, scalar dt,
-                               const BodyView &body_view, const OriginView &origin_view) {
-    if constexpr(std::is_same_v<C, null_constraint>) {
-        return;
-    }
-
-    auto con_view = registry.view<C>();
-
-    if (!con_view.contains(entity)) {
-        return;
-    }
-
-    auto [con] = con_view.get(entity);
+                               const BodyView &body_view, const OriginView &origin_view,
+                               const ManifoldView &manifold_view) {
     auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
     auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
@@ -83,9 +74,16 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity,
     // later to finish their setup. Note that no rows could be added as well.
     auto row_start_index = cache.num_rows;
 
-    prepare_constraint(registry, entity, con, cache, dt,
-                       originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA,
-                       originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB);
+    if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
+        auto &manifold = manifold_view.template get<contact_manifold>(entity);
+        con.prepare(registry, entity, manifold, cache, dt,
+                    originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA,
+                    originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB);
+    } else {
+        con.prepare(registry, entity, cache, dt,
+                    originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA,
+                    originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB);
+    }
 
     // Assign masses and deltas to new rows.
     for (auto i = row_start_index; i < cache.num_rows; ++i) {
@@ -108,14 +106,19 @@ static bool prepare_constraints(entt::registry &registry, scalar dt, execution_m
                                    delta_linvel, delta_angvel>();
     auto origin_view = registry.view<origin>();
     auto cache_view = registry.view<constraint_row_prep_cache>(exclude_sleeping_disabled);
+    auto manifold_view = registry.view<contact_manifold>();
+    auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
 
-    auto for_loop_body = [&registry, body_view, cache_view, origin_view, dt](entt::entity entity) {
+    auto for_loop_body = [&registry, body_view, cache_view, origin_view,
+                          manifold_view, con_view_tuple, dt](entt::entity entity) {
         auto &prep_cache = cache_view.get<constraint_row_prep_cache>(entity);
         prep_cache.clear();
 
-        std::apply([&](auto ... c) {
-            (invoke_prepare_constraint<decltype(c)>(registry, entity, prep_cache, dt, body_view, origin_view), ...);
-        }, constraints_tuple);
+        std::apply([&](auto &&... con_view) {
+            ((con_view.contains(entity) ?
+                invoke_prepare_constraint(registry, entity, std::get<0>(con_view.get(entity)), prep_cache,
+                                          dt, body_view, origin_view, manifold_view) : void(0)), ...);
+        }, con_view_tuple);
     };
 
     const size_t max_sequential_size = 4;

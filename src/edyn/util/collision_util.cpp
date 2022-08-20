@@ -25,8 +25,8 @@ void update_contact_distances(entt::registry &registry) {
     auto origin_view = registry.view<origin>();
 
     manifold_view.each([&](contact_manifold &manifold) {
-        auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
-        auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
+        auto [posA, ornA] = tr_view.get(manifold.body[0]);
+        auto [posB, ornB] = tr_view.get(manifold.body[1]);
         auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 

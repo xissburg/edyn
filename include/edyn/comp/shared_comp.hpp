@@ -21,6 +21,7 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/continuous.hpp"
 #include "edyn/comp/roll_direction.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -71,7 +72,8 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     island_tag,
     rolling_tag,
     roll_direction,
-    discontinuity
+    discontinuity,
+    null_constraint
 >{}, constraints_tuple, shapes_tuple)); // Concatenate with all shapes and constraints at the end.
 
 }

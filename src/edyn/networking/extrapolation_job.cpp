@@ -104,6 +104,8 @@ void extrapolation_job::load_input() {
         (m_registry.view<decltype(t)>().each(insert_graph_edge), ...);
     }, constraints_tuple);
 
+    m_registry.view<null_constraint>().each(insert_graph_edge);
+
     // Create islands.
     m_island_manager.update(m_start_time);
 

@@ -27,6 +27,7 @@
 #include "edyn/shapes/compound_shape.hpp"
 #include "edyn/shapes/plane_shape.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 
 namespace edyn {
 

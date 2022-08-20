@@ -10,6 +10,7 @@
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/config/config.h"
+#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
@@ -39,7 +40,9 @@
 #include "edyn/networking/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/replication/component_index_source.hpp"
+#include <algorithm>
 #include <entt/entity/registry.hpp>
+#include <numeric>
 
 namespace edyn {
 
@@ -160,7 +163,7 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
         registry.emplace<graph_node>(local_entity, node_index);
     });
 
-    ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
+    auto insert_edge = [&](entt::entity remote_entity, const auto &con) {
         auto local_entity = emap.at(remote_entity);
 
         // There could be multiple constraints (of different types) assigned to
@@ -171,7 +174,9 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
         auto &node1 = node_view.get<graph_node>(emap.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         registry.emplace<graph_edge>(local_entity, edge_index);
-    });
+    };
+    ops.emplace_for_each(constraints_tuple, insert_edge);
+    ops.emplace_for_each<null_constraint>(insert_edge);
 
     // When orientation is set manually, a few dependent components must be
     // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...

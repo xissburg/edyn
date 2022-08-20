@@ -8,6 +8,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/packet/client_created.hpp"
@@ -125,8 +126,13 @@ void create_graph_edge(entt::registry &registry, entt::entity entity) {
 }
 
 template<typename... Ts>
-void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[maybe_unused]] std::tuple<Ts...>) {
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity) {
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
+}
+
+template<typename... Ts>
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[maybe_unused]] std::tuple<Ts...>) {
+    maybe_create_graph_edge<Ts...>(registry, entity);
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity,
@@ -216,6 +222,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     for (auto remote_entity : packet.entities) {
         auto local_entity = client.entity_map.at(remote_entity);
         maybe_create_graph_edge(registry, local_entity, constraints_tuple);
+        maybe_create_graph_edge<null_constraint>(registry, local_entity);
     }
 }
 

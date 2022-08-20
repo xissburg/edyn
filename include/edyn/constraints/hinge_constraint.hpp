@@ -6,10 +6,13 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
 #include "edyn/util/array_util.hpp"
 
 namespace edyn {
+
+struct constraint_row_prep_cache;
+class position_solver;
+struct quaternion;
 
 /**
  * @brief Constrains a pair of rigid bodies to have a pivot point match in space
@@ -80,6 +83,18 @@ struct hinge_constraint : public constraint_base {
      * @param ornB Orientation of the second rigid body.
      */
     void reset_angle(const quaternion &ornA, const quaternion &ornB);
+
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+        const vector3 &linvelA, const vector3 &angvelA,
+        scalar inv_mA, const matrix3x3 &inv_IA,
+        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+        const vector3 &linvelB, const vector3 &angvelB,
+        scalar inv_mB, const matrix3x3 &inv_IB);
+
+    void solve_position(position_solver &solver);
 };
 
 template<typename Archive>
@@ -94,22 +109,6 @@ void serialize(Archive &archive, hinge_constraint &c) {
     archive(c.angle);
     archive(c.impulse);
 }
-
-template<>
-void prepare_constraint<hinge_constraint>(
-    const entt::registry &, entt::entity, hinge_constraint &con,
-    constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    scalar inv_mA, const matrix3x3 &inv_IA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    scalar inv_mB, const matrix3x3 &inv_IB);
-
-template<>
-void prepare_position_constraint<hinge_constraint>(
-    entt::registry &registry, entt::entity entity, hinge_constraint &con,
-    position_solver &solver);
 
 }
 

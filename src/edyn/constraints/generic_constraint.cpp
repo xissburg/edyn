@@ -22,9 +22,8 @@
 
 namespace edyn {
 
-template<>
-void prepare_constraint<generic_constraint>(
-    const entt::registry &, entt::entity, generic_constraint &con,
+void generic_constraint::prepare(
+    const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
     const vector3 &originA, const vector3 &posA, const quaternion &ornA,
     const vector3 &linvelA, const vector3 &angvelA,
@@ -33,8 +32,8 @@ void prepare_constraint<generic_constraint>(
     const vector3 &linvelB, const vector3 &angvelB,
     scalar inv_mB, const matrix3x3 &inv_IB) {
 
-    auto pivotA = to_world_space(con.pivot[0], originA, ornA);
-    auto pivotB = to_world_space(con.pivot[1], originB, ornB);
+    auto pivotA = to_world_space(pivot[0], originA, ornA);
+    auto pivotB = to_world_space(pivot[1], originB, ornB);
     auto rA = pivotA - posA;
     auto rB = pivotB - posB;
 
@@ -43,9 +42,9 @@ void prepare_constraint<generic_constraint>(
 
     // Linear.
     for (int i = 0; i < 3; ++i) {
-        auto &dof = con.linear_dofs[i];
+        auto &dof = linear_dofs[i];
 
-        auto axisA = rotate(ornA, con.frame[0].column(i));
+        auto axisA = rotate(ornA, frame[0].column(i));
         auto J = std::array<vector3, 4>{axisA, cross(rA, axisA), -axisA, -cross(rB, axisA)};
 
         auto non_zero_limit = dof.offset_min < dof.offset_max;
@@ -56,7 +55,7 @@ void prepare_constraint<generic_constraint>(
 
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = impulse[row_idx++];
             auto &options = cache.get_options();
 
             if (non_zero_limit) {
@@ -101,7 +100,7 @@ void prepare_constraint<generic_constraint>(
 
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = impulse[row_idx++];
 
             auto spring_force = dof.bump_stop_stiffness * bump_stop_deflection;
             auto spring_impulse = spring_force * dt;
@@ -116,7 +115,7 @@ void prepare_constraint<generic_constraint>(
         if (dof.spring_stiffness > 0) {
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = impulse[row_idx++];
 
             auto spring_deflection = offset_proj - dof.rest_offset;
             auto spring_force = dof.spring_stiffness * spring_deflection;
@@ -132,7 +131,7 @@ void prepare_constraint<generic_constraint>(
         if (dof.friction_force > 0 || dof.damping > 0) {
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = impulse[row_idx++];
 
             auto friction_impulse = dof.friction_force * dt;
 
@@ -146,12 +145,12 @@ void prepare_constraint<generic_constraint>(
         }
     }
 
-    auto axisA_x = rotate(ornA, con.frame[0].column(0));
-    auto axisB_x = rotate(ornB, con.frame[1].column(0));
+    auto axisA_x = rotate(ornA, frame[0].column(0));
+    auto axisB_x = rotate(ornB, frame[1].column(0));
 
     // Angular.
     for (int i = 0; i < 3; ++i) {
-        auto &dof = con.angular_dofs[i];
+        auto &dof = angular_dofs[i];
         auto non_zero_limit = dof.angle_min < dof.angle_max;
         vector3 axisA, axisB;
 
@@ -162,13 +161,13 @@ void prepare_constraint<generic_constraint>(
 
             // Transform a non-axial vector in the frame of B onto A's space so
             // the angular error can be calculated.
-            auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, con.frame[1].column(1));
-            dof.current_angle = std::atan2(dot(angle_axisB, con.frame[0].column(2)),
-                                            dot(angle_axisB, con.frame[0].column(1)));
+            auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, frame[1].column(1));
+            dof.current_angle = std::atan2(dot(angle_axisB, frame[0].column(2)),
+                                            dot(angle_axisB, frame[0].column(1)));
             axisA = axisA_x;
             axisB = axisB_x;
         } else {
-            auto axisA_other = rotate(ornA, con.frame[0].column(i == 1 ? 2 : 1));
+            auto axisA_other = rotate(ornA, frame[0].column(i == 1 ? 2 : 1));
             auto cos_angle = std::clamp(dot(axisB_x, axisA_other), scalar(-1), scalar(1));
             dof.current_angle = half_pi - std::acos(cos_angle);
             auto axis = cross(axisA_other, axisB_x);
@@ -187,7 +186,7 @@ void prepare_constraint<generic_constraint>(
 
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = impulse[row_idx++];
             auto &options = cache.get_options();
 
             if (non_zero_limit) {
@@ -227,7 +226,7 @@ void prepare_constraint<generic_constraint>(
 
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = impulse[row_idx++];
 
             auto spring_force = dof.bump_stop_stiffness * bump_stop_deflection;
             auto spring_impulse = spring_force * dt;
@@ -242,7 +241,7 @@ void prepare_constraint<generic_constraint>(
         if (dof.spring_stiffness > 0) {
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = impulse[row_idx++];
 
             auto deflection = dof.current_angle - dof.rest_angle;
             auto spring_torque = dof.spring_stiffness * deflection;
@@ -257,7 +256,7 @@ void prepare_constraint<generic_constraint>(
         if (dof.friction_torque > 0 || dof.damping > 0) {
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = con.impulse[row_idx++];
+            row.impulse = impulse[row_idx++];
 
             auto friction_impulse = dof.friction_torque * dt;
 
@@ -272,29 +271,25 @@ void prepare_constraint<generic_constraint>(
     }
 }
 
-template<>
-void prepare_position_constraint<generic_constraint>(
-    entt::registry &registry, entt::entity entity, generic_constraint &con,
-    position_solver &solver) {
-
+void generic_constraint::solve_position(position_solver &solver) {
     auto originA = solver.get_originA(), originB = solver.get_originB();
     auto &posA = *solver.posA, &posB = *solver.posB;
     auto &ornA = *solver.ornA, &ornB = *solver.ornB;
 
-    auto pivotA = to_world_space(con.pivot[0], originA, ornA);
-    auto pivotB = to_world_space(con.pivot[1], originB, ornB);
+    auto pivotA = to_world_space(pivot[0], originA, ornA);
+    auto pivotB = to_world_space(pivot[1], originB, ornB);
     auto pivot_offset = pivotB - pivotA;
     auto rA = pivotA - posA;
     auto rB = pivotB - posB;
 
     for (int i = 0; i < 3; ++i) {
-        auto &dof = con.linear_dofs[i];
+        auto &dof = linear_dofs[i];
 
         if (!dof.limit_enabled) {
             continue;
         }
 
-        auto axisA = rotate(ornA, con.frame[0].column(i));
+        auto axisA = rotate(ornA, frame[0].column(i));
         auto proj = dot(pivot_offset, axisA);
         auto error = scalar{};
 

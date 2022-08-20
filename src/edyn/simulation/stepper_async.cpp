@@ -8,6 +8,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/parallel/message.hpp"
@@ -167,7 +168,7 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
     ops.emplace_for_each<rigidbody_tag, external_tag>(insert_node);
 
     // Insert edges in the graph for constraints.
-    ops.emplace_for_each(constraints_tuple, [&](entt::entity remote_entity, const auto &con) {
+    auto insert_edge = [&](entt::entity remote_entity, const auto &con) {
         auto local_entity = m_worker_ctx->m_entity_map.at(remote_entity);
 
         // There could be multiple constraints (of different types) assigned to
@@ -178,7 +179,9 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
         auto [node1] = node_view.get(m_worker_ctx->m_entity_map.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         registry.emplace<graph_edge>(local_entity, edge_index);
-    });
+    };
+    ops.emplace_for_each(constraints_tuple, insert_edge);
+    ops.emplace_for_each<null_constraint>(insert_edge);
 
     m_importing = false;
     m_op_observer->set_active(true);

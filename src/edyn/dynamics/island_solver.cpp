@@ -12,8 +12,6 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/constraints/null_constraint.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/position_solver.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -189,10 +187,6 @@ void insert_rows(entt::registry &registry, row_cache &cache, const entt::sparse_
     }
 }
 
-template<>
-void insert_rows<null_constraint>(entt::registry &, row_cache &, const entt::sparse_set &,
-                                  island_constraint_entities &) {}
-
 void pack_rows(entt::registry &registry, row_cache &cache, const entt::sparse_set &entities,
                island_constraint_entities &constraint_entities) {
     cache.clear();
@@ -290,11 +284,6 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
     }
 }
 
-// No-op for null constraints.
-template<>
-void update_impulse<null_constraint>(entt::registry &, const std::vector<entt::entity> &,
-                    row_cache &, size_t &, size_t &, size_t &, size_t &, size_t &) {}
-
 template<typename... C, size_t... Ints>
 void update_impulses(entt::registry &registry, const island_constraint_entities &constraint_entities,
                      row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
@@ -327,42 +316,59 @@ void assign_applied_impulses(entt::registry &registry, row_cache &cache,
                     constraints_tuple, std::make_index_sequence<std::tuple_size_v<constraints_tuple_t>>());
 }
 
+// Check if type implements the solve_position function.
+// Reference: https://stackoverflow.com/questions/257288/templated-check-for-the-existence-of-a-class-member-function
+template<typename T>
+class has_solve_position {
+    typedef char yes;
+    struct no { char x[2]; };
+    template<typename C> static yes test(decltype(&C::solve_position));
+    template<typename C> static no test(...);
+public:
+    static constexpr bool value = sizeof(test<T>(0)) == sizeof(yes);
+};
+
 template<typename C, typename BodyView, typename OriginView>
 scalar solve_position_constraints_each(entt::registry &registry, const std::vector<entt::entity> &entities,
                                        const BodyView &body_view, const OriginView &origin_view) {
-    if constexpr(std::is_same_v<C, null_constraint>) {
-        return 0;
-    }
-
-    auto con_view = registry.view<C>();
     auto max_error = scalar(0);
-    auto solver = position_solver{};
 
-    for (auto entity : entities) {
-        auto [con] = con_view.get(entity);
-        auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
-        auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
+    if constexpr(has_solve_position<C>::value) {
+        auto con_view = registry.view<C>();
+        auto manifold_view = registry.view<contact_manifold>();
+        auto solver = position_solver{};
 
-        solver.posA = &posA;
-        solver.posB = &posB;
-        solver.ornA = &ornA;
-        solver.ornB = &ornB;
-        solver.inv_mA = inv_mA;
-        solver.inv_mB = inv_mB;
-        solver.inv_IA = &inv_IA;
-        solver.inv_IB = &inv_IB;
+        for (auto entity : entities) {
+            auto [con] = con_view.get(entity);
+            auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
+            auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
 
-        if (origin_view.contains(con.body[0])) {
-            solver.originA = &origin_view.template get<origin>(con.body[0]);
+            solver.posA = &posA;
+            solver.posB = &posB;
+            solver.ornA = &ornA;
+            solver.ornB = &ornB;
+            solver.inv_mA = inv_mA;
+            solver.inv_mB = inv_mB;
+            solver.inv_IA = &inv_IA;
+            solver.inv_IB = &inv_IB;
+
+            if (origin_view.contains(con.body[0])) {
+                solver.originA = &origin_view.template get<origin>(con.body[0]);
+            }
+
+            if (origin_view.contains(con.body[1])) {
+                solver.originB = &origin_view.template get<origin>(con.body[1]);
+            }
+
+            if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
+                auto [manifold] = manifold_view.get(entity);
+                con.solve_position(solver, manifold);
+            } else {
+                con.solve_position(solver);
+            }
+
+            max_error = std::max(solver.max_error, max_error);
         }
-
-        if (origin_view.contains(con.body[1])) {
-            solver.originB = &origin_view.template get<origin>(con.body[1]);
-        }
-
-        prepare_position_constraint(registry, entity, con, solver);
-
-        max_error = std::max(solver.max_error, max_error);
     }
 
     return max_error;

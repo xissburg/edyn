@@ -352,9 +352,13 @@ void create_graph_edge(entt::registry &registry, entt::entity entity) {
 }
 
 template<typename... Ts>
-void maybe_create_graph_edge(entt::registry &registry, entt::entity entity,
-                             [[maybe_unused]] std::tuple<Ts...>) {
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity) {
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
+}
+
+template<typename... Ts>
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[maybe_unused]] std::tuple<Ts...>) {
+    maybe_create_graph_edge<Ts...>(registry, entity);
 }
 
 static void import_remote_snapshot(entt::registry &registry, const packet::registry_snapshot &snap) {
@@ -442,6 +446,7 @@ static void import_remote_snapshot(entt::registry &registry, const packet::regis
     for (auto remote_entity : snap.entities) {
         auto local_entity = ctx.entity_map.at(remote_entity);
         maybe_create_graph_edge(registry, local_entity, constraints_tuple);
+        maybe_create_graph_edge<null_constraint>(registry, local_entity);
     }
 }
 
