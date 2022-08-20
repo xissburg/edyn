@@ -50,10 +50,6 @@ public:
     template<typename Iterator>
     void update_contact_manifolds(Iterator begin, Iterator end);
 
-    template<typename ContactManifoldView, typename Iterator>
-    void update_contact_manifolds(Iterator begin, Iterator end,
-                                  ContactManifoldView &manifold_view);
-
 private:
     entt::registry *m_registry;
     std::vector<contact_point_construction_info> m_cp_construction_infos;
@@ -65,12 +61,6 @@ private:
 template<typename Iterator>
 void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
     auto manifold_view = m_registry->view<contact_manifold>();
-    update_contact_manifolds(begin, end, manifold_view);
-}
-
-template<typename ContactManifoldView, typename Iterator>
-void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
-                                           ContactManifoldView &manifold_view) {
     auto events_view = m_registry->view<contact_manifold_events>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();

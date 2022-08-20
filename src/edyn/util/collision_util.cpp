@@ -15,12 +15,13 @@
 #include "edyn/math/math.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/math/triangle.hpp"
+#include "edyn/util/island_util.hpp"
 #include <limits>
 
 namespace edyn {
 
 void update_contact_distances(entt::registry &registry) {
-    auto manifold_view = registry.view<contact_manifold>();
+    auto manifold_view = registry.view<contact_manifold>(exclude_sleeping_disabled);
     auto tr_view = registry.view<position, orientation>();
     auto origin_view = registry.view<origin>();
 

@@ -40,11 +40,6 @@
 
 namespace edyn {
 
-template<typename View>
-size_t view_size(const View &view) {
-    return std::distance(view.begin(), view.end());
-}
-
 solver::solver(entt::registry &registry)
     : m_registry(&registry)
 {
@@ -122,7 +117,7 @@ static bool prepare_constraints(entt::registry &registry, scalar dt, execution_m
     };
 
     const size_t max_sequential_size = 4;
-    auto num_constraints = view_size(registry.view<constraint_tag>(exclude_sleeping_disabled));
+    auto num_constraints = calculate_view_size(registry.view<constraint_tag>(exclude_sleeping_disabled));
 
     if (num_constraints <= max_sequential_size || mode == execution_mode::sequential) {
         for (auto entity : cache_view) {
@@ -181,7 +176,7 @@ bool solver::update(const job &completion_job) {
         m_state = state::finalize;
 
         auto island_view = registry.view<island>(exclude_sleeping_disabled);
-        auto num_islands = view_size(island_view);
+        auto num_islands = calculate_view_size(island_view);
 
         if (num_islands > 0) {
             m_counter = std::make_unique<atomic_counter>(completion_job, num_islands);
@@ -228,7 +223,7 @@ bool solver::update(const job &completion_job) {
 void solver::update_sequential(bool mt) {
     auto &registry = *m_registry;
     auto island_view = registry.view<island>(exclude_sleeping_disabled);
-    auto num_islands = view_size(island_view);
+    auto num_islands = calculate_view_size(island_view);
 
     if (num_islands == 0) {
         return;

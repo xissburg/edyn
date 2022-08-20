@@ -5,6 +5,8 @@
 #include "edyn/parallel/parallel_for.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/comp/material.hpp"
+#include "edyn/util/entt_util.hpp"
+#include "edyn/util/island_util.hpp"
 
 namespace edyn {
 
@@ -22,25 +24,28 @@ void narrowphase::update_sequential(bool mt) {
     clear_contact_manifold_events();
     update_contact_distances(*m_registry);
 
-    auto manifold_view = m_registry->view<contact_manifold>();
+    auto manifold_view = m_registry->view<contact_manifold>(exclude_sleeping_disabled);
+    auto num_active_manifolds = calculate_view_size(manifold_view);
 
-    if (mt && manifold_view.size() > m_max_sequential_size) {
+    if (mt && num_active_manifolds > m_max_sequential_size) {
         detect_collision_parallel(false);
         finish_detect_collision();
     } else {
-        update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
+        update_contact_manifolds(manifold_view.begin(), manifold_view.end());
     }
 }
 
 bool narrowphase::update(const job &completion_job) {
     switch (m_state) {
-    case state::begin:
+    case state::begin: {
         clear_contact_manifold_events();
         update_contact_distances(*m_registry);
+        auto manifold_view = m_registry->view<contact_manifold>(exclude_sleeping_disabled);
+        auto num_active_manifolds = calculate_view_size(manifold_view);
 
-        if (m_registry->storage<contact_manifold>().size() <= m_max_sequential_size) {
+        if (num_active_manifolds <= m_max_sequential_size) {
             auto manifold_view = m_registry->view<contact_manifold>();
-            update_contact_manifolds(manifold_view.begin(), manifold_view.end(), manifold_view);
+            update_contact_manifolds(manifold_view.begin(), manifold_view.end());
             return true;
         } else {
             m_state = state::detect_collision;
@@ -48,6 +53,7 @@ bool narrowphase::update(const job &completion_job) {
             return false;
         }
         break;
+    }
     case state::detect_collision:
         finish_detect_collision();
         m_state = state::begin;

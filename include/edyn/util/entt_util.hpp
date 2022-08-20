@@ -44,6 +44,11 @@ inline void entity_vector_erase_invalid(std::vector<entt::entity> &vec,
     vec.erase(std::remove_if(vec.begin(), vec.end(), predicate), vec.end());
 }
 
+template<typename View>
+auto calculate_view_size(const View &view) {
+    return std::distance(view.begin(), view.end());
+}
+
 }
 
 #endif // EDYN_UTIL_ENTT_UTIL_HPP

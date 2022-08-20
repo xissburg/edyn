@@ -400,8 +400,7 @@ static bool solve_position_constraints(entt::registry &registry, const island_co
     return error < scalar(0.005);
 }
 
-template<typename It>
-bool apply_solution(entt::registry &registry, scalar dt, It first, It last,
+bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set &entities,
                     execution_mode mode, std::optional<job> completion_job = {}) {
     auto view = registry.view<position, orientation,
                               linvel, angvel, delta_linvel, delta_angvel,
@@ -424,21 +423,20 @@ bool apply_solution(entt::registry &registry, scalar dt, It first, It last,
     };
 
     constexpr auto max_sequential_size = 64;
-    auto size = std::distance(view.begin(), view.end());
 
-    if (size <= max_sequential_size || mode == execution_mode::sequential) {
-        for (; first != last; ++first) {
-            for_loop_body(*first);
+    if (entities.size() <= max_sequential_size || mode == execution_mode::sequential) {
+        for (auto &entity : entities) {
+            for_loop_body(entity);
         }
         return true;
     } else if (mode == execution_mode::sequential_multithreaded) {
         auto &dispatcher = job_dispatcher::global();
-        parallel_for_each(dispatcher, first, last, for_loop_body);
+        parallel_for_each(dispatcher, entities.begin(), entities.end(), for_loop_body);
         return true;
     } else {
         EDYN_ASSERT(mode == execution_mode::asynchronous);
         auto &dispatcher = job_dispatcher::global();
-        parallel_for_each_async(dispatcher, first, last, *completion_job, for_loop_body);
+        parallel_for_each_async(dispatcher, entities.begin(), entities.end(), *completion_job, for_loop_body);
         return false;
     }
 }
@@ -487,7 +485,7 @@ static void island_solver_update(island_solver_context &ctx) {
         auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
         ctx.state = island_solver_state::assign_applied_impulses;
 
-        if (apply_solution(*ctx.registry, ctx.dt, island.nodes.begin(), island.nodes.end(),
+        if (apply_solution(*ctx.registry, ctx.dt, island.nodes,
                            execution_mode::asynchronous, make_solver_job(ctx))) {
             dispatch_solver(ctx);
         }
@@ -557,7 +555,7 @@ void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,
     }
 
     const auto exec_mode = execution_mode::sequential;
-    apply_solution(registry, dt, island.nodes.begin(), island.nodes.end(), exec_mode);
+    apply_solution(registry, dt, island.nodes, exec_mode);
 
     assign_applied_impulses(registry, cache, constraint_entities);
 
