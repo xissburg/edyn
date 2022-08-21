@@ -1,7 +1,10 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
+#include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/config/execution_mode.hpp"
+#include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/aabb_of_interest.hpp"
 #include "edyn/networking/comp/aabb_oi_follow.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
@@ -9,9 +12,7 @@
 
 namespace edyn {
 
-void update_aabbs_of_interest(entt::registry &registry) {
-    auto owner_view = registry.view<entity_owner>();
-    auto manifold_view = registry.view<contact_manifold>();
+void follow_aabb_of_interest(entt::registry &registry) {
     auto position_view = registry.view<position>();
 
     registry.view<aabb_of_interest, aabb_oi_follow>().each([&](aabb_of_interest &aabboi, aabb_oi_follow &follow) {
@@ -20,15 +21,19 @@ void update_aabbs_of_interest(entt::registry &registry) {
         aabboi.aabb.min = pos - half_size;
         aabboi.aabb.max = pos + half_size;
     });
+}
+
+void update_aabbs_of_interest_seq(entt::registry &registry) {
+    auto owner_view = registry.view<entity_owner>();
+    auto manifold_view = registry.view<contact_manifold>();
+    auto &bphase = registry.ctx().at<broadphase>();
 
     registry.view<aabb_of_interest>().each([&](aabb_of_interest &aabboi) {
         entt::sparse_set contained_entities;
-
-        // TODO: Move this into worker.
-
         aabboi.island_entities.clear();
+
         // Collect entities of islands which intersect the AABB of interest.
-        /* bphase.query_islands(aabboi.aabb, [&](entt::entity island_entity) {
+        bphase.query_islands(aabboi.aabb, [&](entt::entity island_entity) {
             auto &island = registry.get<edyn::island>(island_entity);
 
             for (auto entity : island.nodes) {
@@ -57,7 +62,7 @@ void update_aabbs_of_interest(entt::registry &registry) {
             if (!contained_entities.contains(np_entity)) {
                 contained_entities.emplace(np_entity);
             }
-        }); */
+        });
 
         // Insert owners of each entity.
         entt::sparse_set client_entities;
@@ -91,6 +96,22 @@ void update_aabbs_of_interest(entt::registry &registry) {
         // intersects the AABB of interest.
         aabboi.entities = std::move(contained_entities);
     });
+}
+
+void update_aabbs_of_interest(entt::registry &registry) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    auto exec_mode = settings.execution_mode;
+
+    switch (exec_mode) {
+    case execution_mode::sequential:
+    case execution_mode::sequential_multithreaded:
+        update_aabbs_of_interest_seq(registry);
+        break;
+
+    case execution_mode::asynchronous:
+        // TODO
+        break;
+    }
 }
 
 }

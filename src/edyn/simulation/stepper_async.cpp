@@ -37,7 +37,8 @@ stepper_async::stepper_async(entt::registry &registry)
     , m_message_queue_handle(
         message_dispatcher::global().make_queue<
             msg::step_update,
-            msg::raycast_response
+            msg::raycast_response,
+            msg::query_aabb_response
         >("main"))
 {
     registry.on_construct<graph_node>().connect<&stepper_async::on_construct_graph_node>(*this);
@@ -47,6 +48,7 @@ stepper_async::stepper_async(entt::registry &registry)
 
     m_message_queue_handle.sink<msg::step_update>().connect<&stepper_async::on_step_update>(*this);
     m_message_queue_handle.sink<msg::raycast_response>().connect<&stepper_async::on_raycast_response>(*this);
+    m_message_queue_handle.sink<msg::query_aabb_response>().connect<&stepper_async::on_query_aabb_response>(*this);
 
     auto &reg_op_ctx = m_registry->ctx().at<registry_operation_context>();
     m_op_builder = (*reg_op_ctx.make_reg_op_builder)(*m_registry);
@@ -207,6 +209,13 @@ void stepper_async::on_raycast_response(const message<msg::raycast_response> &ms
     m_raycast_ctx.erase(res.id);
 }
 
+void stepper_async::on_query_aabb_response(const message<msg::query_aabb_response> &msg) {
+    auto &res = msg.content;
+    auto &ctx = m_query_aabb_ctx.at(res.id);
+    ctx.delegate(res.id, ctx.result);
+    m_query_aabb_ctx.erase(res.id);
+}
+
 void stepper_async::sync() {
     if (!m_op_builder->empty()) {
         m_worker_ctx->send<msg::update_entities>(m_message_queue_handle.identifier, m_op_builder->finish());
@@ -247,6 +256,36 @@ void stepper_async::material_table_changed() {
 
 void stepper_async::set_center_of_mass(entt::entity entity, const vector3 &com) {
     m_worker_ctx->send<msg::set_com>(m_message_queue_handle.identifier, entity, com);
+}
+
+raycast_id_type stepper_async::raycast(vector3 p0, vector3 p1,
+                                       const raycast_delegate_type &delegate,
+                                       std::vector<entt::entity> ignore_entities) {
+    auto id = m_next_raycast_id++;
+    auto &ctx = m_raycast_ctx[id];
+    ctx.delegate = delegate;
+    ctx.p0 = p0;
+    ctx.p1 = p1;
+    m_worker_ctx->send<msg::raycast_request>(m_message_queue_handle.identifier, id, p0, p1, ignore_entities);
+
+    return id;
+}
+
+query_aabb_id_type stepper_async::query_island_aabb(const AABB &aabb,
+                                                    const query_aabb_delegate_type &delegate) {
+    return query_aabb(aabb, delegate, true);
+}
+
+query_aabb_id_type stepper_async::query_aabb(const AABB &aabb,
+                                             const query_aabb_delegate_type &delegate,
+                                             bool islands_only) {
+    auto id = m_next_query_aabb_id++;
+    auto &ctx = m_query_aabb_ctx[id];
+    ctx.delegate = delegate;
+    ctx.aabb = aabb;
+    m_worker_ctx->send<msg::query_aabb_request>(m_message_queue_handle.identifier, id, aabb, islands_only);
+
+    return id;
 }
 
 }

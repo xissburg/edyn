@@ -72,6 +72,17 @@ struct raycast_response {
     raycast_result result;
 };
 
+struct query_aabb_request {
+    unsigned id;
+    AABB aabb;
+    bool islands_only;
+};
+
+struct query_aabb_response {
+    unsigned id;
+    std::vector<entt::entity> entities;
+};
+
 }
 
 #endif // EDYN_PARALLEL_MESSAGE_HPP

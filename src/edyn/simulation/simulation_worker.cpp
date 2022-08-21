@@ -43,6 +43,7 @@
 #include <algorithm>
 #include <entt/entity/registry.hpp>
 #include <numeric>
+#include <iostream>
 
 namespace edyn {
 
@@ -83,6 +84,7 @@ simulation_worker::simulation_worker(const settings &settings,
         msg::update_entities,
         msg::apply_network_pools,
         msg::raycast_request,
+        msg::query_aabb_request,
         extrapolation_result>("worker"))
 {
     m_registry.ctx().emplace<contact_manifold_map>(m_registry);
@@ -123,6 +125,7 @@ void simulation_worker::init() {
     m_message_queue.sink<msg::set_registry_operation_context>().connect<&simulation_worker::on_set_reg_op_ctx>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&simulation_worker::on_set_material_table>(*this);
     m_message_queue.sink<msg::raycast_request>().connect<&simulation_worker::on_raycast_request>(*this);
+    m_message_queue.sink<msg::query_aabb_request>().connect<&simulation_worker::on_query_aabb_request>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&simulation_worker::on_apply_network_pools>(*this);
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
@@ -486,6 +489,11 @@ void simulation_worker::finish_step() {
 
     sync();
 
+    std::rotate(m_elapsed_samples.begin(), m_elapsed_samples.begin() + 1, m_elapsed_samples.end());
+    m_elapsed_samples.back() = performance_time() - m_step_start_time;
+    auto elapsed_avg = std::accumulate(m_elapsed_samples.begin(), m_elapsed_samples.end(), 0.0) / m_elapsed_samples.size();
+    std::cout << elapsed_avg * 1000 << std::endl;
+
     m_state = state::start;
 }
 
@@ -586,6 +594,23 @@ void simulation_worker::on_raycast_request(const message<msg::raycast_request> &
         }
     }
     m_raycast_service.add_ray(msg.content.p0, msg.content.p1, msg.content.id, ignore_entities);
+}
+
+void simulation_worker::on_query_aabb_request(const message<msg::query_aabb_request> &msg) {
+    auto &bphase = m_registry.ctx().at<broadphase>();
+    auto entities = std::vector<entt::entity>{};
+
+    if (msg.content.islands_only) {
+        bphase.query_islands(msg.content.aabb, [&entities](entt::entity island_entity) {
+            entities.push_back(island_entity);
+        });
+    } else {
+
+    }
+
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<msg::query_aabb_response>(
+            {"main"}, m_message_queue.identifier, msg.content.id, std::move(entities));
 }
 
 void simulation_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {

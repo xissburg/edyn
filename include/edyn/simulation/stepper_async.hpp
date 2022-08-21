@@ -4,7 +4,9 @@
 #include <vector>
 #include <memory>
 #include <entt/entity/fwd.hpp>
+#include "edyn/collision/query_aabb.hpp"
 #include "edyn/collision/raycast.hpp"
+#include "edyn/comp/aabb.hpp"
 #include "edyn/config/config.h"
 #include "edyn/simulation/simulation_worker_context.hpp"
 #include "edyn/parallel/message.hpp"
@@ -31,6 +33,12 @@ class stepper_async final {
         raycast_result result;
     };
 
+    struct worker_query_aabb_context {
+        AABB aabb;
+        query_aabb_delegate_type delegate;
+        std::vector<entt::entity> result;
+    };
+
 public:
     stepper_async(stepper_async const&) = delete;
     stepper_async operator=(stepper_async const&) = delete;
@@ -45,6 +53,7 @@ public:
 
     void on_step_update(const message<msg::step_update> &);
     void on_raycast_response(const message<msg::raycast_response> &);
+    void on_query_aabb_response(const message<msg::query_aabb_response> &);
 
     void update();
 
@@ -70,17 +79,13 @@ public:
 
     raycast_id_type raycast(vector3 p0, vector3 p1,
                             const raycast_delegate_type &delegate,
-                            std::vector<entt::entity> ignore_entities = {}) {
-        auto id = m_next_raycast_id++;
-        auto &ctx = m_raycast_ctx[id];
-        ctx.delegate = delegate;
-        ctx.p0 = p0;
-        ctx.p1 = p1;
+                            std::vector<entt::entity> ignore_entities = {});
 
-        m_worker_ctx->send<msg::raycast_request>(m_message_queue_handle.identifier, id, p0, p1, ignore_entities);
+    query_aabb_id_type query_island_aabb(const AABB &aabb,
+                                         const query_aabb_delegate_type &delegate);
 
-        return id;
-    }
+    query_aabb_id_type query_aabb(const AABB &aabb, const query_aabb_delegate_type &delegate,
+                                  bool islands_only = false);
 
 private:
     entt::registry *m_registry;
@@ -89,13 +94,17 @@ private:
     std::unique_ptr<registry_operation_observer> m_op_observer;
     message_queue_handle<
         msg::step_update,
-        msg::raycast_response
+        msg::raycast_response,
+        msg::query_aabb_response
     > m_message_queue_handle;
 
     bool m_importing {false};
 
     raycast_id_type m_next_raycast_id {};
     std::map<raycast_id_type, worker_raycast_context> m_raycast_ctx;
+
+    query_aabb_id_type m_next_query_aabb_id {};
+    std::map<query_aabb_id_type, worker_query_aabb_context> m_query_aabb_ctx;
 };
 
 }
