@@ -80,6 +80,7 @@ public:
     void on_set_com(const message<msg::set_com> &);
     void on_raycast_request(const message<msg::raycast_request> &);
     void on_query_aabb_request(const message<msg::query_aabb_request> &);
+    void on_query_aabb_of_interest_request(const message<msg::query_aabb_of_interest_request> &);
     void on_apply_network_pools(const message<msg::apply_network_pools> &);
     void on_extrapolation_result(const message<extrapolation_result> &);
 
@@ -111,6 +112,7 @@ private:
         msg::apply_network_pools,
         msg::raycast_request,
         msg::query_aabb_request,
+        msg::query_aabb_of_interest_request,
         extrapolation_result> m_message_queue;
 
     double m_last_time;

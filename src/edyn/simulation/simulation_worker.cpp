@@ -85,6 +85,7 @@ simulation_worker::simulation_worker(const settings &settings,
         msg::apply_network_pools,
         msg::raycast_request,
         msg::query_aabb_request,
+        msg::query_aabb_of_interest_request,
         extrapolation_result>("worker"))
 {
     m_registry.ctx().emplace<contact_manifold_map>(m_registry);
@@ -598,19 +599,81 @@ void simulation_worker::on_raycast_request(const message<msg::raycast_request> &
 
 void simulation_worker::on_query_aabb_request(const message<msg::query_aabb_request> &msg) {
     auto &bphase = m_registry.ctx().at<broadphase>();
-    auto entities = std::vector<entt::entity>{};
+    auto &request = msg.content;
+    auto response = msg::query_aabb_response{};
+    response.id = msg.content.id;
 
-    if (msg.content.islands_only) {
-        bphase.query_islands(msg.content.aabb, [&entities](entt::entity island_entity) {
-            entities.push_back(island_entity);
+    if (request.query_islands) {
+        bphase.query_islands(request.aabb, [&response](entt::entity island_entity) {
+            response.island_entities.push_back(island_entity);
         });
-    } else {
+    }
 
+    if (request.query_procedural) {
+        bphase.query_procedural(request.aabb, [&response](entt::entity entity) {
+            response.procedural_entities.push_back(entity);
+        });
+    }
+
+    if (request.query_non_procedural) {
+        bphase.query_non_procedural(request.aabb, [&response](entt::entity entity) {
+            response.non_procedural_entities.push_back(entity);
+        });
     }
 
     auto &dispatcher = message_dispatcher::global();
     dispatcher.send<msg::query_aabb_response>(
-            {"main"}, m_message_queue.identifier, msg.content.id, std::move(entities));
+            {"main"}, m_message_queue.identifier, std::move(response));
+}
+
+void simulation_worker::on_query_aabb_of_interest_request(const message<msg::query_aabb_of_interest_request> &msg) {
+    auto &bphase = m_registry.ctx().at<broadphase>();
+    auto &request = msg.content;
+    auto island_view = m_registry.view<island>();
+    auto manifold_view = m_registry.view<contact_manifold>();
+    entt::sparse_set contained_entities;
+    entt::sparse_set island_entities;
+
+    // Collect entities of islands which intersect the AABB of interest.
+    bphase.query_islands(request.aabb, [&](entt::entity island_entity) {
+        auto [island] = island_view.get(island_entity);
+
+        for (auto entity : island.nodes) {
+            if (!contained_entities.contains(entity)) {
+                contained_entities.emplace(entity);
+            }
+        }
+
+        for (auto entity : island.edges) {
+            // Ignore contact manifolds.
+            if (manifold_view.contains(entity)) {
+                continue;
+            }
+
+            if (!contained_entities.contains(entity)) {
+                contained_entities.emplace(entity);
+            }
+        }
+
+        if (!island_entities.contains(island_entity)) {
+            island_entities.emplace(island_entity);
+        }
+    });
+
+    bphase.query_non_procedural(request.aabb, [&](entt::entity np_entity) {
+        if (!contained_entities.contains(np_entity)) {
+            contained_entities.emplace(np_entity);
+        }
+    });
+
+    auto response = msg::query_aabb_response{};
+    response.id = msg.content.id;
+    response.island_entities.insert(response.island_entities.end(), island_entities.begin(), island_entities.end());
+    response.procedural_entities.insert(response.procedural_entities.end(), contained_entities.begin(), contained_entities.end());
+
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<msg::query_aabb_response>(
+            {"main"}, m_message_queue.identifier, std::move(response));
 }
 
 void simulation_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {

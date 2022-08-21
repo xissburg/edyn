@@ -43,10 +43,13 @@ public:
     void raycast(vector3 p0, vector3 p1, Func func) const;
 
     template<typename Func>
-    void query_islands(const AABB &aabb, Func func) const;
+    void query_procedural(const AABB &aabb, Func func) const;
 
     template<typename Func>
     void query_non_procedural(const AABB &aabb, Func func) const;
+
+    template<typename Func>
+    void query_islands(const AABB &aabb, Func func) const;
 
     void on_construct_aabb(entt::registry &, entt::entity);
     void on_destroy_tree_resident(entt::registry &, entt::entity);
@@ -75,9 +78,9 @@ void broadphase::raycast(vector3 p0, vector3 p1, Func func) const {
 }
 
 template<typename Func>
-void broadphase::query_islands(const AABB &aabb, Func func) const {
-    m_island_tree.query(aabb, [&](tree_node_id_t id) {
-        func(m_island_tree.get_node(id).entity);
+void broadphase::query_procedural(const AABB &aabb, Func func) const {
+    m_tree.query(aabb, [&](tree_node_id_t id) {
+        func(m_tree.get_node(id).entity);
     });
 }
 
@@ -85,6 +88,13 @@ template<typename Func>
 void broadphase::query_non_procedural(const AABB &aabb, Func func) const {
     m_np_tree.query(aabb, [&](tree_node_id_t id) {
         func(m_np_tree.get_node(id).entity);
+    });
+}
+
+template<typename Func>
+void broadphase::query_islands(const AABB &aabb, Func func) const {
+    m_island_tree.query(aabb, [&](tree_node_id_t id) {
+        func(m_island_tree.get_node(id).entity);
     });
 }
 

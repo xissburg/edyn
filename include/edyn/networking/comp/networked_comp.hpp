@@ -56,6 +56,7 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     continuous_contacts_tag,
     external_tag,
     rigidbody_tag,
+    constraint_tag,
     rolling_tag,
     roll_direction,
     null_constraint,

@@ -4,6 +4,7 @@
 #include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
+#include "edyn/collision/query_aabb.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
@@ -197,23 +198,48 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
 }
 
 void stepper_async::on_raycast_response(const message<msg::raycast_response> &msg) {
-    auto &res = msg.content;
-    auto &ctx = m_raycast_ctx.at(res.id);
+    auto &response = msg.content;
+    auto result = response.result;
 
-    if (res.result.fraction < ctx.result.fraction) {
-        ctx.result = res.result;
-        ctx.result.entity = m_worker_ctx->m_entity_map.at(ctx.result.entity);
+    if (result.entity != entt::null) {
+        if (m_worker_ctx->m_entity_map.contains(result.entity)) {
+            result.entity = m_worker_ctx->m_entity_map.at(result.entity);
+        } else {
+            result.entity = entt::null;
+        }
     }
 
-    ctx.delegate(res.id, ctx.result, ctx.p0, ctx.p1);
-    m_raycast_ctx.erase(res.id);
+    auto &ctx = m_raycast_ctx.at(response.id);
+    ctx.delegate(response.id, result, ctx.p0, ctx.p1);
+    m_raycast_ctx.erase(response.id);
 }
 
 void stepper_async::on_query_aabb_response(const message<msg::query_aabb_response> &msg) {
-    auto &res = msg.content;
-    auto &ctx = m_query_aabb_ctx.at(res.id);
-    ctx.delegate(res.id, ctx.result);
-    m_query_aabb_ctx.erase(res.id);
+    auto &response = msg.content;
+    auto result = query_aabb_result{};
+    auto &emap = m_worker_ctx->m_entity_map;
+
+    for (auto entity : response.island_entities) {
+        if (emap.contains(entity)) {
+            result.island_entities.push_back(emap.at(entity));
+        }
+    }
+
+    for (auto entity : response.procedural_entities) {
+        if (emap.contains(entity)) {
+            result.procedural_entities.push_back(emap.at(entity));
+        }
+    }
+
+    for (auto entity : response.non_procedural_entities) {
+        if (emap.contains(entity)) {
+            result.non_procedural_entities.push_back(emap.at(entity));
+        }
+    }
+
+    auto &ctx = m_query_aabb_ctx.at(response.id);
+    ctx.delegate(response.id, std::move(result));
+    m_query_aabb_ctx.erase(response.id);
 }
 
 void stepper_async::sync() {
@@ -271,19 +297,28 @@ raycast_id_type stepper_async::raycast(vector3 p0, vector3 p1,
     return id;
 }
 
-query_aabb_id_type stepper_async::query_island_aabb(const AABB &aabb,
-                                                    const query_aabb_delegate_type &delegate) {
-    return query_aabb(aabb, delegate, true);
-}
-
 query_aabb_id_type stepper_async::query_aabb(const AABB &aabb,
                                              const query_aabb_delegate_type &delegate,
-                                             bool islands_only) {
+                                             bool query_procedural,
+                                             bool query_non_procedural,
+                                             bool query_islands) {
     auto id = m_next_query_aabb_id++;
     auto &ctx = m_query_aabb_ctx[id];
     ctx.delegate = delegate;
     ctx.aabb = aabb;
-    m_worker_ctx->send<msg::query_aabb_request>(m_message_queue_handle.identifier, id, aabb, islands_only);
+    m_worker_ctx->send<msg::query_aabb_request>(m_message_queue_handle.identifier, id, aabb,
+                                                query_procedural, query_non_procedural, query_islands);
+
+    return id;
+}
+
+query_aabb_id_type stepper_async::query_aabb_of_interest(const AABB &aabb,
+                                                         const query_aabb_delegate_type &delegate) {
+    auto id = m_next_query_aabb_id++;
+    auto &ctx = m_query_aabb_ctx[id];
+    ctx.delegate = delegate;
+    ctx.aabb = aabb;
+    m_worker_ctx->send<msg::query_aabb_of_interest_request>(m_message_queue_handle.identifier, id, aabb);
 
     return id;
 }

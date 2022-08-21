@@ -30,13 +30,11 @@ class stepper_async final {
     struct worker_raycast_context {
         vector3 p0, p1;
         raycast_delegate_type delegate;
-        raycast_result result;
     };
 
     struct worker_query_aabb_context {
         AABB aabb;
         query_aabb_delegate_type delegate;
-        std::vector<entt::entity> result;
     };
 
 public:
@@ -81,11 +79,12 @@ public:
                             const raycast_delegate_type &delegate,
                             std::vector<entt::entity> ignore_entities = {});
 
-    query_aabb_id_type query_island_aabb(const AABB &aabb,
-                                         const query_aabb_delegate_type &delegate);
-
     query_aabb_id_type query_aabb(const AABB &aabb, const query_aabb_delegate_type &delegate,
-                                  bool islands_only = false);
+                                  bool query_procedural,
+                                  bool query_non_procedural,
+                                  bool query_islands);
+
+    query_aabb_id_type query_aabb_of_interest(const AABB &aabb, const query_aabb_delegate_type &delegate);
 
 private:
     entt::registry *m_registry;

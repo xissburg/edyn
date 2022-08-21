@@ -75,12 +75,21 @@ struct raycast_response {
 struct query_aabb_request {
     unsigned id;
     AABB aabb;
-    bool islands_only;
+    bool query_procedural;
+    bool query_non_procedural;
+    bool query_islands;
+};
+
+struct query_aabb_of_interest_request {
+    unsigned id;
+    AABB aabb;
 };
 
 struct query_aabb_response {
     unsigned id;
-    std::vector<entt::entity> entities;
+    std::vector<entt::entity> procedural_entities;
+    std::vector<entt::entity> non_procedural_entities;
+    std::vector<entt::entity> island_entities;
 };
 
 }
