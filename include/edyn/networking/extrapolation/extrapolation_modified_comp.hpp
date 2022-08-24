@@ -5,6 +5,8 @@
 #include <type_traits>
 #include <entt/entity/fwd.hpp>
 #include <utility>
+#include "edyn/comp/action_list.hpp"
+#include "edyn/networking/comp/network_input.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/util/tuple_util.hpp"
 
@@ -17,8 +19,12 @@ namespace edyn {
  */
 class extrapolation_modified_comp {
 public:
-    extrapolation_modified_comp(entt::registry &registry)
+    extrapolation_modified_comp(entt::registry &registry,
+                                entt::sparse_set &relevant_entities,
+                                entt::sparse_set &owned_entities)
         : m_registry(&registry)
+        , m_relevant_entities(std::move(relevant_entities))
+        , m_owned_entities(std::move(owned_entities))
     {}
 
     virtual ~extrapolation_modified_comp() = default;
@@ -27,6 +33,8 @@ public:
 
 protected:
     entt::registry *m_registry;
+    entt::sparse_set m_relevant_entities;
+    entt::sparse_set m_owned_entities;
     std::vector<entt::scoped_connection> m_connections;
 };
 
@@ -45,28 +53,48 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
         }
     }
 
+    template<typename Component, typename... Actions>
+    constexpr bool is_action_list() {
+        return std::disjunction_v<std::is_same<action_list<Actions>, Component>...>;
+    }
+
 public:
+    template<typename... Actions>
     extrapolation_modified_comp_impl(entt::registry &registry,
-                                     const std::vector<entt::entity> &relevant_entities,
-                                     [[maybe_unused]] std::tuple<Components...>)
-        : extrapolation_modified_comp(registry)
+                                     entt::sparse_set &relevant_entities,
+                                     entt::sparse_set &owned_entities,
+                                     [[maybe_unused]] std::tuple<Components...>,
+                                     [[maybe_unused]] std::tuple<Actions...>)
+        : extrapolation_modified_comp(registry, relevant_entities, owned_entities)
     {
-        for (auto entity : relevant_entities) {
+        for (auto entity : m_relevant_entities) {
             registry.emplace<modified_components>(entity);
         }
 
         (m_connections.push_back(registry.on_update<Components>().template connect<&extrapolation_modified_comp_impl<Components...>::template on_update<Components>>(*this)), ...);
+
+        unsigned i = 0;
+        ((m_is_network_input[i++] = std::is_base_of_v<network_input, Components>), ...);
+
+        i = 0;
+        ((m_is_action_list[i++] = is_action_list<Components, Actions...>()), ...);
     }
 
     void export_to_builder(registry_operation_builder &builder) override {
         for (auto [entity, modified] : m_registry->view<modified_components>().each()) {
             unsigned i = 0;
-            (((modified.bits[i] ? builder.replace<Components>(entity) : void(0)), ++i), ...);
+            // Do not include input components that belong to an owned entity.
+            (((modified[i] && (!m_owned_entities.contains(entity) || !(m_is_network_input[i] || m_is_action_list[i])) ? builder.replace<Components>(entity) : void(0)), ++i), ...);
         }
     }
+
+private:
+    std::array<bool, sizeof...(Components)> m_is_network_input;
+    std::array<bool, sizeof...(Components)> m_is_action_list;
 };
 
-using make_extrapolation_modified_comp_func_t = std::unique_ptr<extrapolation_modified_comp>(entt::registry &, const std::vector<entt::entity> &);
+using make_extrapolation_modified_comp_func_t =
+    std::unique_ptr<extrapolation_modified_comp>(entt::registry &, entt::sparse_set &, entt::sparse_set &);
 
 }
 

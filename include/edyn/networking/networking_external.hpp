@@ -1,6 +1,7 @@
 #ifndef EDYN_NETWORKING_NETWORKING_EXTERNAL_HPP
 #define EDYN_NETWORKING_NETWORKING_EXTERNAL_HPP
 
+#include <entt/entity/fwd.hpp>
 #include <tuple>
 #include <type_traits>
 #include <entt/core/fwd.hpp>
@@ -67,14 +68,14 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
         constexpr auto input_all = std::tuple_cat(input, action_lists);
         ctx->input_history = std::make_shared<decltype(input_state_history_impl(input_all))>();
 
-        // Only networked components which are not input are included in an
-        // extrapolation response.
         ctx->make_extrapolation_modified_comp = [](entt::registry &registry,
-                                                   const std::vector<entt::entity> &relevant_entities) {
-            constexpr auto non_input = std::tuple_cat(std::conditional_t<std::is_base_of_v<network_input, Components>,
-                                                      std::tuple<>, std::tuple<Components>>{}...);
+                                                   entt::sparse_set &relevant_entities,
+                                                   entt::sparse_set &owned_entities) {
+            auto external = std::tuple<Components...>{};
+            auto all = std::tuple_cat(networked_components, external);
+            auto actions = std::tuple<Actions...>{};
             return std::unique_ptr<extrapolation_modified_comp>(
-                    new extrapolation_modified_comp_impl(registry, relevant_entities, non_input));
+                    new extrapolation_modified_comp_impl(registry, relevant_entities, owned_entities, all, actions));
         };
     }
 

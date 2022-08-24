@@ -28,6 +28,7 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/time/time.hpp"
 #include <atomic>
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 
@@ -128,19 +129,20 @@ void extrapolation_job::load_input() {
     update_aabbs(m_registry);
     update_inertias(m_registry);
 
-    // Create the modified component observer with the relevant entities, i.e.
-    // entities not owned by client, since those must not be replaced by
-    // extrapolation because it would interfere with the real-time simulation.
-    auto relevant_entities = std::vector<entt::entity>{};
+    auto relevant_entities = entt::sparse_set{};
+    auto owned_entities = entt::sparse_set{};
 
     for (auto remote_entity : m_input.entities) {
-        if (!m_input.owned_entities.contains(remote_entity)) {
-            auto local_entity = m_entity_map.at(remote_entity);
-            relevant_entities.push_back(local_entity);
-        }
+        auto local_entity = m_entity_map.at(remote_entity);
+        relevant_entities.emplace(local_entity);
     }
 
-    m_modified_comp = (*m_make_extrapolation_modified_comp)(m_registry, relevant_entities);
+    for (auto remote_entity : m_input.owned_entities) {
+        auto local_entity = m_entity_map.at(remote_entity);
+        owned_entities.emplace(local_entity);
+    }
+
+    m_modified_comp = (*m_make_extrapolation_modified_comp)(m_registry, relevant_entities, owned_entities);
 }
 
 void extrapolation_job::init() {
@@ -165,8 +167,8 @@ void extrapolation_job::sync_and_finish() {
     auto &index_source = *settings.index_source;
     auto manifold_view = m_registry.view<contact_manifold>();
 
-    // Collect entities per type to be updated, including only components that
-    // have changed, i.e. continuous and dirty components.
+    // Insert modified components into a registry operation to be sent back to
+    // the main thread which will assign the extrapolated state to its entities.
     auto &reg_op_ctx = m_registry.ctx().at<registry_operation_context>();
     auto builder = (*reg_op_ctx.make_reg_op_builder)(m_registry);
 
