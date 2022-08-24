@@ -11,7 +11,6 @@
 #include "edyn/comp/shape_index.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/context/registry_operation_context.hpp"
-#include "edyn/networking/networking_external.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/replication/component_index_source.hpp"
 #include "edyn/shapes/shapes.hpp"
@@ -167,7 +166,6 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
         auto node_index = graph.insert_node(local_entity, non_connecting);
         registry.emplace<graph_node>(local_entity, node_index);
     };
-
     ops.emplace_for_each<rigidbody_tag, external_tag>(insert_node);
 
     // Insert edges in the graph for constraints.
@@ -193,8 +191,6 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
     // could be overriden in the next snapshot.
     auto &emitter = registry.ctx().at<contact_event_emitter>();
     emitter.consume_events();
-
-    (*g_mark_replaced_network_dirty)(registry, ops, m_worker_ctx->m_entity_map, m_worker_ctx->m_timestamp);
 }
 
 void stepper_async::on_raycast_response(const message<msg::raycast_response> &msg) {

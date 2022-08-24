@@ -1,8 +1,9 @@
 #ifndef EDYN_NETWORKING_EXTRAPOLATION_JOB_HPP
 #define EDYN_NETWORKING_EXTRAPOLATION_JOB_HPP
 
-#include "edyn/networking/extrapolation_input.hpp"
-#include "edyn/networking/extrapolation_result.hpp"
+#include "edyn/networking/extrapolation/extrapolation_input.hpp"
+#include "edyn/networking/extrapolation/extrapolation_modified_comp.hpp"
+#include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/replication/entity_map.hpp"
@@ -70,8 +71,10 @@ private:
     solver m_solver;
     island_manager m_island_manager;
     polyhedron_shape_initializer m_poly_initializer;
+
     extrapolation_input m_input;
     extrapolation_result m_result;
+    std::unique_ptr<extrapolation_modified_comp> m_modified_comp;
 
     state m_state;
     double m_start_time;

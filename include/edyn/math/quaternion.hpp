@@ -143,8 +143,9 @@ constexpr quaternion conjugate(const quaternion &q) noexcept {
 
 // Rotate a vector by a quaternion.
 constexpr vector3 rotate(const quaternion &q, const vector3 &v) noexcept {
-    auto r = q * v * conjugate(q);
-    return {r.x, r.y, r.z};
+    // Formula from https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Performance_comparisons
+    auto r = vector3{q.x, q.y, q.z};
+    return v + cross(scalar(2) * r, cross(r, v) + q.w * v);
 }
 
 // Build a quaternion from an angle about and axis of rotation.

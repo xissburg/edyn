@@ -1,9 +1,8 @@
-#include "edyn/networking/extrapolation_job.hpp"
+#include "edyn/networking/extrapolation/extrapolation_job.hpp"
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
-#include "edyn/comp/dirty.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/rotated_mesh_list.hpp"
@@ -126,6 +125,20 @@ void extrapolation_job::load_input() {
     update_rotated_meshes(m_registry);
     update_aabbs(m_registry);
     update_inertias(m_registry);
+
+    // Create the modified component observer with the relevant entities, i.e.
+    // entities not owned by client, since those must not be replaced by
+    // extrapolation because it would interfere with the real-time simulation.
+    auto relevant_entities = std::vector<entt::entity>{};
+
+    for (auto remote_entity : m_input.entities) {
+        if (!m_input.owned_entities.contains(remote_entity)) {
+            auto local_entity = m_entity_map.at(remote_entity);
+            relevant_entities.push_back(local_entity);
+        }
+    }
+
+    m_modified_comp = (*make_extrapolation_modified_comp)(m_registry, relevant_entities);
 }
 
 void extrapolation_job::init() {
@@ -187,19 +200,10 @@ void extrapolation_job::sync_and_finish() {
             }
         }
 
-        if (auto *dirty = m_registry.try_get<edyn::dirty>(local_entity)) {
-            // Only consider updated indices. Entities and components shouldn't be
-            // created during extrapolation.
-            for (auto id : dirty->updated_ids) {
-                if (!is_owned_entity ||
-                    !((*g_is_networked_input_component)(id) || (*g_is_action_list_component)(id))) {
-                    builder->replace_type_id(local_entity, id);
-                }
-            }
-        }
-
         m_result.entities.push_back(local_entity);
     }
+
+    m_modified_comp->export_to_builder(*builder);
 
     m_result.ops = std::move(builder->finish());
     EDYN_ASSERT(!m_result.ops.empty());
