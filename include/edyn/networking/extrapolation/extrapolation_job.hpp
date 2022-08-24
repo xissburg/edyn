@@ -51,7 +51,8 @@ public:
                       const settings &settings,
                       const registry_operation_context &reg_op_ctx,
                       const material_mix_table &material_table,
-                      std::shared_ptr<input_state_history> input_history);
+                      std::shared_ptr<input_state_history> input_history,
+                      make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp);
 
     void reschedule();
 
@@ -74,6 +75,8 @@ private:
 
     extrapolation_input m_input;
     extrapolation_result m_result;
+
+    make_extrapolation_modified_comp_func_t *m_make_extrapolation_modified_comp;
     std::unique_ptr<extrapolation_modified_comp> m_modified_comp;
 
     state m_state;

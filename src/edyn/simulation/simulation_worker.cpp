@@ -37,7 +37,7 @@
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/context/registry_operation_context.hpp"
-#include "edyn/networking/extrapolation_result.hpp"
+#include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/replication/component_index_source.hpp"
 #include <algorithm>

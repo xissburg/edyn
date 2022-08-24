@@ -2,15 +2,19 @@
 #define EDYN_NETWORKING_EXTRAPOLATION_EXTRAPOLATION_MODIFIED_COMP_HPP
 
 #include <array>
-#include <entt/entity/fwd.hpp>
 #include <type_traits>
-#include "edyn/comp/action_list.hpp"
-#include "edyn/networking/comp/network_input.hpp"
+#include <entt/entity/fwd.hpp>
+#include <utility>
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/util/tuple_util.hpp"
 
 namespace edyn {
 
+/**
+ * Keeps track of which components were modified during an extrapolation an
+ * then inserts these into a registry operation so their new state can be
+ * replicated in the main registry via the `extrapolation_result`.
+ */
 class extrapolation_modified_comp {
 public:
     extrapolation_modified_comp(entt::registry &registry)
@@ -42,9 +46,9 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
     }
 
 public:
-    template<typename... Actions>
-    extrapolation_modified_comp_impl(entt::registry &registry, const entt::sparse_set &relevant_entities,
-                                     [[maybe_unused]] std::tuple<Actions...>)
+    extrapolation_modified_comp_impl(entt::registry &registry,
+                                     const std::vector<entt::entity> &relevant_entities,
+                                     [[maybe_unused]] std::tuple<Components...>)
         : extrapolation_modified_comp(registry)
     {
         for (auto entity : relevant_entities) {
@@ -52,25 +56,17 @@ public:
         }
 
         (m_connections.push_back(registry.on_update<Components>().template connect<&extrapolation_modified_comp_impl<Components...>::template on_update<Components>>(*this)), ...);
-
-        unsigned i = 0;
-        ((m_is_network_input[i++] = std::is_base_of_v<network_input, Components>), ...);
-
-        i = 0;
-        ((m_is_action_list[i++] = std::disjunction_v<std::is_same<action_list<Actions>, Components>...>), ...);
     }
 
     void export_to_builder(registry_operation_builder &builder) override {
         for (auto [entity, modified] : m_registry->view<modified_components>().each()) {
             unsigned i = 0;
-            (((modified[i] && !m_is_network_input[i] && !m_is_action_list[i] ? builder.replace<Components>(entity) : void(0)), ++i), ...);
+            (((modified.bits[i] ? builder.replace<Components>(entity) : void(0)), ++i), ...);
         }
     }
-
-private:
-    std::array<bool, sizeof...(Components)> m_is_network_input;
-    std::array<bool, sizeof...(Components)> m_is_action_list;
 };
+
+using make_extrapolation_modified_comp_func_t = std::unique_ptr<extrapolation_modified_comp>(entt::registry &, const std::vector<entt::entity> &);
 
 }
 

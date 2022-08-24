@@ -18,10 +18,10 @@
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/sys/update_network_dirty.hpp"
+#include "edyn/networking/extrapolation/extrapolation_job.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
-#include "edyn/networking/extrapolation_job.hpp"
 #include "edyn/serialization/std_s11n.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
@@ -653,7 +653,8 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     ctx.input_history->action_time_threshold = client_settings.action_time_threshold;
 
     auto job = std::make_unique<extrapolation_job>(std::move(input), settings, reg_op_ctx,
-                                                   material_table, ctx.input_history);
+                                                   material_table, ctx.input_history,
+                                                   ctx.make_extrapolation_modified_comp);
     job->reschedule();
 
     ctx.extrapolation_jobs.emplace_back(std::move(job));

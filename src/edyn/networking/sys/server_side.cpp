@@ -108,7 +108,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     auto &ctx = registry.ctx().at<server_network_context>();
 
     // Import inputs directly into the main registry.
-    ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot, performance_time());
+    ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot);
 
     auto &stepper = registry.ctx().at<stepper_async>();
     stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));

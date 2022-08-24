@@ -10,7 +10,7 @@
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
-#include "edyn/networking/extrapolation_input.hpp"
+#include "edyn/networking/extrapolation/extrapolation_input.hpp"
 #include "edyn/replication/registry_operation.hpp"
 
 namespace edyn {
@@ -61,11 +61,21 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
         ctx->snapshot_importer.reset(new client_snapshot_importer_impl(all));
         ctx->snapshot_exporter.reset(new client_snapshot_exporter_impl(all, actions));
 
-        auto input = std::tuple_cat(std::conditional_t<std::is_base_of_v<network_input, Components>,
+        constexpr auto input = std::tuple_cat(std::conditional_t<std::is_base_of_v<network_input, Components>,
                                     std::tuple<Components>, std::tuple<>>{}...);
-        auto action_lists = std::tuple<action_list<Actions>...>{};
-        auto input_all = std::tuple_cat(input, action_lists);
+        constexpr auto action_lists = std::tuple<action_list<Actions>...>{};
+        constexpr auto input_all = std::tuple_cat(input, action_lists);
         ctx->input_history = std::make_shared<decltype(input_state_history_impl(input_all))>();
+
+        // Only networked components which are not input are included in an
+        // extrapolation response.
+        ctx->make_extrapolation_modified_comp = [](entt::registry &registry,
+                                                   const std::vector<entt::entity> &relevant_entities) {
+            constexpr auto non_input = std::tuple_cat(std::conditional_t<std::is_base_of_v<network_input, Components>,
+                                                      std::tuple<>, std::tuple<Components>>{}...);
+            return std::unique_ptr<extrapolation_modified_comp>(
+                    new extrapolation_modified_comp_impl(registry, relevant_entities, non_input));
+        };
     }
 
     if (auto *ctx = registry.ctx().find<server_network_context>()) {

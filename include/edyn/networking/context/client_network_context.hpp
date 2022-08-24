@@ -6,7 +6,8 @@
 #include "edyn/networking/util/client_snapshot_importer.hpp"
 #include "edyn/networking/util/client_snapshot_exporter.hpp"
 #include "edyn/networking/util/clock_sync.hpp"
-#include "edyn/networking/extrapolation_job.hpp"
+#include "edyn/networking/extrapolation/extrapolation_job.hpp"
+#include "edyn/networking/extrapolation/extrapolation_modified_comp.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/sparse_set.hpp>
@@ -69,6 +70,8 @@ struct client_network_context {
     auto extrapolation_timeout_sink() {
         return entt::sink{extrapolation_timeout_signal};
     }
+
+    make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp;
 
     std::shared_ptr<client_snapshot_importer> snapshot_importer;
     std::shared_ptr<client_snapshot_exporter> snapshot_exporter;

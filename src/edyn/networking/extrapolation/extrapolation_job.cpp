@@ -46,7 +46,8 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
                                      const settings &settings,
                                      const registry_operation_context &reg_op_ctx,
                                      const material_mix_table &material_table,
-                                     std::shared_ptr<input_state_history> input_history)
+                                     std::shared_ptr<input_state_history> input_history,
+                                     make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp)
     : m_input(std::move(input))
     , m_state(state::init)
     , m_current_time(input.start_time)
@@ -54,6 +55,7 @@ extrapolation_job::extrapolation_job(extrapolation_input &&input,
     , m_input_history(input_history)
     , m_poly_initializer(m_registry)
     , m_island_manager(m_registry)
+    , m_make_extrapolation_modified_comp(make_extrapolation_modified_comp)
 {
     m_registry.ctx().emplace<broadphase>(m_registry);
     m_registry.ctx().emplace<narrowphase>(m_registry);
@@ -138,7 +140,7 @@ void extrapolation_job::load_input() {
         }
     }
 
-    m_modified_comp = (*make_extrapolation_modified_comp)(m_registry, relevant_entities);
+    m_modified_comp = (*m_make_extrapolation_modified_comp)(m_registry, relevant_entities);
 }
 
 void extrapolation_job::init() {
