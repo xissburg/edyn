@@ -407,6 +407,10 @@ void island_manager::split_islands() {
             continue;
         }
 
+        // TODO: calculate all connected components and keep the bigger one in
+        // the original island. Create new islands for the smaller connected
+        // components.
+
         // Keep these connected nodes into the existing island and
         // traverse graph starting at the remaining nodes to find the other
         // connected components and create new islands for them.
@@ -499,7 +503,6 @@ void island_manager::split_islands() {
                 });
 
             m_registry->emplace<island_tag>(island_entity_new);
-
         }
     }
 

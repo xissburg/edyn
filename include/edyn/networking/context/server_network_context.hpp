@@ -10,7 +10,7 @@
 namespace edyn {
 
 struct server_network_context {
-    server_network_context();
+    server_network_context(entt::registry &);
 
     std::vector<entt::entity> pending_created_clients;
 
