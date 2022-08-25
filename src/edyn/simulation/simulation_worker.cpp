@@ -12,6 +12,8 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/networking/util/process_extrapolation_result.hpp"
+#include "edyn/networking/util/snap_to_pool_snapshot.hpp"
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
@@ -43,7 +45,6 @@
 #include <algorithm>
 #include <entt/entity/registry.hpp>
 #include <numeric>
-#include <iostream>
 
 namespace edyn {
 
@@ -490,11 +491,6 @@ void simulation_worker::finish_step() {
 
     sync();
 
-    std::rotate(m_elapsed_samples.begin(), m_elapsed_samples.begin() + 1, m_elapsed_samples.end());
-    m_elapsed_samples.back() = performance_time() - m_step_start_time;
-    auto elapsed_avg = std::accumulate(m_elapsed_samples.begin(), m_elapsed_samples.end(), 0.0) / m_elapsed_samples.size();
-    std::cout << elapsed_avg * 1000 << std::endl;
-
     m_state = state::start;
 }
 
@@ -676,75 +672,14 @@ void simulation_worker::on_query_aabb_of_interest_request(const message<msg::que
             {"main"}, m_message_queue.identifier, std::move(response));
 }
 
-void simulation_worker::import_contact_manifolds(const std::vector<contact_manifold> &manifolds) {
-    auto &manifold_map = m_registry.ctx().at<contact_manifold_map>();
-
-    for (auto manifold : manifolds) {
-        if (!m_entity_map.contains(manifold.body[0]) ||
-            !m_entity_map.contains(manifold.body[1])) {
-            continue;
-        }
-
-        manifold.body[0] = m_entity_map.at(manifold.body[0]);
-        manifold.body[1] = m_entity_map.at(manifold.body[1]);
-
-        // Find a matching manifold and replace it...
-        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
-            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
-            m_registry.get<contact_manifold>(manifold_entity) = manifold;
-        } else {
-            // ...or create a new one and assign a new value to it.
-            auto separation_threshold = contact_breaking_threshold * scalar(1.3);
-            auto manifold_entity = make_contact_manifold(m_registry,
-                                                         manifold.body[0], manifold.body[1],
-                                                         separation_threshold);
-            m_registry.get<contact_manifold>(manifold_entity) = manifold;
-        }
-    }
-}
-
-static void assign_previous_transforms(entt::registry &registry) {
-    registry.view<previous_position, position>().each([](previous_position &p_pos, position &pos) {
-        p_pos = pos;
-    });
-
-    registry.view<previous_orientation, orientation>().each([](previous_orientation &p_orn, orientation &orn) {
-        p_orn = orn;
-    });
-}
-
-static void accumulate_discontinuities(entt::registry &registry) {
-    auto discontinuity_view = registry.view<previous_position, position, previous_orientation, orientation, discontinuity>();
-
-    for (auto [entity, p_pos, pos, p_orn, orn, discontinuity] : discontinuity_view.each()) {
-        discontinuity.position_offset += p_pos - pos;
-        discontinuity.orientation_offset *= p_orn * conjugate(orn);
-    }
-}
-
 void simulation_worker::on_extrapolation_result(const message<extrapolation_result> &msg) {
     auto &result = msg.content;
-    EDYN_ASSERT(!result.ops.empty());
-
-    // Assign current transforms to previous before importing pools into registry.
-    assign_previous_transforms(m_registry);
-
-    result.ops.execute(m_registry, m_entity_map);
-
-    accumulate_discontinuities(m_registry);
-    import_contact_manifolds(result.manifolds);
+    process_extrapolation_result(m_registry, m_entity_map, result);
 }
 
 void simulation_worker::on_apply_network_pools(const message<msg::apply_network_pools> &msg) {
     EDYN_ASSERT(!msg.content.pools.empty());
-
-    assign_previous_transforms(m_registry);
-
-    for (auto &pool : msg.content.pools) {
-        pool.ptr->replace_into_registry(m_registry, msg.content.entities, m_entity_map);
-    }
-
-    accumulate_discontinuities(m_registry);
+    snap_to_pool_snapshot(m_registry, m_entity_map, msg.content.entities, msg.content.pools);
 }
 
 bool simulation_worker::is_terminated() const {

@@ -23,9 +23,14 @@ struct pool_snapshot_data {
     virtual void convert_remloc(const entt::registry &registry, const entity_map &emap) = 0;
     virtual void write(memory_output_archive &archive) = 0;
     virtual void read(memory_input_archive &archive) = 0;
+
     virtual void replace_into_registry(entt::registry &registry,
                                        const std::vector<entt::entity> &entities,
                                        const entity_map &emap) = 0;
+
+    virtual void replace_into_registry(entt::registry &registry,
+                                       const std::vector<entt::entity> &entities) = 0;
+
     virtual entt::id_type get_type_id() const = 0;
 
     bool empty() const {
@@ -104,6 +109,25 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         }
     }
 
+    void replace_into_registry(entt::registry &registry,
+                               const std::vector<entt::entity> &pool_entities) override {
+        if constexpr(!is_empty_type) {
+            EDYN_ASSERT(entity_indices.size() == components.size());
+
+            for (size_t i = 0; i < entity_indices.size(); ++i) {
+                auto entity_index = entity_indices[i];
+                auto entity = pool_entities[entity_index];
+
+                if (registry.valid(entity) && registry.all_of<Component>(entity)) {
+                    auto &comp = components[i];
+                    registry.patch<Component>(entity, [&](auto &&current) {
+                        merge_component(current, comp);
+                    });
+                }
+            }
+        }
+    }
+
     void insert_single(const entt::registry &registry, entt::entity entity,
                        std::vector<entt::entity> &pool_entities) {
         EDYN_ASSERT((registry.all_of<networked_tag, Component>(entity)));
@@ -111,7 +135,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         auto found_it = std::find(pool_entities.begin(), pool_entities.end(), entity);
         index_type idx;
 
-        if (found_it == pool_entities.end()) {
+        if (found_it != pool_entities.end()) {
             idx = std::distance(pool_entities.begin(), found_it);
         } else {
             idx = pool_entities.size();
@@ -138,7 +162,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
             auto found_it = std::find(pool_entities.begin(), pool_entities.end(), entity);
             index_type idx;
 
-            if (found_it == pool_entities.end()) {
+            if (found_it != pool_entities.end()) {
                 idx = std::distance(pool_entities.begin(), found_it);
             } else {
                 idx = pool_entities.size();

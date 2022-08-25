@@ -135,8 +135,6 @@ private:
     std::condition_variable m_terminate_cv;
 
     job m_this_job;
-
-    std::array<double, 10> m_elapsed_samples;
 };
 
 }

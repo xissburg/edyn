@@ -17,7 +17,10 @@ template<typename Func>
 void edit_client_settings(entt::registry &registry, Func func) {
     auto &client_settings = get_client_settings(registry);
     func(client_settings);
-    registry.ctx().at<stepper_async>().settings_changed();
+
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->settings_changed();
+    }
 }
 
 void set_network_client_snapshot_rate(entt::registry &registry, double rate) {

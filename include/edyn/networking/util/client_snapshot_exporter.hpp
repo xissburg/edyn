@@ -95,7 +95,10 @@ public:
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
         static constexpr auto index = index_of_v<unsigned, Component, Components...>;
-        registry.get<modified_components>(entity).time_remaining[index] = 400;
+
+        if (auto *modified = registry.try_get<modified_components>(entity)) {
+            modified->time_remaining[index] = 400;
+        }
     }
 
     template<typename It>

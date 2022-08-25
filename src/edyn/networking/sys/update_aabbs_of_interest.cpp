@@ -1,8 +1,8 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
 #include "edyn/collision/broadphase.hpp"
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/aabb_of_interest.hpp"
@@ -29,7 +29,7 @@ void follow_aabb_of_interest(entt::registry &registry) {
 
 void update_aabbs_of_interest_seq(entt::registry &registry) {
     auto owner_view = registry.view<entity_owner>();
-    auto manifold_view = registry.view<contact_manifold>();
+    auto networked_view = registry.view<networked_tag>();
     auto &bphase = registry.ctx().at<broadphase>();
 
     registry.view<aabb_of_interest>().each([&](aabb_of_interest &aabboi) {
@@ -41,18 +41,13 @@ void update_aabbs_of_interest_seq(entt::registry &registry) {
             auto &island = registry.get<edyn::island>(island_entity);
 
             for (auto entity : island.nodes) {
-                if (!contained_entities.contains(entity)) {
+                if (networked_view.contains(entity) && !contained_entities.contains(entity)) {
                     contained_entities.emplace(entity);
                 }
             }
 
             for (auto entity : island.edges) {
-                // Ignore contact manifolds.
-                if (manifold_view.contains(entity)) {
-                    continue;
-                }
-
-                if (!contained_entities.contains(entity)) {
+                if (networked_view.contains(entity) && !contained_entities.contains(entity)) {
                     contained_entities.emplace(entity);
                 }
             }
@@ -63,7 +58,7 @@ void update_aabbs_of_interest_seq(entt::registry &registry) {
         });
 
         bphase.query_non_procedural(aabboi.aabb, [&](entt::entity np_entity) {
-            if (!contained_entities.contains(np_entity)) {
+            if (networked_view.contains(np_entity) && !contained_entities.contains(np_entity)) {
                 contained_entities.emplace(np_entity);
             }
         });
@@ -144,17 +139,19 @@ void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_typ
     auto contained_entities = entt::sparse_set{};
     contained_entities.insert(result.procedural_entities.begin(), result.procedural_entities.end());
     contained_entities.insert(result.non_procedural_entities.begin(), result.non_procedural_entities.end());
+
     contained_entities.insert(client_entities.begin(), client_entities.end());
+    auto networked_view = registry.view<networked_tag>();
 
     // Calculate which entities have entered and exited the AABB of interest.
     for (auto entity : aabboi.entities) {
-        if (!contained_entities.contains(entity)) {
+        if (networked_view.contains(entity) && !contained_entities.contains(entity)) {
             aabboi.destroy_entities.push_back(entity);
         }
     }
 
     for (auto entity : contained_entities) {
-        if (!aabboi.entities.contains(entity)) {
+        if (networked_view.contains(entity) && !aabboi.entities.contains(entity)) {
             aabboi.create_entities.push_back(entity);
         }
     }

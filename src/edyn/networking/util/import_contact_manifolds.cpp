@@ -1,0 +1,37 @@
+#include "edyn/networking/util/import_contact_manifolds.hpp"
+#include "edyn/collision/contact_manifold_map.hpp"
+#include "edyn/util/constraint_util.hpp"
+#include "edyn/collision/contact_manifold.hpp"
+#include "edyn/replication/entity_map.hpp"
+
+namespace edyn {
+
+void import_contact_manifolds(entt::registry &registry, const entity_map &emap,
+                              const std::vector<contact_manifold> &manifolds) {
+    auto &manifold_map = registry.ctx().at<contact_manifold_map>();
+
+    for (auto manifold : manifolds) {
+        if (!emap.contains(manifold.body[0]) ||
+            !emap.contains(manifold.body[1])) {
+            continue;
+        }
+
+        manifold.body[0] = emap.at(manifold.body[0]);
+        manifold.body[1] = emap.at(manifold.body[1]);
+
+        // Find a matching manifold and replace it...
+        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
+            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
+            registry.replace<contact_manifold>(manifold_entity, manifold);
+        } else {
+            // ...or create a new one and assign a new value to it.
+            auto separation_threshold = contact_breaking_threshold * scalar(1.3);
+            auto manifold_entity = make_contact_manifold(registry,
+                                                         manifold.body[0], manifold.body[1],
+                                                         separation_threshold);
+            registry.replace<contact_manifold>(manifold_entity, manifold);
+        }
+    }
+}
+
+}

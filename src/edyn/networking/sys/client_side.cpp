@@ -2,6 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/config/config.h"
+#include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/comp/action_history.hpp"
@@ -18,6 +19,7 @@
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_job.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/networking/util/snap_to_pool_snapshot.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/std_s11n.hpp"
@@ -96,6 +98,14 @@ void init_network_client(entt::registry &registry) {
 
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.network_settings = client_network_settings{};
+
+    // If not running in asynchronous mode, discontinuity calculation is done
+    // in the main thread thus it's necessary to assign the previous transform
+    // component.
+    if (settings.execution_mode != execution_mode::asynchronous) {
+        registry.on_construct<position>().connect<&entt::registry::emplace<previous_position>>();
+        registry.on_construct<orientation>().connect<&entt::registry::emplace<previous_orientation>>();
+    }
 }
 
 void deinit_network_client(entt::registry &registry) {
@@ -108,6 +118,11 @@ void deinit_network_client(entt::registry &registry) {
 
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.network_settings = {};
+
+    if (settings.execution_mode != execution_mode::asynchronous) {
+        registry.on_construct<position>().disconnect<&entt::registry::emplace<previous_position>>();
+        registry.on_construct<orientation>().disconnect<&entt::registry::emplace<previous_orientation>>();
+    }
 }
 
 static void process_created_networked_entities(entt::registry &registry, double time) {
@@ -130,6 +145,8 @@ static void process_created_networked_entities(entt::registry &registry, double 
     });
 
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+
+    ctx.created_entities.clear();
 }
 
 static void process_destroyed_networked_entities(entt::registry &registry, double time) {
@@ -188,8 +205,14 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
         ctx.extrapolation_timeout_signal.publish();
     }
 
-    auto &stepper = registry.ctx().at<stepper_async>();
-    stepper.send_message_to_worker<extrapolation_result>(std::move(result));
+    auto &settings = registry.ctx().at<edyn::settings>();
+
+    if (settings.execution_mode == edyn::execution_mode::asynchronous) {
+        auto &stepper = registry.ctx().at<stepper_async>();
+        stepper.send_message_to_worker<extrapolation_result>(std::move(result));
+    } else {
+
+    }
 }
 
 static void process_finished_extrapolation_jobs(entt::registry &registry) {
@@ -449,8 +472,14 @@ static void insert_input_to_state_history(entt::registry &registry,
 }
 
 static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
-    auto &stepper = registry.ctx().at<stepper_async>();
-    stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
+    auto &settings = registry.ctx().at<edyn::settings>();
+
+    if (settings.execution_mode == edyn::execution_mode::asynchronous) {
+        auto &stepper = registry.ctx().at<stepper_async>();
+        stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
+    } else {
+        snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools);
+    }
 }
 
 static void process_packet(entt::registry &registry, packet::registry_snapshot &snapshot) {
@@ -495,9 +524,8 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     // running).
     auto needs_extrapolation = time - snapshot_time > settings.fixed_dt;
 
-    // If extrapolation is not enabled or not needed send the snapshot directly
-    // to the island workers. They will snap to this state and add the
-    // differences to the discontinuity components.
+    // If extrapolation is not enabled or not needed, snap to this state and
+    // add the differences to the discontinuity components.
     if (!needs_extrapolation || !client_settings.extrapolation_enabled) {
         snap_to_registry_snapshot(registry, snapshot);
         return;
@@ -618,10 +646,13 @@ static void process_packet(entt::registry &registry, const packet::server_settin
     settings.num_solver_position_iterations = server.num_solver_position_iterations;
     settings.num_restitution_iterations = server.num_restitution_iterations;
     settings.num_individual_restitution_iterations = server.num_individual_restitution_iterations;
-    registry.ctx().at<stepper_async>().settings_changed();
 
     auto &ctx = registry.ctx().at<client_network_context>();
     ctx.allow_full_ownership = server.allow_full_ownership;
+
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        registry.ctx().at<stepper_async>().settings_changed();
+    }
 }
 
 static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}

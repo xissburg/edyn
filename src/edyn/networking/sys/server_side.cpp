@@ -20,6 +20,7 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
+#include "edyn/networking/util/snap_to_pool_snapshot.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/time/time.hpp"
@@ -78,12 +79,17 @@ static void update_island_entity_owners(entt::registry &registry) {
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, packet::registry_snapshot &snapshot) {
     auto &ctx = registry.ctx().at<server_network_context>();
+    auto &settings = registry.ctx().at<edyn::settings>();
 
-    // Import inputs directly into the main registry.
-    ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot);
+    if (settings.execution_mode == edyn::execution_mode::asynchronous) {
+        // Import inputs directly into the main registry.
+        ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot);
 
-    auto &stepper = registry.ctx().at<stepper_async>();
-    stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
+        auto &stepper = registry.ctx().at<stepper_async>();
+        stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
+    } else {
+        snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools);
+    }
 }
 
 template<typename T>

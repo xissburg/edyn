@@ -75,7 +75,10 @@ public:
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
         static constexpr auto index = index_of_v<unsigned, Component, Components...>;
-        registry.get<modified_components>(entity).time_remaining[index] = 400;
+
+        if (auto *modified = registry.try_get<modified_components>(entity)) {
+            modified->time_remaining[index] = 400;
+        }
     }
 
     template<typename It>
@@ -108,6 +111,10 @@ public:
         // since the server allows the client to have full control over entities in
         // the islands where there are no other clients present.
         for (auto entity : entities_of_interest) {
+            if (!modified_view.contains(entity)) {
+                continue;
+            }
+
             auto [modified] = modified_view.get(entity);
 
             if (!modified.empty() && !is_fully_owned_by_client(registry, dest_client_entity, entity)) {
