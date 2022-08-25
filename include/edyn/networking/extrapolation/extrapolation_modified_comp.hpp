@@ -84,7 +84,7 @@ public:
         for (auto [entity, modified] : m_registry->view<modified_components>().each()) {
             unsigned i = 0;
             // Do not include input components that belong to an owned entity.
-            (((modified[i] && (!m_owned_entities.contains(entity) || !(m_is_network_input[i] || m_is_action_list[i])) ? builder.replace<Components>(entity) : void(0)), ++i), ...);
+            (((modified.bits[i] && (!m_owned_entities.contains(entity) || !(m_is_network_input[i] || m_is_action_list[i])) ? builder.replace<Components>(entity) : void(0)), ++i), ...);
         }
     }
 

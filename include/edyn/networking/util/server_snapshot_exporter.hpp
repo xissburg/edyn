@@ -7,6 +7,7 @@
 #include <entt/signal/sigh.hpp>
 #include <numeric>
 #include <type_traits>
+#include <vector>
 #include "edyn/comp/action_list.hpp"
 #include "edyn/config/config.h"
 #include "edyn/networking/comp/entity_owner.hpp"
@@ -25,12 +26,13 @@ public:
     virtual ~server_snapshot_exporter() = default;
 
     // Write all networked entities and components into a snapshot.
-    virtual void export_all(packet::registry_snapshot &snap) = 0;
+    virtual void export_all(packet::registry_snapshot &snap, const entt::sparse_set &entities) const = 0;
+    virtual void export_all(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const = 0;
 
     // Write all components that have been recently modified into a snapshot.
     virtual void export_modified(packet::registry_snapshot &snap,
                                  const entt::sparse_set &entities_of_interest,
-                                 entt::entity dest_client_entity) = 0;
+                                 entt::entity dest_client_entity) const = 0;
 
     // Decays the time remaining in each of the recently modified components.
     // They stop being included in the snapshot once the timer reaches zero.
@@ -48,12 +50,6 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
         }
     };
 
-    template<typename Component>
-    void on_update(entt::registry &registry, entt::entity entity) {
-        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
-        registry.get<modified_components>(entity).time_remaining[index] = 400;
-    }
-
     template<typename Component, typename... Actions>
     constexpr bool is_action_list() {
         return std::disjunction_v<std::is_same<action_list<Actions>, Component>...>;
@@ -67,7 +63,7 @@ public:
         : m_registry(&registry)
     {
         m_connections.push_back(registry.on_construct<networked_tag>().connect<&entt::registry::emplace<modified_components>>());
-        ((m_connections.push_back(registry.on_update<Components>().connect<&server_snapshot_exporter_impl<Components...>::on_update<Components>(*this))), ...);
+        ((m_connections.push_back(registry.on_update<Components>().template connect<&server_snapshot_exporter_impl<Components...>::template on_update<Components>>(*this))), ...);
 
         unsigned i = 0;
         ((m_is_network_input[i++] = std::is_base_of_v<network_input, Components>), ...);
@@ -76,15 +72,33 @@ public:
         ((m_is_action_list[i++] = is_action_list<Components, Actions...>()), ...);
     }
 
-    void export_all(packet::registry_snapshot &snap) override {
-        const std::tuple<Components...> components;
-        internal::snapshot_insert_entity_components_all(*m_registry, snap, components,
-                                                        std::make_index_sequence<sizeof...(Components)>{});
+    template<typename Component>
+    void on_update(entt::registry &registry, entt::entity entity) {
+        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
+        registry.get<modified_components>(entity).time_remaining[index] = 400;
+    }
+
+    template<typename It>
+    void export_all(packet::registry_snapshot &snap, It first, It last) const {
+        for (; first != last; ++first) {
+            auto entity = *first;
+            unsigned i = 0;
+            (((m_registry->all_of<Components>(entity) ?
+                internal::snapshot_insert_entity<Components>(*m_registry, entity, snap, i) : void(0)), ++i), ...);
+        }
+    }
+
+    void export_all(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const override {
+        export_all(snap, entities.begin(), entities.end());
+    }
+
+    void export_all(packet::registry_snapshot &snap, const entt::sparse_set &entities) const override {
+        export_all(snap, entities.begin(), entities.end());
     }
 
     void export_modified(packet::registry_snapshot &snap,
                          const entt::sparse_set &entities_of_interest,
-                         entt::entity dest_client_entity) override {
+                         entt::entity dest_client_entity) const override {
         auto &registry = *m_registry;
         auto owner_view = registry.view<entity_owner>();
         auto modified_view = registry.view<modified_components>();

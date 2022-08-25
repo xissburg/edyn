@@ -21,6 +21,13 @@ struct island {
     std::optional<double> sleep_timestamp;
 };
 
+struct island_delta {
+    std::vector<entt::entity> nodes_added;
+    std::vector<entt::entity> nodes_removed;
+    std::vector<entt::entity> edges_added;
+    std::vector<entt::entity> edges_removed;
+};
+
 struct island_AABB : public AABB {};
 
 /**

@@ -104,60 +104,47 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         }
     }
 
-    void insert_all(const entt::registry &registry,
-                    const std::vector<entt::entity> &pool_entities) {
-        auto view = registry.view<Component, networked_tag>();
-
-        for (index_type idx = 0; idx < pool_entities.size(); ++idx) {
-            auto entity = pool_entities[idx];
-
-            if (view.contains(entity)) {
-                entity_indices.push_back(idx);
-
-                if constexpr(!is_empty_type) {
-                    auto [comp] = view.get(entity);
-                    components.push_back(comp);
-                }
-            }
-        }
-    }
-
     void insert_single(const entt::registry &registry, entt::entity entity,
-                       const std::vector<entt::entity> &pool_entities) {
-        auto found_it = std::find(pool_entities.begin(), pool_entities.end(), entity);
-        auto view = registry.view<Component>();
+                       std::vector<entt::entity> &pool_entities) {
+        EDYN_ASSERT((registry.all_of<networked_tag, Component>(entity)));
 
-        if (found_it == pool_entities.end() || !view.contains(entity)) {
-            return;
+        auto found_it = std::find(pool_entities.begin(), pool_entities.end(), entity);
+        index_type idx;
+
+        if (found_it == pool_entities.end()) {
+            idx = std::distance(pool_entities.begin(), found_it);
+        } else {
+            idx = pool_entities.size();
+            pool_entities.push_back(entity);
         }
 
-        EDYN_ASSERT(registry.all_of<networked_tag>(entity));
-
-        auto idx = std::distance(pool_entities.begin(), found_it);
         entity_indices.push_back(idx);
 
         if constexpr(!is_empty_type) {
-            auto [comp] = view.get(entity);
+            auto &comp = registry.get<Component>(entity);
             components.push_back(comp);
         }
     }
 
     template<typename It>
     void insert(const entt::registry &registry, It first, It last,
-                const std::vector<entt::entity> &pool_entities) {
+                std::vector<entt::entity> &pool_entities) {
         auto view = registry.view<Component>();
 
         for (; first != last; ++first) {
             auto entity = *first;
-            auto found_it = std::find(pool_entities.begin(), pool_entities.end(), entity);
+            EDYN_ASSERT((registry.all_of<networked_tag, Component>(entity)));
 
-            if (found_it == pool_entities.end() || !view.contains(entity)) {
-                continue;
+            auto found_it = std::find(pool_entities.begin(), pool_entities.end(), entity);
+            index_type idx;
+
+            if (found_it == pool_entities.end()) {
+                idx = std::distance(pool_entities.begin(), found_it);
+            } else {
+                idx = pool_entities.size();
+                pool_entities.push_back(entity);
             }
 
-            EDYN_ASSERT(registry.all_of<networked_tag>(entity));
-
-            auto idx = std::distance(pool_entities.begin(), found_it);
             entity_indices.push_back(idx);
 
             if constexpr(!is_empty_type) {

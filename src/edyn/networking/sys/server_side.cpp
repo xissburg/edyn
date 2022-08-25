@@ -28,6 +28,7 @@
 #include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/time/simulation_time.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <set>
@@ -352,8 +353,7 @@ static void process_aabb_of_interest_created_entities(entt::registry &registry,
     }
 
     auto owner_view = registry.view<entity_owner>();
-    auto packet = packet::create_entity{};
-    packet.timestamp = time;
+    entt::sparse_set entities;
 
     for (auto entity : aabboi.create_entities) {
         // Ignore entities owned by client, since these entities must be
@@ -361,13 +361,16 @@ static void process_aabb_of_interest_created_entities(entt::registry &registry,
         if (!owner_view.contains(entity) ||
             std::get<0>(owner_view.get(entity)).client_entity != client_entity)
         {
-            packet.entities.push_back(entity);
+            entities.emplace(entity);
         }
     }
 
-    if (!packet.entities.empty()) {
+    if (!entities.empty()) {
+        auto packet = packet::create_entity{};
+        packet.timestamp = time;
+
         auto &ctx = registry.ctx().at<server_network_context>();
-        ctx.snapshot_exporter->export_all(packet);
+        ctx.snapshot_exporter->export_all(packet, entities);
 
         // Sort components to ensure order of construction on the other end.
         std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
@@ -671,8 +674,7 @@ void server_notify_created_entities(entt::registry &registry,
 
     auto packet = edyn::packet::create_entity{};
     packet.timestamp = performance_time();
-    packet.entities = entities;
-    ctx.snapshot_exporter->export_all(packet);
+    ctx.snapshot_exporter->export_all(packet, entities);
 
     // Sort components to ensure order of construction.
     std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {

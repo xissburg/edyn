@@ -31,7 +31,7 @@ struct extrapolation_job_context {
 };
 
 struct client_network_context {
-    client_network_context();
+    client_network_context(entt::registry &registry);
 
     entt::entity client_entity {entt::null};
     entt::sparse_set owned_entities {};

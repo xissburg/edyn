@@ -87,7 +87,7 @@ static void update_input_history(entt::registry &registry, double timestamp) {
 }
 
 void init_network_client(entt::registry &registry) {
-    registry.ctx().emplace<client_network_context>();
+    registry.ctx().emplace<client_network_context>(registry);
 
     registry.on_construct<networked_tag>().connect<&on_construct_networked_entity>();
     registry.on_destroy<networked_tag>().connect<&on_destroy_networked_entity>();
@@ -117,14 +117,12 @@ static void process_created_networked_entities(entt::registry &registry, double 
         return;
     }
 
+    // Assign current client as owner of all created entities.
+    registry.insert(ctx.created_entities.begin(), ctx.created_entities.end(), entity_owner{ctx.client_entity});
+
     packet::create_entity packet;
     packet.timestamp = time;
-    packet.entities = std::move(ctx.created_entities);
-
-    ctx.snapshot_exporter->export_all(registry, packet);
-
-    // Assign current client as owner of all created entities.
-    registry.insert(packet.entities.begin(), packet.entities.end(), entity_owner{ctx.client_entity});
+    ctx.snapshot_exporter->export_all(packet, ctx.created_entities);
 
     // Sort components to ensure order of construction.
     std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
@@ -158,75 +156,8 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
 
     ctx.last_snapshot_time = time;
 
-    auto network_dirty_view = registry.view<network_dirty>();
-
-    if (ctx.allow_full_ownership) {
-        // Include all networked entities in the islands that contain an entity
-        // owned by this client, excluding entities that are owned by other clients.
-        auto island_entities = collect_islands_from_residents(registry,
-                                                              ctx.owned_entities.begin(),
-                                                              ctx.owned_entities.end());
-        auto owner_view = registry.view<entity_owner>();
-        auto island_view = registry.view<island>();
-
-        for (auto [entity, n_dirty] : network_dirty_view.each()) {
-            bool contained_in_island = false;
-
-            for (auto island_entity : island_entities) {
-                auto [island] = island_view.get(island_entity);
-
-                if (island.nodes.contains(entity) || island.edges.contains(entity)) {
-                    contained_in_island = true;
-                    break;
-                }
-            }
-
-            if (!contained_in_island) {
-                registry.remove<network_dirty>(entity);
-                continue;
-            }
-
-            auto is_owned_by_another_client =
-                owner_view.contains(entity) &&
-                std::get<0>(owner_view.get(entity)).client_entity != ctx.client_entity;
-
-            if (is_owned_by_another_client) {
-                registry.remove<network_dirty>(entity);
-            }
-        }
-    } else {
-        // Only include input components of entities owned by this client.
-        for (auto [entity, n_dirty] : network_dirty_view.each()) {
-            if (!ctx.owned_entities.contains(entity)) {
-                registry.remove<network_dirty>(entity);
-                continue;
-            }
-
-            n_dirty.erase_if([&](entt::id_type id) {
-                return !(*g_is_networked_input_component)(id);
-            });
-
-            if (n_dirty.empty()) {
-                registry.remove<network_dirty>(entity);
-            }
-        }
-    }
-
     auto packet = packet::registry_snapshot{};
-    packet.entities.insert(packet.entities.end(), network_dirty_view.begin(), network_dirty_view.end());
-
-    auto history_view = registry.view<action_history>();
-
-    for (auto entity : ctx.owned_entities) {
-        if (history_view.contains(entity) && !history_view.get<action_history>(entity).entries.empty()) {
-            packet.entities.push_back(entity);
-        }
-    }
-
-    ctx.snapshot_exporter->export_dirty(registry, packet);
-
-    // Always include actions.
-    ctx.snapshot_exporter->export_actions(registry, packet);
+    ctx.snapshot_exporter->export_modified(packet, ctx.client_entity, ctx.owned_entities, ctx.allow_full_ownership);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
         // Assign island timestamp as packet timestamp if available.
@@ -297,7 +228,12 @@ static void trim_and_insert_actions(entt::registry &registry, double time) {
     });
 
     // Insert current action lists into action history.
-    ctx.snapshot_exporter->append_current_actions(registry, time);
+    ctx.snapshot_exporter->append_current_actions(time);
+}
+
+void update_client_snapshot_exporter(entt::registry &registry, double time) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+    ctx.snapshot_exporter->update(time);
 }
 
 void update_network_client(entt::registry &registry) {
@@ -306,7 +242,7 @@ void update_network_client(entt::registry &registry) {
     client_update_clock_sync(registry, time);
     process_created_networked_entities(registry, time);
     process_destroyed_networked_entities(registry, time);
-    update_network_dirty(registry, time);
+    update_client_snapshot_exporter(registry, time);
     maybe_publish_registry_snapshot(registry, time);
     process_finished_extrapolation_jobs(registry);
     update_input_history(registry, time);

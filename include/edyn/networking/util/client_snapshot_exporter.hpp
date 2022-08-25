@@ -16,28 +16,31 @@ namespace edyn {
 
 class client_snapshot_exporter {
 public:
+    client_snapshot_exporter(entt::registry &registry)
+        : m_registry(&registry)
+    {}
+
     virtual ~client_snapshot_exporter() = default;
 
     // Write all networked entities and components into a snapshot.
-    virtual void export_all(const entt::registry &registry, packet::registry_snapshot &snap) = 0;
+    virtual void export_all(packet::registry_snapshot &snap, const entt::sparse_set &entities) const = 0;
+    virtual void export_all(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const = 0;
 
     // Write all modified networked entities and components into a snapshot.
-    virtual void export_modified(const entt::registry &registry, packet::registry_snapshot &snap) = 0;
+    virtual void export_modified(packet::registry_snapshot &snap, entt::entity client_entity,
+                                 const entt::sparse_set &owned_entities, bool allow_full_ownership) const = 0;
 
-    void export_actions(const entt::registry &registry, packet::registry_snapshot &snap) {
-        internal::snapshot_insert_all<action_history>(registry, snap,
-            tuple_index_of<unsigned, action_history>(networked_components));
-    }
-
-    void append_current_actions(entt::registry &registry, double time) {
+    void append_current_actions(double time) {
         if (m_append_current_actions_func != nullptr) {
-            (*m_append_current_actions_func)(registry, time);
+            (*m_append_current_actions_func)(*m_registry, time);
         }
     }
 
     virtual void update(double time) = 0;
 
 protected:
+    entt::registry *m_registry;
+
     using append_current_actions_func_t = void(entt::registry &registry, double time);
     append_current_actions_func_t *m_append_current_actions_func {nullptr};
 };
@@ -52,12 +55,6 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
             return std::accumulate(time_remaining.begin(), time_remaining.end(), 0) > 0;
         }
     };
-
-    template<typename Component>
-    void on_update(entt::registry &registry, entt::entity entity) {
-        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
-        registry.get<modified_components>(entity).time_remaining[index] = 400;
-    }
 
     template<typename Action>
     static void append_actions(entt::registry &registry, double time) {
@@ -82,22 +79,46 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
 
 public:
     template<typename... Actions>
-    client_snapshot_exporter_impl([[maybe_unused]] std::tuple<Components...>,
-                                  [[maybe_unused]] std::tuple<Actions...>) {
+    client_snapshot_exporter_impl(entt::registry &registry,
+                                  [[maybe_unused]] std::tuple<Components...>,
+                                  [[maybe_unused]] std::tuple<Actions...>)
+        : client_snapshot_exporter(registry)
+    {
+        m_connections.push_back(registry.on_construct<networked_tag>().connect<&entt::registry::emplace<modified_components>>());
+        ((m_connections.push_back(registry.on_update<Components>().template connect<&client_snapshot_exporter_impl<Components...>::template on_update<Components>>(*this))), ...);
+
         if constexpr(sizeof...(Actions) > 0) {
             m_append_current_actions_func = &append_current_actions<Actions...>;
         }
     }
 
-    void export_all(const entt::registry &registry, packet::registry_snapshot &snap) override {
-        const std::tuple<Components...> components;
-        internal::snapshot_insert_entity_components_all(registry, snap, components,
-                                                        std::make_index_sequence<sizeof...(Components)>{});
+    template<typename Component>
+    void on_update(entt::registry &registry, entt::entity entity) {
+        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
+        registry.get<modified_components>(entity).time_remaining[index] = 400;
     }
 
-    void export_modified(const entt::registry &registry, packet::registry_snapshot &snap,
-                         entt::entity client_entity, const entt::sparse_set &owned_entities,
-                         bool allow_full_ownership) override {
+    template<typename It>
+    void export_all(packet::registry_snapshot &snap, It first, It last) const {
+        for (; first != last; ++first) {
+            auto entity = *first;
+            unsigned i = 0;
+            (((m_registry->all_of<Components>(entity) ?
+                internal::snapshot_insert_entity<Components>(*m_registry, entity, snap, i) : void(0)), ++i), ...);
+        }
+    }
+
+    void export_all(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const override {
+        export_all(snap, entities.begin(), entities.end());
+    }
+
+    void export_all(packet::registry_snapshot &snap, const entt::sparse_set &entities) const override {
+        export_all(snap, entities.begin(), entities.end());
+    }
+
+    void export_modified(packet::registry_snapshot &snap, entt::entity client_entity,
+                         const entt::sparse_set &owned_entities, bool allow_full_ownership) const override {
+        auto &registry = *m_registry;
         auto modified_view = registry.view<modified_components>();
 
         if (allow_full_ownership) {
@@ -116,8 +137,11 @@ public:
                             owner_view.contains(entity) &&
                             std::get<0>(owner_view.get(entity)).client_entity != client_entity;
 
-                        if (!is_owned_by_another_client && !std::get<0>(modified_view.get(entity)).empty()) {
-                            snap.entities.push_back(entity);
+                        if (!is_owned_by_another_client) {
+                            auto [modified] = modified_view.get(entity);
+                            unsigned i = 0;
+                            (((registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?
+                                internal::snapshot_insert_entity<Components>(registry, entity, snap, i) : void(0)), ++i), ...);
                         }
                     }
                 }
@@ -128,38 +152,41 @@ public:
             for (auto entity : owned_entities) {
                 auto [modified] = modified_view.get(entity);
                 unsigned i = 0;
-                ((std::is_base_of_v<network_input, Components> && registry.all_of<Components>(entity) && modified.time_remaining[i++] > 0 ?
-                    snap.entities.push_back(entity) : void(0)), ...);
-            }
-
-            for (auto entity : owned_entities) {
-                auto [modified] = modified_view.get(entity);
-                unsigned i = 0;
-                ((std::is_base_of_v<network_input, Components> && registry.all_of<Components>(entity) && modified.time_remaining[i++] > 0 ?
-                    internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ...);
+                (((std::is_base_of_v<network_input, Components> && registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?
+                    internal::snapshot_insert_entity<Components>(registry, entity, snap, i) : void(0)), ++i), ...);
             }
         }
 
+        // Always include actions.
         auto history_view = registry.view<action_history>();
+        static constexpr auto action_history_index = index_of_v<unsigned, action_history, Components...>;
 
         for (auto entity : owned_entities) {
             if (history_view.contains(entity) && !std::get<0>(history_view.get(entity)).entries.empty()) {
-                snap.entities.push_back(entity);
+                internal::snapshot_insert_entity<action_history>(registry, entity, snap, action_history_index);
             }
         }
-
-        constexpr auto indices = std::make_integer_sequence<unsigned, sizeof...(Components)>{};
-        auto network_dirty_view = registry.view<network_dirty>();
-
-        network_dirty_view.each([&](entt::entity entity, const network_dirty &n_dirty) {
-            n_dirty.each([&](entt::id_type id) {
-                export_by_type_id(registry, entity, id, snap, indices);
-            });
-        });
-
-        // Always include actions.
-        export_actions(registry, packet);
     }
+
+    void update(double time) override {
+        EDYN_ASSERT(!(time < m_last_time));
+        auto elapsed_ms = static_cast<unsigned>(time - m_last_time) * 1000u;
+        m_last_time = time;
+
+        m_registry->view<modified_components>().each([&](modified_components &modified) {
+            for (auto &remaining : modified.time_remaining) {
+                if (elapsed_ms > remaining) {
+                    remaining = 0;
+                } else {
+                    remaining -= elapsed_ms;
+                }
+            }
+        });
+    }
+
+private:
+    std::vector<entt::scoped_connection> m_connections;
+    double m_last_time {};
 };
 
 }
