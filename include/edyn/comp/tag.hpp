@@ -60,12 +60,6 @@ struct sleeping_disabled_tag {};
 struct disabled_tag {};
 
 /**
- * A rigid body which will have its contact state continuously updated in the
- * main registry.
- */
-struct continuous_contacts_tag {};
-
-/**
  * A rigid body which holds a shape that can roll. An extra step will be
  * performed to help improve contact point persistence when rolling at
  * higher speeds.

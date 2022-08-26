@@ -9,11 +9,16 @@
 #include <type_traits>
 #include <vector>
 #include "edyn/comp/action_list.hpp"
+#include "edyn/comp/angvel.hpp"
+#include "edyn/comp/linvel.hpp"
+#include "edyn/comp/orientation.hpp"
+#include "edyn/comp/position.hpp"
 #include "edyn/config/config.h"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/networking/util/is_fully_owned_by_client.hpp"
+#include "edyn/util/island_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 
 namespace edyn {
@@ -105,6 +110,7 @@ public:
         auto &registry = *m_registry;
         auto owner_view = registry.view<entity_owner>();
         auto modified_view = registry.view<modified_components>();
+        auto body_view = m_registry->view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
 
         // Export components.
         // Do not include input components of entities owned by destination
@@ -121,6 +127,13 @@ public:
                 unsigned i = 0;
                 (((modified.time_remaining[i] > 0 && (!owned_by_client || !(m_is_network_input[i] || m_is_action_list[i])) ?
                     internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
+            }
+
+            if (body_view.contains(entity)) {
+                internal::snapshot_insert_entity<position>(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
+                internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
+                internal::snapshot_insert_entity<linvel>(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
+                internal::snapshot_insert_entity<angvel>(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
             }
         }
     }

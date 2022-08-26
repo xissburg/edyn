@@ -139,7 +139,6 @@ add_library(Edyn
     src/edyn/networking/util/process_extrapolation_result.cpp
     src/edyn/networking/util/snap_to_pool_snapshot.cpp
     src/edyn/networking/networking_external.cpp
-    src/edyn/context/settings.cpp
     src/edyn/context/registry_operation_context.cpp
     src/edyn/context/step_callback.cpp
     src/edyn/edyn.cpp

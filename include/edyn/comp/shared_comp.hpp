@@ -19,7 +19,6 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
-#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
@@ -54,7 +53,6 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     contact_manifold,
     contact_manifold_with_restitution,
     contact_manifold_events,
-    continuous,
     center_of_mass,
     origin,
     dynamic_tag,
@@ -64,7 +62,6 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     sleeping_tag,
     sleeping_disabled_tag,
     disabled_tag,
-    continuous_contacts_tag,
     external_tag,
     shape_index,
     rigidbody_tag,

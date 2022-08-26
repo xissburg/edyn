@@ -13,8 +13,6 @@
 
 namespace edyn {
 
-struct component_index_source;
-
 struct settings {
     scalar fixed_dt {scalar(1.0 / 60)};
     bool paused {false};
@@ -27,7 +25,6 @@ struct settings {
 
     execution_mode execution_mode;
 
-    std::shared_ptr<component_index_source> index_source;
     step_callback_t pre_step_callback {nullptr};
     step_callback_t post_step_callback {nullptr};
     should_collide_func_t should_collide_func {&should_collide_default};
@@ -39,8 +36,6 @@ struct settings {
         std::monostate,
         client_network_settings,
         server_network_settings> network_settings;
-
-    settings();
 };
 
 }

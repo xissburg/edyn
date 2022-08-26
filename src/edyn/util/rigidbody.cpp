@@ -18,14 +18,12 @@
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
-#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/dynamics/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/util/gravity_util.hpp"
 #include "edyn/simulation/stepper_async.hpp"
-#include "edyn/replication/component_index_source.hpp"
 #include "edyn/context/settings.hpp"
 
 namespace edyn {
@@ -125,10 +123,6 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         }
     }
 
-    if (def.continuous_contacts) {
-        registry.emplace<continuous_contacts_tag>(entity);
-    }
-
     switch (def.kind) {
     case rigidbody_kind::rb_dynamic:
         registry.emplace<dynamic_tag>(entity);
@@ -140,19 +134,6 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     case rigidbody_kind::rb_static:
         registry.emplace<static_tag>(entity);
         break;
-    }
-
-    if (def.kind == rigidbody_kind::rb_dynamic) {
-        // Instruct island worker to continuously send position, orientation and
-        // velocity updates back to main. The velocity is needed for calculation
-        // of the present position and orientation in `update_presentation`.
-        auto &settings = registry.ctx().at<edyn::settings>();
-        auto &cont = registry.emplace<continuous>(entity);
-        cont.insert(settings.index_source->indices_of<continuous::index_type, position, orientation, linvel, angvel>());
-
-        if (def.center_of_mass) {
-            cont.insert(settings.index_source->index_of<origin, continuous::index_type>());
-        }
     }
 
     if (def.sleeping_disabled) {
@@ -332,24 +313,10 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
         } else {
             registry.emplace<center_of_mass>(entity, com);
             registry.emplace<edyn::origin>(entity, origin);
-
-            if (registry.any_of<dynamic_tag>(entity)) {
-                auto &settings = registry.ctx().at<edyn::settings>();
-                registry.patch<continuous>(entity, [&](continuous &con) {
-                    con.insert(settings.index_source->index_of<edyn::origin>());
-                });
-            }
         }
     } else if (has_com) {
         registry.remove<center_of_mass>(entity);
         registry.remove<edyn::origin>(entity);
-
-        if (registry.any_of<dynamic_tag>(entity)) {
-            auto &settings = registry.ctx().at<edyn::settings>();
-            registry.patch<continuous>(entity, [&](continuous &con) {
-                con.remove(settings.index_source->index_of<edyn::origin>());
-            });
-        }
     }
 }
 

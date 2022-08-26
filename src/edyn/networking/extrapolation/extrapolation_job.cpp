@@ -17,7 +17,6 @@
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
-#include "edyn/replication/component_index_source.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/sys/update_aabbs.hpp"
@@ -162,10 +161,6 @@ void extrapolation_job::apply_history() {
 }
 
 void extrapolation_job::sync_and_finish() {
-    // Update continuous components.
-    auto &settings = m_registry.ctx().at<edyn::settings>();
-    auto &index_source = *settings.index_source;
-    auto manifold_view = m_registry.view<contact_manifold>();
 
     // Insert modified components into a registry operation to be sent back to
     // the main thread which will assign the extrapolated state to its entities.
@@ -180,39 +175,19 @@ void extrapolation_job::sync_and_finish() {
         });
     }
 
-    for (auto remote_entity : m_input.entities) {
-        if (!m_entity_map.contains(remote_entity)) continue;
-
-        auto local_entity = m_entity_map.at(remote_entity);
-
-        // Manifolds are shared separately.
-        if (!m_registry.valid(local_entity) || manifold_view.contains(local_entity)) continue;
-
-        // Do not include input components of entities owned by the client,
-        // since that would cause the latest user inputs to be replaced.
-        // Note the use of `remote_entity` next.
-        auto is_owned_entity = m_input.owned_entities.contains(remote_entity);
-
-        if (auto *cont = m_registry.try_get<continuous>(local_entity)) {
-            for (size_t i = 0; i < cont->size; ++i) {
-                auto id = index_source.type_id_of(cont->indices[i]);
-
-                if (!is_owned_entity ||
-                    !((*g_is_networked_input_component)(id) || (*g_is_action_list_component)(id))) {
-                    builder->replace_type_id(local_entity, id);
-                }
-            }
-        }
-
-        m_result.entities.push_back(local_entity);
-    }
-
     m_modified_comp->export_to_builder(*builder);
+
+    auto body_view = m_registry.view<position, orientation, linvel, angvel>();
+    builder->replace<position>(body_view.begin(), body_view.end());
+    builder->replace<orientation>(body_view.begin(), body_view.end());
+    builder->replace<linvel>(body_view.begin(), body_view.end());
+    builder->replace<angvel>(body_view.begin(), body_view.end());
 
     m_result.ops = std::move(builder->finish());
     EDYN_ASSERT(!m_result.ops.empty());
 
     // Insert all manifolds into it.
+    auto manifold_view = m_registry.view<contact_manifold>();
     manifold_view.each([&](contact_manifold &manifold) {
         m_result.manifolds.push_back(manifold);
     });

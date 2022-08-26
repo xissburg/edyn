@@ -6,7 +6,6 @@ namespace edyn {
 
 void remove_external_components(entt::registry &registry) {
     auto &settings = registry.ctx().at<edyn::settings>();
-    settings.index_source.reset(new component_index_source_impl(shared_components_t{}));
     settings.clear_actions_func = nullptr;
 
     auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();

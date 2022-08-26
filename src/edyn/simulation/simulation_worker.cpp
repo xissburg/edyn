@@ -3,8 +3,10 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
+#include "edyn/comp/angvel.hpp"
+#include "edyn/comp/linvel.hpp"
+#include "edyn/comp/position.hpp"
 #include "edyn/constraints/constraint.hpp"
-#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/origin.hpp"
@@ -41,7 +43,6 @@
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
-#include "edyn/replication/component_index_source.hpp"
 #include <algorithm>
 #include <entt/entity/registry.hpp>
 #include <numeric>
@@ -304,14 +305,12 @@ void simulation_worker::sync() {
     // Always update discontinuities since they decay in every step.
     m_op_builder->replace<discontinuity>();
 
-    // Update continuous components.
-    auto &settings = m_registry.ctx().at<edyn::settings>();
-    auto &index_source = *settings.index_source;
-    for (auto [entity, cont] : m_registry.view<continuous>(exclude_sleeping_disabled).each()) {
-        for (size_t i = 0; i < cont.size; ++i) {
-            m_op_builder->replace_type_id(entity, index_source.type_id_of(cont.indices[i]));
-        }
-    }
+    // TODO: move this to solver
+    auto body_view = m_registry.view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
+    m_op_builder->replace<position>(body_view.begin(), body_view.end());
+    m_op_builder->replace<orientation>(body_view.begin(), body_view.end());
+    m_op_builder->replace<linvel>(body_view.begin(), body_view.end());
+    m_op_builder->replace<angvel>(body_view.begin(), body_view.end());
 
     if (!m_op_builder->empty()) {
         auto &&ops = std::move(m_op_builder->finish());

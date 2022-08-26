@@ -6,7 +6,6 @@
 #include "edyn/comp/shared_comp.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/context/registry_operation_context.hpp"
-#include "edyn/replication/component_index_source.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/replication/registry_operation_observer.hpp"
 #include "edyn/simulation/stepper_async.hpp"
@@ -46,10 +45,9 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
     auto action_lists = std::tuple<action_list<Actions>...>{};
     auto all_components = std::tuple_cat(shared_components_t{}, external, action_lists);
 
-    auto &settings = registry.ctx().at<edyn::settings>();
-    settings.index_source.reset(new component_index_source_impl(all_components));
 
     if constexpr(sizeof...(Actions) > 0) {
+        auto &settings = registry.ctx().at<edyn::settings>();
         settings.clear_actions_func = [](entt::registry &registry) {
             (registry.clear<action_list<Actions>>(), ...);
         };

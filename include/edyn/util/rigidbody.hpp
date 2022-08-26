@@ -58,9 +58,6 @@ struct rigidbody_def {
     uint64_t collision_group {collision_filter::all_groups};
     uint64_t collision_mask {collision_filter::all_groups};
 
-    // Mark all contacts involving this rigid body as continuous.
-    bool continuous_contacts {false};
-
     // Whether this entity will be used for presentation and needs
     // position/orientation interpolation.
     bool presentation {true};

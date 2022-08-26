@@ -130,6 +130,7 @@ public:
             auto island_entities = collect_islands_from_residents(registry, owned_entities.begin(), owned_entities.end());
             auto owner_view = registry.view<entity_owner>();
             auto island_view = registry.view<island>();
+            auto body_view = m_registry->view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
 
             for (auto island_entity : island_entities) {
                 auto [island] = island_view.get(island_entity);
@@ -145,6 +146,13 @@ public:
                             unsigned i = 0;
                             (((registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?
                                 internal::snapshot_insert_entity<Components>(registry, entity, snap, i) : void(0)), ++i), ...);
+
+                            if (body_view.contains(entity)) {
+                                internal::snapshot_insert_entity<position>(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
+                                internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
+                                internal::snapshot_insert_entity<linvel>(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
+                                internal::snapshot_insert_entity<angvel>(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
+                            }
                         }
                     }
                 }

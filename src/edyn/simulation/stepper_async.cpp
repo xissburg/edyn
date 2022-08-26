@@ -12,7 +12,6 @@
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/parallel/message.hpp"
-#include "edyn/replication/component_index_source.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"

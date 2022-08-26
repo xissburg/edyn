@@ -1,15 +1,14 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
-#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/core/entity_graph.hpp"
-#include "edyn/replication/component_index_source.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 
@@ -56,13 +55,6 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
     registry.emplace<contact_manifold_events>(manifold_entity);
-
-    if (registry.any_of<continuous_contacts_tag>(body0) ||
-        registry.any_of<continuous_contacts_tag>(body1)) {
-
-        auto &settings = registry.ctx().at<edyn::settings>();
-        registry.emplace<continuous>(manifold_entity).insert(settings.index_source->index_of<edyn::contact_manifold>());
-    }
 
     auto material_view = registry.view<material>();
 
