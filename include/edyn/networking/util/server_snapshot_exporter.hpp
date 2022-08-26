@@ -46,7 +46,7 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
         std::array<unsigned short, sizeof...(Components)> time_remaining {};
 
         bool empty() const {
-            return std::accumulate(time_remaining.begin(), time_remaining.end(), 0) > 0;
+            return std::accumulate(time_remaining.begin(), time_remaining.end(), 0) == 0;
         }
     };
 
@@ -106,39 +106,28 @@ public:
         auto owner_view = registry.view<entity_owner>();
         auto modified_view = registry.view<modified_components>();
 
-        // Collect all entities first.
-        // Only include entities which are in islands not fully owned by the client
-        // since the server allows the client to have full control over entities in
-        // the islands where there are no other clients present.
-        for (auto entity : entities_of_interest) {
-            if (!modified_view.contains(entity)) {
-                continue;
-            }
-
-            auto [modified] = modified_view.get(entity);
-
-            if (!modified.empty() && !is_fully_owned_by_client(registry, dest_client_entity, entity)) {
-                snap.entities.push_back(entity);
-            }
-        }
-
         // Export components.
         // Do not include input components of entities owned by destination
         // client as to not override client input on the client-side.
         // Clients own their input.
-        for (auto entity : snap.entities) {
-            auto owned_by_client = !owner_view.contains(entity) ? false :
-                std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
-            auto [modified] = modified_view.get(entity);
-            unsigned i = 0;
-            (((modified.time_remaining[i] > 0 && (!owned_by_client || !(m_is_network_input[i] || m_is_action_list[i])) ?
-                internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
+        // Only include entities which are in islands not fully owned by the client
+        // since the server allows the client to have full control over entities in
+        // the islands where there are no other clients present.
+        for (auto entity : entities_of_interest) {
+            if (modified_view.contains(entity)) {
+                auto owned_by_client = !owner_view.contains(entity) ? false :
+                    std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
+                auto [modified] = modified_view.get(entity);
+                unsigned i = 0;
+                (((modified.time_remaining[i] > 0 && (!owned_by_client || !(m_is_network_input[i] || m_is_action_list[i])) ?
+                    internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
+            }
         }
     }
 
     void update(double time) override {
         EDYN_ASSERT(!(time < m_last_time));
-        auto elapsed_ms = static_cast<unsigned>(time - m_last_time) * 1000u;
+        auto elapsed_ms = static_cast<unsigned>((time - m_last_time) * 1000u);
         m_last_time = time;
 
         m_registry->view<modified_components>().each([&](modified_components &modified) {

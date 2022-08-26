@@ -177,18 +177,7 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
     ctx.snapshot_exporter->export_modified(packet, ctx.client_entity, ctx.owned_entities, ctx.allow_full_ownership);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
-        // Assign island timestamp as packet timestamp if available.
-        // Use current time otherwise.
-        auto island_entities = collect_islands_from_residents(registry,
-                                                              packet.entities.begin(),
-                                                              packet.entities.end());
-
-        if (island_entities.empty()) {
-            packet.timestamp = time;
-        } else {
-            packet.timestamp = get_simulation_timestamp(registry);
-        }
-
+        packet.timestamp = get_simulation_timestamp(registry);
         ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
     }
 }

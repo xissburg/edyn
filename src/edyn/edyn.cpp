@@ -62,6 +62,7 @@ void attach(entt::registry &registry, const init_config &config) {
     registry.ctx().emplace<material_mix_table>();
     registry.ctx().emplace<contact_manifold_map>(registry);
     registry.ctx().emplace<contact_event_emitter>(registry);
+    registry.ctx().emplace<registry_operation_context>();
 
     switch (config.execution_mode) {
     case execution_mode::sequential:
@@ -71,7 +72,6 @@ void attach(entt::registry &registry, const init_config &config) {
         registry.ctx().emplace<stepper_sequential>(registry, config.execution_mode == execution_mode::sequential_multithreaded);
         break;
     case execution_mode::asynchronous:
-        registry.ctx().emplace<registry_operation_context>();
         registry.ctx().emplace<stepper_async>(registry);
         break;
     }

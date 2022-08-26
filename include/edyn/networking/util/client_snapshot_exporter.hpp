@@ -52,7 +52,7 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
         std::array<unsigned short, sizeof...(Components)> time_remaining {};
 
         bool empty() const {
-            return std::accumulate(time_remaining.begin(), time_remaining.end(), 0) > 0;
+            return std::accumulate(time_remaining.begin(), time_remaining.end(), 0) == 0;
         }
     };
 
@@ -173,7 +173,7 @@ public:
 
     void update(double time) override {
         EDYN_ASSERT(!(time < m_last_time));
-        auto elapsed_ms = static_cast<unsigned>(time - m_last_time) * 1000u;
+        auto elapsed_ms = static_cast<unsigned>((time - m_last_time) * 1000u);
         m_last_time = time;
 
         m_registry->view<modified_components>().each([&](modified_components &modified) {
