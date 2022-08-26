@@ -1,7 +1,7 @@
 #include "edyn/networking/util/snap_to_pool_snapshot.hpp"
-#include "edyn/networking/util/accumulate_discontinuities.hpp"
-#include "edyn/networking/util/assign_previous_transforms.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
+#include "edyn/networking/sys/assign_previous_transforms.hpp"
+#include "edyn/networking/sys/accumulate_discontinuities.hpp"
 #include "edyn/replication/entity_map.hpp"
 
 namespace edyn {

@@ -38,8 +38,13 @@ public:
 
     virtual void update(double time) = 0;
 
+    void set_observer_enabled(bool enabled) {
+        m_observer_enabled = enabled;
+    }
+
 protected:
     entt::registry *m_registry;
+    bool m_observer_enabled {true};
 
     using append_current_actions_func_t = void(entt::registry &registry, double time);
     append_current_actions_func_t *m_append_current_actions_func {nullptr};
@@ -77,6 +82,19 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
         (append_actions<Actions>(registry, time), ...);
     }
 
+    template<typename Component>
+    void on_update(entt::registry &registry, entt::entity entity) {
+        if (!m_observer_enabled) {
+            return;
+        }
+
+        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
+
+        if (auto *modified = registry.try_get<modified_components>(entity)) {
+            modified->time_remaining[index] = 400;
+        }
+    }
+
 public:
     template<typename... Actions>
     client_snapshot_exporter_impl(entt::registry &registry,
@@ -89,15 +107,6 @@ public:
 
         if constexpr(sizeof...(Actions) > 0) {
             m_append_current_actions_func = &append_current_actions<Actions...>;
-        }
-    }
-
-    template<typename Component>
-    void on_update(entt::registry &registry, entt::entity entity) {
-        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
-
-        if (auto *modified = registry.try_get<modified_components>(entity)) {
-            modified->time_remaining[index] = 400;
         }
     }
 

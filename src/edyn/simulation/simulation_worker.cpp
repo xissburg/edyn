@@ -14,6 +14,7 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/networking/sys/decay_discontinuities.hpp"
 #include "edyn/networking/util/process_extrapolation_result.hpp"
 #include "edyn/networking/util/snap_to_pool_snapshot.hpp"
 #include "edyn/parallel/job.hpp"
@@ -305,7 +306,7 @@ void simulation_worker::sync() {
     // Always update discontinuities since they decay in every step.
     m_op_builder->replace<discontinuity>();
 
-    // TODO: move this to solver
+    // TODO: move this to solver, maybe, idk
     auto body_view = m_registry.view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
     m_op_builder->replace<position>(body_view.begin(), body_view.end());
     m_op_builder->replace<orientation>(body_view.begin(), body_view.end());
@@ -443,14 +444,6 @@ void simulation_worker::begin_step() {
     m_poly_initializer.init_new_shapes();
 
     m_state = state::broadphase;
-}
-
-static void decay_discontinuities(entt::registry &registry, scalar rate) {
-    EDYN_ASSERT(!(rate < 0) && rate < 1);
-    registry.view<discontinuity>().each([rate](discontinuity &dis) {
-        dis.position_offset *= rate;
-        dis.orientation_offset = slerp(quaternion_identity, dis.orientation_offset, rate);
-    });
 }
 
 void simulation_worker::finish_step() {

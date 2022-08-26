@@ -1,8 +1,8 @@
 #include "edyn/networking/util/process_extrapolation_result.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
-#include "edyn/networking/util/accumulate_discontinuities.hpp"
-#include "edyn/networking/util/assign_previous_transforms.hpp"
 #include "edyn/networking/util/import_contact_manifolds.hpp"
+#include "edyn/networking/sys/accumulate_discontinuities.hpp"
+#include "edyn/networking/sys/assign_previous_transforms.hpp"
 
 namespace edyn {
 

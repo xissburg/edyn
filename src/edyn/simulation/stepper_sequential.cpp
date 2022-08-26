@@ -6,6 +6,7 @@
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/networking/sys/decay_discontinuities.hpp"
 #include "edyn/time/time.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -38,7 +39,7 @@ void stepper_sequential::update() {
     auto num_steps = static_cast<int>(std::floor(m_accumulated_time / fixed_dt));
     m_accumulated_time -= num_steps * fixed_dt;
 
-    int max_steps = 20;
+    int max_steps = 10;
     num_steps = std::min(num_steps, max_steps);
 
     auto &bphase = m_registry->ctx().at<broadphase>();
@@ -60,6 +61,7 @@ void stepper_sequential::update() {
         nphase.update_sequential(m_multithreaded);
         m_solver.update_sequential(m_multithreaded);
         emitter.consume_events();
+        decay_discontinuities(*m_registry);
 
         if (settings.post_step_callback) {
             (*settings.post_step_callback)(*m_registry);
@@ -89,6 +91,7 @@ void stepper_sequential::step_simulation() {
     nphase.update_sequential(m_multithreaded);
     m_solver.update_sequential(m_multithreaded);
     emitter.consume_events();
+    decay_discontinuities(*m_registry);
 
     if (settings.post_step_callback) {
         (*settings.post_step_callback)(*m_registry);

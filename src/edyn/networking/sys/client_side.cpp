@@ -329,7 +329,9 @@ static void import_remote_snapshot(entt::registry &registry, const packet::regis
 
     // ... assign components later so that entity references will be available
     // to be mapped into the local registry.
+    ctx.snapshot_exporter->set_observer_enabled(false);
     ctx.snapshot_importer->import(registry, ctx.entity_map, snap);
+    ctx.snapshot_exporter->set_observer_enabled(true);
 
     // Create nodes and edges in entity graph, assign networked tags and
     // dependent components which are not networked.

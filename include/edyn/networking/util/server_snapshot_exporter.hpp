@@ -42,6 +42,13 @@ public:
     // Decays the time remaining in each of the recently modified components.
     // They stop being included in the snapshot once the timer reaches zero.
     virtual void update(double time) = 0;
+
+    void set_observer_enabled(bool enabled) {
+        m_observer_enabled = enabled;
+    }
+
+protected:
+    bool m_observer_enabled {true};
 };
 
 template<typename... Components>
@@ -60,6 +67,19 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
         return std::disjunction_v<std::is_same<action_list<Actions>, Component>...>;
     }
 
+    template<typename Component>
+    void on_update(entt::registry &registry, entt::entity entity) {
+        if (!m_observer_enabled) {
+            return;
+        }
+
+        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
+
+        if (auto *modified = registry.try_get<modified_components>(entity)) {
+            modified->time_remaining[index] = 400;
+        }
+    }
+
 public:
     template<typename... Actions>
     server_snapshot_exporter_impl(entt::registry &registry,
@@ -75,15 +95,6 @@ public:
 
         i = 0;
         ((m_is_action_list[i++] = is_action_list<Components, Actions...>()), ...);
-    }
-
-    template<typename Component>
-    void on_update(entt::registry &registry, entt::entity entity) {
-        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
-
-        if (auto *modified = registry.try_get<modified_components>(entity)) {
-            modified->time_remaining[index] = 400;
-        }
     }
 
     template<typename It>
@@ -120,20 +131,21 @@ public:
         // since the server allows the client to have full control over entities in
         // the islands where there are no other clients present.
         for (auto entity : entities_of_interest) {
+            auto owned_by_client = !owner_view.contains(entity) ? false :
+                std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
+
             if (modified_view.contains(entity)) {
-                auto owned_by_client = !owner_view.contains(entity) ? false :
-                    std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
                 auto [modified] = modified_view.get(entity);
                 unsigned i = 0;
                 (((modified.time_remaining[i] > 0 && (!owned_by_client || !(m_is_network_input[i] || m_is_action_list[i])) ?
                     internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
             }
 
-            if (body_view.contains(entity)) {
-                internal::snapshot_insert_entity<position>(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
+            if (!is_fully_owned_by_client(registry, dest_client_entity, entity) && body_view.contains(entity)) {
+                internal::snapshot_insert_entity<position   >(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
                 internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
-                internal::snapshot_insert_entity<linvel>(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
-                internal::snapshot_insert_entity<angvel>(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
+                internal::snapshot_insert_entity<linvel     >(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
+                internal::snapshot_insert_entity<angvel     >(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
             }
         }
     }
