@@ -73,7 +73,7 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
 
     if (auto *ctx = registry.ctx().find<server_network_context>()) {
         ctx->snapshot_importer.reset(new server_snapshot_importer_impl(all, actions));
-        ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(registry, all, actions));
+        ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(registry, all));
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(all);
@@ -94,7 +94,7 @@ inline void unregister_networked_components(entt::registry &registry) {
 
     if (auto *ctx = registry.ctx().find<server_network_context>()) {
         ctx->snapshot_importer.reset(new server_snapshot_importer_impl(networked_components, {}));
-        ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(registry, networked_components, {}));
+        ctx->snapshot_exporter.reset(new server_snapshot_exporter_impl(registry, networked_components));
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(networked_components);

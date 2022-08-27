@@ -13,19 +13,21 @@ namespace edyn {
  * @brief A timestamped history of actions performed by a user.
  */
 struct action_history {
+    using action_index_type = uint8_t;
+
     struct entry {
         double timestamp;
+        action_index_type action_index;
         std::vector<uint8_t> data;
 
         entry() = default;
-        entry(double timestamp, std::vector<uint8_t> &&data)
+        entry(double timestamp, action_index_type action_index, std::vector<uint8_t> &&data)
             : timestamp(timestamp)
+            , action_index(action_index)
             , data(std::move(data))
         {}
     };
 
-    using action_index_type = uint8_t;
-    action_index_type action_index;
     std::vector<entry> entries;
 
     void erase_until(double timestamp) {
@@ -35,8 +37,6 @@ struct action_history {
     }
 
     void merge(const action_history &other) {
-        EDYN_ASSERT(action_index == other.action_index);
-
         if (entries.empty()) {
             entries = other.entries;
             return;
@@ -58,7 +58,6 @@ struct action_history {
 
 template<typename Archive>
 void serialize(Archive &archive, action_history &history) {
-    archive(history.action_index);
     using size_type = uint8_t;
     size_type size = static_cast<size_type>(std::min(history.entries.size(),
                                             static_cast<size_t>(std::numeric_limits<size_type>::max())));
@@ -67,6 +66,7 @@ void serialize(Archive &archive, action_history &history) {
 
     for (size_type i = 0; i < size; ++i) {
         archive(history.entries[i].timestamp);
+        archive(history.entries[i].action_index);
         archive(history.entries[i].data);
     }
 }

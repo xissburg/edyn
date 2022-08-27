@@ -20,6 +20,7 @@ class component_operation {
 public:
     virtual ~component_operation() = default;
     virtual void execute(entt::registry &, entity_map &) const = 0;
+    virtual void execute(entt::registry &) const = 0;
     virtual entt::id_type get_type_id() const = 0;
 
     virtual void remap(const entity_map &emap) {
@@ -70,6 +71,27 @@ public:
         }
     }
 
+    void execute(entt::registry &registry) const override {
+        if constexpr(!is_empty_type) {
+            EDYN_ASSERT(entities.size() == components.size());
+        }
+
+        for (unsigned i = 0; i < entities.size(); ++i) {
+            auto entity = entities[i];
+
+            if (!registry.valid(entity) || registry.all_of<Component>(entity)) {
+                continue;
+            }
+
+            if constexpr(is_empty_type) {
+                registry.emplace<Component>(entity);
+            } else {
+                auto comp = components[i];
+                registry.emplace<Component>(entity, comp);
+            }
+        }
+    }
+
     entt::id_type get_type_id() const override {
         return entt::type_index<Component>::value();
     }
@@ -116,6 +138,25 @@ public:
         }
     }
 
+    void execute(entt::registry &registry) const override {
+        if constexpr(!std::is_empty_v<Component>) {
+            EDYN_ASSERT(entities.size() == components.size());
+
+            for (unsigned i = 0; i < entities.size(); ++i) {
+                auto entity = entities[i];
+
+                if (!registry.valid(entity) || !registry.all_of<Component>(entity)) {
+                    continue;
+                }
+
+                auto comp = components[i];
+                registry.patch<Component>(entity, [&](auto &&current) {
+                    merge_component(current, comp);
+                });
+            }
+        }
+    }
+
     entt::id_type get_type_id() const override {
         return entt::type_index<Component>::value();
     }
@@ -145,6 +186,14 @@ public:
             }
 
             registry.remove<Component>(local_entity);
+        }
+    }
+
+    void execute(entt::registry &registry) const override {
+        for (auto entity : entities) {
+            if (registry.valid(entity)) {
+                registry.remove<Component>(entity);
+            }
         }
     }
 
@@ -282,6 +331,20 @@ public:
         }
 
         execute_destroy(registry, entity_map);
+    }
+
+    void execute(entt::registry &registry) const {
+        for (auto &op : emplace_components) {
+            op->execute(registry);
+        }
+
+        for (auto &op : replace_components) {
+            op->execute(registry);
+        }
+
+        for (auto &op : remove_components) {
+            op->execute(registry);
+        }
     }
 
     void remap(const entity_map &emap) {

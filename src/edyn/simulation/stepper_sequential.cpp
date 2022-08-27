@@ -63,6 +63,10 @@ void stepper_sequential::update() {
         emitter.consume_events();
         decay_discontinuities(*m_registry);
 
+        if (settings.clear_actions_func) {
+            (*settings.clear_actions_func)(*m_registry);
+        }
+
         if (settings.post_step_callback) {
             (*settings.post_step_callback)(*m_registry);
         }
@@ -92,6 +96,10 @@ void stepper_sequential::step_simulation() {
     m_solver.update_sequential(m_multithreaded);
     emitter.consume_events();
     decay_discontinuities(*m_registry);
+
+    if (settings.clear_actions_func) {
+        (*settings.clear_actions_func)(*m_registry);
+    }
 
     if (settings.post_step_callback) {
         (*settings.post_step_callback)(*m_registry);

@@ -8,7 +8,7 @@ namespace edyn {
 
 server_network_context::server_network_context(entt::registry &registry)
     : snapshot_importer(new server_snapshot_importer_impl(networked_components, {}))
-    , snapshot_exporter(new server_snapshot_exporter_impl(registry, networked_components, {}))
+    , snapshot_exporter(new server_snapshot_exporter_impl(registry, networked_components))
 {}
 
 }

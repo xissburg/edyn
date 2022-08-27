@@ -508,7 +508,7 @@ void island_manager::split_islands() {
 
     m_islands_to_split.clear();
 
-    for (auto [entity, resident] : m_registry->view<multi_island_resident>().each()) {
+    for (auto [entity, resident] : multi_resident_view.each()) {
         for (auto island_entity : resident.island_entities) {
             EDYN_ASSERT(m_registry->valid(island_entity));
         }

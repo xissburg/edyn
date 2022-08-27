@@ -62,7 +62,7 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
     };
 
     template<typename Action>
-    static void append_actions(entt::registry &registry, double time) {
+    static void append_actions(entt::registry &registry, unsigned index, double time) {
         auto view = registry.view<action_list<Action>, action_history>();
 
         for (auto [entity, list, history] : view.each()) {
@@ -73,13 +73,14 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
             auto data = std::vector<uint8_t>{};
             auto archive = memory_output_archive(data);
             archive(list);
-            history.entries.emplace_back(time, std::move(data));
+            history.entries.emplace_back(time, index, std::move(data));
         }
     }
 
     template<typename... Actions>
     static void append_current_actions(entt::registry &registry, double time) {
-        (append_actions<Actions>(registry, time), ...);
+        unsigned index = 0;
+        (append_actions<Actions>(registry, index++, time), ...);
     }
 
     template<typename Component>
@@ -145,24 +146,26 @@ public:
                 auto [island] = island_view.get(island_entity);
 
                 for (auto entity : island.nodes) {
+                    auto is_owned_by_another_client =
+                        owner_view.contains(entity) &&
+                        std::get<0>(owner_view.get(entity)).client_entity != client_entity;
+
+                    if (is_owned_by_another_client) {
+                        continue;
+                    }
+
                     if (modified_view.contains(entity)) {
-                        auto is_owned_by_another_client =
-                            owner_view.contains(entity) &&
-                            std::get<0>(owner_view.get(entity)).client_entity != client_entity;
+                        auto [modified] = modified_view.get(entity);
+                        unsigned i = 0;
+                        (((registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?
+                            internal::snapshot_insert_entity<Components>(registry, entity, snap, i) : void(0)), ++i), ...);
+                    }
 
-                        if (!is_owned_by_another_client) {
-                            auto [modified] = modified_view.get(entity);
-                            unsigned i = 0;
-                            (((registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?
-                                internal::snapshot_insert_entity<Components>(registry, entity, snap, i) : void(0)), ++i), ...);
-
-                            if (body_view.contains(entity)) {
-                                internal::snapshot_insert_entity<position>(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
-                                internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
-                                internal::snapshot_insert_entity<linvel>(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
-                                internal::snapshot_insert_entity<angvel>(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
-                            }
-                        }
+                    if (body_view.contains(entity)) {
+                        internal::snapshot_insert_entity<position>(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
+                        internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
+                        internal::snapshot_insert_entity<linvel>(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
+                        internal::snapshot_insert_entity<angvel>(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
                     }
                 }
             }

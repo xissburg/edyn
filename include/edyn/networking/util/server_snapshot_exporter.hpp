@@ -14,6 +14,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/config/config.h"
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
@@ -62,11 +63,6 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
         }
     };
 
-    template<typename Component, typename... Actions>
-    constexpr bool is_action_list() {
-        return std::disjunction_v<std::is_same<action_list<Actions>, Component>...>;
-    }
-
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
         if (!m_observer_enabled) {
@@ -81,20 +77,12 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
     }
 
 public:
-    template<typename... Actions>
     server_snapshot_exporter_impl(entt::registry &registry,
-                                  [[maybe_unused]] std::tuple<Components...>,
-                                  [[maybe_unused]] std::tuple<Actions...>)
+                                  [[maybe_unused]] std::tuple<Components...>)
         : m_registry(&registry)
     {
         m_connections.push_back(registry.on_construct<networked_tag>().connect<&entt::registry::emplace<modified_components>>());
         ((m_connections.push_back(registry.on_update<Components>().template connect<&server_snapshot_exporter_impl<Components...>::template on_update<Components>>(*this))), ...);
-
-        unsigned i = 0;
-        ((m_is_network_input[i++] = std::is_base_of_v<network_input, Components>), ...);
-
-        i = 0;
-        ((m_is_action_list[i++] = is_action_list<Components, Actions...>()), ...);
     }
 
     template<typename It>
@@ -123,7 +111,6 @@ public:
         auto modified_view = registry.view<modified_components>();
         auto body_view = m_registry->view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
 
-        // Export components.
         // Do not include input components of entities owned by destination
         // client as to not override client input on the client-side.
         // Clients own their input.
@@ -137,7 +124,7 @@ public:
             if (modified_view.contains(entity)) {
                 auto [modified] = modified_view.get(entity);
                 unsigned i = 0;
-                (((modified.time_remaining[i] > 0 && (!owned_by_client || !(m_is_network_input[i] || m_is_action_list[i])) ?
+                (((modified.time_remaining[i] > 0 && (!owned_by_client || !(std::is_base_of_v<network_input, Components> || std::is_same_v<Components, action_history>)) ?
                     internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
             }
 
@@ -169,8 +156,6 @@ public:
 private:
     entt::registry *m_registry;
     std::vector<entt::scoped_connection> m_connections;
-    std::array<bool, sizeof...(Components)> m_is_network_input;
-    std::array<bool, sizeof...(Components)> m_is_action_list;
     double m_last_time {};
 };
 

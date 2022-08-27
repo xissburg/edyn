@@ -19,4 +19,17 @@ void process_extrapolation_result(entt::registry &registry, entity_map &emap,
     import_contact_manifolds(registry, emap, result.manifolds);
 }
 
+void process_extrapolation_result(entt::registry &registry,
+                                  const extrapolation_result &result) {
+    EDYN_ASSERT(!result.ops.empty());
+
+    // Assign current transforms to previous before importing pools into registry.
+    assign_previous_transforms(registry);
+
+    result.ops.execute(registry);
+
+    accumulate_discontinuities(registry);
+    import_contact_manifolds(registry, result.manifolds);
+}
+
 }

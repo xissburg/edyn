@@ -9,6 +9,7 @@
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
+#include "edyn/networking/util/process_extrapolation_result.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_edge.hpp"
@@ -200,7 +201,10 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
         auto &stepper = registry.ctx().at<stepper_async>();
         stepper.send_message_to_worker<extrapolation_result>(std::move(result));
     } else {
-
+        auto &ctx = registry.ctx().at<client_network_context>();
+        ctx.snapshot_exporter->set_observer_enabled(false);
+        process_extrapolation_result(registry, result);
+        ctx.snapshot_exporter->set_observer_enabled(true);
     }
 }
 
@@ -329,6 +333,8 @@ static void import_remote_snapshot(entt::registry &registry, const packet::regis
 
     // ... assign components later so that entity references will be available
     // to be mapped into the local registry.
+    // Disable the exporter observers so that changes introduced by the import
+    // will not be added to the next outbound snapshot.
     ctx.snapshot_exporter->set_observer_enabled(false);
     ctx.snapshot_importer->import(registry, ctx.entity_map, snap);
     ctx.snapshot_exporter->set_observer_enabled(true);
@@ -469,7 +475,10 @@ static void snap_to_registry_snapshot(entt::registry &registry, packet::registry
         auto &stepper = registry.ctx().at<stepper_async>();
         stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
     } else {
+        auto &ctx = registry.ctx().at<client_network_context>();
+        ctx.snapshot_exporter->set_observer_enabled(false);
         snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools);
+        ctx.snapshot_exporter->set_observer_enabled(true);
     }
 }
 

@@ -494,7 +494,7 @@ static void dispatch_actions(entt::registry &registry, double time) {
                 break;
             }
 
-            ctx.snapshot_importer->import_action(registry, entity, history.action_index, it->data);
+            ctx.snapshot_importer->import_action(registry, entity, it->action_index, it->data);
         }
 
         // Go back to the previous action, which is the action that was last
@@ -506,7 +506,9 @@ static void dispatch_actions(entt::registry &registry, double time) {
         // inserted when remote packets arrive so the last entry must be kept
         // in order to have something to compare with (see
         // `server_snapshot_importer_impl::merge_action_history`).
-        history.entries.erase(history.entries.begin(), it);
+        if (history.entries.size() > 1) {
+            history.entries.erase(history.entries.begin(), it);
+        }
     }
 }
 
