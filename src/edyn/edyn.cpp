@@ -132,12 +132,6 @@ void update(entt::registry &registry) {
         auto time = performance_time();
         update_presentation(registry, time);
     }
-
-    // Clear actions after they've been pushed to workers.
-    auto &settings = registry.ctx().at<edyn::settings>();
-    if (settings.clear_actions_func) {
-        (*settings.clear_actions_func)(registry);
-    }
 }
 
 void step_simulation(entt::registry &registry) {

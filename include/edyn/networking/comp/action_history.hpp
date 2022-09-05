@@ -29,6 +29,7 @@ struct action_history {
     };
 
     std::vector<entry> entries;
+    double last_timestamp {};
 
     void erase_until(double timestamp) {
         auto it = std::find_if(entries.begin(), entries.end(),
@@ -37,16 +38,17 @@ struct action_history {
     }
 
     void merge(const action_history &other) {
-        if (entries.empty()) {
-            entries = other.entries;
-            return;
-        }
+        EDYN_ASSERT(!other.entries.empty());
 
         // Only append newer entries.
-        auto last_timestamp = entries.back().timestamp;
         auto other_begin = std::find_if(other.entries.begin(), other.entries.end(),
                                         [&](auto &&entry) { return entry.timestamp > last_timestamp; });
         entries.insert(entries.end(), other_begin, other.entries.end());
+
+        if (!entries.empty()) {
+            // Assign new highest timestamp yet inserted.
+            last_timestamp = entries.back().timestamp;
+        }
     }
 
     void sort() {

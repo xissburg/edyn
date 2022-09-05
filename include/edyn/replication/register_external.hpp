@@ -41,11 +41,6 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
             new registry_operation_observer_impl(builder, all_components));
     };
 
-    auto external = std::tuple<Components...>{};
-    auto action_lists = std::tuple<action_list<Actions>...>{};
-    auto all_components = std::tuple_cat(shared_components_t{}, external, action_lists);
-
-
     if constexpr(sizeof...(Actions) > 0) {
         auto &settings = registry.ctx().at<edyn::settings>();
         settings.clear_actions_func = [](entt::registry &registry) {

@@ -123,9 +123,12 @@ public:
 
             if (modified_view.contains(entity)) {
                 auto [modified] = modified_view.get(entity);
-                unsigned i = 0;
-                (((modified.time_remaining[i] > 0 && (!owned_by_client || !(std::is_base_of_v<network_input, Components> || std::is_same_v<Components, action_history>)) ?
-                    internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
+
+                if (!modified.empty()) {
+                    unsigned i = 0;
+                    (((modified.time_remaining[i] > 0 && (!owned_by_client || !(std::is_base_of_v<network_input, Components> || std::is_same_v<Components, action_history>)) ?
+                        internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
+                }
             }
 
             if (!is_fully_owned_by_client(registry, dest_client_entity, entity) && body_view.contains(entity)) {
