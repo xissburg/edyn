@@ -66,19 +66,11 @@ void contact_constraint::prepare(
         auto rA = pivotA - posA;
         auto rB = pivotB - posB;
 
-            // Create normal row, i.e. non-penetration constraint.
-            auto &normal_row = cache.rows.emplace_back();
-            normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-            normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
-            normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
-            normal_row.dvA = &dvA; normal_row.dwA = &dwA; normal_row.dsA = delta_spinA;
-            normal_row.dvB = &dvB; normal_row.dwB = &dwB; normal_row.dsB = delta_spinB;
-            normal_row.use_spin[0] = true;
-            normal_row.use_spin[1] = true;
-            normal_row.spin_axis[0] = spin_axisA;
-            normal_row.spin_axis[1] = spin_axisB;
-            normal_row.impulse = cp.normal_impulse;
-            normal_row.lower_limit = 0;
+        // Create normal row, i.e. non-penetration constraint.
+        auto &normal_row = cache.add_row();
+        normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
+        normal_row.impulse = impulse[pt_idx];
+        normal_row.lower_limit = 0;
 
         auto &normal_options = cache.get_options();
 

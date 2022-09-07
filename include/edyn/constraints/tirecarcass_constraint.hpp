@@ -2,10 +2,14 @@
 #define EDYN_CONSTRAINTS_TIRECARCASS_CONSTRAINT_HPP
 
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
-#include "edyn/util/array.hpp"
+#include "edyn/math/scalar.hpp"
+#include "edyn/util/array_util.hpp"
 
 namespace edyn {
+
+struct constraint_row_prep_cache;
+struct quaternion;
+struct vector3;
 
 struct tirecarcass_constraint : public constraint_base {
     scalar m_lateral_stiffness {120000};
@@ -15,10 +19,15 @@ struct tirecarcass_constraint : public constraint_base {
 
     static const auto num_rows = 9;
     std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
-};
 
-template<>
-void prepare_constraints<tirecarcass_constraint>(entt::registry &, row_cache &, scalar dt);
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+        const vector3 &linvelA, const vector3 &angvelA,
+        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+        const vector3 &linvelB, const vector3 &angvelB);
+};
 
 template<typename Archive>
 void serialize(Archive &archive, tirecarcass_constraint &con) {

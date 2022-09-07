@@ -10,6 +10,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/config/execution_mode.hpp"
+#include "edyn/constraints/antiroll_constraint.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
@@ -77,6 +78,15 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
         con.prepare(registry, entity, manifold, cache, dt,
                     originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA,
                     originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB);
+    } else if constexpr(std::is_same_v<std::decay_t<C>, antiroll_constraint>) {
+        auto [posC, ornC, linvelC, angvelC, inv_mC, inv_IC, dvC, dwC] = body_view.get(con.m_third_entity);
+        auto originC = origin_view.contains(con.m_third_entity) ?
+            origin_view.template get<origin>(con.m_third_entity) : static_cast<vector3>(posC);
+
+        con.prepare(registry, entity, cache, dt,
+                    originA, posA, ornA, linvelA, angvelA,
+                    originB, posB, ornB, linvelB, angvelB,
+                    originC, posC, ornC, linvelC, angvelC);
     } else {
         con.prepare(registry, entity, cache, dt,
                     originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA,
@@ -198,68 +208,6 @@ bool solver::update(const job &completion_job) {
         }
         break;
     }
-
-    case state::finalize:
-        update_origins(registry);
-
-        // Update rotated vertices of convex meshes after rotations change. It is
-        // important to do this before `update_aabbs` because the rotated meshes
-        // will be used to calculate AABBs of polyhedrons.
-        update_rotated_meshes(registry);
-
-        // Update AABBs after transforms change.
-        update_aabbs(registry);
-        update_island_aabbs(registry);
-
-        // Update world-space moment of inertia.
-        update_inertias(registry);
-        m_state = state::done;
-        return update(completion_job);
-        break;
-
-    case state::done:
-        m_state = state::begin;
-        return true;
-    }
-}
-
-void solver::update_sequential(bool mt) {
-    auto &registry = *m_registry;
-    auto island_view = registry.view<island>(exclude_sleeping_disabled);
-    auto num_islands = calculate_view_size(island_view);
-
-    if (num_islands == 0) {
-        return;
-    }
-
-    auto &settings = registry.ctx().at<edyn::settings>();
-    auto dt = settings.fixed_dt;
-
-    solve_restitution(registry, dt);
-    apply_gravity(registry, dt);
-
-    auto exec_mode = mt ? execution_mode::sequential_multithreaded : execution_mode::sequential;
-    prepare_constraints(registry, dt, exec_mode);
-
-    if (mt && num_islands > 1) {
-        auto counter = atomic_counter_sync(num_islands);
-
-        for (auto island_entity : island_view) {
-            run_island_solver_seq_mt(registry, island_entity,
-                                     settings.num_solver_velocity_iterations,
-                                     settings.num_solver_position_iterations,
-                                     settings.fixed_dt,
-                                     &counter);
-        }
-
-        counter.wait();
-    } else {
-        for (auto island_entity : island_view) {
-            run_island_solver_seq(registry, island_entity,
-                                  settings.num_solver_velocity_iterations,
-                                  settings.num_solver_position_iterations,
-                                  settings.fixed_dt);
-        }
 
     case state::finalize:
         update_origins(registry);

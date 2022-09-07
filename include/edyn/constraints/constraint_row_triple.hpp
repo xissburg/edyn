@@ -2,12 +2,12 @@
 #define EDYN_CONSTRAINTS_CONSTRAINT_ROW_TRIPLE_HPP
 
 #include <array>
+#include "edyn/comp/spin.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/config/constants.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/comp/delta_spin.hpp"
 
 namespace edyn {
 
@@ -43,7 +43,7 @@ struct constraint_row_triple {
     vector3 spin_axis[3];
 };
 
-inline scalar solve3(constraint_row_triple &row) {
+inline scalar solve_triple(constraint_row_triple &row) {
     auto dsA = vector3_zero;
     auto dsB = vector3_zero;
     auto dsC = vector3_zero;

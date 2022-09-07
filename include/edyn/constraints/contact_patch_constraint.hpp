@@ -7,13 +7,15 @@
 #include "edyn/config/constants.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/constants.hpp"
-#include "edyn/comp/spin.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
-#include "edyn/collision/contact_manifold.hpp"
-#include "edyn/util/array.hpp"
+#include "edyn/util/array_util.hpp"
 
 namespace edyn {
+
+struct matrix3x3;
+struct quaternion;
+struct constraint_row_prep_cache;
+struct contact_manifold;
 
 struct contact_patch_constraint : public constraint_base {
     static constexpr size_t bristles_per_row = 10;
@@ -63,7 +65,7 @@ struct contact_patch_constraint : public constraint_base {
     };
 
     uint8_t num_patches {0};
-    std::array<contact_patch, max_contacts> patch;
+    std::array<contact_patch, max_contacts> patches;
 
     // Tire material properties.
     scalar m_normal_stiffness{100000};
@@ -76,10 +78,17 @@ struct contact_patch_constraint : public constraint_base {
 
     static const auto num_rows = 4 * max_contacts;
     std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
-};
 
-template<>
-void prepare_constraints<contact_patch_constraint>(entt::registry &, row_cache &, scalar dt);
+    void prepare(
+        const entt::registry &, entt::entity, const contact_manifold &,
+        constraint_row_prep_cache &cache, scalar dt,
+        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+        const vector3 &linvelA, const vector3 &angvelA,
+        scalar inv_mA, const matrix3x3 &inv_IA,
+        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+        const vector3 &linvelB, const vector3 &angvelB,
+        scalar inv_mB, const matrix3x3 &inv_IB);
+};
 
 }
 

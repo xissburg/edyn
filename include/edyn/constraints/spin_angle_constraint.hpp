@@ -1,10 +1,15 @@
 #ifndef EDYN_CONSTRAINTS_SPIN_ANGLE_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_SPIN_ANGLE_CONSTRAINT_HPP
 
+#include <array>
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/math/scalar.hpp"
 
 namespace edyn {
+
+struct constraint_row_prep_cache;
+struct vector3;
+struct quaternion;
 
 /**
  * Constraints the `spin_angle` of two entities, which can be constrained
@@ -20,10 +25,15 @@ struct spin_angle_constraint : public constraint_base {
 
     void set_ratio(scalar, const entt::registry &);
     scalar calculate_offset(const entt::registry &) const;
-};
 
-template<>
-void prepare_constraints<spin_angle_constraint>(entt::registry &, row_cache &, scalar dt);
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+        const vector3 &linvelA, const vector3 &angvelA,
+        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+        const vector3 &linvelB, const vector3 &angvelB);
+};
 
 template<typename Archive>
 void serialize(Archive &archive, spin_angle_constraint &con) {

@@ -2,9 +2,13 @@
 #define EDYN_CONSTRAINTS_SPIN_CONSTRAINT_HPP
 
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/math/scalar.hpp"
 
 namespace edyn {
+
+struct vector3;
+struct quaternion;
+struct constraint_row_prep_cache;
 
 /**
  * Constrains the `spin` of two entities to keep them spinning at the same
@@ -17,10 +21,15 @@ struct spin_constraint : public constraint_base {
     bool m_use_spinB {true};
 
     scalar impulse {};
-};
 
-template<>
-void prepare_constraints<spin_constraint>(entt::registry &, row_cache &, scalar dt);
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+        const vector3 &linvelA, const vector3 &angvelA,
+        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+        const vector3 &linvelB, const vector3 &angvelB);
+};
 
 template<typename Archive>
 void serialize(Archive &archive, spin_constraint &con) {
