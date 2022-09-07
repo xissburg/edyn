@@ -4,12 +4,11 @@
 #include "edyn/config/constants.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/constraint_body.hpp"
 #include "edyn/util/array_util.hpp"
 
 namespace edyn {
 
-struct matrix3x3;
-struct quaternion;
 class position_solver;
 struct constraint_row_prep_cache;
 struct contact_manifold;
@@ -27,12 +26,7 @@ struct contact_constraint : public constraint_base {
     void prepare(
         const entt::registry &, entt::entity, const contact_manifold &,
         constraint_row_prep_cache &cache, scalar dt,
-        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-        const vector3 &linvelA, const vector3 &angvelA,
-        scalar inv_mA, const matrix3x3 &inv_IA,
-        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-        const vector3 &linvelB, const vector3 &angvelB,
-        scalar inv_mB, const matrix3x3 &inv_IB);
+        const constraint_body &bodyA, const constraint_body &bodyB);
 
     void solve_position(position_solver &, contact_manifold &);
 };

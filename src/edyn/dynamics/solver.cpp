@@ -10,6 +10,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/config/execution_mode.hpp"
+#include "edyn/constraints/constraint_body.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
@@ -63,6 +64,9 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     auto originB = origin_view.contains(con.body[1]) ?
         origin_view.template get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
+    const auto bodyA = constraint_body{originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA};
+    const auto bodyB = constraint_body{originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB};
+
     cache.add_constraint();
 
     // Grab index of first row so all rows that will be added can be iterated
@@ -71,13 +75,9 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
 
     if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
         auto &manifold = manifold_view.template get<contact_manifold>(entity);
-        con.prepare(registry, entity, manifold, cache, dt,
-                    originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA,
-                    originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB);
+        con.prepare(registry, entity, manifold, cache, dt, bodyA, bodyB);
     } else {
-        con.prepare(registry, entity, cache, dt,
-                    originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA,
-                    originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB);
+        con.prepare(registry, entity, cache, dt, bodyA, bodyB);
     }
 
     // Assign masses and deltas to new rows.

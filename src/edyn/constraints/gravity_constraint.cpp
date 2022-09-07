@@ -6,21 +6,16 @@ namespace edyn {
 void gravity_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    scalar inv_mA, const matrix3x3 &inv_IA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    scalar inv_mB, const matrix3x3 &inv_IB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    auto d = posA - posB;
+    auto d = bodyA.pos - bodyB.pos;
     auto l2 = length_sqr(d);
     l2 = std::max(l2, EDYN_EPSILON);
 
     auto l = std::sqrt(l2);
     auto dn = d / l;
 
-    auto F = gravitational_constant / (l2 * inv_mA * inv_mB);
+    auto F = gravitational_constant / (l2 * bodyA.inv_m * bodyB.inv_m);
     auto P = F * dt;
 
     auto &row = cache.add_row();

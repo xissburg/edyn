@@ -46,17 +46,12 @@ void cvjoint_constraint::update_angle(scalar new_angle) {
 void cvjoint_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    scalar inv_mA, const matrix3x3 &inv_IA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    scalar inv_mB, const matrix3x3 &inv_IB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    auto pivotA = to_world_space(pivot[0], originA, ornA);
-    auto pivotB = to_world_space(pivot[1], originB, ornB);
-    auto rA = pivotA - posA;
-    auto rB = pivotB - posB;
+    auto pivotA = to_world_space(pivot[0], bodyA.origin, bodyA.orn);
+    auto pivotB = to_world_space(pivot[1], bodyB.origin, bodyB.orn);
+    auto rA = pivotA - bodyA.pos;
+    auto rB = pivotB - bodyB.pos;
 
     const auto rA_skew = skew_matrix(rA);
     const auto rB_skew = skew_matrix(rB);
@@ -73,8 +68,8 @@ void cvjoint_constraint::prepare(
         row.impulse = impulse[row_idx++];
     }
 
-    auto twist_axisA = rotate(ornA, frame[0].column(0));
-    auto twist_axisB = rotate(ornB, frame[1].column(0));
+    auto twist_axisA = rotate(bodyA.orn, frame[0].column(0));
+    auto twist_axisB = rotate(bodyB.orn, frame[1].column(0));
 
     auto has_limit = twist_min < twist_max;
 
@@ -84,7 +79,7 @@ void cvjoint_constraint::prepare(
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
         row.impulse = impulse[row_idx++];
 
-        auto angle = relative_angle(ornA, ornB, twist_axisA, twist_axisB);
+        auto angle = relative_angle(bodyA.orn, bodyB.orn, twist_axisA, twist_axisB);
         auto &options = cache.get_options();
 
         if (has_limit) {
@@ -170,7 +165,7 @@ void cvjoint_constraint::prepare(
         auto friction_impulse = twist_friction_torque * dt;
 
         if (twist_damping > 0) {
-            auto relvel = dot(angvelA, twist_axisA) - dot(angvelB, twist_axisB);
+            auto relvel = dot(bodyA.angvel, twist_axisA) - dot(bodyB.angvel, twist_axisB);
             friction_impulse += std::abs(relvel) * twist_damping * dt;
         }
 
@@ -182,9 +177,9 @@ void cvjoint_constraint::prepare(
     if (bend_friction_torque > 0 || bend_damping > 0) {
         // Apply friction and damping to slowdown the non-twisting
         // angular velocity.
-        auto twist_angvelA = dot(angvelA, twist_axisA) * twist_axisA;
-        auto twist_angvelB = dot(angvelB, twist_axisB) * twist_axisB;
-        auto angvel_rel = (angvelA - twist_angvelA) - (angvelB - twist_angvelB);
+        auto twist_angvelA = dot(bodyA.angvel, twist_axisA) * twist_axisA;
+        auto twist_angvelB = dot(bodyB.angvel, twist_axisB) * twist_axisB;
+        auto angvel_rel = (bodyA.angvel - twist_angvelA) - (bodyB.angvel - twist_angvelB);
         auto angspd_rel = length(angvel_rel);
         vector3 angvel_axis;
 
@@ -192,7 +187,7 @@ void cvjoint_constraint::prepare(
             angvel_axis = angvel_rel / angspd_rel;
         } else {
             // Pick axis orthogonal to `twist_axisA`.
-            angvel_axis = rotate(ornA, frame[0].column(1));
+            angvel_axis = rotate(bodyA.orn, frame[0].column(1));
         }
 
         auto &row = cache.add_row();
@@ -211,14 +206,14 @@ void cvjoint_constraint::prepare(
 
     // Bending spring.
     if (bend_stiffness > 0) {
-        auto bend_axis = cross(rotate(ornA, rest_direction), twist_axisB);
+        auto bend_axis = cross(rotate(bodyA.orn, rest_direction), twist_axisB);
         auto bend_axis_len = length(bend_axis);
         auto angle = std::asin(bend_axis_len);
 
         if (bend_axis_len > EDYN_EPSILON) {
             bend_axis /= bend_axis_len;
         } else {
-            bend_axis = rotate(ornA, frame[0].column(1));
+            bend_axis = rotate(bodyA.orn, frame[0].column(1));
         }
 
         auto &row = cache.add_row();

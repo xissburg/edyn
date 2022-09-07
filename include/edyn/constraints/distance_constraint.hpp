@@ -5,6 +5,7 @@
 #include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
+#include "edyn/constraints/constraint_body.hpp"
 
 namespace edyn {
 
@@ -20,12 +21,7 @@ struct distance_constraint : public constraint_base {
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
-        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-        const vector3 &linvelA, const vector3 &angvelA,
-        scalar inv_mA, const matrix3x3 &inv_IA,
-        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-        const vector3 &linvelB, const vector3 &angvelB,
-        scalar inv_mB, const matrix3x3 &inv_IB);
+        const constraint_body &bodyA, const constraint_body &bodyB);
 };
 
 template<typename Archive>
