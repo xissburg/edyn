@@ -2,38 +2,50 @@
 #define EDYN_NETWORKING_UTIL_CLIENT_SNAPSHOT_EXPORTER_HPP
 
 #include <entt/entity/fwd.hpp>
+#include <type_traits>
 #include "edyn/comp/action_list.hpp"
 #include "edyn/networking/comp/action_history.hpp"
-#include "edyn/networking/comp/network_dirty.hpp"
+#include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/serialization/memory_archive.hpp"
+#include "edyn/util/island_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 
 namespace edyn {
 
 class client_snapshot_exporter {
 public:
+    client_snapshot_exporter(entt::registry &registry)
+        : m_registry(&registry)
+    {}
+
     virtual ~client_snapshot_exporter() = default;
 
     // Write all networked entities and components into a snapshot.
-    virtual void export_all(const entt::registry &registry, packet::registry_snapshot &snap) = 0;
+    virtual void export_all(packet::registry_snapshot &snap, const entt::sparse_set &entities) const = 0;
+    virtual void export_all(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const = 0;
 
-    // Write all dirty networked entities and components into a snapshot.
-    virtual void export_dirty(const entt::registry &registry, packet::registry_snapshot &snap) = 0;
+    // Write all modified networked entities and components into a snapshot.
+    virtual void export_modified(packet::registry_snapshot &snap, entt::entity client_entity,
+                                 const entt::sparse_set &owned_entities, bool allow_full_ownership) const = 0;
 
-    void export_actions(const entt::registry &registry, packet::registry_snapshot &snap) {
-        internal::snapshot_insert_all<action_history>(registry, snap,
-            tuple_index_of<unsigned, action_history>(networked_components));
-    }
-
-    void append_current_actions(entt::registry &registry, double time) {
+    void append_current_actions(double time) {
         if (m_append_current_actions_func != nullptr) {
-            (*m_append_current_actions_func)(registry, time);
+            (*m_append_current_actions_func)(*m_registry, time);
         }
     }
 
+    virtual void update(double time) = 0;
+
+    void set_observer_enabled(bool enabled) {
+        m_observer_enabled = enabled;
+    }
+
 protected:
+    entt::registry *m_registry;
+    bool m_observer_enabled {true};
+
     using append_current_actions_func_t = void(entt::registry &registry, double time);
     append_current_actions_func_t *m_append_current_actions_func {nullptr};
 };
@@ -41,18 +53,18 @@ protected:
 template<typename... Components>
 class client_snapshot_exporter_impl : public client_snapshot_exporter {
 
-    template<unsigned... ComponentIndex>
-    void export_by_type_id(const entt::registry &registry,
-                           entt::entity entity, entt::id_type id,
-                           packet::registry_snapshot &snap,
-                           std::integer_sequence<unsigned, ComponentIndex...>) {
-        ((entt::type_index<Components>::value() == id ?
-            internal::snapshot_insert_entity<Components>(registry, entity, snap, ComponentIndex) : void(0)), ...);
-    }
+    struct modified_components {
+        std::array<unsigned short, sizeof...(Components)> time_remaining {};
+
+        bool empty() const {
+            return std::accumulate(time_remaining.begin(), time_remaining.end(), 0) == 0;
+        }
+    };
 
     template<typename Action>
-    static void append_actions(entt::registry &registry, double time) {
+    static void append_actions(entt::registry &registry, unsigned index, double time) {
         auto view = registry.view<action_list<Action>, action_history>();
+
         for (auto [entity, list, history] : view.each()) {
             if (list.actions.empty()) {
                 continue;
@@ -61,40 +73,143 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
             auto data = std::vector<uint8_t>{};
             auto archive = memory_output_archive(data);
             archive(list);
-            history.entries.emplace_back(time, std::move(data));
+            history.entries.emplace_back(time, index, std::move(data));
         }
     }
 
     template<typename... Actions>
     static void append_current_actions(entt::registry &registry, double time) {
-        (append_actions<Actions>(registry, time), ...);
+        unsigned index = 0;
+        (append_actions<Actions>(registry, index++, time), ...);
+    }
+
+    template<typename Component>
+    void on_update(entt::registry &registry, entt::entity entity) {
+        if (!m_observer_enabled) {
+            return;
+        }
+
+        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
+
+        if (auto *modified = registry.try_get<modified_components>(entity)) {
+            modified->time_remaining[index] = 400;
+        }
     }
 
 public:
     template<typename... Actions>
-    client_snapshot_exporter_impl([[maybe_unused]] std::tuple<Components...>,
-                                  [[maybe_unused]] std::tuple<Actions...>) {
+    client_snapshot_exporter_impl(entt::registry &registry,
+                                  [[maybe_unused]] std::tuple<Components...>,
+                                  [[maybe_unused]] std::tuple<Actions...>)
+        : client_snapshot_exporter(registry)
+    {
+        m_connections.push_back(registry.on_construct<networked_tag>().connect<&entt::registry::emplace<modified_components>>());
+        ((m_connections.push_back(registry.on_update<Components>().template connect<&client_snapshot_exporter_impl<Components...>::template on_update<Components>>(*this))), ...);
+
         if constexpr(sizeof...(Actions) > 0) {
             m_append_current_actions_func = &append_current_actions<Actions...>;
         }
     }
 
-    void export_all(const entt::registry &registry, packet::registry_snapshot &snap) override {
-        const std::tuple<Components...> components;
-        internal::snapshot_insert_entity_components_all(registry, snap, components,
-                                                        std::make_index_sequence<sizeof...(Components)>{});
+    template<typename It>
+    void export_all(packet::registry_snapshot &snap, It first, It last) const {
+        for (; first != last; ++first) {
+            auto entity = *first;
+            unsigned i = 0;
+            (((m_registry->all_of<Components>(entity) ?
+                internal::snapshot_insert_entity<Components>(*m_registry, entity, snap, i) : void(0)), ++i), ...);
+        }
     }
 
-    void export_dirty(const entt::registry &registry, packet::registry_snapshot &snap) override {
-        constexpr auto indices = std::make_integer_sequence<unsigned, sizeof...(Components)>{};
-        auto network_dirty_view = registry.view<network_dirty>();
+    void export_all(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const override {
+        export_all(snap, entities.begin(), entities.end());
+    }
 
-        network_dirty_view.each([&](entt::entity entity, const network_dirty &n_dirty) {
-            n_dirty.each([&](entt::id_type id) {
-                export_by_type_id(registry, entity, id, snap, indices);
-            });
+    void export_all(packet::registry_snapshot &snap, const entt::sparse_set &entities) const override {
+        export_all(snap, entities.begin(), entities.end());
+    }
+
+    void export_modified(packet::registry_snapshot &snap, entt::entity client_entity,
+                         const entt::sparse_set &owned_entities, bool allow_full_ownership) const override {
+        auto &registry = *m_registry;
+        auto modified_view = registry.view<modified_components>();
+
+        if (allow_full_ownership) {
+            // Include all networked entities in the islands that contain an entity
+            // owned by this client, excluding entities that are owned by other clients.
+            auto island_entities = collect_islands_from_residents(registry, owned_entities.begin(), owned_entities.end());
+            auto owner_view = registry.view<entity_owner>();
+            auto island_view = registry.view<island>();
+            auto body_view = m_registry->view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
+
+            for (auto island_entity : island_entities) {
+                auto [island] = island_view.get(island_entity);
+
+                for (auto entity : island.nodes) {
+                    auto is_owned_by_another_client =
+                        owner_view.contains(entity) &&
+                        std::get<0>(owner_view.get(entity)).client_entity != client_entity;
+
+                    if (is_owned_by_another_client) {
+                        continue;
+                    }
+
+                    if (modified_view.contains(entity)) {
+                        auto [modified] = modified_view.get(entity);
+                        unsigned i = 0;
+                        (((registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?
+                            internal::snapshot_insert_entity<Components>(registry, entity, snap, i) : void(0)), ++i), ...);
+                    }
+
+                    if (body_view.contains(entity)) {
+                        internal::snapshot_insert_entity<position>(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
+                        internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
+                        internal::snapshot_insert_entity<linvel>(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
+                        internal::snapshot_insert_entity<angvel>(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
+                    }
+                }
+            }
+        } else {
+            // Otherwise, only entities owned by this client which contain an
+            // input component are included.
+            for (auto entity : owned_entities) {
+                auto [modified] = modified_view.get(entity);
+                unsigned i = 0;
+                (((std::is_base_of_v<network_input, Components> && registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?
+                    internal::snapshot_insert_entity<Components>(registry, entity, snap, i) : void(0)), ++i), ...);
+            }
+        }
+
+        // Always include actions.
+        auto history_view = registry.view<action_history>();
+        static constexpr auto action_history_index = index_of_v<unsigned, action_history, Components...>;
+
+        for (auto entity : owned_entities) {
+            if (history_view.contains(entity) && !std::get<0>(history_view.get(entity)).entries.empty()) {
+                internal::snapshot_insert_entity<action_history>(registry, entity, snap, action_history_index);
+            }
+        }
+    }
+
+    void update(double time) override {
+        EDYN_ASSERT(!(time < m_last_time));
+        auto elapsed_ms = static_cast<unsigned>((time - m_last_time) * 1000u);
+        m_last_time = time;
+
+        m_registry->view<modified_components>().each([&](modified_components &modified) {
+            for (auto &remaining : modified.time_remaining) {
+                if (elapsed_ms > remaining) {
+                    remaining = 0;
+                } else {
+                    remaining -= elapsed_ms;
+                }
+            }
         });
     }
+
+private:
+    std::vector<entt::scoped_connection> m_connections;
+    double m_last_time {};
 };
 
 }

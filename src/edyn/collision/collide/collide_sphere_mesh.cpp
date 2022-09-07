@@ -4,7 +4,7 @@
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/shape_util.hpp"
-#include "edyn/util/triangle_util.hpp"
+#include "edyn/math/triangle.hpp"
 #include <cmath>
 
 namespace edyn {

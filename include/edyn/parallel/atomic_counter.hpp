@@ -4,8 +4,13 @@
 #include <atomic>
 #include "edyn/config/config.h"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/serialization/memory_archive.hpp"
 
 namespace edyn {
+
+namespace detail {
+    inline void decrement_atomic_counter_job_func(job::data_type &data);
+}
 
 class atomic_counter {
 public:
@@ -31,11 +36,30 @@ public:
         }
     }
 
+    job get_decrement_job() {
+        auto dec_job = job();
+        dec_job.func = &detail::decrement_atomic_counter_job_func;
+        auto archive = fixed_memory_output_archive(dec_job.data.data(), dec_job.data.size());
+        auto ctx_ptr = reinterpret_cast<intptr_t>(this);
+        archive(ctx_ptr);
+        return dec_job;
+    }
+
 private:
     job m_job;
     job_dispatcher *m_dispatcher;
     std::atomic_int m_count;
 };
+
+namespace detail {
+    inline void decrement_atomic_counter_job_func(job::data_type &data) {
+        auto archive = memory_input_archive(data.data(), data.size());
+        intptr_t ctx_ptr;
+        archive(ctx_ptr);
+        auto *counter = reinterpret_cast<atomic_counter *>(ctx_ptr);
+        counter->decrement();
+    }
+}
 
 }
 

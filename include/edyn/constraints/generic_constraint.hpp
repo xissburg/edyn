@@ -6,10 +6,12 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
-#include "edyn/util/array.hpp"
+#include "edyn/util/array_util.hpp"
 
 namespace edyn {
+
+struct constraint_row_prep_cache;
+class position_solver;
 
 struct generic_constraint : public constraint_base {
     struct linear_dof {
@@ -46,13 +48,19 @@ struct generic_constraint : public constraint_base {
 
     static constexpr auto num_rows = 24;
     std::array<scalar, num_rows> impulse {make_array<num_rows, scalar>(0)};
+
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
+        const vector3 &linvelA, const vector3 &angvelA,
+        scalar inv_mA, const matrix3x3 &inv_IA,
+        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
+        const vector3 &linvelB, const vector3 &angvelB,
+        scalar inv_mB, const matrix3x3 &inv_IB);
+
+    void solve_position(position_solver &solver);
 };
-
-template<>
-void prepare_constraints<generic_constraint>(entt::registry &, row_cache &, scalar dt);
-
-template<>
-bool solve_position_constraints<generic_constraint>(entt::registry &, scalar dt);
 
 template<typename Archive>
 void serialize(Archive &archive, generic_constraint::linear_dof &dof) {

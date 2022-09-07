@@ -12,14 +12,18 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collision_result.hpp"
+#include "edyn/parallel/job.hpp"
 #include "edyn/util/collision_util.hpp"
 #include "edyn/context/settings.hpp"
 
 namespace edyn {
 
-struct job;
-
 class narrowphase {
+    enum class state {
+        begin,
+        detect_collision
+    };
+
     struct contact_point_construction_info {
         std::array<collision_result::collision_point, max_contacts> point;
         size_t count {0};
@@ -30,15 +34,15 @@ class narrowphase {
         size_t count {0};
     };
 
+    void detect_collision_parallel(bool async, const job &completion_job = {});
+    void finish_detect_collision();
     void clear_contact_manifold_events();
 
 public:
     narrowphase(entt::registry &);
 
-    bool parallelizable() const;
-    void update();
-    void update_async(job &completion_job);
-    void finish_async_update();
+    void update_sequential(bool mt);
+    bool update(const job &completion_job);
 
     /**
      * @brief Detects and processes collisions for the given manifolds.
@@ -46,25 +50,17 @@ public:
     template<typename Iterator>
     void update_contact_manifolds(Iterator begin, Iterator end);
 
-    template<typename ContactManifoldView, typename Iterator>
-    void update_contact_manifolds(Iterator begin, Iterator end,
-                                  ContactManifoldView &manifold_view);
-
 private:
     entt::registry *m_registry;
     std::vector<contact_point_construction_info> m_cp_construction_infos;
     std::vector<contact_point_destruction_info> m_cp_destruction_infos;
+    size_t m_max_sequential_size {4};
+    state m_state {state::begin};
 };
 
 template<typename Iterator>
 void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
     auto manifold_view = m_registry->view<contact_manifold>();
-    update_contact_manifolds(begin, end, manifold_view);
-}
-
-template<typename ContactManifoldView, typename Iterator>
-void narrowphase::update_contact_manifolds(Iterator begin, Iterator end,
-                                           ContactManifoldView &manifold_view) {
     auto events_view = m_registry->view<contact_manifold_events>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();

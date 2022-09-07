@@ -3,13 +3,11 @@
 
 #include <memory>
 #include <mutex>
-#include <shared_mutex>
 #include <type_traits>
 #include <vector>
 #include <entt/core/type_info.hpp>
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/action_list.hpp"
-#include "edyn/comp/dirty.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 
 namespace edyn {
@@ -45,10 +43,8 @@ namespace detail {
 
                 if (registry.all_of<Component>(local_entity)) {
                     registry.replace<Component>(local_entity, comp);
-                    registry.get_or_emplace<dirty>(local_entity).template updated<Component>();
                 } else {
                     registry.emplace<Component>(local_entity, comp);
-                    registry.get_or_emplace<dirty>(local_entity).template created<Component>();
                 }
             }
         }
@@ -98,7 +94,7 @@ public:
 
     /**
      * Even though the timestamp of a registry snapshot lies right after the time
-     * an action happenend, it is possible that the action wasn't still applied
+     * an action happened, it is possible that the action wasn't still applied
      * in the server side at the time the snapshot was generated. Perhaps the
      * action was applied at the same time the snapshot was generated and then
      * its effects will only become visible in the next update, which will cause

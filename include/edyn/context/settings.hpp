@@ -3,21 +3,15 @@
 
 #include <memory>
 #include <variant>
+#include "edyn/config/execution_mode.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/constants.hpp"
-#include "edyn/context/external_system.hpp"
-#include "edyn/util/make_reg_op_builder.hpp"
+#include "edyn/context/step_callback.hpp"
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/networking/settings/client_network_settings.hpp"
 #include "edyn/networking/settings/server_network_settings.hpp"
 
 namespace edyn {
-
-std::unique_ptr<registry_operation_builder> make_reg_op_builder_default();
-
-using should_collide_func_t = decltype(&should_collide_default);
-
-struct component_index_source;
 
 struct settings {
     scalar fixed_dt {scalar(1.0 / 60)};
@@ -29,11 +23,10 @@ struct settings {
     unsigned num_restitution_iterations {8};
     unsigned num_individual_restitution_iterations {3};
 
-    make_reg_op_builder_func_t make_reg_op_builder {&make_reg_op_builder_default};
-    std::shared_ptr<component_index_source> index_source;
-    external_system_func_t external_system_init {nullptr};
-    external_system_func_t external_system_pre_step {nullptr};
-    external_system_func_t external_system_post_step {nullptr};
+    execution_mode execution_mode;
+
+    step_callback_t pre_step_callback {nullptr};
+    step_callback_t post_step_callback {nullptr};
     should_collide_func_t should_collide_func {&should_collide_default};
 
     using clear_actions_func_t = void(entt::registry &);
@@ -43,8 +36,6 @@ struct settings {
         std::monostate,
         client_network_settings,
         server_network_settings> network_settings;
-
-    settings();
 };
 
 }

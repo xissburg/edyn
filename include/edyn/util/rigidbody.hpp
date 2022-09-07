@@ -1,7 +1,6 @@
 #ifndef EDYN_UTIL_RIGIDBODY_HPP
 #define EDYN_UTIL_RIGIDBODY_HPP
 
-#include <vector>
 #include <optional>
 #include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
@@ -65,9 +64,6 @@ struct rigidbody_def {
     uint64_t collision_group {collision_filter::all_groups};
     uint64_t collision_mask {collision_filter::all_groups};
 
-    // Mark all contacts involving this rigid body as continuous.
-    bool continuous_contacts {false};
-
     // Whether this entity will be used for presentation and needs
     // position/orientation interpolation.
     bool presentation {true};
@@ -103,15 +99,6 @@ void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
  * @return Rigid body entity.
  */
 entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
-
-/**
- * @brief Creates many rigid bodies at once.
- * A new island is created and all bodies are inserted into it.
- * @param registry Data source.
- * @param defs Rigid body definitions.
- * @return Entities corresponding to each rigid body definition.
- */
-std::vector<entt::entity> batch_rigidbodies(entt::registry &registry, const std::vector<rigidbody_def> &defs);
 
 /**
  * @brief Applies `impulse` to entity.

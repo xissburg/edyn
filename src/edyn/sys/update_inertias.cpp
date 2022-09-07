@@ -14,14 +14,14 @@ void update_inertia(entt::entity entity, OrnInertiaView &view) {
 }
 
 void update_inertias(entt::registry &registry) {
-    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
+    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(entt::exclude_t<sleeping_tag, disabled_tag>{});
     for (auto entity : view) {
         update_inertia(entity, view);
     }
 }
 
 void update_inertia(entt::registry &registry, entt::entity entity) {
-    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
+    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(entt::exclude_t<sleeping_tag, disabled_tag>{});
     update_inertia(entity, view);
 }
 

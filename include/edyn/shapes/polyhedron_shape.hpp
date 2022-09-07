@@ -26,7 +26,7 @@ struct polyhedron_shape {
      * to be unique for each entity, unlike the `mesh` which can be shared,
      * since this reflects the unique orientation of the rigid body.
      * Since this is modified by the island worker, it's not safe to access it
-     * in another thread. The coordinator does not need this information by
+     * in another thread. The main thread does not need this information by
      * default. If it is needed, a new instance should be created to replace
      * the current in the registry of that thread. This is a weak reference:
      * the owner of the polyhedron instance is responsible for keeping it alive.

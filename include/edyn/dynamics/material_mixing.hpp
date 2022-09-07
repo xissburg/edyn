@@ -4,7 +4,7 @@
 #include <limits>
 #include <map>
 #include <utility>
-#include "edyn/util/unordered_pair.hpp"
+#include "edyn/core/unordered_pair.hpp"
 #include "edyn/comp/material.hpp"
 
 namespace edyn {

@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
-#include "edyn/util/entity_map.hpp"
+#include "edyn/replication/entity_map.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/util/clock_sync.hpp"
 

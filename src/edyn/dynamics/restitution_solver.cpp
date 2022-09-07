@@ -1,4 +1,5 @@
 #include "edyn/dynamics/restitution_solver.hpp"
+#include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -16,7 +17,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/parallel/entity_graph.hpp"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
@@ -67,7 +68,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     // Solve manifolds in small groups, these groups being all manifolds connected
     // to one rigid body, usually a fast moving one. Ignore manifolds which are
-    // separating, i.e. positive normal relative velocity. Intially, pick the
+    // separating, i.e. positive normal relative velocity. Initially, pick the
     // manifold with the highest penetration velocity (i.e. lowest normal relative
     // velocity) and select the fastest rigid body to start graph traversal. Traverse
     // the entity graph starting at that rigid body's node and visit the edges of
@@ -106,12 +107,12 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     // Reuse collections of rows to prevent a high number of allocations.
     auto normal_rows = std::vector<constraint_row>{};
-    auto friction_row_pairs = std::vector<internal::contact_friction_row_pair>{};
+    auto friction_row_pairs = std::vector<constraint_row_friction>{};
 
     normal_rows.reserve(10);
     friction_row_pairs.reserve(10);
 
-    auto solveManifolds = [&](const std::vector<entt::entity> &manifold_entities) {
+    auto solve_manifolds = [&](const std::vector<entt::entity> &manifold_entities) {
         normal_rows.clear();
         friction_row_pairs.clear();
 
@@ -121,8 +122,10 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(manifold.body[0]);
             auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(manifold.body[1]);
 
-            auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
-            auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
+            auto originA = origin_view.contains(manifold.body[0]) ?
+                origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
+            auto originB = origin_view.contains(manifold.body[1]) ?
+                origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
             // Create constraint rows for non-penetration constraints for each
             // contact point.
@@ -172,7 +175,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 apply_impulse(delta_impulse, normal_row);
 
                 auto &friction_row_pair = friction_row_pairs[row_idx];
-                internal::solve_friction_row_pair(friction_row_pair, normal_row);
+                solve_friction(friction_row_pair, normal_rows);
             }
         }
 
@@ -208,10 +211,10 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 // There are duplicates among all manifold bodies but this
                 // operation is idempotent since the delta velocity is set
                 // to zero.
-                auto [lv, av, dv, dw] = body_view.get<linvel, angvel, delta_linvel, delta_angvel>(body_entity);
-                lv += dv;
+                auto [v, w, dv, dw] = body_view.get<linvel, angvel, delta_linvel, delta_angvel>(body_entity);
+                v += dv;
+                w += dw;
                 dv = vector3_zero;
-                av += dw;
                 dw = vector3_zero;
             }
         }
@@ -249,7 +252,10 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     std::vector<entt::entity> manifold_entities;
 
-    graph.traverse_connecting_nodes(start_node_index, [&](auto node_index) {
+    graph.traverse(start_node_index, [&](auto node_index) {
+        // Ignore non-procedural entities.
+        if (!graph.is_connecting_node(node_index)) return;
+
         graph.visit_edges(node_index, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
 
@@ -266,7 +272,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
         });
 
         if (!manifold_entities.empty()) {
-            solveManifolds(manifold_entities);
+            solve_manifolds(manifold_entities);
         }
 
         manifold_entities.clear();

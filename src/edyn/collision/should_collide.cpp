@@ -1,6 +1,8 @@
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
+#include "edyn/context/settings.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -51,6 +53,14 @@ bool should_collide_default(const entt::registry &registry, entt::entity first, 
     }
 
     return true;
+}
+
+void set_should_collide(entt::registry &registry, should_collide_func_t func) {
+    registry.ctx().at<settings>().should_collide_func = func;
+
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->settings_changed();
+    }
 }
 
 }

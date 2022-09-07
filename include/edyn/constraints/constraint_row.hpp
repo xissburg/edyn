@@ -5,12 +5,10 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/config/constants.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
 
 namespace edyn {
-
-struct delta_linvel;
-struct delta_angvel;
-struct delta_spin;
 
 /**
  * `constraint_row` contains all and only the information that's required
@@ -19,7 +17,7 @@ struct delta_spin;
  */
 struct constraint_row {
     // Jacobian diagonals.
-    std::array<vector3, 2 * 3> J;
+    std::array<vector3, 4> J;
 
     // Effective mass (J M^-1 J^T)^-1.
     scalar eff_mass;
@@ -36,19 +34,13 @@ struct constraint_row {
     scalar impulse;
 
     // Inverse masses and inertias used during the solver iterations.
-    scalar inv_mA, inv_mB, inv_mC;
-    matrix3x3 inv_IA, inv_IB, inv_IC;
+    scalar inv_mA, inv_mB;
+    matrix3x3 inv_IA, inv_IB;
 
     // Reference to delta velocities used during solver iterations. It is not
     // safe to dereference these outside of the solver update context.
-    delta_linvel *dvA, *dvB, *dvC;
-    delta_angvel *dwA, *dwB, *dwC;
-    delta_spin *dsA, *dsB, *dsC;
-
-    std::array<bool, 3> use_spin {false, false, false};
-    vector3 spin_axis[3];
-
-    unsigned num_entities {2};
+    delta_linvel *dvA, *dvB;
+    delta_angvel *dwA, *dwB;
 };
 
 /**
@@ -62,6 +54,27 @@ struct constraint_row_options {
 
     scalar restitution {scalar(0)};
 };
+
+inline scalar solve(constraint_row &row) {
+    auto delta_relvel = dot(row.J[0], *row.dvA) +
+                        dot(row.J[1], *row.dwA) +
+                        dot(row.J[2], *row.dvB) +
+                        dot(row.J[3], *row.dwB);
+    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
+    auto impulse = row.impulse + delta_impulse;
+
+    if (impulse < row.lower_limit) {
+        delta_impulse = row.lower_limit - row.impulse;
+        row.impulse = row.lower_limit;
+    } else if (impulse > row.upper_limit) {
+        delta_impulse = row.upper_limit - row.impulse;
+        row.impulse = row.upper_limit;
+    } else {
+        row.impulse = impulse;
+    }
+
+    return delta_impulse;
+}
 
 }
 

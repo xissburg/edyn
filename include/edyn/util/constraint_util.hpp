@@ -2,7 +2,8 @@
 #define EDYN_UTIL_CONSTRAINT_UTIL_HPP
 
 #include <entt/entity/registry.hpp>
-#include "edyn/comp/dirty.hpp"
+#include "edyn/comp/graph_node.hpp"
+#include "edyn/core/entity_pair.hpp"
 #include "edyn/math/vector3.hpp"
 
 namespace edyn {
@@ -13,47 +14,58 @@ struct constraint_row_options;
 struct matrix3x3;
 
 namespace internal {
-    bool pre_make_constraint(entt::entity entity, entt::registry &registry,
+    bool pre_make_constraint(entt::registry &registry, entt::entity entity,
                              entt::entity body0, entt::entity body1);
 }
 
 /**
  * @brief Assigns a constraint component of type `T` to the given entity and does
  * all the other necessary steps to tie things together correctly.
- *
  * @tparam T Constraint type.
- * @param entity The constraint entity.
+ * @tparam SetupFunc Type of function to configure the constraint.
  * @param registry The `entt::registry`.
+ * @param entity The constraint entity.
  * @param body0 First rigid body entity.
  * @param body1 Second rigid body entity.
- * graph.
+ * @param setup Optional function to configure the constraint. Ensures the
+ * assigned properties are propagated to the simulation worker when running
+ * in asynchronous execution mode.
  */
-template<typename T>
-T & make_constraint(entt::entity entity, entt::registry &registry,
-                    entt::entity body0, entt::entity body1) {
-
-    auto is_new = internal::pre_make_constraint(entity, registry, body0, body1);
-    auto &con = registry.emplace<T>(entity, body0, body1);
-    auto &con_dirty = registry.get_or_emplace<dirty>(entity);
-    con_dirty.created<T>();
-
-    if (is_new) {
-        con_dirty.set_new();
-    }
-
-    return con;
+template<typename T, typename... SetupFunc>
+void make_constraint(entt::registry &registry, entt::entity entity,
+                     entt::entity body0, entt::entity body1, SetupFunc... setup) {
+    internal::pre_make_constraint(registry, entity, body0, body1);
+    registry.emplace<T>(entity, body0, body1);
+    (registry.patch<T>(entity, setup), ...);
 }
 
 /*! @copydoc make_constraint */
-template<typename T>
+template<typename T, typename... SetupFunc>
 auto make_constraint(entt::registry &registry,
-                     entt::entity body0, entt::entity body1) {
-    auto ent = registry.create();
-    auto &con = make_constraint<T>(ent, registry, body0, body1);
-    return std::pair<entt::entity, T &>(ent, con);
+                     entt::entity body0, entt::entity body1,
+                     SetupFunc... setup) {
+    auto entity = registry.create();
+    make_constraint<T>(registry, entity, body0, body1, setup...);
+    return entity;
 }
 
-entt::entity make_contact_manifold(entt::registry &,
+/**
+ * @brief Visit all edges of a node in the entity graph. This can be used to
+ * iterate over all constraints assigned to a rigid body, including contacts.
+ * @tparam Func Visitor function type.
+ * @param entity Node entity.
+ * @param func Vistor function with signature `void(entt::entity)`.
+ */
+template<typename Func>
+void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
+    auto &node = registry.get<graph_node>(entity);
+    auto &graph = registry.ctx().at<entity_graph>();
+    graph.visit_edges(node.node_index, [&](auto edge_index) {
+        func(graph.edge_entity(edge_index));
+    });
+}
+
+entt::entity make_contact_manifold(entt::registry &registry,
                                    entt::entity body0, entt::entity body1,
                                    scalar separation_threshold);
 

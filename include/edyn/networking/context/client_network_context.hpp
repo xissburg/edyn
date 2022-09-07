@@ -1,11 +1,13 @@
 #ifndef EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 #define EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 
-#include "edyn/util/entity_map.hpp"
+#include "edyn/replication/entity_map.hpp"
 #include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/networking/util/client_snapshot_importer.hpp"
 #include "edyn/networking/util/client_snapshot_exporter.hpp"
 #include "edyn/networking/util/clock_sync.hpp"
+#include "edyn/networking/extrapolation/extrapolation_job.hpp"
+#include "edyn/networking/extrapolation/extrapolation_modified_comp.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/sparse_set.hpp>
@@ -19,14 +21,17 @@ namespace packet {
     struct edyn_packet;
 }
 
-class extrapolation_job;
-
 struct extrapolation_job_context {
     std::unique_ptr<extrapolation_job> job;
+
+    extrapolation_job_context() = default;
+    extrapolation_job_context(std::unique_ptr<extrapolation_job> &&job)
+        : job(std::move(job))
+    {}
 };
 
 struct client_network_context {
-    client_network_context();
+    client_network_context(entt::registry &registry);
 
     entt::entity client_entity {entt::null};
     entt::sparse_set owned_entities {};
@@ -65,6 +70,8 @@ struct client_network_context {
     auto extrapolation_timeout_sink() {
         return entt::sink{extrapolation_timeout_signal};
     }
+
+    make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp;
 
     std::shared_ptr<client_snapshot_importer> snapshot_importer;
     std::shared_ptr<client_snapshot_exporter> snapshot_exporter;

@@ -15,7 +15,6 @@ void print_entities(entt::registry& registry) {
 
 int main(int argc, char** argv) {
     entt::registry registry;
-    edyn::init();
     edyn::attach(registry);
 
     auto def = edyn::rigidbody_def();
@@ -36,7 +35,6 @@ int main(int argc, char** argv) {
     }
 
     edyn::detach(registry);
-    edyn::deinit();
 
     return 0;
 }

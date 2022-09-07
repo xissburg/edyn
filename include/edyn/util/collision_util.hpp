@@ -68,7 +68,7 @@ size_t find_nearest_contact_rolling(const collision_result &result, const vector
  * element of the `manifold.ids array`, i.e.
  * `manifold.point[manifold.ids[manifold.num_points-1]]`.
  */
-void create_contact_point(entt::registry& registry,
+void create_contact_point(entt::registry &registry,
                           entt::entity manifold_entity,
                           contact_manifold &manifold,
                           const collision_result::collision_point& rp);

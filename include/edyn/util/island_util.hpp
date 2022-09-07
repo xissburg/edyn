@@ -3,11 +3,14 @@
 
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/tag.hpp"
 
 namespace edyn {
 
+static constexpr auto exclude_sleeping_disabled = entt::exclude_t<sleeping_tag, disabled_tag>{};
+
 template<typename It>
-entt::sparse_set collect_islands_from_residents(entt::registry &registry, It first_entity, It last_entity,
+entt::sparse_set collect_islands_from_residents(const entt::registry &registry, It first_entity, It last_entity,
                                                 bool include_multi_resident = true) {
     entt::sparse_set island_entities;
 
