@@ -23,37 +23,34 @@ namespace edyn {
 void doublewishbone_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
     // Upper control arm locations.
-    auto upivotA = to_world_space(upper_pivotA, originA, ornA);
-    auto urA = upivotA - posA;
+    auto upivotA = to_world_space(upper_pivotA, bodyA.origin, bodyA.orn);
+    auto urA = upivotA - bodyA.pos;
 
-    auto upivotB = to_world_space(upper_pivotB, originB, ornB);
-    auto urB = upivotB - posB;
+    auto upivotB = to_world_space(upper_pivotB, bodyB.origin, bodyB.orn);
+    auto urB = upivotB - bodyB.pos;
 
     auto ud = upivotA - upivotB;
     auto ul2 = length_sqr(ud);
 
     // Lower control arm locations.
-    auto lpivotA = to_world_space(lower_pivotA, originA, ornA);
-    auto lrA = lpivotA - posA;
+    auto lpivotA = to_world_space(lower_pivotA, bodyA.origin, bodyA.orn);
+    auto lrA = lpivotA - bodyA.pos;
 
-    auto lpivotB = to_world_space(lower_pivotB, originB, ornB);
-    auto lrB = lpivotB - posB;
+    auto lpivotB = to_world_space(lower_pivotB, bodyB.origin, bodyB.orn);
+    auto lrB = lpivotB - bodyB.pos;
 
     auto ld = lpivotA - lpivotB;
     auto ll2 = length_sqr(ld);
 
     // Z axis points forward.
-    auto chassis_z = rotate(ornA, vector3_z);
+    auto chassis_z = rotate(bodyA.orn, vector3_z);
 
     // Wheel rotation axis.
     scalar side = lower_pivotA.x > 0 ? 1 : -1;
-    auto wheel_x = rotate(ornB, vector3_x * side);
+    auto wheel_x = rotate(bodyB.orn, vector3_x * side);
 
     auto row_idx = size_t(0);
 
@@ -120,7 +117,7 @@ void doublewishbone_constraint::prepare(
     // a plane passing through the middle of the axis on the chassis with normal
     // pointing outside the vehicle.
     {
-        auto chassis_x = rotate(ornA, vector3_x * side);
+        auto chassis_x = rotate(bodyA.orn, vector3_x * side);
         auto p = cross(mrA, chassis_x) + cross(chassis_x, md);
         auto q = cross(mrB, chassis_x);
 

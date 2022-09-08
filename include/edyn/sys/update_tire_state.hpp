@@ -2,6 +2,7 @@
 #define EDYN_SYS_UPDATE_TIRE_STATE_HPP
 
 #include <entt/entt.hpp>
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -12,7 +13,6 @@
 #include "edyn/comp/tire_state.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/math/transform.hpp"
-#include "edyn/parallel/entity_graph.hpp"
 #include "edyn/collision/contact_point.hpp"
 
 namespace edyn {

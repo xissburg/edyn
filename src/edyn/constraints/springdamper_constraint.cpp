@@ -22,29 +22,26 @@ namespace edyn {
 void springdamper_constraint::prepare(
     const entt::registry &registry, entt::entity entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    auto ctrl_armA = to_world_space(m_ctrl_arm_pivotA, originA, ornA);
-    auto ctrl_armB = to_world_space(m_ctrl_arm_pivotB, originB, ornB);
+    auto ctrl_armA = to_world_space(m_ctrl_arm_pivotA, bodyA.origin, bodyA.orn);
+    auto ctrl_armB = to_world_space(m_ctrl_arm_pivotB, bodyB.origin, bodyB.orn);
 
     auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
     auto ctrl_arm_len = length(ctrl_arm_dir);
     ctrl_arm_dir /= ctrl_arm_len;
 
-    auto rA = ctrl_armB - posA;
-    auto rB = ctrl_armB - posB;
+    auto rA = ctrl_armB - bodyA.pos;
+    auto rB = ctrl_armB - bodyB.pos;
 
     scalar side = m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
-    auto chassis_z = rotate(ornA, vector3_z);
+    auto chassis_z = rotate(bodyA.orn, vector3_z);
     auto ctrl_arm_x = ctrl_arm_dir * side;
     auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
     auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
     auto ctrl_arm_pivot_rel = ctrl_arm_basis * m_ctrl_arm_pivot;
     auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
-    auto coiloverA = to_world_space(m_pivotA, originA, ornA);
+    auto coiloverA = to_world_space(m_pivotA, bodyA.origin, bodyA.orn);
     auto coilover_dir = coiloverA - ctrl_arm_pivot;
     auto coilover_len = length(coilover_dir);
     coilover_dir /= coilover_len;
@@ -86,14 +83,9 @@ void springdamper_constraint::prepare(
 
     // Damper.
     {
-        auto &linvelA = registry.get<linvel>(body[0]);
-        auto &angvelA = registry.get<angvel>(body[0]);
-        auto &linvelB = registry.get<linvel>(body[1]);
-        auto &angvelB = registry.get<angvel>(body[1]);
-
-        auto velA = linvelA + cross(angvelA, coiloverA - posA);
-        auto vel_ctrl_armA = linvelA + cross(angvelA, ctrl_armA - posA);
-        auto vel_ctrl_armB = linvelB + cross(angvelB, rB);
+        auto velA = bodyA.linvel + cross(bodyA.angvel, coiloverA - bodyA.pos);
+        auto vel_ctrl_armA = bodyA.linvel + cross(bodyA.angvel, ctrl_armA - bodyA.pos);
+        auto vel_ctrl_armB = bodyB.linvel + cross(bodyB.angvel, rB);
         auto velB = lerp(vel_ctrl_armA, vel_ctrl_armB, ctrl_arm_pivot_ratio);
         auto v_rel = velA - velB;
         auto speed = dot(coilover_dir, v_rel);
@@ -105,9 +97,6 @@ void springdamper_constraint::prepare(
         row.lower_limit = -impulse;
         row.upper_limit =  impulse;
         row.impulse = impulse[1];
-
-        prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
     }
 
     // Damper piston limit when it fully extends.

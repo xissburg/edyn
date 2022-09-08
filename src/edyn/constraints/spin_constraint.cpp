@@ -15,19 +15,15 @@
 
 namespace edyn {
 
-void spin_constraint::prepare(
-        const entt::registry &registry, entt::entity entity,
-        constraint_row_prep_cache &cache, scalar dt,
-        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-        const vector3 &linvelA, const vector3 &angvelA,
-        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-        const vector3 &linvelB, const vector3 &angvelB) {
+void spin_constraint::prepare(const entt::registry &registry, entt::entity entity,
+                              constraint_row_prep_cache &cache, scalar dt,
+                              const constraint_body &bodyA, const constraint_body &bodyB) {
 
     auto spin_view = registry.view<spin, delta_spin>();
     auto con_view = registry.view<spin_constraint>();
 
-    auto axisA = rotate(ornA, vector3_x);
-    auto axisB = rotate(ornB, vector3_x);
+    auto axisA = rotate(bodyA.orn, vector3_x);
+    auto axisB = rotate(bodyB.orn, vector3_x);
 
     auto spinvelA = vector3_zero;
     auto spinvelB = vector3_zero;

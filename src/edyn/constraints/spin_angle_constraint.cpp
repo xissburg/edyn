@@ -18,20 +18,17 @@ namespace edyn {
 void spin_angle_constraint::prepare(
     const entt::registry &registry, entt::entity entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
     if (std::abs(m_ratio) < EDYN_EPSILON) {
         return;
     }
 
-    auto axisA = quaternion_x(ornA);
-    auto axisB = quaternion_x(ornB);
+    auto axisA = quaternion_x(bodyA.orn);
+    auto axisB = quaternion_x(bodyB.orn);
 
-    auto spinvelA = axisA * spinA;
-    auto spinvelB = axisB * spinB;
+    auto spinvelA = axisA * bodyA.spin;
+    auto spinvelB = axisB * bodyB.spin;
 
     {
         auto error = calculate_offset(registry) - m_offset_origin;
@@ -52,7 +49,7 @@ void spin_angle_constraint::prepare(
     }
 
     {
-        auto relvel = spinA - spinB * m_ratio;
+        auto relvel = bodyA.spin - bodyB.spin * m_ratio;
         auto force = relvel * m_damping;
         auto impulse = std::abs(force) * dt;
 

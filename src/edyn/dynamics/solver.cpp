@@ -12,6 +12,7 @@
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/antiroll_constraint.hpp"
 #include "edyn/constraints/constraint_body.hpp"
+#include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
@@ -80,10 +81,19 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
         auto &manifold = manifold_view.template get<contact_manifold>(entity);
         con.prepare(registry, entity, manifold, cache, dt, bodyA, bodyB);
+    } else if constexpr(std::is_same_v<std::decay_t<C>, contact_patch_constraint>) {
+        auto &manifold = manifold_view.template get<contact_manifold>(entity);
+        con.prepare(registry, entity, manifold, cache, dt, bodyA, bodyB);
     } else if constexpr(std::is_same_v<std::decay_t<C>, antiroll_constraint>) {
         auto [posC, ornC, linvelC, angvelC, inv_mC, inv_IC, dvC, dwC] = body_view.get(con.m_third_entity);
         auto originC = origin_view.contains(con.m_third_entity) ?
             origin_view.template get<origin>(con.m_third_entity) : static_cast<vector3>(posC);
+        const auto bodyC = constraint_body{originC, posC, ornC, linvelC, angvelC, inv_mC, inv_IC};
+        con.prepare(registry, entity, cache, dt, bodyA, bodyB, bodyC);
+    } else if constexpr(std::is_same_v<std::decay_t<C>, differential_constraint>) {
+        auto [posC, ornC, linvelC, angvelC, inv_mC, inv_IC, dvC, dwC] = body_view.get(con.body[2]);
+        auto originC = origin_view.contains(con.body[2]) ?
+            origin_view.template get<origin>(con.body[2]) : static_cast<vector3>(posC);
         const auto bodyC = constraint_body{originC, posC, ornC, linvelC, angvelC, inv_mC, inv_IC};
         con.prepare(registry, entity, cache, dt, bodyA, bodyB, bodyC);
     } else {

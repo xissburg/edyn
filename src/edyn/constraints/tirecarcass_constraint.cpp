@@ -20,25 +20,22 @@ namespace edyn {
 void tirecarcass_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    const auto axisA_x = quaternion_x(ornA);
+    const auto axisA_x = quaternion_x(bodyA.orn);
 
-    const auto axisB_x = quaternion_x(ornB);
-    const auto axisB_y = quaternion_y(ornB);
-    const auto axisB_z = quaternion_z(ornB);
+    const auto axisB_x = quaternion_x(bodyB.orn);
+    const auto axisB_y = quaternion_y(bodyB.orn);
+    const auto axisB_z = quaternion_z(bodyB.orn);
 
-    auto spinvelA = axisA_x * spinA;
-    auto spinvelB = axisB_x * spinB;
+    auto spinvelA = axisA_x * bodyA.spin;
+    auto spinvelB = axisB_x * bodyB.spin;
 
     auto row_idx = size_t(0);
 
     // Lateral movement.
     {
-        auto error = dot(posA - posB, axisB_x);
+        auto error = dot(bodyA.pos - bodyB.pos, axisB_x);
         auto spring_force = -error * m_lateral_stiffness;
         auto spring_impulse = std::abs(spring_force * dt);
 
@@ -53,7 +50,7 @@ void tirecarcass_constraint::prepare(
 
     // Lateral damping.
     {
-        auto relspd = dot(linvelA - linvelB, axisB_x);
+        auto relspd = dot(bodyA.linvel - bodyB.linvel, axisB_x);
         auto damping_force = m_lateral_damping * relspd;
         auto damping_impulse = std::abs(damping_force * dt);
 
@@ -72,7 +69,7 @@ void tirecarcass_constraint::prepare(
         row.upper_limit = large_scalar;
         row.impulse = impulse[row_idx++];
 
-        cache.get_options().error = dot(posA - posB, axisB_y) / dt;
+        cache.get_options().error = dot(bodyA.pos - bodyB.pos, axisB_y) / dt;
     }
 
     // Prevent longitudinal movement.
@@ -83,15 +80,15 @@ void tirecarcass_constraint::prepare(
         row.upper_limit = large_scalar;
         row.impulse = impulse[row_idx++];
 
-        cache.get_options().error = dot(posA - posB, axisB_z) / dt;
+        cache.get_options().error = dot(bodyA.pos - bodyB.pos, axisB_z) / dt;
     }
 
     // Constrain rotation along all axes.
     for (size_t i = 0; i < 3; ++i) {
         constexpr auto I = matrix3x3_identity;
-        auto axis = rotate(ornA, I.row[i]);
-        auto n = rotate(ornA, I.row[(i+1)%3]);
-        auto m = rotate(ornB, I.row[(i+2)%3]);
+        auto axis = rotate(bodyA.orn, I.row[i]);
+        auto n = rotate(bodyA.orn, I.row[(i+1)%3]);
+        auto m = rotate(bodyB.orn, I.row[(i+2)%3]);
         auto error = dot(n, m);
 
         auto &row = cache.add_row();
@@ -134,11 +131,11 @@ void tirecarcass_constraint::prepare(
         row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
         row.lower_limit = -impulse;
         row.upper_limit =  impulse;
+        row.impulse = impulse[row_idx++];
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.spin_axis[0] = axisA_x;
         row.spin_axis[1] = axisB_x;
-        row.impulse = impulse[row_idx++];
     }
 }
 

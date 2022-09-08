@@ -22,7 +22,6 @@
 #include "edyn/constraints/tierod_constraint.hpp"
 #include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
 
@@ -49,7 +48,7 @@ using constraints_tuple_t = std::tuple<
     point_constraint,
     contact_patch_constraint,
     contact_constraint
->{};
+>;
 
 static const constraints_tuple_t constraints_tuple = constraints_tuple_t{};
 

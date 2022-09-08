@@ -75,15 +75,9 @@ bool intervals_intersect_wrap_around(scalar min_a, scalar max_a, scalar min_b, s
            intervals_intersect(min_a, max_a, min_b, range_max);
 }
 
-void contact_patch_constraint::prepare(
-    const entt::registry &registry, entt::entity entity, const contact_manifold &manifold,
-    constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    scalar inv_mA, const matrix3x3 &inv_IA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    scalar inv_mB, const matrix3x3 &inv_IB) {
+void contact_patch_constraint::prepare(const entt::registry &registry, entt::entity entity, const contact_manifold &manifold,
+                                       constraint_row_prep_cache &cache, scalar dt,
+                                       const constraint_body &bodyA, const constraint_body &bodyB) {
 
     auto spin_view = registry.view<spin, spin_angle, delta_spin>();
     auto cyl_view = registry.view<cylinder_shape>();
@@ -93,7 +87,7 @@ void contact_patch_constraint::prepare(
     }
 
     // Wheel spin axis in world space.
-    const auto axis = quaternion_x(ornA);
+    const auto axis = quaternion_x(bodyA.orn);
     // `A` is assumed to be the tire, thus it must have spin.
     auto &spinA = spin_view.get<const spin>(body[0]);
     auto spinvelA = axis * spinA.s;
@@ -105,14 +99,14 @@ void contact_patch_constraint::prepare(
 
     if (spin_view.contains(body[1])) {
         auto &s = spin_view.get<const spin>(body[1]);
-        spin_axisB = quaternion_x(ornB);
+        spin_axisB = quaternion_x(bodyB.orn);
         spinvelB = spin_axisB * scalar(s);
         delta_spinB = &spin_view.get<const delta_spin>(body[1]);
     }
 
     auto &spin_angleA = spin_view.get<const spin_angle>(body[0]);
-    auto spin_ornA = ornA * quaternion_axis_angle(vector3_x, spin_angleA.s);
-    auto spin_angvelA = angvelA + spinvelA;
+    auto spin_ornA = bodyA.orn * quaternion_axis_angle(vector3_x, spin_angleA.s);
+    auto spin_angvelA = bodyA.angvel + spinvelA;
 
     // Store initial size of the constraint row cache so the number of rows
     // for this contact constraint can be calculated at the end.
@@ -128,18 +122,18 @@ void contact_patch_constraint::prepare(
 
         EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
         auto normal = cp.normal;
-        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
-        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
-        auto rA = pivotA - posA;
-        auto rB = pivotB - posB;
+        auto pivotA = to_world_space(cp.pivotA, bodyA.origin, bodyA.orn);
+        auto pivotB = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
+        auto rA = pivotA - bodyA.pos;
+        auto rB = pivotB - bodyB.pos;
 
         auto &row = cache.add_row();
         row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
         row.impulse = impulse[imp_idx++];
         row.lower_limit = 0;
 
-        auto vA = linvelA + cross(angvelA, rA);
-        auto vB = linvelB + cross(angvelB, rB);
+        auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
+        auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
         auto relvel = vA - vB;
         auto normal_relspd = dot(relvel, normal);
         auto stiffness = velocity_dependent_vertical_stiffness(m_normal_stiffness,
@@ -151,7 +145,7 @@ void contact_patch_constraint::prepare(
 
         for (unsigned i = 0; i < manifold.num_points; ++i) {
             auto &other_cp = manifold.get_point(i);
-            auto other_pivotB = to_world_space(other_cp.pivotB, originB, ornB);
+            auto other_pivotB = to_world_space(other_cp.pivotB, bodyB.origin, bodyB.orn);
 
             if (std::abs(dot(pivotB - other_pivotB, normal)) < collision_threshold) {
                 ++num_points_in_same_plane;
@@ -217,7 +211,7 @@ void contact_patch_constraint::prepare(
                                     max_row_half_length);
         info.normal = cp.normal;
         // A point on the contact plane.
-        info.pivot = to_world_space(cp.pivotB, originB, ornB);
+        info.pivot = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
         info.impulse = cp.normal_impulse;
         info.friction = cp.friction;
         info.lifetime = cp.lifetime;
@@ -352,13 +346,13 @@ void contact_patch_constraint::prepare(
         const auto normal = patch.normal;
         auto sin_camber = std::clamp(dot(axis, normal), scalar(-1), scalar(1));
         auto camber_angle = std::asin(sin_camber);
-        auto [lon_dir, lat_dir] = get_tire_directions(axis, normal, ornA);
+        auto [lon_dir, lat_dir] = get_tire_directions(axis, normal, bodyA.orn);
 
         // Calculate starting point of contact patch on the contact plane.
-        auto point_on_circle = project_plane(patch.pivot, posA, axis);
-        auto point_on_cylinder = normalize(point_on_circle - posA) * cyl.radius + posA;
+        auto point_on_circle = project_plane(patch.pivot, bodyA.pos, axis);
+        auto point_on_cylinder = normalize(point_on_circle - bodyA.pos) * cyl.radius + bodyA.pos;
         auto point_on_edge = point_on_cylinder + axis * cyl.half_length * (sin_camber > 0 ? -1 : 1);
-        auto circle_center = posA + axis * cyl.half_length * (sin_camber > 0 ? -1 : 1);
+        auto circle_center = bodyA.pos + axis * cyl.half_length * (sin_camber > 0 ? -1 : 1);
         auto radial_dir = point_on_edge - circle_center;
         auto radial_dir_norm = normalize(radial_dir);
         bool is_parallel = std::abs(dot(radial_dir_norm, normal)) < 0.001;
@@ -473,8 +467,8 @@ void contact_patch_constraint::prepare(
                     sin_contact_angle * cyl.radius,
                     cos_contact_angle * cyl.radius
                 };
-                auto row_start_pos = project_plane(to_world_space(row_start_pos_local, posA, spin_ornA), contact_center, normal);
-                auto row_start_posB = to_object_space(row_start_pos, posB, ornB);
+                auto row_start_pos = project_plane(to_world_space(row_start_pos_local, bodyA.pos, spin_ornA), contact_center, normal);
+                auto row_start_posB = to_object_space(row_start_pos, bodyB.pos, bodyB.orn);
                 tread_row.start_posB = tread_row.end_posB = row_start_posB;
 
                 for (auto &bristle : tread_row.bristles) {
@@ -527,11 +521,11 @@ void contact_patch_constraint::prepare(
 
             auto row_start_pos_local = row_mid_pos_local - row_dir_local * row_half_length;
             auto row_end_pos_local = row_mid_pos_local + row_dir_local * row_half_length;
-            auto row_start_pos = project_plane(to_world_space(row_start_pos_local, posA, spin_ornA), contact_center, normal);
-            auto row_end_pos   = project_plane(to_world_space(row_end_pos_local, posA, spin_ornA), contact_center, normal);
+            auto row_start_pos = project_plane(to_world_space(row_start_pos_local, bodyA.pos, spin_ornA), contact_center, normal);
+            auto row_end_pos   = project_plane(to_world_space(row_end_pos_local, bodyA.pos, spin_ornA), contact_center, normal);
 
-            auto prev_row_start_pos = to_world_space(tread_row.start_posB, posB, ornB);
-            auto prev_row_end_pos   = to_world_space(tread_row.end_posB, posB, ornB);
+            auto prev_row_start_pos = to_world_space(tread_row.start_posB, bodyB.pos, bodyB.orn);
+            auto prev_row_end_pos   = to_world_space(tread_row.end_posB, bodyB.pos, bodyB.orn);
 
             auto prev_bristle_defl = vector3_zero;
             auto prev_bristle_pivotB = std::array<vector3, contact_patch_constraint::bristles_per_row>{};
@@ -565,7 +559,7 @@ void contact_patch_constraint::prepare(
                 // remove the offset from the tread row segment.
                 auto camber_offset = std::sqrt(cyl.radius * cyl.radius - bristle_z_local * bristle_z_local) * sin_camber - (cyl.radius - defl) * sin_camber;
                 auto bristle_root = lerp(row_start_pos, row_end_pos, bristle_root_fraction) + lat_dir * camber_offset;
-                bristle.pivotA = to_object_space(bristle_root, posA, spin_ornA);
+                bristle.pivotA = to_object_space(bristle_root, bodyA.pos, spin_ornA);
 
                 // Calculate bristle tip position and relative velocity between
                 // root and tip.
@@ -614,7 +608,7 @@ void contact_patch_constraint::prepare(
                     // Linearly interpolate the bristle tips.
                     auto inbetween_fraction = (bristle_angle - before_angle) / (after_angle - before_angle);
                     bristle.pivotB = lerp(before_pivotB, after_pivotB, inbetween_fraction);
-                    bristle_tip = to_world_space(bristle.pivotB, posB, ornB);
+                    bristle_tip = to_world_space(bristle.pivotB, bodyB.pos, bodyB.orn);
                 } else if (bristle_angle >= prev_patch_end_angle) {
                     // Bristle is located after the end of the previous contact patch.
                     // Place it along the line connecting the end position of the previous
@@ -622,7 +616,7 @@ void contact_patch_constraint::prepare(
                     auto fraction = (bristle_angle - prev_patch_end_angle) /
                                     (patch_end_angle - prev_patch_end_angle);
                     bristle_tip = lerp(prev_row_end_pos, row_end_pos, fraction);
-                    bristle.pivotB = to_object_space(bristle_tip, posB, ornB);
+                    bristle.pivotB = to_object_space(bristle_tip, bodyB.pos, bodyB.orn);
                 } else if (bristle_angle <= prev_patch_start_angle) {
                     // Bristle is located before the start of the previous contact patch.
                     // Place it along the line connecting the start position of the previous
@@ -630,7 +624,7 @@ void contact_patch_constraint::prepare(
                     auto fraction = (bristle_angle - prev_patch_start_angle) /
                                     (patch_start_angle - prev_patch_start_angle);
                     bristle_tip = lerp(prev_row_start_pos, row_start_pos, fraction);
-                    bristle.pivotB = to_object_space(bristle_tip, posB, ornB);
+                    bristle.pivotB = to_object_space(bristle_tip, bodyB.pos, bodyB.orn);
                 } else {
                     EDYN_ASSERT(false);
                 }
@@ -703,12 +697,12 @@ void contact_patch_constraint::prepare(
 
                     bristle_tip = bristle_root + bristle_defl;
 
-                    auto vel_tipA = project_direction(linvelA + cross(spin_angvelA, bristle_tip - posA), normal);
-                    auto vel_tipB = project_direction(linvelB + cross(angvelB + spinvelB, bristle_tip - posB), normal);
+                    auto vel_tipA = project_direction(bodyA.linvel + cross(spin_angvelA, bristle_tip - bodyA.pos), normal);
+                    auto vel_tipB = project_direction(bodyB.linvel + cross(bodyB.angvel + spinvelB, bristle_tip - bodyB.pos), normal);
                     bristle.sliding_spd = length(vel_tipA - vel_tipB);
 
                     // Move pivot in B to match new tip location.
-                    bristle.pivotB = to_object_space(bristle_tip, posB, ornB);
+                    bristle.pivotB = to_object_space(bristle_tip, bodyB.pos, bodyB.orn);
 
                     ++num_sliding_bristles;
                 }
@@ -745,8 +739,8 @@ void contact_patch_constraint::prepare(
 
             tread_row.half_angle = row_half_angle;
             tread_row.half_length = row_half_length;
-            tread_row.start_posB = to_object_space(row_start_pos, posB, ornB);
-            tread_row.end_posB = to_object_space(row_end_pos, posB, ornB);
+            tread_row.start_posB = to_object_space(row_start_pos, bodyB.pos, bodyB.orn);
+            tread_row.end_posB = to_object_space(row_end_pos, bodyB.pos, bodyB.orn);
             tread_row.start_pos = row_start_pos;
             tread_row.end_pos = row_end_pos;
         }
@@ -762,8 +756,8 @@ void contact_patch_constraint::prepare(
 
         patch.sliding_spd_avg /= num_tread_rows * bristles_per_row;
         patch.sliding_ratio = scalar(num_sliding_bristles) / scalar(num_tread_rows * bristles_per_row);
-        auto rA = contact_center - posA;
-        auto rB = contact_center - posB;
+        auto rA = contact_center - bodyA.pos;
+        auto rB = contact_center - bodyB.pos;
 
         // Longitudinal stiffness.
         {

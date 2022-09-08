@@ -20,15 +20,10 @@ namespace edyn {
 void differential_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    const vector3 &originC, const vector3 &posC, const quaternion &ornC,
-    const vector3 &linvelC, const vector3 &angvelC) {
+    const constraint_body &bodyA, const constraint_body &bodyB, const constraint_body &bodyC) {
 
-    auto axis0 = rotate(ornA, vector3_x);
-    auto axis1 = rotate(ornB, vector3_x);
+    auto axis0 = rotate(bodyA.orn, vector3_x);
+    auto axis1 = rotate(bodyB.orn, vector3_x);
 
     auto &row = cache.add_row_triple();
     row.J = {vector3_zero, axis0,
@@ -45,9 +40,9 @@ void differential_constraint::prepare(
     row.spin_axis[1] = axis1;
     row.spin_axis[2] = vector3_x;
 
-    auto spinvelA = axis0 * spinA;
-    auto spinvelB = axis1 * spinB;
-    auto spinvelC = vector3_x * spinC;
+    auto spinvelA = axis0 * bodyA.spin;
+    auto spinvelB = axis1 * bodyB.spin;
+    auto spinvelC = vector3_x * bodyC.spin;
 }
 
 }

@@ -5,6 +5,7 @@
 #include <array>
 #include <utility>
 #include "edyn/config/constants.hpp"
+#include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/constraints/constraint_base.hpp"
@@ -79,15 +80,9 @@ struct contact_patch_constraint : public constraint_base {
     static const auto num_rows = 4 * max_contacts;
     std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
 
-    void prepare(
-        const entt::registry &, entt::entity, const contact_manifold &,
-        constraint_row_prep_cache &cache, scalar dt,
-        const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-        const vector3 &linvelA, const vector3 &angvelA,
-        scalar inv_mA, const matrix3x3 &inv_IA,
-        const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-        const vector3 &linvelB, const vector3 &angvelB,
-        scalar inv_mB, const matrix3x3 &inv_IB);
+    void prepare(const entt::registry &, entt::entity, const contact_manifold &,
+                 constraint_row_prep_cache &cache, scalar dt,
+                 const constraint_body &bodyA, const constraint_body &bodyB);
 };
 
 }

@@ -22,28 +22,23 @@ namespace edyn {
 void antiroll_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    const vector3 &originC, const vector3 &posC, const quaternion &ornC,
-    const vector3 &linvelC, const vector3 &angvelC) {
+    const constraint_body &bodyA, const constraint_body &bodyB, const constraint_body &bodyC) {
 
-    auto ctrl_armA = to_world_space(m_ctrl_arm_pivotA, originA, ornA);
-    auto ctrl_armB = to_world_space(m_ctrl_arm_pivotB, originB, ornB);
+    auto ctrl_armA = to_world_space(m_ctrl_arm_pivotA, bodyA.origin, bodyA.orn);
+    auto ctrl_armB = to_world_space(m_ctrl_arm_pivotB, bodyB.origin, bodyB.orn);
 
     // Calculate control arm direction vector to build basis.
     auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
     auto ctrl_arm_len = length(ctrl_arm_dir);
     ctrl_arm_dir /= ctrl_arm_len;
 
-    auto rA = ctrl_armB - posA;
-    auto rB = ctrl_armB - posB;
+    auto rA = ctrl_armB - bodyA.pos;
+    auto rB = ctrl_armB - bodyB.pos;
 
     // Z axis points forward.
-    auto chassis_z = quaternion_z(ornA);
+    auto chassis_z = quaternion_z(bodyA.orn);
     // X axis points to the left.
-    auto chassis_x = quaternion_x(ornA);
+    auto chassis_x = quaternion_x(bodyA.orn);
 
     // Calculate pivot point on control arm using basis.
     scalar side = m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
@@ -54,8 +49,8 @@ void antiroll_constraint::prepare(
     auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
 
     // Do the same for the control arm on the other side.
-    auto other_ctrl_armA = to_world_space(m_other_ctrl_arm_pivotA, originA, ornA);
-    auto other_ctrl_armC = to_world_space(m_other_ctrl_arm_pivotC, originC, ornC);
+    auto other_ctrl_armA = to_world_space(m_other_ctrl_arm_pivotA, bodyA.origin, bodyA.orn);
+    auto other_ctrl_armC = to_world_space(m_other_ctrl_arm_pivotC, bodyC.origin, bodyC.orn);
     auto other_ctrl_arm_dir = other_ctrl_armA - other_ctrl_armC;
     auto other_ctrl_arm_len = length(other_ctrl_arm_dir);
     other_ctrl_arm_dir /= other_ctrl_arm_len;
@@ -66,7 +61,7 @@ void antiroll_constraint::prepare(
     auto other_ctrl_arm_pivot_rel = other_ctrl_arm_basis * m_other_ctrl_arm_pivot;
     auto other_ctrl_arm_pivot = other_ctrl_armA + other_ctrl_arm_pivot_rel;
 
-    auto pivotA = to_world_space(m_pivotA, originA, ornA);
+    auto pivotA = to_world_space(m_pivotA, bodyA.origin, bodyA.orn);
     auto leverB = project_direction(ctrl_arm_pivot - pivotA, chassis_x);
     auto leverC = project_direction(other_ctrl_arm_pivot - pivotA, chassis_x);
 

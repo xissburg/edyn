@@ -22,10 +22,7 @@ namespace edyn {
 void tierod_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
     update_steering_axis();
     update_steering_arm();
@@ -40,7 +37,7 @@ void tierod_constraint::prepare(
     // Then rotate a steering arm vector according to this joint position which
     // must be orthogonal to the wheel spin axis and use this vector in a constraint
     // row which forces the wheel spin axis to be orthogonal to this vector.
-    auto pivotA_world = to_world_space(pivotA + pivotA_offset, originA, ornA);
+    auto pivotA_world = to_world_space(pivotA + pivotA_offset, bodyA.origin, bodyA.orn);
 
     // Calculate origin of the steering arm circle in world space. It's a point
     // in the steering axis. Originally, this origin would be calculated as an
@@ -59,17 +56,17 @@ void tierod_constraint::prepare(
     // constraint error (from the double wishbone constraint) should have minimal
     // effect in this calculation.
 
-    auto chassis_z = quaternion_z(ornA);
+    auto chassis_z = quaternion_z(bodyA.orn);
 
-    auto upA = to_world_space(upper_pivotA, originA, ornA);
-    auto upB = to_world_space(upper_pivotB, originB, ornB);
+    auto upA = to_world_space(upper_pivotA, bodyA.origin, bodyA.orn);
+    auto upB = to_world_space(upper_pivotB, bodyB.origin, bodyB.orn);
     auto upper_dir = upB - upA;
     upper_dir -= chassis_z * dot(upper_dir, chassis_z);
     upper_dir = normalize(upper_dir);
     auto upper_pivot = upA + upper_dir * upper_length;
 
-    auto lpA = to_world_space(lower_pivotA, originA, ornA);
-    auto lpB = to_world_space(lower_pivotB, originB, ornB);
+    auto lpA = to_world_space(lower_pivotA, bodyA.origin, bodyA.orn);
+    auto lpB = to_world_space(lower_pivotB, bodyB.origin, bodyB.orn);
     auto lower_dir = lpB - lpA;
     lower_dir -= chassis_z * dot(lower_dir, chassis_z);
     lower_dir = normalize(lower_dir);
@@ -125,7 +122,7 @@ void tierod_constraint::prepare(
     auto basis = matrix3x3_columns(axis_x, axis_y, axis_z);
     n = normalize(basis * n);
 
-    auto wheel_x = quaternion_x(ornB);
+    auto wheel_x = quaternion_x(bodyB.orn);
     auto q = cross(n, wheel_x);
 
     auto &row = cache.add_row();
