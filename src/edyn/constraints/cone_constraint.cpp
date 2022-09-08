@@ -12,19 +12,14 @@ namespace edyn {
 void cone_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    scalar inv_mA, const matrix3x3 &inv_IA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    scalar inv_mB, const matrix3x3 &inv_IB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
     // Transform B's pivot into the frame space in A and apply scaling so
     // that the cone is circular and has an opening angle of 90 degrees, which
     // makes calculations easier. The transformation is later reverted to
     // gather results in world space.
-    auto pivotB_world = to_world_space(pivot[1], originB, ornB);
-    auto pivotB_in_A = to_object_space(pivotB_world, originA, ornA);
+    auto pivotB_world = to_world_space(pivot[1], bodyB.origin, bodyB.orn);
+    auto pivotB_in_A = to_object_space(pivotB_world, bodyA.origin, bodyA.orn);
     auto pivotB_in_A_frame = to_object_space(pivotB_in_A, pivot[0], frame);
 
     // Scaling to make the cone circular with an opening of 90 degrees.
@@ -55,17 +50,17 @@ void cone_constraint::prepare(
     auto point_on_cone = point_on_cone_scaled * vector3{1, 1 / scaling_y, 1 / scaling_z};
 
     auto pivotA = to_world_space(point_on_cone, pivot[0], frame);
-    auto pivotA_world = to_world_space(pivotA, originA, ornA);
+    auto pivotA_world = to_world_space(pivotA, bodyA.origin, bodyA.orn);
 
     // The tangent to a circle continues to be a tangent of the ellipse after
     // both are scaled, unlike the normal vector. Thus, descale the tangent
     // and recalculate the normal.
     auto tangent = normalize(tangent_scaled * vector3{1, 1 / scaling_y, 1 / scaling_z});
     auto normal = normalize(cross(tangent, point_on_cone));
-    auto normal_world = rotate(ornA, frame * normal);
+    auto normal_world = rotate(bodyA.orn, frame * normal);
 
-    auto rA = pivotA_world - posA;
-    auto rB = pivotB_world - posB;
+    auto rA = pivotA_world - bodyA.pos;
+    auto rB = pivotB_world - bodyB.pos;
 
     std::array<vector3, 2 * max_constrained_entities> J =
         {normal_world,  cross(rA, normal_world),

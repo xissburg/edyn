@@ -26,17 +26,12 @@ namespace edyn {
 void generic_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    scalar inv_mA, const matrix3x3 &inv_IA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    scalar inv_mB, const matrix3x3 &inv_IB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    auto pivotA = to_world_space(pivot[0], originA, ornA);
-    auto pivotB = to_world_space(pivot[1], originB, ornB);
-    auto rA = pivotA - posA;
-    auto rB = pivotB - posB;
+    auto pivotA = to_world_space(pivot[0], bodyA.origin, bodyA.orn);
+    auto pivotB = to_world_space(pivot[1], bodyB.origin, bodyB.orn);
+    auto rA = pivotA - bodyA.pos;
+    auto rB = pivotB - bodyB.pos;
 
     auto pivot_offset = pivotB - pivotA;
     auto row_idx = size_t{};
@@ -45,7 +40,7 @@ void generic_constraint::prepare(
     for (int i = 0; i < 3; ++i) {
         auto &dof = linear_dofs[i];
 
-        auto axisA = rotate(ornA, frame[0].column(i));
+        auto axisA = rotate(bodyA.orn, frame[0].column(i));
         auto J = std::array<vector3, 4>{axisA, cross(rA, axisA), -axisA, -cross(rB, axisA)};
 
         auto non_zero_limit = dof.offset_min < dof.offset_max;
@@ -137,7 +132,7 @@ void generic_constraint::prepare(
             auto friction_impulse = dof.friction_force * dt;
 
             if (dof.damping > 0) {
-                auto relspd = get_relative_speed(J, linvelA, angvelA, linvelB, angvelB);
+                auto relspd = get_relative_speed(J, bodyA.linvel, bodyA.angvel, bodyB.linvel, bodyB.angvel);
                 friction_impulse += std::abs(relspd) * dof.damping * dt;
             }
 
@@ -146,8 +141,8 @@ void generic_constraint::prepare(
         }
     }
 
-    auto axisA_x = rotate(ornA, frame[0].column(0));
-    auto axisB_x = rotate(ornB, frame[1].column(0));
+    auto axisA_x = rotate(bodyA.orn, frame[0].column(0));
+    auto axisB_x = rotate(bodyB.orn, frame[1].column(0));
 
     // Angular.
     for (int i = 0; i < 3; ++i) {
@@ -162,13 +157,13 @@ void generic_constraint::prepare(
 
             // Transform a non-axial vector in the frame of B onto A's space so
             // the angular error can be calculated.
-            auto angle_axisB = edyn::rotate(conjugate(ornA) * arc_quat * ornB, frame[1].column(1));
+            auto angle_axisB = edyn::rotate(conjugate(bodyA.orn) * arc_quat * bodyB.orn, frame[1].column(1));
             dof.current_angle = std::atan2(dot(angle_axisB, frame[0].column(2)),
                                             dot(angle_axisB, frame[0].column(1)));
             axisA = axisA_x;
             axisB = axisB_x;
         } else {
-            auto axisA_other = rotate(ornA, frame[0].column(i == 1 ? 2 : 1));
+            auto axisA_other = rotate(bodyA.orn, frame[0].column(i == 1 ? 2 : 1));
             auto cos_angle = std::clamp(dot(axisB_x, axisA_other), scalar(-1), scalar(1));
             dof.current_angle = half_pi - std::acos(cos_angle);
             auto axis = cross(axisA_other, axisB_x);
@@ -262,7 +257,7 @@ void generic_constraint::prepare(
             auto friction_impulse = dof.friction_torque * dt;
 
             if (dof.damping > 0) {
-                auto relvel = dot(angvelA, axisA) - dot(angvelB, axisB);
+                auto relvel = dot(bodyA.angvel, axisA) - dot(bodyB.angvel, axisB);
                 friction_impulse += std::abs(relvel) * dof.damping * dt;
             }
 

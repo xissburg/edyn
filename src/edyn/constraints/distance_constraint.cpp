@@ -8,17 +8,12 @@ namespace edyn {
 void distance_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    scalar inv_mA, const matrix3x3 &inv_IA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    scalar inv_mB, const matrix3x3 &inv_IB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    auto pivotA = to_world_space(pivot[0], originA, ornA);
-    auto pivotB = to_world_space(pivot[1], originB, ornB);
-    auto rA = pivotA - posA;
-    auto rB = pivotB - posB;
+    auto pivotA = to_world_space(pivot[0], bodyA.origin, bodyA.orn);
+    auto pivotB = to_world_space(pivot[1], bodyB.origin, bodyB.orn);
+    auto rA = pivotA - bodyA.pos;
+    auto rB = pivotB - bodyB.pos;
 
     auto d = pivotA - pivotB;
     auto dist_sqr = length_sqr(d);

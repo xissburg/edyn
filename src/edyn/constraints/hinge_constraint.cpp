@@ -26,17 +26,12 @@ void hinge_constraint::reset_angle(const quaternion &ornA, const quaternion &orn
 void hinge_constraint::prepare(
     const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    scalar inv_mA, const matrix3x3 &inv_IA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    scalar inv_mB, const matrix3x3 &inv_IB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    auto pivotA = to_world_space(pivot[0], originA, ornA);
-    auto pivotB = to_world_space(pivot[1], originB, ornB);
-    auto rA = pivotA - posA;
-    auto rB = pivotB - posB;
+    auto pivotA = to_world_space(pivot[0], bodyA.origin, bodyA.orn);
+    auto pivotB = to_world_space(pivot[1], bodyB.origin, bodyB.orn);
+    auto rA = pivotA - bodyA.pos;
+    auto rB = pivotB - bodyB.pos;
 
     const auto rA_skew = skew_matrix(rA);
     const auto rB_skew = skew_matrix(rB);
@@ -55,8 +50,8 @@ void hinge_constraint::prepare(
 
     // Make relative angular velocity go to zero along directions orthogonal
     // to the hinge axis where rotations are allowed.
-    auto p = rotate(ornA, frame[0].column(1));
-    auto q = rotate(ornA, frame[0].column(2));
+    auto p = rotate(bodyA.orn, frame[0].column(1));
+    auto q = rotate(bodyA.orn, frame[0].column(2));
 
     {
         auto &row = cache.add_row();
@@ -81,11 +76,11 @@ void hinge_constraint::prepare(
     vector3 hinge_axis;
 
     if (has_limit || has_spring || has_friction) {
-        hinge_axis = rotate(ornA, frame[0].column(0));
+        hinge_axis = rotate(bodyA.orn, frame[0].column(0));
     }
 
     if (has_limit || has_spring) {
-        auto angle_axisB = rotate(ornB, frame[1].column(1));
+        auto angle_axisB = rotate(bodyB.orn, frame[1].column(1));
         auto current_angle = std::atan2(dot(angle_axisB, q), dot(angle_axisB, p));
         auto previous_angle = normalize_angle(angle);
         // Find shortest path from previous angle to current in the [-π, π] range.
@@ -172,7 +167,7 @@ void hinge_constraint::prepare(
         auto friction_impulse = friction_torque * dt;
 
         if (damping > 0) {
-            auto relvel = dot(angvelA, hinge_axis) - dot(angvelB, hinge_axis);
+            auto relvel = dot(bodyA.angvel, hinge_axis) - dot(bodyB.angvel, hinge_axis);
             friction_impulse += std::abs(relvel) * damping * dt;
         }
 

@@ -26,12 +26,7 @@ namespace edyn {
 void contact_constraint::prepare(
     const entt::registry &registry, entt::entity entity, const contact_manifold &manifold,
     constraint_row_prep_cache &cache, scalar dt,
-    const vector3 &originA, const vector3 &posA, const quaternion &ornA,
-    const vector3 &linvelA, const vector3 &angvelA,
-    scalar inv_mA, const matrix3x3 &inv_IA,
-    const vector3 &originB, const vector3 &posB, const quaternion &ornB,
-    const vector3 &linvelB, const vector3 &angvelB,
-    scalar inv_mB, const matrix3x3 &inv_IB) {
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
     auto spinvelA = vector3_zero;
     auto spinvelB = vector3_zero;
@@ -39,18 +34,18 @@ void contact_constraint::prepare(
     auto spin_axisB = vector3_zero;
     delta_spin *delta_spinA = nullptr, *delta_spinB = nullptr;
 
-    if (spin_view.contains(con.body[0])) {
-        auto &s = spin_view.get<spin>(con.body[0]);
+    if (spin_view.contains(body[0])) {
+        auto &s = spin_view.get<spin>(body[0]);
         spin_axisA = quaternion_x(ornA);
         spinvelA = spin_axisA * scalar(s);
-        delta_spinA = &spin_view.get<delta_spin>(con.body[0]);
+        delta_spinA = &spin_view.get<delta_spin>(body[0]);
     }
 
-    if (spin_view.contains(con.body[1])) {
-        auto &s = spin_view.get<spin>(con.body[1]);
+    if (spin_view.contains(body[1])) {
+        auto &s = spin_view.get<spin>(body[1]);
         spin_axisB = quaternion_x(ornB);
         spinvelB = spin_axisB * scalar(s);
-        delta_spinB = &spin_view.get<delta_spin>(con.body[1]);
+        delta_spinB = &spin_view.get<delta_spin>(body[1]);
     }
 
     auto &settings = registry.ctx().at<edyn::settings>();
@@ -61,10 +56,10 @@ void contact_constraint::prepare(
 
         EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
         auto normal = cp.normal;
-        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
-        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
-        auto rA = pivotA - posA;
-        auto rB = pivotB - posB;
+        auto pivotA = to_world_space(cp.pivotA, bodyA.origin, bodyA.orn);
+        auto pivotB = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
+        auto rA = pivotA - bodyA.pos;
+        auto rB = pivotB - bodyB.pos;
 
         // Create normal row, i.e. non-penetration constraint.
         auto &normal_row = cache.add_row();
@@ -82,8 +77,8 @@ void contact_constraint::prepare(
 
         if (cp.distance < 0) {
             if (cp.stiffness < large_scalar) {
-                auto vA = linvelA + cross(angvelA, rA);
-                auto vB = linvelB + cross(angvelB, rB);
+                auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
+                auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
                 auto relvel = vA - vB;
                 auto normal_relvel = dot(relvel, normal);
                 // Divide stiffness by number of points for correct force
@@ -113,8 +108,8 @@ void contact_constraint::prepare(
             auto &row_i = friction_row.row[i];
             row_i.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
             row_i.impulse = impulse[max_contacts + pt_idx * 2 + i];
-            row_i.eff_mass = get_effective_mass(row_i.J, inv_mA, inv_IA, inv_mB, inv_IB);
-            row_i.rhs = -get_relative_speed(row_i.J, linvelA, angvelA + spinvelA, linvelB, angvelB + spinvelB);
+            row_i.eff_mass = get_effective_mass(row_i.J, bodyA.inv_m, bodyA.inv_I, bodyB.inv_m, bodyB.inv_I);
+            row_i.rhs = -get_relative_speed(row_i.J, bodyA.linvel, bodyA.angvel + spinvelA, bodyB.linvel, bodyB.angvel + spinvelB);
         }
 
         if (cp.roll_friction > 0) {
@@ -131,7 +126,7 @@ void contact_constraint::prepare(
                 // thus preventing impulses in the undesired directions.
                 for (auto j = 0; j < 2; ++j) {
                     if (roll_dir_view.contains(body[j])) {
-                        auto roll_dir = rotate(ornA, std::get<0>(roll_dir_view.get(body[j])));
+                        auto roll_dir = rotate(bodyA.orn, std::get<0>(roll_dir_view.get(body[j])));
                         axis *= dot(roll_dir, axis);
                     }
                 }
@@ -139,10 +134,10 @@ void contact_constraint::prepare(
                 auto &row_i = roll_row.row[i];
                 row_i.J = {vector3_zero, axis, vector3_zero, -axis};
                 row_i.impulse = impulse[max_contacts + max_contacts * 2 + pt_idx * 2 + i];
-                auto J_invM_JT = dot(inv_IA * row_i.J[1], row_i.J[1]) +
-                                 dot(inv_IB * row_i.J[3], row_i.J[3]);
+                auto J_invM_JT = dot(bodyA.inv_I * row_i.J[1], row_i.J[1]) +
+                                 dot(bodyB.inv_I * row_i.J[3], row_i.J[3]);
                 row_i.eff_mass = J_invM_JT > EDYN_EPSILON ? scalar(1) / J_invM_JT : 0;
-                row_i.rhs = -get_relative_speed(row_i.J, linvelA, angvelA, linvelB, angvelB);
+                row_i.rhs = -get_relative_speed(row_i.J, bodyA.linvel, bodyA.angvel, bodyB.linvel, bodyB.angvel);
             }
         }
 
@@ -152,11 +147,11 @@ void contact_constraint::prepare(
             spin_row.J = {normal, -normal};
             spin_row.impulse = cp.spin_friction_impulse;
 
-            auto J_invM_JT = dot(inv_IA * spin_row.J[0], spin_row.J[0]) +
-                             dot(inv_IB * spin_row.J[1], spin_row.J[1]);
+            auto J_invM_JT = dot(bodyA.inv_I * spin_row.J[0], spin_row.J[0]) +
+                             dot(bodyB.inv_I * spin_row.J[1], spin_row.J[1]);
             EDYN_ASSERT(J_invM_JT > EDYN_EPSILON);
             spin_row.eff_mass = scalar(1) / J_invM_JT;
-            spin_row.rhs = -(dot(spin_row.J[0], angvelA) + dot(spin_row.J[1], angvelB));
+            spin_row.rhs = -(dot(spin_row.J[0], bodyA.angvel) + dot(spin_row.J[1], bodyB.angvel));
         }
     }
 }
