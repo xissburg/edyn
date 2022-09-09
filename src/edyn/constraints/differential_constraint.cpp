@@ -39,10 +39,6 @@ void differential_constraint::prepare(
     row.spin_axis[0] = axis0;
     row.spin_axis[1] = axis1;
     row.spin_axis[2] = vector3_x;
-
-    auto spinvelA = axis0 * bodyA.spin;
-    auto spinvelB = axis1 * bodyB.spin;
-    auto spinvelC = vector3_x * bodyC.spin;
 }
 
 }

@@ -15,6 +15,9 @@ struct constraint_body {
     vector3 angvel;
     scalar inv_m;
     matrix3x3 inv_I;
+    scalar spin {};
+    scalar spin_angle;
+    long spin_count;
 };
 
 }

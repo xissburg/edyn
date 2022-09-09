@@ -1,5 +1,5 @@
-#ifndef EDYN_CONSTRAINTS_CONSTRAINT_ROW_TRIPLE_HPP
-#define EDYN_CONSTRAINTS_CONSTRAINT_ROW_TRIPLE_HPP
+#ifndef EDYN_CONSTRAINTS_CONSTRAINT_ROW_WITH_SPIN_HPP
+#define EDYN_CONSTRAINTS_CONSTRAINT_ROW_WITH_SPIN_HPP
 
 #include <array>
 #include "edyn/comp/spin.hpp"
@@ -13,9 +13,9 @@ namespace edyn {
 
 struct constraint_row_options;
 
-struct constraint_row_triple {
+struct constraint_row_with_spin {
     // Jacobian diagonals.
-    std::array<vector3, 6> J;
+    std::array<vector3, 4> J;
 
     // Effective mass (J M^-1 J^T)^-1.
     scalar eff_mass;
@@ -32,31 +32,30 @@ struct constraint_row_triple {
     scalar impulse;
 
     // Inverse masses and inertias used during the solver iterations.
-    scalar inv_mA, inv_mB, inv_mC;
-    matrix3x3 inv_IA, inv_IB, inv_IC;
+    scalar inv_mA, inv_mB;
+    matrix3x3 inv_IA, inv_IB;
 
     // Reference to delta velocities used during solver iterations. It is not
     // safe to dereference these outside of the solver update context.
-    delta_linvel *dvA, *dvB, *dvC;
-    delta_angvel *dwA, *dwB, *dwC;
-    delta_spin *dsA, *dsB, *dsC;
+    delta_linvel *dvA, *dvB;
+    delta_angvel *dwA, *dwB;
+    delta_spin *dsA, *dsB;
 
-    std::array<bool, 3> use_spin {false, false, false};
-    vector3 spin_axis[3];
+    std::array<bool, 2> use_spin {false, false};
+    vector3 spin_axis[2];
 };
 
-void prepare_row(constraint_row_triple &row,
+void prepare_row(constraint_row_with_spin &row,
                  const constraint_row_options &options,
                  const vector3 &linvelA, const vector3 &angvelA, scalar spinA,
-                 const vector3 &linvelB, const vector3 &angvelB, scalar spinB,
-                 const vector3 &linvelC, const vector3 &angvelC, scalar spinC);
+                 const vector3 &linvelB, const vector3 &angvelB, scalar spinB);
 
-void apply_row_impulse(scalar impulse, constraint_row_triple &row);
+void apply_row_impulse(scalar impulse, constraint_row_with_spin &row);
 
-void warm_start(constraint_row_triple &row);
+void warm_start(constraint_row_with_spin &row);
 
-scalar solve(constraint_row_triple &row);
+scalar solve(constraint_row_with_spin &row);
 
 }
 
-#endif // EDYN_CONSTRAINTS_CONSTRAINT_ROW_TRIPLE_HPP
+#endif // EDYN_CONSTRAINTS_CONSTRAINT_ROW_WITH_SPIN_HPP

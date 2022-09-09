@@ -28,9 +28,6 @@ void tirecarcass_constraint::prepare(
     const auto axisB_y = quaternion_y(bodyB.orn);
     const auto axisB_z = quaternion_z(bodyB.orn);
 
-    auto spinvelA = axisA_x * bodyA.spin;
-    auto spinvelB = axisB_x * bodyB.spin;
-
     auto row_idx = size_t(0);
 
     // Lateral movement.
@@ -102,15 +99,14 @@ void tirecarcass_constraint::prepare(
 
     // Longitudinal twist.
     {
-        auto error = (angleA.s - angleB.s) + (angleA.count - angleB.count) * pi2;
+        auto error = (bodyA.spin_angle - bodyB.spin_angle) + (bodyA.spin_count - bodyB.spin_count) * pi2;
         auto spring_torque = -error * m_longitudinal_stiffness;
-        auto spring_impulse = spring_torque * dt;
-        auto impulse = std::abs(spring_impulse);
+        auto spring_impulse = std::abs(spring_torque * dt);
 
-        auto &row = cache.add_row();
+        auto &row = cache.add_row_with_spin();
         row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
-        row.lower_limit = -impulse;
-        row.upper_limit = impulse;
+        row.lower_limit = -spring_impulse;
+        row.upper_limit = spring_impulse;
         row.impulse = impulse[row_idx++];
         row.use_spin[0] = true;
         row.use_spin[1] = true;
@@ -122,15 +118,14 @@ void tirecarcass_constraint::prepare(
 
     // Longitudinal damping.
     {
-        auto relspd = spinA.s - spinB.s;
+        auto relspd = bodyA.spin - bodyB.spin;
         auto damping_torque = m_longitudinal_damping * relspd;
-        auto damping_impulse = damping_torque * dt;
-        auto impulse = std::abs(damping_impulse);
+        auto damping_impulse = std::abs(damping_torque * dt);
 
-        auto &row = cache.add_row();
+        auto &row = cache.add_row_with_spin();
         row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
-        row.lower_limit = -impulse;
-        row.upper_limit =  impulse;
+        row.lower_limit = -damping_impulse;
+        row.upper_limit =  damping_impulse;
         row.impulse = impulse[row_idx++];
         row.use_spin[0] = true;
         row.use_spin[1] = true;

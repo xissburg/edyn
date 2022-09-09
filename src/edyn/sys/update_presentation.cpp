@@ -35,7 +35,7 @@ void update_presentation(entt::registry &registry, double time) {
         pre = integrate(orn, vel, dt);
     });
 
-    spin_view.each([&] (spin_angle &angle, spin &spin, present_spin_angle &pre, island_resident &resident) {
+    spin_view.each([&] (spin_angle &angle, spin &spin, present_spin_angle &pre) {
         auto dt = std::min(scalar(time - fixed_dt - worker_time), fixed_dt);
         pre.s = angle.s + spin.s * dt;
     });

@@ -8,12 +8,17 @@
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/constraint_row_spin_friction.hpp"
+#include "edyn/constraints/constraint_row_triple.hpp"
+#include "edyn/constraints/constraint_row_with_spin.hpp"
+#include "edyn/constraints/constraint_row_options.hpp"
 
 namespace edyn {
 
-static constexpr uint8_t constraint_row_flag_friction = 1;
-static constexpr uint8_t constraint_row_flag_rolling_friction = 1 << 1;
+static constexpr uint8_t constraint_row_flag_friction          = 1 << 0;
+static constexpr uint8_t constraint_row_flag_rolling_friction  = 1 << 1;
 static constexpr uint8_t constraint_row_flag_spinning_friction = 1 << 2;
+static constexpr uint8_t constraint_row_flag_with_spin         = 1 << 3;
+static constexpr uint8_t constraint_row_flag_triple            = 1 << 4;
 
 /**
  * Stores the constraint rows for all constraints in an island, packed in a
@@ -34,6 +39,8 @@ struct row_cache {
     std::vector<constraint_row_friction> friction;
     std::vector<constraint_row_friction> rolling;
     std::vector<constraint_row_spin_friction> spinning;
+    std::vector<constraint_row_with_spin> rows_with_spin;
+    std::vector<constraint_row_triple> rows_triple;
 
     void clear() {
         rows.clear();
@@ -42,6 +49,8 @@ struct row_cache {
         friction.clear();
         rolling.clear();
         spinning.clear();
+        rows_with_spin.clear();
+        rows_triple.clear();
     }
 };
 
@@ -59,10 +68,12 @@ struct constraint_row_prep_cache {
     struct element {
         constraint_row row;
         constraint_row_options options;
-        uint8_t flags; // Whether this row has friction.
+        uint8_t flags; // Whether this row has friction or is a different type of row.
         constraint_row_friction friction;
         constraint_row_friction rolling;
         constraint_row_spin_friction spinning;
+        constraint_row_with_spin row_with_spin;
+        constraint_row_triple row_triple;
 
         void clear() {
             flags = 0;
@@ -106,6 +117,7 @@ struct constraint_row_prep_cache {
         EDYN_ASSERT(num_constraints > 0);
         auto &curr_row = rows[num_rows - 1];
         EDYN_ASSERT(!(curr_row.flags & constraint_row_flag_friction));
+        EDYN_ASSERT(!(curr_row.flags & constraint_row_flag_triple));
         curr_row.flags |= constraint_row_flag_friction;
         return curr_row.friction;
     }
@@ -114,6 +126,7 @@ struct constraint_row_prep_cache {
         EDYN_ASSERT(num_constraints > 0);
         auto &curr_row = rows[num_rows - 1];
         EDYN_ASSERT(!(curr_row.flags & constraint_row_flag_rolling_friction));
+        EDYN_ASSERT(!(curr_row.flags & constraint_row_flag_triple));
         curr_row.flags |= constraint_row_flag_rolling_friction;
         return curr_row.rolling;
     }
@@ -122,8 +135,27 @@ struct constraint_row_prep_cache {
         EDYN_ASSERT(num_constraints > 0);
         auto &curr_row = rows[num_rows - 1];
         EDYN_ASSERT(!(curr_row.flags & constraint_row_flag_spinning_friction));
+        EDYN_ASSERT(!(curr_row.flags & constraint_row_flag_triple));
         curr_row.flags |= constraint_row_flag_spinning_friction;
         return curr_row.spinning;
+    }
+
+    constraint_row_with_spin & add_row_with_spin() {
+        EDYN_ASSERT(num_rows < max_rows);
+        EDYN_ASSERT(num_constraints > 0);
+        ++rows_per_constraint[num_constraints - 1];
+        auto &elem = rows[num_rows++];
+        elem.flags = constraint_row_flag_with_spin;
+        return elem.row_with_spin;
+    }
+
+    constraint_row_triple & add_row_triple() {
+        EDYN_ASSERT(num_rows < max_rows);
+        EDYN_ASSERT(num_constraints > 0);
+        ++rows_per_constraint[num_constraints - 1];
+        auto &elem = rows[num_rows++];
+        elem.flags = constraint_row_flag_triple;
+        return elem.row_triple;
     }
 
     // Get preparation options for the current row.

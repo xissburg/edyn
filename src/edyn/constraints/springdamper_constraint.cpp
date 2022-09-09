@@ -90,12 +90,12 @@ void springdamper_constraint::prepare(
         auto v_rel = velA - velB;
         auto speed = dot(coilover_dir, v_rel);
         auto damping_force = get_damping_force(speed) * lever_term;
-        auto impulse = std::abs(damping_force) * dt;
+        auto damping_impulse = std::abs(damping_force) * dt;
 
         auto &row = cache.add_row();
         row.J = {d, p, -d, -q};
-        row.lower_limit = -impulse;
-        row.upper_limit =  impulse;
+        row.lower_limit = -damping_impulse;
+        row.upper_limit =  damping_impulse;
         row.impulse = impulse[1];
     }
 

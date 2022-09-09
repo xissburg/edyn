@@ -10,6 +10,8 @@
 
 namespace edyn {
 
+struct constraint_row_options;
+
 /**
  * `constraint_row` contains all and only the information that's required
  * during the constraint solver iterations for better cache use and to avoid
@@ -43,38 +45,16 @@ struct constraint_row {
     delta_angvel *dwA, *dwB;
 };
 
-/**
- * Optional info to be used when setting up a constraint row.
- */
-struct constraint_row_options {
-    scalar error {scalar(0)};
+void prepare_row(constraint_row &row,
+                 const constraint_row_options &options,
+                 const vector3 &linvelA, const vector3 &angvelA,
+                 const vector3 &linvelB, const vector3 &angvelB);
 
-    // Error reduction parameter.
-    scalar erp {scalar(0.2)};
+void apply_row_impulse(scalar impulse, constraint_row &row);
 
-    scalar restitution {scalar(0)};
-};
+void warm_start(constraint_row &row);
 
-inline scalar solve(constraint_row &row) {
-    auto delta_relvel = dot(row.J[0], *row.dvA) +
-                        dot(row.J[1], *row.dwA) +
-                        dot(row.J[2], *row.dvB) +
-                        dot(row.J[3], *row.dwB);
-    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
-    auto impulse = row.impulse + delta_impulse;
-
-    if (impulse < row.lower_limit) {
-        delta_impulse = row.lower_limit - row.impulse;
-        row.impulse = row.lower_limit;
-    } else if (impulse > row.upper_limit) {
-        delta_impulse = row.upper_limit - row.impulse;
-        row.impulse = row.upper_limit;
-    } else {
-        row.impulse = impulse;
-    }
-
-    return delta_impulse;
-}
+scalar solve(constraint_row &row);
 
 }
 

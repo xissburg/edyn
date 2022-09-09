@@ -2,6 +2,7 @@
 #define EDYN_CONSTRAINTS_CONSTRAINT_ROW_FRICTION_HPP
 
 #include "edyn/constraints/constraint_row.hpp"
+#include "edyn/constraints/constraint_row_with_spin.hpp"
 #include "edyn/math/vector3.hpp"
 #include <vector>
 
@@ -24,6 +25,9 @@ struct constraint_row_friction {
 
 void solve_friction(constraint_row_friction &row, const std::vector<constraint_row> &row_cache);
 void warm_start(constraint_row_friction &row, const std::vector<constraint_row> &row_cache);
+
+void solve_friction(constraint_row_friction &row, const std::vector<constraint_row_with_spin> &row_cache);
+void warm_start(constraint_row_friction &row, const std::vector<constraint_row_with_spin> &row_cache);
 
 }
 

@@ -9,12 +9,14 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/dynamics/island_solver.hpp"
+#include "edyn/config/config.h"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/antiroll_constraint.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/math/quaternion.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/parallel_for.hpp"
@@ -56,11 +58,11 @@ solver::solver(entt::registry &registry)
     m_connections.emplace_back(registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<constraint_row_prep_cache>>());
 }
 
-template<typename C, typename BodyView, typename OriginView, typename ManifoldView>
+template<typename C, typename BodyView, typename OriginView, typename ManifoldView, typename SpinView>
 void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
                                constraint_row_prep_cache &cache, scalar dt,
                                const BodyView &body_view, const OriginView &origin_view,
-                               const ManifoldView &manifold_view) {
+                               const ManifoldView &manifold_view, SpinView &spin_view) {
     auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
     auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
@@ -69,8 +71,49 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     auto originB = origin_view.contains(con.body[1]) ?
         origin_view.template get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
-    const auto bodyA = constraint_body{originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA};
-    const auto bodyB = constraint_body{originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB};
+    scalar spinA = {};
+    scalar spin_angleA = {};
+    long spin_countA = 0;
+
+    scalar spinB = {};
+    scalar spin_angleB = {};
+    long spin_countB = 0;
+
+    if (spin_view.contains(con.body[0])) {
+        spinA = spin_view.template get<spin>(con.body[0]);
+        auto &angle = spin_view.template get<spin_angle>(con.body[0]);
+        spin_angleA = angle.s;
+        spin_countA = angle.count;
+    }
+
+    if (spin_view.contains(con.body[1])) {
+        spinB = spin_view.template get<spin>(con.body[1]);
+        auto &angle = spin_view.template get<spin_angle>(con.body[1]);
+        spin_angleB = angle.s;
+        spin_countB = angle.count;
+    }
+
+    const auto bodyA = constraint_body{originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA, spinA, spin_angleA, spin_countA};
+    const auto bodyB = constraint_body{originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB, spinB, spin_angleB, spin_countB};
+
+    entt::entity third_entity = entt::null;
+
+    if constexpr(std::is_same_v<std::decay_t<C>, antiroll_constraint>) {
+        third_entity = con.m_third_entity;
+    } else if constexpr(std::is_same_v<std::decay_t<C>, differential_constraint>) {
+        third_entity = con.body[2];
+    }
+
+    scalar spinC = {};
+    scalar spin_angleC = {};
+    long spin_countC = 0;
+
+    if (spin_view.contains(third_entity)) {
+        spinC = spin_view.template get<spin>(third_entity);
+        auto &angle = spin_view.template get<spin_angle>(third_entity);
+        spin_angleC = angle.s;
+        spin_countC = angle.count;
+    }
 
     cache.add_constraint();
 
@@ -78,23 +121,18 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     // later to finish their setup. Note that no rows could be added as well.
     auto row_start_index = cache.num_rows;
 
-    if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
+    if constexpr(std::disjunction_v<std::is_same<std::decay_t<C>, contact_constraint>,
+                                    std::is_same<std::decay_t<C>, contact_patch_constraint>>) {
         auto &manifold = manifold_view.template get<contact_manifold>(entity);
         con.prepare(registry, entity, manifold, cache, dt, bodyA, bodyB);
-    } else if constexpr(std::is_same_v<std::decay_t<C>, contact_patch_constraint>) {
-        auto &manifold = manifold_view.template get<contact_manifold>(entity);
-        con.prepare(registry, entity, manifold, cache, dt, bodyA, bodyB);
-    } else if constexpr(std::is_same_v<std::decay_t<C>, antiroll_constraint>) {
-        auto [posC, ornC, linvelC, angvelC, inv_mC, inv_IC, dvC, dwC] = body_view.get(con.m_third_entity);
-        auto originC = origin_view.contains(con.m_third_entity) ?
-            origin_view.template get<origin>(con.m_third_entity) : static_cast<vector3>(posC);
-        const auto bodyC = constraint_body{originC, posC, ornC, linvelC, angvelC, inv_mC, inv_IC};
-        con.prepare(registry, entity, cache, dt, bodyA, bodyB, bodyC);
-    } else if constexpr(std::is_same_v<std::decay_t<C>, differential_constraint>) {
-        auto [posC, ornC, linvelC, angvelC, inv_mC, inv_IC, dvC, dwC] = body_view.get(con.body[2]);
-        auto originC = origin_view.contains(con.body[2]) ?
-            origin_view.template get<origin>(con.body[2]) : static_cast<vector3>(posC);
-        const auto bodyC = constraint_body{originC, posC, ornC, linvelC, angvelC, inv_mC, inv_IC};
+    } else if constexpr(std::disjunction_v<std::is_same<std::decay_t<C>, antiroll_constraint>,
+                                           std::is_same<std::decay_t<C>, differential_constraint>>) {
+        auto [posC, ornC, linvelC, angvelC, inv_mC, inv_IC, dvC, dwC] = body_view.get(third_entity);
+
+        auto originC = origin_view.contains(third_entity) ?
+            origin_view.template get<origin>(third_entity) : static_cast<vector3>(posC);
+
+        const auto bodyC = constraint_body{originC, posC, ornC, linvelC, angvelC, inv_mC, inv_IC, spinC, spin_angleC, spin_countC};
         con.prepare(registry, entity, cache, dt, bodyA, bodyB, bodyC);
     } else {
         con.prepare(registry, entity, cache, dt, bodyA, bodyB);
@@ -102,14 +140,88 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
 
     // Assign masses and deltas to new rows.
     for (auto i = row_start_index; i < cache.num_rows; ++i) {
-        auto &row = cache.rows[i].row;
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
-
+        auto flags = cache.rows[i].flags;
         auto &options = cache.rows[i].options;
-        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+
+        if (flags & constraint_row_flag_with_spin) {
+            auto &row = cache.rows[i].row_with_spin;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+
+            auto spinA = scalar{};
+            auto spinB = scalar{};
+
+            if (spin_view.contains(con.body[0])) {
+                spinA = spin_view.template get<spin>(con.body[0]);
+                auto &delta = spin_view.template get<delta_spin>(con.body[0]);
+                row.dsA = &delta;
+            } else {
+                row.dsA = nullptr;
+            }
+
+            if (spin_view.contains(con.body[1])) {
+                spinB = spin_view.template get<spin>(con.body[1]);
+                auto &delta = spin_view.template get<delta_spin>(con.body[1]);
+                row.dsB = &delta;
+            } else {
+                row.dsB = nullptr;
+            }
+
+            prepare_row(row, options, linvelA, angvelA, spinA, linvelB, angvelB, spinB);
+        } else if (flags & constraint_row_flag_triple) {
+            EDYN_ASSERT(third_entity != entt::null);
+
+            auto &linvelC = body_view.template get<linvel>(third_entity);
+            auto &angvelC = body_view.template get<angvel>(third_entity);
+            auto &inv_mC = body_view.template get<mass_inv>(third_entity);
+            auto &inv_IC = body_view.template get<inertia_world_inv>(third_entity);
+            auto &dvC = body_view.template get<delta_linvel>(third_entity);
+            auto &dwC = body_view.template get<delta_angvel>(third_entity);
+
+            auto &row = cache.rows[i].row_triple;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.inv_mC = inv_mC; row.inv_IC = inv_IC;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+            row.dvC = &dvC; row.dwC = &dwC;
+
+            if (spin_view.contains(con.body[0])) {
+                auto &delta = spin_view.template get<delta_spin>(con.body[0]);
+                row.dsA = &delta;
+            } else {
+                row.dsA = nullptr;
+            }
+
+            if (spin_view.contains(con.body[1])) {
+                auto &delta = spin_view.template get<delta_spin>(con.body[1]);
+                row.dsB = &delta;
+            } else {
+                row.dsB = nullptr;
+            }
+
+            if (spin_view.contains(third_entity)) {
+                auto &delta = spin_view.template get<delta_spin>(third_entity);
+                row.dsC = &delta;
+            } else {
+                row.dsC = nullptr;
+            }
+
+            prepare_row(row, options,
+                        linvelA, angvelA, spinA,
+                        linvelB, angvelB, spinB,
+                        linvelC, angvelC, spinC);
+        } else {
+            auto &row = cache.rows[i].row;
+            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+            row.dvA = &dvA; row.dwA = &dwA;
+            row.dvB = &dvB; row.dwB = &dwB;
+
+            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+        }
     }
 }
 
@@ -120,19 +232,20 @@ static bool prepare_constraints(entt::registry &registry, scalar dt, execution_m
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
     auto origin_view = registry.view<origin>();
+    auto spin_view = registry.view<spin, delta_spin>();
     auto cache_view = registry.view<constraint_row_prep_cache>(exclude_sleeping_disabled);
     auto manifold_view = registry.view<contact_manifold>();
     auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
 
     auto for_loop_body = [&registry, body_view, cache_view, origin_view,
-                          manifold_view, con_view_tuple, dt](entt::entity entity) {
+                          manifold_view, spin_view, con_view_tuple, dt](entt::entity entity) {
         auto &prep_cache = cache_view.get<constraint_row_prep_cache>(entity);
         prep_cache.clear();
 
         std::apply([&](auto &&... con_view) {
             ((con_view.contains(entity) ?
                 invoke_prepare_constraint(registry, entity, std::get<0>(con_view.get(entity)), prep_cache,
-                                          dt, body_view, origin_view, manifold_view) : void(0)), ...);
+                                          dt, body_view, origin_view, manifold_view, spin_view) : void(0)), ...);
         }, con_view_tuple);
     };
 

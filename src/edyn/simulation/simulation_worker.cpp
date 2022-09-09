@@ -309,7 +309,7 @@ void simulation_worker::wake_up_affected_islands(const registry_operation &ops) 
 void simulation_worker::sync() {
     // Always update discontinuities since they decay in every step.
     m_op_builder->replace<discontinuity>();
-    m_op_builder->replace<discontinuity_spin>(m_registry);
+    m_op_builder->replace<discontinuity_spin>();
 
     // TODO: move this to solver, maybe, idk
     auto body_view = m_registry.view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);

@@ -62,7 +62,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
             }
 
             for (size_t i = 0; i < con.num_patches; ++i) {
-                auto &patch = con.patch[i];
+                auto &patch = con.patches[i];
 
                 auto velA = linvelA + cross(angvelA + spinvelA, patch.pivot - posA);
                 auto velB = linvelB + cross(angvelB + spinvelB, patch.pivot - posB);

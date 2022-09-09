@@ -78,39 +78,22 @@ bool intervals_intersect_wrap_around(scalar min_a, scalar max_a, scalar min_b, s
 void contact_patch_constraint::prepare(const entt::registry &registry, entt::entity entity, const contact_manifold &manifold,
                                        constraint_row_prep_cache &cache, scalar dt,
                                        const constraint_body &bodyA, const constraint_body &bodyB) {
-
-    auto spin_view = registry.view<spin, spin_angle, delta_spin>();
-    auto cyl_view = registry.view<cylinder_shape>();
-
     if (manifold.num_points == 0) {
         return;
     }
 
     // Wheel spin axis in world space.
     const auto axis = quaternion_x(bodyA.orn);
-    // `A` is assumed to be the tire, thus it must have spin.
-    auto &spinA = spin_view.get<const spin>(body[0]);
-    auto spinvelA = axis * spinA.s;
-    auto spinvelB = vector3_zero;
     auto spin_axisA = axis;
-    auto spin_axisB = vector3_zero;
-    auto *delta_spinA = &spin_view.get<const delta_spin>(body[0]);
-    delta_spin *delta_spinB = nullptr;
+    auto spinvelA = spin_axisA * bodyA.spin;
+    auto spin_axisB = quaternion_x(bodyB.orn);
+    auto spinvelB = spin_axisB * bodyB.spin;
 
-    if (spin_view.contains(body[1])) {
-        auto &s = spin_view.get<const spin>(body[1]);
-        spin_axisB = quaternion_x(bodyB.orn);
-        spinvelB = spin_axisB * scalar(s);
-        delta_spinB = &spin_view.get<const delta_spin>(body[1]);
-    }
-
-    auto &spin_angleA = spin_view.get<const spin_angle>(body[0]);
-    auto spin_ornA = bodyA.orn * quaternion_axis_angle(vector3_x, spin_angleA.s);
+    auto spin_ornA = bodyA.orn * quaternion_axis_angle(vector3_x, bodyA.spin_angle);
     auto spin_angvelA = bodyA.angvel + spinvelA;
 
     // Store initial size of the constraint row cache so the number of rows
     // for this contact constraint can be calculated at the end.
-    const auto row_start_index = cache.rows.size();
     unsigned imp_idx = 0;
 
     // Create non-penetration constraint rows for each contact point.
@@ -162,7 +145,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         options.error = -large_scalar;
     }
 
-    auto [cyl] = cyl_view.get(body[0]);
+    auto &cyl = registry.get<cylinder_shape>(body[0]);
 
     struct point_info {
         scalar angle;
@@ -199,7 +182,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         }
 
         // Add spin angle to bring the contact angle into spin space.
-        angle += spin_angleA.s;
+        angle += bodyA.spin_angle;
 
         auto &info = infos[num_points++];
         info.angle = angle;
@@ -296,7 +279,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         // Predict what is most likely to be the current angle of a patch
         // by subtracting the angle change over one step from the previous
         // angle.
-        auto predicted_angle = normalize_angle(patch.angle - spinA.s * dt);
+        auto predicted_angle = normalize_angle(patch.angle - bodyA.spin * dt);
 
         bool found = false;
 
@@ -436,7 +419,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         auto normal_pressure = normal_force / (patch.width * patch.length);
 
         // Number of full turns since last update.
-        auto spin_count_delta = spin_angleA.count - patch.spin_count;
+        auto spin_count_delta = bodyA.spin_count - patch.spin_count;
         // Calculate previous contact angle including the full turns so all
         // ranges and angles are all laid out in a segment without wrapping around.
         auto prev_contact_angle = prev_patch_angles[i] - spin_count_delta * pi2;
@@ -765,7 +748,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             auto q = cross(rB, lon_dir);
             auto spring_impulse = lon_force * dt;
 
-            auto &row = cache.add_row();
+            auto &row = cache.add_row_with_spin();
             row.J = {lon_dir, p, -lon_dir, -q};
             row.lower_limit = std::min(spring_impulse, scalar(0));
             row.upper_limit = std::max(scalar(0), spring_impulse);
@@ -816,7 +799,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         patch.pivot = contact_center;
         patch.lat_dir = lat_dir;
         patch.lon_dir = lon_dir;
-        patch.spin_count = spin_angleA.count;
+        patch.spin_count = bodyA.spin_count;
     }
 }
 

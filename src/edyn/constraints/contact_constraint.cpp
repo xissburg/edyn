@@ -17,6 +17,7 @@
 #include "edyn/dynamics/position_solver.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/constants.hpp"
+#include "edyn/math/scalar.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
@@ -28,25 +29,10 @@ void contact_constraint::prepare(
     constraint_row_prep_cache &cache, scalar dt,
     const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    auto spinvelA = vector3_zero;
-    auto spinvelB = vector3_zero;
-    auto spin_axisA = vector3_zero;
-    auto spin_axisB = vector3_zero;
-    delta_spin *delta_spinA = nullptr, *delta_spinB = nullptr;
-
-    if (spin_view.contains(body[0])) {
-        auto &s = spin_view.get<spin>(body[0]);
-        spin_axisA = quaternion_x(ornA);
-        spinvelA = spin_axisA * scalar(s);
-        delta_spinA = &spin_view.get<delta_spin>(body[0]);
-    }
-
-    if (spin_view.contains(body[1])) {
-        auto &s = spin_view.get<spin>(body[1]);
-        spin_axisB = quaternion_x(ornB);
-        spinvelB = spin_axisB * scalar(s);
-        delta_spinB = &spin_view.get<delta_spin>(body[1]);
-    }
+    auto spin_axisA = quaternion_x(bodyA.orn);
+    auto spin_axisB = quaternion_x(bodyB.orn);
+    auto spinvelA = spin_axisA * bodyA.spin;
+    auto spinvelB = spin_axisB * bodyB.spin;
 
     auto &settings = registry.ctx().at<edyn::settings>();
 
@@ -137,7 +123,8 @@ void contact_constraint::prepare(
                 auto J_invM_JT = dot(bodyA.inv_I * row_i.J[1], row_i.J[1]) +
                                  dot(bodyB.inv_I * row_i.J[3], row_i.J[3]);
                 row_i.eff_mass = J_invM_JT > EDYN_EPSILON ? scalar(1) / J_invM_JT : 0;
-                row_i.rhs = -get_relative_speed(row_i.J, bodyA.linvel, bodyA.angvel, bodyB.linvel, bodyB.angvel);
+                row_i.rhs = -get_relative_speed(row_i.J, bodyA.linvel, bodyA.angvel + spinvelA,
+                                                         bodyB.linvel, bodyB.angvel + spinvelB);
             }
         }
 
@@ -151,7 +138,8 @@ void contact_constraint::prepare(
                              dot(bodyB.inv_I * spin_row.J[1], spin_row.J[1]);
             EDYN_ASSERT(J_invM_JT > EDYN_EPSILON);
             spin_row.eff_mass = scalar(1) / J_invM_JT;
-            spin_row.rhs = -(dot(spin_row.J[0], bodyA.angvel) + dot(spin_row.J[1], bodyB.angvel));
+            spin_row.rhs = -(dot(spin_row.J[0], bodyA.angvel + spinvelA) +
+                             dot(spin_row.J[1], bodyB.angvel + spinvelB));
         }
     }
 }

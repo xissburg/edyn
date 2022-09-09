@@ -90,6 +90,9 @@ add_library(Edyn
     src/edyn/constraints/gravity_constraint.cpp
     src/edyn/constraints/constraint_row_friction.cpp
     src/edyn/constraints/constraint_row_spin_friction.cpp
+    src/edyn/constraints/constraint_row.cpp
+    src/edyn/constraints/constraint_row_with_spin.cpp
+    src/edyn/constraints/constraint_row_triple.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/restitution_solver.cpp
     src/edyn/dynamics/island_solver.cpp

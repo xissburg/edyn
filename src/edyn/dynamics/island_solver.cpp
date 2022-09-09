@@ -105,6 +105,14 @@ void serialize(Archive &archive, island_solver_context &ctx) {
 }
 
 static void warm_start(row_cache &cache) {
+    for (auto &row : cache.rows_triple) {
+        warm_start(row);
+    }
+
+    for (auto &row : cache.rows_with_spin) {
+        warm_start(row);
+    }
+
     for (auto &row : cache.rows) {
         warm_start(row);
     }
@@ -123,9 +131,19 @@ static void warm_start(row_cache &cache) {
 }
 
 static void solve(row_cache &cache) {
+    for (auto &row : cache.rows_triple) {
+        auto delta_impulse = solve(row);
+        apply_row_impulse(delta_impulse, row);
+    }
+
+    for (auto &row : cache.rows_with_spin) {
+        auto delta_impulse = solve(row);
+        apply_row_impulse(delta_impulse, row);
+    }
+
     for (auto &row : cache.rows) {
         auto delta_impulse = solve(row);
-        apply_impulse(delta_impulse, row);
+        apply_row_impulse(delta_impulse, row);
     }
 
     for (auto &row : cache.friction) {
@@ -165,9 +183,19 @@ void insert_rows(entt::registry &registry, row_cache &cache, const entt::sparse_
         // can have multiple constraints (of different types), these could be
         // rows of more than one constraint.
         prep_cache.consume_rows([&](constraint_row_prep_cache::element &elem) {
-            auto normal_row_index = cache.rows.size();
-            cache.rows.push_back(elem.row);
+            unsigned normal_row_index = cache.rows.size();
             cache.flags.push_back(elem.flags);
+
+            if (elem.flags & constraint_row_flag_with_spin) {
+                normal_row_index = cache.rows_with_spin.size();
+                cache.rows_with_spin.push_back(elem.row_with_spin);
+            } else if (elem.flags & constraint_row_flag_triple) {
+                normal_row_index = cache.rows_triple.size();
+                cache.rows_triple.push_back(elem.row_triple);
+            } else {
+                normal_row_index = cache.rows.size();
+                cache.rows.push_back(elem.row);
+            }
 
             if (elem.flags & constraint_row_flag_friction) {
                 cache.friction.push_back(elem.friction);

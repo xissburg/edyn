@@ -62,8 +62,7 @@ void doublewishbone_constraint::prepare(
         row.upper_limit = large_scalar;
         row.impulse = impulse[row_idx++];
 
-        auto options = cache.get_options();
-        options.error = 0.5 * (ul2 - upper_length * upper_length) / dt;
+        cache.get_options().error = 0.5 * (ul2 - upper_length * upper_length) / dt;
     }
 
     // Lower control arm distance constraint

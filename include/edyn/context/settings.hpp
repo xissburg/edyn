@@ -23,7 +23,7 @@ struct settings {
     unsigned num_restitution_iterations {8};
     unsigned num_individual_restitution_iterations {3};
 
-    execution_mode execution_mode;
+    edyn::execution_mode execution_mode;
 
     step_callback_t pre_step_callback {nullptr};
     step_callback_t post_step_callback {nullptr};

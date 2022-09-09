@@ -27,19 +27,16 @@ void spin_angle_constraint::prepare(
     auto axisA = quaternion_x(bodyA.orn);
     auto axisB = quaternion_x(bodyB.orn);
 
-    auto spinvelA = axisA * bodyA.spin;
-    auto spinvelB = axisB * bodyB.spin;
-
     {
         auto error = calculate_offset(registry) - m_offset_origin;
         auto force = error * m_stiffness;
         auto impulse = std::abs(force) * dt;
 
-        auto &row = cache.add_row();
+        auto &row = cache.add_row_with_spin();
         row.J = {vector3_zero, axisA, vector3_zero, -axisB * m_ratio};
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
-        row.impulse = impulse[0];
+        row.impulse = this->impulse[0];
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.spin_axis[0] = axisA;
@@ -53,11 +50,11 @@ void spin_angle_constraint::prepare(
         auto force = relvel * m_damping;
         auto impulse = std::abs(force) * dt;
 
-        auto &row = cache.add_row();
+        auto &row = cache.add_row_with_spin();
         row.J = {vector3_zero, axisA, vector3_zero, -axisB * m_ratio};
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
-        row.impulse = impulse[1];
+        row.impulse = this->impulse[1];
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.spin_axis[0] = axisA;

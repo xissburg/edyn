@@ -10,6 +10,8 @@ namespace edyn {
 
 struct contact_manifold;
 struct constraint_row;
+struct constraint_row_with_spin;
+struct constraint_row_triple;
 struct constraint_row_options;
 struct matrix3x3;
 
@@ -87,28 +89,8 @@ scalar get_effective_mass(const std::array<vector3, 6> &J,
                           scalar inv_mC, const matrix3x3 &inv_IC);
 
 scalar get_relative_speed(const std::array<vector3, 4> &J,
-                          const vector3 &linvelA,
-                          const vector3 &angvelA,
-                          const vector3 &linvelB,
-                          const vector3 &angvelB);
-
-void prepare_row(constraint_row &row,
-                 const constraint_row_options &options,
-                 const vector3 &linvelA, const vector3 &angvelA,
-                 const vector3 &linvelB, const vector3 &angvelB);
-
-void apply_impulse(scalar impulse, constraint_row &row);
-
-void warm_start(constraint_row &row);
-
-void prepare_row3(constraint_row &row,
-                 const constraint_row_options &options,
-                 const vector3 &linvelA, const vector3 &linvelB, const vector3 &linvelC,
-                 const vector3 &angvelA, const vector3 &angvelB, const vector3 &angvelC);
-
-void apply_impulse3(scalar impulse, constraint_row &row);
-
-void warm_start3(constraint_row &row);
+                          const vector3 &linvelA, const vector3 &angvelA,
+                          const vector3 &linvelB, const vector3 &angvelB);
 
 }
 

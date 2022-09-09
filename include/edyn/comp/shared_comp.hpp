@@ -12,6 +12,8 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/comp/tire_material.hpp"
+#include "edyn/comp/tire_state.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"

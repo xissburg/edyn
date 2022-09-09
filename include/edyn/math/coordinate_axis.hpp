@@ -29,6 +29,7 @@ constexpr vector3 coordinate_axis_vector(coordinate_axis axis) {
     case coordinate_axis::z:
         return vector3_z;
     }
+    return vector3_zero;
 }
 
 /**
