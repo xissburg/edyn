@@ -1,8 +1,8 @@
 #include "edyn/dynamics/restitution_solver.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/constraint_row_options.hpp"
+#include "edyn/constraints/constraint_row_with_spin.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/constraints/constraint_row.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -14,6 +14,7 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/mass.hpp"
+#include "edyn/comp/spin.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/transform.hpp"
@@ -66,6 +67,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     auto origin_view = registry.view<origin>();
     auto restitution_view = registry.view<contact_manifold_with_restitution>();
     auto manifold_view = registry.view<contact_manifold>();
+    auto spin_view = registry.view<spin, delta_spin>();
 
     // Solve manifolds in small groups, these groups being all manifolds connected
     // to one rigid body, usually a fast moving one. Ignore manifolds which are
@@ -107,7 +109,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     }
 
     // Reuse collections of rows to prevent a high number of allocations.
-    auto normal_rows = std::vector<constraint_row>{};
+    auto normal_rows = std::vector<constraint_row_with_spin>{};
     auto friction_row_pairs = std::vector<constraint_row_friction>{};
 
     normal_rows.reserve(10);
@@ -128,6 +130,24 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             auto originB = origin_view.contains(manifold.body[1]) ?
                 origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
+            auto spin_axisA = quaternion_x(ornA);
+            auto spin_axisB = quaternion_x(ornB);
+
+            auto spinA = scalar{};
+            auto spinB = scalar{};
+            delta_spin *dsA = nullptr;
+            delta_spin *dsB = nullptr;
+
+            if (spin_view.contains(manifold.body[0])) {
+                dsA = &spin_view.get<delta_spin>(manifold.body[0]);
+                spinA = spin_view.get<spin>(manifold.body[0]);
+            }
+
+            if (spin_view.contains(manifold.body[1])) {
+                dsB = &spin_view.get<delta_spin>(manifold.body[1]);
+                spinB = spin_view.get<spin>(manifold.body[1]);
+            }
+
             // Create constraint rows for non-penetration constraints for each
             // contact point.
             for (size_t pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
@@ -147,14 +167,22 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 normal_row.dvB = &dvB; normal_row.dwB = &dwB;
                 normal_row.lower_limit = 0;
                 normal_row.upper_limit = large_scalar;
+                normal_row.impulse = 0;
+                normal_row.use_spin[0] = true;
+                normal_row.use_spin[1] = true;
+                normal_row.spin_axis[0] = spin_axisA;
+                normal_row.spin_axis[1] = spin_axisB;
+                normal_row.dsA = dsA;
+                normal_row.dsB = dsB;
 
                 auto normal_options = constraint_row_options{};
                 normal_options.restitution = cp.restitution;
 
-                prepare_row(normal_row, normal_options, linvelA, angvelA, linvelB, angvelB);
+                prepare_row(normal_row, normal_options, linvelA, angvelA, spinA, linvelB, angvelB, spinB);
 
                 auto &friction_row_pair = friction_row_pairs.emplace_back();
                 friction_row_pair.friction_coefficient = cp.friction;
+                friction_row_pair.normal_row_index = normal_rows.size() - 1;
 
                 vector3 tangents[2];
                 plane_space(normal, tangents[0], tangents[1]);
@@ -164,6 +192,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                     friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
                     friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
                     friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA, linvelB, angvelB);
+                    friction_row.impulse = 0;
                 }
             }
         }

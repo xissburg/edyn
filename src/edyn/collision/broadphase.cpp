@@ -236,6 +236,8 @@ bool broadphase::update(const job &completion_job) {
         finish_collide();
         m_state = state::begin;
         return true;
+    default:
+        return true;
     }
 }
 

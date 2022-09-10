@@ -232,7 +232,7 @@ static bool prepare_constraints(entt::registry &registry, scalar dt, execution_m
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
     auto origin_view = registry.view<origin>();
-    auto spin_view = registry.view<spin, delta_spin>();
+    auto spin_view = registry.view<spin, spin_angle, delta_spin>();
     auto cache_view = registry.view<constraint_row_prep_cache>(exclude_sleeping_disabled);
     auto manifold_view = registry.view<contact_manifold>();
     auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);

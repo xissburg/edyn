@@ -662,7 +662,7 @@ static void process_packet(entt::registry &registry, const packet::server_settin
     ctx.allow_full_ownership = server.allow_full_ownership;
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        registry.ctx().at<stepper_async>().settings_changed();
+        stepper->settings_changed();
     }
 }
 

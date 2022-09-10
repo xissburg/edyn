@@ -45,7 +45,7 @@ inline void entity_vector_erase_invalid(std::vector<entt::entity> &vec,
 }
 
 template<typename View>
-auto calculate_view_size(const View &view) {
+unsigned calculate_view_size(const View &view) {
     return std::distance(view.begin(), view.end());
 }
 

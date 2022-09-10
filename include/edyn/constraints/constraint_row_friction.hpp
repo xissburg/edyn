@@ -23,9 +23,6 @@ struct constraint_row_friction {
     unsigned normal_row_index;
 };
 
-void solve_friction(constraint_row_friction &row, const std::vector<constraint_row> &row_cache);
-void warm_start(constraint_row_friction &row, const std::vector<constraint_row> &row_cache);
-
 void solve_friction(constraint_row_friction &row, const std::vector<constraint_row_with_spin> &row_cache);
 void warm_start(constraint_row_friction &row, const std::vector<constraint_row_with_spin> &row_cache);
 

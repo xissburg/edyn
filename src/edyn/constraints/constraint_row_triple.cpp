@@ -60,7 +60,7 @@ void apply_angular_impulse(scalar impulse,
     }
 }
 
-void apply_impulse(scalar impulse, constraint_row_triple &row) {
+void apply_row_impulse(scalar impulse, constraint_row_triple &row) {
     // Apply linear impulse.
     *row.dvA += row.inv_mA * row.J[0] * impulse;
     *row.dvB += row.inv_mB * row.J[2] * impulse;
@@ -73,7 +73,7 @@ void apply_impulse(scalar impulse, constraint_row_triple &row) {
 }
 
 void warm_start(constraint_row_triple &row) {
-    apply_impulse(row.impulse, row);
+    apply_row_impulse(row.impulse, row);
 }
 
 scalar solve(constraint_row_triple &row) {

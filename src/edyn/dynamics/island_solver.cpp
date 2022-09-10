@@ -118,11 +118,11 @@ static void warm_start(row_cache &cache) {
     }
 
     for (auto &row : cache.friction) {
-        warm_start(row, cache.rows);
+        warm_start(row, cache.rows_with_spin);
     }
 
     for (auto &row : cache.rolling) {
-        warm_start(row, cache.rows);
+        warm_start(row, cache.rows_with_spin);
     }
 
     for (auto &row : cache.spinning) {
@@ -147,11 +147,11 @@ static void solve(row_cache &cache) {
     }
 
     for (auto &row : cache.friction) {
-        solve_friction(row, cache.rows);
+        solve_friction(row, cache.rows_with_spin);
     }
 
     for (auto &row : cache.rolling) {
-        solve_friction(row, cache.rows);
+        solve_friction(row, cache.rows_with_spin);
     }
 
     for (auto &row : cache.spinning) {

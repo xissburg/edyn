@@ -21,7 +21,7 @@ void prepare_row(constraint_row &row,
     row.rhs = -(options.error * options.erp + relvel * (1 + options.restitution));
 }
 
-void apply_impulse(scalar impulse, constraint_row &row) {
+void apply_row_impulse(scalar impulse, constraint_row &row) {
     // Apply linear impulse.
     *row.dvA += row.inv_mA * row.J[0] * impulse;
     *row.dvB += row.inv_mB * row.J[2] * impulse;
@@ -32,7 +32,7 @@ void apply_impulse(scalar impulse, constraint_row &row) {
 }
 
 void warm_start(constraint_row &row) {
-    apply_impulse(row.impulse, row);
+    apply_row_impulse(row.impulse, row);
 }
 
 scalar solve(constraint_row &row) {

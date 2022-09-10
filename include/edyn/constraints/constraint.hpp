@@ -35,6 +35,9 @@ using constraints_tuple_t = std::tuple<
     soft_distance_constraint,
     hinge_constraint,
     generic_constraint,
+    cvjoint_constraint,
+    cone_constraint,
+    point_constraint,
     tirecarcass_constraint,
     springdamper_constraint,
     spin_angle_constraint,
@@ -43,9 +46,6 @@ using constraints_tuple_t = std::tuple<
     doublewishbone_constraint,
     differential_constraint,
     tierod_constraint,
-    cvjoint_constraint,
-    cone_constraint,
-    point_constraint,
     contact_patch_constraint,
     contact_constraint
 >;

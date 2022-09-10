@@ -48,9 +48,13 @@ void contact_constraint::prepare(
         auto rB = pivotB - bodyB.pos;
 
         // Create normal row, i.e. non-penetration constraint.
-        auto &normal_row = cache.add_row();
+        auto &normal_row = cache.add_row_with_spin();
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
         normal_row.impulse = impulse[pt_idx];
+        normal_row.use_spin[0] = true;
+        normal_row.use_spin[1] = true;
+        normal_row.spin_axis[0] = spin_axisA;
+        normal_row.spin_axis[1] = spin_axisB;
         normal_row.lower_limit = 0;
 
         auto &normal_options = cache.get_options();
@@ -63,8 +67,8 @@ void contact_constraint::prepare(
 
         if (cp.distance < 0) {
             if (cp.stiffness < large_scalar) {
-                auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
-                auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
+                auto vA = bodyA.linvel + cross(bodyA.angvel + spinvelA, rA);
+                auto vB = bodyB.linvel + cross(bodyB.angvel + spinvelB, rB);
                 auto relvel = vA - vB;
                 auto normal_relvel = dot(relvel, normal);
                 // Divide stiffness by number of points for correct force
@@ -95,7 +99,8 @@ void contact_constraint::prepare(
             row_i.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
             row_i.impulse = impulse[max_contacts + pt_idx * 2 + i];
             row_i.eff_mass = get_effective_mass(row_i.J, bodyA.inv_m, bodyA.inv_I, bodyB.inv_m, bodyB.inv_I);
-            row_i.rhs = -get_relative_speed(row_i.J, bodyA.linvel, bodyA.angvel + spinvelA, bodyB.linvel, bodyB.angvel + spinvelB);
+            row_i.rhs = -get_relative_speed(row_i.J, bodyA.linvel, bodyA.angvel + spinvelA,
+                                            bodyB.linvel, bodyB.angvel + spinvelB);
         }
 
         if (cp.roll_friction > 0) {
