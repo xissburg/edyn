@@ -232,8 +232,9 @@ void pack_rows(entt::registry &registry, row_cache &cache, const entt::sparse_se
 
 template<typename C>
 void update_impulse(entt::registry &registry, const std::vector<entt::entity> &entities,
-                    row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
-                    size_t &rolling_row_idx, size_t &spinning_row_idx) {
+                    row_cache &cache, size_t &con_idx, size_t &flag_idx,
+                    size_t &row_idx, size_t &row_with_spin_idx, size_t &row_triple_idx,
+                    size_t &friction_row_idx, size_t &rolling_row_idx, size_t &spinning_row_idx) {
 
     constexpr auto friction_start_index = max_contacts;
     constexpr auto rolling_start_index = max_contacts + max_contacts * 2;
@@ -249,13 +250,27 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
         // an array is expected.
         if constexpr(std::is_same_v<decltype(con.impulse), scalar>) {
             EDYN_ASSERT(num_rows == 1);
-            con.impulse = cache.rows[row_idx].impulse;
+            auto flags = cache.flags[flag_idx];
+
+            if (flags & constraint_row_flag_with_spin) {
+                con.impulse = cache.rows_with_spin[row_with_spin_idx++].impulse;
+            } else if (flags & constraint_row_flag_triple) {
+                con.impulse = cache.rows_triple[row_triple_idx++].impulse;
+            } else {
+                con.impulse = cache.rows[row_idx++].impulse;
+            }
         } else {
             EDYN_ASSERT(con.impulse.size() >= num_rows);
             for (size_t i = 0; i < num_rows; ++i) {
-                con.impulse[i] = cache.rows[row_idx + i].impulse;
+                auto flags = cache.flags[flag_idx + i];
 
-                auto flags = cache.flags[row_idx + i];
+                if (flags & constraint_row_flag_with_spin) {
+                    con.impulse[i] = cache.rows_with_spin[row_with_spin_idx++].impulse;
+                } else if (flags & constraint_row_flag_triple) {
+                    con.impulse[i] = cache.rows_triple[row_triple_idx++].impulse;
+                } else {
+                    con.impulse[i] = cache.rows[row_idx++].impulse;
+                }
 
                 if (flags & constraint_row_flag_friction) {
                     auto &friction_row = cache.friction[friction_row_idx++];
@@ -287,7 +302,7 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
                 auto &pt = manifold.get_point(i);
                 pt.normal_impulse = con.impulse[i];
 
-                auto flags = cache.flags[row_idx + i];
+                auto flags = cache.flags[flag_idx + i];
 
                 if (flags & constraint_row_flag_friction) {
                     for (int j = 0; j < 2; ++j) {
@@ -307,15 +322,16 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
             }
         }
 
-        row_idx += num_rows;
+        flag_idx += num_rows;
         ++con_idx;
     }
 }
 
 template<typename... C, size_t... Ints>
 void update_impulses(entt::registry &registry, const island_constraint_entities &constraint_entities,
-                     row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
-                     size_t &rolling_row_idx, size_t &spinning_row_idx,
+                     row_cache &cache, size_t &con_idx, size_t &flag_idx,
+                     size_t &row_idx, size_t &row_with_spin_idx, size_t &row_triple_idx,
+                     size_t &friction_row_idx, size_t &rolling_row_idx, size_t &spinning_row_idx,
                      [[maybe_unused]] std::tuple<C...>,
                      std::index_sequence<Ints...>) {
     // The entities at the i-th array in `constraint_entities` contains the
@@ -323,7 +339,8 @@ void update_impulses(entt::registry &registry, const island_constraint_entities 
     // inserted in the same order they entered the row cache so a direct 1-to-1
     // correspondence can be made.
     (update_impulse<C>(registry, constraint_entities.entities[Ints], cache,
-                       con_idx, row_idx, friction_row_idx, rolling_row_idx, spinning_row_idx), ...);
+                       con_idx, flag_idx, row_idx, row_with_spin_idx, row_triple_idx,
+                       friction_row_idx, rolling_row_idx, spinning_row_idx), ...);
 }
 
 void assign_applied_impulses(entt::registry &registry, row_cache &cache,
@@ -334,13 +351,17 @@ void assign_applied_impulses(entt::registry &registry, row_cache &cache,
     // pools, which means the rows in the cache can be matched by visiting each
     // constraint type in the order they appear in the tuple.
     size_t con_idx = 0;
+    size_t flag_idx = 0;
     size_t row_idx = 0;
+    size_t row_with_spin_idx = 0;
+    size_t row_triple_idx = 0;
     size_t friction_row_idx = 0;
     size_t rolling_row_idx = 0;
     size_t spinning_row_idx = 0;
 
     update_impulses(registry, constraint_entities, cache,
-                    con_idx, row_idx, friction_row_idx, rolling_row_idx, spinning_row_idx,
+                    con_idx, flag_idx, row_idx, row_with_spin_idx, row_triple_idx,
+                    friction_row_idx, rolling_row_idx, spinning_row_idx,
                     constraints_tuple, std::make_index_sequence<std::tuple_size_v<constraints_tuple_t>>());
 }
 
@@ -430,13 +451,13 @@ static bool solve_position_constraints(entt::registry &registry, const island_co
 
 bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set &entities,
                     execution_mode mode, std::optional<job> completion_job = {}) {
-    auto view = registry.view<position, orientation,
-                              linvel, angvel, delta_linvel, delta_angvel,
-                              dynamic_tag>();
+    auto vel_view = registry.view<position, orientation,
+                                  linvel, angvel, delta_linvel, delta_angvel>();
+    auto spin_view = registry.view<spin_angle, spin, delta_spin>();
 
-    auto for_loop_body = [view, dt](entt::entity entity) {
-        if (view.contains(entity)) {
-            auto [pos, orn, v, w, dv, dw] = view.get(entity);
+    auto for_loop_body = [vel_view, spin_view, dt](entt::entity entity) {
+        if (vel_view.contains(entity)) {
+            auto [pos, orn, v, w, dv, dw] = vel_view.get(entity);
 
             // Apply deltas.
             v += dv;
@@ -447,6 +468,19 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
             // Reset deltas back to zero for next update.
             dv = vector3_zero;
             dw = vector3_zero;
+        }
+
+        if (spin_view.contains(entity)) {
+            auto [angle, spin, delta] = spin_view.get(entity);
+            spin.s += delta.s;
+            delta.s = 0;
+
+            // Keep angle in [0, 2π) interval by separating it into a complete turn
+            // count (2π rad) and an angle in that interval.
+            angle.s += spin.s * dt;
+            auto spin_count = std::floor(angle.s / pi2);
+            angle.count += spin_count;
+            angle.s -= spin_count * pi2;
         }
     };
 

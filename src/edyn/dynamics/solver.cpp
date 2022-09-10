@@ -23,7 +23,6 @@
 #include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/serialization/s11n_util.hpp"
 #include "edyn/sys/apply_gravity.hpp"
-#include "edyn/sys/integrate_spin.hpp"
 #include "edyn/sys/update_tire_state.hpp"
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
@@ -53,6 +52,7 @@ solver::solver(entt::registry &registry)
 {
     m_connections.emplace_back(registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>());
     m_connections.emplace_back(registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>());
+    m_connections.emplace_back(registry.on_construct<spin>().connect<&entt::registry::emplace<delta_spin>>());
     m_connections.emplace_back(registry.on_construct<island_tag>().connect<&entt::registry::emplace<row_cache>>());
     m_connections.emplace_back(registry.on_construct<island_tag>().connect<&entt::registry::emplace<island_constraint_entities>>());
     m_connections.emplace_back(registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<constraint_row_prep_cache>>());
@@ -343,6 +343,9 @@ bool solver::update(const job &completion_job) {
 
         // Update world-space moment of inertia.
         update_inertias(registry);
+
+        update_tire_state(registry, settings.fixed_dt);
+
         m_state = state::done;
         return update(completion_job);
         break;
@@ -405,6 +408,8 @@ void solver::update_sequential(bool mt) {
 
     // Update world-space moment of inertia.
     update_inertias(registry);
+
+    update_tire_state(registry, settings.fixed_dt);
 }
 
 }

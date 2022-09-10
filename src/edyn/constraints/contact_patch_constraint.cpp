@@ -110,9 +110,13 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         auto rA = pivotA - bodyA.pos;
         auto rB = pivotB - bodyB.pos;
 
-        auto &row = cache.add_row();
+        auto &row = cache.add_row_with_spin();
         row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
         row.impulse = impulse[imp_idx++];
+        row.use_spin[0] = true;
+        row.use_spin[1] = true;
+        row.spin_axis[0] = spin_axisA;
+        row.spin_axis[1] = spin_axisB;
         row.lower_limit = 0;
 
         auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
@@ -195,9 +199,13 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         info.normal = cp.normal;
         // A point on the contact plane.
         info.pivot = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
-        info.impulse = cp.normal_impulse;
         info.friction = cp.friction;
         info.lifetime = cp.lifetime;
+        // Need to verify whether this really contains the applied normal impulse.
+        // Doesn't seem so since there isn't a correspondence between contact
+        // points and contact patches. There can be one patch for more than one point
+        // if the lie about the same line longitudinally.
+        info.impulse = impulse[pt_idx * 4];
     }
 
     if (num_points == 0) {
