@@ -10,7 +10,6 @@ namespace edyn {
 
 struct contact_manifold;
 struct constraint_row;
-struct constraint_row_options;
 struct matrix3x3;
 
 namespace internal {
@@ -54,7 +53,7 @@ auto make_constraint(entt::registry &registry,
  * iterate over all constraints assigned to a rigid body, including contacts.
  * @tparam Func Visitor function type.
  * @param entity Node entity.
- * @param func Vistor function with signature `void(entt::entity)`.
+ * @param func Visitor function with signature `void(entt::entity)`.
  */
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
@@ -86,15 +85,6 @@ scalar get_relative_speed(const std::array<vector3, 4> &J,
                           const vector3 &angvelA,
                           const vector3 &linvelB,
                           const vector3 &angvelB);
-
-void prepare_row(constraint_row &row,
-                 const constraint_row_options &options,
-                 const vector3 &linvelA, const vector3 &angvelA,
-                 const vector3 &linvelB, const vector3 &angvelB);
-
-void apply_impulse(scalar impulse, constraint_row &row);
-
-void warm_start(constraint_row &row);
 
 }
 

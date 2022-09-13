@@ -2,6 +2,7 @@
 #define EDYN_SHAPES_COORDINATE_AXIS_HPP
 
 #include <array>
+#include "edyn/config/config.h"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/serialization/s11n_util.hpp"
@@ -29,6 +30,7 @@ constexpr vector3 coordinate_axis_vector(coordinate_axis axis) {
     case coordinate_axis::z:
         return vector3_z;
     }
+    EDYN_ASSERT(false);
 }
 
 /**

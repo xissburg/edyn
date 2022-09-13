@@ -129,36 +129,4 @@ scalar get_relative_speed(const std::array<vector3, 4> &J,
     return relspd;
 }
 
-void prepare_row(constraint_row &row,
-                 const constraint_row_options &options,
-                 const vector3 &linvelA, const vector3 &angvelA,
-                 const vector3 &linvelB, const vector3 &angvelB) {
-    auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
-                     dot(row.inv_IA * row.J[1], row.J[1]) +
-                     dot(row.J[2], row.J[2]) * row.inv_mB +
-                     dot(row.inv_IB * row.J[3], row.J[3]);
-    row.eff_mass = 1 / J_invM_JT;
-
-    auto relvel = dot(row.J[0], linvelA) +
-                  dot(row.J[1], angvelA) +
-                  dot(row.J[2], linvelB) +
-                  dot(row.J[3], angvelB);
-
-    row.rhs = -(options.error * options.erp + relvel * (1 + options.restitution));
-}
-
-void apply_impulse(scalar impulse, constraint_row &row) {
-    // Apply linear impulse.
-    *row.dvA += row.inv_mA * row.J[0] * impulse;
-    *row.dvB += row.inv_mB * row.J[2] * impulse;
-
-    // Apply angular impulse.
-    *row.dwA += row.inv_IA * row.J[1] * impulse;
-    *row.dwB += row.inv_IB * row.J[3] * impulse;
-}
-
-void warm_start(constraint_row &row) {
-    apply_impulse(row.impulse, row);
-}
-
 }

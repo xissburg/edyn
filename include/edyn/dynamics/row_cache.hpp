@@ -6,6 +6,7 @@
 #include <tuple>
 #include "edyn/config/config.h"
 #include "edyn/constraints/constraint_row.hpp"
+#include "edyn/constraints/constraint_row_options.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/constraint_row_spin_friction.hpp"
 

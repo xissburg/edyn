@@ -8,6 +8,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/config/config.h"
 #include "edyn/parallel/parallel_for.hpp"
 #include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -236,6 +237,8 @@ bool broadphase::update(const job &completion_job) {
         finish_collide();
         m_state = state::begin;
         return true;
+    default:
+        EDYN_ASSERT(false);
     }
 }
 

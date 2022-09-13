@@ -125,7 +125,7 @@ static void warm_start(row_cache &cache) {
 static void solve(row_cache &cache) {
     for (auto &row : cache.rows) {
         auto delta_impulse = solve(row);
-        apply_impulse(delta_impulse, row);
+        apply_row_impulse(delta_impulse, row);
     }
 
     for (auto &row : cache.friction) {

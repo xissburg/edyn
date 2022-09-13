@@ -2,6 +2,7 @@
 #include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
+#include "edyn/constraints/constraint_row_options.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -172,7 +173,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             for (size_t row_idx = 0; row_idx < normal_rows.size(); ++row_idx) {
                 auto &normal_row = normal_rows[row_idx];
                 auto delta_impulse = solve(normal_row);
-                apply_impulse(delta_impulse, normal_row);
+                apply_row_impulse(delta_impulse, normal_row);
 
                 auto &friction_row_pair = friction_row_pairs[row_idx];
                 solve_friction(friction_row_pair, normal_rows);

@@ -62,7 +62,7 @@ void cone_constraint::prepare(
     auto rA = pivotA_world - bodyA.pos;
     auto rB = pivotB_world - bodyB.pos;
 
-    std::array<vector3, 2 * max_constrained_entities> J =
+    std::array<vector3, 4> J =
         {normal_world,  cross(rA, normal_world),
         -normal_world, -cross(rB, normal_world)};
 
