@@ -293,7 +293,7 @@ public:
 
     void merge_action_history(entt::registry &registry, packet::registry_snapshot &snap, double time_delta) override {
         auto pool_it = std::find_if(snap.pools.begin(), snap.pools.end(), [](auto &&pool) {
-            constexpr auto action_history_index = index_of_v<unsigned, action_history, Components...>;
+            auto action_history_index = index_of_v<unsigned, action_history, Components...>;
             return pool.component_index == action_history_index;
         });
 
