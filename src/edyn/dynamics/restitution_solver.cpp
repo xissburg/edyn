@@ -108,14 +108,14 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     // Reuse collections of rows to prevent a high number of allocations.
     auto normal_rows = std::vector<constraint_row>{};
-    auto friction_row_pairs = std::vector<constraint_row_friction>{};
+    auto friction_rows = std::vector<constraint_row_friction>{};
 
     normal_rows.reserve(10);
-    friction_row_pairs.reserve(10);
+    friction_rows.reserve(10);
 
     auto solve_manifolds = [&](const std::vector<entt::entity> &manifold_entities) {
         normal_rows.clear();
-        friction_row_pairs.clear();
+        friction_rows.clear();
 
         for (auto manifold_entity : manifold_entities) {
             auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
@@ -139,6 +139,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 auto rA = pivotA - posA;
                 auto rB = pivotB - posB;
 
+                auto normal_row_index = normal_rows.size();
                 auto &normal_row = normal_rows.emplace_back();
                 normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
                 normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
@@ -153,17 +154,18 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
                 prepare_row(normal_row, normal_options, linvelA, angvelA, linvelB, angvelB);
 
-                auto &friction_row_pair = friction_row_pairs.emplace_back();
-                friction_row_pair.friction_coefficient = cp.friction;
+                auto &friction_row = friction_rows.emplace_back();
+                friction_row.friction_coefficient = cp.friction;
+                friction_row.normal_row_index = normal_row_index;
 
                 vector3 tangents[2];
                 plane_space(normal, tangents[0], tangents[1]);
 
                 for (auto i = 0; i < 2; ++i) {
-                    auto &friction_row = friction_row_pair.row[i];
-                    friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-                    friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
-                    friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA, linvelB, angvelB);
+                    auto &individual_row = friction_row.row[i];
+                    individual_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
+                    individual_row.eff_mass = get_effective_mass(individual_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
+                    individual_row.rhs = -get_relative_speed(individual_row.J, linvelA, angvelA, linvelB, angvelB);
                 }
             }
         }
@@ -175,7 +177,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 auto delta_impulse = solve(normal_row);
                 apply_row_impulse(delta_impulse, normal_row);
 
-                auto &friction_row_pair = friction_row_pairs[row_idx];
+                auto &friction_row_pair = friction_rows[row_idx];
                 solve_friction(friction_row_pair, normal_rows);
             }
         }
@@ -194,7 +196,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 auto &normal_row = normal_rows[row_idx];
                 cp.normal_restitution_impulse = normal_row.impulse;
 
-                auto &friction_row_pair = friction_row_pairs[row_idx];
+                auto &friction_row_pair = friction_rows[row_idx];
 
                 for (auto i = 0; i < 2; ++i) {
                     cp.friction_restitution_impulse[i] = friction_row_pair.row[i].impulse;

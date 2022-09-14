@@ -85,9 +85,7 @@ _SIMD_ implementations of the above are planned.
 
 # Constraints
 
-Constraints create a relationship between degrees of freedom of rigid bodies, preventing them from moving beyond the allowed range. Constraints are defined as simple structs which hold the `entt::entity` of the bodies it connects and any other specific data such as pivot points in object space. A function that prepares constraints must be provided for each type. These preparation functions go over the list of constraints of that type and configure one or more constraint rows for each constraint. These functions are called by the constraint solver right before the solver iterations.
-
-Constraints can also have an iteration function which is called on each iteration of the constraint solver. This is only needed if the constraint adjusts its rows based on changes to velocity during the iterations, e.g. the `edyn::contact_constraint` recalculates the limits of the friction constraint row based on what is the current impulse on the normal constraint row. This is not used by most constraints and should be used with care since it can be expensive.
+Constraints create a relationship between degrees of freedom of rigid bodies, preventing them from moving beyond the allowed range. Constraints are defined as simple structs which hold the `entt::entity` of the bodies it connects and any other specific data such as pivot points in object space. A function that prepares constraints must be provided for each type. These preparation functions configure one or more constraint rows for each constraint. The constraint row corresponds to one constraint equation or inequation in the system of constraints. It contains the Jacobian and impulse limits. These functions are called by the constraint solver right before the solver iterations.
 
 There is no flexibility when it comes to adding new constraints to the library. If that's needed, it'll be necessary to fork the project and add the new constraint internally.
 
@@ -119,15 +117,13 @@ The general structure of a _SAT_ implementation initially searches for the axis 
 
 The support feature is a _feature_ that's located furthest along a direction. A _feature_ is a simpler element of a shape, such as vertex, edge and face on a box or polyhedron, cap face, side edge and cap edge on a cylinder. This concept allows the collision detection to be split in two steps: first the closest features are found, then the closest points between the two features are found. Features are simpler and allows for the exact contact points to be calculated in a more manageable way.
 
-The features are intersected on a case-by-case basis and contact points are inserted into the resulting manifold which holds a limited number of points. If the manifold is full, it has to replace an existing point by the new, or leave it as is. The deciding factor is the area of the contact polygon, which is tries to maximize. A contact manifold with larger area tends to give greater stability.
+The features are intersected on a case-by-case basis and contact points are inserted into the resulting manifold which holds a limited number of points. If the manifold is full, it has to replace an existing point by the new, or leave it as is. The deciding factor is the surface area of the convex hull of the contact points, which should be maximized. Four points is the default maximum number of points, thus the convex hull is at most a tetrahedron, which is always convex, thus making it easy to calculate the surface area. This metric selects the larger manifolds while keeping points that are deeper than most.
 
 ## Collision Events
 
 Contact points are part of the `edyn::contact_manifold` component and they're added and removed to its list of points during the collision detection step. To allow users to watch contact points come and go, a set of signals are provided.
 
-To generate these signals, the id of all contact points that were created and destroyed are stored in a `edyn::contact_manifold_events` component during collision detection. This component is later included in the next registry operations which when received in the coordinator, will be inspected and collision events will be published into the respective signals.
-
-Contact points are not updated in the main registry continuously since that would be wasteful by default. In some cases it's desirable to have information such as the contact position, normal vector and applied normal and/of friction impulse in every frame, which can be used to play sounds or to drive a particle system, for example. If updated contact information is necessary, a `edyn::continuous` component must be assigned to the contact point when it's constructed and it must be marked as dirty so the changes can be propagated to the island worker where it resides. Another possibility is to assign a `edyn::continuous_contacts_tag` to a rigid body entity so every contact involving this entity will be automatically marked as continuous. This tag will be assigned to any new rigid bodies whose `edyn::rigidbody_def` has the `continuous_contacts` property set to true.
+To generate these signals, the id of all contact points that were created and destroyed are stored in a `edyn::contact_manifold_events` component during collision detection. This makes it possible to store all contact events that happened in one step for later consumption.
 
 ## Restitution
 
