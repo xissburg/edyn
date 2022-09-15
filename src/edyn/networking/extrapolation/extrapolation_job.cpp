@@ -31,9 +31,6 @@
 
 namespace edyn {
 
-extern bool(*g_is_networked_input_component)(entt::id_type);
-extern bool(*g_is_action_list_component)(entt::id_type);
-
 void extrapolation_job_func(job::data_type &data) {
     auto archive = memory_input_archive(data.data(), data.size());
     intptr_t job_intptr;

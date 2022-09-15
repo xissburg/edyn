@@ -16,7 +16,6 @@
 
 namespace edyn {
 
-extern bool(*g_is_networked_input_component)(entt::id_type);
 bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity);
 
 class server_snapshot_importer {
@@ -267,7 +266,7 @@ public:
             visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using CompType = std::decay_t<decltype(c)>;
 
-                if ((*g_is_networked_input_component)(entt::type_index<CompType>::value())) {
+                if constexpr(std::is_base_of_v<network_input, CompType>) {
                     auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
                     import_input_components_local(registry, client_entity, snap.entities, *typed_pool);
                 }

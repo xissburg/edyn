@@ -24,9 +24,6 @@
 
 namespace edyn {
 
-extern bool(*g_is_networked_input_component)(entt::id_type);
-extern bool(*g_is_action_list_component)(entt::id_type);
-
 class server_snapshot_exporter {
 public:
     virtual ~server_snapshot_exporter() = default;

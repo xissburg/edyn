@@ -16,26 +16,6 @@
 
 namespace edyn {
 
-namespace internal {
-    template<typename... Components>
-    auto make_is_network_input_component_func([[maybe_unused]] std::tuple<Components...>) {
-        return [](entt::id_type id) {
-            return ((id == entt::type_index<Components>::value() &&
-                     std::is_base_of_v<network_input, Components>) || ...);
-        };
-    }
-
-    template<typename... Actions>
-    auto make_is_action_list_component_func([[maybe_unused]] std::tuple<Actions...>) {
-        return [](entt::id_type id) {
-            return ((id == entt::type_index<action_list<Actions>>::value()) || ...);
-        };
-    }
-}
-
-extern bool(*g_is_networked_input_component)(entt::id_type);
-extern bool(*g_is_action_list_component)(entt::id_type);
-
 /**
  * @brief Register external networked components.
  * @tparam Components All external networked components.
@@ -76,8 +56,6 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(all);
-    g_is_networked_input_component = internal::make_is_network_input_component_func(all);
-    g_is_action_list_component = internal::make_is_action_list_component_func(actions);
 }
 
 /**
@@ -97,8 +75,6 @@ inline void unregister_networked_components(entt::registry &registry) {
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(networked_components);
-    g_is_networked_input_component = internal::make_is_network_input_component_func(networked_components);
-    g_is_action_list_component = [](entt::id_type) { return false; }; // There are no native actions.
 }
 
 }
