@@ -1,4 +1,6 @@
 #include "edyn/dynamics/restitution_solver.hpp"
+#include "edyn/comp/island.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
@@ -22,6 +24,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
+#include <entt/entity/utility.hpp>
 
 namespace edyn {
 
@@ -59,7 +62,8 @@ scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView 
     return min_relvel;
 }
 
-bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned individual_iterations) {
+bool solve_restitution_iteration(entt::registry &registry, entt::entity island_entity,
+                                 scalar dt, unsigned individual_iterations) {
     auto body_view = registry.view<position, orientation, linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
@@ -79,8 +83,13 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     // Find manifold with highest penetration velocity.
     auto min_relvel = EDYN_SCALAR_MAX;
     auto fastest_manifold_entity = entt::entity{entt::null};
+    auto &island = registry.get<edyn::island>(island_entity);
 
-    for (auto entity : restitution_view) {
+    for (auto entity : island.edges) {
+        if (!restitution_view.contains(entity)) {
+            continue;
+        }
+
         auto &manifold = manifold_view.get<contact_manifold>(entity);
         auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, origin_view);
 
@@ -286,9 +295,17 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
 void solve_restitution(entt::registry &registry, scalar dt) {
     auto &settings = registry.ctx().at<edyn::settings>();
+    auto island_view = registry.view<island_tag>(entt::exclude_t<sleeping_tag>{});
 
     for (unsigned i = 0; i < settings.num_restitution_iterations; ++i) {
-        if (solve_restitution_iteration(registry, dt, settings.num_individual_restitution_iterations)) {
+        bool all_solved = true;
+
+        for (auto island_entity : island_view) {
+            all_solved &= solve_restitution_iteration(registry, island_entity, dt,
+                                                      settings.num_individual_restitution_iterations);
+        }
+
+        if (all_solved) {
             break;
         }
     }
