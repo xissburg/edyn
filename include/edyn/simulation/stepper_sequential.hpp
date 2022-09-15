@@ -9,6 +9,10 @@
 
 namespace edyn {
 
+/**
+ * Steps the simulation sequentially in the main thread into the given
+ * registry. It can optionally parallelize many steps of the simulation.
+ */
 class stepper_sequential {
 public:
     stepper_sequential(entt::registry &registry, bool multithreaded);

@@ -46,6 +46,7 @@ static void update_island_entity_owners(entt::registry &registry) {
         // Set island owner to null and find out whether it can have a single owner.
         island_owner.client_entity = entt::null;
 
+        // Iterate over nodes and then edges.
         for (auto it = island.nodes.begin(); it != island.edges.end(); ++it) {
             if (it == island.nodes.end()) {
                 it = island.edges.begin();

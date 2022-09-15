@@ -124,7 +124,7 @@ void broadphase::destroy_separated_manifolds() {
 }
 
 void broadphase::collide_tree(const dynamic_tree &tree, entt::entity entity,
-                                     const AABB &offset_aabb) const {
+                              const AABB &offset_aabb) const {
     auto aabb_view = m_registry->view<AABB>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
     auto &manifold_map = m_registry->ctx().at<contact_manifold_map>();

@@ -7,6 +7,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -65,7 +66,7 @@ void update_aabb(entt::registry &registry, entt::entity entity) {
 
 template<typename ShapeType>
 void update_aabbs(entt::registry &registry) {
-    auto tr_view = registry.view<position, orientation, ShapeType, AABB>(entt::exclude_t<sleeping_tag, disabled_tag>{});
+    auto tr_view = registry.view<position, orientation, ShapeType, AABB>(exclude_sleeping_disabled);
     auto origin_view = registry.view<origin>();
     auto override_view = registry.view<AABB_override>();
 

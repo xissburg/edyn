@@ -16,8 +16,8 @@
 namespace edyn {
 
 /**
- * Manages all simulation islands. Creates and destroys island workers as necessary
- * and synchronizes the workers and the main registry.
+ * Steps the simulation asynchronously. It runs as a background job which does
+ * the actual simulation and synchronizes it with the main registry.
  */
 class stepper_async final {
 

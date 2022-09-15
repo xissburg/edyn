@@ -222,13 +222,6 @@ bool solver::update_async(const job &completion_job) {
 
 void solver::update_sequential(bool mt) {
     auto &registry = *m_registry;
-    auto island_view = registry.view<island>(exclude_sleeping_disabled);
-    auto num_islands = calculate_view_size(island_view);
-
-    if (num_islands == 0) {
-        return;
-    }
-
     auto &settings = registry.ctx().at<edyn::settings>();
     auto dt = settings.fixed_dt;
 
@@ -238,6 +231,9 @@ void solver::update_sequential(bool mt) {
     auto exec_mode = mt ? execution_mode::sequential_multithreaded : execution_mode::sequential;
     prepare_constraints(registry, dt, exec_mode);
 
+    auto island_view = registry.view<island>(exclude_sleeping_disabled);
+    auto num_islands = calculate_view_size(island_view);
+
     if (mt && num_islands > 1) {
         auto counter = atomic_counter_sync(num_islands);
 
@@ -245,8 +241,7 @@ void solver::update_sequential(bool mt) {
             run_island_solver_seq_mt(registry, island_entity,
                                      settings.num_solver_velocity_iterations,
                                      settings.num_solver_position_iterations,
-                                     settings.fixed_dt,
-                                     &counter);
+                                     dt, &counter);
         }
 
         counter.wait();
@@ -254,8 +249,7 @@ void solver::update_sequential(bool mt) {
         for (auto island_entity : island_view) {
             run_island_solver_seq(registry, island_entity,
                                   settings.num_solver_velocity_iterations,
-                                  settings.num_solver_position_iterations,
-                                  settings.fixed_dt);
+                                  settings.num_solver_position_iterations, dt);
         }
     }
 
