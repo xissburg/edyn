@@ -35,7 +35,7 @@ void narrowphase::update_sequential(bool mt) {
     }
 }
 
-bool narrowphase::update(const job &completion_job) {
+bool narrowphase::update_async(const job &completion_job) {
     switch (m_state) {
     case state::begin: {
         clear_contact_manifold_events();

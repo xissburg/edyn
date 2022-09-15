@@ -220,7 +220,7 @@ void broadphase::finish_collide() {
     }
 }
 
-bool broadphase::update(const job &completion_job) {
+bool broadphase::update_async(const job &completion_job) {
     switch (m_state) {
     case state::begin:
         if (calculate_view_size(m_registry->view<AABB, procedural_tag>(exclude_sleeping_disabled)) <= m_max_sequential_size) {

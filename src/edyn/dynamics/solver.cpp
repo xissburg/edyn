@@ -138,7 +138,7 @@ static bool prepare_constraints(entt::registry &registry, scalar dt, execution_m
     }
 }
 
-bool solver::update(const job &completion_job) {
+bool solver::update_async(const job &completion_job) {
     auto &registry = *m_registry;
     auto &settings = registry.ctx().at<edyn::settings>();
     auto dt = settings.fixed_dt;
@@ -146,7 +146,7 @@ bool solver::update(const job &completion_job) {
     switch (m_state) {
     case state::begin:
         m_state = state::solve_restitution;
-        return update(completion_job);
+        return update_async(completion_job);
         break;
 
     case state::solve_restitution:
@@ -154,19 +154,19 @@ bool solver::update(const job &completion_job) {
         // start bouncing due to the initial gravity acceleration.
         solve_restitution(registry, dt);
         m_state = state::apply_gravity;
-        return update(completion_job);
+        return update_async(completion_job);
         break;
 
     case state::apply_gravity:
         apply_gravity(registry, dt);
         m_state = state::prepare_constraints;
-        return update(completion_job);
+        return update_async(completion_job);
         break;
 
     case state::prepare_constraints:
         m_state = state::solve_islands;
         if (prepare_constraints(*m_registry, dt, execution_mode::asynchronous, completion_job)) {
-            return update(completion_job);
+            return update_async(completion_job);
         } else {
             return false;
         }
@@ -191,7 +191,7 @@ bool solver::update(const job &completion_job) {
 
             return false;
         } else {
-            return update(completion_job);
+            return update_async(completion_job);
         }
         break;
     }
@@ -211,7 +211,7 @@ bool solver::update(const job &completion_job) {
         // Update world-space moment of inertia.
         update_inertias(registry);
         m_state = state::done;
-        return update(completion_job);
+        return update_async(completion_job);
         break;
 
     case state::done:

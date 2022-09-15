@@ -42,7 +42,7 @@ public:
     narrowphase(entt::registry &);
 
     void update_sequential(bool mt);
-    bool update(const job &completion_job);
+    bool update_async(const job &completion_job);
 
     /**
      * @brief Detects and processes collisions for the given manifolds.

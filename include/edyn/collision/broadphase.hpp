@@ -37,7 +37,7 @@ class broadphase {
 public:
     broadphase(entt::registry &);
     void update_sequential(bool mt);
-    bool update(const job &completion_job);
+    bool update_async(const job &completion_job);
 
     template<typename Func>
     void raycast(vector3 p0, vector3 p1, Func func) const;

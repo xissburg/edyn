@@ -12,8 +12,8 @@
 
 namespace edyn {
 
-static constexpr uint8_t constraint_row_flag_friction = 1;
-static constexpr uint8_t constraint_row_flag_rolling_friction = 1 << 1;
+static constexpr uint8_t constraint_row_flag_friction          = 1 << 0;
+static constexpr uint8_t constraint_row_flag_rolling_friction  = 1 << 1;
 static constexpr uint8_t constraint_row_flag_spinning_friction = 1 << 2;
 
 /**

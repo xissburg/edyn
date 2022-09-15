@@ -355,7 +355,7 @@ void simulation_worker::run_state_machine() {
         run_state_machine();
         break;
     case state::broadphase:
-        if (m_registry.ctx().at<broadphase>().update(m_this_job)) {
+        if (m_registry.ctx().at<broadphase>().update_async(m_this_job)) {
             // Broadphase creates and destroys manifolds, which are edges in
             // the entity graph. Thus, it is necessary to initialize new edges
             // and split islands right after.
@@ -369,13 +369,13 @@ void simulation_worker::run_state_machine() {
         run_state_machine();
         break;
     case state::narrowphase:
-        if (m_registry.ctx().at<narrowphase>().update(m_this_job)) {
+        if (m_registry.ctx().at<narrowphase>().update_async(m_this_job)) {
             m_state = state::solve;
             run_state_machine();
         }
         break;
     case state::solve:
-        if (m_solver.update(m_this_job)) {
+        if (m_solver.update_async(m_this_job)) {
             m_state = state::finish_step;
             run_state_machine();
         }

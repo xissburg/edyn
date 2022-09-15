@@ -29,7 +29,7 @@ class solver final {
 public:
     solver(entt::registry &);
 
-    bool update(const job &completion_job);
+    bool update_async(const job &completion_job);
     void update_sequential(bool mt);
 
 private:
