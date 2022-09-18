@@ -26,6 +26,13 @@ struct island_delta {
     std::vector<entt::entity> nodes_removed;
     std::vector<entt::entity> edges_added;
     std::vector<entt::entity> edges_removed;
+
+    void clear() {
+        nodes_added.clear();
+        nodes_removed.clear();
+        edges_added.clear();
+        edges_removed.clear();
+    }
 };
 
 struct island_AABB : public AABB {};

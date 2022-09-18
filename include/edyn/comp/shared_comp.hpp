@@ -37,6 +37,8 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     AABB,
     AABB_override,
     island_AABB,
+    island_delta,
+    island_resident,
     collision_filter,
     collision_exclusion,
     inertia,

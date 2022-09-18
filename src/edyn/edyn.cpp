@@ -5,6 +5,7 @@
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
@@ -37,6 +38,15 @@ static void init_meta() {
 
     entt::meta<entity_owner>().type()
         .data<&entity_owner::client_entity, entt::as_ref_t>("client_entity"_hs);
+
+    entt::meta<island_resident>().type()
+        .data<&island_resident::island_entity, entt::as_ref_t>("island_entity"_hs);
+
+    entt::meta<island_delta>().type()
+        .data<&island_delta::nodes_added, entt::as_ref_t>("nodes_added"_hs)
+        .data<&island_delta::nodes_removed, entt::as_ref_t>("nodes_removed"_hs)
+        .data<&island_delta::edges_added, entt::as_ref_t>("edges_added"_hs)
+        .data<&island_delta::edges_removed, entt::as_ref_t>("edges_removed"_hs);
 }
 
 void attach(entt::registry &registry, const init_config &config) {

@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include "edyn/collision/query_aabb.hpp"
 #include "edyn/collision/raycast.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -26,6 +27,8 @@ class stepper_async final {
                           const std::vector<entt::entity> &edges);
 
     void sync();
+
+    void import_island_deltas();
 
     struct worker_raycast_context {
         vector3 p0, p1;
@@ -104,6 +107,8 @@ private:
 
     query_aabb_id_type m_next_query_aabb_id {};
     std::map<query_aabb_id_type, worker_query_aabb_context> m_query_aabb_ctx;
+
+    std::vector<entt::scoped_connection> m_connections;
 };
 
 }

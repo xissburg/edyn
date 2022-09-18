@@ -23,6 +23,7 @@ class island_manager {
     void put_to_sleep(entt::entity island_entity);
     bool could_go_to_sleep(entt::entity island_entity) const;
     void put_islands_to_sleep();
+    void clear_island_deltas();
 
 public:
     island_manager(entt::registry &registry);

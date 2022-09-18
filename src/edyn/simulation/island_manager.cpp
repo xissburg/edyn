@@ -5,6 +5,8 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/config/execution_mode.hpp"
+#include "edyn/context/settings.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
@@ -82,8 +84,20 @@ void island_manager::on_destroy_island_resident(entt::registry &registry, entt::
 
     if (island.nodes.contains(entity)) {
         island.nodes.erase(entity);
+
+        if (registry.all_of<island_delta>(resident.island_entity)) {
+            registry.patch<island_delta>(resident.island_entity, [&](island_delta &delta) {
+                delta.nodes_removed.push_back(entity);
+            });
+        }
     } else if (island.edges.contains(entity)) {
         island.edges.erase(entity);
+
+        if (registry.all_of<island_delta>(resident.island_entity)) {
+            registry.patch<island_delta>(resident.island_entity, [&](island_delta &delta) {
+                delta.edges_removed.push_back(entity);
+            });
+        }
     }
 
     // Island could have been split.
@@ -102,6 +116,12 @@ void island_manager::on_destroy_multi_island_resident(entt::registry &registry, 
     for (auto island_entity : resident.island_entities) {
         auto &island = registry.get<edyn::island>(island_entity);
         island.nodes.erase(entity);
+
+        if (registry.all_of<island_delta>(island_entity)) {
+            registry.patch<island_delta>(island_entity, [&](island_delta &delta) {
+                delta.nodes_removed.push_back(entity);
+            });
+        }
 
         // Non-procedural entities do not form islands thus there's no need to
         // check whether this island was split by its removal. It is necessary
@@ -250,6 +270,13 @@ entt::entity island_manager::create_island() {
     m_registry->emplace<island>(island_entity);
     m_registry->emplace<island_AABB>(island_entity);
     m_registry->emplace<island_tag>(island_entity);
+
+    auto &settings = m_registry->ctx().at<edyn::settings>();
+
+    if (settings.execution_mode == execution_mode::asynchronous) {
+        m_registry->emplace<island_delta>(island_entity);
+    }
+
     return island_entity;
 }
 
@@ -259,12 +286,17 @@ void island_manager::insert_to_island(entt::entity island_entity,
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
     auto &island = m_registry->get<edyn::island>(island_entity);
+    auto *delta = m_registry->try_get<island_delta>(island_entity);
 
     for (auto entity : nodes) {
         if (resident_view.contains(entity)) {
             auto [resident] = resident_view.get(entity);
             resident.island_entity = island_entity;
             island.nodes.emplace(entity);
+
+            if (delta) {
+                delta->nodes_added.push_back(entity);
+            }
         } else {
             auto [resident] = multi_resident_view.get(entity);
 
@@ -274,6 +306,10 @@ void island_manager::insert_to_island(entt::entity island_entity,
 
             if (!island.nodes.contains(entity)) {
                 island.nodes.emplace(entity);
+
+                if (delta) {
+                    delta->nodes_added.push_back(entity);
+                }
             }
         }
 
@@ -284,6 +320,16 @@ void island_manager::insert_to_island(entt::entity island_entity,
         auto [resident] = resident_view.get(entity);
         resident.island_entity = island_entity;
         m_registry->remove<sleeping_tag>(entity);
+
+        if (delta) {
+            delta->edges_added.push_back(entity);
+        }
+    }
+
+    if (delta) {
+        // Force changes to be inserted into the current registry operation
+        // by the registry operation observer.
+        m_registry->patch<island_delta>(island_entity);
     }
 
     island.edges.insert(edges.begin(), edges.end());
@@ -359,6 +405,9 @@ void island_manager::split_islands() {
     auto aabb_view = m_registry->view<AABB>();
     auto procedural_view = m_registry->view<procedural_tag>();
     auto &graph = m_registry->ctx().at<entity_graph>();
+
+    auto &settings = m_registry->ctx().at<edyn::settings>();
+    const auto exec_mode = settings.execution_mode;
 
     for (auto source_island_entity : m_islands_to_split) {
         auto &source_island = island_view.get<edyn::island>(source_island_entity);
@@ -499,6 +548,13 @@ void island_manager::split_islands() {
                 resident.island_entity = island_entity_new;
             }
 
+            if (exec_mode == execution_mode::asynchronous) {
+                auto delta = island_delta{};
+                delta.nodes_added.insert(delta.nodes_added.end(), island_new.nodes.begin(), island_new.nodes.end());
+                delta.edges_added.insert(delta.edges_added.end(), island_new.edges.begin(), island_new.edges.end());
+                m_registry->emplace<island_delta>(island_entity_new, std::move(delta));
+            }
+
             remove_sleeping_tag_from_island(*m_registry, island_entity_new, island_new);
 
             m_registry->emplace<island_tag>(island_entity_new);
@@ -506,12 +562,6 @@ void island_manager::split_islands() {
     }
 
     m_islands_to_split.clear();
-
-    for (auto [entity, resident] : multi_resident_view.each()) {
-        for (auto island_entity : resident.island_entities) {
-            EDYN_ASSERT(m_registry->valid(island_entity));
-        }
-    }
 }
 
 void island_manager::wake_up_islands() {
@@ -528,6 +578,7 @@ void island_manager::update(double timestamp) {
     init_new_nodes_and_edges();
     split_islands();
     put_islands_to_sleep();
+    clear_island_deltas();
     m_last_time = timestamp;
 }
 
@@ -618,6 +669,12 @@ void island_manager::put_islands_to_sleep() {
             island.sleep_timestamp.reset();
         }
     }
+}
+
+void island_manager::clear_island_deltas() {
+    m_registry->view<island_delta>().each([](island_delta &delta) {
+        delta.clear();
+    });
 }
 
 }
