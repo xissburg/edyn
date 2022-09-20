@@ -187,10 +187,7 @@ void broadphase::update_sequential(bool mt) {
 
 void broadphase::collide_parallel(bool async, const job &completion_job) {
     auto aabb_proc_view = m_registry->view<AABB, procedural_tag>(exclude_sleeping_disabled);
-    size_t count = 0;
-    // Have to iterate the view to get the actual size...
-    aabb_proc_view.each([&count](auto &) { ++count; });
-    m_pair_results.resize(count);
+    m_pair_results.resize(calculate_view_size(aabb_proc_view));
     auto &dispatcher = job_dispatcher::global();
 
     auto for_loop_body = [this, aabb_proc_view](entt::entity entity, size_t index) {
