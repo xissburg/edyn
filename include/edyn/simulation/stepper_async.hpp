@@ -28,8 +28,6 @@ class stepper_async final {
 
     void sync();
 
-    void import_island_deltas();
-
     struct worker_raycast_context {
         vector3 p0, p1;
         raycast_delegate_type delegate;

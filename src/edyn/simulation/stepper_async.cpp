@@ -241,37 +241,8 @@ void stepper_async::sync() {
     m_worker_ctx->flush();
 }
 
-void stepper_async::import_island_deltas() {
-    m_registry->view<island, island_delta>().each([](island &island, island_delta &delta) {
-        // Remove first, insert later. Prevents assertion due to reused entity
-        // identifiers.
-        for (auto entity : delta.nodes_removed) {
-            island.nodes.remove(entity);
-        }
-
-        for (auto entity : delta.edges_removed) {
-            island.edges.remove(entity);
-        }
-
-        for (auto entity : delta.nodes_added) {
-            if (!island.nodes.contains(entity)) {
-                island.nodes.emplace(entity);
-            }
-        }
-
-        for (auto entity : delta.edges_added) {
-            if (!island.edges.contains(entity)) {
-                island.edges.emplace(entity);
-            }
-        }
-
-        delta.clear();
-    });
-}
-
 void stepper_async::update() {
     m_message_queue_handle.update();
-    import_island_deltas();
     sync();
 }
 
