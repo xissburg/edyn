@@ -15,7 +15,6 @@ namespace edyn {
 stepper_sequential::stepper_sequential(entt::registry &registry, bool multithreaded)
     : m_registry(&registry)
     , m_island_manager(registry)
-    , m_raycast_service(registry)
     , m_poly_initializer(registry)
     , m_solver(registry)
     , m_multithreaded(multithreaded)
