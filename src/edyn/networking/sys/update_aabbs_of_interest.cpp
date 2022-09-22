@@ -28,7 +28,6 @@ void follow_aabb_of_interest(entt::registry &registry) {
 }
 
 void update_aabbs_of_interest_seq(entt::registry &registry) {
-    auto owner_view = registry.view<entity_owner>();
     auto networked_view = registry.view<networked_tag>();
     auto &bphase = registry.ctx().at<broadphase>();
 
@@ -62,21 +61,6 @@ void update_aabbs_of_interest_seq(entt::registry &registry) {
                 contained_entities.emplace(np_entity);
             }
         });
-
-        // Insert owners of each entity.
-        entt::sparse_set client_entities;
-
-        for (auto entity : contained_entities) {
-            if (owner_view.contains(entity)) {
-                auto client_entity = owner_view.get<entity_owner>(entity).client_entity;
-
-                if (!client_entities.contains(client_entity)) {
-                    client_entities.emplace(client_entity);
-                }
-            }
-        }
-
-        contained_entities.insert(client_entities.begin(), client_entities.end());
 
         // Calculate which entities have entered and exited the AABB of interest.
         for (auto entity : aabboi.entities) {

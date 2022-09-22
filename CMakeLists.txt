@@ -135,7 +135,6 @@ add_library(Edyn
     src/edyn/networking/util/pool_snapshot.cpp
     src/edyn/networking/util/clock_sync.cpp
     src/edyn/networking/util/process_update_entity_map_packet.cpp
-    src/edyn/networking/util/is_fully_owned_by_client.cpp
     src/edyn/networking/util/import_contact_manifolds.cpp
     src/edyn/networking/util/process_extrapolation_result.cpp
     src/edyn/networking/util/snap_to_pool_snapshot.cpp

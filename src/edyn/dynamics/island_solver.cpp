@@ -2,6 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/inertia.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/origin.hpp"

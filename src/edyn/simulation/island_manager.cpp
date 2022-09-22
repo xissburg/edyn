@@ -362,9 +362,6 @@ void island_manager::split_islands() {
     auto procedural_view = m_registry->view<procedural_tag>();
     auto &graph = m_registry->ctx().at<entity_graph>();
 
-    auto &settings = m_registry->ctx().at<edyn::settings>();
-    const auto exec_mode = settings.execution_mode;
-
     for (auto source_island_entity : m_islands_to_split) {
         auto &source_island = island_view.get<edyn::island>(source_island_entity);
 

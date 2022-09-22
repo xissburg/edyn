@@ -36,48 +36,6 @@
 
 namespace edyn {
 
-static void update_island_entity_owners(entt::registry &registry) {
-    // The client has ownership of their entities if they're the only client in
-    // the island where the entity resides. They're also granted temporary
-    // ownership of all other entities in that island.
-    auto owner_view = registry.view<entity_owner>();
-
-    for (auto [island_entity, island, island_owner] : registry.view<island, entity_owner>().each()) {
-        // Set island owner to null and find out whether it can have a single owner.
-        island_owner.client_entity = entt::null;
-
-        // Iterate over nodes and then edges.
-        for (auto it = island.nodes.begin(); it != island.edges.end(); ++it) {
-            if (it == island.nodes.end()) {
-                it = island.edges.begin();
-            }
-
-            auto entity = *it;
-
-            if (!owner_view.contains(entity)) {
-                continue;
-            }
-
-            auto [owner] = owner_view.get(entity);
-
-            if (owner.client_entity == entt::null) {
-                continue;
-            }
-
-            if (island_owner.client_entity == entt::null) {
-                // Island is not owned by any client yet, thus assign this
-                // client as the owner.
-                island_owner.client_entity = owner.client_entity;
-            } else if (island_owner.client_entity != owner.client_entity) {
-                // Island contains more than one client in it, thus it cannot
-                // be owned by either.
-                island_owner.client_entity = entt::null;
-                break;
-            }
-        }
-    }
-}
-
 static void process_packet(entt::registry &registry, entt::entity client_entity, packet::registry_snapshot &snapshot) {
     auto &ctx = registry.ctx().at<server_network_context>();
     auto &settings = registry.ctx().at<edyn::settings>();
@@ -406,18 +364,7 @@ static void maybe_publish_client_registry_snapshot(entt::registry &registry,
     ctx.snapshot_exporter->export_modified(packet, aabboi.entities, client_entity);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
-        // Assign island timestamp as packet timestamp if available.
-        // Use current time otherwise.
-        auto island_entities = collect_islands_from_residents(registry,
-                                                              packet.entities.begin(),
-                                                              packet.entities.end());
-
-        if (island_entities.empty()) {
-            packet.timestamp = time;
-        } else {
-            packet.timestamp = get_simulation_timestamp(registry);
-        }
-
+        packet.timestamp = get_simulation_timestamp(registry);
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 }
@@ -516,7 +463,6 @@ void update_network_server(entt::registry &registry) {
     auto time = performance_time();
     server_update_clock_sync(registry, time);
     server_process_timed_packets(registry, time);
-    update_island_entity_owners(registry);
     update_server_snapshot_exporter(registry, time);
     update_aabbs_of_interest(registry);
     process_aabbs_of_interest(registry, time);

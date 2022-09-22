@@ -70,6 +70,7 @@ public:
     void remove_all_edges(index_type node_index);
     entt::entity edge_entity(index_type edge_index) const;
     bool has_adjacency(index_type node_index0, index_type node_index1) const;
+    std::array<index_type, 2> edge_node_indices(index_type edge_index) const;
     entity_pair edge_node_entities(index_type edge_index) const;
 
     bool is_connecting_node(index_type node_index) const;
@@ -130,7 +131,7 @@ public:
              typename ComponentFunc>
     void reach(It first, It last, VisitNodeFunc visit_node_func,
                VisitEdgeFunc visit_edge_func, ShouldFunc should_func,
-               ComponentFunc component_func);
+               ComponentFunc component_func) const;
 
     using connected_components_t = std::vector<connected_component>;
 
@@ -154,7 +155,7 @@ public:
     template<typename VisitNodeFunc, typename VisitEdgeFunc = internal::no_edge_visits>
     void traverse(index_type start_node_index,
                   VisitNodeFunc visit_node_func,
-                  VisitEdgeFunc visit_edge_func = {});
+                  VisitEdgeFunc visit_edge_func = {}) const;
 
     void optimize_if_needed();
 
@@ -162,9 +163,6 @@ private:
     std::vector<node> m_nodes;
     std::vector<edge> m_edges;
     std::vector<adjacency> m_adjacencies;
-
-    std::vector<bool> m_visited;
-    std::vector<bool> m_visited_edges;
 
     size_t m_node_count;
     size_t m_edge_count;
@@ -240,11 +238,13 @@ template<typename It, typename VisitNodeFunc,
          typename ComponentFunc>
 void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
                          VisitEdgeFunc visit_edge_func, ShouldFunc should_func,
-                         ComponentFunc component_func) {
+                         ComponentFunc component_func) const {
     EDYN_ASSERT(std::distance(first, last) > 0);
 
-    m_visited.assign(m_nodes.size(), false);
-    m_visited_edges.assign(m_edges.size(), false);
+    std::vector<bool> visited;
+    std::vector<bool> visited_edges;
+    visited.assign(m_nodes.size(), false);
+    visited_edges.assign(m_edges.size(), false);
 
     std::vector<index_type> non_connecting_indices;
     std::vector<index_type> to_visit;
@@ -254,7 +254,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
         // All provided nodes are expected to be connecting.
         EDYN_ASSERT(!m_nodes[start_node_index].non_connecting);
 
-        if (m_visited[start_node_index]) {
+        if (visited[start_node_index]) {
             continue;
         }
 
@@ -269,7 +269,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
             auto node_index = to_visit.back();
             to_visit.pop_back();
 
-            m_visited[node_index] = true;
+            visited[node_index] = true;
 
             const auto &node = m_nodes[node_index];
             EDYN_ASSERT(node.entity != entt::null);
@@ -291,10 +291,10 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
                 while (edge_index != null_index) {
                     auto &edge = m_edges[edge_index];
 
-                    if (!m_visited_edges[edge_index]) {
+                    if (!visited_edges[edge_index]) {
                         EDYN_ASSERT(edge.entity != entt::null);
                         visit_edge_func(edge.entity);
-                        m_visited_edges[edge_index] = true;
+                        visited_edges[edge_index] = true;
                     }
 
                     edge_index = edge.next;
@@ -303,10 +303,10 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
                 // Perhaps visit neighboring node and its edges next.
                 auto neighbor_index = adj.node_index;
 
-                if (!m_visited[neighbor_index] && should_func(neighbor_index)) {
+                if (!visited[neighbor_index] && should_func(neighbor_index)) {
                     to_visit.emplace_back(neighbor_index);
                     // Set as visited to avoid adding it to `to_visit` more than once.
-                    m_visited[neighbor_index] = true;
+                    visited[neighbor_index] = true;
                 }
 
                 adj_index = adj.next;
@@ -320,7 +320,7 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
         // for the next connected components. Non-connecting nodes are shared
         // among connected components.
         for (auto node_index : non_connecting_indices) {
-            m_visited[node_index] = false;
+            visited[node_index] = false;
         }
 
         non_connecting_indices.clear();
@@ -331,12 +331,15 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
 template<typename VisitNodeFunc, typename VisitEdgeFunc>
 void entity_graph::traverse(index_type start_node_index,
                             VisitNodeFunc visit_node_func,
-                            VisitEdgeFunc visit_edge_func) {
-    m_visited.assign(m_nodes.size(), false);
+                            VisitEdgeFunc visit_edge_func) const {
+    std::vector<bool> visited;
+    std::vector<bool> visited_edges;
+    visited.assign(m_nodes.size(), false);
+
     constexpr auto should_visit_edges = !std::is_same_v<VisitEdgeFunc, internal::no_edge_visits>;
 
     if constexpr(should_visit_edges) {
-        m_visited_edges.assign(m_edges.size(), false);
+        visited_edges.assign(m_edges.size(), false);
     }
 
     std::vector<index_type> to_visit;
@@ -346,7 +349,7 @@ void entity_graph::traverse(index_type start_node_index,
         auto node_index = to_visit.back();
         to_visit.pop_back();
 
-        m_visited[node_index] = true;
+        visited[node_index] = true;
         const auto &node = m_nodes[node_index];
         EDYN_ASSERT(node.entity != entt::null);
 
@@ -369,10 +372,10 @@ void entity_graph::traverse(index_type start_node_index,
                 while (edge_index != null_index) {
                     auto &edge = m_edges[edge_index];
 
-                    if (!m_visited_edges[edge_index]) {
+                    if (!visited_edges[edge_index]) {
                         EDYN_ASSERT(edge.entity != entt::null);
                         visit_edge_func(edge_index);
-                        m_visited_edges[edge_index] = true;
+                        visited_edges[edge_index] = true;
                     }
 
                     edge_index = edge.next;
@@ -381,11 +384,11 @@ void entity_graph::traverse(index_type start_node_index,
 
             auto neighbor_index = adj.node_index;
 
-            if (!m_visited[neighbor_index]) {
+            if (!visited[neighbor_index]) {
                 // Insert to beginning for a breadth-first traversal.
                 to_visit.insert(to_visit.begin(), neighbor_index);
                 // Set as visited to avoid adding it to `to_visit` more than once.
-                m_visited[neighbor_index] = true;
+                visited[neighbor_index] = true;
             }
 
             adj_index = adj.next;

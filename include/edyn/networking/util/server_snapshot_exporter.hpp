@@ -10,15 +10,17 @@
 #include <vector>
 #include "edyn/comp/action_list.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/graph_edge.hpp"
+#include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/config/config.h"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
-#include "edyn/networking/util/is_fully_owned_by_client.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 
@@ -104,9 +106,11 @@ public:
                          const entt::sparse_set &entities_of_interest,
                          entt::entity dest_client_entity) const override {
         auto &registry = *m_registry;
+        auto &graph = registry.ctx().at<entity_graph>();
+        auto node_view = registry.view<graph_node>();
+        auto edge_view = registry.view<graph_edge>();
         auto owner_view = registry.view<entity_owner>();
         auto modified_view = registry.view<modified_components>();
-        auto body_view = m_registry->view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
 
         // Do not include input components of entities owned by destination
         // client as to not override client input on the client-side.
@@ -118,6 +122,41 @@ public:
             auto owned_by_client = !owner_view.contains(entity) ? false :
                 std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
 
+            // Traverse entity graph using this entity as the starting point and
+            // collect all owners (i.e. clients) that are reachable from this node.
+            // If the only reachable client is the destination client, do not
+            // include this entity in the packet because the client is allowed to
+            // own the island when it's in it by itself.
+            entity_graph::index_type node_index;
+            bool dest_client_reachable = false;
+            bool other_client_reachable = false;
+
+            if (edge_view.contains(entity)) {
+                auto [edge] = edge_view.get(entity);
+                node_index = graph.edge_node_indices(edge.edge_index)[0];
+            } else {
+                auto [node] = node_view.get(entity);
+                node_index = node.node_index;
+            }
+
+            graph.traverse(node_index, [&](auto node_index) {
+                auto neighbor = graph.node_entity(node_index);
+
+                if (owner_view.contains(neighbor)) {
+                    auto [owner] = owner_view.get(neighbor);
+
+                    if (owner.client_entity == dest_client_entity) {
+                        dest_client_reachable = true;
+                    } else if (owner.client_entity != entt::null) {
+                        other_client_reachable = true;
+                    }
+                }
+            });
+
+            // The client temporarily owns the entity if it's the only client
+            // reachable through the graph.
+            auto temporary_ownership = dest_client_reachable && !other_client_reachable;
+
             if (modified_view.contains(entity)) {
                 auto [modified] = modified_view.get(entity);
 
@@ -128,11 +167,11 @@ public:
                 }
             }
 
-            if (!is_fully_owned_by_client(registry, dest_client_entity, entity) && body_view.contains(entity)) {
-                internal::snapshot_insert_entity<position   >(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
+            if (!temporary_ownership) {
+                internal::snapshot_insert_entity<position   >(*m_registry, entity, snap, index_of_v<unsigned, position,    Components...>);
                 internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
-                internal::snapshot_insert_entity<linvel     >(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
-                internal::snapshot_insert_entity<angvel     >(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
+                internal::snapshot_insert_entity<linvel     >(*m_registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
+                internal::snapshot_insert_entity<angvel     >(*m_registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
             }
         }
     }
