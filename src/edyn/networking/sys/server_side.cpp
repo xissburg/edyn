@@ -181,9 +181,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
                     // Remove from AABB of interest of owner to prevent notifying
                     // the requester itself of destruction of these entities.
-                    if (aabboi.entities.contains(local_entity)) {
-                        aabboi.entities.erase(local_entity);
-                    }
+                    aabboi.entities.remove(local_entity);
                 }
             }
         }

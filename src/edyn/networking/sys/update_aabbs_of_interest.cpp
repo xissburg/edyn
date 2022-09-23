@@ -1,10 +1,14 @@
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
 #include "edyn/collision/broadphase.hpp"
+#include "edyn/collision/contact_manifold.hpp"
+#include "edyn/comp/graph_edge.hpp"
+#include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/aabb_of_interest.hpp"
 #include "edyn/networking/comp/aabb_oi_follow.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
@@ -33,7 +37,6 @@ void update_aabbs_of_interest_seq(entt::registry &registry) {
 
     registry.view<aabb_of_interest>().each([&](aabb_of_interest &aabboi) {
         entt::sparse_set contained_entities;
-        aabboi.island_entities.clear();
 
         // Collect entities of islands which intersect the AABB of interest.
         bphase.query_islands(aabboi.aabb, [&](entt::entity island_entity) {
@@ -49,10 +52,6 @@ void update_aabbs_of_interest_seq(entt::registry &registry) {
                 if (networked_view.contains(entity) && !contained_entities.contains(entity)) {
                     contained_entities.emplace(entity);
                 }
-            }
-
-            if (!aabboi.island_entities.contains(island_entity)) {
-                aabboi.island_entities.emplace(island_entity);
             }
         });
 
@@ -95,47 +94,65 @@ void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_typ
         return;
     }
 
-    auto &aabboi = registry.get<aabb_of_interest>(entity);
-
-    // Insert island entities.
-    aabboi.island_entities.clear();
-
-    for (auto island_entity : result.island_entities) {
-        if (!aabboi.island_entities.contains(island_entity)) {
-            aabboi.island_entities.emplace(island_entity);
-        }
-    }
-
-    // Insert owners of each entity.
-    entt::sparse_set client_entities;
-    auto owner_view = registry.view<entity_owner>();
+    auto &graph = registry.ctx().at<entity_graph>();
+    auto node_view = registry.view<graph_node>();
+    auto edge_view = registry.view<graph_edge>();
+    auto manifold_view = registry.view<contact_manifold>();
+    auto networked_view = registry.view<networked_tag>();
+    auto contained_entities = entt::sparse_set{};
+    auto to_visit = entt::sparse_set{};
 
     for (auto entity : result.procedural_entities) {
-        if (owner_view.contains(entity)) {
-            auto client_entity = owner_view.get<entity_owner>(entity).client_entity;
+        if (edge_view.contains(entity)) {
+            auto [edge] = edge_view.get(entity);
+            auto edge_node_entity = graph.edge_node_entities(edge.edge_index).first;
 
-            if (!client_entities.contains(client_entity)) {
-                client_entities.emplace(client_entity);
+            if (!to_visit.contains(edge_node_entity)) {
+                to_visit.emplace(edge_node_entity);
             }
+        } else if (!to_visit.contains(entity)) {
+            EDYN_ASSERT(node_view.contains(entity));
+            to_visit.emplace(entity);
         }
     }
 
-    auto contained_entities = entt::sparse_set{};
-    contained_entities.insert(result.procedural_entities.begin(), result.procedural_entities.end());
-    contained_entities.insert(result.non_procedural_entities.begin(), result.non_procedural_entities.end());
+    while (!to_visit.empty()) {
+        auto entity = *to_visit.begin();
+        auto [node] = node_view.get(entity);
 
-    contained_entities.insert(client_entities.begin(), client_entities.end());
-    auto networked_view = registry.view<networked_tag>();
+        graph.traverse(node.node_index, [&](auto node_index) {
+            auto node_entity = graph.node_entity(node_index);
+            to_visit.remove(node_entity);
+
+            if (!contained_entities.contains(node_entity) && networked_view.contains(entity)) {
+                contained_entities.emplace(node_entity);
+            }
+        }, [&](auto edge_index) {
+            auto edge_entity = graph.edge_entity(edge_index);
+
+            if (!contained_entities.contains(edge_entity) && networked_view.contains(entity) && !manifold_view.contains(edge_entity)) {
+                contained_entities.emplace(edge_entity);
+            }
+        });
+    }
+
+    for (auto entity : result.non_procedural_entities) {
+        if (!contained_entities.contains(entity)) {
+            contained_entities.emplace(entity);
+        }
+    }
+
+    auto &aabboi = registry.get<aabb_of_interest>(entity);
 
     // Calculate which entities have entered and exited the AABB of interest.
     for (auto entity : aabboi.entities) {
-        if (networked_view.contains(entity) && !contained_entities.contains(entity)) {
+        if (!contained_entities.contains(entity)) {
             aabboi.destroy_entities.push_back(entity);
         }
     }
 
     for (auto entity : contained_entities) {
-        if (networked_view.contains(entity) && !aabboi.entities.contains(entity)) {
+        if (!aabboi.entities.contains(entity)) {
             aabboi.create_entities.push_back(entity);
         }
     }

@@ -193,10 +193,10 @@ public:
                     }
 
                     if (body_view.contains(entity)) {
-                        internal::snapshot_insert_entity<position>(registry, entity, snap, index_of_v<unsigned, position, Components...>);
+                        internal::snapshot_insert_entity<position   >(registry, entity, snap, index_of_v<unsigned, position,    Components...>);
                         internal::snapshot_insert_entity<orientation>(registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
-                        internal::snapshot_insert_entity<linvel>(registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
-                        internal::snapshot_insert_entity<angvel>(registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
+                        internal::snapshot_insert_entity<linvel     >(registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
+                        internal::snapshot_insert_entity<angvel     >(registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
                     }
                 }
             }

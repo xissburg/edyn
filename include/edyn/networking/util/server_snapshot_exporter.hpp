@@ -15,11 +15,13 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/comp/network_input.hpp"
+#include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/tuple_util.hpp"
@@ -110,7 +112,9 @@ public:
         auto node_view = registry.view<graph_node>();
         auto edge_view = registry.view<graph_edge>();
         auto owner_view = registry.view<entity_owner>();
+        auto body_view = registry.view<position, orientation, linvel, angvel, dynamic_tag>();
         auto modified_view = registry.view<modified_components>();
+        bool allow_ownership = registry.get<remote_client>(dest_client_entity).allow_full_ownership;
 
         // Do not include input components of entities owned by destination
         // client as to not override client input on the client-side.
@@ -119,9 +123,6 @@ public:
         // since the server allows the client to have full control over entities in
         // the islands where there are no other clients present.
         for (auto entity : entities_of_interest) {
-            auto owned_by_client = !owner_view.contains(entity) ? false :
-                std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
-
             // Traverse entity graph using this entity as the starting point and
             // collect all owners (i.e. clients) that are reachable from this node.
             // If the only reachable client is the destination client, do not
@@ -139,35 +140,39 @@ public:
                 node_index = node.node_index;
             }
 
-            graph.traverse(node_index, [&](auto node_index) {
-                auto neighbor = graph.node_entity(node_index);
+            bool temporary_ownership = false;
 
-                if (owner_view.contains(neighbor)) {
-                    auto [owner] = owner_view.get(neighbor);
+            if (allow_ownership) {
+                graph.traverse(node_index, [&](auto node_index) {
+                    auto neighbor = graph.node_entity(node_index);
 
-                    if (owner.client_entity == dest_client_entity) {
-                        dest_client_reachable = true;
-                    } else if (owner.client_entity != entt::null) {
-                        other_client_reachable = true;
+                    if (owner_view.contains(neighbor)) {
+                        auto [owner] = owner_view.get(neighbor);
+
+                        if (owner.client_entity == dest_client_entity) {
+                            dest_client_reachable = true;
+                        } else if (owner.client_entity != entt::null) {
+                            other_client_reachable = true;
+                        }
                     }
-                }
-            });
+                });
 
-            // The client temporarily owns the entity if it's the only client
-            // reachable through the graph.
-            auto temporary_ownership = dest_client_reachable && !other_client_reachable;
+                // The client temporarily owns the entity if it's the only client
+                // reachable through the graph.
+                temporary_ownership = dest_client_reachable && !other_client_reachable;
+            }
 
             if (modified_view.contains(entity)) {
                 auto [modified] = modified_view.get(entity);
 
                 if (!modified.empty()) {
                     unsigned i = 0;
-                    (((modified.time_remaining[i] > 0 && (!owned_by_client || !(std::is_base_of_v<network_input, Components> || std::is_same_v<Components, action_history>)) ?
+                    (((modified.time_remaining[i] > 0 && (!temporary_ownership || !(std::is_base_of_v<network_input, Components> || std::is_same_v<Components, action_history>)) ?
                         internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
                 }
             }
 
-            if (!temporary_ownership) {
+            if (!temporary_ownership && body_view.contains(entity)) {
                 internal::snapshot_insert_entity<position   >(*m_registry, entity, snap, index_of_v<unsigned, position,    Components...>);
                 internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
                 internal::snapshot_insert_entity<linvel     >(*m_registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);

@@ -130,6 +130,7 @@ void simulation_worker::init() {
     m_message_queue.sink<msg::set_material_table>().connect<&simulation_worker::on_set_material_table>(*this);
     m_message_queue.sink<msg::raycast_request>().connect<&simulation_worker::on_raycast_request>(*this);
     m_message_queue.sink<msg::query_aabb_request>().connect<&simulation_worker::on_query_aabb_request>(*this);
+    m_message_queue.sink<msg::query_aabb_of_interest_request>().connect<&simulation_worker::on_query_aabb_of_interest_request>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&simulation_worker::on_apply_network_pools>(*this);
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
@@ -619,7 +620,9 @@ void simulation_worker::on_query_aabb_of_interest_request(const message<msg::que
     auto &request = msg.content;
     auto island_view = m_registry.view<island>();
     auto manifold_view = m_registry.view<contact_manifold>();
-    entt::sparse_set contained_entities;
+    auto procedural_view = m_registry.view<procedural_tag>();
+    entt::sparse_set procedural_entities;
+    entt::sparse_set np_entities;
     entt::sparse_set island_entities;
 
     // Collect entities of islands which intersect the AABB of interest.
@@ -627,8 +630,8 @@ void simulation_worker::on_query_aabb_of_interest_request(const message<msg::que
         auto [island] = island_view.get(island_entity);
 
         for (auto entity : island.nodes) {
-            if (!contained_entities.contains(entity)) {
-                contained_entities.emplace(entity);
+            if (!procedural_entities.contains(entity) && procedural_view.contains(entity)) {
+                procedural_entities.emplace(entity);
             }
         }
 
@@ -638,8 +641,8 @@ void simulation_worker::on_query_aabb_of_interest_request(const message<msg::que
                 continue;
             }
 
-            if (!contained_entities.contains(entity)) {
-                contained_entities.emplace(entity);
+            if (!procedural_entities.contains(entity)) {
+                procedural_entities.emplace(entity);
             }
         }
 
@@ -649,15 +652,16 @@ void simulation_worker::on_query_aabb_of_interest_request(const message<msg::que
     });
 
     bphase.query_non_procedural(request.aabb, [&](entt::entity np_entity) {
-        if (!contained_entities.contains(np_entity)) {
-            contained_entities.emplace(np_entity);
+        if (!np_entities.contains(np_entity)) {
+            np_entities.emplace(np_entity);
         }
     });
 
     auto response = msg::query_aabb_response{};
     response.id = msg.content.id;
     response.island_entities.insert(response.island_entities.end(), island_entities.begin(), island_entities.end());
-    response.procedural_entities.insert(response.procedural_entities.end(), contained_entities.begin(), contained_entities.end());
+    response.procedural_entities.insert(response.procedural_entities.end(), procedural_entities.begin(), procedural_entities.end());
+    response.non_procedural_entities.insert(response.non_procedural_entities.end(), np_entities.begin(), np_entities.end());
 
     auto &dispatcher = message_dispatcher::global();
     dispatcher.send<msg::query_aabb_response>(
