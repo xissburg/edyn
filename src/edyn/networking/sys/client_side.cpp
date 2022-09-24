@@ -24,6 +24,7 @@
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/std_s11n.hpp"
+#include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
@@ -311,7 +312,7 @@ void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[ma
     maybe_create_graph_edge<Ts...>(registry, entity);
 }
 
-static void import_remote_snapshot(entt::registry &registry, const packet::registry_snapshot &snap) {
+static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
     auto &ctx = registry.ctx().at<client_network_context>();
 
     // Collect new entity mappings to send back to server.
@@ -319,7 +320,7 @@ static void import_remote_snapshot(entt::registry &registry, const packet::regis
     emap_packet.timestamp = performance_time();
 
     // Create entities first...
-    for (auto remote_entity : snap.entities) {
+    for (auto remote_entity : packet.entities) {
         if (ctx.entity_map.contains(remote_entity)) continue;
 
         auto local_entity = registry.create();
@@ -335,13 +336,14 @@ static void import_remote_snapshot(entt::registry &registry, const packet::regis
     // to be mapped into the local registry.
     // Disable the exporter observers so that changes introduced by the import
     // will not be added to the next outbound snapshot.
+    ctx.importing_entities = true;
     ctx.snapshot_exporter->set_observer_enabled(false);
-    ctx.snapshot_importer->import(registry, ctx.entity_map, snap);
+    ctx.snapshot_importer->import(registry, ctx.entity_map, packet);
     ctx.snapshot_exporter->set_observer_enabled(true);
 
     // Create nodes and edges in entity graph, assign networked tags and
     // dependent components which are not networked.
-    for (auto remote_entity : snap.entities) {
+    for (auto remote_entity : packet.entities) {
         auto local_entity = ctx.entity_map.at(remote_entity);
 
         // Assign computed properties such as AABB and inverse mass.
@@ -397,17 +399,12 @@ static void import_remote_snapshot(entt::registry &registry, const packet::regis
 
     // Create graph edges for constraints *after* graph nodes have been created
     // for rigid bodies above.
-    for (auto remote_entity : snap.entities) {
+    for (auto remote_entity : packet.entities) {
         auto local_entity = ctx.entity_map.at(remote_entity);
         maybe_create_graph_edge(registry, local_entity, constraints_tuple);
         maybe_create_graph_edge<null_constraint>(registry, local_entity);
     }
-}
 
-static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
-    auto &ctx = registry.ctx().at<client_network_context>();
-    ctx.importing_entities = true;
-    import_remote_snapshot(registry, packet);
     ctx.importing_entities = false;
 }
 
@@ -479,6 +476,8 @@ static void snap_to_registry_snapshot(entt::registry &registry, packet::registry
         ctx.snapshot_exporter->set_observer_enabled(false);
         snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools);
         ctx.snapshot_exporter->set_observer_enabled(true);
+
+        wake_up_island_residents(registry, snapshot.entities);
     }
 }
 

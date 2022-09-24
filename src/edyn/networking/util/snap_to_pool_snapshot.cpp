@@ -7,8 +7,8 @@
 namespace edyn {
 
 void snap_to_pool_snapshot(entt::registry &registry, const entity_map &emap,
-                               const std::vector<entt::entity> &entities,
-                               const std::vector<pool_snapshot> &pools) {
+                           const std::vector<entt::entity> &entities,
+                           const std::vector<pool_snapshot> &pools) {
     assign_previous_transforms(registry);
 
     for (auto &pool : pools) {
@@ -19,8 +19,8 @@ void snap_to_pool_snapshot(entt::registry &registry, const entity_map &emap,
 }
 
 void snap_to_pool_snapshot(entt::registry &registry,
-                               const std::vector<entt::entity> &entities,
-                               const std::vector<pool_snapshot> &pools) {
+                           const std::vector<entt::entity> &entities,
+                           const std::vector<pool_snapshot> &pools) {
     assign_previous_transforms(registry);
 
     for (auto &pool : pools) {

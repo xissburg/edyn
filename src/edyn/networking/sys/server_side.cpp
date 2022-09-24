@@ -23,6 +23,7 @@
 #include "edyn/networking/util/snap_to_pool_snapshot.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/message.hpp"
+#include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/util/island_util.hpp"
@@ -48,6 +49,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
     } else {
         snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools);
+        wake_up_island_residents(registry, snapshot.entities);
     }
 }
 
@@ -84,14 +86,16 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // Create entities first, import pools later, since components might contain
     // entities which have to be mapped from remote to local.
     for (auto remote_entity : packet.entities) {
-        if (client.entity_map.contains(remote_entity)) continue;
+        if (client.entity_map.contains(remote_entity)) {
+            continue;
+        }
 
         auto local_entity = registry.create();
         registry.emplace<entity_owner>(local_entity, client_entity);
 
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
         client.entity_map.insert(remote_entity, local_entity);
-        client.owned_entities.push_back(local_entity);
+        client.owned_entities.emplace(local_entity);
     }
 
     if (!emap_packet.pairs.empty()) {
@@ -177,7 +181,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
                 if (owner && owner->client_entity == client_entity) {
                     registry.destroy(local_entity);
                     client.entity_map.erase(remote_entity);
-                    vector_erase(client.owned_entities, local_entity);
+                    client.owned_entities.erase(local_entity);
 
                     // Remove from AABB of interest of owner to prevent notifying
                     // the requester itself of destruction of these entities.
@@ -276,7 +280,6 @@ static void publish_pending_created_clients(entt::registry &registry) {
 
 static void process_aabb_of_interest_destroyed_entities(entt::registry &registry,
                                                         entt::entity client_entity,
-                                                        remote_client &client,
                                                         aabb_of_interest &aabboi,
                                                         double time) {
     if (aabboi.destroy_entities.empty()) {
@@ -308,7 +311,6 @@ static void process_aabb_of_interest_destroyed_entities(entt::registry &registry
 
 static void process_aabb_of_interest_created_entities(entt::registry &registry,
                                                       entt::entity client_entity,
-                                                      remote_client &client,
                                                       aabb_of_interest &aabboi,
                                                       double time) {
     if (aabboi.create_entities.empty()) {
@@ -403,8 +405,8 @@ static void calculate_client_playout_delay(entt::registry &registry,
 
 static void process_aabbs_of_interest(entt::registry &registry, double time) {
     for (auto [client_entity, client, aabboi] : registry.view<remote_client, aabb_of_interest>().each()) {
-        process_aabb_of_interest_destroyed_entities(registry, client_entity, client, aabboi, time);
-        process_aabb_of_interest_created_entities(registry, client_entity, client, aabboi, time);
+        process_aabb_of_interest_destroyed_entities(registry, client_entity, aabboi, time);
+        process_aabb_of_interest_created_entities(registry, client_entity, aabboi, time);
         maybe_publish_client_registry_snapshot(registry, client_entity, client, aabboi, time);
         calculate_client_playout_delay(registry, client_entity, client, aabboi);
     }

@@ -28,6 +28,10 @@ public:
         return m_last_time;
     }
 
+    auto & get_island_manager() {
+        return m_island_manager;
+    }
+
 private:
     entt::registry *m_registry;
     island_manager m_island_manager;

@@ -136,6 +136,7 @@ public:
                          const entt::sparse_set &owned_entities, bool allow_full_ownership) const override {
         auto &registry = *m_registry;
         auto modified_view = registry.view<modified_components>();
+        auto sleeping_view = registry.view<sleeping_tag>();
 
         if (allow_full_ownership) {
             // Include all networked entities in the islands that contain an entity
@@ -149,6 +150,10 @@ public:
             auto to_visit = entt::sparse_set{};
 
             for (auto entity : owned_entities) {
+                if (sleeping_view.contains(entity)) {
+                    continue;
+                }
+
                 if (edge_view.contains(entity)) {
                     auto [edge] = edge_view.get(entity);
                     auto edge_node_entity = graph.edge_node_entities(edge.edge_index).first;
@@ -204,6 +209,10 @@ public:
             // Otherwise, only entities owned by this client which contain an
             // input component are included.
             for (auto entity : owned_entities) {
+                if (sleeping_view.contains(entity)) {
+                    continue;
+                }
+
                 auto [modified] = modified_view.get(entity);
                 unsigned i = 0;
                 (((std::is_base_of_v<network_input, Components> && registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?

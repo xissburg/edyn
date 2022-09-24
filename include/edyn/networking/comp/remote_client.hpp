@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
+#include <entt/entity/sparse_set.hpp>
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/util/clock_sync.hpp"
@@ -19,7 +20,7 @@ struct timed_packet {
  */
 struct remote_client {
     // List of entities owned by this client.
-    std::vector<entt::entity> owned_entities;
+    entt::sparse_set owned_entities;
 
     // Maps entities between the client registry and the server registry.
     edyn::entity_map entity_map;

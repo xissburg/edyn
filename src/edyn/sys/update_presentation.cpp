@@ -7,9 +7,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/context/settings.hpp"
-#include "edyn/util/island_util.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
-#include "edyn/simulation/stepper_async.hpp"
 #include "edyn/time/simulation_time.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -20,16 +18,16 @@ void update_presentation(entt::registry &registry, double time) {
     auto linear_view = registry.view<position, linvel, present_position, procedural_tag>(exclude);
     auto angular_view = registry.view<orientation, angvel, present_orientation, procedural_tag>(exclude);
     auto fixed_dt = registry.ctx().at<settings>().fixed_dt;
-    auto worker_time = get_simulation_timestamp(registry);
-    EDYN_ASSERT(!(time < worker_time));
+    auto sim_time = get_simulation_timestamp(registry);
+    EDYN_ASSERT(!(time < sim_time));
 
     linear_view.each([&](position &pos, linvel &vel, present_position &pre) {
-        auto dt = std::min(scalar(time - fixed_dt - worker_time), fixed_dt);
+        auto dt = std::min(scalar(time - fixed_dt - sim_time), fixed_dt);
         pre = pos + vel * dt;
     });
 
     angular_view.each([&](orientation &orn, angvel &vel, present_orientation &pre) {
-        auto dt = std::min(scalar(time - fixed_dt - worker_time), fixed_dt);
+        auto dt = std::min(scalar(time - fixed_dt - sim_time), fixed_dt);
         pre = integrate(orn, vel, dt);
     });
 

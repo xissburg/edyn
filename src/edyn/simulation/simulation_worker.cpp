@@ -277,29 +277,8 @@ bool simulation_worker::all_sleeping() {
 void simulation_worker::wake_up_affected_islands(const registry_operation &ops) {
     // Collect islands of all entities which had a component
     // emplaced/replaced/removed by the registry operations and wake them up.
-    auto resident_view = m_registry.view<island_resident>();
-    auto multi_resident_view = m_registry.view<multi_island_resident>();
-
     for (auto &op : ops.replace_components) {
-        for (auto remote_entity : op->entities) {
-            if (!m_entity_map.contains(remote_entity)) continue;
-
-            auto local_entity = m_entity_map.at(remote_entity);
-
-            if (resident_view.contains(local_entity)) {
-                auto [resident] = resident_view.get(local_entity);
-
-                if (resident.island_entity != entt::null) {
-                    m_island_manager.wake_up_island(resident.island_entity);
-                }
-            } else if (multi_resident_view.contains(local_entity)) {
-                auto [resident] = multi_resident_view.get(local_entity);
-
-                for (auto island_entity : resident.island_entities) {
-                    m_island_manager.wake_up_island(island_entity);
-                }
-            }
-        }
+        wake_up_island_residents(m_registry, op->entities, m_entity_map);
     }
 }
 
@@ -473,10 +452,7 @@ void simulation_worker::finish_step() {
         (*settings.clear_actions_func)(m_registry);
     }
 
-    if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
-        auto &network_settings = std::get<client_network_settings>(settings.network_settings);
-        decay_discontinuities(m_registry, network_settings.discontinuity_decay_rate);
-    }
+    decay_discontinuities(m_registry);
 
     if (settings.post_step_callback) {
         (*settings.post_step_callback)(m_registry);
@@ -676,6 +652,7 @@ void simulation_worker::on_extrapolation_result(const message<extrapolation_resu
 void simulation_worker::on_apply_network_pools(const message<msg::apply_network_pools> &msg) {
     EDYN_ASSERT(!msg.content.pools.empty());
     snap_to_pool_snapshot(m_registry, m_entity_map, msg.content.entities, msg.content.pools);
+    wake_up_island_residents(m_registry, msg.content.entities, m_entity_map);
 }
 
 bool simulation_worker::is_terminated() const {

@@ -17,14 +17,6 @@
 
 namespace edyn {
 
-static void remove_sleeping_tag_from_island(entt::registry &registry,
-                                            entt::entity island_entity,
-                                            const edyn::island &island) {
-    registry.remove<sleeping_tag>(island_entity);
-    registry.remove<sleeping_tag>(island.nodes.begin(), island.nodes.end());
-    registry.remove<sleeping_tag>(island.edges.begin(), island.edges.end());
-}
-
 island_manager::island_manager(entt::registry &registry)
     : m_registry(&registry)
 {
@@ -290,7 +282,7 @@ void island_manager::insert_to_island(entt::entity island_entity,
 
     island.edges.insert(edges.begin(), edges.end());
 
-    wake_up_island(island_entity);
+    wake_up_island(*m_registry, island_entity);
 }
 
 void island_manager::merge_islands(const std::vector<entt::entity> &island_entities,
@@ -513,7 +505,7 @@ void island_manager::split_islands() {
 void island_manager::wake_up_islands() {
     for (auto island_entity : m_islands_to_wake_up) {
         if (m_registry->valid(island_entity)) {
-            wake_up_island(island_entity);
+            wake_up_island(*m_registry, island_entity);
         }
     }
     m_islands_to_wake_up.clear();
@@ -525,13 +517,6 @@ void island_manager::update(double timestamp) {
     split_islands();
     put_islands_to_sleep();
     m_last_time = timestamp;
-}
-
-void island_manager::wake_up_island(entt::entity island_entity) {
-    if (m_registry->all_of<sleeping_tag>(island_entity)) {
-        auto &island = m_registry->get<edyn::island>(island_entity);
-        remove_sleeping_tag_from_island(*m_registry, island_entity, island);
-    }
 }
 
 void island_manager::put_to_sleep(entt::entity island_entity) {

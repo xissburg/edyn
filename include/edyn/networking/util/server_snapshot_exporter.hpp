@@ -44,13 +44,6 @@ public:
     // Decays the time remaining in each of the recently modified components.
     // They stop being included in the snapshot once the timer reaches zero.
     virtual void update(double time) = 0;
-
-    void set_observer_enabled(bool enabled) {
-        m_observer_enabled = enabled;
-    }
-
-protected:
-    bool m_observer_enabled {true};
 };
 
 template<typename... Components>
@@ -66,10 +59,6 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
 
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
-        if (!m_observer_enabled) {
-            return;
-        }
-
         static constexpr auto index = index_of_v<unsigned, Component, Components...>;
 
         if (auto *modified = registry.try_get<modified_components>(entity)) {
@@ -114,6 +103,7 @@ public:
         auto owner_view = registry.view<entity_owner>();
         auto body_view = registry.view<position, orientation, linvel, angvel, dynamic_tag>();
         auto modified_view = registry.view<modified_components>();
+        auto sleeping_view = registry.view<sleeping_tag>();
         bool allow_ownership = registry.get<remote_client>(dest_client_entity).allow_full_ownership;
 
         // Do not include input components of entities owned by destination
@@ -123,6 +113,10 @@ public:
         // since the server allows the client to have full control over entities in
         // the islands where there are no other clients present.
         for (auto entity : entities_of_interest) {
+            if (sleeping_view.contains(entity)) {
+                continue;
+            }
+
             // Traverse entity graph using this entity as the starting point and
             // collect all owners (i.e. clients) that are reachable from this node.
             // If the only reachable client is the destination client, do not

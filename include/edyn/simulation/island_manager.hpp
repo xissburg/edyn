@@ -36,8 +36,6 @@ public:
 
     void update(double timestamp);
 
-    void wake_up_island(entt::entity island_entity);
-
     void set_last_time(double time) {
         m_last_time = time;
     }
