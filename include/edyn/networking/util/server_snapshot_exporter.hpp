@@ -113,6 +113,10 @@ public:
         // since the server allows the client to have full control over entities in
         // the islands where there are no other clients present.
         for (auto entity : entities_of_interest) {
+            if (!registry.valid(entity)) {
+                continue;
+            }
+
             if (sleeping_view.contains(entity)) {
                 continue;
             }
