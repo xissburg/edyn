@@ -45,37 +45,22 @@
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include <algorithm>
+#include <atomic>
 #include <entt/entity/registry.hpp>
 #include <numeric>
 
 namespace edyn {
 
-void simulation_worker_func(job::data_type &data) {
-    auto archive = memory_input_archive(data.data(), data.size());
-    intptr_t worker_intptr;
-    archive(worker_intptr);
-    auto *worker = reinterpret_cast<simulation_worker *>(worker_intptr);
-
-    if (worker->is_terminating()) {
-        // `worker` is dynamically allocated and must be manually deallocated
-        // when it terminates.
-        worker->do_terminate();
-        delete worker;
-    } else {
-        worker->update();
-    }
-}
-
 simulation_worker::simulation_worker(const settings &settings,
                                      const registry_operation_context &reg_op_ctx,
                                      const material_mix_table &material_table)
     : m_state(state::init)
-    , m_solver(m_registry)
-    , m_op_builder((*reg_op_ctx.make_reg_op_builder)(m_registry))
-    , m_op_observer((*reg_op_ctx.make_reg_op_observer)(*m_op_builder))
     , m_raycast_service(m_registry)
     , m_island_manager(m_registry)
     , m_poly_initializer(m_registry)
+    , m_solver(m_registry)
+    , m_op_builder((*reg_op_ctx.make_reg_op_builder)(m_registry))
+    , m_op_observer((*reg_op_ctx.make_reg_op_observer)(*m_op_builder))
     , m_importing(false)
     , m_message_queue(message_dispatcher::global().make_queue<
         msg::set_paused,
@@ -98,18 +83,10 @@ simulation_worker::simulation_worker(const settings &settings,
     m_registry.ctx().emplace<edyn::settings>(settings);
     m_registry.ctx().emplace<registry_operation_context>(reg_op_ctx);
     m_registry.ctx().emplace<material_mix_table>(material_table);
+}
 
-    m_this_job.func = &simulation_worker_func;
-    auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
-    auto ctx_intptr = reinterpret_cast<intptr_t>(this);
-    archive(ctx_intptr);
-
-    m_last_time = performance_time();
-    m_step_start_time = m_last_time;
-    m_island_manager.set_last_time(m_last_time);
-
-    // Reschedule every time a message is added to the queue.
-    m_message_queue.push_sink().connect<&simulation_worker::reschedule>(*this);
+simulation_worker::~simulation_worker() {
+    stop();
 }
 
 void simulation_worker::init() {
@@ -140,8 +117,8 @@ void simulation_worker::init() {
         m_message_queue.sink<extrapolation_result>().connect<&simulation_worker::on_extrapolation_result>(*this);
     }
 
-    // Process messages enqueued before the worker was started.
-    process_messages();
+    m_last_time = performance_time();
+    m_island_manager.set_last_time(m_last_time);
 }
 
 void simulation_worker::on_construct_shared_entity(entt::registry &registry, entt::entity entity) {
@@ -261,19 +238,6 @@ void simulation_worker::on_update_entities(const message<msg::update_entities> &
     wake_up_affected_islands(msg.content.ops);
 }
 
-bool simulation_worker::all_sleeping() {
-    auto sleeping_view = m_registry.view<sleeping_tag>();
-    auto island_view = m_registry.view<island_tag>();
-
-    for (auto island_entity : island_view) {
-        if (!sleeping_view.contains(island_entity)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 void simulation_worker::wake_up_affected_islands(const registry_operation &ops) {
     // Collect islands of all entities which had a component
     // emplaced/replaced/removed by the registry operations and wake them up.
@@ -283,16 +247,6 @@ void simulation_worker::wake_up_affected_islands(const registry_operation &ops) 
 }
 
 void simulation_worker::sync() {
-    // Always update discontinuities since they decay in every step.
-    m_op_builder->replace<discontinuity>();
-
-    // TODO: move this to solver, maybe, idk
-    auto body_view = m_registry.view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
-    m_op_builder->replace<position>(body_view.begin(), body_view.end());
-    m_op_builder->replace<orientation>(body_view.begin(), body_view.end());
-    m_op_builder->replace<linvel>(body_view.begin(), body_view.end());
-    m_op_builder->replace<angvel>(body_view.begin(), body_view.end());
-
     if (!m_op_builder->empty()) {
         auto &&ops = std::move(m_op_builder->finish());
         message_dispatcher::global().send<msg::step_update>(
@@ -300,216 +254,99 @@ void simulation_worker::sync() {
     }
 }
 
-void simulation_worker::run_state_machine() {
-    switch (m_state) {
-    case state::init:
-        init();
-        m_state = state::start;
-        run_state_machine();
-        break;
-    case state::start:
-        process_messages();
-        m_state = state::raycast;
-        run_state_machine();
-        break;
-    case state::raycast:
-        if (m_raycast_service.update(m_this_job)) {
-            consume_raycast_results();
-            m_state = state::step;
-            run_state_machine();
-        }
-        break;
-    case state::step:
-        if (should_step()) {
-            m_state = state::begin_step;
-            run_state_machine();
-        } else {
-            m_state = state::start;
-            sync();
-            maybe_reschedule();
-        }
-        break;
-    case state::begin_step:
-        begin_step();
-        m_state = state::broadphase;
-        run_state_machine();
-        break;
-    case state::broadphase:
-        if (m_registry.ctx().at<broadphase>().update_async(m_this_job)) {
-            // Broadphase creates and destroys manifolds, which are edges in
-            // the entity graph. Thus, it is necessary to initialize new edges
-            // and split islands right after.
-            m_state = state::update_islands;
-            run_state_machine();
-        }
-        break;
-    case state::update_islands:
-        m_island_manager.update(m_step_start_time);
-        m_state = state::narrowphase;
-        run_state_machine();
-        break;
-    case state::narrowphase:
-        if (m_registry.ctx().at<narrowphase>().update_async(m_this_job)) {
-            m_state = state::solve;
-            run_state_machine();
-        }
-        break;
-    case state::solve:
-        if (m_solver.update_async(m_this_job)) {
-            m_state = state::finish_step;
-            run_state_machine();
-        }
-        break;
-    case state::finish_step:
-        finish_step();
-        maybe_reschedule();
-        break;
-    }
+void simulation_worker::start() {
+    EDYN_ASSERT(!m_thread);
+    m_running.store(true, std::memory_order_release);
+    m_thread = std::make_unique<std::thread>(&simulation_worker::run, this);
 }
 
-void simulation_worker::update() {
-    run_state_machine();
+void simulation_worker::stop() {
+    EDYN_ASSERT(m_thread);
+    m_running.store(false, std::memory_order_release);
+    m_thread->join();
+    m_thread.reset();
 }
 
-void simulation_worker::process_messages() {
+void simulation_worker::update(double dt) {
     m_message_queue.update();
+    m_raycast_service.update();
+    consume_raycast_results();
 
-    // Initialize new nodes, edges and shapes that might've been created while
-    // processing messages.
-    m_island_manager.update(m_step_start_time);
-    m_poly_initializer.init_new_shapes();
-}
+    if (m_paused) {
+        m_island_manager.update(m_last_time);
+        return;
+    }
 
-bool simulation_worker::should_step() {
     auto time = performance_time();
+    auto elapsed = time - m_last_time;
 
-    if (m_state == state::begin_step || m_force_step) {
-        m_force_step = false;
-        m_step_start_time = time;
-        return true;
-    }
+    auto fixed_dt = m_registry.ctx().at<settings>().fixed_dt;
+    m_accumulated_time += elapsed;
+    auto num_steps = static_cast<int>(std::floor(m_accumulated_time / fixed_dt));
+    m_accumulated_time -= num_steps * fixed_dt;
 
+    int max_steps = 10;
+    num_steps = std::min(num_steps, max_steps);
+
+    auto &bphase = m_registry.ctx().at<broadphase>();
+    auto &nphase = m_registry.ctx().at<narrowphase>();
     auto &settings = m_registry.ctx().at<edyn::settings>();
 
-    if (settings.paused || all_sleeping()) {
-        return false;
-    }
-
-    auto dt = time - m_last_time;
-
-    if (dt < settings.fixed_dt) {
-        return false;
-    }
-
-    m_step_start_time = time;
-    m_state = state::begin_step;
-
-    return true;
-}
-
-void simulation_worker::begin_step() {
-    EDYN_ASSERT(m_state == state::begin_step);
-
-    auto &settings = m_registry.ctx().at<edyn::settings>();
-    if (settings.pre_step_callback) {
-        (*settings.pre_step_callback)(m_registry);
-    }
-
-    // Calculate islands after running external logic, which could've created
-    // and destroyed nodes and edges.
-    m_island_manager.update(m_step_start_time);
-
-    // Initialize new shapes. Basically, create rotated meshes for new
-    // imported polyhedron shapes.
     m_poly_initializer.init_new_shapes();
 
-    m_state = state::broadphase;
-}
+    for (int i = 0; i < num_steps; ++i) {
+        auto step_time = m_last_time + fixed_dt * i;
 
-void simulation_worker::finish_step() {
-    EDYN_ASSERT(m_state == state::finish_step);
-
-    auto dt = m_step_start_time - m_last_time;
-
-    // Set a limit on the number of steps the worker can lag behind the current
-    // time to prevent it from getting stuck in the past in case of a
-    // substantial slowdown.
-    auto &settings = m_registry.ctx().at<edyn::settings>();
-    const auto fixed_dt = settings.fixed_dt;
-
-    constexpr int max_lagging_steps = 10;
-    auto num_steps = int(std::floor(dt / fixed_dt));
-
-    if (num_steps > max_lagging_steps) {
-        auto remainder = dt - num_steps * fixed_dt;
-        m_last_time = m_step_start_time - (remainder + max_lagging_steps * fixed_dt);
-    } else {
-        m_last_time += fixed_dt;
-    }
-
-    // Clear actions after they've been consumed.
-    if (settings.clear_actions_func) {
-        (*settings.clear_actions_func)(m_registry);
-    }
-
-    decay_discontinuities(m_registry);
-
-    if (settings.post_step_callback) {
-        (*settings.post_step_callback)(m_registry);
-    }
-
-    sync();
-
-    m_state = state::start;
-}
-
-void simulation_worker::reschedule_now() {
-    job_dispatcher::global().async(m_this_job);
-}
-
-void simulation_worker::maybe_reschedule() {
-    auto paused = m_registry.ctx().at<edyn::settings>().paused;
-
-    // The update is done and this job can be rescheduled after this point
-    auto reschedule_count = m_reschedule_counter.exchange(0, std::memory_order_acq_rel);
-    EDYN_ASSERT(reschedule_count != 0);
-
-    // If the number of reschedule requests is greater than one, it means there
-    // are external requests involved, not just the normal internal reschedule.
-    // Always reschedule for immediate execution in that case.
-    if (reschedule_count == 1) {
-        if (!paused && !all_sleeping()) {
-            reschedule_later();
+        if (settings.pre_step_callback) {
+            (*settings.pre_step_callback)(m_registry);
         }
-    } else {
-        reschedule();
+
+        bphase.update_sequential(true);
+        m_island_manager.update(step_time);
+        nphase.update_sequential(true);
+        m_solver.update_sequential(true);
+        decay_discontinuities(m_registry);
+
+        if (settings.clear_actions_func) {
+            (*settings.clear_actions_func)(m_registry);
+        }
+
+        if (settings.post_step_callback) {
+            (*settings.post_step_callback)(m_registry);
+        }
+
+        // Always update discontinuities since they decay in every step.
+        m_op_builder->replace<discontinuity>();
+        mark_transforms_replaced();
+        sync();
     }
+
+    m_last_time = time;
 }
 
-void simulation_worker::reschedule_later() {
-    // Only reschedule if it has not been scheduled and updated already.
-    auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
-    if (reschedule_count > 0) return;
+void simulation_worker::run() {
+    init();
 
-    // If the timestamp of the current registry state is more than `m_fixed_dt`
-    // before the current time, schedule it to run at a later time.
+    // Use a PID to keep updates at a fixed and controlled rate.
+    auto proportional_term = 0.18;
+    auto integral_term = 0.06;
+    auto i_term = 0.0;
     auto time = performance_time();
-    auto fixed_dt = m_registry.ctx().at<edyn::settings>().fixed_dt;
-    auto delta_time = m_last_time + fixed_dt - time;
 
-    if (delta_time > 0) {
-        job_dispatcher::global().async_after(delta_time, m_this_job);
-    } else {
-        job_dispatcher::global().async(m_this_job);
+    while (m_running.load(std::memory_order_relaxed)) {
+        auto t1 = performance_time();
+        auto dt = t1 - time;
+        time = t1;
+        update(dt);
+        sync();
+
+        // Apply delay to maintain a fixed update rate.
+        auto desired_dt = m_registry.ctx().at<settings>().fixed_dt;
+        auto error = desired_dt - dt;
+        i_term = std::max(-1.0, std::min(i_term + integral_term * error, 1.0));
+        auto delay = std::max(0.0, proportional_term * error + i_term);
+        edyn::delay(delay * 1000);
     }
-}
-
-void simulation_worker::reschedule() {
-    // Only reschedule if it has not been scheduled and updated already.
-    auto reschedule_count = m_reschedule_counter.fetch_add(1, std::memory_order_acq_rel);
-    if (reschedule_count > 0) return;
-
-    job_dispatcher::global().async(m_this_job);
 }
 
 void simulation_worker::consume_raycast_results() {
@@ -520,15 +357,54 @@ void simulation_worker::consume_raycast_results() {
     });
 }
 
+void simulation_worker::mark_transforms_replaced() {
+    auto body_view = m_registry.view<position, orientation, linvel, angvel, dynamic_tag>(exclude_sleeping_disabled);
+    m_op_builder->replace<position>(body_view.begin(), body_view.end());
+    m_op_builder->replace<orientation>(body_view.begin(), body_view.end());
+    m_op_builder->replace<linvel>(body_view.begin(), body_view.end());
+    m_op_builder->replace<angvel>(body_view.begin(), body_view.end());
+}
+
 void simulation_worker::on_set_paused(const message<msg::set_paused> &msg) {
-    m_registry.ctx().at<edyn::settings>().paused = msg.content.paused;
-    m_last_time = performance_time();
+    m_paused = msg.content.paused;
+    m_registry.ctx().at<edyn::settings>().paused = m_paused;
+    m_accumulated_time = 0;
+
+    if (!m_paused) {
+        m_last_time = performance_time();
+    }
 }
 
 void simulation_worker::on_step_simulation(const message<msg::step_simulation> &) {
-    if (!all_sleeping()) {
-        m_force_step = true;
+    m_last_time = performance_time();
+
+    auto &bphase = m_registry.ctx().at<broadphase>();
+    auto &nphase = m_registry.ctx().at<narrowphase>();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+
+    if (settings.pre_step_callback) {
+        (*settings.pre_step_callback)(m_registry);
     }
+
+    m_poly_initializer.init_new_shapes();
+    bphase.update_sequential(true);
+    m_island_manager.update(m_last_time);
+    nphase.update_sequential(true);
+    m_solver.update_sequential(true);
+    decay_discontinuities(m_registry);
+
+    if (settings.clear_actions_func) {
+        (*settings.clear_actions_func)(m_registry);
+    }
+
+    if (settings.post_step_callback) {
+        (*settings.post_step_callback)(m_registry);
+    }
+
+    // Always update discontinuities since they decay in every step.
+    m_op_builder->replace<discontinuity>();
+    mark_transforms_replaced();
+    sync();
 }
 
 void simulation_worker::on_set_settings(const message<msg::set_settings> &msg) {
@@ -653,32 +529,6 @@ void simulation_worker::on_apply_network_pools(const message<msg::apply_network_
     EDYN_ASSERT(!msg.content.pools.empty());
     snap_to_pool_snapshot(m_registry, m_entity_map, msg.content.entities, msg.content.pools);
     wake_up_island_residents(m_registry, msg.content.entities, m_entity_map);
-}
-
-bool simulation_worker::is_terminated() const {
-    return m_terminated.load(std::memory_order_acquire);
-}
-
-bool simulation_worker::is_terminating() const {
-    return m_terminating.load(std::memory_order_acquire);
-}
-
-void simulation_worker::terminate() {
-    m_terminating.store(true, std::memory_order_release);
-    reschedule();
-}
-
-void simulation_worker::do_terminate() {
-    {
-        auto lock = std::lock_guard(m_terminate_mutex);
-        m_terminated.store(true, std::memory_order_release);
-    }
-    m_terminate_cv.notify_one();
-}
-
-void simulation_worker::join() {
-    auto lock = std::unique_lock(m_terminate_mutex);
-    m_terminate_cv.wait(lock, [&] { return is_terminated(); });
 }
 
 }

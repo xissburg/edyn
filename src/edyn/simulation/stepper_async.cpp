@@ -39,6 +39,10 @@ stepper_async::stepper_async(entt::registry &registry)
             msg::raycast_response,
             msg::query_aabb_response
         >("main"))
+    , m_worker(registry.ctx().at<settings>(),
+               registry.ctx().at<registry_operation_context>(),
+               registry.ctx().at<material_mix_table>())
+    , m_timestamp(performance_time())
 {
     m_connections.push_back(registry.on_construct<graph_node>().connect<&stepper_async::on_construct_graph_node>(*this));
     m_connections.push_back(registry.on_destroy<graph_node>().connect<&stepper_async::on_destroy_graph_node>(*this));
@@ -54,11 +58,7 @@ stepper_async::stepper_async(entt::registry &registry)
     m_op_builder = (*reg_op_ctx.make_reg_op_builder)(*m_registry);
     m_op_observer = (*reg_op_ctx.make_reg_op_observer)(*m_op_builder);
 
-    create_worker();
-}
-
-stepper_async::~stepper_async() {
-    m_worker_ctx->terminate();
+    m_worker.start();
 }
 
 void stepper_async::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
@@ -82,8 +82,8 @@ void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity
         registry.destroy(edge_entity);
 
         if (!m_importing) {
-            if (m_worker_ctx->m_entity_map.contains_local(edge_entity)) {
-                m_worker_ctx->m_entity_map.erase_local(edge_entity);
+            if (m_entity_map.contains_local(edge_entity)) {
+                m_entity_map.erase_local(edge_entity);
             }
         }
     });
@@ -96,8 +96,8 @@ void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity
     if (!m_importing) {
         // When importing delta, the entity is removed from the entity map as part
         // of the import process. Otherwise, the removal has to be done here.
-        if (m_worker_ctx->m_entity_map.contains_local(entity)) {
-            m_worker_ctx->m_entity_map.erase_local(entity);
+        if (m_entity_map.contains_local(entity)) {
+            m_entity_map.erase_local(entity);
         }
     }
 }
@@ -108,29 +108,14 @@ void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity
     graph.remove_edge(edge.edge_index);
 
     if (!m_importing) {
-        if (m_worker_ctx->m_entity_map.contains_local(entity)) {
-            m_worker_ctx->m_entity_map.erase_local(entity);
+        if (m_entity_map.contains_local(entity)) {
+            m_entity_map.erase_local(entity);
         }
     }
 }
 
-void stepper_async::create_worker() {
-    // The `simulation_worker` is dynamically allocated and kept alive while
-    // the simulation runs asynchronously. The job that's created for it calls its
-    // `update` function which reschedules itself to be run over and over again.
-    // After the `finish` function is called on it it will be deallocated on the
-    // next run.
-    auto &settings = m_registry->ctx().at<edyn::settings>();
-    auto &reg_op_ctx = m_registry->ctx().at<registry_operation_context>();
-    auto &material_table = m_registry->ctx().at<edyn::material_mix_table>();
-    auto *worker = new simulation_worker(settings, reg_op_ctx, material_table);
-
-    m_worker_ctx = std::make_unique<simulation_worker_context>(worker);
-    m_worker_ctx->m_timestamp = performance_time();
-}
-
 double stepper_async::get_simulation_timestamp() const {
-    return m_worker_ctx->m_timestamp;
+    return m_timestamp;
 }
 
 void stepper_async::on_step_update(const message<msg::step_update> &msg) {
@@ -139,24 +124,24 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
 
     auto &registry = *m_registry;
     auto &ops = msg.content.ops;
-    ops.execute(registry, m_worker_ctx->m_entity_map);
+    ops.execute(registry, m_entity_map);
 
     // Insert entity mappings for new entities into the current op.
     ops.create_for_each([&](entt::entity remote_entity) {
-        if (m_worker_ctx->m_entity_map.contains(remote_entity)) {
-            auto local_entity = m_worker_ctx->m_entity_map.at(remote_entity);
+        if (m_entity_map.contains(remote_entity)) {
+            auto local_entity = m_entity_map.at(remote_entity);
             m_op_builder->add_entity_mapping(local_entity, remote_entity);
         }
     });
 
-    m_worker_ctx->m_timestamp = msg.content.timestamp;
+    m_timestamp = msg.content.timestamp;
 
     auto node_view = registry.view<graph_node>();
 
     // Insert nodes in the graph for each new rigid body.
     auto &graph = registry.ctx().at<entity_graph>();
     auto insert_node = [&](entt::entity remote_entity) {
-        auto local_entity = m_worker_ctx->m_entity_map.at(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
         auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
         auto node_index = graph.insert_node(local_entity, non_connecting);
         registry.emplace<graph_node>(local_entity, node_index);
@@ -165,14 +150,14 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
 
     // Insert edges in the graph for constraints.
     auto insert_edge = [&](entt::entity remote_entity, const auto &con) {
-        auto local_entity = m_worker_ctx->m_entity_map.at(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
 
         // There could be multiple constraints (of different types) assigned to
         // the same entity, which means it could already have an edge.
         if (registry.any_of<graph_edge>(local_entity)) return;
 
-        auto [node0] = node_view.get(m_worker_ctx->m_entity_map.at(con.body[0]));
-        auto [node1] = node_view.get(m_worker_ctx->m_entity_map.at(con.body[1]));
+        auto [node0] = node_view.get(m_entity_map.at(con.body[0]));
+        auto [node1] = node_view.get(m_entity_map.at(con.body[1]));
         auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
         registry.emplace<graph_edge>(local_entity, edge_index);
     };
@@ -193,8 +178,8 @@ void stepper_async::on_raycast_response(const message<msg::raycast_response> &ms
     auto result = response.result;
 
     if (result.entity != entt::null) {
-        if (m_worker_ctx->m_entity_map.contains(result.entity)) {
-            result.entity = m_worker_ctx->m_entity_map.at(result.entity);
+        if (m_entity_map.contains(result.entity)) {
+            result.entity = m_entity_map.at(result.entity);
         } else {
             result.entity = entt::null;
         }
@@ -208,7 +193,7 @@ void stepper_async::on_raycast_response(const message<msg::raycast_response> &ms
 void stepper_async::on_query_aabb_response(const message<msg::query_aabb_response> &msg) {
     auto &response = msg.content;
     auto result = query_aabb_result{};
-    auto &emap = m_worker_ctx->m_entity_map;
+    auto &emap = m_entity_map;
 
     for (auto entity : response.island_entities) {
         if (emap.contains(entity)) {
@@ -235,10 +220,8 @@ void stepper_async::on_query_aabb_response(const message<msg::query_aabb_respons
 
 void stepper_async::sync() {
     if (!m_op_builder->empty()) {
-        m_worker_ctx->send<msg::update_entities>(m_message_queue_handle.identifier, m_op_builder->finish());
+        send_message_to_worker<msg::update_entities>(m_op_builder->finish());
     }
-
-    m_worker_ctx->flush();
 }
 
 void stepper_async::update() {
@@ -247,32 +230,32 @@ void stepper_async::update() {
 }
 
 void stepper_async::set_paused(bool paused) {
-    m_worker_ctx->send<msg::set_paused>(m_message_queue_handle.identifier, paused);
+    send_message_to_worker<msg::set_paused>(paused);
 }
 
 void stepper_async::step_simulation() {
-    m_worker_ctx->send<msg::step_simulation>(m_message_queue_handle.identifier);
+    send_message_to_worker<msg::step_simulation>();
 }
 
 void stepper_async::settings_changed() {
     auto &settings = m_registry->ctx().at<edyn::settings>();
-    m_worker_ctx->send<msg::set_settings>(m_message_queue_handle.identifier, settings);
+    send_message_to_worker<msg::set_settings>(settings);
 }
 
 void stepper_async::reg_op_ctx_changed() {
     auto &reg_op_ctx = m_registry->ctx().at<registry_operation_context>();
     m_op_builder = (*reg_op_ctx.make_reg_op_builder)(*m_registry);
     m_op_observer = (*reg_op_ctx.make_reg_op_observer)(*m_op_builder);
-    m_worker_ctx->send<msg::set_registry_operation_context>(m_message_queue_handle.identifier, reg_op_ctx);
+    send_message_to_worker<msg::set_registry_operation_context>(reg_op_ctx);
 }
 
 void stepper_async::material_table_changed() {
     auto &material_table = m_registry->ctx().at<material_mix_table>();
-    m_worker_ctx->send<msg::set_material_table>(m_message_queue_handle.identifier, material_table);
+    send_message_to_worker<msg::set_material_table>(material_table);
 }
 
 void stepper_async::set_center_of_mass(entt::entity entity, const vector3 &com) {
-    m_worker_ctx->send<msg::set_com>(m_message_queue_handle.identifier, entity, com);
+    send_message_to_worker<msg::set_com>(entity, com);
 }
 
 raycast_id_type stepper_async::raycast(vector3 p0, vector3 p1,
@@ -283,7 +266,7 @@ raycast_id_type stepper_async::raycast(vector3 p0, vector3 p1,
     ctx.delegate = delegate;
     ctx.p0 = p0;
     ctx.p1 = p1;
-    m_worker_ctx->send<msg::raycast_request>(m_message_queue_handle.identifier, id, p0, p1, ignore_entities);
+    send_message_to_worker<msg::raycast_request>(id, p0, p1, ignore_entities);
 
     return id;
 }
@@ -297,8 +280,7 @@ query_aabb_id_type stepper_async::query_aabb(const AABB &aabb,
     auto &ctx = m_query_aabb_ctx[id];
     ctx.delegate = delegate;
     ctx.aabb = aabb;
-    m_worker_ctx->send<msg::query_aabb_request>(m_message_queue_handle.identifier, id, aabb,
-                                                query_procedural, query_non_procedural, query_islands);
+    send_message_to_worker<msg::query_aabb_request>(id, aabb, query_procedural, query_non_procedural, query_islands);
 
     return id;
 }
@@ -309,7 +291,7 @@ query_aabb_id_type stepper_async::query_aabb_of_interest(const AABB &aabb,
     auto &ctx = m_query_aabb_ctx[id];
     ctx.delegate = delegate;
     ctx.aabb = aabb;
-    m_worker_ctx->send<msg::query_aabb_of_interest_request>(m_message_queue_handle.identifier, id, aabb);
+    send_message_to_worker<msg::query_aabb_of_interest_request>(id, aabb);
 
     return id;
 }

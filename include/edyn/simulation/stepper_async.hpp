@@ -9,7 +9,7 @@
 #include "edyn/collision/raycast.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/config/config.h"
-#include "edyn/simulation/simulation_worker_context.hpp"
+#include "edyn/simulation/simulation_worker.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/replication/registry_operation_observer.hpp"
@@ -22,7 +22,6 @@ namespace edyn {
  */
 class stepper_async final {
 
-    void create_worker();
     void insert_to_worker(const std::vector<entt::entity> &nodes,
                           const std::vector<entt::entity> &edges);
 
@@ -42,7 +41,6 @@ public:
     stepper_async(stepper_async const&) = delete;
     stepper_async operator=(stepper_async const&) = delete;
     stepper_async(entt::registry &);
-    ~stepper_async();
 
     void on_construct_graph_node(entt::registry &, entt::entity);
     void on_construct_graph_edge(entt::registry &, entt::entity);
@@ -73,7 +71,9 @@ public:
 
     template<typename Message, typename... Args>
     void send_message_to_worker(Args &&... args) {
-        m_worker_ctx->send<Message>(m_message_queue_handle.identifier, std::forward<Args>(args)...);
+        message_dispatcher::global().send<Message>({"worker"},
+                                                   m_message_queue_handle.identifier,
+                                                   std::forward<Args>(args)...);
     }
 
     raycast_id_type raycast(vector3 p0, vector3 p1,
@@ -89,7 +89,10 @@ public:
 
 private:
     entt::registry *m_registry;
-    std::unique_ptr<simulation_worker_context> m_worker_ctx;
+
+    simulation_worker m_worker;
+    entity_map m_entity_map;
+
     std::unique_ptr<registry_operation_builder> m_op_builder;
     std::unique_ptr<registry_operation_observer> m_op_observer;
     message_queue_handle<
@@ -99,6 +102,7 @@ private:
     > m_message_queue_handle;
 
     bool m_importing {false};
+    double m_timestamp {};
 
     raycast_id_type m_next_raycast_id {};
     std::map<raycast_id_type, worker_raycast_context> m_raycast_ctx;

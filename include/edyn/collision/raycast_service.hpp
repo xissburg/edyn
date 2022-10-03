@@ -30,8 +30,10 @@ class raycast_service {
     };
 
     bool run_state_machine(job &completion_job);
-    bool run_broadphase(job &completion_job);
-    bool run_narrowphase(job &completion_job);
+    void run_broadphase();
+    void run_narrowphase();
+    bool run_broadphase_async(job &completion_job);
+    bool run_narrowphase_async(job &completion_job);
     void finish_broadphase();
     void finish_narrowphase();
 
@@ -42,7 +44,8 @@ public:
         m_broad_ctx.push_back(broadphase_context{id, p0, p1, ignore_entities});
     }
 
-    bool update(job &completion_job);
+    void update();
+    bool update_async(job &completion_job);
 
     template<typename Func>
     void consume_results(Func func) {
