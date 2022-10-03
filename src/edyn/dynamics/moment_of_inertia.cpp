@@ -16,34 +16,6 @@ vector3 moment_of_inertia_solid_box(scalar mass, const vector3 &extents) {
     };
 }
 
-vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius,
-                                        coordinate_axis axis) {
-    // Reference: Open Dynamics Engine, mass.cpp
-    // https://bitbucket.org/odedevs/ode/src/5dd0dfa3bdd91b2885542485067a9559936eff1c/ode/src/mass.cpp#lines-141
-    auto cyl_vol = cylinder_volume(radius, len);
-    auto sph_vol = sphere_volume(radius); // Volume of hemispherical caps.
-    auto total_vol = cyl_vol + sph_vol;
-    auto cyl_mass = mass * cyl_vol / total_vol;
-    auto sph_mass = mass * sph_vol / total_vol;
-
-    auto cyl_inertia = moment_of_inertia_solid_cylinder(cyl_mass, len, radius, axis);
-    auto sph_inertia = moment_of_inertia_solid_sphere(sph_mass, radius);
-
-    auto xx = sph_inertia + cyl_inertia.x;
-    auto yy_zz = sph_inertia + sph_mass * square(scalar(4) * len + scalar(3) * radius) / scalar(64) + cyl_inertia.y;
-
-    switch (axis) {
-    case coordinate_axis::x:
-        return {xx, yy_zz, yy_zz};
-    case coordinate_axis::y:
-        return {yy_zz, xx, yy_zz};
-    case coordinate_axis::z:
-        return {yy_zz, yy_zz, xx};
-    }
-
-    return vector3_zero;
-}
-
 scalar moment_of_inertia_solid_sphere(scalar mass, scalar radius) {
     return scalar(0.4) * mass * radius * radius;
 }
@@ -77,6 +49,33 @@ vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
     auto rr = inner_radius * inner_radius + outer_radius * outer_radius;
     auto xx = scalar(0.5) * mass * rr;
     auto yy_zz = scalar(1) / scalar(12) * mass * (scalar(3) * rr + len * len);
+
+    switch (axis) {
+    case coordinate_axis::x:
+        return {xx, yy_zz, yy_zz};
+    case coordinate_axis::y:
+        return {yy_zz, xx, yy_zz};
+    case coordinate_axis::z:
+        return {yy_zz, yy_zz, xx};
+    }
+
+    return vector3_zero;
+}
+
+vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius,
+                                        coordinate_axis axis) {
+    // Reference: https://xissburg.github.io/2022-09-30-calculating-moment-of-inertia-capsule
+    auto cyl_vol = cylinder_volume(radius, len);
+    auto sph_vol = sphere_volume(radius); // Volume of hemispherical caps.
+    auto total_vol = cyl_vol + sph_vol;
+    auto cyl_mass = mass * cyl_vol / total_vol;
+    auto sph_mass = mass * sph_vol / total_vol;
+
+    auto cyl_inertia = moment_of_inertia_solid_cylinder(cyl_mass, len, radius, axis);
+    auto sph_inertia = moment_of_inertia_solid_sphere(sph_mass, radius);
+
+    auto xx = sph_inertia + cyl_inertia.x;
+    auto yy_zz = sph_inertia + sph_mass * square(scalar(4) * len + scalar(3) * radius) / scalar(64) + cyl_inertia.y;
 
     switch (axis) {
     case coordinate_axis::x:

@@ -1230,12 +1230,15 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
     // Let a plane be defined by the ray and the vector orthogonal to the
     // cylinder axis and the ray (i.e. their cross product). This plane cuts
     // the cylinder and their intersection is an ellipse with vertical half
-    // length equals to the cylinder radius and horizontal half length bigger
-    // than that. First, the parameters for the closest point between the lines
-    // spanned by the cylinder axis and the ray are found. By subtracting an
-    // amount from the parameter for the ray, the intersection point can be
-    // found.
-    auto cyl_dir = coordinate_axis_vector(axis, orn);
+    // length (aka semi-minor axis) equals to the cylinder radius and horizontal
+    // half length (aka semi-major axis) greater than or equal to the radius.
+    // The distance between the ray and the cylinder axis gives us the value of
+    // `y` in the ellipse equation `x^2/a^2 + y^2/b^2 = 1`. Solving for `x` will
+    // give us information to calculate the exact point where the ray intersects
+    // the cylinder.
+    // Detailed derivation: https://xissburg.github.io/2022-10-03-intersecting-line-against-cylinder
+
+    auto cyl_dir = quaternion_x(orn);
     vector3 cyl_vertices[] = {
         pos + cyl_dir * half_length,
         pos - cyl_dir * half_length
@@ -1263,9 +1266,9 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
     auto dd = dot(d, d);
     auto ee = dot(e, e);
     auto de = dot(d, e);
-    auto g_sqr = (radius_sqr - dist_sqr) * ee / (dd * ee - de * de);
-    auto g = std::sqrt(g_sqr);
-    u = t - g;
+    auto delta_sqr = (radius_sqr - dist_sqr) * ee / (dd * ee - de * de);
+    auto delta = std::sqrt(delta_sqr);
+    u = t - delta;
     return {intersect_ray_cylinder_result::kind::intersects, dist_sqr, normal};
 }
 
