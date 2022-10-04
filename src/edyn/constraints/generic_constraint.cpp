@@ -267,22 +267,22 @@ void generic_constraint::prepare(
 }
 
 void generic_constraint::solve_position(position_solver &solver) {
-    auto originA = solver.get_originA(), originB = solver.get_originB();
-    auto &posA = *solver.posA, &posB = *solver.posB;
-    auto &ornA = *solver.ornA, &ornB = *solver.ornB;
-
-    auto pivotA = to_world_space(pivot[0], originA, ornA);
-    auto pivotB = to_world_space(pivot[1], originB, ornB);
-    auto pivot_offset = pivotB - pivotA;
-    auto rA = pivotA - posA;
-    auto rB = pivotB - posB;
-
     for (int i = 0; i < 3; ++i) {
         auto &dof = linear_dofs[i];
 
         if (!dof.limit_enabled) {
             continue;
         }
+
+        auto originA = solver.get_originA(), originB = solver.get_originB();
+        auto &posA = *solver.posA, &posB = *solver.posB;
+        auto &ornA = *solver.ornA, &ornB = *solver.ornB;
+
+        auto pivotA = to_world_space(pivot[0], originA, ornA);
+        auto pivotB = to_world_space(pivot[1], originB, ornB);
+        auto pivot_offset = pivotB - pivotA;
+        auto rA = pivotA - posA;
+        auto rB = pivotB - posB;
 
         auto axisA = rotate(ornA, frame[0].column(i));
         auto proj = dot(pivot_offset, axisA);

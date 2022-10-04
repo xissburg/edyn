@@ -1,6 +1,7 @@
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -355,10 +356,16 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
 
             if (origin_view.contains(con.body[0])) {
                 solver.originA = &origin_view.template get<origin>(con.body[0]);
+                solver.comA = origin_view.template get<center_of_mass>(con.body[0]);
+            } else {
+                solver.originA = nullptr;
             }
 
             if (origin_view.contains(con.body[1])) {
                 solver.originB = &origin_view.template get<origin>(con.body[1]);
+                solver.comB = origin_view.template get<center_of_mass>(con.body[1]);
+            } else {
+                solver.originB = nullptr;
             }
 
             if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
@@ -385,7 +392,7 @@ scalar solve_position_constraints_indexed(entt::registry &registry, const island
                                          [[maybe_unused]] std::tuple<C...>, std::index_sequence<Ints...>) {
     auto body_view = registry.view<position, orientation,
                                    mass_inv, inertia_world_inv>();
-    auto origin_view = registry.view<origin>();
+    auto origin_view = registry.view<origin, center_of_mass>();
     return max_variadic(solve_position_constraints_each<C>(registry, constraint_entities.entities[Ints], body_view, origin_view)...);
 }
 

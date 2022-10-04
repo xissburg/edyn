@@ -231,7 +231,6 @@ void cvjoint_constraint::prepare(
 }
 
 void cvjoint_constraint::solve_position(position_solver &solver) {
-    auto originA = solver.get_originA(), originB = solver.get_originB();
     auto &posA = *solver.posA, &posB = *solver.posB;
     auto &ornA = *solver.ornA, &ornB = *solver.ornB;
 
@@ -257,6 +256,7 @@ void cvjoint_constraint::solve_position(position_solver &solver) {
     solver.solve({vector3_zero, twist_axisA, vector3_zero, -twist_axisB}, twist_error);
 
     // Apply correction to join the pivot points together.
+    auto originA = solver.get_originA(), originB = solver.get_originB();
     auto pivotA = to_world_space(pivot[0], originA, ornA);
     auto pivotB = to_world_space(pivot[1], originB, ornB);
     auto dir = pivotA - pivotB;
