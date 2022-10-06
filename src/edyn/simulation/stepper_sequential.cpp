@@ -55,10 +55,10 @@ void stepper_sequential::update() {
             (*settings.pre_step_callback)(*m_registry);
         }
 
-        bphase.update_sequential(m_multithreaded);
+        bphase.update(m_multithreaded);
         m_island_manager.update(step_time);
-        nphase.update_sequential(m_multithreaded);
-        m_solver.update_sequential(m_multithreaded);
+        nphase.update(m_multithreaded);
+        m_solver.update(m_multithreaded);
         emitter.consume_events();
         decay_discontinuities(*m_registry);
 
@@ -89,10 +89,10 @@ void stepper_sequential::step_simulation() {
     }
 
     m_poly_initializer.init_new_shapes();
-    bphase.update_sequential(m_multithreaded);
+    bphase.update(m_multithreaded);
     m_island_manager.update(m_last_time);
-    nphase.update_sequential(m_multithreaded);
-    m_solver.update_sequential(m_multithreaded);
+    nphase.update(m_multithreaded);
+    m_solver.update(m_multithreaded);
     emitter.consume_events();
     decay_discontinuities(*m_registry);
 

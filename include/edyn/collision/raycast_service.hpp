@@ -8,13 +8,6 @@
 namespace edyn {
 
 class raycast_service {
-    enum class state {
-        begin,
-        broadphase,
-        narrowphase,
-        done
-    };
-
     struct broadphase_context {
         unsigned id;
         vector3 p0, p1;
@@ -29,11 +22,8 @@ class raycast_service {
         shape_raycast_result result;
     };
 
-    bool run_state_machine(job &completion_job);
-    void run_broadphase();
-    void run_narrowphase();
-    bool run_broadphase_async(job &completion_job);
-    bool run_narrowphase_async(job &completion_job);
+    void run_broadphase(bool mt);
+    void run_narrowphase(bool mt);
     void finish_broadphase();
     void finish_narrowphase();
 
@@ -44,8 +34,7 @@ public:
         m_broad_ctx.push_back(broadphase_context{id, p0, p1, ignore_entities});
     }
 
-    void update();
-    bool update_async(job &completion_job);
+    void update(bool mt);
 
     template<typename Func>
     void consume_results(Func func) {
@@ -57,7 +46,6 @@ public:
 
 private:
     entt::registry *m_registry;
-    state m_state {state::begin};
 
     std::vector<broadphase_context> m_broad_ctx;
     std::vector<narrowphase_context> m_narrow_ctx;

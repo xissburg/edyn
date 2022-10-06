@@ -167,7 +167,7 @@ void extrapolation_worker::init_extrapolation() {
     m_terminated_early = false;
 }
 
-void extrapolation_worker::sync_and_finish() {
+void extrapolation_worker::finish_extrapolation() {
     // Insert modified components into a registry operation to be sent back to
     // the main thread which will assign the extrapolated state to its entities.
     auto &reg_op_ctx = m_registry.ctx().at<registry_operation_context>();
@@ -262,29 +262,27 @@ void extrapolation_worker::finish_step() {
 void extrapolation_worker::extrapolate() {
     init_extrapolation();
 
-    while (true) {
-        if (!should_step()) {
-            break;
-        }
-
+    while (should_step()) {
         begin_step();
-        m_registry.ctx().at<broadphase>().update_sequential(true);
+        m_registry.ctx().at<broadphase>().update(true);
         m_island_manager.update(m_current_time);
-        m_registry.ctx().at<narrowphase>().update_sequential(true);
-        m_solver.update_sequential(true);
+        m_registry.ctx().at<narrowphase>().update(true);
+        m_solver.update(true);
         finish_step();
     }
 
-    sync_and_finish();
+    finish_extrapolation();
 }
 
 void extrapolation_worker::run() {
     while (m_running.load(std::memory_order_relaxed)) {
-        std::unique_lock<std::mutex> lock(m_mutex);
-        m_cv.wait(lock, [&]() {
-            return m_has_messages.exchange(false, std::memory_order_relaxed) ||
-                   !m_running.load(std::memory_order_relaxed);
-        });
+        {
+            std::unique_lock<std::mutex> lock(m_mutex);
+            m_cv.wait(lock, [&]() {
+                return m_has_messages.exchange(false, std::memory_order_relaxed) ||
+                    !m_running.load(std::memory_order_relaxed);
+            });
+        }
 
         m_message_queue.update();
 

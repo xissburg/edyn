@@ -24,7 +24,6 @@ public:
 
     ~job_dispatcher();
 
-    void start();
     void start(size_t num_worker_threads);
 
     void stop();

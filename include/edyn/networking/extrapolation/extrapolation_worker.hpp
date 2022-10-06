@@ -31,7 +31,7 @@ class extrapolation_worker final {
     void begin_step();
     void finish_step();
     void apply_history();
-    void sync_and_finish();
+    void finish_extrapolation();
     void run();
     void extrapolate();
 

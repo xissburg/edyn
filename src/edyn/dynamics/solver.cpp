@@ -16,7 +16,6 @@
 #include "edyn/parallel/atomic_counter_sync.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/parallel_for.hpp"
-#include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/serialization/s11n_util.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_aabbs.hpp"
@@ -93,8 +92,7 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     }
 }
 
-static bool prepare_constraints(entt::registry &registry, scalar dt, execution_mode mode,
-                                std::optional<job> completion_job = {}) {
+static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
     auto body_view = registry.view<position, orientation,
                                    linvel, angvel,
                                    mass_inv, inertia_world_inv,
@@ -119,108 +117,17 @@ static bool prepare_constraints(entt::registry &registry, scalar dt, execution_m
     const size_t max_sequential_size = 4;
     auto num_constraints = calculate_view_size(registry.view<constraint_tag>(exclude_sleeping_disabled));
 
-    if (num_constraints <= max_sequential_size || mode == execution_mode::sequential) {
+    if (mt && num_constraints > max_sequential_size) {
+        auto &dispatcher = job_dispatcher::global();
+        parallel_for_each(dispatcher, cache_view.begin(), cache_view.end(), for_loop_body);
+    } else {
         for (auto entity : cache_view) {
             for_loop_body(entity);
         }
-        // Done, return true.
-        return true;
-    } else if (mode == execution_mode::sequential_multithreaded) {
-        auto &dispatcher = job_dispatcher::global();
-        parallel_for_each(dispatcher, cache_view.begin(), cache_view.end(), for_loop_body);
-        return true;
-    } else {
-        EDYN_ASSERT(mode == execution_mode::asynchronous);
-        auto &dispatcher = job_dispatcher::global();
-        parallel_for_each_async(dispatcher, cache_view.begin(), cache_view.end(), *completion_job, for_loop_body);
-        // Pending work still running, not done yet, return false.
-        return false;
     }
 }
 
-bool solver::update_async(const job &completion_job) {
-    auto &registry = *m_registry;
-    auto &settings = registry.ctx().at<edyn::settings>();
-    auto dt = settings.fixed_dt;
-
-    switch (m_state) {
-    case state::begin:
-        m_state = state::solve_restitution;
-        return update_async(completion_job);
-        break;
-
-    case state::solve_restitution:
-        // Apply restitution impulses before gravity to prevent resting objects to
-        // start bouncing due to the initial gravity acceleration.
-        solve_restitution(registry, dt);
-        m_state = state::apply_gravity;
-        return update_async(completion_job);
-        break;
-
-    case state::apply_gravity:
-        apply_gravity(registry, dt);
-        m_state = state::prepare_constraints;
-        return update_async(completion_job);
-        break;
-
-    case state::prepare_constraints:
-        m_state = state::solve_islands;
-        if (prepare_constraints(*m_registry, dt, execution_mode::asynchronous, completion_job)) {
-            return update_async(completion_job);
-        } else {
-            return false;
-        }
-        break;
-
-    case state::solve_islands: {
-        m_state = state::finalize;
-
-        auto island_view = registry.view<island>(exclude_sleeping_disabled);
-        auto num_islands = calculate_view_size(island_view);
-
-        if (num_islands > 0) {
-            m_counter = std::make_unique<atomic_counter>(completion_job, num_islands);
-
-            for (auto island_entity : island_view) {
-                run_island_solver_async(registry, island_entity,
-                                        settings.num_solver_velocity_iterations,
-                                        settings.num_solver_position_iterations,
-                                        settings.fixed_dt,
-                                        m_counter.get());
-            }
-
-            return false;
-        } else {
-            return update_async(completion_job);
-        }
-        break;
-    }
-
-    case state::finalize:
-        update_origins(registry);
-
-        // Update rotated vertices of convex meshes after rotations change. It is
-        // important to do this before `update_aabbs` because the rotated meshes
-        // will be used to calculate AABBs of polyhedrons.
-        update_rotated_meshes(registry);
-
-        // Update AABBs after transforms change.
-        update_aabbs(registry);
-        update_island_aabbs(registry);
-
-        // Update world-space moment of inertia.
-        update_inertias(registry);
-        m_state = state::done;
-        return update_async(completion_job);
-        break;
-
-    case state::done:
-        m_state = state::begin;
-        return true;
-    }
-}
-
-void solver::update_sequential(bool mt) {
+void solver::update(bool mt) {
     auto &registry = *m_registry;
     auto &settings = registry.ctx().at<edyn::settings>();
     auto dt = settings.fixed_dt;
@@ -228,8 +135,7 @@ void solver::update_sequential(bool mt) {
     solve_restitution(registry, dt);
     apply_gravity(registry, dt);
 
-    auto exec_mode = mt ? execution_mode::sequential_multithreaded : execution_mode::sequential;
-    prepare_constraints(registry, dt, exec_mode);
+    prepare_constraints(registry, dt, mt);
 
     auto island_view = registry.view<island>(exclude_sleeping_disabled);
     auto num_islands = calculate_view_size(island_view);

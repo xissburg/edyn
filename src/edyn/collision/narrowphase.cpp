@@ -3,7 +3,6 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/config/constants.hpp"
 #include "edyn/parallel/parallel_for.hpp"
-#include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
@@ -20,7 +19,7 @@ void narrowphase::clear_contact_manifold_events() {
     });
 }
 
-void narrowphase::update_sequential(bool mt) {
+void narrowphase::update(bool mt) {
     clear_contact_manifold_events();
     update_contact_distances(*m_registry);
 
@@ -28,40 +27,14 @@ void narrowphase::update_sequential(bool mt) {
     auto num_active_manifolds = calculate_view_size(manifold_view);
 
     if (mt && num_active_manifolds > m_max_sequential_size) {
-        detect_collision_parallel(false);
+        detect_collision_parallel();
         finish_detect_collision();
     } else {
         update_contact_manifolds(manifold_view.begin(), manifold_view.end());
     }
 }
 
-bool narrowphase::update_async(const job &completion_job) {
-    switch (m_state) {
-    case state::begin: {
-        clear_contact_manifold_events();
-        update_contact_distances(*m_registry);
-        auto manifold_view = m_registry->view<contact_manifold>(exclude_sleeping_disabled);
-        auto num_active_manifolds = calculate_view_size(manifold_view);
-
-        if (num_active_manifolds <= m_max_sequential_size) {
-            auto manifold_view = m_registry->view<contact_manifold>();
-            update_contact_manifolds(manifold_view.begin(), manifold_view.end());
-            return true;
-        } else {
-            m_state = state::detect_collision;
-            detect_collision_parallel(true, completion_job);
-            return false;
-        }
-        break;
-    }
-    case state::detect_collision:
-        finish_detect_collision();
-        m_state = state::begin;
-        return true;
-    }
-}
-
-void narrowphase::detect_collision_parallel(bool async, const job &completion_job) {
+void narrowphase::detect_collision_parallel() {
     auto manifold_view = m_registry->view<contact_manifold>();
     auto events_view = m_registry->view<contact_manifold_events>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
@@ -104,11 +77,7 @@ void narrowphase::detect_collision_parallel(bool async, const job &completion_jo
         });
     };
 
-    if (async) {
-        parallel_for_async(dispatcher, size_t{0}, manifold_view.size(), size_t{1}, completion_job, for_loop_body);
-    } else {
-        parallel_for(dispatcher, size_t{}, manifold_view.size(), size_t{1}, for_loop_body);
-    }
+    parallel_for(dispatcher, size_t{}, manifold_view.size(), size_t{1}, for_loop_body);
 }
 
 void narrowphase::finish_detect_collision() {

@@ -268,7 +268,7 @@ void simulation_worker::stop() {
 
 void simulation_worker::update(double dt) {
     m_message_queue.update();
-    m_raycast_service.update();
+    m_raycast_service.update(true);
     consume_raycast_results();
 
     if (m_paused) {
@@ -301,10 +301,10 @@ void simulation_worker::update(double dt) {
             (*settings.pre_step_callback)(m_registry);
         }
 
-        bphase.update_sequential(true);
+        bphase.update(true);
         m_island_manager.update(step_time);
-        nphase.update_sequential(true);
-        m_solver.update_sequential(true);
+        nphase.update(true);
+        m_solver.update(true);
         decay_discontinuities(m_registry);
 
         if (settings.clear_actions_func) {
@@ -387,10 +387,10 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
     }
 
     m_poly_initializer.init_new_shapes();
-    bphase.update_sequential(true);
+    bphase.update(true);
     m_island_manager.update(m_last_time);
-    nphase.update_sequential(true);
-    m_solver.update_sequential(true);
+    nphase.update(true);
+    m_solver.update(true);
     decay_discontinuities(m_registry);
 
     if (settings.clear_actions_func) {

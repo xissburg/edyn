@@ -529,25 +529,11 @@ static void island_solver_update(island_solver_context &ctx) {
     }
 }
 
-template<typename AtomicCounterType>
-void run_island_solver(entt::registry &registry, entt::entity island_entity,
-                       unsigned num_iterations, unsigned num_position_iterations,
-                       scalar dt, AtomicCounterType *counter) {
-    EDYN_ASSERT(counter != nullptr);
-    auto ctx = island_solver_context(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
-    dispatch_solver(ctx);
-}
-
-void run_island_solver_async(entt::registry &registry, entt::entity island_entity,
-                             unsigned num_iterations, unsigned num_position_iterations,
-                             scalar dt, atomic_counter *counter) {
-    run_island_solver(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
-}
-
 void run_island_solver_seq_mt(entt::registry &registry, entt::entity island_entity,
                              unsigned num_iterations, unsigned num_position_iterations,
                              scalar dt, atomic_counter_sync *counter) {
-    run_island_solver(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
+    auto ctx = island_solver_context(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
+    dispatch_solver(ctx);
 }
 
 void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,

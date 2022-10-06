@@ -18,17 +18,8 @@ job_dispatcher::~job_dispatcher() {
     stop();
 }
 
-void job_dispatcher::start() {
-    auto num_threads = std::thread::hardware_concurrency();
-
-    if (num_threads == 0) {
-        num_threads = 2;
-    }
-
-    start(num_threads);
-}
-
 void job_dispatcher::start(size_t num_worker_threads) {
+    EDYN_ASSERT(num_worker_threads > 0);
     EDYN_ASSERT(m_workers.empty());
 
     for (size_t i = 0; i < num_worker_threads; ++i) {

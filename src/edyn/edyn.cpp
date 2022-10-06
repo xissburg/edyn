@@ -44,15 +44,30 @@ void attach(entt::registry &registry, const init_config &config) {
     init_meta();
 
     auto &dispatcher = job_dispatcher::global();
-    auto num_workers = config.execution_mode == execution_mode::sequential ? 1 : config.num_worker_threads;
 
     if (!dispatcher.running()) {
-        if (num_workers == 0) {
-            dispatcher.start();
-        } else {
-            dispatcher.start(num_workers);
+        auto num_workers = size_t{};
+
+        switch (config.execution_mode) {
+        case execution_mode::sequential:
+            num_workers = 1; // One worker is needed for background tasks.
+            break;
+        case execution_mode::sequential_multithreaded:
+            num_workers = config.num_worker_threads > 0 ?
+                          config.num_worker_threads :
+                          std::max(std::thread::hardware_concurrency(), 2u) - 1;
+                          // Subtract one for the main thread.
+            break;
+        case execution_mode::asynchronous:
+            num_workers = config.num_worker_threads > 0 ?
+                          config.num_worker_threads :
+                          std::max(std::thread::hardware_concurrency(), 3u) - 2;
+                          // Subtract one for the main thread and another for the
+                          // dedicated simulation worker thread.
+            break;
         }
 
+        dispatcher.start(num_workers);
         dispatcher.assure_current_queue();
     }
 
