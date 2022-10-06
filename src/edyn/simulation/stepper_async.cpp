@@ -118,7 +118,7 @@ double stepper_async::get_simulation_timestamp() const {
     return m_timestamp;
 }
 
-void stepper_async::on_step_update(const message<msg::step_update> &msg) {
+void stepper_async::on_step_update(message<msg::step_update> &msg) {
     m_importing = true;
     m_op_observer->set_active(false);
 
@@ -173,7 +173,7 @@ void stepper_async::on_step_update(const message<msg::step_update> &msg) {
     emitter.consume_events();
 }
 
-void stepper_async::on_raycast_response(const message<msg::raycast_response> &msg) {
+void stepper_async::on_raycast_response(message<msg::raycast_response> &msg) {
     auto &response = msg.content;
     auto result = response.result;
 
@@ -190,7 +190,7 @@ void stepper_async::on_raycast_response(const message<msg::raycast_response> &ms
     m_raycast_ctx.erase(response.id);
 }
 
-void stepper_async::on_query_aabb_response(const message<msg::query_aabb_response> &msg) {
+void stepper_async::on_query_aabb_response(message<msg::query_aabb_response> &msg) {
     auto &response = msg.content;
     auto result = query_aabb_result{};
     auto &emap = m_entity_map;

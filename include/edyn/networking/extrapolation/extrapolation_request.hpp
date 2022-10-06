@@ -1,5 +1,5 @@
-#ifndef EDYN_NETWORKING_EXTRAPOLATION_INPUT_HPP
-#define EDYN_NETWORKING_EXTRAPOLATION_INPUT_HPP
+#ifndef EDYN_NETWORKING_EXTRAPOLATION_REQUEST_HPP
+#define EDYN_NETWORKING_EXTRAPOLATION_REQUEST_HPP
 
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
@@ -10,7 +10,7 @@
 
 namespace edyn {
 
-struct extrapolation_input {
+struct extrapolation_request {
     double start_time;
     entt::sparse_set entities {};
     entt::sparse_set owned_entities {};
@@ -22,4 +22,4 @@ struct extrapolation_input {
 
 }
 
-#endif // EDYN_NETWORKING_EXTRAPOLATION_INPUT_HPP
+#endif // EDYN_NETWORKING_EXTRAPOLATION_REQUEST_HPP

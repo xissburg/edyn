@@ -67,17 +67,6 @@ bool get_network_client_extrapolation_enabled(entt::registry &registry) {
     return get_client_settings(registry).extrapolation_enabled;
 }
 
-void set_network_client_max_concurrent_extrapolations(entt::registry &registry, unsigned count) {
-    EDYN_ASSERT(count > 0);
-    edit_client_settings(registry, [count](auto &client_settings) {
-        client_settings.max_concurrent_extrapolations = count;
-    });
-}
-
-unsigned get_network_client_max_concurrent_extrapolations(entt::registry &registry) {
-    return get_client_settings(registry).max_concurrent_extrapolations;
-}
-
 void set_network_client_discontinuity_decay_rate(entt::registry &registry, scalar rate) {
     EDYN_ASSERT(!(rate < 0) && rate < 1);
     edit_client_settings(registry, [rate](auto &client_settings) {

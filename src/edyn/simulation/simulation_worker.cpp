@@ -54,8 +54,7 @@ namespace edyn {
 simulation_worker::simulation_worker(const settings &settings,
                                      const registry_operation_context &reg_op_ctx,
                                      const material_mix_table &material_table)
-    : m_state(state::init)
-    , m_raycast_service(m_registry)
+    : m_raycast_service(m_registry)
     , m_island_manager(m_registry)
     , m_poly_initializer(m_registry)
     , m_solver(m_registry)
@@ -215,7 +214,7 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
     }
 }
 
-void simulation_worker::on_update_entities(const message<msg::update_entities> &msg) {
+void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
     // Import components from main registry.
     m_importing = true;
     m_op_observer->set_active(false);
@@ -274,6 +273,7 @@ void simulation_worker::update(double dt) {
 
     if (m_paused) {
         m_island_manager.update(m_last_time);
+        sync();
         return;
     }
 
@@ -365,7 +365,7 @@ void simulation_worker::mark_transforms_replaced() {
     m_op_builder->replace<angvel>(body_view.begin(), body_view.end());
 }
 
-void simulation_worker::on_set_paused(const message<msg::set_paused> &msg) {
+void simulation_worker::on_set_paused(message<msg::set_paused> &msg) {
     m_paused = msg.content.paused;
     m_registry.ctx().at<edyn::settings>().paused = m_paused;
     m_accumulated_time = 0;
@@ -375,7 +375,7 @@ void simulation_worker::on_set_paused(const message<msg::set_paused> &msg) {
     }
 }
 
-void simulation_worker::on_step_simulation(const message<msg::step_simulation> &) {
+void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
     m_last_time = performance_time();
 
     auto &bphase = m_registry.ctx().at<broadphase>();
@@ -407,26 +407,26 @@ void simulation_worker::on_step_simulation(const message<msg::step_simulation> &
     sync();
 }
 
-void simulation_worker::on_set_settings(const message<msg::set_settings> &msg) {
+void simulation_worker::on_set_settings(message<msg::set_settings> &msg) {
     m_registry.ctx().at<settings>() = msg.content.settings;
 }
 
-void simulation_worker::on_set_reg_op_ctx(const message<msg::set_registry_operation_context> &msg) {
+void simulation_worker::on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg) {
     m_registry.ctx().at<registry_operation_context>() = msg.content.ctx;
     m_op_builder = (*msg.content.ctx.make_reg_op_builder)(m_registry);
     m_op_observer = (*msg.content.ctx.make_reg_op_observer)(*m_op_builder);
 }
 
-void simulation_worker::on_set_material_table(const message<msg::set_material_table> &msg) {
+void simulation_worker::on_set_material_table(message<msg::set_material_table> &msg) {
     m_registry.ctx().at<material_mix_table>() = msg.content.table;
 }
 
-void simulation_worker::on_set_com(const message<msg::set_com> &msg) {
+void simulation_worker::on_set_com(message<msg::set_com> &msg) {
     auto entity = m_entity_map.at(msg.content.entity);
     apply_center_of_mass(m_registry, entity, msg.content.com);
 }
 
-void simulation_worker::on_raycast_request(const message<msg::raycast_request> &msg) {
+void simulation_worker::on_raycast_request(message<msg::raycast_request> &msg) {
     auto ignore_entities = std::vector<entt::entity>{};
 
     for (auto remote_entity : msg.content.ignore_entities) {
@@ -438,7 +438,7 @@ void simulation_worker::on_raycast_request(const message<msg::raycast_request> &
     m_raycast_service.add_ray(msg.content.p0, msg.content.p1, msg.content.id, ignore_entities);
 }
 
-void simulation_worker::on_query_aabb_request(const message<msg::query_aabb_request> &msg) {
+void simulation_worker::on_query_aabb_request(message<msg::query_aabb_request> &msg) {
     auto &bphase = m_registry.ctx().at<broadphase>();
     auto &request = msg.content;
     auto response = msg::query_aabb_response{};
@@ -467,7 +467,7 @@ void simulation_worker::on_query_aabb_request(const message<msg::query_aabb_requ
             {"main"}, m_message_queue.identifier, std::move(response));
 }
 
-void simulation_worker::on_query_aabb_of_interest_request(const message<msg::query_aabb_of_interest_request> &msg) {
+void simulation_worker::on_query_aabb_of_interest_request(message<msg::query_aabb_of_interest_request> &msg) {
     auto &bphase = m_registry.ctx().at<broadphase>();
     auto &request = msg.content;
     auto island_view = m_registry.view<island>();
@@ -520,12 +520,12 @@ void simulation_worker::on_query_aabb_of_interest_request(const message<msg::que
             {"main"}, m_message_queue.identifier, std::move(response));
 }
 
-void simulation_worker::on_extrapolation_result(const message<extrapolation_result> &msg) {
+void simulation_worker::on_extrapolation_result(message<extrapolation_result> &msg) {
     auto &result = msg.content;
     process_extrapolation_result(m_registry, m_entity_map, result);
 }
 
-void simulation_worker::on_apply_network_pools(const message<msg::apply_network_pools> &msg) {
+void simulation_worker::on_apply_network_pools(message<msg::apply_network_pools> &msg) {
     EDYN_ASSERT(!msg.content.pools.empty());
     snap_to_pool_snapshot(m_registry, m_entity_map, msg.content.entities, msg.content.pools);
     wake_up_island_residents(m_registry, msg.content.entities, m_entity_map);

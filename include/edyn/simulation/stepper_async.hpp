@@ -48,9 +48,9 @@ public:
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
 
-    void on_step_update(const message<msg::step_update> &);
-    void on_raycast_response(const message<msg::raycast_response> &);
-    void on_query_aabb_response(const message<msg::query_aabb_response> &);
+    void on_step_update(message<msg::step_update> &);
+    void on_raycast_response(message<msg::raycast_response> &);
+    void on_query_aabb_response(message<msg::query_aabb_response> &);
 
     void update();
 

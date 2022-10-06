@@ -5,8 +5,10 @@
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/context/registry_operation_context.hpp"
+#include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
+#include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/util/process_extrapolation_result.hpp"
@@ -18,9 +20,10 @@
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
-#include "edyn/networking/extrapolation/extrapolation_job.hpp"
+#include "edyn/networking/extrapolation/extrapolation_worker.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/networking/util/snap_to_pool_snapshot.hpp"
+#include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/std_s11n.hpp"
@@ -90,8 +93,37 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
 }
 
+static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
+    // Result contains entities already mapped into the main registry space.
+    // Entities could've been destroyed while extrapolation was running.
+    auto invalid_it = std::remove_if(result.entities.begin(), result.entities.end(),
+                                     [&](auto entity) { return !registry.valid(entity); });
+    result.entities.erase(invalid_it, result.entities.end());
+
+    if (result.terminated_early) {
+        auto &ctx = registry.ctx().at<client_network_context>();
+        ctx.extrapolation_timeout_signal.publish();
+    }
+
+    auto &settings = registry.ctx().at<edyn::settings>();
+
+    if (settings.execution_mode == edyn::execution_mode::asynchronous) {
+        auto &stepper = registry.ctx().at<stepper_async>();
+        stepper.send_message_to_worker<extrapolation_result>(std::move(result));
+    } else {
+        auto &ctx = registry.ctx().at<client_network_context>();
+        ctx.snapshot_exporter->set_observer_enabled(false);
+        process_extrapolation_result(registry, result);
+        ctx.snapshot_exporter->set_observer_enabled(true);
+    }
+}
+
+static void on_extrapolation_result(entt::registry &registry, message<extrapolation_result> &msg) {
+    apply_extrapolation_result(registry, msg.content);
+}
+
 void init_network_client(entt::registry &registry) {
-    registry.ctx().emplace<client_network_context>(registry);
+    auto &ctx = registry.ctx().emplace<client_network_context>(registry);
 
     registry.on_construct<networked_tag>().connect<&on_construct_networked_entity>();
     registry.on_destroy<networked_tag>().connect<&on_destroy_networked_entity>();
@@ -108,6 +140,14 @@ void init_network_client(entt::registry &registry) {
         registry.on_construct<position>().connect<&entt::registry::emplace<previous_position>>();
         registry.on_construct<orientation>().connect<&entt::registry::emplace<previous_orientation>>();
     }
+
+    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
+    auto &material_table = registry.ctx().at<material_mix_table>();
+    ctx.extrapolator = std::make_unique<extrapolation_worker>(settings, reg_op_ctx, material_table,
+                                                              ctx.input_history, ctx.make_extrapolation_modified_comp);
+    ctx.extrapolator->start();
+
+    ctx.message_queue.sink<extrapolation_result>().connect<&on_extrapolation_result>(registry);
 }
 
 void deinit_network_client(entt::registry &registry) {
@@ -184,48 +224,6 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
     }
 }
 
-static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
-    // Result contains entities already mapped into the main registry space.
-    // Entities could've been destroyed while extrapolation was running.
-    auto invalid_it = std::remove_if(result.entities.begin(), result.entities.end(),
-                                     [&](auto entity) { return !registry.valid(entity); });
-    result.entities.erase(invalid_it, result.entities.end());
-
-    if (result.terminated_early) {
-        auto &ctx = registry.ctx().at<client_network_context>();
-        ctx.extrapolation_timeout_signal.publish();
-    }
-
-    auto &settings = registry.ctx().at<edyn::settings>();
-
-    if (settings.execution_mode == edyn::execution_mode::asynchronous) {
-        auto &stepper = registry.ctx().at<stepper_async>();
-        stepper.send_message_to_worker<extrapolation_result>(std::move(result));
-    } else {
-        auto &ctx = registry.ctx().at<client_network_context>();
-        ctx.snapshot_exporter->set_observer_enabled(false);
-        process_extrapolation_result(registry, result);
-        ctx.snapshot_exporter->set_observer_enabled(true);
-    }
-}
-
-static void process_finished_extrapolation_jobs(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
-
-    // Check if extrapolation jobs are finished and merge their results into
-    // the main registry.
-    auto remove_it = std::remove_if(ctx.extrapolation_jobs.begin(), ctx.extrapolation_jobs.end(),
-                                    [&](extrapolation_job_context &extr_ctx) {
-        if (extr_ctx.job->is_finished()) {
-            auto &result = extr_ctx.job->get_result();
-            apply_extrapolation_result(registry, result);
-            return true;
-        }
-        return false;
-    });
-    ctx.extrapolation_jobs.erase(remove_it, ctx.extrapolation_jobs.end());
-}
-
 static void client_update_clock_sync(entt::registry &registry, double time) {
     auto &ctx = registry.ctx().at<client_network_context>();
     auto &settings = registry.ctx().at<edyn::settings>();
@@ -261,7 +259,7 @@ void update_network_client(entt::registry &registry) {
     process_destroyed_networked_entities(registry, time);
     update_client_snapshot_exporter(registry, time);
     maybe_publish_registry_snapshot(registry, time);
-    process_finished_extrapolation_jobs(registry);
+    registry.ctx().at<client_network_context>().message_queue.update();
     update_input_history(registry, time);
     trim_and_insert_actions(registry, time);
 }
@@ -530,11 +528,6 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         return;
     }
 
-    // Ignore it if the number of current extrapolation jobs is at maximum.
-    if (ctx.extrapolation_jobs.size() >= client_settings.max_concurrent_extrapolations) {
-        return;
-    }
-
     // Collect all entities to be included in extrapolation, that is, all
     // entities that are reachable from the entities contained in the snapshot.
     auto &graph = registry.ctx().at<entity_graph>();
@@ -587,14 +580,14 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     }
 
     // Create input to send to extrapolation job.
-    extrapolation_input input;
-    input.start_time = snapshot_time;
+    extrapolation_request req;
+    req.start_time = snapshot_time;
 
     for (auto entity : entities) {
         if (auto *owner = registry.try_get<entity_owner>(entity);
             owner && owner->client_entity == ctx.client_entity)
         {
-            input.owned_entities.emplace(entity);
+            req.owned_entities.emplace(entity);
         }
     }
 
@@ -602,23 +595,19 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
     builder->create(entities.begin(), entities.end());
     builder->emplace_all(entities);
-    input.ops = std::move(builder->finish());
+    req.ops = std::move(builder->finish());
 
-    input.entities = std::move(entities);
-    input.snapshot = std::move(snapshot);
-    input.should_remap = true;
-
-    auto &material_table = registry.ctx().at<material_mix_table>();
+    req.entities = std::move(entities);
+    req.snapshot = std::move(snapshot);
+    req.should_remap = true;
 
     // Assign latest value of action threshold before extrapolation.
     ctx.input_history->action_time_threshold = client_settings.action_time_threshold;
 
-    auto job = std::make_unique<extrapolation_job>(std::move(input), settings, reg_op_ctx,
-                                                   material_table, ctx.input_history,
-                                                   ctx.make_extrapolation_modified_comp);
-    job->reschedule();
-
-    ctx.extrapolation_jobs.emplace_back(std::move(job));
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<extrapolation_request>({"extrapolation_worker"},
+                                           ctx.message_queue.identifier,
+                                           std::move(req));
 }
 
 static void process_packet(entt::registry &registry, packet::set_playout_delay &delay) {
