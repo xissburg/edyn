@@ -35,16 +35,15 @@ void stepper_sequential::update() {
 
     auto fixed_dt = m_registry->ctx().at<settings>().fixed_dt;
     m_accumulated_time += elapsed;
-    auto num_steps = static_cast<int>(std::floor(m_accumulated_time / fixed_dt));
+    auto num_steps = static_cast<unsigned>(std::floor(m_accumulated_time / fixed_dt));
     m_accumulated_time -= num_steps * fixed_dt;
-
-    int max_steps = 10;
-    num_steps = std::min(num_steps, max_steps);
 
     auto &bphase = m_registry->ctx().at<broadphase>();
     auto &nphase = m_registry->ctx().at<narrowphase>();
     auto &emitter = m_registry->ctx().at<contact_event_emitter>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
+
+    num_steps = std::min(num_steps, settings.max_steps_per_update);
 
     m_poly_initializer.init_new_shapes();
 
