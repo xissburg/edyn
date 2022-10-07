@@ -224,8 +224,6 @@ static void process_packet(entt::registry &, entt::entity, const packet::server_
 
 void init_network_server(entt::registry &registry) {
     registry.ctx().emplace<server_network_context>(registry);
-    // Assign an entity owner to every island created.
-    registry.on_construct<island>().connect<&entt::registry::emplace<entity_owner>>();
 
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.network_settings = server_network_settings{};
@@ -233,7 +231,6 @@ void init_network_server(entt::registry &registry) {
 
 void deinit_network_server(entt::registry &registry) {
     registry.ctx().erase<server_network_context>();
-    registry.on_construct<island>().disconnect<&entt::registry::emplace<entity_owner>>();
 
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.network_settings = {};

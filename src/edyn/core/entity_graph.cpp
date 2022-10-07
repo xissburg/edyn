@@ -517,4 +517,50 @@ void entity_graph::optimize_if_needed() {
     }
 }
 
+void entity_graph::clear() {
+    m_nodes_free_list = null_index;
+    m_edges_free_list = null_index;
+    m_adjacencies_free_list = null_index;
+    m_node_count = 0;
+    m_edge_count = 0;
+
+    if (!m_nodes.empty()) {
+        for (auto i = 0; i < m_nodes.size(); ++i) {
+            auto &node = m_nodes[i];
+            node.next = i + 1;
+            node.adjacency_index = null_index;
+            node.entity = entt::null;
+        }
+
+        m_nodes.back().next = null_index;
+        m_nodes_free_list = 0;
+    }
+
+    if (!m_edges.empty()) {
+        for (auto i = 0; i < m_edges.size(); ++i) {
+            auto &edge = m_edges[i];
+            edge.next = i + 1;
+            edge.node_index0 = null_index;
+            edge.node_index1 = null_index;
+            edge.adj_index0 = null_index;
+            edge.adj_index1 = null_index;
+            edge.entity = entt::null;
+        }
+
+        m_edges.back().next = null_index;
+        m_edges_free_list = 0;
+    }
+
+    if (!m_adjacencies.empty()) {
+        for (auto i = 0; i < m_adjacencies.size(); ++i) {
+            m_adjacencies[i].next = i + 1;
+            m_adjacencies[i].node_index = null_index;
+            m_adjacencies[i].edge_index = null_index;
+        }
+
+        m_adjacencies.back().next = null_index;
+        m_adjacencies_free_list = 0;
+    }
+}
+
 }

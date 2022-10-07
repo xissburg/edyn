@@ -95,6 +95,8 @@ public:
      */
     const tree_node & get_node(tree_node_id_t) const;
 
+    void clear();
+
 private:
     tree_node_id_t m_root;
 

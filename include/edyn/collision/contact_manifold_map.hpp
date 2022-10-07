@@ -38,6 +38,8 @@ public:
     void on_construct_contact_manifold(entt::registry &, entt::entity);
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
+    void clear();
+
 private:
     std::map<entity_pair, entt::entity> m_pair_map;
 };

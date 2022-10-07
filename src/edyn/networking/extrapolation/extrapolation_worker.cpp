@@ -70,6 +70,7 @@ void extrapolation_worker::start() {
 void extrapolation_worker::stop() {
     EDYN_ASSERT(m_thread);
     m_running.store(false, std::memory_order_release);
+    m_cv.notify_one();
     m_thread->join();
     m_thread.reset();
 }
@@ -210,9 +211,8 @@ void extrapolation_worker::finish_extrapolation() {
     auto &dispatcher = message_dispatcher::global();
     dispatcher.send<extrapolation_result>(m_destination_queue, m_message_queue.identifier, std::move(result));
 
-    m_registry.each([&](entt::entity entity) {
-        m_registry.destroy(entity);
-    });
+    m_registry.clear();
+    m_entity_map.clear();
 }
 
 bool extrapolation_worker::should_step() {

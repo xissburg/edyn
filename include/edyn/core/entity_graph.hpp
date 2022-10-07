@@ -159,13 +159,15 @@ public:
 
     void optimize_if_needed();
 
+    void clear();
+
 private:
     std::vector<node> m_nodes;
     std::vector<edge> m_edges;
     std::vector<adjacency> m_adjacencies;
 
-    size_t m_node_count;
-    size_t m_edge_count;
+    size_t m_node_count {};
+    size_t m_edge_count {};
 
     size_t m_nodes_free_list {null_index};
     size_t m_edges_free_list {null_index};

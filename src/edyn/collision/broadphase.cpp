@@ -208,4 +208,12 @@ void broadphase::finish_collide() {
     }
 }
 
+void broadphase::clear() {
+    m_tree.clear();
+    m_np_tree.clear();
+    m_island_tree.clear();
+    m_new_aabb_entities.clear();
+    m_pair_results.clear();
+}
+
 }

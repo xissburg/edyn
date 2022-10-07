@@ -41,6 +41,8 @@ public:
     template<typename Func>
     void query_islands(const AABB &aabb, Func func) const;
 
+    void clear();
+
     void on_construct_aabb(entt::registry &, entt::entity);
     void on_destroy_tree_resident(entt::registry &, entt::entity);
     void on_construct_island_aabb(entt::registry &, entt::entity);
